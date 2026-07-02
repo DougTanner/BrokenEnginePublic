@@ -5,7 +5,7 @@ namespace engine
 
 // Float-backed container for a UI-bound setting (float / bool / discrete-enum flavors).
 // Thread contract: no atomics. Single writer on the main thread during ImGuiManager::Prepare (Tweaks/menu screens,
-// ImGuiManager.cpp:242-286); readers run later in the same frame, also main-thread. A wrapper read inside a
+// ImGuiManager.cpp:383-433); readers run later in the same frame, also main-thread. A wrapper read inside a
 // gpMultithreading->Dispatch() region (e.g. gBaseHeight in NavQuery.cpp:503/583/603) must have NO runtime writer —
 // mfCurrent is unsynchronized, so a Tweaks/menu-bound wrapper read from a worker thread would race.
 class Wrapper

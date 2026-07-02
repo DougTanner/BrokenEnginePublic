@@ -1,7 +1,8 @@
 Forward Error Correction (FEC) for Server Coord Updates
 =========================================================
+NOTE: Line numbers indicative only — anchor on symbols.
 Priority: LOW — Only implement if WAN packet loss consistently exceeds 2%.
-         The existing resend system (ACK bitfield + SendResends) handles LAN well.
+         The existing resend system (ACK bitfield + SendResends, ServerSend.cpp:159) handles LAN well.
 
 Concept
 -------
@@ -10,7 +11,7 @@ packet as the bitwise XOR of all N payloads. If any single packet in the group i
 lost, the client reconstructs it from the remaining N-1 data packets plus the parity
 packet. Cost: 1/N bandwidth overhead per slot.
 
-FEC groups are per-coord-per-client because Server::SendUpdate() (ServerSend.cpp:197)
+FEC groups are per-coord-per-client because Server::SendUpdate() (ServerSend.cpp:124)
 sends one unreliable packet per active subscription slot per tick. Each slot already
 has independent ACK tracking (AckState in coordAckStates), so FEC state naturally
 lives alongside it.
@@ -57,7 +58,7 @@ Add to ClientConnection struct (after coordAckStates, line 25):
 
     std::vector<FecSlotState> coordFecStates;
 
-Initialize in Server::Connect() (Server.cpp line 103-104), add after coordAckStates resize:
+Initialize in Server::Connect() (resize calls at Server.cpp:129-132), add after coordAckStates resize:
 
     connection.coordFecStates.resize(NetworkManager::kiMaxEnetCoordSlots);
 
@@ -73,9 +74,10 @@ Add private method declaration to Server class (after line 131):
 
 3. Engine/Source/Network/Server/ServerSend.cpp
 ----------------------------------------------
-Modify Server::SendUpdate() (line 197-229):
+Modify Server::SendUpdate() (line 124):
 
-After the enet_peer_send call (line 226), before rWorkbuffer.Pop(), accumulate the
+After the enet_peer_send call (line 150; the resend path's send is at line 233), before
+rWorkbuffer.Pop(), accumulate the
 packet payload into the FEC parity buffer and check if the group is complete:
 
     // FEC: accumulate parity and send parity packet when group is complete
@@ -307,9 +309,9 @@ Add new methods at end of file (before closing namespace brace, line 283):
 
 7. Engine/Source/Network/Server/ServerReceive.cpp
 -------------------------------------------------
-Adaptive FEC group sizing. In Server::ClientAckStream() (line 11-63):
+Adaptive FEC group sizing. In Server::ClientAckStream() (epoch/ack logic at ~lines 44-73):
 
-After updating the ACK state (line 44), compute per-slot loss rate from the bitfield
+After updating the ACK state, compute per-slot loss rate from the bitfield
 and adjust FEC group size:
 
     // Adaptive FEC: adjust group size based on observed loss in the bitfield

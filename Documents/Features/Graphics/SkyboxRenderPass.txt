@@ -1,12 +1,23 @@
 Feature: Fullscreen Skybox Render Pass
 ========================================
 
+Line numbers indicative only -- anchor on symbols.
+
 Context
 -------
 The engine currently has no visible sky -- the clear color fills any
 background pixels.  IBL cubemaps (irradiance + pre-filtered specular)
-are already loaded for PBR reflections but are never rendered as a
-skybox.  CameraBase drives a sun angle that controls day/night
+are loaded for PBR use.  Since this plan was written, Water.frag
+gained a full skybox-reflection system (it binds a samplerCube
+skyboxSampler and 13 fLightingWaterSkybox* uniforms) -- but water
+uses a DIFFERENT cubemap (kPrefilteredWaterCrc, Ryfjallet), while the
+KloofendalPuresky prefiltered map (kPrefilteredCrc) remains the
+Model/PBR IBL map and is still never drawn as a fullscreen sky.
+This plan's fullscreen sky pass is distinct from those water
+reflections; to avoid confusion with the existing water "Skybox"
+naming, prefer a non-colliding naming scheme for the new work
+(e.g. kPipelineSky / Sky.frag instead of kPipelineSkybox /
+Skybox.frag).  CameraBase drives a sun angle that controls day/night
 lighting via PopulateSunAndLighting() in GlobalUniforms.cpp.
 
 Why
@@ -103,7 +114,8 @@ Changes (11 files)
      float fSkyboxPadW INIT;
 
 3. Engine/Source/Graphics/Render/MainUniforms.cpp
-   After line 66 (the XMStoreFloat4x4 for f4x4ViewProjection), add
+   Next to the f4x4ViewProjection store (the XMStoreFloat4x4 for
+   f4x4ViewProjection), add
    computation of the inverse VP rotation matrix (translation zeroed
    so the skybox rotates with the camera but does not translate):
 
@@ -117,13 +129,13 @@ Changes (11 files)
      }
 
 4. Engine/Source/Graphics/Managers/PipelineManager.h
-   Add kPipelineSkybox to the Pipelines enum.  Insert after
-   kPipelineWater (line 35), before kPipelineSmokeClearA:
+   Add kPipelineSkybox to the Pipelines enum.  Insert after the
+   kPipelineWater entry, before kPipelineSmokeClearA:
 
      kPipelineSkybox,
 
 5. Engine/Source/Graphics/Managers/PipelineManager.cpp
-   Create the skybox pipeline inside CreateLightingShadowDependantPipelines(),
+   Create the skybox pipeline inside CreateLightingShadowDependentPipelines(),
    after the Water pipeline creation (after line 330, before the closing
    brace of the function).  Add:
 

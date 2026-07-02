@@ -20,6 +20,10 @@ The engine already has two collection patterns to build on:
 Flipbooks combine the world-space rendering of Puffs with the bindless texture
 sampling of Billboards, adding UV sub-rect animation driven by elapsed time.
 
+CAVEAT: Billboards source files were NOT found under
+Engine/Source/Frame/Collections/ (only referenced from FrameBase.h:78,189) --
+verify the Billboards source location before using it as a pattern.
+
 Texture atlases are just regular textures loaded through the existing
 TextureDescriptors system -- no DataPacker changes are needed.
 
@@ -162,6 +166,8 @@ Additional updates (not counted as separate changes):
 
 Notes
 -----
+- The new SOA members on FlipbooksInterpolate/FlipbooksPostRender require the
+  add-collection-member checklist
 - Flipbook textures are loaded as regular textures via TextureDescriptors --
   no DataPacker or atlas packing changes needed
 - The random start frame offset prevents all simultaneous explosions from

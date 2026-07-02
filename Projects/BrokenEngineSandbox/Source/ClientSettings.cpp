@@ -73,7 +73,7 @@ enum class GraphicsSettingsFlags : uint8_t
 
 struct GraphicsSettings
 {
-	static constexpr int64_t kiVersion = 7;
+	static constexpr int64_t kiVersion = 8;
 
 	common::Flags<GraphicsSettingsFlags> flags {};
 	VkPresentModeKHR ePresentMode = VK_PRESENT_MODE_FIFO_KHR;
@@ -87,6 +87,7 @@ struct GraphicsSettings
 	float fMinimumAmbient = 0.0f;
 	float fUiOpacity = 0.9f;
 	float fUiFontScale = 1.0f;
+	engine::UiTheme eUiTheme = engine::UiTheme::kNavalSteel;
 };
 static constexpr char kpcGraphicsSettingsPath[] = "GraphicsSettings.bin";
 
@@ -108,6 +109,7 @@ void SaveGraphicsSettings()
 		.fMinimumAmbient = engine::gSunMoonMinimumAmbient.Get(),
 		.fUiOpacity = engine::gUiOpacity.Get(),
 		.fUiFontScale = engine::gUiFontScale.Get(),
+		.eUiTheme = engine::GetUiTheme(),
 	};
 
 	graphicsSettings.flags.Set(GraphicsSettingsFlags::kFullscreen, engine::gFullscreen.Get<bool>());
@@ -145,6 +147,7 @@ bool LoadGraphicsSettings()
 		engine::gOpaqueUi.Set(graphicsSettings.flags & GraphicsSettingsFlags::kOpaqueUi);
 		engine::gUiOpacity.Set(graphicsSettings.fUiOpacity);
 		engine::gUiFontScale.Set(graphicsSettings.fUiFontScale);
+		engine::gUiTheme.Set<engine::UiTheme>(graphicsSettings.eUiTheme);
 		return true;
 	}
 
@@ -171,6 +174,7 @@ void ResetGraphicsSettings()
 	engine::gOpaqueUi.ResetToDefault();
 	engine::gUiOpacity.ResetToDefault();
 	engine::gUiFontScale.ResetToDefault();
+	engine::gUiTheme.ResetToDefault();
 
 	SaveGraphicsSettings();
 }

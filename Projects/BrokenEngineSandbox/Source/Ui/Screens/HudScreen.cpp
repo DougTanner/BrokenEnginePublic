@@ -198,14 +198,19 @@ void HudScreen::RenderFleetPanel(float fTarget)
 		eFlags |= ImGuiWindowFlags_AlwaysAutoResize;
 	}
 	ImGui::SetNextWindowPos(ImVec2(fEdgeX, vAnchor.y), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+	ScopedMenuFont menuFont;
 	ImGui::Begin("FleetPanel", nullptr, eFlags);
-	ImGui::SetWindowFontScale(kfMenuUiScale);
 	mFleetSlide.vLastSize = ImGui::GetWindowSize();
 	if (mfFixedPanelWidth <= 0.0f && mFleetSlide.vLastSize.x > 0.0f)
 	{
 		mfFixedPanelWidth = mFleetSlide.vLastSize.x * 7.2f;
 	}
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
+
+	// Border + accent strip only — the opaque themed WindowBg must stay intact for RegisterOpaqueRect occlusion
+	ImVec2 vPanelPos = ImGui::GetWindowPos();
+	ImVec2 vPanelSize = ImGui::GetWindowSize();
+	DrawPanelAccents(ImGui::GetWindowDrawList(), vPanelPos, ImVec2(vPanelPos.x + vPanelSize.x, vPanelPos.y + vPanelSize.y));
 
 	int64_t iFleetCount = gpGame->FleetCount();
 
@@ -312,7 +317,7 @@ void HudScreen::RenderFleetPanel(float fTarget)
 			{
 				char pcLabel[64];
 				std::snprintf(pcLabel, sizeof(pcLabel), "Ship %lld [DEAD] #%lld", i + 1, rMember.globalPlayerId.iValue);
-				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
 				if (ImGui::Selectable(pcLabel, false))
 				{
 					if (gpClientSession != nullptr)
@@ -390,10 +395,15 @@ void HudScreen::RenderFocusedPlayerPanel(float fTarget)
 		eFlags |= ImGuiWindowFlags_AlwaysAutoResize;
 	}
 	ImGui::SetNextWindowPos(ImVec2(fEdgeX, vAnchor.y), ImGuiCond_Always, ImVec2(0.0f, 0.0f));
+	ScopedMenuFont menuFont;
 	ImGui::Begin("FocusedPlayerPanel", nullptr, eFlags);
-	ImGui::SetWindowFontScale(kfMenuUiScale);
 	mFocusedPlayerSlide.vLastSize = ImGui::GetWindowSize();
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
+
+	// Border + accent strip only — the opaque themed WindowBg must stay intact for RegisterOpaqueRect occlusion
+	ImVec2 vPanelPos = ImGui::GetWindowPos();
+	ImVec2 vPanelSize = ImGui::GetWindowSize();
+	DrawPanelAccents(ImGui::GetWindowDrawList(), vPanelPos, ImVec2(vPanelPos.x + vPanelSize.x, vPanelPos.y + vPanelSize.y));
 
 	if (oPlayerIndex.has_value())
 	{

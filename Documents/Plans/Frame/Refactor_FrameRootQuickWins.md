@@ -1,0 +1,41 @@
+# Refactor: Frame Root Quick Wins (Nav/Collision/Terrain)
+
+## Context
+Source: /external-refactor-clean on Engine/Source (recursive). Simulation-adjacent mechanical cleanup. No finding requires reordering floating-point ops in a sim path; the two items touching sim code (pair-context struct, polygon-range helper) are integer/plumbing-only and flagged for byte-identical arithmetic. One latent crash-class guard (workbuffer alignment).
+
+## Design
+
+### Engine/Source/Frame/Collision.{h,cpp}
+- Delete the write-only `siResultEntryCount` (`Collision.h:107`, defined `.cpp:71`, single assignment `.cpp:366` — never read; result consumption goes through `sResultSpans`/`sResultEntries`) [~5m]
+- Bundle the per-layer-pair-invariant tuple (`rLayerA`, `rLayerB`, `uiLayerA`, `uiLayerB`, `bSweptPair`, `rAlignments`) into a pair-context struct built once in `CollideLayerPair` (:507) — `TestAndRecordPair` takes 10 params (:439), `RecordCollision` 7 (:413). Keep bodies byte-identical (sim hot path) [~30m]
+- Workbuffer alignment guard: `PendingCollisionResult` (holds two `XMVECTOR`s, alignof 16) round-trips through `Workbuffer` `PushBack` (:415) / `Span<T>` reinterpret_cast (:328 → `Common/Workbuffer.h:70`) with no alignment guarantee — holds today only because the enclosing arena content is 32-byte-stride; any future non-16-multiple `Append` around `Collide` silently misaligns every element (UB; MSVC may emit `movaps`). Add an `ASSERT((miBase % alignof(T)) == 0)`-style guard in `Workbuffer::Span<T>` (Common change, guards all users) [~15m]
+- Trivia: stray blank line (:376-377); redundant `memset` after value-initializing `resize` (:522-523) [~5m]
+
+### Engine/Source/Frame/NavQuery.cpp
+- Delete the unreachable start→end LOS re-test in `AStarPath` (:505-508) — the sole caller `NavQueryDirection` enters A* exclusively on the else-branch of the identical test with identical coordinates (:662; snapping at :656-659 precedes the test). Costs a full DDA grid walk per A* invocation at 32 Hz. Keep a comment stating the caller's invariant [~5m]
+- Pass `fBaseHeight` into `AStarPath` (:459 re-reads `gBaseHeight.Get()`; sibling `NavMissFallbackDirection` takes it as a param, :538; caller holds it, :594) [~5m]
+- Drop `NavMissFallbackDirection`'s `iVertexCount` param (:538) — derivable from the `rNavData.vertices` already passed [~5m]
+- Single-source the A* scratch layout — `ComputeAStarMemorySize` (:274-286) and `PartitionAStarMemory` (:288-306) duplicate the 7-array layout (and its "bools last" comment); one partition routine that also returns total size [~15m]
+
+### Nav polygon-range helper
+- Add `PolygonRange(offsets, iPoly, iVertexTotal)` to `NavBuildInternal.h` and fold the ~8 hand-expanded `iStart`/`iEnd`-with-last-polygon-fallback sites: `NavBuild.cpp:280-282,303-305,328-330,546-548`; `NavCellData.cpp:25-27,42-44,152-155,186-189`; `NavQuery.cpp:172-174,210-212`. Integer-only; keep arithmetic identical (sim-feeding paths) [~30m]
+
+### Engine/Source/Frame/IslandTerrainResidency.cpp (client-only)
+- Extract `ChannelCrcs(rLazyChunk, crcs[4])` — the 4-channel CRC array build is copied at :196-202, :254-260, :408-414, :295-301 [~15m]
+- Extract `QualifiesForEviction(rTemplate)` — `AnyEvictionPending` (:228-235) hand-mirrors `EvictTemplate`'s condition (:283-290) with a comment promising they match; enforce in code (same pattern, weaker, for `AnyRestorationPending`) [~15m]
+
+### Engine/Source/Frame/TimeStep.h
+- Delete the zero-call-site `GetTimeMultiplier()` (:28) — consumers read `miTimeMultiply`/`miTimeDivide` directly per style rule 49 [~5m]
+
+## Critical files
+- `Engine/Source/Frame/Collision.{h,cpp}`, `NavQuery.cpp`, `NavBuild.cpp`, `NavCellData.cpp`, `NavBuildInternal.h`, `IslandTerrainResidency.cpp`, `TimeStep.h`
+- `Common/Workbuffer.h` (alignment guard)
+
+## Out of scope
+- Island residency lifecycle (live island-series plans share `IslandTerrainResidency.cpp` — co-schedule or refresh)
+- `AlignmentFlags` → `common::Flags` conversion (note-tier; opportunistic only)
+- `gBaseHeight` wrapper-in-sim tuning-desync exposure (established repo pattern; not filed)
+
+## Notes
+- Invariant exposure: MODERATE — items touch sim-path files but are integer/plumbing/dead-code only; the pair-context and polygon-range changes must keep arithmetic byte-identical (`/fp:strict` paths). The workbuffer ASSERT is crash-class hardening, not a behavior change. Client/server both compile
+- Grill decision: workbuffer guard location — generic `Span<T>`/`PushBack` assert in Common (recommended) vs a site-local assert at `Collide`

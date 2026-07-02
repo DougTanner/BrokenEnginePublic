@@ -81,7 +81,9 @@ Changes (3 files)
    - Get SpaceshipsPostRender from the frame, count alive enemies (skip kExploding)
    - Get PlayersPostRender, find flagship player index, read armor and shields
    - Get BlastersInterpolate and MissilesInterpolate counts for projectile activity
-   - Use Game::PreviousClientArmor() to detect recent damage (armor decreased)
+   - Use Game's mfPreviousClientArmor member field to detect recent damage (armor
+     decreased) -- already maintained in Game.cpp (updated ~line 343, reset ~line 463,
+     restored from save meta ~line 907)
    - Compute desired MusicIntensity from the above signals
    - Apply hysteresis: track how long the desired intensity has been sustained
    - If sustained long enough and cooldown has elapsed, update meCurrentIntensity
@@ -133,6 +135,9 @@ Changes (3 files)
 Notes
 -----
 - Menu music is unchanged -- adaptive music only applies during gameplay
+- The current live mGameMusicPlaylist order is: UnexpectedTrouble, HighAlert,
+  OnPatrol, TheGearsofProgress (Game.h:179) -- the tier->CRC map in GetTrack()
+  should be written against the CRC constants, not playlist indices
 - No new audio assets required; the 4 existing game tracks map directly to
   intensity tiers
 - No frame state is modified -- all queries are read-only against the render

@@ -7,7 +7,9 @@ Context
 -------
 Collections currently communicate through direct function calls. One collection includes another's
 header and calls its static methods (Add, Remove, Sync, Spawn). This creates explicit coupling:
-- Players.cpp includes Blasters.h, Missiles.h, Spaceships.h, Explosions.h
+- Players.cpp includes Blasters.h, Explosions.h (after the Players.cpp split, the Missiles.h and
+  Spaceships.h cross-collection includes moved to PlayersCombat.cpp; Spaceships.h also appears in
+  PlayersNavigation.cpp and PlayersRender.cpp — the coupling set is unchanged, only which file holds it)
 - Spaceships.cpp includes Blasters.h, Targets.h, Players.h, Explosions.h
 - Missiles.cpp includes Targets.h, Explosions.h
 

@@ -5,6 +5,7 @@
 #include "Game.h"
 #include "MenuUtils.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/Localization.h"
 #include "Ui/SunMoonWrappersBase.h"
 
 namespace game
@@ -23,10 +24,15 @@ void GraphicsMenuScreen::Render()
 	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.5f, rIo.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x * 0.6f, 0.0f));
 
+	ScopedMenuFont menuFont;
 	ImGui::Begin("GraphicsMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
-	ImGui::SetWindowFontScale(kfMenuUiScale);
 
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
+
+	{
+		ScopedMenuFont headingFont(kfMenuUiScale * kfMenuHeadingScale);
+		ImGui::TextUnformatted(AppendUtf8(common::gpThreadLocal->mWorkbuffer, TranslatedString(kStringGraphics)));
+	}
 
 	// FPS display
 	ImGui::Text("FPS: %lld", engine::gpGraphics->mRendersInTheLastSecond.Get());
@@ -133,11 +139,28 @@ void GraphicsMenuScreen::Render()
 
 	WrapperPlusMinus("Font Size", &engine::gUiFontScale, 0.1f);
 
+	ImGui::Text("Theme");
+	engine::UiTheme eTheme = engine::GetUiTheme();
+	if (ImGui::RadioButton("Naval Steel", eTheme == engine::UiTheme::kNavalSteel))
+	{
+		engine::gUiTheme.Set<engine::UiTheme>(engine::UiTheme::kNavalSteel);
+	}
+	ImGui::SameLine();
+	if (ImGui::RadioButton("Dark Amber", eTheme == engine::UiTheme::kDarkAmber))
+	{
+		engine::gUiTheme.Set<engine::UiTheme>(engine::UiTheme::kDarkAmber);
+	}
+	ImGui::SameLine();
+	if (ImGui::RadioButton("Monochrome", eTheme == engine::UiTheme::kMonochrome))
+	{
+		engine::gUiTheme.Set<engine::UiTheme>(engine::UiTheme::kMonochrome);
+	}
+
 	ImGui::Columns(1);
 
 	// Back button
 	ImGui::Separator();
-	if (ImGui::Button("Back"))
+	if (MenuButton("Back", ImVec2(0.0f, 0.0f), mfBackHoverAnim))
 	{
 		SaveGraphicsSettings();
 		gpGame->meUiState = UiState::kPause;

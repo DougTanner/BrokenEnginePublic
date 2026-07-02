@@ -143,7 +143,7 @@ Changes (13 files)
 8. Engine/Source/Graphics/Managers/CommandBufferManager.cpp
    In RecordMainCommandBuffer image pass, add grass rendering after
    terrain (kGpuTimerTerrain) and before water (kGpuTimerWater).
-   Insert between lines 703 and 705:
+   Insert after the kGpuTimerTerrain block, before kGpuTimerWater:
 
      gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerGrass);
      for (const auto& [rCrc, pPipeline] : gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineGrass])
@@ -196,3 +196,6 @@ Notes
   surrounding ground without needing separate grass color textures
 - Consider adding a noise-based height variation and dryness/color
   variation texture in a follow-up pass for visual richness
+- The IslandTerrain elevation/normal accessor names used above
+  (Elevation()/Normal()) are speculative -- verify against the
+  current IslandTerrain header at execution time

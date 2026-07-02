@@ -4,7 +4,7 @@ Implementation plans for brand-new additions — work that gives the engine a ca
 
 ## Index File
 
-`Order.md` — all feature plans, sorted by score (lowest first). Plans live in area subdirectories: `Audio/`, `Engine/`, `Frame/`, `Graphics/`, `Misc/`, `Network/`. Besides the scored table, `Order.md` has three sections plan authors must keep current:
+`Order.md` — all feature plans, sorted by score (lowest first). Plans live in area subdirectories: `Audio/`, `Engine/`, `Frame/`, `Graphics/`, `Network/`. Besides the scored table, `Order.md` has three sections plan authors must keep current:
 
 - **Reference / Index Documents** — unscored reference/index docs; exempt from the scoring requirement and never independently scheduled.
 - **Dependencies** — intra-queue ordering, plus cross-directory dependencies on `Documents/Plans/` plans touching the same files.

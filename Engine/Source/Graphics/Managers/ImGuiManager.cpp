@@ -21,6 +21,67 @@
 namespace engine
 {
 
+namespace
+{
+
+// Base hues per UiTheme; ApplyThemeColors derives the full ImGuiStyle::Colors[] set from these (designer-pass placeholders)
+struct ThemePalette
+{
+	ImVec4 f4Text;
+	ImVec4 f4TextDisabled;
+	ImVec4 f4Bg;
+	ImVec4 f4BgElevated;
+	ImVec4 f4Accent;
+	ImVec4 f4AccentHover;
+	ImVec4 f4AccentActive;
+	ImVec4 f4Border;
+};
+
+constexpr ThemePalette kThemePalettes[]
+{
+	// kNavalSteel: near-black blue-grey, steel borders, cyan/teal accent
+	{
+		.f4Text = ImVec4(0.86f, 0.91f, 0.94f, 1.0f),
+		.f4TextDisabled = ImVec4(0.45f, 0.52f, 0.58f, 1.0f),
+		.f4Bg = ImVec4(0.07f, 0.09f, 0.11f, 1.0f),
+		.f4BgElevated = ImVec4(0.12f, 0.16f, 0.20f, 1.0f),
+		.f4Accent = ImVec4(0.15f, 0.75f, 0.85f, 1.0f),
+		.f4AccentHover = ImVec4(0.25f, 0.85f, 0.95f, 1.0f),
+		.f4AccentActive = ImVec4(0.10f, 0.60f, 0.70f, 1.0f),
+		.f4Border = ImVec4(0.25f, 0.33f, 0.40f, 1.0f),
+	},
+	// kDarkAmber: charcoal, warm amber accent
+	{
+		.f4Text = ImVec4(0.92f, 0.89f, 0.84f, 1.0f),
+		.f4TextDisabled = ImVec4(0.55f, 0.51f, 0.45f, 1.0f),
+		.f4Bg = ImVec4(0.09f, 0.09f, 0.09f, 1.0f),
+		.f4BgElevated = ImVec4(0.15f, 0.14f, 0.13f, 1.0f),
+		.f4Accent = ImVec4(0.95f, 0.65f, 0.15f, 1.0f),
+		.f4AccentHover = ImVec4(1.0f, 0.75f, 0.25f, 1.0f),
+		.f4AccentActive = ImVec4(0.80f, 0.52f, 0.10f, 1.0f),
+		.f4Border = ImVec4(0.38f, 0.33f, 0.26f, 1.0f),
+	},
+	// kMonochrome: pure greyscale, white accents
+	{
+		.f4Text = ImVec4(0.92f, 0.92f, 0.92f, 1.0f),
+		.f4TextDisabled = ImVec4(0.50f, 0.50f, 0.50f, 1.0f),
+		.f4Bg = ImVec4(0.08f, 0.08f, 0.08f, 1.0f),
+		.f4BgElevated = ImVec4(0.14f, 0.14f, 0.14f, 1.0f),
+		.f4Accent = ImVec4(0.85f, 0.85f, 0.85f, 1.0f),
+		.f4AccentHover = ImVec4(1.0f, 1.0f, 1.0f, 1.0f),
+		.f4AccentActive = ImVec4(0.70f, 0.70f, 0.70f, 1.0f),
+		.f4Border = ImVec4(0.35f, 0.35f, 0.35f, 1.0f),
+	},
+};
+static_assert(std::size(kThemePalettes) == static_cast<size_t>(UiTheme::kCount));
+
+ImVec4 WithAlpha(const ImVec4& rf4Color, float fAlpha)
+{
+	return ImVec4(rf4Color.x, rf4Color.y, rf4Color.z, fAlpha);
+}
+
+} // namespace
+
 ImGuiManager::ImGuiManager(HWND hwnd)
 {
 	ASSERT(gpImGuiManager == nullptr);
@@ -73,17 +134,8 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	};
 	ImGui_ImplVulkan_Init(&initInfo);
 
-	// Scale UI element sizes to 2x
-	ImGui::GetStyle().ScaleAllSizes(2.0f);
-
-	// Set global dark window background with user-controlled opacity
-	{
-		ImGuiStyle& rStyle = ImGui::GetStyle();
-		float fOpacity = gUiOpacity.Get();
-		rStyle.Colors[ImGuiCol_WindowBg] = ImVec4(0.1f, 0.1f, 0.1f, fOpacity);
-		rStyle.Colors[ImGuiCol_ChildBg] = ImVec4(0.1f, 0.1f, 0.1f, fOpacity);
-		rStyle.Colors[ImGuiCol_PopupBg] = ImVec4(0.1f, 0.1f, 0.1f, fOpacity);
-	}
+	SetupThemeGeometry();
+	ApplyThemeColors(GetUiTheme());
 
 	// Do a dummy frame cycle to ensure ImGui is in a clean state
 	// NewFrame triggers font atlas creation, then upload textures before EndFrame validates them
@@ -111,6 +163,86 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	mpSoundMenuScreen = std::make_unique<game::SoundMenuScreen>();
 	mpDeathMenuScreen = std::make_unique<game::DeathMenuScreen>();
 	mpHudScreen = std::make_unique<game::HudScreen>();
+}
+
+// Rounding/border/padding values are base (pre-scale); called once — ScaleAllSizes is cumulative and must never run in the re-applyable color path
+void ImGuiManager::SetupThemeGeometry()
+{
+	ImGuiStyle& rStyle = ImGui::GetStyle();
+
+	// WindowRounding stays small: RegisterOpaqueRect occlusion rects are rectangular, so with gOpaqueUi on, large rounding
+	// would occlude the 3D scene behind the rounded-off corners (4.0f base -> 8px after the 2x scale below)
+	rStyle.WindowRounding = 4.0f;
+	rStyle.ChildRounding = 3.0f;
+	rStyle.FrameRounding = 3.0f;
+	rStyle.PopupRounding = 3.0f;
+	rStyle.GrabRounding = 3.0f;
+	rStyle.TabRounding = 3.0f;
+	rStyle.WindowBorderSize = 1.0f;
+	rStyle.FrameBorderSize = 1.0f;
+	rStyle.WindowPadding = ImVec2(10.0f, 10.0f);
+	rStyle.FramePadding = ImVec2(6.0f, 4.0f);
+	rStyle.ItemSpacing = ImVec2(8.0f, 6.0f);
+	rStyle.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
+	rStyle.ScrollbarSize = 14.0f;
+	rStyle.GrabMinSize = 12.0f;
+
+	// Scale UI element sizes to 2x
+	rStyle.ScaleAllSizes(2.0f);
+}
+
+void ImGuiManager::ApplyThemeColors(UiTheme eTheme)
+{
+	const ThemePalette& rPalette = kThemePalettes[static_cast<size_t>(eTheme)];
+	ImVec4* pColors = ImGui::GetStyle().Colors;
+
+	// Window backgrounds carry the user-controlled opacity; Prepare() rewrites only their .w on opacity changes
+	float fAlpha = gOpaqueUi.Get<bool>() ? 1.0f : gUiOpacity.Get();
+	pColors[ImGuiCol_WindowBg] = WithAlpha(rPalette.f4Bg, fAlpha);
+	pColors[ImGuiCol_ChildBg] = WithAlpha(rPalette.f4Bg, fAlpha);
+	pColors[ImGuiCol_PopupBg] = WithAlpha(rPalette.f4Bg, fAlpha);
+
+	pColors[ImGuiCol_Text] = rPalette.f4Text;
+	pColors[ImGuiCol_TextDisabled] = rPalette.f4TextDisabled;
+	pColors[ImGuiCol_Border] = WithAlpha(rPalette.f4Border, 0.6f);
+	pColors[ImGuiCol_FrameBg] = WithAlpha(rPalette.f4BgElevated, 0.8f);
+	pColors[ImGuiCol_FrameBgHovered] = WithAlpha(rPalette.f4Accent, 0.25f);
+	pColors[ImGuiCol_FrameBgActive] = WithAlpha(rPalette.f4Accent, 0.4f);
+	pColors[ImGuiCol_TitleBg] = rPalette.f4Bg;
+	pColors[ImGuiCol_TitleBgActive] = rPalette.f4BgElevated;
+	pColors[ImGuiCol_TitleBgCollapsed] = WithAlpha(rPalette.f4Bg, 0.6f);
+	pColors[ImGuiCol_MenuBarBg] = rPalette.f4BgElevated;
+	pColors[ImGuiCol_ScrollbarBg] = WithAlpha(rPalette.f4Bg, 0.6f);
+	pColors[ImGuiCol_ScrollbarGrab] = rPalette.f4BgElevated;
+	pColors[ImGuiCol_ScrollbarGrabHovered] = WithAlpha(rPalette.f4Accent, 0.6f);
+	pColors[ImGuiCol_ScrollbarGrabActive] = rPalette.f4AccentActive;
+	pColors[ImGuiCol_CheckMark] = rPalette.f4Accent;
+	pColors[ImGuiCol_SliderGrab] = WithAlpha(rPalette.f4Accent, 0.8f);
+	pColors[ImGuiCol_SliderGrabActive] = rPalette.f4AccentActive;
+	pColors[ImGuiCol_Button] = WithAlpha(rPalette.f4BgElevated, 0.9f);
+	pColors[ImGuiCol_ButtonHovered] = WithAlpha(rPalette.f4AccentHover, 0.4f);
+	pColors[ImGuiCol_ButtonActive] = WithAlpha(rPalette.f4AccentActive, 0.6f);
+	pColors[ImGuiCol_Header] = WithAlpha(rPalette.f4Accent, 0.25f);
+	pColors[ImGuiCol_HeaderHovered] = WithAlpha(rPalette.f4Accent, 0.35f);
+	pColors[ImGuiCol_HeaderActive] = WithAlpha(rPalette.f4Accent, 0.45f);
+	pColors[ImGuiCol_Separator] = WithAlpha(rPalette.f4Border, 0.6f);
+	pColors[ImGuiCol_SeparatorHovered] = WithAlpha(rPalette.f4Accent, 0.6f);
+	pColors[ImGuiCol_SeparatorActive] = rPalette.f4Accent;
+	pColors[ImGuiCol_ResizeGrip] = WithAlpha(rPalette.f4Accent, 0.2f);
+	pColors[ImGuiCol_ResizeGripHovered] = WithAlpha(rPalette.f4Accent, 0.5f);
+	pColors[ImGuiCol_ResizeGripActive] = rPalette.f4Accent;
+	pColors[ImGuiCol_Tab] = rPalette.f4Bg;
+	pColors[ImGuiCol_TabHovered] = WithAlpha(rPalette.f4Accent, 0.4f);
+	pColors[ImGuiCol_TabSelected] = rPalette.f4BgElevated;
+	pColors[ImGuiCol_TabSelectedOverline] = rPalette.f4Accent;
+	pColors[ImGuiCol_TabDimmed] = WithAlpha(rPalette.f4Bg, 0.8f);
+	pColors[ImGuiCol_TabDimmedSelected] = WithAlpha(rPalette.f4BgElevated, 0.8f);
+	pColors[ImGuiCol_PlotLines] = rPalette.f4Accent;
+	pColors[ImGuiCol_PlotLinesHovered] = rPalette.f4AccentHover;
+	pColors[ImGuiCol_PlotHistogram] = rPalette.f4Accent;
+	pColors[ImGuiCol_PlotHistogramHovered] = rPalette.f4AccentHover;
+	pColors[ImGuiCol_TextSelectedBg] = WithAlpha(rPalette.f4Accent, 0.35f);
+	pColors[ImGuiCol_NavCursor] = rPalette.f4Accent;
 }
 
 ImGuiManager::~ImGuiManager()
@@ -251,6 +383,12 @@ void ImGuiManager::CreateFramebuffers()
 void ImGuiManager::Prepare(int64_t iFramebuffer)
 {
 	ImGui::GetStyle().FontScaleMain = gUiFontScale.Get();
+
+	// Changed() advances the single-consumer change tracking; apply re-reads via GetUiTheme() for the trust-boundary clamp
+	if (std::get<2>(gUiTheme.Changed<UiTheme>()))
+	{
+		ApplyThemeColors(GetUiTheme());
+	}
 
 	// Apply UI opacity (opaque UI forces 1.0, otherwise use slider value)
 	auto [bOpaqueUi, bPreviousOpaqueUi, bOpaqueUiChanged] = gOpaqueUi.Changed<bool>();

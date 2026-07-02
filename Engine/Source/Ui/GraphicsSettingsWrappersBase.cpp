@@ -18,6 +18,7 @@ Wrapper gSmokeSimulationArea(1.2f, 1.0f, 1.5f);
 Wrapper gOpaqueUi(false);
 Wrapper gUiOpacity(0.9f, 0.0f, 1.0f);
 Wrapper gUiFontScale(1.0f, 0.5f, 3.0f);
+Wrapper gUiTheme(UiTheme::kNavalSteel, std::vector<UiTheme> {UiTheme::kNavalSteel, UiTheme::kDarkAmber, UiTheme::kMonochrome});
 Wrapper gSmokeEnabled(true);
 Wrapper gWindEnabled(true);
 Wrapper gSunAngleOverride(1.15f, 0.0f, XM_2PI);

@@ -22,8 +22,8 @@ void ModalScreen::Render()
 	ImGui::SetNextWindowPos(ImVec2((rIo.DisplaySize.x - fWindowWidth) / 2.0f, rIo.DisplaySize.y * 0.35f), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(fWindowWidth, 0.0f));
 
+	ScopedMenuFont menuFont;
 	ImGui::Begin("ModalDialog", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
-	ImGui::SetWindowFontScale(kfMenuUiScale);
 
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
 

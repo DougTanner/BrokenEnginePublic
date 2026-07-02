@@ -1,5 +1,6 @@
 Remote Entity Snapshot Interpolation
 ================================================================================
+NOTE: Line numbers indicative only — anchor on symbols.
 
 PROBLEM
 -------
@@ -35,7 +36,7 @@ SCOPE
 FILE: Engine/Source/GameBase.h
 
 Add a new struct and per-coord buffer inside the #if defined(BT_CLIENT) block
-of CoordFrames (lines 45-81):
+of CoordFrames (struct at line 39):
 
   struct InterpolationSnapshot
   {
@@ -59,7 +60,7 @@ of CoordFrames (lines 45-81):
   int64_t iInterpolationHead = 0;
   int64_t iInterpolationCount = 0;
 
-Reset these in ResetClientState() (line 71-80).
+Reset these in ResetClientState() (line 104).
 
 NOTE ON kiMaxPlayersPerFrame / kiMaxSpaceshipsPerFrame: These will be small
 fixed constants (e.g., 16/32) chosen to match the maximum entity counts per
@@ -72,20 +73,21 @@ Using fixed arrays avoids heap allocation in the hot path.
 2. RECORDING CONFIRMED STATES
 ================================================================================
 
-FILE: Projects/BrokenEngineSandbox/Source/Network/ClientReconciler.cpp
+FILE: Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplay.cpp
+(ApplyCoordWriteback moved here from ClientReconciler.cpp; ~lines 44-53)
 
 After reconciliation writes back confirmed state to CoordFrames (in
-ClientReconciler::ApplyCoordWriteback, called from ApplyResult), record an
+ApplyCoordWriteback, called from ApplyResult), record an
 interpolation snapshot for each non-client coord.
 
-Specifically, after the writeback updates iConfirmedTick (line ~ApplyCoordWriteback),
+Specifically, after the writeback updates iConfirmedTick (GameBase.h:54),
 add a call to a new helper:
 
   RecordInterpolationSnapshot(rSub, confirmedFrame);
 
 Where confirmedFrame is the frame at the new confirmed tick.
 
-NEW FUNCTION (in ClientReconciler.cpp or a new helper in ClientSessionBase.cpp):
+NEW FUNCTION (in ReconcileReplay.cpp or a new helper in ClientSessionBase.cpp):
 
   static void RecordInterpolationSnapshot(CoordFrames& rSub, const game::Frame& rFrame)
   {
@@ -130,7 +132,7 @@ NEW FUNCTION (in ClientReconciler.cpp or a new helper in ClientSessionBase.cpp):
 
 FILE: Engine/Source/GameBase.cpp
 
-In GameBase::Render() (line 244), after computing fCurrentTime (line 249) and
+In GameBase::Render() (line 266), after computing fCurrentTime and
 before the per-frame interpolate loop (line 276 interpolateFrame lambda):
 
 Add a new step that, for each non-client active coord, computes interpolated
@@ -283,7 +285,7 @@ and everything renders as today.
 FILES MODIFIED
 ================================================================================
 
-1. Engine/Source/GameBase.h (lines 40-89)
+1. Engine/Source/GameBase.h (CoordFrames struct at line 39)
    - Add InterpolationSnapshot struct inside CoordFrames (#if BT_CLIENT)
    - Add kiInterpolationBufferSize, interpolationBuffer[], iInterpolationHead,
      iInterpolationCount fields
@@ -291,13 +293,13 @@ FILES MODIFIED
    - Add kiMaxPlayersPerFrame, kiMaxSpaceshipsPerFrame constants
    - Add ApplySnapshotInterpolation declaration to GameBase class
 
-2. Engine/Source/GameBase.cpp (lines 244-311, Render function)
+2. Engine/Source/GameBase.cpp (Render function at line 266)
    - After the interpolateFrame loop, add snapshot interpolation override
      for non-client coords
    - Add ApplySnapshotInterpolation implementation
 
-3. Projects/BrokenEngineSandbox/Source/Network/ClientReconciler.cpp
-   - In ApplyCoordWriteback or ApplyResult, call RecordInterpolationSnapshot
+3. Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplay.cpp
+   - In ApplyCoordWriteback (~lines 44-53) or ApplyResult, call RecordInterpolationSnapshot
      for each non-client coord after confirmed state updates
    - Add RecordInterpolationSnapshot helper function
 

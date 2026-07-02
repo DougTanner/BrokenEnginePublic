@@ -36,6 +36,7 @@ enum Strings
 	kStringResume,
 	kStringSound,
 	kStringQuit,
+	kStringPaused,
 
 	kBaseStringsCount,
 	kStringsCount = kBaseStringsCount,
@@ -197,6 +198,15 @@ inline char32_t gppTranslatedStrings[][kLanguageCount][256]
 		U"SAIR", // Portuguese
 		U"QUITTER", // French
 		U"VERLASSEN", // German
+	},
+	// kStringPaused (machine translations — needs localization pass)
+	{
+		U"PAUSED", // English
+		U"已暂停", // Chinese
+		U"PAUSADO", // Spanish
+		U"PAUSADO", // Portuguese
+		U"EN PAUSE", // French
+		U"PAUSIERT", // German
 	},
 
 	// kStringsCount

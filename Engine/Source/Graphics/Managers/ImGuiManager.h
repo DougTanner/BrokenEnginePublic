@@ -15,6 +15,8 @@ class TweaksScreen;
 namespace engine
 {
 
+enum class UiTheme : uint8_t;
+
 class ImGuiManager
 {
 public:
@@ -39,6 +41,8 @@ private:
 	void CreateFramebuffers();
 	void CreateUiPrepassIndirectBuffer();
 	void UpdateUiRectBuffers(int64_t iFramebuffer);
+	void SetupThemeGeometry();
+	void ApplyThemeColors(UiTheme eTheme);
 
 	VkRenderPass mImGuiRenderPass = VK_NULL_HANDLE;
 	std::vector<VkFramebuffer> mImGuiFramebuffers;

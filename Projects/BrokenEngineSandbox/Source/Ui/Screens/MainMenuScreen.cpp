@@ -21,14 +21,7 @@ void MainMenuScreen::Render()
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	// Use Chinese font for all menu text when language is Chinese
-	bool bChineseMode = (geLanguage == kChinese);
-	if (bChineseMode)
-	{
-		ImGui::PushFont(engine::gpImGuiManager->mpChineseFont);
-	}
-
-	// Invisible window for main menu
+	// Invisible window for main menu (panel chrome is custom-drawn below)
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 
@@ -36,10 +29,20 @@ void MainMenuScreen::Render()
 	float fLeftPos = rIo.DisplaySize.x * 0.11f;
 	float fTopPos = rIo.DisplaySize.y * 0.35f;
 	ImGui::SetNextWindowPos(ImVec2(fLeftPos, fTopPos), ImGuiCond_Always);
-	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x * 0.4f, 0.0f));
 
+	ScopedMenuFont menuFont;
 	ImGui::Begin("MainMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
-	ImGui::SetWindowFontScale(kfMenuUiScale);
+
+	// AlwaysAutoResize yields last-frame size — accepted one-frame lag (same pattern as HudScreen vLastSize)
+	ImVec2 vWindowPos = ImGui::GetWindowPos();
+	ImVec2 vWindowSize = ImGui::GetWindowSize();
+	DrawPanelBackground(ImGui::GetWindowDrawList(), vWindowPos, ImVec2(vWindowPos.x + vWindowSize.x, vWindowPos.y + vWindowSize.y));
+
+	{
+		ScopedMenuFont headingFont(kfMenuUiScale * kfMenuHeadingScale);
+		ImGui::TextUnformatted("BROKEN ENGINE");
+	}
+	ImGui::Dummy(ImVec2(0.0f, rIo.DisplaySize.y * 0.01f));
 
 	float fButtonWidth = rIo.DisplaySize.x * 0.2f;
 	float fButtonHeight = rIo.DisplaySize.y * 0.045f;
@@ -90,7 +93,7 @@ void MainMenuScreen::Render()
 	// Local Server button (discovers localhost + LAN)
 	if (gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered)
 	{
-		if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight)))
+		if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight), mfButtonHoverAnims[0]))
 		{
 			gpClientSession->ConnectToDiscoveredServer();
 		}
@@ -98,30 +101,30 @@ void MainMenuScreen::Render()
 	else
 	{
 		ImGui::BeginDisabled();
-		ImGui::Button("SCANNING...", ImVec2(fButtonWidth, fButtonHeight));
+		MenuButton("SCANNING...", ImVec2(fButtonWidth, fButtonHeight), mfButtonHoverAnims[0]);
 		ImGui::EndDisabled();
 	}
 
 	// Remote Server button (placeholder for future Internet servers)
 	ImGui::BeginDisabled();
-	ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRemoteServer)), ImVec2(fButtonWidth, fButtonHeight));
+	MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringRemoteServer)), ImVec2(fButtonWidth, fButtonHeight), mfButtonHoverAnims[1]);
 	ImGui::EndDisabled();
 
 	// Graphics button
-	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics)), ImVec2(fButtonWidth, fButtonHeight)))
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics)), ImVec2(fButtonWidth, fButtonHeight), mfButtonHoverAnims[2]))
 	{
 		gpGame->meUiState = UiState::kGraphicsSettings;
 		engine::gSunAngleOverride.Set(gpCamera->RawSunAngle());
 	}
 
 	// Sound button
-	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)), ImVec2(fButtonWidth, fButtonHeight)))
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)), ImVec2(fButtonWidth, fButtonHeight), mfButtonHoverAnims[3]))
 	{
 		gpGame->meUiState = UiState::kSound;
 	}
 
 	// Quit button
-	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit)), ImVec2(fButtonWidth, fButtonHeight)))
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit)), ImVec2(fButtonWidth, fButtonHeight), mfButtonHoverAnims[4]))
 	{
 		gpGame->mGameFlags.Set(engine::GameFlags::kQuit);
 	}
@@ -134,8 +137,8 @@ void MainMenuScreen::Render()
 	ImGui::SetNextWindowPos(ImVec2(0.0f, fLanguageY), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x, fLanguageRowHeight));
 
+	ScopedMenuFont languageFont(kfMenuUiScale * 0.75f);
 	ImGui::Begin("LanguageMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar);
-	ImGui::SetWindowFontScale(kfMenuUiScale * 0.75f);
 
 	float fLangButtonWidth = rIo.DisplaySize.x * 0.06f;
 	float fLangButtonHeight = rIo.DisplaySize.y * 0.029f;
@@ -155,19 +158,15 @@ void MainMenuScreen::Render()
 		}
 
 		bool bSelected = (geLanguage == static_cast<Language>(i));
-		if (bSelected)
-		{
-			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.93f, 0.93f, 0.93f, 0.33f));
-		}
 
-		// Use Chinese font for the Chinese button when in EFIGS mode
-		bool bChineseButton = (i == kChinese) && !bChineseMode;
+		// Use Chinese font for the Chinese button when in EFIGS mode (0.0f keeps the current size)
+		bool bChineseButton = (i == kChinese) && (geLanguage != kChinese);
 		if (bChineseButton)
 		{
-			ImGui::PushFont(engine::gpImGuiManager->mpChineseFont);
+			ImGui::PushFont(engine::gpImGuiManager->mpChineseFont, 0.0f);
 		}
 
-		if (ImGui::Button(kpcLanguageNames[i], ImVec2(fLangButtonWidth, fLangButtonHeight)))
+		if (MenuButton(kpcLanguageNames[i], ImVec2(fLangButtonWidth, fLangButtonHeight), mfLanguageHoverAnims[i], bSelected))
 		{
 			geLanguage = static_cast<Language>(i);
 		}
@@ -176,21 +175,11 @@ void MainMenuScreen::Render()
 		{
 			ImGui::PopFont();
 		}
-
-		if (bSelected)
-		{
-			ImGui::PopStyleColor();
-		}
 	}
 
 	ImGui::End();
 
 	ImGui::PopStyleColor(2);
-
-	if (bChineseMode)
-	{
-		ImGui::PopFont();
-	}
 }
 
 } // namespace game

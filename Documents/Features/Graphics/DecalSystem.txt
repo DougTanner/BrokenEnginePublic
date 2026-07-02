@@ -23,6 +23,11 @@ projected (using view/projection matrices) rather than screen-space,
 and they sample the terrain elevation texture to drape onto the
 surface.
 
+CAVEAT: Billboards source files were NOT found under
+Engine/Source/Frame/Collections/ (only referenced from
+FrameBase.h:78,189) -- verify the Billboards source location before
+using it as a template.
+
 Reference: https://www.youtube.com/watch?v=wwLW6CjswxM&list=WL&index=2
 
 Why
@@ -144,7 +149,8 @@ Changes (15 files)
 10. Engine/Source/Graphics/Managers/CommandBufferManager.cpp
     In RecordMainCommandBuffer, add decal rendering after terrain
     (kPipelineTerrain) and before water (kPipelineWater).  Insert
-    between lines 703 and 705:
+    between the terrain and water draws (the old 703/705 line
+    anchors are stale):
 
       gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerDecals);
       for (const auto& [rCrc, pPipeline] : gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineDecals])

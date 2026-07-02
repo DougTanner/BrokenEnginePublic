@@ -54,6 +54,12 @@ Changes (8 files)
          uint32_t uiMaterialCount INIT;
      };
 
+   DECISION: ShaderLayoutsBase.h has TWO model structs -- ModelLayout
+   (~line 676) and ModelCustomLayout (~line 686, used by custom /
+   hex-shield meshes, which also has f4ColorAdd). This plan only adds
+   fDamageFraction to ModelLayout; explicitly decide at execution
+   whether ModelCustomLayout is extended too or scoped out.
+
    Add destruction visual parameters to MainLayout after the hex
    shield section:
 
@@ -195,6 +201,11 @@ Changes (8 files)
 
 Notes
 -----
+- The game-side SOA member names referenced above (pfHealths,
+  kfSpaceshipHealth, pfArmors, ClientMembers()) must be verified
+  against the current game code at execution time; the new
+  pfDamageFractions members require the add-collection-member
+  checklist
 - The Hash3D function produces deterministic noise from world
   position, so the peeling pattern is stable as the camera moves
   and consistent across frames (no shimmer)

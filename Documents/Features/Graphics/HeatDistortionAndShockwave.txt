@@ -34,8 +34,25 @@ Why
   present (if no HDR pass yet), so it distorts the fully composed
   scene
 
+Dependencies
+------------
+- Line numbers indicative only -- anchor on symbols.
+- The scene-copy format depends on whether HdrResolveAndColorGrading
+  lands first: HDR intermediate (R16G16B16A16_SFLOAT) vs swapchain
+  format (B8G8R8A8_UNORM).
+- The scene-color-copy texture should be shared with
+  Documents/Features/Graphics/WaterRefraction.md -- whichever plan
+  lands first creates it.
+
 Changes (12 files)
 ------------------
+
+0. PREREQUISITE: re-add ExplosionsInterpolate::pfSizePercents
+   pfSizePercents was removed as dead SOA state after this plan was
+   written. Step 9 reads it, so it must be re-added first -- this
+   requires the full add-collection-member checklist and a
+   kiVersion/CRC bump, making it a determinism-affecting change.
+   Complete this step before any other change.
 
 1. Engine/Data/Shaders/ShaderLayoutsBase.h
    a) Add a distortion source layout struct after ParticlesLayout
@@ -283,7 +300,7 @@ Changes (12 files)
              if (fScreenX < -0.2f || fScreenX > 1.2f || fScreenY < -0.2f || fScreenY > 1.2f) continue;
 
              auto& rSrc = pDistortionSources[iDistortionCount];
-             // NOTE: ExplosionsInterpolate::pfSizePercents was removed as dead SOA state — re-add it (add-collection-member checklist + kiVersion bump) before implementing this feature.
+             // pfSizePercents re-added per prerequisite step 0
              rSrc.f4ScreenPosition = {fScreenX, fScreenY, fAge, rExplosions.pfSizePercents[i]};
              // Heat distortion for first half of life, shockwave at spawn
              float fType = fAge < 0.15f * rExplosions.pfTimePercents[i] ? 1.0f : 0.0f;

@@ -365,9 +365,10 @@ DRIFT / CORRECTIONS:
     FrameStaticData.cpp:8,24), NOT FramePostRenderBase (which is at
     FrameBase.h:142). Section 1 should add vecLocalArea/vecFrameOrigin to
     FrameStaticData; confirm placement at execution time.
-  - MergeFramesForRender was REMOVED (comment "the old MergeFramesForRender" at
-    GameBase.cpp:359). Render path now iterates per-coord into mRenderInterpolates
-    with NO merge (MainUniforms.cpp:122,156-179). Section 5 is net-new work.
+  - MergeFramesForRender was REMOVED — no merge infrastructure or reference to it
+    remains. Render path now iterates mRenderInterpolates directly, per-coord
+    (GameBase.cpp:353-418) with NO merge (MainUniforms.cpp:122,156-179).
+    Section 5 is net-new work.
   - engine::TerrainCollision() (Islands.cpp) NO LONGER EXISTS. Drop the §3 ref.
   - File splits: PlayersPostRender::Transfer -> PlayersNavigation.cpp:23
     (TransferRequest at :41); player audio -> PlayersCombat.cpp; spaceship audio

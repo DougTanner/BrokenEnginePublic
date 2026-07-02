@@ -43,18 +43,20 @@ Changes (7 files)
          return vec2(fDndy, -fDndx);
      }
 
-   In SmokeSpread(), after computing f2Noise (line 24) and before the wind section, add curl noise displacement:
+   In SmokeSpread(), after computing f2Noise (line 21) and before the wind section (lines 23-41), add curl noise displacement:
      vec2 f2Curl = globalLayout.fSmokeCurlNoiseStrength * CurlNoise2D(noiseTextureSampler, f2WorldPosition, globalLayout.fSmokeCurlNoiseScale, globalLayout.fSmokeCurlNoiseSpeed * globalLayout.fElapsedTime);
      f2Noise += f2Curl;
 
 3. Engine/Data/Shaders/Particles/ParticlesRender.frag
    Replace the single-color lookup with a gradient lerp based on lifetime fraction.
-   After unpacking iColor (line 38), add:
+   After unpacking the color (line 45: `vec4 f4Color = unpackUnorm4x8(uiColor).abgr;` -- the SSBO color field is read into a local uiColor at line 39), add:
      vec4 f4ColorEnd = unpackUnorm4x8(render.pParticles[i].iColorEnd).abgr;
      float fLifetime = render.pParticles[i].fLifetime;
      float fAge = globalLayout.fElapsedTime - render.pParticles[i].fSpawnTime;
      float fLifetimeFraction = (fLifetime > 0.0f) ? clamp(fAge / fLifetime, 0.0f, 1.0f) : 0.0f;
      f4Color = mix(f4Color, f4ColorEnd, fLifetimeFraction);
+
+   Note: the new iColorEnd/fLifetime/fSpawnTime reads should follow the same hoist-SSBO-reads-into-locals pattern used at lines 37-40 (read into locals once, then use the locals).
 
 4. Engine/Source/Graphics/Managers/ParticleManager.cpp
    In ParticleManager::Spawn(), after setting layout.iCookie and before writing to the spawn buffer,

@@ -5,7 +5,7 @@ Trigger: When collection count reaches 20-25 and shared logic (not just shared f
 
 Context
 -------
-Multiple collections share field names (pVecPositions in 14/17, pVecDirections in 4, pAlignments in 5)
+Multiple collections share field names (pVecPositions in most of the 16 collections, pVecDirections in 4, pAlignments in 5)
 but the LOGIC operating on those fields is unique per collection. Field name overlap alone does not
 create maintenance burden.
 
@@ -27,7 +27,7 @@ Generic operations use C++ concepts to operate on any collection with a matching
 
 Why Not Now
 -----------
-- Only 17 collections (12 engine, 5 game) — explicit is still manageable
+- Only 16 collections (11 engine, 5 game) — explicit is still manageable
 - Game entity collections (Players, Spaceships, Missiles, Blasters) have highly specific update logic
 - Duplicated one-liners (position += velocity * dt) are too short to justify traits
 - pFlags uses different enum types per collection — no shared logic possible

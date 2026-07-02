@@ -30,7 +30,9 @@ Why Not Now
 -----------
 - The existing TypeList + fold expression system already provides this capability
 - Only 5 game collections — explicit listing has minimal overhead
-- Only 2 C++ concepts exist in the codebase — not an established pattern yet
+- Only ~4 first-party C++ concepts exist in the codebase (NotStringLike in Common/Crc.h:98,
+  HasSharedMembers in Engine/Source/Frame/Collections/Collection.h:368, IsExportJob in
+  DataPacker/Source/ExportJobs/ExportJob.h:53) — not an established pattern yet
 - No operations are actually duplicated across collections
 - Cross-collection operations (AreaDamage, Collision) are already mediated through shared infrastructure
 - The ~39 lines of boilerplate in Frame.cpp exist for a reason (Players has unique signatures)

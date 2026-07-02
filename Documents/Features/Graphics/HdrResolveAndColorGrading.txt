@@ -1,6 +1,8 @@
 HDR Resolve with ACES Tone Mapping and Color Grading
 =====================================================
 
+Line numbers indicative only -- anchor on symbols.
+
 Context
 -------
 The engine currently renders the main scene pass (terrain, water, models,
@@ -291,3 +293,6 @@ Notes
   changing the pipeline architecture
 - DataPacker must be re-run to compile the new HdrResolve.frag shader
   and generate its CRC constant (data::kShadersHdrResolvefragCrc)
+- A Uchimura tone map is already applied in the lighting-combine /
+  DebugTexture path -- the resolve pass must reconcile ACES vs the
+  engine's existing Uchimura curve to avoid double tone-mapping
