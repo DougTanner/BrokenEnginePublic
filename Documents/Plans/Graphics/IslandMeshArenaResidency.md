@@ -1,6 +1,6 @@
 # Island GPU Mesh Residency (Stable-Handle Arena)
 
-**Decision plan (present options).** Follow-up split out of `IslandResidentMemoryScalingStrategy.md`. When the island resident-memory buckets were triaged, the CPU payload went to mesh-CPU-slice reclaim (`IslandResidentMemoryScalingStrategy.md`) + heightmap residency (`IslandHeightmapResidency.md`); this plan owns the **GPU** mesh side that strategy (a2) targeted.
+**Decision plan (present options).** Part of the island resident-memory scaling series — see `IslandResidentMemoryScaling_Overview.md`. This plan owns the **GPU** mesh side (the ~119.5 MiB per-template `mMeshBuffer` the texture-LRU evict path can't touch — record-once-CB binding).
 
 ## Context
 
@@ -15,7 +15,7 @@ Two viable approaches to make per-template GPU mesh evictable without breaking t
 - **A — Persistent mesh arena with a stable `VkBuffer` handle + sub-allocation.** One (or a small pool of) long-lived device-local buffer(s) whose handle never changes, so the recorded `vkCmdBindVertexBuffers` stays valid. Per-template mesh data occupies a sub-range; eviction frees the *sub-range* (memory reclaimed via a suballocator) and degenerates the draw (`indexCount = 0` in the per-template indirect entry, `Islands.cpp`); restoration re-uploads into a sub-range and rewrites the indirect entry. The terrain draw binds the arena buffer once (per template, same handle) and uses `firstIndex`/`vertexOffset` to address the sub-range. Frees VRAM without touching the CB. Main complexity: a device-local mesh suballocator with fragmentation handling, and per-template `firstIndex`/`vertexOffset` bookkeeping.
 - **B — Bindless vertex-pull.** Move island vertex/index data into a persistent SSBO read by `Terrain.vert` via a patchable per-template slot (mirroring the bindless texture arrays). Eviction patches the slot to a placeholder; the CB binds nothing per-template. Larger shader + pipeline + DataPacker-mesh-layout change, but conceptually uniform with the existing texture LRU.
 
-Both bound GPU mesh residency by *concurrent residency* (the same set the texture LRU and the (b) chunk lifecycle track), not total template count.
+Both bound GPU mesh residency by *concurrent residency* (the same set the texture LRU tracks), not total template count.
 
 ## Critical files
 
@@ -29,7 +29,7 @@ Both bound GPU mesh residency by *concurrent residency* (the same set the textur
 
 ## Out of scope
 
-- CPU chunk payload (heightmap + mesh CPU slice + hull) — owned by the (b) lazy-chunk plan (`IslandResidentMemoryScalingStrategy.md`).
+- CPU chunk payload — mesh CPU slice owned by `IslandMeshCpuSliceReclaim.md`, heightmap/hull by `IslandHeightmapResidency.md`.
 - The `kiMaxIslands` cap value.
 - NavContour residency (`IslandNavContourResidency.md`).
 - The per-template SSBO `mIslandsStorageBuffers` (~16 MiB placement arena) — a separate, smaller concern.
@@ -44,4 +44,4 @@ Both bound GPU mesh residency by *concurrent residency* (the same set the textur
 
 - Client/graphics-only. No `kiVersion`/`.pack`/CRC/wire/determinism exposure (approach B changes the DataPacker island mesh *layout* but not its CRC contract — confirm at grill).
 - **Decision plan**: approach A (arena) vs B (bindless vertex-pull) is the single open decision for `/external-grill-plan`.
-- Coordinate with the (b) lazy-chunk plan's eviction/restoration timing (both hook `EvictionSweep`/`RestorationSweep`) — sequence, don't interleave.
+- Coordinate with `IslandHeightmapResidency.md`'s eviction/restoration timing (both may hook `EvictionSweep`/`RestorationSweep`) — sequence, don't interleave.

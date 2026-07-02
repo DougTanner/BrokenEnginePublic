@@ -287,8 +287,10 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	rOut.iHeightmapWidth = static_cast<int32_t>(iElevationWidth);
 	rOut.iHeightmapHeight = static_cast<int32_t>(iElevationHeight);
 
-	// Actual peak over the downsampled shipped heightmap — the exact data the runtime samples, so
-	// the value matches drawn geometry. Values are engine-meters above beach (finite, non-empty).
+	// Peak over the downsampled shipped heightmap, in engine-meters above beach (finite, non-empty).
+	// Computed from the full-precision floats before the payload is quantized to R16, so it can sit up
+	// to the ~0.25 m peak half-float rounding above what the runtime actually samples — harmless: this
+	// field currently has no runtime reader.
 	rOut.fMaxHeightMeters = *std::ranges::max_element(rOut.cpuHeightmapData);
 
 	// Convex hull of the valid (above-threshold) region — same heightmap + threshold as the texture
@@ -344,7 +346,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	// Per-island mesh: BakeIslandIntermediates wrote MeshProcessed.bin with [int32 vertexCount,
 	// int32 indexCount, float3 positions, uint32 indices]. Strip Z here — Terrain.vert re-derives
 	// it from the elevation sampler — and pack float2 XY pairs into the chunk payload after the
-	// heightmap floats (see Export() and IslandHeader in DataFile.h).
+	// heightmap halfs (see Export() and IslandHeader in DataFile.h).
 	ReadProcessedMesh(intermediatesDir, rOut);
 }
 
@@ -420,7 +422,13 @@ void ExportIsland::Export()
 	std::filesystem::path relativeFile = mRelativeDirectory;
 	relativeFile /= mInputPath.filename();
 
-	int64_t iHeightmapDataSize = static_cast<int64_t>(exported.cpuHeightmapData.size() * sizeof(float));
+	// Quantize the heightmap to IEEE half-float (R16) for the resident payload: sample 0 is beach/sea level,
+	// so precision is sub-mm near the waterline (nav/gameplay) and ~0.25 m worst-case at the highest peaks —
+	// negligible for a km-scale camera. Halves the dominant resident CPU bucket (the runtime dequantizes via
+	// XMConvertHalfToFloat at each read site). The hull/masks above stay full-precision (computed pre-quant).
+	std::vector<uint16_t> heightmapHalf(exported.cpuHeightmapData.size());
+	DirectX::PackedVector::XMConvertFloatToHalfStream(heightmapHalf.data(), sizeof(uint16_t), exported.cpuHeightmapData.data(), sizeof(float), exported.cpuHeightmapData.size());
+	int64_t iHeightmapDataSize = static_cast<int64_t>(heightmapHalf.size() * sizeof(uint16_t));
 	int64_t iMeshPositionBytes = static_cast<int64_t>(exported.cpuMeshPositions.size() * sizeof(float));
 	int64_t iMeshIndexBytes = static_cast<int64_t>(exported.cpuMeshIndices.size() * sizeof(uint32_t));
 	int64_t iValidAreaBytes = static_cast<int64_t>(exported.cpuValidAreaVertices.size() * sizeof(float));
@@ -452,10 +460,10 @@ void ExportIsland::Export()
 	pHeader->islandHeader.iMeshIndexCount = exported.iMeshIndexCount;
 	pHeader->islandHeader.iValidAreaVertexCount = exported.iValidAreaVertexCount;
 
-	// Chunk payload: [heightmap floats][mesh positions][mesh indices][valid-area hull verts]. Runtime
+	// Chunk payload: [heightmap R16 halfs][mesh positions][mesh indices][valid-area hull verts]. Runtime
 	// IslandTerrain slices these contiguously using IslandHeader's count fields.
 	std::byte* pData = dataSpan.data();
-	std::memcpy(pData, exported.cpuHeightmapData.data(), iHeightmapDataSize);
+	std::memcpy(pData, heightmapHalf.data(), iHeightmapDataSize);
 	std::memcpy(pData + iHeightmapDataSize, exported.cpuMeshPositions.data(), iMeshPositionBytes);
 	std::memcpy(pData + iHeightmapDataSize + iMeshPositionBytes, exported.cpuMeshIndices.data(), iMeshIndexBytes);
 	std::memcpy(pData + iHeightmapDataSize + iMeshPositionBytes + iMeshIndexBytes, exported.cpuValidAreaVertices.data(), iValidAreaBytes);

@@ -44,7 +44,8 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Skybox 3", &gLightingWaterSkyboxThree},
 	{"Skybox 3 Power", &gLightingWaterSkyboxThreePower},
 	{"Skybox Lod", &gLightingWaterSkyboxLod},
-	{"Skybox One Resolution", &gWaterSkyboxOneRenderMultiplier},
+	{"Spec AA Variance", &gWaterSpecAAVariance},
+	{"Spec AA Threshold", &gWaterSpecAAThreshold},
 	// Specular - Height Darken
 	{"Height Darken Top", &gWaterHeightDarkenTop},
 	{"Height Darken Bottom", &gWaterHeightDarkenBottom},
@@ -169,7 +170,8 @@ void TweaksScreenBase::RenderWaterSection()
 				WrapperSlider("Skybox 3", kiSection, 1.0f);
 				WrapperSlider("Skybox 3 Power", kiSection, 1.0f);
 				WrapperSlider("Skybox Lod", kiSection, 1.0f);
-				WrapperSlider("Skybox One Resolution", kiSection, 1.0f);
+				WrapperSlider("Spec AA Variance", kiSection, 1.0f);
+				WrapperSlider("Spec AA Threshold", kiSection, 1.0f);
 
 				WrapperSeparatorText("Height Darken");
 				WrapperSlider("Height Darken Top", kiSection, 1.0f);

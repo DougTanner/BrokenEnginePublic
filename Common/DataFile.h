@@ -307,7 +307,7 @@ struct IslandHeader
 	// Actual peak of the downsampled shipped heightmap (engine-meters above beach). Differs from
 	// fWorldElevationMeters, which is the configured elevation *range* from Island.json.
 	float fMaxHeightMeters = 0.0f;
-	// Chunk data payload follows the heightmap floats:
+	// Chunk data payload follows the heightmap R16 halfs:
 	// [float2 positions[iMeshVertexCount]][uint32 indices[iMeshIndexCount]][float2 valid-area hull verts[iValidAreaVertexCount]].
 	// Mesh Z is omitted — Terrain.vert re-derives world Z from the composite elevation sampler. The
 	// valid-area hull is the CCW convex hull (island-local meters, centered) of pixels at or above

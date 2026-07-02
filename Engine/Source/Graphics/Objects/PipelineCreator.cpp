@@ -435,8 +435,8 @@ static void ConfigureRasterization(GraphicsPipelineState& rState, const Pipeline
 	}
 }
 
-// Builds the multisample state: forced 4x sample-shading pipelines clamp to the device max; others follow
-// the global multisampling / sample-shading settings (render targets are always single-sample).
+// Builds the multisample state from the global multisampling / sample-shading settings (render targets
+// are always single-sample).
 static void ConfigureMultisampling(GraphicsPipelineState& rState, const Pipeline& rPipeline)
 {
 	rState.vkPipelineMultisampleStateCreateInfo = VkPipelineMultisampleStateCreateInfo
@@ -444,29 +444,13 @@ static void ConfigureMultisampling(GraphicsPipelineState& rState, const Pipeline
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		// .rasterizationSamples
-		// .sampleShadingEnable
-		// .minSampleShading
+		.rasterizationSamples = rPipeline.mInfo.flags & kRenderTarget ? VK_SAMPLE_COUNT_1_BIT : (gMultisampling.Get<bool>() ? gSampleCount.Get<VkSampleCountFlagBits>() : VK_SAMPLE_COUNT_1_BIT),
+		.sampleShadingEnable = (rPipeline.mInfo.flags & kSampleShading && gSampleShading.Get<bool>()) ? VK_TRUE : VK_FALSE,
+		.minSampleShading = gMinSampleShading.Get(),
 		.pSampleMask = nullptr,
 		.alphaToCoverageEnable = VK_FALSE,
 		.alphaToOneEnable = VK_FALSE,
 	};
-
-	if (rPipeline.mInfo.flags & kForceFullSampleShading4x)
-	{
-		// Clamp 4x to device max so clients with hardware capped at 2x still produce a valid pipeline
-		// (the matching attachment in CreateWaterSkyboxOne applies the same clamp).
-		VkSampleCountFlagBits eClampedSamples = std::min(VK_SAMPLE_COUNT_4_BIT, gpInstanceManager->meMaxMultisampleCount);
-		rState.vkPipelineMultisampleStateCreateInfo.rasterizationSamples = eClampedSamples;
-		rState.vkPipelineMultisampleStateCreateInfo.sampleShadingEnable = eClampedSamples > VK_SAMPLE_COUNT_1_BIT ? VK_TRUE : VK_FALSE;
-		rState.vkPipelineMultisampleStateCreateInfo.minSampleShading = 1.0f;
-	}
-	else
-	{
-		rState.vkPipelineMultisampleStateCreateInfo.rasterizationSamples = rPipeline.mInfo.flags & kRenderTarget ? VK_SAMPLE_COUNT_1_BIT : (gMultisampling.Get<bool>() ? gSampleCount.Get<VkSampleCountFlagBits>() : VK_SAMPLE_COUNT_1_BIT);
-		rState.vkPipelineMultisampleStateCreateInfo.sampleShadingEnable = (rPipeline.mInfo.flags & kSampleShading && gSampleShading.Get<bool>()) ? VK_TRUE : VK_FALSE;
-		rState.vkPipelineMultisampleStateCreateInfo.minSampleShading = gMinSampleShading.Get();
-	}
 }
 
 // Builds the color-blend state: per-attachment blend factors from the blend-mode flags, then replicates

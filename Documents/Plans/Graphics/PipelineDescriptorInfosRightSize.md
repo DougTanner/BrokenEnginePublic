@@ -8,7 +8,7 @@
 - `PipelineManager::mpPipelines[kPipelineCount]` (`PipelineManager.h:92`) + `mSpreadPipelines[kiMaxSpreadPasses]` (`PipelineManager.h:99`).
 - Per-scene model materials: `ModelPipeline::mpPipelines` is `std::vector<Pipeline>(miMaterialCount)` (`ModelPipeline.cpp:45`), and one `ModelPipeline` exists per scene CRC in `DynamicPipelines::mModelPipelineMaps` (`DynamicPipelines.h:65`).
 
-This is the sibling of the landed `Graphics/Refactor_AnimationDataArrayRightSize` (the four `AnimationData` arrays) and the earlier `Graphics/Refactor_ModelPipelineMembers` `ModelPipeline::mpPipelines` right-size — same intent (trim a per-instance worst-case inline array), but **harder** because the array is not a clean drop-in.
+This mirrors the array-right-sizing pattern already applied to AnimationData's four arrays and `ModelPipeline::mpPipelines` — same intent (trim a per-instance worst-case inline array), but **harder** because the array is not a clean drop-in.
 
 **Why this is NOT a clean swap (the reason it was split out rather than folded into the AnimationData plan):**
 - The array is **scanned/indexed by absolute index up to the compile-time max**, not just up to a stored count: `Pipeline::Create` walks `[i+1 .. i+5]` past the populated region to auto-append the 5 Model follow-on descriptors (`Pipeline.cpp:100-134`), checks `mInfo.pDescriptorInfos[3]` by literal index (`Pipeline.cpp:136`), and loops to `kiMaxDescriptorSetLayoutBindings` to set `mbPerCommandBuffer` (`Pipeline.cpp:149`). `ModelPipeline::Create` scans to the max to find the first empty slot (`ModelPipeline.cpp:13`). `PipelineCreator` / `PipelineDescriptorWriter` also iterate to the max.
@@ -43,5 +43,4 @@ Recommend gathering the real distribution first: instrument the populated slot c
 
 - **Decision plan (present options).** Resolve A/B/C via `/external-grill-plan` before any edit; gather the populated-slot distribution first.
 - **Invariant exposure:** client/graphics-only. The `pDescriptorInfos` array is a runtime ctor-arg struct, not serialized — no CRC / determinism / `kiVersion` / `.pack`-layout / replay exposure (confirm `pDescriptorInfos` is never written to disk at execution). Option B touches GPU pipeline-setup paths → playtest (model render, spread passes, every `kPipeline*` pass) rather than compile-check alone.
-- **Source:** surfaced by the `/next-plan` Step-6 sweep while executing `Graphics/Refactor_AnimationDataArrayRightSize` (the AnimationData array right-size); classified **Oversight / Related / medium-confidence**, deferred to this follow-up plan by user decision rather than folded into the AnimationData swap.
 - **Sequencing:** `Pipeline.{h,cpp}` is in the `Engine/Source/Graphics/Objects/` File Group; co-schedule with the other Objects/Pipeline plans and refresh line citations (the registration-ownership and bindless plans move the same `Create`/`Write` lines).

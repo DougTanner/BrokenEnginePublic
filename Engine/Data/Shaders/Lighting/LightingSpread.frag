@@ -77,8 +77,8 @@ void main()
 
 	// Window: the texture is pre-sized for headroom, but at a settled eye height only the on-screen region feeds the
 	// final image — process just the LIVE visible window plus a one-pass-gather margin (so each pass's immediate gather
-	// stays correct up to the screen edge; like the old visible-area-sized spread that clamped at the edge, the
-	// iterative higher-order spill is decay-attenuated, not the cumulative reach). The window tracks f4VisibleArea, so a
+	// stays correct up to the screen edge; the iterative higher-order spill is decay-attenuated, not the
+	// cumulative reach). The window tracks f4VisibleArea, so a
 	// fast zoom-out — whose lagging ramped texels make f4LightingArea cover less than the frustum — naturally expands it
 	// to use more of the texture, then it returns to the cropped steady state as the ramp settles (mirrors the shadow
 	// visible-window crop). A cumulative-reach margin here would exceed the headroom and never crop (full-texture cost).

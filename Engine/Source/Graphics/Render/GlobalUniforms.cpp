@@ -388,8 +388,8 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 
 static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, float fDayPercent, float fNoonPercent)
 {
-	// Terrain. fIslandHeight + fWaterDepth retired with the meters-everywhere refactor: heightmap
-	// pixel values now carry absolute meters directly, so the shader no longer multiplies them.
+	// Terrain. Heightmap pixel values carry absolute meters directly, so the shader applies no
+	// height/depth multiplier.
 	rGlobalLayout.fIslandAmbientOcclusion = fNoonPercent * gIslandAmbientOcclusion.Get();
 	rGlobalLayout.fTerrainEarlyOut = gTerrainEarlyOut.Get();
 

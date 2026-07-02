@@ -23,7 +23,6 @@ enum Pipelines
 	kPipelineProfileText,
 
 	kPipelineWater,
-	kPipelineWaterSkyboxOne,
 	kPipelineWaterDisplacement,
 
 	kPipelineSmokeClearA,
@@ -77,12 +76,6 @@ public:
 	void CreateSmokeWindPipelines();
 	void CreateParticlePipelines();
 	void CreateDebugRenderPipelines();
-
-	// Fills the bindings 0-11 descriptor prefix shared verbatim by kPipelineWater and kPipelineWaterSkyboxOne
-	// (both bind Water.vert, which reads terrain elevation at set=1 binding=5 — divergence silently flattens the
-	// water). Single-sourced so the invariant is structural, not comment-enforced. Caller appends the
-	// pipeline-specific tail (Water adds binding 12 + explicit 13/14; WaterSkyboxOne adds only explicit 13/14).
-	void FillWaterSharedDescriptors(DescriptorInfo* pDescriptorInfos);
 
 	// Walks every TextureBinding entry and breaks if any cached snapshot generation diverges
 	// from the live Texture's muiGeneration. Catches descriptor staleness the Vulkan validation

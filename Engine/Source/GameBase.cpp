@@ -348,7 +348,7 @@ void GameBase::Render()
 		{
 			ScopedSuppressAllocationTracking suppress;
 
-			// Heap: std::erase_if may rehash, operator[] may insert — suppressed like the old MergeFramesForRender
+			// Heap: std::erase_if may rehash, operator[] may insert — must stay wrapped for allocation-tracker compliance
 			// Remove render interpolates for deactivated coords
 			std::erase_if(mRenderInterpolates, [&](const std::pair<const GridCoord, game::FrameInterpolate>& rPair)
 			{

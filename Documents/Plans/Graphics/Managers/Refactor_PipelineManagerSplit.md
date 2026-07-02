@@ -3,30 +3,29 @@
 ## Context
 
 `Engine/Source/Graphics/Managers/PipelineManager.cpp` is 883 lines — over the 500-line `/reduce-file`
-soft guideline. A repo-code-review this session flagged it as an **OPTIONAL, pre-existing** `/reduce-file`
-candidate (only ~10 lines were touched this session; the size is not caused by this session's refactor).
-The reviewer noted a natural split by render subsystem: the `CreateLighting*` / `CreatePipelineShadows`
-group, the `CreateSmoke*` / `CreateParticle*` / `CreateDebugRender*` / `CreateTerrainData*` group.
+soft guideline. PipelineManager.cpp is an **OPTIONAL, pre-existing** `/reduce-file` candidate — its size
+predates the current change. The reviewer noted a natural split by render subsystem: the `CreateLighting*` /
+`CreatePipelineShadows` group, the `CreateSmoke*` / `CreateParticle*` / `CreateDebugRender*` /
+`CreateTerrainData*` group.
 
 The file is a single class (`PipelineManager`) whose ctor loads SPIR-V and orchestrates a load-bearing
 boot sequence of pipeline-creation member functions; the eight `Create*` members have **no external
 callers** (only the ctor invokes them — verified). The whole file is already client-only
 (`#if defined(BT_CLIENT)` at `:1`, client-vcxproj-only per the `Managers/` guard convention).
 
-**Prior-review constraint (must honor).** The landed `Refactor_PipelineAndDeviceDecomposition.md`
-(Graphics/Managers `/external-refactor-clean`, executed + removed in commit `cc8fcbc4`) explicitly
-**cleared `PipelineManager`'s big declarative pipeline tables as cohesive-as-is** — specifically the
-ctor and `CreateLightingShadowDependentPipelines` — and listed them as out-of-scope: "do not split."
-That judgment was about not *fragmenting individual functions* into helpers (an in-function-decomposition
-lens). It does **not** conflict with a *file-level* split that relocates **whole** `Create*` functions to
-sibling TUs. This plan therefore does whole-function relocation only: no function body is broken apart,
-and the ctor's boot orchestration is not touched. The one open question for `/external-grill-plan` is
-whether to split the file at all given that prior "cohesive" verdict, vs. accept-and-document the size.
+**Prior-review constraint (must honor).** PipelineManager.cpp's big declarative pipeline tables are
+cohesive by prior review and must not be fragmented — specifically the ctor and
+`CreateLightingShadowDependentPipelines`. That judgment is about not *fragmenting individual functions*
+into helpers (an in-function-decomposition lens). It does **not** conflict with a *file-level* split that
+relocates **whole** `Create*` functions to sibling TUs. This plan therefore does whole-function relocation
+only: no function body is broken apart, and the ctor's boot orchestration is not touched. The one open
+question for `/external-grill-plan` is whether to split the file at all given that prior "cohesive"
+verdict, vs. accept-and-document the size.
 
 ## Design
 
 Keep `PipelineManager.h` exactly as-is (class declaration + the eight `Create*` member decls +
-`FillWaterSharedDescriptors` + `VerifyAllDescriptorGenerations` + the `gpPipelineManager` global). All
+`VerifyAllDescriptorGenerations` + the `gpPipelineManager` global). All
 member-function definitions can live in any TU that includes the header — the standard "split member defs
 across TUs" pattern.
 
@@ -41,8 +40,6 @@ record verifier, not a boot `Create*`).
 - `CreatePipelineShadows` (`:257`)
 - `CreateLightingBlurPipelines` (`:340`)
 - `CreateLightingShadowDependentPipelines` (`:367`)
-- `FillWaterSharedDescriptors` (`:502`) — water descriptor-prefix helper, called from
-  `CreateLightingShadowDependentPipelines` (water pipelines are built inside it), so it moves with it.
 
 **New TU 2 — `PipelineManagerEffects.cpp`** (~320 lines): the terrain/smoke-wind/particle/debug cluster —
 - `CreateTerrainDataPipelines` (`:518`)
@@ -79,12 +76,12 @@ the `#if defined(BT_CLIENT)` wrap makes an accidental server add fail at the pre
   e.g. lighting-spread buffers + BRDF LUT before lighting pipelines, water-normal textures before
   `kPipelineWater`) stays in `PipelineManager.cpp` unchanged.
 - **Fragmenting the declarative pipeline tables** (the ctor, `CreateLightingShadowDependentPipelines`,
-  the Water/WaterSkyboxOne descriptor mirroring) — cleared as cohesive by the landed
-  `Refactor_PipelineAndDeviceDecomposition` review; this split moves whole functions only.
+  the Water descriptor table) — already reviewed and found cohesive-as-is; this split
+  moves whole functions only.
 - **Splitting `PipelineManager.h`** — the header stays single; no private `*Internal.h` (no cross-TU
   helper exists — every moved function is already a public member).
-- **`DynamicPipelines` / `InstanceManager` / `DeviceManager`** — those were the actual targets of the
-  landed `Refactor_PipelineAndDeviceDecomposition`; not touched here.
+- **`DynamicPipelines` / `InstanceManager` / `DeviceManager`** — belong to a different (already-decomposed)
+  concern; not touched here.
 - Any `DataPacker`/`.pack` payload-offset edits (that is `DataPacker/Architecture_PayloadLayoutSingleSource.md`).
 
 ## Acceptance criteria

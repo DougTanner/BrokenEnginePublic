@@ -21,9 +21,15 @@ place the staleness verifier must look away.
   `mBindlessArrayConsumers` consumer registry, and the slot-0 placeholder arrays + pointer-stability rule
   (`TextureManager.cpp:278-309`) — into one object (e.g. `BindlessSlotRegistry` inside `TextureDescriptors`)
   exposing `MintSlot` / `EvictSlot` / `RestoreSlot(channel)`. [~1h design + ~2h move]
-- Convert `IslandTerrain`'s sweeps to call those three methods instead of patching five parallel arrays and a
-  binding map (`Engine/Source/Frame/IslandTerrain.cpp` — mint in `AcquireTextureSlot` `:504-595`, eviction in
-  `EvictionSweep` `:679-777`, restoration in `RestorationSweep` `:779-829`). [~1h]
+- Convert the island sweeps to call those three methods instead of patching five parallel arrays and a
+  binding map (mint in `AcquireTextureSlot`; `EvictionSweep`/`RestorationSweep` live in
+  `Engine/Source/Frame/IslandTerrainResidency.cpp` — the client-only residency TU split out of
+  `IslandTerrain.cpp`). [~1h]
+- Single-source the RenderGlobal gating predicates with the sweep bodies: `AnyEvictionPending` /
+  `AnyRestorationPending` (`IslandTerrainResidency.cpp:239` area) each hand-mirror their sweep's
+  qualification logic (including the 4-CRC all-ready walk verbatim), so a drift silently breaks the
+  RenderGlobal churn gating. Derive predicate and sweep from one shared qualification helper inside the
+  registry. [~30m]
 - Enforce eviction symmetry inside the registry (one code path mints/evicts *all* channels of a slot
   together), turning the `Managers/CLAUDE.md:29` doc invariant into code. [~30m]
 - Narrow or remove the `VerifyAllDescriptorGenerations` carve-out (`PipelineManager.cpp:856-862`): with a
@@ -36,7 +42,7 @@ place the staleness verifier must look away.
 ## Critical files
 - `Engine/Source/Graphics/Managers/TextureDescriptors.h`, `TextureDescriptors.cpp`
 - `Engine/Source/Graphics/Managers/TextureManager.h`, `TextureManager.cpp`
-- `Engine/Source/Frame/IslandTerrain.h`, `IslandTerrain.cpp`
+- `Engine/Source/Frame/IslandTerrain.h`, `IslandTerrain.cpp`, `IslandTerrainResidency.cpp` (sweeps + gating predicates)
 - `Engine/Source/Graphics/Managers/PipelineManager.cpp` (verifier carve-out)
 - `Engine/Source/Graphics/Graphics.cpp` (read-only context: RenderGlobal window)
 - `Engine/Source/Graphics/Managers/CLAUDE.md` (invariant doc moves from prose to enforced)
@@ -45,7 +51,7 @@ place the staleness verifier must look away.
 - Changing the slot allocation policy, slot counts, or eviction heuristics — the *who-patches-what* moves;
   the *when-and-which-slot* decisions stay in `IslandTerrain`.
 - The lighting-blur slot path (`CrcToBlurredIndex` fallback) beyond what the registry move touches — its
-  synchronization is `Architecture_ThreadAndLifetimeGuards.md`.
+  synchronization contract (bindless-index phase exclusion) is documented in `Managers/CLAUDE.md` and stays.
 - The RenderGlobal phase ordering itself (fence drain → sweeps → adoption → restoration) — unchanged.
 
 ## Acceptance criteria
@@ -62,25 +68,9 @@ place the staleness verifier must look away.
   visual corruption or device loss. Execute alone, not co-scheduled.
 - Pre-staged grill decisions: (a) registry as inner class of `TextureDescriptors` vs sibling manager;
   (b) whether `RestoreSlot` keeps the per-channel granularity the restoration sweep currently uses.
-- Builds on (and should land after) `Architecture_ThreadAndLifetimeGuards.md`'s `CrcToIndex` decision, which
-  touches the same file.
-
-## Verification Notes
-
-Verified against source 2026-06-11 (verification pass for the /external-deep-analysis run). All claims
-confirmed:
-
-- `WriteArrayElementFromLive` at `TextureDescriptors.cpp:210` (decl `.h:79`), `UnregisterBindingsForKey` at
-  `:320-326`, `UpdateArrayBindingsForKey` at `:305-318`; `mBindlessArrayConsumers` registry exists in
-  `TextureDescriptors`.
-- Slot-0 placeholder arrays + pointer-stability rule at `TextureManager.cpp:278-309` exactly as cited
-  (the "do not re-resize, registry keys are `.data()` pointers" comment at `:278-281`).
-- Verifier carve-out at `PipelineManager.cpp:856-862` exactly as cited (per-island-slot bindings verify only
-  their owned element; comment explains the false-positive rationale).
-- Eviction-symmetry invariant documented at `Engine/Source/Graphics/Managers/CLAUDE.md:29` (Architecture
-  Notes), enforced nowhere in code — confirmed.
-- RenderGlobal fence-drain window at `Graphics.cpp:197-206` (gated all-fence drain at `:197-199`, EvictionSweep
-  `:201`, ProcessPendingTextures `:204`, RestorationSweep `:206`).
-- Citation corrected: the eviction sweep lives at `IslandTerrain.cpp:679-777`, outside the previously cited
-  `:525-595` (which is the mint path in `AcquireTextureSlot`; consumer registration at `:589`). Restoration
-  patch via `UpdateArrayBindingsForKey` at `:827`.
+- The `CrcToIndex` phase-exclusion contract is settled (documented in `Managers/CLAUDE.md`); the registry
+  inherits it unchanged.
+- `RegisterTextureBinding` now takes a designated-initializer struct — refresh call-signature citations at
+  execution. The small `WriteArrayElementFromLive` null-view-fallback fix in
+  `CorruptTextureChunkLifecycleHardening.md` targets the same function — land it first or fold it into the
+  registry move; never interleave.

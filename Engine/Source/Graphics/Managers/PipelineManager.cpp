@@ -273,7 +273,7 @@ void PipelineManager::CreatePipelineShadows()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpIslands->mIslandsStorageBuffers.data()},
-			// kSamplerElevation: bindless source is R32_SFLOAT; sampler chooses LINEAR or NEAREST per device capability (see TextureManager::CreateSamplers).
+			// kSamplerElevation: bindless source is R16_SFLOAT; sampler is unconditionally LINEAR (spec-mandated for 16-bit-float formats, see TextureManager::CreateSamplers).
 			{.flags = {kCombinedSamplers, kSamplerElevation, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data()}, // set=1 binding 2 (elevation)
 		},
 	});
@@ -391,7 +391,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			{.flags = {kCombinedSamplers, kSamplerBorderWhite}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
-			// Bindless per-island color / normal / AO arrays (was previously single composite RTTs).
+			// Bindless per-island color / normal / AO arrays.
 			// Compositing fragment shader indexes these with the per-instance `uiTextureSlot` forwarded
 			// from Terrain.vert; `kSamplerClamp` matches the per-slot RegisterTextureBinding flag in
 			// IslandTerrainResidency.cpp so descriptor writes line up with the sampler descriptor layout.
@@ -417,7 +417,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			// Terrain.frag. Appended after the SSBO so existing frag bindings 9..18 and the
 			// Terrain.vert SSBO at 19 stay put.
 			{.flags = {kCombinedSamplers, kSamplerClamp, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mMasksTextures.data()}, // set=1 binding 20 (masks)
-			// Per-island heightmap array (R32_SFLOAT), set=1 binding 21 (appended after masks at 20 so bindings
+			// Per-island heightmap array (R16_SFLOAT), set=1 binding 21 (appended after masks at 20 so bindings
 			// 0..20 stay put). Terrain.vert samples it at the island-local UV to sink THIS island's submerged
 			// verts (own elevation < zero-out) to the flat sea floor, so an overlapping neighbor's MAX-composite
 			// height never lifts this island's underwater mesh. Same array pointer the prepasses consume, so the
@@ -427,9 +427,8 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 	});
 
 	// Pre-computes Gerstner wave displacement + Jacobian normal once per frame into two RGBA16F
-	// textures sampled by Water.vert (kPipelineWater + kPipelineWaterSkyboxOne) — eliminates the
-	// duplicate wave sum the two passes used to evaluate via the now-removed GerstnerLow/Medium
-	// helpers. Dispatch dims are written per frame by MainUniforms (WriteIndirectComputeBuffer) to cover
+	// textures sampled by Water.vert (kPipelineWater) — the vertex shader texelFetches one value per
+	// vertex instead of summing the wave bands itself. Dispatch dims are written per frame by MainUniforms (WriteIndirectComputeBuffer) to cover
 	// only the active LOD sub-region; the shader's iWaterActiveQuad* uniform still bounds-checks each thread
 	// as a defensive guard.
 	mpPipelines[kPipelineWaterDisplacement].Create(
@@ -447,74 +446,35 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 		},
 	});
 
-	// Water
-	// kSampleShading was dropped here: the high-power One lobe of the skybox specular was extracted into
-	// kPipelineWaterSkyboxOne (forced 4x MSAA + full sample shading, resolved to mWaterSkyboxOneResolveTexture).
-	// The Two/Three lobes remain inlined here without sample shading because their power is low enough to
-	// alias acceptably. Main water samples the resolved One-lobe RT in screen space at binding 12.
-	PipelineInfo waterInfo
+	// Water. All three skybox-specular lobes are evaluated inline with analytic specular AA
+	// (WATER_SPEC_AA_MODE in Water.frag) instead of MSAA sample shading — kSampleShading stays off.
+	mpPipelines[kPipelineWater].Create(
 	{
 		.name = "Water",
 		.flags = {kAlphaBlend, kCullBack, kDepthTest, kDepthWrite, kDepthBias, kUpdateAfterBind, kIndirectHostVisible},
 		.ppShaders = {&mShaders.at(data::kShadersWaterWatervertCrc), &mShaders.at(data::kShadersWaterWaterfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mWaterMeshBuffer,
-	};
-	FillWaterSharedDescriptors(waterInfo.pDescriptorInfos);
-	// binding 12: resolved One-lobe skybox specular RT (Water-only; kPipelineWaterSkyboxOne outputs this target).
-	waterInfo.pDescriptorInfos[12] = {.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterSkyboxOneResolveTexture};
-	// Compute-pre-computed Gerstner displacement + normal sampled in Water.vert via texelFetch.
-	// Explicit bindings 13/14: kPipelineWaterSkyboxOne has no binding-12 descriptor (its frag shader doesn't
-	// sample the resolve target — it's the OUTPUT). Explicit binding keeps the shader-side binding numbers
-	// identical across both pipelines.
-	waterInfo.pDescriptorInfos[13] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = shaders::kiWaterBindingDisplacement, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture};
-	waterInfo.pDescriptorInfos[14] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = shaders::kiWaterBindingDisplacementNormal, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture};
-	mpPipelines[kPipelineWater].Create(waterInfo);
-
-	// WaterSkyboxOne: pre-pass at hardcoded 4x MSAA + full sample shading rendering only the One-lobe
-	// of the water skybox specular. Same vertex shader / mesh / indirect draw as Water so the screen-space
-	// sample in Water.frag aligns. Output resolves into mWaterSkyboxOneResolveTexture, bound above at
-	// binding 12 of the main water pipeline.
-	//
-	// Descriptor layout MIRRORS the main water pipeline exactly (bindings 0-11) because the shared
-	// Water.vert reads terrain elevation at set=1 binding=5 — any divergence in binding numbers would
-	// give the vertex shader garbage elevation and trigger its over-land early-out, producing flat
-	// (un-Gerstner-displaced) geometry. The new fragment shader uses only bindings 0/1/5/6/8; the
-	// other slots are present but unread (descriptor write is required, sample is not).
-	PipelineInfo skyboxInfo
-	{
-		.name = "WaterSkyboxOne",
-		.flags = {kCullBack, kRenderTarget, kForceFullSampleShading4x, kUpdateAfterBind, kIndirectHostVisible},
-		.ppShaders = {&mShaders.at(data::kShadersWaterWatervertCrc), &mShaders.at(data::kShadersWaterWaterSkyboxOnefragCrc)},
-		.pVertexBuffer = &gpBufferManager->mWaterMeshBuffer,
-		.vkRenderPass = gpTextureManager->mRenderTargetTextures.mWaterSkyboxOneVkRenderPass,
-		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mWaterSkyboxOneResolveTexture.mInfo.extent,
-	};
-	FillWaterSharedDescriptors(skyboxInfo.pDescriptorInfos);
-	// Explicit bindings 13/14 occupy indices 12/13 — this pipeline has no binding-12 descriptor (it OUTPUTs the
-	// resolve target). Both pipelines share Water.vert, so the shader-side binding numbers must agree.
-	skyboxInfo.pDescriptorInfos[12] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = shaders::kiWaterBindingDisplacement, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture};
-	skyboxInfo.pDescriptorInfos[13] = {.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = shaders::kiWaterBindingDisplacementNormal, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture};
-	mpPipelines[kPipelineWaterSkyboxOne].Create(skyboxInfo);
-}
-
-// Bindings 0-11 shared verbatim by kPipelineWater and kPipelineWaterSkyboxOne. Both bind Water.vert, which
-// reads terrain elevation at set=1 binding=5 — divergence here silently flattens the water (the vertex shader's
-// over-land early-out fires on garbage elevation). Single-sourced so the invariant is structural, not
-// comment-enforced. Callers append the pipeline-specific tail.
-void PipelineManager::FillWaterSharedDescriptors(DescriptorInfo* pDescriptorInfos)
-{
-	pDescriptorInfos[0]  = {.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()};
-	pDescriptorInfos[1]  = {.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()};
-	pDescriptorInfos[2]  = {.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = static_cast<int64_t>(std::size(gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures)), .ppTextures = gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures};
-	pDescriptorInfos[3]  = {.flags = {kCombinedSamplers, kSamplerBorderWhite}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture};
-	pDescriptorInfos[4]  = {.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture};
-	pDescriptorInfos[5]  = {.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture};
-	pDescriptorInfos[6]  = {.flags = kCombinedSamplers, .iCount = 1, .textureCrc = TextureManager::kPrefilteredWaterCrc};
-	pDescriptorInfos[7]  = {.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC4NoisepngCrc};
-	pDescriptorInfos[8]  = {.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = TextureManager::kiWaterNormalCount, .ppTextures = mppWaterNormalTextures};
-	pDescriptorInfos[9]  = {.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesWaterDepthLutpngCrc};
-	pDescriptorInfos[10] = {.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne};
-	pDescriptorInfos[11] = {.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture};
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = static_cast<int64_t>(std::size(gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures)), .ppTextures = gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures},
+			{.flags = {kCombinedSamplers, kSamplerBorderWhite}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
+			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = TextureManager::kPrefilteredWaterCrc},
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC4NoisepngCrc},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = TextureManager::kiWaterNormalCount, .ppTextures = mppWaterNormalTextures},
+			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesWaterDepthLutpngCrc},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture},
+			// Compute-pre-computed Gerstner displacement + normal sampled in Water.vert via texelFetch.
+			// Explicit bindings keep the shader-side numbers at 13/14 — binding 12 is intentionally
+			// unused; renumbering the displacement bindings isn't worth the churn.
+			{.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = shaders::kiWaterBindingDisplacement, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture},
+			{.flags = kCombinedSamplers, .iCount = 1, .iExplicitBinding = shaders::kiWaterBindingDisplacementNormal, .pTexture = &gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture},
+		},
+	});
 }
 
 void PipelineManager::CreateTerrainDataPipelines()
@@ -533,7 +493,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpIslands->mIslandsStorageBuffers.data()},
-			// kSamplerElevation for R32_SFLOAT bindless heightmap (LINEAR/NEAREST per device capability). See TextureManager::CreateSamplers.
+			// kSamplerElevation for R16_SFLOAT bindless heightmap (unconditionally LINEAR — spec-mandated for 16-bit-float formats). See TextureManager::CreateSamplers.
 			{.flags = {kCombinedSamplers, kSamplerElevation, kBindlessArrayConsumer}, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mRenderTargetTextures.mElevationTextures.data()}, // set=1 binding 2 (elevation, kPipelineTerrainElevation)
 		},
 	});

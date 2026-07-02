@@ -122,7 +122,7 @@ TextureManager::TextureManager()
 	// Slot-0 island placeholders. Format-matched to the bindless arrays; values chosen so
 	// sampling slot 0 has no visible effect (ocean-bottom elevation submerged below the water,
 	// mid-gray color, up-vector normals, full-bright AO).
-	CreatePlaceholderTexture(mIslandPlaceholderElevation, "IslandPlaceholderElevation", 0, VK_FORMAT_R32_SFLOAT, 1, VK_IMAGE_VIEW_TYPE_2D,
+	CreatePlaceholderTexture(mIslandPlaceholderElevation, "IslandPlaceholderElevation", 0, VK_FORMAT_R16_SFLOAT, 1, VK_IMAGE_VIEW_TYPE_2D,
 	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
 		// Ocean-bottom, matching the elevation RTT clear (RenderTargetTextures.cpp) and the
@@ -130,7 +130,7 @@ TextureManager::TextureManager()
 		// GPU-resident (startup, mid-load before RestorationSweep, evicted-slot grace window) alias
 		// this placeholder; ocean-bottom keeps their footprint submerged under the water instead of
 		// rendering a sea-level plane that pokes through the surface.
-		*static_cast<float*>(pData) = gpIslandTerrain->mfSeaFloorElevation;
+		*static_cast<uint16_t*>(pData) = DirectX::PackedVector::XMConvertFloatToHalf(gpIslandTerrain->mfSeaFloorElevation);
 	});
 
 	CreatePlaceholderTexture(mIslandPlaceholderColor, "IslandPlaceholderColor", 0, VK_FORMAT_R8G8B8A8_UNORM, 1, VK_IMAGE_VIEW_TYPE_2D,
@@ -259,7 +259,6 @@ TextureManager::~TextureManager()
 
 	DestroySamplers();
 	mRenderTargetTextures.DestroyLightingTextures();
-	mRenderTargetTextures.DestroyWaterSkyboxOneTextures();
 
 	if (gpTextureManager == this)
 	{
@@ -276,7 +275,6 @@ void TextureManager::DestroyScreenDependentResources()
 	mAcquireVkCommandBuffers.clear();
 
 	mRenderTargetTextures.DestroyLightingTextures();
-	mRenderTargetTextures.DestroyWaterSkyboxOneTextures();
 }
 
 void TextureManager::CreateScreenDependentResources()
@@ -338,10 +336,11 @@ void TextureManager::CreateSamplers()
 	}
 
 	// Vulkan spec only mandates SAMPLED_IMAGE_FILTER_LINEAR_BIT for the 16-bit-float family. R32_SFLOAT
-	// (used by smoke ping-pong and the per-island elevation heightmap) is optional; on devices without
-	// the bit, sampling a R32_SFLOAT image with VK_FILTER_LINEAR is undefined per spec — silently aliased
-	// or corrupted output with no validation message. Query once and downgrade the affected samplers to
-	// VK_FILTER_NEAREST so the engine still boots; the warning surfaces in the launch log.
+	// (used by the smoke ping-pong textures) is optional; on devices without the bit, sampling a R32_SFLOAT
+	// image with VK_FILTER_LINEAR is undefined per spec — silently aliased or corrupted output with no
+	// validation message. Query once and downgrade the smoke sampler to VK_FILTER_NEAREST so the engine
+	// still boots; the warning surfaces in the launch log. (The per-island elevation heightmap is R16_SFLOAT,
+	// whose linear filter is spec-mandated, so kSamplerSlotElevation stays LINEAR unconditionally below.)
 	const bool bR32SFloatLinearSupported = SupportsLinearFilter(VK_FORMAT_R32_SFLOAT);
 
 	const VkFilter eSmokeFilter = bR32SFloatLinearSupported ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
@@ -349,7 +348,7 @@ void TextureManager::CreateSamplers()
 	static bool sbWarnedR32SFloatLinear = false;
 	if (!bR32SFloatLinearSupported && !sbWarnedR32SFloatLinear)
 	{
-		LOG(kGraphics, kWarning, "VK_FORMAT_R32_SFLOAT does not advertise VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT — falling back to VK_FILTER_NEAREST for the smoke ping-pong and island-heightmap samplers. Smoke and terrain edges will appear blocky.\n");
+		LOG(kGraphics, kWarning, "VK_FORMAT_R32_SFLOAT does not advertise VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT — falling back to VK_FILTER_NEAREST for the smoke ping-pong sampler. Smoke will appear blocky.\n");
 		sbWarnedR32SFloatLinear = true;
 	}
 
@@ -411,15 +410,9 @@ void TextureManager::CreateSamplers()
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotClamp]));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotClamp], "Clamp");
 
-	// Dedicated sampler for the per-island R32_SFLOAT heightmap (IslandTerrain bindless elevation array).
-	// Mirrors mpSamplers[kSamplerSlotClamp] settings but downgrades the filter to NEAREST when the device does not
-	// advertise SAMPLED_IMAGE_FILTER_LINEAR_BIT for R32_SFLOAT. mpSamplers[kSamplerSlotClamp] stays LINEAR so the
-	// spec-mandated formats it also serves (BC7 color, BC5 normals, R8 AO) keep bilinear filtering.
-	if (!bR32SFloatLinearSupported)
-	{
-		vkSamplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-		vkSamplerCreateInfo.minFilter = VK_FILTER_NEAREST;
-	}
+	// Dedicated sampler for the per-island R16_SFLOAT heightmap (IslandTerrain bindless elevation array).
+	// Mirrors mpSamplers[kSamplerSlotClamp]; R16_SFLOAT linear filtering is spec-mandated (16-bit-float family),
+	// so this stays LINEAR unconditionally — no device-support downgrade, unlike the R32_SFLOAT smoke sampler.
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotElevation]));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotElevation], "Elevation");
 	// Restore filters for subsequent Border/Repeat/MirroredRepeat samplers (they serve spec-mandated formats).

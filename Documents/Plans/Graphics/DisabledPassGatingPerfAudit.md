@@ -10,13 +10,14 @@ cheap levers available are (1) writing `0` into an indirect-dispatch/draw count 
 `vkCmdFillBuffer`, `vkCmdUpdateBuffer`, layout transitions, and copies **cannot** be cheaply indirect-gated — skipping
 them requires a destroy-tier re-record on the enable/disable *edge*, which is the expensive path.
 
-**Precedent to document and respect: the shadow temporal pass + copy (Item 1 of the just-completed plan).** That item
-analyzed gating the shadow temporal-accumulation dispatch + the history `vkCmdCopyImage` when shadows are disabled and
-**chose to ACCEPT the fixed cost** rather than add edge-triggered re-record machinery. Reasoning: the CB re-record ban
-means gating-when-disabled needs a destroy-tier re-record fired on the enable/disable transition (fragile, drains
-in-flight frames), and a recorded copy/dispatch can't be turned into a cheap per-frame indirect no-op the way a draw
-count can. The measured cost was small enough that the complexity was not worth it. **This audit's default expected
-outcome is "accept," matching that precedent, unless a specific pass measures non-trivially.**
+**Precedent to document and respect: the shadow temporal pass + copy accepted the fixed cost rather than adding
+edge-triggered re-record machinery.** Gating the shadow temporal-accumulation dispatch + the history
+`vkCmdCopyImage` when shadows are disabled was considered and **rejected in favor of accepting the fixed cost**.
+Reasoning: the CB re-record ban means gating-when-disabled needs a destroy-tier re-record fired on the
+enable/disable transition (fragile, drains in-flight frames), and a recorded copy/dispatch can't be turned into a
+cheap per-frame indirect no-op the way a draw count can. The measured cost was small enough that the complexity was
+not worth it. **This audit's default expected outcome is "accept," matching that precedent, unless a specific pass
+measures non-trivially.**
 
 This plan is therefore fundamentally a **measure-then-decide audit**, not an implementation plan. It enumerates the
 sibling passes that run-while-disabled, measures each at representative resolutions with the feature off, and records a

@@ -27,6 +27,17 @@ void IslandTerrain::CreateClientMeshBuffers()
 
 		int64_t iMeshIndexBytes = static_cast<int64_t>(rTemplate.miMeshIndexCount) * static_cast<int64_t>(sizeof(uint32_t));
 		int64_t iMeshPositionBytes = static_cast<int64_t>(rTemplate.miMeshVertexCount) * 2 * static_cast<int64_t>(sizeof(float));
+
+		// The mesh CPU slice ([positions][indices]) sits in the kIsland chunk payload right after the heightmap halfs.
+		// On device-loss recovery the pool pages were decommitted after the previous upload, so recommit + reload them
+		// from disk before the memcpy below re-reads mpfMeshPositions/mpuiMeshIndices (their pool pointers are unchanged).
+		int64_t iHeightmapBytes = static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight) * static_cast<int64_t>(sizeof(uint16_t));
+		int64_t iMeshBytes = iMeshPositionBytes + iMeshIndexBytes;
+		if (rTemplate.mbMeshCpuDecommitted)
+		{
+			gpFileManager->RecommitAndReloadChunkRange(rCrc, static_cast<uint64_t>(iHeightmapBytes), static_cast<uint64_t>(iMeshBytes));
+		}
+
 		rTemplate.mMeshBuffer.Create(
 		{
 			.name = "IslandMesh",
@@ -42,48 +53,32 @@ void IslandTerrain::CreateClientMeshBuffers()
 			std::memcpy(static_cast<char*>(pData) + iMeshIndexBytes, rTemplate.mpfMeshPositions, static_cast<size_t>(iMeshPositionBytes));
 		});
 		LOG(kGraphics, kDebug, "Uploaded island mesh: crc={} vertices={} indices={}", rCrc, rTemplate.miMeshVertexCount, rTemplate.miMeshIndexCount);
-	}
 
-	// Resident-memory footprint instrumentation (Documents/Plans/Graphics resident-memory scaling).
-	// meshCpu / heightmap / hull all slice into the kIsland chunk payload (FileManager-resident
-	// CPU RAM); meshGpu is the device-local VRAM buffer uploaded above.
-	int64_t iTotalMeshCpu = 0;
-	int64_t iTotalMeshGpu = 0;
-	int64_t iTotalHeightmap = 0;
-	int64_t iTotalHull = 0;
-	for (const auto& [rCrc, rTemplate] : mIslands)
-	{
-		int64_t iMeshCpu = static_cast<int64_t>(rTemplate.miMeshIndexCount) * static_cast<int64_t>(sizeof(uint32_t))
-			+ static_cast<int64_t>(rTemplate.miMeshVertexCount) * 2 * static_cast<int64_t>(sizeof(float));
-		int64_t iMeshGpu = iMeshCpu;
-		int64_t iHeightmap = static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight) * static_cast<int64_t>(sizeof(float));
-		int64_t iHull = static_cast<int64_t>(rTemplate.miValidAreaVertexCount) * static_cast<int64_t>(sizeof(XMFLOAT2));
-		LOG(kGraphics, kError, "[DEBUG-resmem] Island residency: crc={} meshCpu={} meshGpu={} heightmap={} hull={}", rCrc, iMeshCpu, iMeshGpu, iHeightmap, iHull);
-		iTotalMeshCpu += iMeshCpu;
-		iTotalMeshGpu += iMeshGpu;
-		iTotalHeightmap += iHeightmap;
-		iTotalHull += iHull;
+		// Reclaim the mesh CPU slice: it is dead after this one-time GPU upload (never read again; the server never
+		// even assigns these pointers). CreateClientMeshBuffers reloads it on device-loss recovery via the gate above.
+		gpFileManager->DecommitChunkRange(rCrc, static_cast<uint64_t>(iHeightmapBytes), static_cast<uint64_t>(iMeshBytes));
+		rTemplate.mbMeshCpuDecommitted = true;
 	}
-	LOG(kGraphics, kError, "[DEBUG-resmem] Island residency aggregate: templates={} meshCpu={} meshGpu={} heightmap={} hull={}", static_cast<int64_t>(mIslands.size()), iTotalMeshCpu, iTotalMeshGpu, iTotalHeightmap, iTotalHull);
 }
 
 namespace
 {
-	// Upload an island's heightmap into its template-owned mElevationTexture as an R32_SFLOAT image.
+	// Upload an island's heightmap into its template-owned mElevationTexture as an R16_SFLOAT image (raw
+	// byte-copy — the resident heightmap is already R16 half-float, matching the image's texel size).
 	// Reused at first-mint and on device-loss re-Create. Descriptor patching is deferred to
 	// RestorationSweep so it lands inside RenderGlobal's post-fence-wait descriptor-patch window.
 	void CreateElevationTextureFromHeightmap(IslandTemplate& rTemplate, std::string_view name)
 	{
 		// Boot ordering invariant: WaitForElevationMaps (called once at startup) is the only writer of
-		// mpfHeightmapData. AcquireTextureSlot must never run before it.
-		ASSERT(rTemplate.mpfHeightmapData != nullptr);
+		// mpHeightmapHalf. AcquireTextureSlot must never run before it.
+		ASSERT(rTemplate.mpHeightmapHalf != nullptr);
 		// Heap: Texture::Create allocates GPU resources and uses a OneShotCommandBuffer.
 		ScopedSuppressAllocationTracking suppress;
 		rTemplate.mElevationTexture.Create(
 			TextureInfo
 			{
 				.name = name,
-				.format = VK_FORMAT_R32_SFLOAT,
+				.format = VK_FORMAT_R16_SFLOAT,
 				.extent = {static_cast<uint32_t>(rTemplate.miHeightmapWidth), static_cast<uint32_t>(rTemplate.miHeightmapHeight), 1u},
 				.mipLevels = 1u,
 				.arrayLayers = 1u,
@@ -95,7 +90,7 @@ namespace
 			},
 			[&rTemplate](void* pData, int64_t iPosition, int64_t iSize)
 			{
-				std::memcpy(pData, reinterpret_cast<const std::byte*>(rTemplate.mpfHeightmapData) + iPosition, static_cast<size_t>(iSize));
+				std::memcpy(pData, reinterpret_cast<const std::byte*>(rTemplate.mpHeightmapHalf) + iPosition, static_cast<size_t>(iSize));
 			});
 	}
 }
@@ -296,7 +291,7 @@ bool IslandTerrain::EvictTemplate(common::crc_t islandCrc, IslandTemplate& rTemp
 
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(islandCrc);
 	// The 4 chunk-backed channels (color/normals/AO/masks). Elevation is template-owned (no chunk
-	// CRC) and is evicted separately below — it is no longer permanently resident.
+	// CRC) and is evicted separately below, via the template's own image rather than the chunk pool.
 	common::crc_t evictCrcs[4] =
 	{
 		rLazyChunk.header.islandHeader.colorsCrc,

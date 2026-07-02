@@ -21,9 +21,8 @@ layout (set = 1, binding = 4, rgba16f) uniform writeonly image2D normalImage;
 
 // Pre-computes the Gerstner wave displacement (Δx, Δy, Δz from camera-relative un-displaced position)
 // and Jacobian-derived flat-blended normal, so Water.vert can texelFetch a single sample per vertex
-// instead of summing iWaterLowCount + iWaterMediumCount waves twice (once for the WaterSkyboxOne
-// pre-pass, once for the main water pass). Math mirrors the former GerstnerLow / GerstnerMedium
-// helpers in Water.vert byte-for-byte. Shore-fade amplitude is baked into the low-band sum (the only
+// instead of summing iWaterLowCount + iWaterMediumCount waves itself. Math matches Water.vert's
+// per-vertex Gerstner wave sum byte-for-byte. Shore-fade amplitude is baked into the low-band sum (the only
 // band that fades to shore); the Z-taper-near-shore and over-land early-out stay in Water.vert.
 //
 // Texel grid is in 1:1 alignment with the active water-mesh LOD vertex grid: only the top-left
@@ -45,7 +44,7 @@ void main()
 	vec2 f2LocalPosition = f2WorldPosition - vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
 
 	float fTerrainElevation = textureLod(elevationTextureSampler, WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea), 0.0f).x - globalLayout.fWaterHeight;
-	// Shore amp fade: 1 deep, 0 at/above the top. Same formula as Water.vert previously.
+	// Shore amp fade: 1 deep, 0 at/above the top. Same formula as Water.vert.
 	float fShoreAmplitude = clamp((fTerrainElevation - globalLayout.fBeachFadeTop) * globalLayout.fBeachFadeInvRange, 0.0f, 1.0f);
 
 	// Over land (terrain at/above water height): Water.vert skips the displacement fetch for these texels,

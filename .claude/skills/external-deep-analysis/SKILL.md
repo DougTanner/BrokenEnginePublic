@@ -1,23 +1,23 @@
 ---
 name: external-deep-analysis
-description: Runs a two-phase code analysis pipeline on a directory — architecture review (shape) then refactor-clean (in-function mechanics) — then scores, prioritizes, and verifies all plan files. Produces actionable plan files per phase and a tiered `Order.md` priority matrix. Only invoke when the user explicitly requests it (e.g., "/external-deep-analysis", "run a deep analysis", "full code analysis"). Never trigger autonomously from general code questions or during routine code changes.
+description: Runs a two-phase code analysis pipeline on a directory — architecture review (shape) then refactor-clean (in-function mechanics) — then verifies, scores, and prioritizes all plan files. Produces actionable plan files per phase and score-sorted rows in the `Order.md` priority table. Both phases also surface the non-security anti-patterns characteristic of iteratively AI-generated code (dead modules, broken abstractions, phantom guards, swallowed errors, cross-file duplication); security auditing is deliberately excluded. Only invoke when the user explicitly requests it (e.g., "/external-deep-analysis", "run a deep analysis", "full code analysis"). Never trigger autonomously from general code questions or during routine code changes.
 disable-model-invocation: true
 allowed-tools: [Read, Write, Edit, Grep, Glob, Agent, Bash]
 ---
 
 # Deep Analysis Pipeline
 
-Runs two analysis skills in sequence (shape → in-function), then scores and verifies all output.
+Runs two analysis skills in sequence (shape → in-function), then verifies and scores all output.
 
 **Pipeline order:**
-1. `/external-architecture-review` — Shape: dependency structure, deep-modules (Ousterhout), coupling/cohesion, determinism, frame-phase, thread-model, shader/CPU consistency, ThirdParty library-replacement opportunities
-2. `/external-refactor-clean` — In-function mechanics: complexity, hot-path allocation, bool-proliferation, `Float4A`, narrow `#ifdef`, header placement. Hands off oversized files to `/reduce-file`.
+1. `/external-architecture-review` — Shape: dependency structure, deep-modules (Ousterhout), coupling/cohesion, determinism, frame-phase, thread-model, shader/CPU consistency, ThirdParty library-replacement opportunities, plus AI-generation structural anti-patterns (dead modules, cosmetic/broken abstractions, pattern abandonment, cross-file duplication, inter-module seams)
+2. `/external-refactor-clean` — In-function mechanics: complexity, hot-path allocation, bool-proliferation, `Float4A`, narrow `#ifdef`, header placement, plus AI-generation in-function smells (phantom guards, swallowed errors, return-type/boundary gaps). Hands off oversized files to `/reduce-file`.
 
 ## Arguments
 
 The user provides a target path (file or directory) to analyze. If no path is given, ask for one.
 
-**Recursion**: By default, only analyze code files directly in the specified directory (non-recursive). Only recurse into sub-directories if the user explicitly requests it (e.g., "recurse", "recursive", "include subdirectories"). Pass this recursion preference to each sub-skill invocation by appending the instruction to the skill arguments (e.g., `/external-architecture-review Engine/Source/Frame — non-recursive, only files directly in this directory`).
+**Recursion**: By default, only analyze code files directly in the specified directory (non-recursive). Only recurse into sub-directories if the user explicitly requests it (e.g., "recurse", "recursive", "include subdirectories"). The sub-skills share the same non-recursive default; still **state the recursion mode explicitly in every sub-skill invocation, in both modes**, so the user's choice propagates (e.g., `/external-architecture-review Engine/Source/Frame — non-recursive, only files directly in this directory`, or `… — recursive, include subdirectories`).
 
 ## Instructions
 
@@ -65,13 +65,17 @@ Source: /external-architecture-review on <target path>. <Why this group matters.
 
 ## Out of scope
 - <adjacent things this plan deliberately does not address>
+
+## Notes
+- Invariant exposure: <does this touch determinism/CRC sim paths, `kiVersion`/`.pack` layout, replays, client/server guard scope, or allocation-tracked paths? State "none" if none>
+- <pre-stage any single open decision for /external-grill-plan>
 ```
 
 Name the interface being changed, not just `path:line` — symbol names survive line drift, and `/next-plan` relies on them to refresh citations at execution time. Include a rough effort estimate per item: `[~5m]`, `[~15m]`, `[~30m]`, `[~1h]`.
 
 Keep plans focused — one plan per logical group (e.g., `Architecture_IncludeGraph.md`, `Architecture_LayerViolations.md`, `Architecture_CollectionCohesion.md`, `Architecture_LibraryReplacement.md`). Only create a plan if there are concrete changes to make. If a plan would exceed 15 items, split it by subdirectory or file group.
 
-ThirdParty library-replacement candidates from the architecture review get their own plan file (`Architecture_LibraryReplacement.md`). Each item must include: candidate library name, license (allow-list only), approximate LOC removable, and risks. Phase 4 verification re-checks the license claim and confirms the library is not already in `/ThirdParty/`.
+ThirdParty library-replacement candidates from the architecture review get their own plan file (`Architecture_LibraryReplacement.md`). Each item must include: candidate library name, license (allow-list only), approximate LOC removable, and risks. The verification phase re-checks the license claim and confirms the library is not already in `/ThirdParty/`.
 
 ### 2. Phase 2: Refactor-Clean
 
@@ -79,25 +83,13 @@ Read `.claude/skills/external-refactor-clean/SKILL.md` and execute its workflow,
 - The original target directory (for full coverage of in-function mechanics)
 - Any specific paths flagged as investigation items from Phase 1
 
-**Deduplication**: Before writing plan files, check existing Phase-1 plan files. If a finding is already covered by an existing plan (even under a different category), skip it.
+**Deduplication**: Before writing plan files, check the Phase-1 plan files from this run AND pre-existing live plans — the output directory plus the `Documents/Plans/Order.md` table (plans from earlier runs stay live). If a finding is already covered by any live plan (even under a different category), skip it.
 
 Write all new actionable findings as plan files: `Refactor_<GroupName>.md`, using the same format as Phase 1 with title `# Refactor: <Group Name>` and `Source: /external-refactor-clean on <target path>`.
 
-### 3. Phase 3: Scoring, Tiering & Debt Summary
+### 3. Phase 3: Verification Pass
 
-Score each plan file from Phases 1–2 using the canonical anchors in `Documents/CLAUDE.md` §Scoring Anchors — read that section before scoring:
-
-- **Effort** 1–5, **Impact** 1–5, **Risks** 0–4
-- **Priority Score** = Effort − Impact + Risks (lower = higher priority)
-- **Tier** — informal size descriptor mirroring the Effort anchor: **Quick Win / Small / Medium / Large / Architectural**
-
-Calibrate against neighbouring rows in the existing `Documents/Plans/Order.md` rather than defaulting to the middle. The Risks axis keys on blast radius, not just likelihood: anything touching determinism / CRC / network protocol / cross-frame state scores 3+ even when the edit is mechanical.
-
-**Debt Score** for the target area as a whole (single label): **LOW / MODERATE / HIGH / CRITICAL**, with one-sentence justification. Use the distribution of tiers as the primary signal (all Quick Wins → LOW; several Architectural → HIGH/CRITICAL).
-
-### 4. Phase 4: Verification Pass
-
-After scoring, launch a verification subagent with `subagent_type: "general-purpose"` and `model: "fable"`. State the expected mutations up front in the prompt: the agent will rewrite plan files (`Read`, `Write`, `Edit`, `Grep`, `Glob`) and delete entirely-invalid ones (`Bash`).
+After Phase 2 completes, launch a verification subagent with `subagent_type: "general-purpose"` and `model: "fable"`. State the expected mutations up front in the prompt: the agent will rewrite plan files (`Read`, `Write`, `Edit`, `Grep`, `Glob`) and delete entirely-invalid ones (`Bash`). Verification runs BEFORE scoring so scores reflect what survives, not what was originally drafted.
 
 The verification agent reads every plan file created during this run and checks:
 
@@ -106,27 +98,46 @@ The verification agent reads every plan file created during this run and checks:
    - Cosmetic-only with no functional benefit
    - Risk-introducing (could break existing behavior)
    - Contradicting engine patterns documented in CLAUDE.md files
-   - Duplicating work already covered by another plan file
+   - Duplicating work already covered by another plan file — including pre-existing live plans from earlier runs
 3. **Completeness**: Are the change descriptions specific enough to act on without ambiguity?
 4. **Library-replacement claims** (`Architecture_LibraryReplacement.md` only): re-verify each proposed license against the allow list in `ThirdParty/CLAUDE.md` and confirm the library is not already in `/ThirdParty/`.
 
 For any plan file that fails verification:
 - If partially valid: rewrite it with only the valid items
 - If entirely invalid: delete it
-- Add a `## Verification Notes` section at the bottom of each surviving plan file with any caveats
+- Where a surviving plan has caveats, add a `## Verification Notes` section at the bottom recording them (omit the section when there are none)
+
+### 4. Phase 4: Scoring, Tiering & Debt Summary
+
+Score each surviving plan file (post-verification content) using the canonical anchors in `Documents/CLAUDE.md` §Scoring Anchors — read that section before scoring:
+
+- **Effort** 1–5, **Impact** 1–5, **Risks** 0–4
+- **Priority Score** = Effort − Impact + Risks (lower = higher priority)
+- **Tier** — informal size descriptor mirroring the Effort anchor: **Quick Win / Small / Medium / Large / Architectural**
+
+Calibrate against neighbouring rows in the existing `Documents/Plans/Order.md` rather than defaulting to the middle. The Risks axis keys on blast radius, not just likelihood: anything touching determinism / CRC / network protocol / cross-frame state scores 3+ even when the edit is mechanical.
+
+**Debt Score** for the target area as a whole (single label), with one-sentence justification. Use the tier distribution as the primary signal:
+
+- **LOW** — all or nearly all Quick Win / Small
+- **MODERATE** — mostly Small / Medium
+- **HIGH** — multiple Large, or any Architectural
+- **CRITICAL** — several Architectural, or any finding threatening a core invariant (determinism / CRC, network protocol, save/pack compatibility)
+
+The Debt Score is reported in the Phase 6 summary only — never recorded in `Order.md` (per `Documents/Plans/CLAUDE.md`, run retrospectives don't belong in the priority index).
 
 ### 5. Phase 5: Update `Order.md`
 
-After verification, add every surviving plan file to `Documents/Plans/Order.md` — in the same session that created the plan files. `Documents/Plans/CLAUDE.md` owns the row format and bookkeeping rules; all plans across all target paths intermingle in the single score-sorted `## Plans` table:
+After scoring, add every surviving plan file to `Documents/Plans/Order.md` — in the same session that created the plan files. `Documents/Plans/CLAUDE.md` owns the row format and bookkeeping rules; all plans across all target paths intermingle in the single score-sorted `## Plans` table:
 
 ```markdown
-| # | Plan | Tier | Effort | Impact | Risks | Score | Notes |
-|---|------|------|--------|--------|-------|-------|-------|
-| 1 | [Frame/Architecture_IncludeGraph.md](Frame/Architecture_IncludeGraph.md) | Quick Win | 1 | 2 | 1 | 0 | One-line summary |
+| Plan | Tier | Effort | Impact | Risks | Score | Notes |
+|------|------|--------|--------|-------|-------|-------|
+| [Frame/Architecture_IncludeGraph.md](Frame/Architecture_IncludeGraph.md) | Quick Win | 1 | 2 | 1 | 0 | One-line summary |
 ```
 
-- Insert each row at its score-correct position (lowest first), then renumber the `#` column so it stays a contiguous 1-based ordinal. Preserve existing rows.
-- Add a `## Debt Score (<area>, this run): <LOW / MODERATE / HIGH / CRITICAL>` section above the table with the one-sentence justification.
+- Insert each row at its score-correct position (lowest first). Preserve existing rows.
+- Do **not** add the Debt Score or any other run retrospective to `Order.md` — it lives in the Phase 6 summary only.
 - New plans that must execute in a fixed order (shared files, stale line numbers) get a bullet in the `## Dependencies` section (`PlanA` → `PlanB` — reason); plans touching the same files get an entry in `## File Groups` (**shared files**: `PlanA`, `PlanB`) so they land in one session.
 
 ### 6. Phase 6: Summary

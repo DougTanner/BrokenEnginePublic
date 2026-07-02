@@ -336,8 +336,6 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	int iLod = std::clamp(game::gpCamera->miVisibleAreaLod, 0, BufferManager::kiVisibleAreaLodCount - 1);
 	const BufferManager::VisibleAreaMeshLod& rWaterLod = gpBufferManager->mWaterMeshLods[iLod];
 	gpPipelineManager->mpPipelines[kPipelineWater].WriteIndirectBuffer(iCommandBuffer, 1, rWaterLod.iIndexCount, rWaterLod.iIndexOffset, rWaterLod.iVertexOffset);
-	// WaterSkyboxOne draws the same mesh as Water (same Water.vert) so screen-space alignment matches.
-	gpPipelineManager->mpPipelines[kPipelineWaterSkyboxOne].WriteIndirectBuffer(iCommandBuffer, 1, rWaterLod.iIndexCount, rWaterLod.iIndexOffset, rWaterLod.iVertexOffset);
 
 	// Active LOD's vertex-grid dims (iQuadCount* == iMeshX/Y - 1). Read by:
 	//   1) WaterDisplacement.comp — bounds-checks each thread, only writes the top-left rectangle.
@@ -424,9 +422,6 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 
 	XMStoreFloat4(&rMainLayout.f4EyePosition, game::gpCamera->mVecEyePosition);
 	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, game::gpCamera->mVecToEyeNormal);
-
-	rMainLayout.f2InvFramebufferSize.x = 1.0f / static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
-	rMainLayout.f2InvFramebufferSize.y = 1.0f / static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
 
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 	PopulateGerstnerWaves(rMainLayout, rGlobalLayout);

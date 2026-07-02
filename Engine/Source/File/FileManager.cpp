@@ -385,6 +385,11 @@ void FileManager::LoadPackFiles()
 	GetDiskFreeSpaceW(mDataDirectory.root_path().c_str(), &uiSectorsPerCluster, &uiBytesPerSector, &uiNumberOfFreeClusters, &uiTotalNumberOfClusters);
 	miSectorSize = uiBytesPerSector;
 
+	// Query the VM page granularity for lazy-chunk sub-range decommit/recommit (DecommitChunkRange).
+	SYSTEM_INFO systemInfo {};
+	GetSystemInfo(&systemInfo);
+	miPageSize = systemInfo.dwPageSize;
+
 	// Open persistent unbuffered handles for lazy pack files
 	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
 	{
@@ -881,6 +886,71 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t uiOffset, std::span<
 	
 	// Chunk not found
 	return false;
+}
+
+void FileManager::DecommitChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength)
+{
+	// Reclaim a dead sub-range of a resident lazy chunk. Only the page-aligned interior is decommitted, so the
+	// boundary partial-pages — which may share bytes with the neighbouring heightmap/hull payload — stay committed;
+	// a sub-page range (tiny island) decommits nothing. Other chunks live at disjoint pages in the shared pool
+	// reservation, so they are untouched. Main-thread only, with no concurrent reader of the range.
+	// A failed MEM_DECOMMIT is benign (the pages simply stay committed) so its result is not checked.
+	LazyChunk& rLazyChunk = mLazyChunkMap.at(crc);
+	uintptr_t uiRangeStart = reinterpret_cast<uintptr_t>(rLazyChunk.pData) + uiOffset;
+	uintptr_t uiRangeEnd = uiRangeStart + uiLength;
+	uintptr_t uiAlignedStart = common::RoundUp(uiRangeStart, static_cast<uintptr_t>(miPageSize));
+	uintptr_t uiAlignedEnd = common::RoundDown(uiRangeEnd, static_cast<uintptr_t>(miPageSize));
+	if (uiAlignedEnd > uiAlignedStart)
+	{
+		VirtualFree(reinterpret_cast<void*>(uiAlignedStart), static_cast<SIZE_T>(uiAlignedEnd - uiAlignedStart), MEM_DECOMMIT);
+	}
+}
+
+void FileManager::RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength)
+{
+	// Inverse of DecommitChunkRange for device-loss recovery: re-commit the same page-aligned interior, then re-read
+	// the whole [uiOffset, uiOffset + uiLength) range straight from the pack file on disk. ReadChunkData cannot serve
+	// this — for a loaded chunk it copies from the (now-decommitted) resident pool and would fault — so read directly.
+	// Uncompressed chunks only (on-disk payload == pool layout); islands satisfy this (iUncompressedSize == 0).
+	LazyChunk& rLazyChunk = mLazyChunkMap.at(crc);
+	// A compressed chunk's pool holds inflated bytes, so the raw disk re-read below would silently reload garbage
+	// (not crash). Islands never compress; assert the contract so a future compressed-island route fails loud here.
+	ASSERT(!(rLazyChunk.header.flags & common::ChunkFlags::kZlibCompressed));
+	uintptr_t uiRangeStart = reinterpret_cast<uintptr_t>(rLazyChunk.pData) + uiOffset;
+	uintptr_t uiRangeEnd = uiRangeStart + uiLength;
+	uintptr_t uiAlignedStart = common::RoundUp(uiRangeStart, static_cast<uintptr_t>(miPageSize));
+	uintptr_t uiAlignedEnd = common::RoundDown(uiRangeEnd, static_cast<uintptr_t>(miPageSize));
+	if (uiAlignedEnd > uiAlignedStart)
+	{
+		// VirtualAlloc result is an OS trust boundary: on failure the interior stays decommitted and the read below
+		// would fault, so fail the recommit soft (leave the range as-is) rather than crash the recovery path.
+		if (VirtualAlloc(reinterpret_cast<void*>(uiAlignedStart), static_cast<SIZE_T>(uiAlignedEnd - uiAlignedStart), MEM_COMMIT, PAGE_READWRITE) == nullptr)
+		{
+			LOG(kLoading, kError, "Recommit MEM_COMMIT failed for chunk {}", crc);
+			DEBUG_BREAK();
+			return;
+		}
+	}
+
+	// Direct disk re-read of the full range (rewrites the committed boundary bytes with identical data — harmless).
+	// Device-loss recovery can run inside the allocation-tracked main loop, so suppress tracking for the transient stream.
+	data::DataTypes eDataType = DataTypeFromFlags(rLazyChunk.header.flags);
+	int64_t iDataOffset = rLazyChunk.location.uiOffset + common::kiChunkDataOffset;
+	ScopedSuppressAllocationTracking suppress; // Heap: transient std::fstream buffers on the device-loss recovery path
+	std::fstream packStream(mPackFilePaths[eDataType], std::ios::in | std::ios::binary);
+	if (!packStream.is_open())
+	{
+		LOG(kLoading, kError, "Recommit reload failed to open pack for chunk {}", crc);
+		DEBUG_BREAK();
+		return;
+	}
+	packStream.seekg(iDataOffset + static_cast<int64_t>(uiOffset));
+	packStream.read(reinterpret_cast<char*>(rLazyChunk.pData + uiOffset), static_cast<std::streamsize>(uiLength));
+	if (!packStream.good())
+	{
+		LOG(kLoading, kError, "Recommit reload short read for chunk {}", crc);
+		DEBUG_BREAK();
+	}
 }
 
 MemoryStats FileManager::GetEagerStats() const

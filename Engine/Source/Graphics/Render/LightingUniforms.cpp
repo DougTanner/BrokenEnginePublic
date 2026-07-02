@@ -213,6 +213,8 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterSkyboxThree = gLightingWaterSkyboxThree.Get();
 	rMainLayout.fLightingWaterSkyboxThreePower = gLightingWaterSkyboxThreePower.Get();
 	rMainLayout.fLightingWaterSkyboxLod = gLightingWaterSkyboxLod.Get();
+	rMainLayout.fWaterSpecAAVariance = gWaterSpecAAVariance.Get();
+	rMainLayout.fWaterSpecAAThreshold = gWaterSpecAAThreshold.Get();
 
 	rMainLayout.fLightingWaterReflectedAmount = gLightingWaterReflectedAmount.Get();
 	rMainLayout.fLightingWaterReflectedNormalBlendWave = gLightingWaterReflectedNormalBlendWave.Get();

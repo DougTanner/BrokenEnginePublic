@@ -12,7 +12,7 @@ Implementation plans for brand-new additions — work that gives the engine a ca
 
 ## Rules
 
-Queue lifecycle and the `Order.md` row format are identical to [`../Plans/CLAUDE.md`](../Plans/CLAUDE.md): a new plan gets its fully scored row in the same edit session, inserted score-sorted with the `#` column renumbered; an executed plan has its row removed and its file deleted. Features-specific:
+Queue lifecycle and the `Order.md` row format are identical to [`../Plans/CLAUDE.md`](../Plans/CLAUDE.md): a new plan gets its fully scored row in the same edit session, inserted score-sorted; an executed plan has its row removed and its file deleted. Features-specific:
 
 - A plan that turns out to be a refactor/bugfix in disguise (no new capability) moves to `Documents/Plans/`, updating both `Order.md` files.
 - Designs deferred on YAGNI grounds are scored normally but carry explicit "Revisit When" trigger conditions in the plan body — the `Frame/Future_*.txt` files are the pattern.

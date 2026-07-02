@@ -11,7 +11,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 ## Resolving Ambiguity
 
 - **Trivial choices** (naming, small implementation details, equivalent approaches): pick the simplest and proceed.
-- **Non-trivial ties** (two viable approaches, neither architectural): fan out Opus subagents to validate each, compare pros/cons, then pick simplest.
+- **Non-trivial ties** (two viable approaches, neither architectural): fan out Opus subagents to validate each, compare pros/cons, then pick simplest good solution.
 - **Architectural decisions** (new system shape, public API, data layout, threading model): stop and ask the user. Concisely present: (a) the problem, (b) proposed solutions, (c) pros and cons of each.
 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
@@ -20,9 +20,9 @@ Exception: for one-line changes, make the edit and do only step 3.
 	- DO NOT add a 'Verification' section — agents cannot run/play the game, so manual-test steps are noise
 1. Invoke /external-grill-plan to interview the user about the plan — resolve ambiguities, gather missing information, and ensure plan completeness before implementation. **When the grill completes, DO NOT stop or summarize — immediately continue to step 2 in the same turn.**
 2. Make the code changes using the planning document
-3. Use an Opus subagent to search the codebase and update all locations affected by the modified code
+3. Use a Sonnet subagent to search the codebase and update all locations affected by the modified code
 4. Use a Fable subagent to invoke the repo-code-review skill (evaluate advice for validity, query user if unsure). If review flags any files for `/reduce-file`, route them through step 10 (follow-up plan in `Documents/Plans/`) — do not run the split inline
-5. Use an Opus subagent to invoke the code-style-review skill
+5. Use an Sonnet subagent to invoke the code-style-review skill
 6. Use a Fable subagent to invoke the update-claude-docs skill
 7. Add any new files to the appropriate filter in the relevant .vcxproj files
 8. Build the affected projects and verify there are no errors (see Build below)

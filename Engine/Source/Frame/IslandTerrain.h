@@ -33,7 +33,9 @@ struct IslandTemplate
 	// -(Level × elevationMeters)). Heightmap is anisotropic: DataPacker auto-crops each island
 	// to its land bbox > 1 m, expanded to a multiple of 4 × kiElevationDivisor so BC encoding
 	// and elevation downsample alignment hold on both axes.
-	const float* mpfHeightmapData = nullptr;
+	// Packed IEEE half-float (R16); aliases the kIsland chunk payload at offset 0. DataPacker quantizes at
+	// export (ExportIsland); dequantize via DirectX::PackedVector::XMConvertHalfToFloat at each read site.
+	const uint16_t* mpHeightmapHalf = nullptr;
 	int32_t miHeightmapWidth = 0;
 	int32_t miHeightmapHeight = 0;
 
@@ -86,7 +88,7 @@ struct IslandTemplate
 	bool mbGpuResident = false;
 
 	// Gaea Mesher-baked terrain mesh in island-local meters (XY centered).
-	// CPU pointers slice into the kIsland chunk's payload after the heightmap floats (set by
+	// CPU pointers slice into the kIsland chunk's payload after the heightmap halfs (set by
 	// WaitForElevationMaps). The GPU buffer combines indices and vertices: [uint32 indices,
 	// float2 positions (XY pairs)], uploaded once by CreateClientMeshBuffers at boot and kept
 	// resident for the lifetime of the template (textures-only LRU eviction; mesh is small
@@ -95,8 +97,12 @@ struct IslandTemplate
 	const float* mpfMeshPositions = nullptr;   // interleaved XY pairs (2 floats per vertex)
 	const uint32_t* mpuiMeshIndices = nullptr;
 	Buffer mMeshBuffer;
+	// True once CreateClientMeshBuffers has decommitted the mesh CPU slice from the lazy pool (reclaimed after the
+	// one-time GPU upload). Gates the device-loss recovery recommit+reload so first boot skips the redundant reload.
+	bool mbMeshCpuDecommitted = false;
 
-	// Elevation R32_SFLOAT image uploaded at first-mint from mpfHeightmapData. Participates in LRU
+	// Elevation R16_SFLOAT image uploaded at first-mint from mpHeightmapHalf (raw byte-copy — the resident
+	// heightmap is already R16). Participates in LRU
 	// eviction alongside color/normals/AO/masks (freed in EvictionSweep, re-Created on the next
 	// AcquireTextureSlot first-mint). Lives on the template (not in TextureManager::mTextureMap)
 	// because no standalone elevation chunk ships in the pack — DataPacker moved the data path to the

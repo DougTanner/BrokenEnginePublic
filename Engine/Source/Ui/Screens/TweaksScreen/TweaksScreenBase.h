@@ -48,7 +48,7 @@ inline TweakSectionFlags SectionFlag(int64_t iSection)
 	return static_cast<TweakSectionFlags>(1u << iSection);
 }
 
-// All sections set — replaces the std::fill(begin, end, true) over the old bool[kCount] arrays.
+// All sections set.
 inline constexpr common::Flags<TweakSectionFlags> kAllSectionFlags = static_cast<TweakSectionFlags>((1u << static_cast<int>(TweakSection::kCount)) - 1u);
 
 class TweaksScreenBase

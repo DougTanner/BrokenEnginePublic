@@ -28,13 +28,3 @@ Present options; resolve via /external-grill-plan before any edit:
 
 - Decision plan (present options). KISS lens: Option B (or C) is likely the right size for a single-game engine — Option A is the textbook shape but pays a ~22-TU rename for cohesion that mostly bothers readers, not the compiler.
 - No determinism/CRC/network/`kiVersion` exposure under any option.
-
-## Verification Notes
-
-Verified against source (2026-06-10):
-
-- Two-module fusion confirmed: general file I/O consumers (`GameSaveLoad`, `ProfileScreens`, `ClientSend`/`ClientReceive` ClientGuid, settings) never touch chunk APIs; chunk consumers (Graphics managers/objects, Audio voices, `IslandTerrain`, game `*Render`) never touch `OpenFile`/`WriteFileAtomically`. Repo grep counts ~23 engine+game TUs referencing `gpFileManager` (matching the "~22 TUs" Option-A cost claim; DataPacker's `gpFileManager` is a separate class in a separate binary).
-- Four-file chunk state machine confirmed: `GetLazyChunk()` mutable-ref + raw `eState` polling at `TextureUploadManager.cpp:105/173/419`, `TextureManager.cpp:617/720/735/918`, `IslandTerrain.cpp:514/654/665/701/798/812` — plus FileManager's own transitions. The documented-not-asserted thread-safety contract exists verbatim at `FileManager.cpp:618-627`.
-- Out-of-scope ordering confirmed: `Architecture_LoadThreadLifecycleSafety.md` exists and should land first as stated.
-- Option B's narrower seam is consistent with the existing `RequestTextureChunkLoad(crc)` free-function precedent (forward-declared in `Collection.h` per `File/CLAUDE.md`).
-- Scoring caveat: E4/I3/R3 prices the Option-A worst case; the plan's own KISS lens recommends B/C (~1d, compile-checked interface reshaping, no determinism exposure), which would score nearer E3/I2/R2. Worst-case pricing keeps it low in the queue, which matches the recommendation — acceptable, but flagged.

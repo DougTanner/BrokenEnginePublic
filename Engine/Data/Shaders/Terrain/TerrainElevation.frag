@@ -26,7 +26,7 @@ void main()
 {
     // Heightmap texel is engine-meters relative to beach (DataPacker pre-shifted per-island by
     // `Level × elevationMeters` read from the archetype Sea node). Beach = 0; negative = water;
-    // positive = land. f4InMisc.x (was per-island beach threshold) is now unused — kept in the
+    // positive = land. f4InMisc.x is unused — kept in the
     // vertex layout for future per-island params and forced to 0 from Islands.cpp so the
     // subtraction is a no-op. Underwater samples pass through a power curve anchored at sea floor:
     // beach (t=0) and floor (t=1) are fixed points; shallow water is pulled up toward beach with

@@ -41,7 +41,6 @@ enum class DestroyFlags : uint16_t
 	kWaterMesh          = 0x0020,
 	kTerrainElevation   = 0x0040,
 	kSmokeTextures      = 0x0400,
-	kWaterSkyboxOne     = 0x0800,
 };
 using DestroyFlags_t = common::Flags<DestroyFlags>;
 

@@ -476,8 +476,6 @@ void Graphics::Refresh()
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
-	PollSetting<float>(gWaterSkyboxOneRenderMultiplier, "WaterSkyboxOne render multiplier", DestroyType::kPipelines, DestroyFlags::kWaterSkyboxOne, gpTextureManager != nullptr);
-
 	if (gpInstanceManager != nullptr) [[likely]]
 	{
 		PollSetting<float>(gTerrainElevationTextureMultiplier, "TerrainElevationTexture multiplier", DestroyType::kPipelines, DestroyFlags::kTerrainElevation);
@@ -517,14 +515,6 @@ void Graphics::RecreateResources()
 		if (gpTextureManager != nullptr)
 		{
 			gpTextureManager->mRenderTargetTextures.CreateObjectShadowsTextures();
-		}
-	}
-
-	if (mDestroyFlags & DestroyFlags::kWaterSkyboxOne)
-	{
-		if (gpTextureManager != nullptr)
-		{
-			gpTextureManager->mRenderTargetTextures.CreateWaterSkyboxOneTextures();
 		}
 	}
 

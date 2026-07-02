@@ -2,7 +2,7 @@
 
 ## Context
 
-The shadow and lighting (deposit / spread / combine / temporal) passes process the **entire** headroom texture every frame, even though only the centered visible window — now ~1/3–1/4 of the texture at *every* settled height after the steady-state-target texel ramp landed — is live:
+The shadow and lighting (deposit / spread / combine / temporal) passes process the **entire** headroom texture every frame, even though only the centered visible window — ~1/3–1/4 of the texture at *every* settled height, now that the texel ramp holds a steady-state target at every height — is live:
 
 - **Combine / temporal**: `vkCmdDispatch(uiCombineWidth/tile, uiCombineHeight/tile, 1)` over the full combine extent (`CommandBufferRecordMain.cpp:414-417` and `:441-442`); the shaders early-out outside the window (write `0` / blend) but the workgroups still launch and the writes still touch every texel.
 - **Shadow**: `Shadow.comp` is dispatched full-texture; outside the window (+`kiShadowWindowMargin`) it writes the no-shadow fill (`Shadow.comp:23-28`). `ShadowBlurH/V.comp` and `ShadowTemporal.comp` are likewise full-texture-dispatched with a window early-out.
@@ -11,7 +11,7 @@ The shadow and lighting (deposit / spread / combine / temporal) passes process t
 
 The *expensive* math (spread radial gather, shadow ray-march) is already windowed via the in-shader early-out. What is **not** windowed is the clear + per-texel write bandwidth + workgroup-launch footprint, which is full-texture. With the texel ramp now holding the window at its steady-state target at all heights (`Camera.cpp` clamp removal), that wasted footprint is the dominant residual cost of the lighting/shadow pipeline.
 
-**Enabler (already landed this session):** the `CLAMP_TO_BORDER` edge samplers — `mVkSamplerBorderWhite` (shadow, opaque white = no-shadow) and the transparent-black `mVkSamplerBorder` (lighting = no-light), wired into the Terrain / Water / WaterSkyboxOne consumer bindings in `PipelineManager.cpp`. They let the off-window region go stale/unwritten safely: the consumers (`Terrain.frag` / `Water.frag`) sample by world position and only ever read inside the window; the sole beyond-window read (a fast zoom-out that overflows the whole texture) lands on the constant border instead of stale data or a smeared edge.
+**Enabler (in place):** the `CLAMP_TO_BORDER` edge samplers — `mVkSamplerBorderWhite` (shadow, opaque white = no-shadow) and the transparent-black `mVkSamplerBorder` (lighting = no-light), wired into the Terrain / Water consumer bindings in `PipelineManager.cpp`. They let the off-window region go stale/unwritten safely: the consumers (`Terrain.frag` / `Water.frag`) sample by world position and only ever read inside the window; the sole beyond-window read (a fast zoom-out that overflows the whole texture) lands on the constant border instead of stale data or a smeared edge.
 
 ## Design
 
@@ -54,10 +54,10 @@ Off-window texels are no longer written and hold stale data from prior frames / 
 ## Out of scope
 
 - **Object shadows** (`mObjectShadowsTexture` / blur) — a separate, non-world-sized-texel texture not part of this window mechanism.
-- The texel-ramp steady-state-target behavior and the `CLAMP_TO_BORDER` edge samplers — both landed this session and are *prerequisites*, not part of this plan.
+- The texel-ramp steady-state-target behavior and the `CLAMP_TO_BORDER` edge samplers — both already exist and are *prerequisites*, not part of this plan.
 - The texture **allocation** — stays at full headroom size (`LightingDetailTextureSize` / shadow pre-size); only the per-frame *processed footprint* shrinks.
 - The deposit per-light quad rasterization itself — already drawn only where lights are; the scissor merely bounds it to the window.
-- Profile-overlay readouts — the active-pixel `NxM` display already added this session reports the window size and is sufficient to measure this change.
+- Profile-overlay readouts — the active-pixel `NxM` display reports the window size and is sufficient to measure this change.
 
 ## Acceptance criteria
 

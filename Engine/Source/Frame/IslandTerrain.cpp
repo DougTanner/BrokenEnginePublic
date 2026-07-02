@@ -160,15 +160,15 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 	for (auto& [rCrc, rTemplate] : mIslands)
 	{
 		const LazyChunk& rLazyChunk = rChunkMap.at(rCrc);
-		rTemplate.mpfHeightmapData = reinterpret_cast<const float*>(rLazyChunk.pData);
+		rTemplate.mpHeightmapHalf = reinterpret_cast<const uint16_t*>(rLazyChunk.pData);
 		rTemplate.miHeightmapWidth = rLazyChunk.header.islandHeader.iHeightmapWidth;
 		rTemplate.miHeightmapHeight = rLazyChunk.header.islandHeader.iHeightmapHeight;
 
-		// Chunk payload layout (set by ExportIsland::Export): [heightmap floats][float2 mesh positions][uint32 mesh indices][float2 valid-area hull verts].
+		// Chunk payload layout (set by ExportIsland::Export): [heightmap R16 halfs][float2 mesh positions][uint32 mesh indices][float2 valid-area hull verts].
 		// miMeshVertexCount / miMeshIndexCount already populated in ctor from manifest header. The offset
 		// math + the valid-area hull are shared: the server packs island placements against the rotated
 		// hull (IslandChainPlacement); the client additionally uploads the mesh and debug-renders the hull.
-		int64_t iHeightmapBytes = static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight) * static_cast<int64_t>(sizeof(float));
+		int64_t iHeightmapBytes = static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight) * static_cast<int64_t>(sizeof(uint16_t));
 		const std::byte* pAfterHeightmap = reinterpret_cast<const std::byte*>(rLazyChunk.pData) + iHeightmapBytes;
 		int64_t iMeshPositionBytes = static_cast<int64_t>(rTemplate.miMeshVertexCount) * 2 * static_cast<int64_t>(sizeof(float));
 		int64_t iMeshIndexBytes = static_cast<int64_t>(rTemplate.miMeshIndexCount) * static_cast<int64_t>(sizeof(uint32_t));
@@ -186,6 +186,13 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 		rTemplate.mpfMeshPositions = reinterpret_cast<const float*>(pAfterHeightmap);
 		rTemplate.mpuiMeshIndices = reinterpret_cast<const uint32_t*>(pAfterHeightmap + iMeshPositionBytes);
 #endif
+
+#if defined(BT_SERVER)
+		// The server never reads the mesh CPU slice (no GPU upload, no device loss), so reclaim it immediately after
+		// load: decommit the [positions][indices] sub-range of the kIsland chunk. Heightmap (before, offset 0) and hull
+		// (after) stay resident — the server reads the heightmap for NavContour below and the hull for placement/nav.
+		gpFileManager->DecommitChunkRange(rCrc, static_cast<uint64_t>(iHeightmapBytes), static_cast<uint64_t>(iMeshPositionBytes + iMeshIndexBytes));
+#endif
 	}
 
 #if defined(BT_SERVER)
@@ -194,9 +201,14 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 	ScopedBootTimer scopedTimer(kBootTimerIslands);
 	for (auto& [rCrc, rTemplate] : mIslands)
 	{
-		if (rTemplate.mpfHeightmapData != nullptr)
+		if (rTemplate.mpHeightmapHalf != nullptr)
 		{
-			BuildNavContour(rTemplate.mNavContour, rTemplate.mpfHeightmapData, rTemplate.miHeightmapWidth, rTemplate.miHeightmapHeight, fNavThreshold);
+			// BuildNavContour consumes full-precision floats; dequantize the R16 heightmap into a transient
+			// boot buffer (one template at a time, freed each iteration) rather than widening the nav API.
+			int64_t iHeightmapTexels = static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight);
+			std::vector<float> heightmapFloats(static_cast<size_t>(iHeightmapTexels));
+			DirectX::PackedVector::XMConvertHalfToFloatStream(heightmapFloats.data(), sizeof(float), rTemplate.mpHeightmapHalf, sizeof(uint16_t), static_cast<size_t>(iHeightmapTexels));
+			BuildNavContour(rTemplate.mNavContour, heightmapFloats.data(), rTemplate.miHeightmapWidth, rTemplate.miHeightmapHeight, fNavThreshold);
 		}
 	}
 #endif
@@ -264,7 +276,7 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 		// Heightmap value is already engine-meters (DataPacker shifted Gaea's [0,1] normalized
 		// output by the per-island beach offset `Level × elevationMeters` read from the archetype
 		// Sea node). Beach = 0; negative = water; positive = land. Fold into the running max.
-		fMaxElevation = std::max(fMaxElevation, rTemplate.mpfHeightmapData[iY * rTemplate.miHeightmapWidth + iX]);
+		fMaxElevation = std::max(fMaxElevation, DirectX::PackedVector::XMConvertHalfToFloat(rTemplate.mpHeightmapHalf[iY * rTemplate.miHeightmapWidth + iX]));
 	}
 
 	return fMaxElevation;
@@ -290,9 +302,9 @@ void BlendPlacementIntoGrid(const IslandPlacement& rPlacement, const IslandTempl
 	float fHalfX = 0.5f * fFootprintX;
 	float fHalfY = 0.5f * fFootprintY;
 
-	// Trig is constant per placement — hoist out of the per-texel loop (the old per-point
-	// GlobalElevation recomputed std::cos / std::sin on every call). Negated rotation
-	// matches the inverse-rotate world->local convention used by GlobalElevation.
+	// Trig is constant per placement — hoist out of the per-texel loop (GlobalElevation's per-point
+	// path recomputes std::cos / std::sin per call; this grid builder needs it only once). Negated
+	// rotation matches the inverse-rotate world->local convention used by GlobalElevation.
 	common::SinCos rotation = common::DeterministicSinCos(-rPlacement.fRotation);
 	float fCos = rotation.fCos;
 	float fSin = rotation.fSin;
@@ -346,7 +358,7 @@ void BlendPlacementIntoGrid(const IslandPlacement& rPlacement, const IslandTempl
 			iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapWidth - 1));
 			iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapHeight - 1));
 
-			float fSample = rTemplate.mpfHeightmapData[iY * rTemplate.miHeightmapWidth + iX];
+			float fSample = DirectX::PackedVector::XMConvertHalfToFloat(rTemplate.mpHeightmapHalf[iY * rTemplate.miHeightmapWidth + iX]);
 			float& rfCell = rOutGrid[static_cast<size_t>(iGy * kiDim + iGx)];
 			rfCell = std::max(rfCell, fSample);
 		}

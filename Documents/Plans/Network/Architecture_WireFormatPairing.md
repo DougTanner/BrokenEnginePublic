@@ -36,12 +36,3 @@ Source: /external-architecture-review on `Engine/Source/Network` (recursive). Ev
 
 - **Invariant exposure**: network protocol — highest blast radius in the directory if a conversion is not byte-identical (Risks 3). Mitigate by converting one message family per session and smoke-testing interop between conversions.
 - Pre-staged grill decision: paired free functions vs layout structs; and whether converted messages live in `NetworkProtocol.h` or a new `NetworkMessages.h`.
-
-## Verification Notes
-
-Verified against source (2026-06-10); one count corrected:
-- Hand-mirrored sizes confirmed: reader checks 20/16/32/12/17/2 at `ClientReceive.cpp:142/:221/:274/:445/:355/:516` (comments one line above, as cited); writers at `ServerSend.cpp:34-42` (full state), `:66-72` (static data), `:104-119` (`WriteBufferedFramePacket`, update/resend), `:99-101` (subscribe accept); debug-frame writer `ServerReceive.cpp:212-218`. ACK layout `2 + 27n + 8` mirrored between `ClientSend.cpp:22-49` and `ServerReceive.cpp:24-99` (expected-size formula at `:27`). Hello mirrored between `ClientSend.cpp:190-196` and `ServerReceive.cpp:225-296`.
-- `SendSimplePacket` duplication confirmed (`Client.h:80-97`, `Server.h:129-141`) — near-verbatim; only deltas are Client's `CanSend()` gate and member `mpServerPeer` vs Server's `pPeer` parameter, so a shared helper takes the peer and the client keeps its gate at the call site.
-- `NetworkSimulation.h` magic offset confirmed: `memcpy(&iTick, rEvent.packet->data + 4, sizeof(iTick))` at `:145` (cited block `:142-146`, log-only; acknowledged in `Network/CLAUDE.md`).
-- Corrected: "fifteen" → seventeen — `PacketType` has 17 real engine message enumerators (`NetworkProtocol.h:7-27`, excluding the `kGamePacketStart` sentinel).
-- Colocated write/read pairing is feasible with zero wire change — all writers/readers are field-by-field cursor calls with no struct memcpy, so a per-message paired definition reproduces the bytes mechanically.

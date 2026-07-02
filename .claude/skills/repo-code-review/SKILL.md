@@ -52,6 +52,21 @@ Resolution ladder for a flagged ASSERT, in order of preference:
 3. **Plain not-null ASSERTs** guarding an immediate dereference: delete them — the null-dereference crash is equally immediate and equally diagnosable in a debugger/crash dump.
 4. **Static analyzer fallout** is handled case-by-case: if the analyzer's path is genuinely reachable, add a real (analyzer-visible) guard per step 2; if it is provably impossible, suppress with `NOLINT(clang-analyzer-...)` plus a comment stating the invariant. Note `ASSERT` never silences clang-analyzer — its `_Analysis_assume_` is MSVC-only and `common::Assert` lives in another TU — so adding an ASSERT to appease the analyzer is doubly useless.
 
+### 2d. Changelog / Edit-History Comments (Broken Engine specific)
+
+Comments explain what the current code does and why — never what it used to do or what a change did. This repo keeps no changelogs in source; git history is the forensic record. Flag any comment **added or edited this session** that narrates edit history instead of present-state rationale — require removal, or rewording to a present-tense reason when the comment carries a real one.
+
+Telltale patterns to flag:
+- Session/process narration: "this session", "this run", "added this session", "landed", "now-landed", "has been removed", "dropped", "as part of the X refactor".
+- Before/after narration: "was X", "used to be", "previously", "changed from/to", "renamed from", "moved from", "replaces the old …", "the deleted / now-removed `<symbol>`", and "no longer" when it recounts a past edit rather than a current condition.
+- Dated or commit-referenced notes: "as of <date/version>", parenthetical dates, commit hashes, "// TODO(2024): removed …".
+
+Not a finding: a comment stating a current invariant, gotcha, or still-relevant bug/driver workaround — even one using "never"/"no longer" for a present condition (e.g. "the thread is no longer running at this point"). Test: does the sentence describe present behavior, or narrate an edit? Attributions to external sources/papers are also fine.
+
+Reword, don't just delete, when the comment carries a real reason — keep the rationale, drop the history: "eliminates the duplicate sum the two passes used to evaluate via the now-removed GerstnerLow/Medium helpers" → "eliminates the duplicate sum the two passes would otherwise each evaluate".
+
+The same no-changelog rule applies to any CLAUDE.md, plan, or other doc this session touched (`/update-claude-docs` enforces it for CLAUDE.md; `Documents/Plans/CLAUDE.md` for the plan queue) — flag stray "we did this" narration wherever this session introduced it.
+
 ### 3. Verify Broken Engine Patterns
 
 #### Collection Integrity
@@ -189,7 +204,7 @@ For micro-simplification opportunities (duplicated snippets, unnecessary interme
 Use these prefixes on findings so the author knows what blocks the change vs what is optional. Items without a prefix are **required** (must address):
 
 - *(no prefix)* — Required change. Must address.
-- **Critical:** — Blocks the change. Security vulnerability, data loss, broken functionality, determinism break, allocation tracker violation.
+- **Critical:** — Blocks the change. Data loss, broken functionality, determinism break, allocation tracker violation.
 - **Nit:** — Minor, optional. Author may ignore — naming preferences, micro-style.
 - **Optional:** / **Consider:** — Suggestion worth considering but not required.
 

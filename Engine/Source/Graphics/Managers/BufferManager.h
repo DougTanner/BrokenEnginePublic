@@ -93,9 +93,9 @@ public:
 	// Visible-area mesh LOD: each LOD divides total quad count by 4 (each dim by 2). LOD k starts at
 	// eyeDistance >= kfMinEyeHeight * 4^k. All LODs concatenated into mWaterMeshBuffer so the pipeline
 	// binds once and switches LODs by writing per-frame indirect-draw params (firstIndex, indexCount,
-	// vertexOffset) — no command-buffer re-record on LOD change. (Terrain no longer uses this scheme:
-	// each island owns a Gaea2 Mesher-baked mesh on its IslandTemplate, drawn per-island in
-	// CommandBufferRecordMain. miVisibleAreaLod still drives camera-snap math via CameraBase.)
+	// vertexOffset) — no command-buffer re-record on LOD change. (Water only — terrain draws
+	// per-island Gaea2 Mesher-baked meshes on each IslandTemplate in CommandBufferRecordMain instead.
+	// miVisibleAreaLod still drives camera-snap math via CameraBase.)
 	static constexpr int kiVisibleAreaLodCount = 4;
 	struct VisibleAreaMeshLod
 	{

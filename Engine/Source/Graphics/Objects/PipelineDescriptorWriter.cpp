@@ -485,8 +485,8 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline)
 
 			// Use explicit binding if specified, otherwise use sequential counter.
 			// iRegisterBinding is the int64_t form passed to deferred-registration call sites below;
-			// using the same named local everywhere prevents the historical iDescriptorCount/uiBinding
-			// confusion that caused VUID-00316 on WaterSkyboxOne.
+			// using the same named local everywhere prevents iDescriptorCount/uiBinding confusion
+			// (VUID-00316).
 			uint32_t uiBinding = rDescriptorInfo.iExplicitBinding >= 0 ? static_cast<uint32_t>(rDescriptorInfo.iExplicitBinding) : static_cast<uint32_t>(cursor.iDescriptorCount);
 			const int64_t iRegisterBinding = static_cast<int64_t>(uiBinding);
 

@@ -479,7 +479,7 @@ void ServerSession::HandleResyncRequests()
 		}
 	}
 
-	// Persist-until-served: Server::Poll no longer clears this queue. Clear it here once the resync requests
+	// Persist-until-served: this queue is cleared here (not in Server::Poll) once the resync requests
 	// are serviced so a request received while the server is paused survives across polls until the next tick.
 	rResyncClientIds.clear();
 }

@@ -34,7 +34,7 @@ layout (scalar, set = 1, binding = 19) buffer readonly quadsBuffer
 	AxisAlignedQuadLayout pQuads[];
 };
 
-// Per-island heightmap bindless array (R32_SFLOAT), set=1 binding=21 (after the SSBO at 19 and Terrain.frag's
+// Per-island heightmap bindless array (R16_SFLOAT), set=1 binding=21 (after the SSBO at 19 and Terrain.frag's
 // masks at 20). Sampled at the island-local UV to read THIS island's own elevation, so a vertex whose own
 // terrain is below the underwater zero-out drops to the flat sea floor instead of rising to an overlapping
 // neighbor's composite (MAX) height. nonuniformEXT: the slot index is per-instance, dynamically uniform.
@@ -47,7 +47,7 @@ layout (location = 0) in vec2 f2InPosition;
 
 // Output 0: visible-area UV for Terrain.frag to sample the composite elevation G-buffer plus
 //           the shadow / object-shadow / lighting / smoke / ambient samplers that all live in
-//           that coordinate space. Color / normal / AO no longer use it — see location 1.
+//           that coordinate space. Color / normal / AO instead sample location 1.
 layout (location = 0) out vec2 f2OutTexcoord;
 
 // Output 1: per-island texture UV used by Terrain.frag to directly sample the per-island
@@ -62,7 +62,7 @@ layout (location = 1) out vec2 f2OutIslandTexcoord;
 layout (location = 2) out flat uint uiOutTextureSlot;
 
 // Output 3: per-instance rotation (cos, sin) so Terrain.frag can rotate the BC5 normal
-//           tangent in lockstep with how the deleted TerrainNormal.frag prepass used to.
+//           tangent to match the per-island rotation.
 layout (location = 3) out flat vec2 f2OutRotationCosSin;
 
 void main()

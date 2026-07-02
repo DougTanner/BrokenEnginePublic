@@ -62,7 +62,7 @@ void SetupExceptionHandling()
 		throw std::runtime_error(spcDescription);
 	});
 
-	// Process-global handlers install exactly once per process — race-free across concurrent ThreadLocal ctors, and no longer redundantly re-applied on every per-thread ctor.
+	// Process-global handlers install exactly once per process via std::call_once — race-free across concurrent ThreadLocal ctors.
 	static std::once_flag sOnceFlag;
 	std::call_once(sOnceFlag, []()
 	{

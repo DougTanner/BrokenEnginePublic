@@ -20,7 +20,7 @@ layout (set = 1, binding = 2) uniform sampler2D pLightingSamplers[3];
 layout (set = 1, binding = 3) uniform sampler2D shadowTextureSampler;
 layout (set = 1, binding = 4) uniform sampler2D objectShadowsTextureSampler;
 layout (set = 1, binding = 5) uniform sampler2D elevationTextureSampler;
-// Bindless per-island arrays (was previously single composite G-buffer RTTs); each is indexed
+// Bindless per-island arrays; each is indexed
 // per-fragment by the flat-interpolated `uiInTextureSlot` forwarded from Terrain.vert.
 layout (set = 1, binding = 6) uniform sampler2D colorTextureSamplers[kiMaxIslands];
 layout (set = 1, binding = 7) uniform sampler2D normalTextureSamplers[kiMaxIslands];
@@ -35,9 +35,8 @@ layout (set = 1, binding = 15) uniform sampler2D rockNormalsSampler0;
 layout (set = 1, binding = 16) uniform sampler2D rockNormalsSampler1;
 layout (set = 1, binding = 17) uniform sampler2D rockNormalsSampler2;
 layout (set = 1, binding = 18) uniform sampler2D ambientLightingSampler;
-// Per-island material masks (BC7 RGBA). R=Rock, G=Sand, B=Snow, A=Flow (reserved). Replaces the
-// procedural fRockPercent / fBeachPercent / fSnowPercent derivation that previously gated material
-// detail blending on color heuristics and elevation thresholds. Bound at binding 20 — the SSBO at
+// Per-island material masks (BC7 RGBA). R=Rock, G=Sand, B=Snow, A=Flow (reserved) — drives material
+// detail blending. Bound at binding 20 — the SSBO at
 // binding 19 is owned by Terrain.vert (AxisAlignedQuadLayout instance buffer).
 layout (set = 1, binding = 20) uniform sampler2D masksTextureSamplers[kiMaxIslands];
 
@@ -58,17 +57,15 @@ void main()
 		texture(elevationTextureSampler, f2InVisibleAreaTexcoord).x
 	);
 
-	// fTerrainEarlyOut discard removed: the old visible-area quad grid drew over open-ocean pixels
-	// outside any island; the discard hid those cleared-G-buffer regions. The new per-island Gaea
-	// Mesher mesh only draws where geometry exists (including the underwater skirt), so the
-	// discard now incorrectly black-outs valid underwater content. Fringe artifacts where the mesh
-	// extends past the cropped heightmap bbox are a separate follow-up (see
-	// Documents/Plans/Graphics/GaeaMeshCropToHeightmapBbox.md).
+	// No fTerrainEarlyOut discard here: the per-island Gaea Mesher mesh only draws where geometry
+	// exists (including the underwater skirt), so a discard would black-out valid underwater content.
+	// Fringe artifacts where the mesh extends past the cropped heightmap bbox are a separate follow-up
+	// (see Documents/Plans/Graphics/GaeaMeshCropToHeightmapBbox.md).
 
 	vec3 f3Color = texture(colorTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord).xyz;
 
 	// BC5 normal: source stores RG (tangent X, Y) only. Decode `2x-1` to [-1, +1], rotate by the
-	// per-island (cos, sin), reconstruct Z. Matches the deleted TerrainNormal.frag prepass exactly.
+	// per-island (cos, sin), reconstruct Z.
 	vec2 f2NormalRG = texture(normalTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord).rg;
 	vec2 f2NormalXY = 2.0f * f2NormalRG - 1.0f;
 	float fNormalCos = f2InRotationCosSin.x;
@@ -79,8 +76,7 @@ void main()
 	vec3 f3Normal = normalize(vec3(f2NormalRot, fNormalZ));
 
 	// Material masks: R=Rock, G=Sand, B=Snow, A=Flow (reserved). DataPacker packs four Gaea-authored
-	// grayscale masks into a single BC7 RGBA texture per island. Replaces the prior procedural
-	// derivation that gated material detail blending on color heuristics and elevation thresholds.
+	// grayscale masks into a single BC7 RGBA texture per island, driving material detail blending.
 	// Snow takes priority over rock/sand — snow-painted pixels suppress those blends proportionally.
 	vec4 f4Masks = texture(masksTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord);
 	float fSnowPercent  = f4Masks.b;
@@ -135,9 +131,8 @@ void main()
 	// object shadows and smoke volumetric attenuation still apply to both lights.
 	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
 	float fShadowSun  = fShadowMoon * texture(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea)).x;
-	// AO: deleted TerrainAmbientOcclusion.frag wrote `globalLayout.fIslandAmbientOcclusion * (1 - raw)`
-	// into the composite RTT, then the original frag did `1 - composite`. Inlined here so the SunLighting
-	// occlusion factor is bit-equivalent (modulo the removed R8_UNORM round-trip).
+	// AO: sample the per-island occlusion and fold `fIslandAmbientOcclusion` into the SunLighting
+	// occlusion factor below.
 	float fAmbientOcclusionRaw = texture(ambientOcclusionTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord).x;
 	// Snow pixels skip AO darkening so accumulated snow looks fresh / bright rather than crevice-shaded.
 	float fAmbientOcclusionFactor = 1.0f - (1.0f - fSnowPercent * globalLayout.fTerrainSnowAmbientOcclusionExclusion) * globalLayout.fIslandAmbientOcclusion * (1.0f - fAmbientOcclusionRaw);

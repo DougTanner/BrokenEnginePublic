@@ -51,8 +51,10 @@ Wrapper gLightingWaterSkyboxTwoPower(30.0f, 1.0f, 200.0f);
 Wrapper gLightingWaterSkyboxThree(190.0f, 1.0f, 800.0f);
 Wrapper gLightingWaterSkyboxThreePower(0.001f, 0.001f, 1.0f);
 Wrapper gLightingWaterSkyboxLod(7.5f, 0.0f, 10.0f);
-// Resolution multiplier for the WaterSkyboxOne MSAA pre-pass (default 1.0 = framebuffer size).
-Wrapper gWaterSkyboxOneRenderMultiplier(1.0f, 0.25f, 2.0f);
+// Specular-AA tuning for Water.frag's WATER_SPEC_AA_MODE variants: variance scales the filter kernel
+// (mode 2 default 0.25; mode 1 maps 0.25 -> exact pixel footprint), threshold clamps the widening.
+Wrapper gWaterSpecAAVariance(0.25f, 0.0f, 2.0f);
+Wrapper gWaterSpecAAThreshold(0.18f, 0.0f, 1.0f);
 
 // Specular - Height Darken
 Wrapper gWaterHeightDarkenTop(0.05f, -0.1f, 0.05f);

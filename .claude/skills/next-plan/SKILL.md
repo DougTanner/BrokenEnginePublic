@@ -15,15 +15,15 @@ Reconciles orphaned plan files on disk into `Documents/Plans/Order.md`, then wal
 - The skill assumes **bypass-permissions** mode and mutates without further confirmation: it inserts `Order.md` rows for orphaned plan files (Step 0), removes the target row from `Documents/Plans/Order.md` as soon as the candidate is selected (Step 2), and deletes the source plan file from disk once the final actionable plan has been generated (Step 8). User approval is requested only on the final synthesized plan, not on the mutations.
 - `Documents/Plans/Order.md` must exist. If it does not, report the missing file and stop.
 - The skill does **not** require — and does not use — plan mode. It mimics plan mode's "review-before-implement" UX by printing the final plan as a standalone turn-ending text message (so it is readable and scrollable in the session window), then asking for approval via `AskUserQuestion` before the standard C++ Code Change Process begins. See Step 9 for the exact two-turn presentation contract.
-- **Order.md is shared mutable state — expect concurrent writers.** The user routinely runs several agent sessions at once, each executing plans, so `Order.md` rows and plan files appear, vanish, and renumber **while this skill is running**. Consequences:
+- **Order.md is shared mutable state — expect concurrent writers.** The user routinely runs several agent sessions at once, each executing plans, so `Order.md` rows and plan files appear and vanish **while this skill is running**. Consequences:
   - Re-read the relevant `Order.md` region immediately before *every* edit (Step 0f inserts, Step 2 removal, any annotation); a snapshot from earlier in the run is already stale. If an `Edit` fails with "file modified since read", that is the expected concurrency signal — re-read and re-apply, don't escalate.
-  - Key every row edit on the **plan path text**, never on the `#` ordinal or a remembered line number — parallel renumbers shift both constantly.
-  - After any insert/remove + renumber, verify the table is still a contiguous 1-based ordinal (count rows, check first/last) before moving on.
-  - A row (or plan file) that disappears mid-run with a *consistent* renumber is another session legitimately executing that plan — not corruption. Never "restore" it; see the edge case below.
+  - Key every row edit on the **plan path text**, never on a remembered line number — parallel inserts/removals shift lines constantly.
+  - After any insert/remove, verify the table structure is still intact (header/separator present, every data row well-formed) before moving on.
+  - A row (or plan file) that disappears mid-run is another session legitimately executing that plan — not corruption. Never "restore" it; see the edge case below.
 
 ## Order.md structure reference
 
-Order.md has a single `## Plans` table. Columns are: `# | Plan | Tier | Effort | Impact | Risks | Score | Notes`. Rows are sorted by Score ascending (lowest = highest priority). Every row in the table is executable; rows are deleted from the table when the plan is done. Plan cells should be markdown links (`[path](path)`) for clickable navigation.
+Order.md has a single `## Plans` table. Columns are: `Plan | Tier | Effort | Impact | Risks | Score | Notes`. Rows are sorted by Score ascending (lowest = highest priority) — position in the table conveys priority; there is no ordinal column. Every row in the table is executable; rows are deleted from the table when the plan is done. Plan cells should be markdown links (`[path](path)`) for clickable navigation.
 
 - **`### Reference / Index Documents` subsection**: a separate table below the main one, listing meta/overview docs that are never executed as plans. **Ignore this subsection entirely.**
 - **`## Dependencies` section**: prose bullets expressing ordering constraints between plans. May contain a `### Cross-directory dependencies` subsection whose bullets cite plans under `Documents/Features/` — those live in a separate queue (`Documents/Features/Order.md`) and never appear in this table; see Step 1e for how to resolve them.
@@ -50,17 +50,17 @@ Ensure every plan file on disk is represented in the `## Plans` table — orphan
        - The full list of orphan paths.
        - The scoring anchors from `Documents/CLAUDE.md` (Effort 1-5, Impact 1-5, Risks 0-4, Score = Effort − Impact + Risks; lower = higher priority).
        - The required row format from `Documents/Plans/CLAUDE.md`:
-         `| # | [<area>/<File>.<ext>](<area>/<File>.<ext>) | <Tier> | <Effort> | <Impact> | <Risks> | <Score> | <one-line Notes> |`
+         `| [<area>/<File>.<ext>](<area>/<File>.<ext>) | <Tier> | <Effort> | <Impact> | <Risks> | <Score> | <one-line Notes> |`
        - The current `## Plans` table contents so it can pick a score-correct insertion position and write Notes consistent with neighbouring rows.
        - An instruction to read each orphan in full and spot-check the cited files/symbols in the codebase before scoring — a plan whose premise no longer exists should be flagged as "stale; recommend deletion" instead of getting a row.
 
   e. **Ask the subagent to return**, for each orphan:
        - The fully-populated table row (including final Score).
-       - A target insertion index in the existing table (the `#` value the row should take).
+       - A target insertion position in the existing table (which existing row it goes immediately before or after, per the Score sort).
        - A label: `add` (insert into table) or `stale` (recommend the user delete the file — do not insert).
        - A one-paragraph justification for the scoring (kept out of `Order.md`, surfaced to the user in the post-Step-0 report).
 
-  f. **Apply the additions.** For every `add` row, use `Edit` to insert it into the `## Plans` table at the requested position, then renumber the `#` column so it remains a contiguous 1-based ordinal. Multiple inserts in a single Step 0 should be applied in descending-index order so earlier inserts don't shift later target indices. Do not insert `stale` entries.
+  f. **Apply the additions.** For every `add` row, use `Edit` to insert it into the `## Plans` table at its score-correct position. Multiple inserts in a single Step 0 are independent single-row insertions — anchor each `Edit` on the neighbouring row's plan-path text, not on line numbers. Do not insert `stale` entries.
 
   g. **Report.** Output a brief summary to the user: which orphans were added (with score), which were flagged stale, and the subagent's justifications. Do not pause for confirmation — additions are unconditional, matching the skill's existing mutation contract. Stale flags are advisory only; the user can delete the files manually if they agree.
 
@@ -103,11 +103,11 @@ As soon as Step 1 has settled on a target plan (no unmet prerequisites, no unres
 Important sequencing rules:
 
 - Step 1 must be fully resolved before this edit. Any cycle/ambiguity prompts to the user happen inside Step 1; Step 2 only runs once a single target has been selected.
-- Re-read the row immediately before deleting and match on the plan path, not the `#` ordinal — a parallel session may have renumbered the table since Step 1 read it (see Preconditions). This removal also acts as the concurrency claim on the target: once the row is gone, parallel `/next-plan` runs walking the table cannot select the same plan.
+- Re-read the row immediately before deleting and match on the plan path — a parallel session may have added or removed rows since Step 1 read the table (see Preconditions). This removal also acts as the concurrency claim on the target: once the row is gone, parallel `/next-plan` runs walking the table cannot select the same plan.
 - If the row is already gone AND the plan file is missing, a parallel session beat this run to the same target — go back to Step 1 and select the next candidate from a fresh read of the table.
 - Do **not** delete the plan file in this step. The file is still needed for Steps 3–7 (relevance / validity / refresh / similar-pattern search / synthesis).
 - If the row deletion fails for any other reason (e.g., the row text is not unique), stop and report the failure. Do not proceed to deletion of the plan file.
-- After the removal + renumber, verify the table is still contiguous before continuing.
+- After the removal, verify the table structure is still intact before continuing.
 
 ### Step 3. Relevance check — does the code still exist?
 
@@ -272,7 +272,7 @@ If the user picks `Reject`, stop. Do not attempt to restore the Order.md row or 
 - **Empty table** (`## Plans` table has no rows): report "Order.md has no plans" and stop. No mutations.
 - **Top row is marked subsumed or index/meta in Dependencies**: Step 1c filters it; fall through to the next row. No row removal happens for filtered rows — Step 2 only fires on the eventual selected target.
 - **Plan file missing from disk** but row still in `## Plans`: most often a parallel session mid-execution of that plan (its Step 8 file deletion has fired but you read the table before its Step 2 removal landed, or vice versa) — re-read the table; if the row is gone on the fresh read, fall through to the next candidate silently. If the row persists across a fresh read, the plan was likely hand-deleted without cleaning up Order.md: report the bookkeeping anomaly, ask the user whether to remove the stale row, and fall through to the next candidate. Either way, do not commit Step 2 against a candidate whose plan file is already missing — the row removal would silently succeed but Step 3 would have nothing to read.
-- **Row and/or plan file disappears mid-run (concurrent execution)**: many plans are in flight at once across parallel agent sessions, so a row + file vanishing together with a consistent renumber is another session legitimately executing that plan — not corruption. Never restore the row or recreate the file. If it was this run's candidate, restart from Step 1 on a fresh read; if it was an unrelated row, just re-verify table contiguity and continue. Mention the observation in the final report so the user can correlate sessions.
+- **Row and/or plan file disappears mid-run (concurrent execution)**: many plans are in flight at once across parallel agent sessions, so a row + file vanishing together is another session legitimately executing that plan — not corruption. Never restore the row or recreate the file. If it was this run's candidate, restart from Step 1 on a fresh read; if it was an unrelated row, just re-verify the table structure is intact and continue. Mention the observation in the final report so the user can correlate sessions.
 - **User provided a plan name as an argument**: Step 1b handles this — normalize and use as the candidate; the dependency walk still runs from it downward.
 - **Prerequisite missing from both the table and disk**: Step 1e already treats this as satisfied. No extra handling needed.
 - **User rejects in Step 9 approval**: per the contract, Order.md row and plan file are already gone. Do not attempt restoration. The synthesized plan markdown printed in Step 9 is the only remaining record.

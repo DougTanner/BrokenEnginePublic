@@ -53,10 +53,9 @@ owner, and `ModelPipeline` configures inner pipelines by poking public members b
 - `Engine/Source/Graphics/Managers/TextureDescriptors.h`, `TextureDescriptors.cpp`
 
 ## Out of scope
-- Deleting the dead `Recreate`/`ReCreate` APIs — `Graphics/Architecture_ObjectsDeadRecreateApis.md`
-  (**landed and removed** — the dead APIs and their snapshot members are gone, and the rebuild-only
-  lifecycle invariant is now documented in `Objects/CLAUDE.md` + the `PipelineDescriptorWriter.cpp`
-  registration block; this plan now makes that documented invariant structurally enforced).
+- Deleting the dead `Recreate`/`ReCreate` APIs (the dead APIs and their snapshot members are gone; the
+  rebuild-only lifecycle invariant is documented in `Objects/CLAUDE.md` + the `PipelineDescriptorWriter.cpp`
+  registration block; this plan makes that documented invariant structurally enforced).
 - `WriteModelDescriptor`'s copy-paste decomposition — `Graphics/Refactor_WriteDescriptorDecomposition.md`.
 - The set-index resolution quadruplication — `Graphics/Architecture_DescriptorSetIndexDedup.md`.
 - The bindings-15/16 constant unification — `Graphics/Architecture_ObjectsShaderCpuConsistency.md`.
@@ -73,30 +72,12 @@ owner, and `ModelPipeline` configures inner pipelines by poking public members b
   Cold path (boot / settings recreate / device loss), but needs a settings-recreate smoke test.
 - Grill decisions pre-staged: (1) destination layer for the `kModel` append, (2) registration option (a)
   vs (b).
-- `Architecture_ObjectsDeadRecreateApis.md` has already landed (dead APIs gone); land this before/with the
-  two Refactor decomposition plans (they restructure the same functions; co-schedule or refresh citations).
+- The dead recreate APIs are already gone, so no live code path violates the lifecycle; land this before/with
+  the two Refactor decomposition plans (they restructure the same functions; co-schedule or refresh citations).
 - Cross-queue sequencing: `Graphics/Managers/Architecture_BindlessSlotLifecycle.md` (Large) consolidates
   the same `TextureDescriptors.{h,cpp}` registration surface — sequence the two plans, never run them
   concurrently; whichever lands second re-targets the reshaped registry API.
-
-## Verification Notes
-Verified: all cited paths/lines/symbols re-checked against source.
-- Registration sites exact: `RegisterTextureBinding` at `PipelineDescriptorWriter.cpp:103,125,146,475,480,509,514`
-  (all seven), `RegisterStandaloneSamplerBinding` at `:68,429`, `mBindlessArrayConsumers.try_emplace` at
-  `:494-495`. `Pipeline::Destroy` (`Pipeline.cpp:155-210`) frees sets/layouts/pipeline/indirect buffer and
-  never touches `gpTextureManager->mTextureDescriptors`; the only cleanup is `ClearTextureBindings()`
-  (`PipelineManager.cpp:62`, `TextureDescriptors.cpp:390-395`). `RewriteSamplerDescriptors` dereferences the
-  raw `Pipeline*` back-references at `TextureDescriptors.cpp:334,368` (and `:385` for bindless consumers) —
-  the use-after-free path described.
-- `kModel` auto-append resource citations exact (`Pipeline.cpp:91-92,96,101,106,111` inside `:77-112`);
-  `ModelPipeline::Create` is the only producer of `kModel` descriptors (repo grep), so the proposed
-  destinations are complete.
-- Slot-3 assert exact (`Pipeline.cpp:114-118` reads `pDescriptorInfos[3]` while the loop above scans all slots).
-- External-layout protocol citations exact: `ModelPipeline.cpp:73` (Set 0 external — redundant with the
-  unconditional re-assign in `Pipeline::Create` `Pipeline.cpp:72-75`), `:78` (Set 1 external — load-bearing,
-  consumed at `PipelineCreator.cpp:193,220` and `PipelineDescriptorWriter.cpp:274`); `Pipeline::Destroy`
-  clears owned layouts but never the `mVkExternal*` pointers, confirming the skip-clearing contract.
-- Scoring nuance for the orchestrator: `Architecture_ObjectsDeadRecreateApis.md` has landed (dead APIs gone
-  + invariant documented), so no live code path violates the lifecycle — the asymmetry is now a latent hazard
-  for future out-of-rebuild creates, not an active bug. Impact 3 assumes valuing that future-proofing;
-  Impact 2 is defensible.
+- Citation drift (refresh at execution): the `PipelineDescriptorWriter.cpp` registration calls moved into
+  the new `RegisterCombinedSamplerBindings` / `ShouldRegisterBinding` helpers (~`:219-413`), and
+  `Objects/CLAUDE.md` now carries a "Rebuild-only pipeline lifecycle" section stating this plan's target
+  invariant — the premises hold; only the line cites are stale.

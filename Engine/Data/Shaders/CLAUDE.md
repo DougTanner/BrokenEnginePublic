@@ -39,7 +39,7 @@ The `Ui/` subdirectory has no CLAUDE.md of its own; documented here:
 
 ## Known Issues
 
-**NVIDIA driver bug**: never call `inverse()` on mat3/mat4 in shaders — NVIDIA's compiler hangs indefinitely during pipeline creation. Precompute inverse matrices on the CPU and pass via buffers. This is the sole confirmed trigger: an earlier attribution of the same hang to "large `mat4[]` arrays" (the joint-matrix buffer split) was a misdiagnosis — both changes landed in one fix commit, and the engine dynamically indexes the large runtime-sized `mat4 jointMatrices[]` SSBO hang-free. The joint split stays as a layout choice (no embedded per-mesh joint cap).
+**NVIDIA driver bug**: never call `inverse()` on mat3/mat4 in shaders — NVIDIA's compiler hangs indefinitely during pipeline creation. Precompute inverse matrices on the CPU and pass via buffers. This is the sole confirmed trigger — large `mat4[]` arrays are not a cause: the engine dynamically indexes the large runtime-sized `mat4 jointMatrices[]` SSBO hang-free. The joint-matrix buffer split is a layout choice (no embedded per-mesh joint cap), independent of this bug.
 
 ## See Also
 

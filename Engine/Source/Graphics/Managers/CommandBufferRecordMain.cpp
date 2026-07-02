@@ -178,9 +178,9 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 	gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kShaderReadOnly);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadowsBlur);
 
-	// Pre-compute Gerstner wave displacement + Jacobian normal into two RGBA16F textures so the two
-	// Water.vert passes below (WaterSkyboxOne + main Water) can texelFetch a single value per vertex
-	// instead of summing iWaterLowCount + iWaterMediumCount waves twice. Dispatch dims are written per frame
+	// Pre-compute Gerstner wave displacement + Jacobian normal into two RGBA16F textures so the
+	// Water.vert pass below can texelFetch a single value per vertex
+	// instead of summing iWaterLowCount + iWaterMediumCount waves. Dispatch dims are written per frame
 	// by MainUniforms (WriteIndirectComputeBuffer) to cover only the active LOD sub-region; the shader still
 	// bounds-checks each thread against iWaterActiveQuad* as a defensive guard. Elevation texture was rendered
 	// earlier in the Global command buffer (CommandBufferRecordGlobal.cpp ~line 96), which submits before Main
@@ -192,17 +192,6 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 	gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 	gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWaterDisplacement);
-
-	// WaterSkyboxOne pre-pass: extracts the One-lobe of the water skybox specular into its own MSAA RT
-	// at hardcoded 4x sample shading. Runs in the Main command buffer BEFORE the swapchain render pass
-	// (line below) so the resolved texture is available when kPipelineWater samples binding 12. The
-	// render pass's VK_SUBPASS_EXTERNAL dependency handles the layout-transition + visibility barrier;
-	// no manual vkCmdPipelineBarrier is required.
-	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWaterSkyboxOne);
-	Texture::RecordBeginRenderPass(vkCommandBuffer, gpTextureManager->mRenderTargetTextures.mWaterSkyboxOneVkRenderPass, gpTextureManager->mRenderTargetTextures.mWaterSkyboxOneVkFramebuffer, {gpTextureManager->mRenderTargetTextures.mWaterSkyboxOneResolveTexture.mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mWaterSkyboxOneResolveTexture.mInfo.extent.height}, VkClearColorValue {0.0f, 0.0f, 0.0f, 0.0f}, RenderPassFlags_t {RenderPassFlags::kClear}, VK_SUBPASS_CONTENTS_INLINE);
-	pPipelines[kPipelineWaterSkyboxOne].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
-	Texture::RecordEndRenderPass(vkCommandBuffer);
-	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWaterSkyboxOne);
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
 

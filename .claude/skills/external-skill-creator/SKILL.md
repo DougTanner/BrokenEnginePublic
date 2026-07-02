@@ -231,7 +231,3 @@ When the user asks to review, audit, or evaluate an existing skill, walk this ch
 **Report format**
 Group findings as: Critical (breaks discovery or invocation), Recommended (quality/consistency), Accurate (passes — list briefly so the user sees what's already good). For each Critical/Recommended item, cite the line number and propose a concrete fix.
 
-### Security
-
-Skills must not contain malware, exploit code, or content that could compromise system security. A skill's contents should not surprise the user in their intent if described.
-

@@ -20,7 +20,6 @@ void RenderTargetTextures::Create()
 	CreateWindTextures();
 	CreateObjectShadowsTextures();
 	CreateTerrainTextures();
-	CreateWaterSkyboxOneTextures();
 	CreateWaterDisplacementTextures();
 }
 

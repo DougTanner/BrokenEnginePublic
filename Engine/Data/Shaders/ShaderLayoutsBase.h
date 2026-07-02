@@ -141,8 +141,8 @@ CONSTEXPR int kiModelBindingMeshData = 15;
 CONSTEXPR int kiModelBindingJointMatrix = 16;
 
 // Water normal map atlas size. Shared by C++ (PipelineManager mppWaterNormalTextures array,
-// TextureManager kpWaterNormalCrcs/kpWaterNormalNames tables) and the water shaders
-// (Water.frag / WaterSkyboxOne.frag pWaterNormalSamplers[] sampler array).
+// TextureManager kpWaterNormalCrcs/kpWaterNormalNames tables) and the water shader
+// (Water.frag pWaterNormalSamplers[] sampler array).
 CONSTEXPR int kiWaterNormalCount = 17;
 
 // Island bindless-slot ceiling: shared by C++ and the terrain shaders, it sizes the bindless
@@ -481,10 +481,6 @@ struct MainLayout
 	vec4 pf4MediumWavesOne[256] INIT;
 	vec4 pf4MediumWavesTwo[256] INIT;
 
-	// 1.0 / framebufferExtent. Used by Water.frag to compute the screen-space UV that samples the
-	// WaterSkyboxOne pre-baked-and-resolved skybox-specular One-lobe contribution.
-	vec2 f2InvFramebufferSize INIT;
-
 	// Lighting — water normal map atlas (3 weighted samples)
 	float fLightingSampledNormalsOneSize INIT;
 	float fLightingSampledNormalsTwoSize INIT;
@@ -514,6 +510,9 @@ struct MainLayout
 	float fLightingWaterSkyboxThree INIT;
 	float fLightingWaterSkyboxThreePower INIT;
 	float fLightingWaterSkyboxLod INIT;
+	// Specular-AA tuning for Water.frag's WATER_SPEC_AA_MODE variants (variance: modes 1-3; threshold: modes 2-3)
+	float fWaterSpecAAVariance INIT;
+	float fWaterSpecAAThreshold INIT;
 
 	float fLightingWaterReflectedAmount INIT;
 	float fLightingWaterReflectedNormalBlendWave INIT;

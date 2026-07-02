@@ -29,7 +29,7 @@ Two modes — infer from the invocation:
    - **Hubs must claim territory**: If the directory is a hub whose children share a pattern (base class, protocol, layout, file-split convention), state ONCE at the hub that children do not re-document this pattern. This is what stops leaves from defensively re-stating the same boilerplate.
    - If a CLAUDE.md exists, update only the sections affected by the code changes.
    - Only create a new CLAUDE.md if the directory represents a distinct subsystem (not for single-file utility directories).
-   - The CLAUDE.md file should reflect only what is currently in the code — do not mention changes, fixes, or reference what was previously there.
+   - The CLAUDE.md reflects only the current state of the code — never edit history. Do not mention changes, fixes, what was previously there, or the session/plan that produced them (see Content Guidelines → No Changelogs).
 
 5. **Trim bloat**: For every CLAUDE.md you read or wrote, if it exceeds its length target (see step 7), trim the most verbose sections before finishing.
 
@@ -74,7 +74,7 @@ For each file, score against this rubric (each row scored 0 to its weight, total
 | Architecture clarity | 20 | Can Claude understand the subsystem's shape in one read? |
 | Non-obvious patterns | 15 | Are gotchas (allocation tracking, determinism, `BT_CLIENT` guards, SOA pitfalls) documented? |
 | Conciseness | 15 | No member-by-member listings; respects 20–50 line target (100 for hubs)? |
-| Currency | 15 | Reflects current codebase state (no stale paths, removed APIs)? |
+| Currency | 15 | Reflects current codebase state (no stale paths, removed APIs); no changelog / edit-history narration (see Content Guidelines → No Changelogs)? |
 | Actionability | 15 | Instructions are executable — not vague? |
 
 Grades: **A** 90+, **B** 70–89, **C** 50–69, **D** 30–49, **F** <30.
@@ -87,6 +87,7 @@ Grades: **A** 90+, **B** 70–89, **C** 50–69, **D** 30–49, **F** <30.
 - No duplication with sibling CLAUDE.mds (Client/Server pairs) or parallel hierarchies (engine `Network/` vs. game `Network/`)
 - SOA / `Collection<T>` conventions mentioned where relevant
 - No stale filepaths (refactored-away directories)
+- No changelog / edit-history narration — "this run/session", "landed", "was/used to/previously", "renamed/moved from", "replaces the old …", dated or commit-referenced notes; CLAUDE.md states current behavior only, and git history is the forensic record (see Content Guidelines → No Changelogs)
 - Normal, direct tone — no ALL-CAPS emphasis, "IMPORTANT"/"CRITICAL"/"YOU MUST" markers, or rules restated for emphasis (see Tone and Emphasis below)
 - `@` before a path only where a live import is intended — `@path` in CLAUDE.md inlines the target file into context at load; see-also references use plain markdown links
 
@@ -127,6 +128,17 @@ After user approval, apply edits following the sync-mode content rules (§Conten
 ---
 
 ## Content Guidelines (both modes)
+
+### No Changelogs — Current State Only
+
+CLAUDE.md documents how the code is now, never how it got here — it is not a changelog, migration log, or record of a session's work. The repo's git history is the forensic record; docs carry no diff of themselves. This governs every edit in both modes and the audit rubric's Currency criterion.
+
+Never write, and remove when you find it:
+- Session/process narration: "this session", "this run", "landed", "has been removed", "dropped", "added/removed as part of X", or references to the plan/commit that produced a change.
+- Before/after narration: "was X", "used to be", "previously", "changed from/to", "renamed/moved from", "replaces the old …", "the deleted/now-removed <symbol>", and "no longer" when it recounts a past edit.
+- Dated or commit-referenced notes: "as of <date/version>", parenthetical dates, commit hashes.
+
+A plain "no longer"/"never" describing a *current* runtime condition ("the thread is no longer running at that point") is fine — the test is whether the sentence states present behavior or narrates an edit. When a code change makes a sentence stale, replace it with the new present-tense fact; don't append the new fact beside the old one, and don't note that it changed.
 
 ### Vocabulary and Pattern Consistency Across the CLAUDE.md Tree
 

@@ -86,7 +86,7 @@ void ServerSessionBase::SendNewSubscriptionFullStates()
 		}
 	}
 
-	// Persist-until-served: Server::Poll no longer clears this queue, so clear it here once serviced. A
+	// Persist-until-served: Server::Poll leaves this queue intact, so clear it here once serviced. A
 	// subscribe accepted while the server is paused (iFullTicks == 0) stays queued across polls until this
 	// post-tick consumer runs and sends its full state.
 	rNewSubs.clear();
