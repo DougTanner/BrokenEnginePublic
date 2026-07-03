@@ -13,7 +13,8 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical and sm
 
 ### Engine/Source/GameBase.{h,cpp}
 - Extract `AdvanceRenderClock(...)` from `Render()` (:266-420) — the render-clock advance (:297-347: seed/pause/cold-start/rebase/integrate-clamp) is a self-contained state machine over `mfRenderTime`/`mbRenderClockSeeded` returning one value; `Render` drops to ~100 lines and the client-render-clock invariants get a named home. Comments move with it [~30m]
-- Delete (after verification) the two defensive log loops: `BuildAndDispatchFrameTicks` (:172-177) skip-null-with-kWarning — `PrepareActiveSet`→`EnsureNextFrames` runs immediately before every call; **verify first-tick `pCurrent` seeding for a brand-new coord before deleting**; and the `FinalizeFrameTick` post-swap verification loop (:221-231) — re-checks the function called four lines earlier, no producer of the failure state found; runs per server tick [~15m + verification]
+- Delete the `FinalizeFrameTick` post-swap verification loop (:221-231) — pure logging with no recovery, and redundant: any surviving null state is re-reported by the next tick's `BuildAndDispatchFrameTicks` guard. Its only producer is a benign transient (first-tick warm-up of a replay coord leaves `pNext` null post-swap; the next `PrepareActiveSet` replay branch re-creates it), so the loop can only fire false-alarm kWarnings, per server tick [~5m]
+- **Keep** the `BuildAndDispatchFrameTicks` (:172-177) skip-null loop — **verified load-bearing, not defensive**: `EnsureNextFrames` (`Game.cpp:286-298`) creates only `pNext`, so a newly-activated coord's first tick reaches the loop with `pCurrent == nullptr`; the skip is the warm-up path (the subsequent `SwapFrames` seeds `pCurrent` from the fresh `pNext`). Deleting it would crash on every coord activation. Recorded so future sweeps don't re-file
 - Drive the visual-error decay from `mfLastRenderFrameSeconds` instead of fixed `1/miMonitorRefreshRate` (:399-408) — `GameBase.h:206-212` documents exactly why display-rate consumers must use the wall delta (vsync-miss relative stutter), and the game camera already does (`Camera.cpp:64`). One line; visual-only [~5m]
 
 ### Engine/Source/CrashReport.cpp
@@ -33,5 +34,9 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical and sm
 - Audio/Profile findings (`Audio/Architecture_AudioVoiceSeams.md`, `Profile/Architecture_ProfileVirtualRouting.md`)
 
 ## Notes
-- Invariant exposure: LOW — no CRC/wire/save change. The `AdvanceRenderClock` extraction is client-render-clock code motion (must preserve exact float ops — render-only, but the CoordFrames-adjacent invariants are documented in Engine/Source/CLAUDE.md); the decay fix is deliberately behavior-changing (visual-only, matches documented intent). The GameBase loop deletions are gated on the first-tick verification — if `pCurrent` can be null on a coord's first tick, keep that guard and delete only the post-swap loop
-- Grill decisions: (a) GameBase loops — confirm first-tick seeding; (b) `CreateDirectoryW` swap vs comment-scope-down in `HandleException` (recommend the swap)
+- Invariant exposure: LOW — no CRC/wire/save change. The `AdvanceRenderClock` extraction is client-render-clock code motion (must preserve exact float ops — render-only, but the CoordFrames-adjacent invariants are documented in Engine/Source/CLAUDE.md); the decay fix is deliberately behavior-changing (visual-only, matches documented intent)
+- Grill decision: `CreateDirectoryW` swap vs comment-scope-down in `HandleException` (recommend the swap — the AppData parent already exists, so the single-level Win32 call suffices)
+
+## Verification Notes
+- The original "delete both GameBase defensive log loops" item was verified and split: the `BuildAndDispatchFrameTicks` null-skip is load-bearing first-tick warm-up (keep); only the `FinalizeFrameTick` post-swap loop is deletable — see Design.
+- Line-drift co-schedule: `Network/ServerPauseAndResetSemantics.md` cites `GameBase.cpp` `ServerUpdate` lines (:123,:128,:441,:450) and `Meta/ReviewSweepQuickWins.md` touches `RawInputManager::UpdateFocus` (alloc-suppress item) — refresh citations if either lands first.

@@ -40,7 +40,10 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 	}
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
+
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerMainUniformCopy);
 	gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerMainUniformCopy);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingDeposit);
 
@@ -208,11 +211,13 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 
 	// UI depth pre-pass: depth-only quads at ImGui window positions (instanceCount=0 when disabled)
 	{
+		gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerUiDepth);
 		Pipeline& rUiPrepass = pPipelines[kPipelineUiDepthPrepass];
 		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rUiPrepass.mVkPipeline);
 		VkDescriptorSet pUiPrepassSets[2] = {gpTextureManager->mTextureDescriptors.mGlobalDescriptorSets[iFramebuffer], rUiPrepass.mVkDescriptorSets[iFramebuffer]};
 		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rUiPrepass.mVkPipelineLayout, 0, 2, pUiPrepassSets, 0, nullptr);
 		vkCmdDrawIndirect(vkCommandBuffer, gpImGuiManager->mUiPrepassIndirectVkBuffer, static_cast<VkDeviceSize>(iFramebuffer) * sizeof(VkDrawIndirectCommand), 1, sizeof(VkDrawIndirectCommand));
+		gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerUiDepth);
 	}
 
 	bool bDebugTextureMode = false;

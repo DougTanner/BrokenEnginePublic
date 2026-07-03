@@ -9,6 +9,11 @@ namespace engine
 
 constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter;
 
+// Pinned mastering-voice sample rate. Must match DataPacker's audiorepair::kiAudioExportSampleRate
+// (packed audio is resampled to this) so source rate == mastering rate and XAudio2 bypasses per-voice
+// SRC. Windows shared-mode does any final device-rate conversion once at the mastering output.
+constexpr int kiMasteringSampleRate = 48000;
+
 AudioManager::AudioManager()
 {
 	ASSERT(gpAudioManager == nullptr);
@@ -65,6 +70,9 @@ AudioManager::AudioManager()
 		CHECK_HRESULT(pMMDeviceCollection->GetCount(&uiCount));
 		LOG(kAudio, kInfo, "  uiCount: {}", uiCount);
 
+		// Endpoint the engine bound; reused for the mastering-rate migration Reset below so it stays on this device.
+		std::wstring selectedDeviceId;
+
 		// Match the OS default endpoint when its id is known; otherwise drop straight through to the first-active fallback
 		if (!defaultAudioEndpointId.empty())
 		{
@@ -92,6 +100,7 @@ AudioManager::AudioManager()
 				}
 
 				mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
+				selectedDeviceId = audioEndpointId;
 				LOG(kAudio, kInfo, "    Found: {}", audioEndpointId);
 				break;
 			}
@@ -116,6 +125,7 @@ AudioManager::AudioManager()
 					std::wstring audioEndpointId(pcDeviceId);
 					LOG(kAudio, kInfo, "    Using first in the list: {}", audioEndpointId);
 					mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
+					selectedDeviceId = audioEndpointId;
 				}
 				else
 				{
@@ -126,6 +136,26 @@ AudioManager::AudioManager()
 
 		if (mpAudioEngine != nullptr)
 		{
+			// Pin the mastering voice to kiMasteringSampleRate so the pack-time-resampled 48 kHz sources
+			// hit the XAudio2 SRC bypass on any device. DirectXTK's ctor takes native (device-rate)
+			// channels/rate; keep the native channel count and only override the rate. Cache the format
+			// so the device-reset path (Update) can re-apply it — DirectXTK does not remember the ctor wfx.
+			mPinnedOutputFormat.wFormatTag = WAVE_FORMAT_PCM;
+			mPinnedOutputFormat.nChannels = static_cast<WORD>(mpAudioEngine->GetOutputChannels());
+			mPinnedOutputFormat.nSamplesPerSec = static_cast<DWORD>(kiMasteringSampleRate);
+			mPinnedOutputFormat.wBitsPerSample = 16;
+			mPinnedOutputFormat.nBlockAlign = static_cast<WORD>(mPinnedOutputFormat.nChannels * (mPinnedOutputFormat.wBitsPerSample / 8));
+			mPinnedOutputFormat.nAvgBytesPerSec = mPinnedOutputFormat.nSamplesPerSec * mPinnedOutputFormat.nBlockAlign;
+			mPinnedOutputFormat.cbSize = 0;
+			if (mpAudioEngine->GetOutputSampleRate() != kiMasteringSampleRate)
+			{
+				LOG(kAudio, kInfo, "  Pinning mastering voice to {} Hz (device native {} Hz)", kiMasteringSampleRate, mpAudioEngine->GetOutputSampleRate());
+				if (!mpAudioEngine->Reset(&mPinnedOutputFormat, selectedDeviceId.empty() ? nullptr : selectedDeviceId.c_str()))
+				{
+					LOG(kAudio, kWarning, "  Mastering-rate pin failed; continuing at device rate");
+				}
+			}
+
 			IXAudio2* pIXAudio2 = mpAudioEngine->GetInterface();
 			XAUDIO2_DEBUG_CONFIGURATION debugConfiguration
 			{
@@ -275,7 +305,9 @@ void AudioManager::Update(const game::Frame* pFrame)
 	{
 		LOG(kAudio, kWarning, "Music streaming: Audio device not present, resetting audio engine");
 
-		mpAudioEngine->Reset();
+		// Re-apply the pinned 48 kHz format (native channels captured at startup) — Reset(nullptr) would
+		// otherwise recreate the mastering voice at the new default device's rate, breaking the SRC bypass.
+		mpAudioEngine->Reset(&mPinnedOutputFormat, nullptr);
 
 		// Re-cache mastering voice channels after device reset
 		{

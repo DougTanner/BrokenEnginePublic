@@ -81,7 +81,12 @@ void TextManager::UpdateTextArea(TextAreas eTextArea, std::string_view character
 
 void TextManager::RenderMain(int64_t iCommandBuffer)
 {
-	auto pQuads = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mTextStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	// Build the full quad list (main + shadow) in cached workbuffer staging, then copy once into the
+	// persistent-mapped write-combined storage buffer. Building directly in mapped memory forces the
+	// memmove/memcpy/read-modify-write below to read back uncached bytes on every quad.
+	common::ScopedWorkbufferAllocation<shaders::AxisAlignedQuadLayout*> stagingQuads
+		= common::gpThreadLocal->mWorkbuffer.PushBuffer<shaders::AxisAlignedQuadLayout*>(kiMaxTextQuads * static_cast<int64_t>(sizeof(shaders::AxisAlignedQuadLayout)));
+	shaders::AxisAlignedQuadLayout* pQuads = stagingQuads;
 	int64_t iPos = 0;
 
 	static constexpr float kfShadowOffsetX = 0.00075f;
@@ -111,6 +116,9 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 		}
 
 	}
+
+	// One linear copy of the finished quad list into the write-combined storage buffer.
+	std::memcpy(gpBufferManager->mTextStorageBuffers.at(iCommandBuffer).mpMappedMemory, pQuads, iPos * sizeof(pQuads[0]));
 
 	gpPipelineManager->mpPipelines[kPipelineProfileText].WriteIndirectBuffer(iCommandBuffer, iPos);
 }

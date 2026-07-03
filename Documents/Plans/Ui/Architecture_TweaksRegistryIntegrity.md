@@ -6,7 +6,7 @@ Source: /external-architecture-review on Engine/Source (recursive). The flat `Tw
 ## Design
 
 ### Engine/Source/Ui/Screens/TweaksScreen/TweaksSliderMap.cpp
-- Add a duplicate-key ASSERT (or kError log) on insert in `TweaksSliderMapRegistrar` — `insert`'s bool result at line 22 is currently discarded; static-init-time check, zero runtime cost [~5m]
+- Add duplicate-key detection (ASSERT or kError log) in `TweaksSliderMapRegistrar` — the `insert(entries)` at `TweaksSliderMap.cpp:22` is the `initializer_list` overload, which returns `void` and silently skips duplicate keys; loop the entries and check each single-entry `insert(...).second` instead; static-init-time check, zero runtime cost [~5m]
 
 ### Colliding key renames (rename registrar key + every `WrapperSlider` call site naming it)
 - `"Texel Ramp Speed"`: `TweaksScreenShadow.cpp:17` (`gShadowTexelRampMetersPerSec`) collides with `TweaksScreenLighting.cpp:59` (`gLightingTexelRampMetersPerSec`) — rename the Shadow side (e.g. `"Shadow Texel Ramp Speed"`), update slider sites `TweaksScreenShadow.cpp:49` and `TweaksScreenLighting.cpp:188` as needed [~10m]
@@ -29,5 +29,10 @@ Source: /external-architecture-review on Engine/Source (recursive). The flat `Tw
 - Slider values/tuning themselves
 
 ## Notes
-- Invariant exposure: none — client-only debug UI; no determinism/CRC/wire/save exposure. Renamed keys change which saved tweak entries match if tweak keys are persisted anywhere — verify `TweaksSliderMap` persistence before renaming (audit suggests keys are registration-time only)
+- Invariant exposure: none — client-only debug UI; no determinism/CRC/wire/save exposure. Key renames are persistence-safe: verified `TweaksSliderMap` keys are registration-time only — `game::TweaksSettings` (`ClientSettings.cpp`) persists section visibility/window positions/subtabs/collapsed flags, never key strings or slider values, and no other consumer of `TweaksSliderMap` exists
 - Grill decisions: (a) "Day Brightness" — add slider vs delete entry (recommend add); (b) `TweakSection` game enumerators — extension point vs accept+document (recommend accept+document; the enum-as-registry-index pattern is load-bearing and small)
+
+## Verification Notes
+- All claims machine-verified (registrar-keys vs `WrapperSlider` mapKeys diff across engine + game TweaksScreen `.cpp`s): exactly the three cited duplicate keys (`Texel Ramp Speed`, `Temporal Blend`, `Grow`), exactly one orphan (`Day Brightness`), zero missed lookups. All cited line numbers exact as of verification.
+- The `TweakSection` layering item is real per root CLAUDE.md's "reverse direction" rule (engine enum naming game concepts), but the extension-hook pattern is already documented as deliberate in `Screens/TweaksScreen/CLAUDE.md` — under the recommended accept+document outcome the residual deliverable is only a source comment at the enum, so weigh whether to execute or fold into the rename session.
+- No overlap with `Meta/ReviewSweepQuickWins.md` (its `TweaksScreenBase.h` item is the `static_assert(kCount <= 32)` shift-UB bound, untouched here).

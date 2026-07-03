@@ -59,8 +59,8 @@ void main()
 
 	// No fTerrainEarlyOut discard here: the per-island Gaea Mesher mesh only draws where geometry
 	// exists (including the underwater skirt), so a discard would black-out valid underwater content.
-	// Fringe artifacts where the mesh extends past the cropped heightmap bbox are a separate follow-up
-	// (see Documents/Plans/Graphics/GaeaMeshCropToHeightmapBbox.md).
+	// The mesh is cropped to the heightmap bbox at bake time (ProcessBakedRegion.cpp), so no fringe
+	// overshoot survives to sample neighbouring composite content.
 
 	vec3 f3Color = texture(colorTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord).xyz;
 

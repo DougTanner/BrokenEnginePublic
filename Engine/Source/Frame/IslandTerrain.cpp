@@ -244,39 +244,65 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 	// MAX over every island whose footprint rectangle contains the point. Rectangles may overlap now (the
 	// chain packs by hull, not rectangle), so first-match would pick an arbitrary island; the highest terrain
 	// must win, matching the GPU elevation prepass. Commutative max → order-independent and deterministic.
+	// Each placement's query (inverse-rotation cos/sin + footprint + heightmap pointer/dims) is precomputed
+	// once per cell (FrameStaticData::BuildRenderPlacementCache, index-parallel to islands) so this render
+	// path does zero hash lookups and zero libm trig per island. During the one-frame window after a
+	// placement edit clears the caches (network resend, menu cycle) the query cache can lag its rebuild by a
+	// tick — and the server never builds it at all — so fall back to inline trig + one mIslands.at lookup per
+	// island until RunFrameTick refills. The fallback reproduces a query from the placement + template.
+	const std::vector<IslandPlacement>& rIslands = it->second.staticData.islands;
+	const std::vector<IslandRenderQuery>& rQueries = it->second.staticData.islandRenderQueries;
+	bool bHaveQueryCache = rQueries.size() == rIslands.size();
+
 	float fMaxElevation = mfSeaFloorElevation;
-	for (const IslandPlacement& rPlacement : it->second.staticData.islands)
+	for (size_t i = 0; i < rIslands.size(); ++i)
 	{
-		const IslandTemplate& rTemplate = mIslands.at(rPlacement.islandCrc);
-		float fFootprintX = rTemplate.mfQuadFootprintX;
-		float fFootprintY = rTemplate.mfQuadFootprintY;
+		IslandRenderQuery fallbackQuery;
+		const IslandRenderQuery* pQuery = nullptr;
+		if (bHaveQueryCache)
+		{
+			pQuery = &rQueries[i];
+		}
+		else
+		{
+			const IslandPlacement& rPlacement = rIslands[i];
+			const IslandTemplate& rTemplate = mIslands.at(rPlacement.islandCrc);
+			fallbackQuery.fCos = std::cos(-rPlacement.fRotation);
+			fallbackQuery.fSin = std::sin(-rPlacement.fRotation);
+			fallbackQuery.f2WorldPos = rPlacement.f2WorldPos;
+			fallbackQuery.fFootprintX = rTemplate.mfQuadFootprintX;
+			fallbackQuery.fFootprintY = rTemplate.mfQuadFootprintY;
+			fallbackQuery.pHeightmapHalf = rTemplate.mpHeightmapHalf;
+			fallbackQuery.iHeightmapWidth = rTemplate.miHeightmapWidth;
+			fallbackQuery.iHeightmapHeight = rTemplate.miHeightmapHeight;
+			pQuery = &fallbackQuery;
+		}
+		const IslandRenderQuery& rQuery = *pQuery;
 
 		// Inverse-rotate world point into island-local frame
-		float fCos = std::cos(-rPlacement.fRotation);
-		float fSin = std::sin(-rPlacement.fRotation);
-		float fDx = f4Position.x - rPlacement.f2WorldPos.x;
-		float fDy = f4Position.y - rPlacement.f2WorldPos.y;
-		float fLocalX = fDx * fCos - fDy * fSin;
-		float fLocalY = fDx * fSin + fDy * fCos;
+		float fDx = f4Position.x - rQuery.f2WorldPos.x;
+		float fDy = f4Position.y - rQuery.f2WorldPos.y;
+		float fLocalX = fDx * rQuery.fCos - fDy * rQuery.fSin;
+		float fLocalY = fDx * rQuery.fSin + fDy * rQuery.fCos;
 
-		if (std::abs(fLocalX) > 0.5f * fFootprintX || std::abs(fLocalY) > 0.5f * fFootprintY)
+		if (std::abs(fLocalX) > 0.5f * rQuery.fFootprintX || std::abs(fLocalY) > 0.5f * rQuery.fFootprintY)
 		{
 			continue;
 		}
 
 		// UV from local frame; V axis is world-Y inverted
-		float fU = fLocalX / fFootprintX + 0.5f;
-		float fV = 0.5f - fLocalY / fFootprintY;
+		float fU = fLocalX / rQuery.fFootprintX + 0.5f;
+		float fV = 0.5f - fLocalY / rQuery.fFootprintY;
 
-		int64_t iX = static_cast<int64_t>(fU * static_cast<float>(rTemplate.miHeightmapWidth - 1));
-		int64_t iY = static_cast<int64_t>(fV * static_cast<float>(rTemplate.miHeightmapHeight - 1));
-		iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapWidth - 1));
-		iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapHeight - 1));
+		int64_t iX = static_cast<int64_t>(fU * static_cast<float>(rQuery.iHeightmapWidth - 1));
+		int64_t iY = static_cast<int64_t>(fV * static_cast<float>(rQuery.iHeightmapHeight - 1));
+		iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(rQuery.iHeightmapWidth - 1));
+		iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(rQuery.iHeightmapHeight - 1));
 
 		// Heightmap value is already engine-meters (DataPacker shifted Gaea's [0,1] normalized
 		// output by the per-island beach offset `Level × elevationMeters` read from the archetype
 		// Sea node). Beach = 0; negative = water; positive = land. Fold into the running max.
-		fMaxElevation = std::max(fMaxElevation, DirectX::PackedVector::XMConvertHalfToFloat(rTemplate.mpHeightmapHalf[iY * rTemplate.miHeightmapWidth + iX]));
+		fMaxElevation = std::max(fMaxElevation, DirectX::PackedVector::XMConvertHalfToFloat(rQuery.pHeightmapHalf[iY * rQuery.iHeightmapWidth + iX]));
 	}
 
 	return fMaxElevation;

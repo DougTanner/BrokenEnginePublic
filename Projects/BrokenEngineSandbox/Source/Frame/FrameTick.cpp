@@ -48,6 +48,19 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurre
 		engine::gpIslandTerrain->BuildElevationGrid(rStaticData.coord, rStaticData.islands, rStaticData.elevationGrid);
 	}
 
+#if defined(BT_CLIENT)
+	// Render-only cache: per-placement flattened query (inverse-rotation sin/cos + template footprint /
+	// heightmap pointer / dims) for GlobalElevation/GlobalNormal (ProjectToBaseHeight). Built here alongside
+	// the elevation grid — placement rotation and template are static for the cell's life — so the render
+	// path does zero hash lookups and zero libm trig per call. The server never calls GlobalElevation, so
+	// skip it there.
+	if (rStaticData.islandRenderQueries.empty() && !rStaticData.islands.empty())
+	{
+		ScopedSuppressAllocationTracking suppress;
+		rStaticData.BuildRenderPlacementCache(*engine::gpIslandTerrain);
+	}
+#endif
+
 	// Phase 1: Interpolate
 	FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
 	FrameInterpolate::Update(rNext.interpolate, rCurrent, kfDeltaTime);

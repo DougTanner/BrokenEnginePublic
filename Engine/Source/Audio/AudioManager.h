@@ -60,6 +60,10 @@ private:
 	std::atomic<bool> mbClearVoicesRequested = false;
 	std::atomic<bool> mbClearStreamingVoicesRequested = false;
 	int64_t miMasteringVoiceChannels = 0;
+
+	// Mastering voice pinned to this format (native channels, kiMasteringSampleRate). Reused by the
+	// device-reset path so the rate pin survives Reset — DirectXTK does not cache the ctor wfx.
+	WAVEFORMATEX mPinnedOutputFormat {};
 };
 
 inline AudioManager* gpAudioManager = nullptr;

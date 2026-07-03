@@ -209,6 +209,13 @@ ReconcileDesyncInfo ClientReconciler::Run()
 
 	gpProfileManager->SetReconcileCounters(mergedProfiling.iCrcValidatedFrameTicks, mergedProfiling.iAssumedFrameTicks, mergedProfiling.iCrcFastPathEvents, mergedProfiling.iStatusChangeReplayTicks, mergedProfiling.iKnockOnReplayTicks);
 
+	// Large single-frame re-sim bursts are frame-time spike candidates
+	int64_t iReSimTicks = mergedProfiling.iStatusChangeReplayTicks + mergedProfiling.iKnockOnReplayTicks;
+	if (iReSimTicks >= 8)
+	{
+		LOG(kNetwork, kVerbose, "Replay burst ReSimTicks: {} StatusChange: {} KnockOn: {} Assumed: {} CrcValidated: {} Coords: {}", iReSimTicks, mergedProfiling.iStatusChangeReplayTicks, mergedProfiling.iKnockOnReplayTicks, mergedProfiling.iAssumedFrameTicks, mergedProfiling.iCrcValidatedFrameTicks, iActiveCount);
+	}
+
 	gpGame->SetNextFrameId(std::max(gpGame->NextFrameId(), inputs.uiNextFrameId));
 
 	if (bAnyFullReplay && engine::gpAudioManager != nullptr)

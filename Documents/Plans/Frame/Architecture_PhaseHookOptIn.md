@@ -1,12 +1,12 @@
 # Architecture: Opt-In Collection Phase Hooks
 
 ## Context
-Source: /external-architecture-review on Engine/Source (recursive). The `ForEach*` fold helpers call every phase hook on every collection unconditionally, so all 12 engine collections (plus game collections) must define every hook even when empty — ~70+ empty out-of-line stubs, a 12-static-method interface for collections that implement ≤2 hooks with logic, and a `[[maybe_unused]]` uniform-signature discipline the hub CLAUDE.md must codify as a rule. Separately, two collections are excluded from the render walk by a phantom-parameter trick plus a hand-maintained parallel type list.
+Source: /external-architecture-review on Engine/Source (recursive). The `ForEach*` fold helpers call every phase hook on every collection unconditionally, so all 11 engine collections (plus the game collections) must define every hook even when empty — ~70+ empty out-of-line stubs across the engine leaves alone, a 12-static-method interface for collections that implement ≤2 hooks with logic, and a `[[maybe_unused]]` uniform-signature discipline the hub CLAUDE.md must codify as a rule. Separately, two collections are excluded from the render walk by a phantom-parameter trick plus a hand-maintained parallel type list.
 
 ## Design
 
 ### Engine/Source/Frame/FrameUtils.h
-- Make phase hooks opt-in in the fold helpers (`ForEach*`, FrameUtils.h:96-136) via `if constexpr (requires { TS::Update(...); })` — a collection that doesn't declare a hook is skipped at compile time [~1h]
+- Make phase hooks opt-in in the fold helpers (`ForEach*`, FrameUtils.h:60-136) via `if constexpr (requires { TS::Update(...); })` — a collection that doesn't declare a hook is skipped at compile time [~1h]
 - Delete the now-unneeded empty stubs across the engine collections (representative: `WindTrailsUpdate.cpp:23-29,60-66`; `AreaLightsUpdate.cpp:8-10,26-32,65-71`; `Sounds.cpp:35-50` including the empty `Render`; `BillboardsUpdate.cpp:26-32,64-70`) and the game-layer collections that carry the same stubs [~1h]
 
 ### Engine/Source/Frame/FrameBase.h
@@ -27,5 +27,9 @@ Source: /external-architecture-review on Engine/Source (recursive). The `ForEach
 - `kCollectionCount` / registration shotgun-surface reduction beyond the render list (the add-collection skill owns that checklist)
 
 ## Notes
-- Invariant exposure: MODERATE — no CRC/serialization change (hooks are call-sites, not data), but a hook silently not matching the `requires` signature would be *skipped* instead of a compile error; mitigate with a `static_assert` that each collection declares at least the mandatory hooks (`Update`/`Members`), and verify server build compiles both fold variants. Cross-layer edit (game collections carry stubs too)
+- Invariant exposure: MODERATE — no CRC/serialization change (hooks are call-sites, not data), but the failure mode inverts: today a signature mismatch is a hard compile error; with `requires`-based opt-in it becomes a silent phase skip. That includes hooks *with logic* on sim-phase families (e.g. `Destroy` on PointLights, the shared Explosions/Pushers and game-collection PostRender hooks) — a skipped sim hook changes behavior identically on both builds (no client/server desync) but silently diverges from old replays. Mitigate with a `static_assert` on the mandatory hooks (`Update`/`Members`) and treat any hook-signature change as a checklist item in the add-collection skill; accept that non-mandatory hooks rely on review
+- This deliberately retires the documented uniform-signature/`[[maybe_unused]]`-stub convention in `Frame/CLAUDE.md` and `Frame/Collections/CLAUDE.md` — both hubs and the add-collection skill must be updated in the same session (Design covers this); do not land the fold change without the doc/skill updates
 - Grill decision: `requires`-expression opt-in vs explicit per-collection trait flags — recommend `requires` (zero per-collection boilerplate), with the manual-render trait as the one explicit flag
+
+## Verification Notes
+- Verified against source 2026-07-02: fold helpers at FrameUtils.h:60-136 call hooks unconditionally; ~80 empty out-of-line bodies across the 11 engine collection TUs (plus game-layer stubs); `SmokeTrailsInterpolate::Render`/`WindTrailsInterpolate::Render` carry the unused `uint16_t uiFrameId` phantom parameter (documented as deliberate exclusion in both leaf CLAUDE.md files); the hand-written `InterpolateRenderTypes` list sits at FrameBase.h:255-256. Headline claim held; engine collection count corrected 12 → 11

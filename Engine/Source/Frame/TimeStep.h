@@ -20,8 +20,8 @@ public:
 	void ClearAccumulator();
 
 	// Push ticks worth of time back into the accumulator (used by the client sim ceiling clamp when
-	// wall-clock wanted more ticks than latestServerTick - targetBehind allows). TickRealtime's
-	// existing kiMaxAccumulatorTicks cap bounds total growth during long stalls.
+	// wall-clock wanted more ticks than GetSimTickCeiling() allows). TickRealtime's existing
+	// kiMaxAccumulatorTicks cap bounds total growth during long stalls.
 	void AbsorbUnusedTicks(int64_t iTicks);
 
 	// Get current time multiplier

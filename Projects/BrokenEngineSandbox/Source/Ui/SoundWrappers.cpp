@@ -20,8 +20,8 @@ engine::Wrapper gEnemyBlasterPitchRandom(1.0f, 0.0f, 1.5f);
 engine::Wrapper gTerrainImpactVolume(0.075f, 0.0f, 0.2f);
 
 // Missiles
-engine::Wrapper gMissileLaunchVolume(0.075f, 0.0f, 0.2f);
-engine::Wrapper gMissileLoopVolume(0.05f, 0.0f, 0.2f);
+engine::Wrapper gMissileLaunchVolume(0.05f, 0.0f, 0.2f);
+engine::Wrapper gMissileLoopVolume(0.04f, 0.0f, 0.2f);
 engine::Wrapper gMissilePitchMin(1.0f, 0.5f, 1.5f);
 engine::Wrapper gMissilePitchRandom(1.0f, 0.0f, 1.0f);
 

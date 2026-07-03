@@ -142,6 +142,7 @@ static_assert(std::size(kEngineCpuTimerNames) == static_cast<size_t>(kEngineCpuT
 enum GpuTimers : int64_t
 {
 	kGpuTimerGlobal,
+		kGpuTimerGlobalUniformCopy,
 		kGpuTimerShadow,
 		kGpuTimerTerrainGen,
 			kGpuTimerTerrainElevation,
@@ -153,6 +154,7 @@ enum GpuTimers : int64_t
 			kGpuTimerLongParticlesUpdate,
 			kGpuTimerSquareParticlesUpdate,
 	kGpuTimerMain,
+		kGpuTimerMainUniformCopy,
 		kGpuTimerSmokeEmit,
 		kGpuTimerWindDeposit,
 		kGpuTimerLightingDeposit,
@@ -163,6 +165,7 @@ enum GpuTimers : int64_t
 		kGpuTimerObjectShadowsBlur,
 		kGpuTimerWaterDisplacement,
 	kGpuTimerImage,
+		kGpuTimerUiDepth,
 		kGpuTimerObjects,
 		kGpuTimerTransparentObjects,
 		kGpuTimerTerrain,
@@ -182,6 +185,7 @@ enum GpuTimers : int64_t
 inline constexpr std::string_view kGpuTimerNames[]
 {
 	"Global render",
+	"    Uniform Copy",
 	"    Shadow",
 	"    Terrain Gen",
 	"        Terrain Elevation",
@@ -193,6 +197,7 @@ inline constexpr std::string_view kGpuTimerNames[]
 	"        Long Particles Update",
 	"        Square Particles Update",
 	"Main render",
+	"    Uniform Copy",
 	"    Smoke Emit",
 	"    Wind Deposit",
 	"    Lighting Deposit",
@@ -203,6 +208,7 @@ inline constexpr std::string_view kGpuTimerNames[]
 	"    Object Shadows blur",
 	"    Water Displacement",
 	"Image render",
+	"    Ui Depth",
 	"    Objects",
 	"    Transparent Objects",
 	"    Terrain",
@@ -358,6 +364,10 @@ public:
 
 protected:
 
+#if defined(BT_CLIENT)
+	void DumpTimers();
+#endif // BT_CLIENT
+
 	// Names live in the deduced-extent kXxx*Names tables above (static_assert-guarded); these arrays carry only the
 	// per-row runtime state and are indexed by the same enums.
 	CpuCounter mEngineCpuCounters[kEngineCpuCounterCount];
@@ -378,6 +388,10 @@ protected:
 
 #if defined(BT_CLIENT)
 	VkQueryPool mVkQueryPool = VK_NULL_HANDLE;
+
+	std::unique_ptr<common::DiagnosticLog> mpDumpLog;
+	std::chrono::steady_clock::time_point mDumpStartTime {};
+	std::chrono::steady_clock::time_point mLastDumpTime {};
 #endif // BT_CLIENT
 };
 

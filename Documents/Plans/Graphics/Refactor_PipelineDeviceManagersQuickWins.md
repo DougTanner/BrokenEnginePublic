@@ -23,7 +23,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical in-fun
 
 ### Engine/Source/Graphics/Managers/CommandBufferRecordMain.cpp / CommandBufferRecordGlobal.cpp
 - Drop the redundant `static_cast<uint32_t>` on the already-`uint32_t` extent members (`CommandBufferRecordMain.cpp:84`) [~5m]
-- Remove the vestigial `kGpuTimerTerrainGen` start/stop (`CommandBufferRecordGlobal.cpp:119-127`) — it wraps exactly one inner timer pair; also touches the game GPU-timer enum the Profile overlay reads [~15m]
+- Remove the vestigial `kGpuTimerTerrainGen` start/stop (`CommandBufferRecordGlobal.cpp:119-127`) — it wraps exactly one inner timer pair (`kGpuTimerTerrainElevation`); also delete its entries in the engine `GpuTimers` enum and `kGpuTimerNames` table (`Profile/ProfileManagerBase.h:146,186` — the `static_assert` keeps them in sync) and de-indent the inner entry [~15m]
 
 ### Engine/Source/Graphics/Managers/BufferManager.{h,cpp}
 - Replace `std::array<VisibleAreaMeshLod, ...> mWaterMeshLods` (`BufferManager.h:108`) and the `std::array&` parameter of `BuildLodConcatMesh` (`BufferManager.cpp:723-725`) with a C array + `kiVisibleAreaLodCount` per style rule 21; fix the adjacent `int` → `int64_t` drift (`BufferManager.h:99`, `.cpp:729,742`) [~15m]
@@ -41,7 +41,8 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical in-fun
 ## Critical files
 - `Engine/Source/Graphics/Managers/`: InstanceManager, DeviceManager, SwapchainManager, CommandBufferManager, CommandBufferRecordMain, CommandBufferRecordGlobal, BufferManager, DynamicPipelines, PipelineManager (one line)
 - `Engine/Source/Graphics/Graphics.{h,cpp}` (`mbSaveScreenshot` new home; `bSignalFence` caller)
-- `Projects/BrokenEngineSandbox/Source/Game.cpp` (`mbSaveScreenshot` toggle site), game GPU-timer enum (terrain-gen timer removal)
+- `Projects/BrokenEngineSandbox/Source/Game.cpp` (`mbSaveScreenshot` toggle site)
+- `Engine/Source/Profile/ProfileManagerBase.h` (`GpuTimers` enum + `kGpuTimerNames` table, terrain-gen timer removal)
 
 ## Out of scope
 - `PipelineManager.cpp` split / redundant `Destroy()`s / descriptor-generation verifier (live plans: `Refactor_PipelineManagerSplit`, `Meta/ReviewSweepQuickWins` item 12, `Architecture_BindlessSlotLifecycle`)
@@ -51,3 +52,8 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical in-fun
 ## Notes
 - Invariant exposure: none — client/graphics-only, boot/teardown or record-once paths; no determinism/CRC/wire. `PipelineManager.cpp` line cites drift if `Refactor_PipelineManagerSplit` lands first — refresh
 - Grill decision: item 5 — support graphics≠present queues (delete ASSERT) vs fail loud (delete CONCURRENT machinery); recommend delete the ASSERT (the fallback is correct and tested by the release build)
+
+## Verification Notes
+
+- All items re-verified against source 2026-07-02: `mbFoundKhronosValidation` write-only (repo grep), `bSignalFence` false at its single caller (`Graphics.cpp:252`), `mbSaveScreenshot` untouched by CommandBufferManager itself (only `Game.cpp:663` writes, `Graphics.cpp:263-265` consumes), the `DeviceManager.cpp:246` `ASSERT(false)` sits ahead of a complete fallback (queue is created — the ctor's unique-family loop includes the present family — and `SwapchainManager` carries live `VK_SHARING_MODE_CONCURRENT` support at `:239-257`).
+- The `using enum` dedup (`PipelineManager.cpp:761-762`) becomes moot if `Refactor_PipelineManagerSplit` lands first: `CreateDebugRenderPipelines` moves to the new `PipelineManagerEffects.cpp`, where a local `using enum` pair is needed again. Drop the item in that ordering.

@@ -49,6 +49,9 @@ Islands::Islands()
 		});
 		std::memset(mIslandsStorageBuffers.at(iFramebuffer).mpMappedMemory, 0, static_cast<size_t>(iSsboEntryCount) * sizeof(shaders::AxisAlignedQuadLayout));
 
+		// Baseline record: whole SSBO just zeroed, so no slots are stale — all last-written counts start at 0.
+		mLastWrittenCounts.at(iFramebuffer).resize(static_cast<size_t>(miTemplateCount), 0u);
+
 		// Per-template VkDrawIndexedIndirectCommand buffer. indexCount / firstIndex / vertexOffset /
 		// firstInstance baked here; instanceCount rewritten per frame from UpdateActiveIslands.
 		VmaAllocationInfo vmaAllocationInfo {};
@@ -114,19 +117,34 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 	// which draw the full fixed slot count (miTemplateCount * kiMaxPlacementsPerTemplate) and rely
 	// purely on zero-width-quad culling — so stale SSBO quad geometry left from a prior frame (e.g. a
 	// no-longer-active larger island) would keep rendering into the elevation RTT the water early-out
-	// samples. Clear the whole SSBO each frame; active entries below overwrite their own slots. The
-	// buffer is host-coherent (matches the boot memset), so no barrier / CB re-record is needed.
+	// samples.
 	for (int64_t iTemplate = 0; iTemplate < miTemplateCount; ++iTemplate)
 	{
 		pIndirect[iTemplate].instanceCount = 0;
 	}
-	std::memset(rStorageBuffer.mpMappedMemory, 0, static_cast<size_t>(miTemplateCount * kiMaxPlacementsPerTemplate) * sizeof(shaders::AxisAlignedQuadLayout));
+
+	auto pSsbo = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(rStorageBuffer.mpMappedMemory);
+
+	// Clear only the slots this framebuffer instance wrote the last time it was populated. Those are the
+	// only slots that can be stale: the ctor's full memset zeroed everything, and every frame writes each
+	// template's slots densely from its base (iTemplate * kiMaxPlacementsPerTemplate) up to its recorded
+	// count, leaving all other slots at their prior value. Re-clearing exactly the previously-written
+	// ranges restores the all-zero baseline the active writes below overwrite — equivalent to the old
+	// whole-SSBO memset, but touching only (last active) slots of the ~16 MiB reserved slab. Buffer is
+	// host-coherent (matches the boot memset), so no barrier / CB re-record is needed.
+	std::vector<uint32_t>& rLastWrittenCounts = mLastWrittenCounts.at(iFramebuffer);
+	for (int64_t iTemplate = 0; iTemplate < miTemplateCount; ++iTemplate)
+	{
+		uint32_t uiLastCount = rLastWrittenCounts[static_cast<size_t>(iTemplate)];
+		if (uiLastCount > 0)
+		{
+			std::memset(&pSsbo[iTemplate * kiMaxPlacementsPerTemplate], 0, static_cast<size_t>(uiLastCount) * sizeof(shaders::AxisAlignedQuadLayout));
+		}
+	}
 
 	// Per-template running emit counter — sized to miTemplateCount, lives in the workbuffer (no heap).
 	auto puiPerTemplateCount = common::gpThreadLocal->mWorkbuffer.PushBuffer<uint32_t*>(static_cast<size_t>(miTemplateCount) * sizeof(uint32_t));
 	std::memset(puiPerTemplateCount, 0, static_cast<size_t>(miTemplateCount) * sizeof(uint32_t));
-
-	auto pSsbo = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(rStorageBuffer.mpMappedMemory);
 
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
@@ -175,6 +193,11 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 			pIndirect[iTemplate].instanceCount = puiPerTemplateCount[iTemplate];
 		}
 	}
+
+	// Record this frame's dense per-template counts so the next population of this framebuffer index clears
+	// exactly these slots. puiPerTemplateCount == pIndirect[].instanceCount and is capped at
+	// kiMaxPlacementsPerTemplate by the overflow guard above, so every recorded range stays in bounds.
+	std::memcpy(rLastWrittenCounts.data(), puiPerTemplateCount, static_cast<size_t>(miTemplateCount) * sizeof(uint32_t));
 }
 
 } // namespace engine

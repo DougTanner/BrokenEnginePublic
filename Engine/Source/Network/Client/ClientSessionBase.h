@@ -46,7 +46,7 @@ public:
 	int64_t GetConfirmedTick() const;
 	int64_t GetClientConfirmedTick() const;
 	int64_t GetServerUpdateBufferSize() const;
-	int64_t GetTargetSimTick() const { return (miLatestServerTick < 0) ? -1 : (miLatestServerTick - miCurrentTargetBehind); }
+	int64_t GetSimTickCeiling() const { return (miLatestServerTick < 0) ? -1 : (miLatestServerTick - miCurrentTargetBehind + kiSimCeilingSlackTicks); }
 
 	std::unique_ptr<Client> mpClientNetwork;
 	std::unique_ptr<NetworkDiscoveryScanner> mpDiscoveryScanner;

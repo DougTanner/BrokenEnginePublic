@@ -22,7 +22,6 @@ Source: /external-architecture-review + /external-refactor-clean on Engine/Sourc
 ### Mechanical dedup/cleanup
 - Extract `CacheMasteringVoiceChannels()` — ctor `AudioManager.cpp:143-155` vs device-reset re-cache `:280-289` duplicate the `GetMasterVoice`/`GetVoiceDetails`/`min(nChannels)` core and have already drifted (reset path null-guards, ctor doesn't) [~15m]
 - Decompose the ~160-line `AudioManager` ctor (`AudioManager.cpp:12-171`) — extract `SelectAudioEndpoint(...)`, folding the duplicated `GetId`/`ScopedLambda`/`CoTaskMemFree` blocks (:35-49 vs :108-123) and the two `AudioEngine` creation sites (:94, :118) [~30m]
-- Delete stale `[[maybe_unused]]` on used `rFrame` params (`StaticVoices.cpp:20,78` — both bodies read it unconditionally) [~5m]
 - Drop the genuinely unused `rFrame` param from `UpdateListenerPosition` (`StaticVoices.cpp:496`, `StaticVoices.h:47`; sole caller `AudioManager.cpp:310`) [~5m]
 - Extract `AcquireOrLoadVoice(crc)` — the acquire-with-load-fallback block is duplicated in `PriorityPass` (`StaticVoices.cpp:332-339` vs `:387-394`) [~15m]
 
@@ -38,3 +37,8 @@ Source: /external-architecture-review + /external-refactor-clean on Engine/Sourc
 ## Notes
 - Invariant exposure: none — client-only subsystem (`BT_CLIENT`), no determinism/CRC/wire. The voice classes have documented thread contracts (strict Wait/Wake alternation, `OnBufferEnd` deadlock avoidance) — the ownership moves are code motion that must not change lock scopes
 - Grill decision: music resume — fix (recommended) vs document-as-intended; StaticVoice — private-struct fold vs invariant helpers (recommend helpers: smaller diff)
+
+## Verification Notes
+- Music-resume claim verified end-to-end: `CheckTrackTransition` (`StreamingVoices.cpp:63`) is gated on `mpCurrentStream != nullptr`; every `Clear` path resets `mpCurrentStream` while `mGetNextTrack` is untouched; the only `PlayMusic` callers are `Game::StartMenuMusic`/`StartGameMusic` (`Game.h:203/209`), so nothing restarts music after a device reset / Suspend→Resume until a menu/game transition.
+- Resume-fix caveats for execution: the `mpCurrentStream == nullptr && mGetNextTrack` branch must skip `TransitionCurrentToPrevious` (nothing to fade); a failed `CreateStream` leaves the stream null and retries next frame (benign). The game sets the callback once at startup (`Game.cpp:70`, immediately after `StartMenuMusic`) and nulls it at shutdown (`Game.cpp:410`), so the new branch cannot fire outside a live playlist. Device presence is already guaranteed at the call site (`AudioManager::Update` early-outs at `:296` before `CheckTrackTransition`).
+- Removed one original item as cosmetic-only: deleting stale `[[maybe_unused]]` on `rFrame` in `PlayOneShot`/`PlayOneShot3d` (`StaticVoices.cpp:20,78`) — claim was factually correct (both bodies read `rFrame` unconditionally) but annotation-only, no behavior/code change.

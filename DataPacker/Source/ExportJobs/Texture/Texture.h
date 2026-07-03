@@ -52,9 +52,16 @@ constexpr const char* TextureIntermediateSuffix(VkFormat vkFormat)
 }
 
 // zlib-DEFLATE a byte buffer at Z_BEST_COMPRESSION; returns a size-trimmed vector. Shared by the
-// texture-intermediate writers (ExportTexture / Texture::Save / MigrateLegacyIntermediates) and
-// the RDO sweep so the compression level and Z_OK handling can't drift between them.
+// texture-intermediate writers (Texture::Save / MigrateLegacyIntermediates) and the RDO sweep so the
+// compression level and Z_OK handling can't drift between them. The on-disk texture intermediates stay
+// zlib; the .pack texture chunks themselves are LZ4 (see Lz4Compress) and transcoded from zlib in
+// ExportTexture's raw-passthrough path.
 std::vector<std::byte> ZlibCompress(const std::byte* puiSource, int64_t iSourceSize);
+
+// LZ4HC-compress a byte buffer at LZ4HC_CLEVEL_MAX; returns a size-trimmed vector. Used for texture
+// .pack chunk payloads, which the runtime FileManager LZ4-decompresses (5-10x faster than zlib inflate,
+// no adler32 pass). Offline cost of max level is acceptable. Sibling of ZlibCompress.
+std::vector<std::byte> Lz4Compress(const std::byte* puiSource, int64_t iSourceSize);
 
 // Parsed header of a Texture::Save'd texture intermediate plus the offset where its payload begins.
 // Texture::Save writes [magic][width][height][mipCount][payload]; legacy files omit the magic (a

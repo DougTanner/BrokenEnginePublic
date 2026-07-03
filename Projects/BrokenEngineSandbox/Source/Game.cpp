@@ -881,8 +881,10 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			auto it = mCoordFrames.find(engine::kOriginCoord);
 			BuildMenuIslandPlacement(miMenuIslandIndex, it->second.staticData.islands);
 			// Cycling rewrites the placement list on an existing cell — drop the derived elevation grid
-			// so RunFrameTick rebuilds it from the new placements next tick.
+			// and the render-path query cache so RunFrameTick rebuilds both from the new placements
+			// next tick.
 			it->second.staticData.elevationGrid = {};
+			it->second.staticData.islandRenderQueries = {};
 
 			// Pre-mint the texture slot now (mirrors ClientDataReceiver::ApplyReceivedStaticData) so the
 			// elevation upload and chunk loads are in-flight before UpdateActiveIslands references the

@@ -134,12 +134,13 @@ constexpr int64_t SnapshotIndex(int64_t iHead, int64_t iLogical)
 }
 
 // Number of committed ticks the renderer stays behind the ring tail. Render interpolates across
-// a closed window of kiRenderBehindTicks committed ticks (e.g. 1 = [tail-1, tail]), so every
-// rendered position lies between two already-simulated ticks and velocity changes never require
-// extrapolation. Raise this to absorb more jitter at the cost of visual latency (31.25 ms per
-// tick at 32 Hz). Drives the retention floor in ReconcileReplayCrc's fast-path and the source
-// index in GameBase::RenderFrame — change here and the reconcile/render pair move together.
-inline constexpr int64_t kiRenderBehindTicks = 1;
+// the one-tick window starting kiRenderBehindTicks behind tail (e.g. 2 = [tail-2, tail-1], holding
+// tail as an extra committed tick of starvation cushion), so every rendered position lies between
+// two already-simulated ticks and velocity changes never require extrapolation. Raise this to
+// absorb more jitter at the cost of visual latency (31.25 ms per tick at 32 Hz). Drives the
+// retention floor in ReconcileReplayCrc's fast-path and the source index in
+// GameBase::RenderFrame — change here and the reconcile/render pair move together.
+inline constexpr int64_t kiRenderBehindTicks = 2;
 #endif // BT_CLIENT
 
 class GameBase

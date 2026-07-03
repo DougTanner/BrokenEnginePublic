@@ -61,7 +61,9 @@ constexpr float kfExplosionTrailCountMin = 2.0f;
 constexpr float kfExplosionTrailCountRandom = 2.0f;
 
 // Missile sound
-constexpr float kfMissileSoundFadeOutTime = 0.04f;
+// Long enough for a smooth per-frame SetVolume ramp (XAudio2 applies volume in discrete steps, so
+// shorter fades get only a handful of audible stair-steps); the explosion one-shot masks the tail
+constexpr float kfMissileSoundFadeOutTime = 0.15f;
 
 // Missile spawn
 constexpr float kfDeltaRotationLimitMin = 2.0f;

@@ -504,7 +504,7 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline)
 				.pTexelBufferView = nullptr
 			};
 
-			bool bSampler = rDescriptorInfo.flags & kSamplerClamp || rDescriptorInfo.flags & kSamplerElevation || rDescriptorInfo.flags & kSamplerBorder || rDescriptorInfo.flags & kSamplerRepeat || rDescriptorInfo.flags & kSamplerMirroredRepeat || rDescriptorInfo.flags & kSamplerSmoke || rDescriptorInfo.flags & kSamplerWindClamp;
+			bool bSampler = rDescriptorInfo.flags & kSamplerClamp || rDescriptorInfo.flags & kSamplerElevation || rDescriptorInfo.flags & kSamplerBorder || rDescriptorInfo.flags & kSamplerRepeat || rDescriptorInfo.flags & kSamplerMirroredRepeat || rDescriptorInfo.flags & kSamplerMirroredRepeatWater || rDescriptorInfo.flags & kSamplerSmoke || rDescriptorInfo.flags & kSamplerWindClamp;
 			if (rDescriptorInfo.flags & kModel)
 			{
 				WriteModelDescriptor(rPipeline, rDescriptorInfo, iFramebuffer, vkWriteDescriptorSet, cursor);

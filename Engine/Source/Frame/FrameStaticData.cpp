@@ -1,5 +1,7 @@
 #include "FrameStaticData.h"
 
+#include "Frame/IslandTerrain.h"
+
 namespace engine
 {
 
@@ -44,6 +46,30 @@ void FrameStaticData::Read(std::istream& rStream, bool bIncludeNavData)
 	// Never serialized — purely local derived data. Clear so a network resend / save-load
 	// forces RunFrameTick to rebuild from the freshly-read placements.
 	elevationGrid = {};
+	islandRenderQueries = {};
+}
+
+void FrameStaticData::BuildRenderPlacementCache(const IslandTerrain& rIslandTerrain) const
+{
+	islandRenderQueries.resize(islands.size());
+	for (size_t i = 0; i < islands.size(); ++i)
+	{
+		const IslandPlacement& rPlacement = islands[i];
+		const IslandTemplate& rTemplate = rIslandTerrain.mIslands.at(rPlacement.islandCrc);
+		IslandRenderQuery& rQuery = islandRenderQueries[i];
+
+		// Negated rotation matches GlobalElevation's inverse-rotate world->local convention. Deterministic
+		// sin/cos (as BlendPlacementIntoGrid hoists) — render-only, so libm-vs-polynomial ulp drift is fine.
+		common::SinCos sinCos = common::DeterministicSinCos(-rPlacement.fRotation);
+		rQuery.fCos = sinCos.fCos;
+		rQuery.fSin = sinCos.fSin;
+		rQuery.f2WorldPos = rPlacement.f2WorldPos;
+		rQuery.fFootprintX = rTemplate.mfQuadFootprintX;
+		rQuery.fFootprintY = rTemplate.mfQuadFootprintY;
+		rQuery.pHeightmapHalf = rTemplate.mpHeightmapHalf;
+		rQuery.iHeightmapWidth = rTemplate.miHeightmapWidth;
+		rQuery.iHeightmapHeight = rTemplate.miHeightmapHeight;
+	}
 }
 
 } // namespace engine

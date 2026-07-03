@@ -32,7 +32,9 @@ void CommandBufferRecordGlobal::Record(int64_t iFramebuffer)
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
 
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobalUniformCopy);
 	gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobalUniformCopy);
 
 	RecordShadowPasses(vkCommandBuffer, iCommandBuffer, pPipelines);
 

@@ -14,7 +14,7 @@ Third-party *consumption* headers go through `Common/ExternalHeaders.h`, gated b
 - **DirectXTK** (MIT) — client audio, GamePad/Mouse input (XINPUT, for Steam Deck compatibility), DataPacker WAV parsing. DirectXMath itself comes from the Windows SDK, not from here. `Keyboard` is deliberately not compiled — evaluated and rejected; the in-house Raw Input path's `RIDEV_NOLEGACY` semantics are load-bearing (see `Engine/Source/Input/CLAUDE.md`).
 - **imgui** + **implot** (MIT) — debug UI and plots; implot compiles inside the imgui unity unit
 - **enet** (MIT) — UDP networking
-- **lz4** (BSD-2; see caveat) — network payload compression
+- **lz4** (BSD-2; see caveat) — network payload compression (runtime, `lz4.c`) and offline texture `.pack` chunk compression (DataPacker uses LZ4HC via `lz4hc.c`, both compiled in the `Lz4.cpp` unity unit — `lz4hc.c` reuses the same `lz4.c` translation copy via the `LZ4_SRC_INCLUDED` guard)
 - **mimalloc** (MIT) — allocator behind the global `operator new`/`delete` overrides (and allocation tracking) in `Engine/Source/Memory/GlobalAllocator.cpp`
 - **Clipper2** (Boost) — 2D polygon clipping for navmesh build; runs on the shared sim path — chosen for int64-quantized determinism
 - **StackWalker** (BSD-2) — crash stack capture; use via `common::FilteredStackWalker`, never directly (DbgHelp is process-single-threaded)

@@ -16,6 +16,8 @@ Single `VkQueryPool` with start/stop pairs per timer per in-flight command buffe
 
 Both start and stop timestamps use `VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT` so each endpoint waits for all preceding pipeline work to complete — required for accurate per-region timing when multiple regions share a single render pass.
 
+Each command buffer resets its own contiguous enum span via `ResetQueryPools` (Global CB / Main CB / ImGui CB split the `GpuTimers` enum into three ranges), so a new GPU timer must be inserted into the span of the command buffer that records it — placed elsewhere, its queries are reset by the wrong buffer. The name table and enum share ordering; keep the indentation-hierarchy convention when inserting.
+
 ## Thread Safety
 
 CPU timer state is a mutex-protected map keyed by `std::thread::id` so dispatch workers can contribute. Timestamps and the allocation-counter snapshot are captured before acquiring the lock. The CPU-timer-reading text formatters take the same lock for their reads, since dispatch, submit, and network threads write timer fields concurrently. Map resize wraps in `ScopedSuppressAllocationTracking` so profiling never trips the allocation tripwire. Cross-thread Start/Stop is supported via an explicit flag that scans the per-thread map.
@@ -29,6 +31,10 @@ CPU timers latch into their smoothing rings once per render frame via `SmoothCpu
 `ToggleProfileText()` cycles through fixed screens (off / CPU / GPU / Frames / Network); each transition clears all profile text slots to prevent stale content. The FPS header renders in CPU and GPU modes; the CPU screen adds asset-chunk memory stats, the GPU screen adds per-pass dynamic-resolution annotations (shadow window, lighting spread, terrain elevation, water LOD grid) and VMA memory stats. Frames/Network are game-owned via a `FormatGameScreens` override. Client-only ImPlot graphs render alongside the text overlay.
 
 Display visibility is synchronized and sticky: `TickVisibilityCadence()` is the shared driver, re-evaluating every row's cached visibility flag (`ProfileRowFlags::kVisible`) together only on a ~2s boundary, so all rows (CPU timers, CPU counters, GPU timers) flip at once and every show/hide lasts at least ~2s. Displayed numbers stay live each frame; `ToggleProfileText()` resets the clock so a switched-to screen re-evaluates immediately.
+
+## CSV Dump
+
+When the game defines `kbProfilingDump` true (client-only), every GPU timer, CPU timer, and counter — plus meta rows (Fps, FullUpdates, InterpolateUpdates) — is sampled once per second into a long-format CSV at `%TEMP%\<game::kGameName>\ProfileDump.csv` for offline analysis, using `common::DiagnosticLog` slot 3. The file is truncated fresh per process run and must span the whole session, so the log handle is deliberately not reset in `Destroy()` — which also runs on swapchain-tier recreates — and closes only when the manager itself is destroyed. It is created before the GPU-timestamp-support early-outs (CPU rows still dump on devices without timestamps), and sampling runs before the overlay-off early-out, so dumping never requires the overlay to be visible.
 
 ## Cross-Layer Dependency
 

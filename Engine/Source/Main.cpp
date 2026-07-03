@@ -304,7 +304,15 @@ void MainThread(HINSTANCE hinstance)
 			// Heap: Win32 InvalidateRect may trigger internal GDI allocations
 			ScopedSuppressAllocationTracking suppress;
 			game::ServerUpdateDisplayStats();
-			InvalidateRect(sHwnd, nullptr, FALSE);
+
+			// Throttle full-window GDI repaint to a fraction of the tick rate — paint cost dwarfs stat aggregation, and the window shows only coarse stats/map. Clicks still repaint immediately via WM_LBUTTONDOWN.
+			static constexpr int64_t kiServerDisplayRepaintTicks = 8;
+			static int64_t siServerDisplayRepaintCounter = 0;
+			if (++siServerDisplayRepaintCounter >= kiServerDisplayRepaintTicks)
+			{
+				siServerDisplayRepaintCounter = 0;
+				InvalidateRect(sHwnd, nullptr, FALSE);
+			}
 		}
 #endif // BT_CLIENT
 	}

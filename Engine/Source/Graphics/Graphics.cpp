@@ -441,6 +441,7 @@ void Graphics::Refresh()
 	PollSetting<bool>(gSampleShading, "Sample shading", DestroyType::kPipelines);
 	PollSetting<float>(gMinSampleShading, "Min sample shading", DestroyType::kPipelines);
 	PollSetting<float>(gMipLodBias, "Mip lod bias", DestroyType::kSamplers);
+	PollSetting<float>(gWaterNormalMipBias, "Water normal mip bias", DestroyType::kSamplers);
 	PollSetting<bool>(gWireframe, "Wireframe", DestroyType::kPipelines);
 	PollSetting<bool>(gDebugTexture, nullptr, DestroyType::kCommandBuffers);
 

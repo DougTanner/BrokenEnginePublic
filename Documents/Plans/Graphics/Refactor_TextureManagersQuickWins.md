@@ -18,7 +18,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Texture/render-ta
 - One-line comment on the deliberately unchecked `vkWaitForFences` in `DestroyTransferResources` (:97) — the file's only unchecked Vulkan result; prevent a future "fix" [~5m]
 
 ### Engine/Source/Graphics/Managers/TextureCache.{h,cpp}
-- Shrink `TryLoadCachedTexture`'s 8 parameters (`TextureCache.h:28`, `.cpp:203`) — four duplicate what `rTexture.mInfo` already holds at the single caller (`GeneratePbrLutBrdf`) [~15m]
+- Shrink `TryLoadCachedTexture`'s 8 parameters (`TextureCache.h:28`, `.cpp:203`) — five (`vkFormat`/`iWidth`/`iHeight`/`iMipLevels`/`iArrayLayers`) duplicate what `rTexture.mInfo` already holds at the single caller (`GeneratePbrLutBrdf`, `.cpp:148` — `Create` fills `mInfo` at `:146` before the call) [~15m]
 
 ### Engine/Source/Graphics/Managers/ImGuiManager.cpp
 - ASSERT/log the discarded `bool` results of `ImGui_ImplWin32_Init` (:115) and `ImGui_ImplVulkan_Init` (:135) — opaque third-party boundary; boot-fail-loud [~5m]
@@ -37,3 +37,8 @@ Source: /external-refactor-clean on Engine/Source (recursive). Texture/render-ta
 ## Notes
 - Invariant exposure: none — client/graphics-only; the validation item is trust-boundary hardening of on-disk data (soft-fail path mirrors the existing upload-thread behavior). `TextureManager.cpp`/`TextureUploadManager.cpp` are shared with four live plans (Order.md File Groups) — co-schedule or refresh citations
 - Grill decision: none material; TextManager item is contingent on the library-replacement decision
+
+## Verification Notes
+
+- Headline validation gap re-verified 2026-07-02: `UploadThread` calls `HandleUploadEarlyOut` (`TextureUploadManager.cpp:221`) **before** `ValidateTextureDimensions` (`:247`), so both early-out branches (no transfer pool; same queue) reach `kDiskLoaded` with the header dims unvalidated, and the `TextureManager.cpp:522-542` fallback `Create` copy loop runs off `rTexture.mInfo` (dims from on-disk `ChunkHeader::textureHeader`, set in `InitDeferred`) against no `iDataSize` bound. Distinctness from `CorruptTextureChunkLifecycleHardening` confirmed — that plan edits the upload-thread catch and `WriteArrayElementFromLive`, not this adopt path. Soft-fail bookkeeping detail: the fallback armed the pending-adoption counter via `NotifyChunkAdoptable`, so a validation soft-fail to `kReady` must still disarm it (`NotifyChunkAdopted`).
+- The `ResetUploadProgress` extraction's `:322-326` site sits inside the corruption catch block (`:306-328`) that `CorruptTextureChunkLifecycleHardening` also edits — sequence after it (or co-schedule), beyond the generic shared-file note above.

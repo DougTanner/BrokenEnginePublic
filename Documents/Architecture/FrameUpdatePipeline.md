@@ -73,7 +73,7 @@ flowchart TD
         ts["TimeStep::TickRealtime()<br/>compute iFullTicks"]:::physics
         subs["ClientSession::UpdateDesiredCoords()<br/>+ UpdateSubscriptions()<br/>unsubscribe stale, rebuild, subscribe"]:::network
         prepare_active["PrepareActiveSet()"]:::physics
-        clamp["Clamp iFullTicks to<br/>GetTargetSimTick() ceiling<br/>(AbsorbUnusedTicks)"]:::network
+        clamp["Clamp iFullTicks to<br/>GetSimTickCeiling()<br/>(servo target + slack)<br/>(AbsorbUnusedTicks)"]:::network
         advance["Advance miTickCounter +<br/>mfCurrentTime"]:::physics
         reconcile["ClientSession::Reconcile()<br/>single pass: drop validated,<br/>replay mismatches, forward sim<br/>to target tick"]:::network
 

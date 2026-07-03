@@ -46,6 +46,8 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Skybox Lod", &gLightingWaterSkyboxLod},
 	{"Spec AA Variance", &gWaterSpecAAVariance},
 	{"Spec AA Threshold", &gWaterSpecAAThreshold},
+	{"Spec AA Mip Scale", &gWaterSpecAAMipScale},
+	{"Normal Mip Bias", &gWaterNormalMipBias},
 	// Specular - Height Darken
 	{"Height Darken Top", &gWaterHeightDarkenTop},
 	{"Height Darken Bottom", &gWaterHeightDarkenBottom},
@@ -172,6 +174,8 @@ void TweaksScreenBase::RenderWaterSection()
 				WrapperSlider("Skybox Lod", kiSection, 1.0f);
 				WrapperSlider("Spec AA Variance", kiSection, 1.0f);
 				WrapperSlider("Spec AA Threshold", kiSection, 1.0f);
+				WrapperSlider("Spec AA Mip Scale", kiSection, 1.0f);
+				WrapperSlider("Normal Mip Bias", kiSection, 1.0f);
 
 				WrapperSeparatorText("Height Darken");
 				WrapperSlider("Height Darken Top", kiSection, 1.0f);

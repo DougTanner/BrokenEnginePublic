@@ -57,16 +57,41 @@ void GameBase::ClientUpdate()
 	game::gpClientSession->UpdateSubscriptions();
 	PrepareActiveSet();
 
-	// Hard ceiling: sim must not pass latestServerTick - targetBehind, so StatusChanges arrive before
-	// their tick is simulated. Extreme "sim way behind target" is handled by the snap path in Reconcile.
-	int64_t iCeiling = game::gpClientSession->GetTargetSimTick();
+	// Hard ceiling: clock-servo target + kiSimCeilingSlackTicks. ComputeClockCorrectionNs steers the
+	// sim toward the bare target, so this clamp engages only on genuine arrival stalls (loss bursts),
+	// not per-packet jitter, while StatusChanges still normally arrive before their tick simulates.
+	// Extreme "sim way behind target" is handled by the snap path in Reconcile.
+	int64_t iCeiling = game::gpClientSession->GetSimTickCeiling();
+	int64_t iAbsorbedTicks = 0;
 	if (iCeiling >= 0 && iFullTicks > 0)
 	{
 		int64_t iRoomToAdvance = std::max<int64_t>(0, iCeiling - miTickCounter);
 		if (iFullTicks > iRoomToAdvance)
 		{
-			mTimeStep.AbsorbUnusedTicks(iFullTicks - iRoomToAdvance);
+			iAbsorbedTicks = iFullTicks - iRoomToAdvance;
+			mTimeStep.AbsorbUnusedTicks(iAbsorbedTicks);
 			iFullTicks = iRoomToAdvance;
+		}
+	}
+
+	// When latestServerTick stalls (loss burst), the ceiling freezes the sim entirely, then releases
+	// the backlog as a burst — log at the transition. Frequent stalls outside loss bursts indicate a
+	// clock-servo / kiSimCeilingSlackTicks tuning problem (the servo should keep steady-state jitter
+	// away from the ceiling).
+	{
+		static int64_t siCeilingStallFrames = 0;
+		static int64_t siCeilingAbsorbedTicks = 0;
+		if (iAbsorbedTicks > 0 && iFullTicks == 0)
+		{
+			++siCeilingStallFrames;
+			siCeilingAbsorbedTicks += iAbsorbedTicks;
+		}
+		else if (iFullTicks > 0 && siCeilingStallFrames > 0)
+		{
+			siCeilingAbsorbedTicks += iAbsorbedTicks; // Release frame may itself be partially clamped
+			LOG(kNetwork, kVerbose, "Sim ceiling stall ended StallFrames: {} AbsorbedTicks: {} BurstTicks: {} Ceiling: {} Tick: {}", siCeilingStallFrames, siCeilingAbsorbedTicks, iFullTicks, iCeiling, miTickCounter);
+			siCeilingStallFrames = 0;
+			siCeilingAbsorbedTicks = 0;
 		}
 	}
 
@@ -242,11 +267,12 @@ void GameBase::FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords)
 #if defined(BT_CLIENT)
 game::Frame& GameBase::RenderFrame(GridCoord coord) const
 {
-	// Returns the frame kiRenderBehindTicks slots behind tail when possible so the render window
-	// spans (source -> tail) — a true interpolation between two committed ticks, never
-	// extrapolating past tail with its velocity. When the ring hasn't populated that many slots
-	// yet (cold start or a replay/rollback that didn't apply retention), fall back to the oldest
-	// available; callers force fDeltaTime = 0 for that coord so no extrapolation occurs.
+	// Returns the frame kiRenderBehindTicks slots behind tail when possible so the one-tick render
+	// window spans (source -> source+1) — a true interpolation between two committed ticks, with
+	// the newer committed ticks up to tail held as starvation cushion. When the ring hasn't
+	// populated that many slots yet (cold start or a replay/rollback that didn't apply retention),
+	// fall back to the oldest available; callers force fDeltaTime = 0 for that coord so no
+	// extrapolation occurs.
 	const CoordFrames& rFrames = mCoordFrames.at(coord);
 	ASSERT(rFrames.iSnapshotCount > 0);
 	int64_t iDesiredLogical = rFrames.iSnapshotCount - 1 - kiRenderBehindTicks;
@@ -298,8 +324,8 @@ void GameBase::Render()
 		mfLastRenderFrameSeconds = dSimDeltaSeconds;
 		const CoordFrames& rCameraFrames = mCoordFrames.at(cameraCoord);
 		bool bHaveInterpolationWindow = (rCameraFrames.iSnapshotCount >= kiRenderBehindTicks + 1);
-		// RenderFrame already returns prev-tail when count>=2, else tail. Either way, its fCurrentTime
-		// is the START of the current render window. Promoted to double so mfRenderTime - dT keeps
+		// RenderFrame returns the frame kiRenderBehindTicks behind tail once populated, else the oldest
+		// available. Either way, its fCurrentTime is the START of the current render window. Promoted to double so mfRenderTime - dT keeps
 		// nanosecond precision even after hours of accumulated game time (float ULP at ~16384s is 2ms,
 		// which would otherwise quantize the alpha and visibly stutter at high zoom).
 		const game::Frame& rSourceFrame = RenderFrame(cameraCoord);
@@ -315,9 +341,10 @@ void GameBase::Render()
 		}
 		else if (!bHaveInterpolationWindow)
 		{
-			// Cold start / single-snapshot coord: no prev-tail to interpolate from. Force fDt=0 so
-			// rendering stays pinned to the only available frame — never extrapolating past tail
-			// velocity. Reset the seed flag so the next steady-state entry re-seeds at midpoint.
+			// Cold start / under-populated coord (fewer than kiRenderBehindTicks + 1 snapshots): no
+			// interpolation window yet. Force fDt=0 so rendering stays pinned to the oldest available
+			// frame — never extrapolating past committed ticks. Reset the seed flag so the next
+			// steady-state entry re-seeds at midpoint.
 			mfRenderTime = dT;
 			mbRenderClockSeeded = false;
 			fDeltaTime = 0.0f;
@@ -338,12 +365,54 @@ void GameBase::Render()
 			// rebase. Rebasing on every commit was the 32 Hz vibration signature.
 			if (mfRenderTime < dT - game::kfDeltaTime || mfRenderTime > dT + 2.0 * game::kfDeltaTime)
 			{
+				// A rebase is a discontinuous visual time jump — should be rare outside loss bursts
+				LOG(kNetwork, kVerbose, "Render clock rebase JumpTicks: {} RenderTime: {} WindowStart: {}", common::Wb(static_cast<float>((dT - mfRenderTime) / game::kfDeltaTime), 2), common::Wb(static_cast<float>(mfRenderTime), 4), common::Wb(static_cast<float>(dT), 4));
 				mfRenderTime = dT + 0.5 * game::kfDeltaTime;
 			}
 
 			mfRenderTime += dSimDeltaSeconds;
+			double dUnclampedRenderTime = mfRenderTime;
 			mfRenderTime = std::clamp(mfRenderTime, dT, dT + static_cast<double>(game::kfDeltaTime));
 			fDeltaTime = static_cast<float>(mfRenderTime - dT);
+
+			// Top-clamp = renderer starved of committed ticks (scene freezes); bottom-clamp = commits
+			// outpaced the render clock (scene skips ahead). Both should be brief and rare outside
+			// loss bursts. Streaks are logged at the transition; streaks losing < 1/4 tick are
+			// dropped as noise.
+			{
+				static int64_t siStarvedFrames = 0;
+				static double sdStarvedSeconds = 0.0;
+				static int64_t siSkippedFrames = 0;
+				static double sdSkippedSeconds = 0.0;
+				if (dUnclampedRenderTime > mfRenderTime)
+				{
+					++siStarvedFrames;
+					sdStarvedSeconds += dUnclampedRenderTime - mfRenderTime;
+				}
+				else if (siStarvedFrames > 0)
+				{
+					if (sdStarvedSeconds > 0.25 * game::kfDeltaTime)
+					{
+						LOG(kNetwork, kVerbose, "Render clock starved Frames: {} LostTicks: {}", siStarvedFrames, common::Wb(static_cast<float>(sdStarvedSeconds / game::kfDeltaTime), 2));
+					}
+					siStarvedFrames = 0;
+					sdStarvedSeconds = 0.0;
+				}
+				if (dUnclampedRenderTime < mfRenderTime)
+				{
+					++siSkippedFrames;
+					sdSkippedSeconds += mfRenderTime - dUnclampedRenderTime;
+				}
+				else if (siSkippedFrames > 0)
+				{
+					if (sdSkippedSeconds > 0.25 * game::kfDeltaTime)
+					{
+						LOG(kNetwork, kVerbose, "Render clock skipped Frames: {} SkippedTicks: {}", siSkippedFrames, common::Wb(static_cast<float>(sdSkippedSeconds / game::kfDeltaTime), 2));
+					}
+					siSkippedFrames = 0;
+					sdSkippedSeconds = 0.0;
+				}
+			}
 		}
 		{
 			ScopedSuppressAllocationTracking suppress;
@@ -356,10 +425,10 @@ void GameBase::Render()
 			});
 
 			// AllocateAndCopy + Update each active frame's render interpolate (camera frame first).
-			// Per-coord fDt override: a coord with only one snapshot has no prev-tail to interpolate
-			// from, so force fDt=0 for that coord regardless of the camera-anchored global fDeltaTime.
-			// This prevents a transient single-snapshot coord (post-fast-path shrink) from rendering
-			// extrapolated-from-tail state.
+			// Per-coord fDt override: a coord with fewer than kiRenderBehindTicks + 1 snapshots cannot
+			// fill the render window, so force fDt=0 for that coord regardless of the camera-anchored
+			// global fDeltaTime. This prevents a transient under-populated coord (post-fast-path
+			// shrink) from rendering extrapolated state.
 			auto interpolateFrame = [&](const GridCoord& rCoord)
 			{
 				const game::Frame& rFrame = RenderFrame(rCoord);

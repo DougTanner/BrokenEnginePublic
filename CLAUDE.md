@@ -20,6 +20,7 @@ Exception: for one-line changes, make the edit and do only step 3.
 	- DO NOT add a 'Verification' section — agents cannot run/play the game, so manual-test steps are noise
 1. Invoke /external-grill-plan to interview the user about the plan — resolve ambiguities, gather missing information, and ensure plan completeness before implementation. **When the grill completes, DO NOT stop or summarize — immediately continue to step 2 in the same turn.**
 2. Make the code changes using the planning document
+	- 2b. Invoke /external-self-audit — the main session lists what it is least confident about in the changes (capped, evidence-required), investigates each item to root cause, fixes what's wrong, and passes remaining uncheckable items to the step 4 and step 9 reviewers as explicit focus areas
 3. Use a Sonnet subagent to search the codebase and update all locations affected by the modified code
 4. Use a Fable subagent to invoke the repo-code-review skill (evaluate advice for validity, query user if unsure). If review flags any files for `/reduce-file`, route them through step 10 (follow-up plan in `Documents/Plans/`) — do not run the split inline
 5. Use an Sonnet subagent to invoke the code-style-review skill

@@ -118,6 +118,7 @@ The drop is a one-line flag removal; keep it as the final, separately-confirmed 
 
 ## Notes
 
+- **Zoom/minification residual — reuse the Water mip-variance bake.** Screen-space-derivative AA (this plan's §1) cannot see variance the mip chain already averaged away, so low-roughness models will still flicker under camera zoom after this lands — the same failure the water shader fixed with its `WATER_SPEC_AA_MIP_HANDOFF` term. Model normal maps are regular-path BC5, so DataPacker **already bakes their per-mip Toksvig variance into `TextureHeader::pfMipVariance`** (the bake covers all regular-path BC5). The remaining work if the residual is visible in A/B: read the model normal map's table (bindless CRC→header lookup), compute an analytic LOD (or `textureQueryLod`), and add the variance into `alphaRoughnessAA`'s kernel in GGX `alpha^2` domain — no pack-format change needed.
 - **Grill decisions (2):** (1) tuning uniforms — model-specific `fPbrSpecAA*` (recommended) vs. reuse Water's `fWaterSpecAA*`; (2) widen `D` only (recommended) vs. `D` and `V`. Both pre-staged in Design §1/§2.
 - **Compile-time mode + repack:** `MODEL_SPEC_AA_MODE` is edit-and-repack like `WATER_SPEC_AA_MODE` — DataPacker shader rebuild required after any shader edit.
 - **Invariant exposure declared:** client/graphics-only; two new `MainLayout` uniform fields (per-frame, CPU-populated, not serialized/CRC'd); no determinism / CRC / `kiVersion` / `.pack` / wire exposure.

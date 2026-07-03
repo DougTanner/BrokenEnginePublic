@@ -22,7 +22,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Graphics root + R
 - One-line comment documenting the deliberate `vkDeviceWaitIdle` result swallow in `Destroy` (:590) — `CheckVkFailed` escalation is exactly wrong during teardown [~5m]
 
 ### Engine/Source/Graphics/Screenshot.cpp
-- Check `GetTempPathW` (:63) and `stbi_write_jpg` (:70) results — opaque OS/third-party boundary; today the LOG at :69 claims success unconditionally. kWarning-tier (dev-only feature) [~5m]
+- Check `GetTempPathW` (:63) and `stbi_write_jpg` (:70) results — opaque OS/third-party boundary; today the LOG at :69 prints the path before the write and failure is silent. kWarning-tier (dev-only feature) [~5m]
 
 ### Engine/Source/Graphics/Render/GlobalUniforms.cpp
 - Replace the cryptic residue markers `// !=`, `// ++`, `// Start offset` (:321-323, :333-335) with real words or delete [~5m]

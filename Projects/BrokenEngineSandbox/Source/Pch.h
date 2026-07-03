@@ -36,6 +36,7 @@ inline constexpr bool kbDebugRender = true;
 inline constexpr bool kbDxDiag = true;
 inline constexpr bool kbFreeCamera = true;
 inline constexpr bool kbProfiling = true;
+inline constexpr bool kbProfilingDump = false;
 inline constexpr bool kbProfilingFrameSpike = false;
 inline constexpr bool kbReplayFullFrames = true;
 inline constexpr bool kbVulkanDebugLayers = true;
@@ -53,6 +54,7 @@ inline constexpr bool kbDebugRender = false;
 inline constexpr bool kbDxDiag = false;
 inline constexpr bool kbFreeCamera = true;
 inline constexpr bool kbProfiling = true;
+inline constexpr bool kbProfilingDump = true;
 inline constexpr bool kbProfilingFrameSpike = true;
 inline constexpr bool kbReplayFullFrames = false;
 inline constexpr bool kbVulkanDebugLayers = false;
@@ -70,6 +72,7 @@ inline constexpr bool kbDebugRender = false;
 inline constexpr bool kbDxDiag = true;
 inline constexpr bool kbFreeCamera = false;
 inline constexpr bool kbProfiling = false;
+inline constexpr bool kbProfilingDump = false;
 inline constexpr bool kbProfilingFrameSpike = false;
 inline constexpr bool kbReplayFullFrames = false;
 inline constexpr bool kbVulkanDebugLayers = false;
@@ -86,7 +89,7 @@ inline constexpr LogLevel keLogLevelAudio = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelGraphics = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelLoading = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelNavData = keLogLevelDefault;
-inline constexpr LogLevel keLogLevelNetwork = keLogLevelDefault;
+inline constexpr LogLevel keLogLevelNetwork = kVerbose; // DT: TEMP keLogLevelDefault;
 inline constexpr LogLevel keLogLevelInput = keLogLevelDefault;
 
 // Include order is load-bearing: ExternalHeaders.h (top of this file) supplies the DirectXMath/Vulkan/std symbols ShaderLayouts.h uses (ShaderLayoutsBase.h
@@ -98,4 +101,4 @@ inline constexpr LogLevel keLogLevelInput = keLogLevelDefault;
 #include "Frame/Frame.h"
 #include "Engine.h"
 
-inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kDisabled;
+inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina; // DT: TEMP kDisabled;

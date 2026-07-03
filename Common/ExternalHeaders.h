@@ -86,6 +86,7 @@ using namespace std::chrono_literals;
 #include <memory>
 #include <mutex>
 #include <new>
+#include <numbers>
 #include <numeric>
 #include <optional>
 #include <ostream>
@@ -240,6 +241,12 @@ inline constexpr bool XmIsInf(float fValue)
 // LZ4
 #if defined(BT_ENGINE)
 	#include "lz4/lib/lz4.h"
+#endif
+#if defined(BT_DATA_PACKER)
+	// Offline texture-chunk compression uses LZ4HC at max level; the runtime only ever decompresses.
+	// lz4hc.h declares LZ4_compress_HC / LZ4HC_CLEVEL_MAX; lz4.h declares LZ4_compressBound.
+	#include "lz4/lib/lz4.h"
+	#include "lz4/lib/lz4hc.h"
 #endif
 
 // zlib

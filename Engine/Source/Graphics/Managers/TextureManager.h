@@ -150,9 +150,15 @@ public:
 		kSamplerSlotElevation,
 		kSamplerSlotRepeat,
 		kSamplerSlotMirroredRepeat,
+		kSamplerSlotMirroredRepeatWater,
 		kSamplerSlotCount,
 	};
 	VkSampler mpSamplers[kSamplerSlotCount] {};
+
+	// Per-mip Toksvig variance tables for the water normal maps, copied from TextureHeader::pfMipVariance
+	// during the ctor chunk walk (headers are resident at startup; the lazy pixel data is not). Indexed by
+	// water-normal atlas slot; LightingUniforms uploads the three selected octave groups' tables each frame.
+	float mpfWaterNormalMipVariance[kiWaterNormalCount][common::TextureHeader::kiMipVarianceCount] {};
 
 	Texture mWhiteTexture;
 	Texture mWhiteCubeTexture;

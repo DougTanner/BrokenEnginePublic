@@ -601,6 +601,16 @@ std::vector<std::byte> ZlibCompress(const std::byte* puiSource, int64_t iSourceS
 	return compressed;
 }
 
+std::vector<std::byte> Lz4Compress(const std::byte* puiSource, int64_t iSourceSize)
+{
+	int iBound = LZ4_compressBound(static_cast<int>(iSourceSize));
+	std::vector<std::byte> compressed(static_cast<size_t>(iBound));
+	int iCompressedSize = LZ4_compress_HC(reinterpret_cast<const char*>(puiSource), reinterpret_cast<char*>(compressed.data()), static_cast<int>(iSourceSize), iBound, LZ4HC_CLEVEL_MAX);
+	ASSERT(iCompressedSize > 0);
+	compressed.resize(static_cast<size_t>(iCompressedSize));
+	return compressed;
+}
+
 TextureIntermediateHeader ReadTextureIntermediateHeader(const std::byte* puiData, int64_t iDataSize)
 {
 	static constexpr int64_t kiQwordBytes = static_cast<int64_t>(sizeof(int64_t));

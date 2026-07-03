@@ -5,6 +5,8 @@
 #include "Memory/GlobalAllocator.h"
 #include "Profile/ProfileManager.h"
 
+#include "Game.h"
+
 namespace engine
 {
 
@@ -15,12 +17,38 @@ static_assert(game::kCpuCounterPlayers == kEngineCpuCounterCount, "First game CP
 // All profile-text rows re-evaluate their show/hide state together on this cadence; a state therefore persists at least this long.
 constexpr std::chrono::seconds kProfileVisibilityInterval = 2s;
 
+#if defined(BT_CLIENT)
+// kbProfilingDump mode: one CSV sample of every timer/counter per interval, written for offline analysis.
+constexpr std::chrono::seconds kProfileDumpInterval = 1s;
+#endif // BT_CLIENT
+
 void ProfileManagerBase::Create()
 {
 	if constexpr (kbProfiling)
 	{
 #if defined(BT_CLIENT)
 		// Precondition: managers are created in strict order Instance -> Device -> Swapchain, then this runs (Graphics::Create calls it after swapchain creation), so gpInstanceManager/gpDeviceManager/gpSwapchainManager and OneShotCommandBuffer are all live below. Server body is empty (managers client-only).
+		if constexpr (kbProfilingDump)
+		{
+			if (mpDumpLog == nullptr)
+			{
+				// Runs once, on the boot-time Create() (allocation tracking not yet armed); later Create() calls skip via the null guard above. DiagnosticLog's ctor creates the parent directory; its Write is stack-buffered, flushed per line, and suppresses allocation tracking, so the per-second dump is main-loop safe.
+				wchar_t pcDirectory[MAX_PATH] {};
+				uint32_t uiTempPathLength = GetTempPathW(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
+				if (uiTempPathLength != 0 && uiTempPathLength < std::size(pcDirectory) - 1)
+				{
+					std::filesystem::path filename(pcDirectory);
+					filename /= game::kGameName;
+					filename /= "ProfileDump.csv";
+					mpDumpLog = std::make_unique<common::DiagnosticLog>(3, filename.string().c_str());
+					mpDumpLog->Write("ms,type,index,name,current,average,max,allocations");
+
+					mDumpStartTime = std::chrono::steady_clock::now();
+					mLastDumpTime = mDumpStartTime;
+				}
+			}
+		}
+
 		if (mVkQueryPool != VK_NULL_HANDLE)
 		{
 			return;
@@ -68,6 +96,8 @@ void ProfileManagerBase::Destroy()
 		}
 
 		mVkQueryPool = VK_NULL_HANDLE;
+
+		// mpDumpLog deliberately not reset: Destroy() also runs on swapchain-tier recreates (resize, settings), and the dump file must span the whole session. The unique_ptr closes it at ProfileManager destruction.
 #endif // BT_CLIENT
 	}
 }
@@ -356,6 +386,67 @@ void ProfileManagerBase::LogTimers()
 	}
 }
 
+#if defined(BT_CLIENT)
+void ProfileManagerBase::DumpTimers()
+{
+	if constexpr (kbProfiling && kbProfilingDump)
+	{
+		if (mpDumpLog == nullptr)
+		{
+			return;
+		}
+
+		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+		if (now - mLastDumpTime < kProfileDumpInterval)
+		{
+			return;
+		}
+		mLastDumpTime = now;
+
+		int64_t iMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - mDumpStartTime).count();
+
+		mpDumpLog->Write("{},meta,0,Fps,{},,,", iMs, gpGraphics->mRendersInTheLastSecond.Get());
+		mpDumpLog->Write("{},meta,1,FullUpdates,{},,,", iMs, mFullUpdatesInTheLastSecond.Get());
+		mpDumpLog->Write("{},meta,2,InterpolateUpdates,{},,,", iMs, mInterpolateUpdatesInTheLastSecond.Get());
+
+		for (int64_t i = 0; i < kGpuTimerCount; ++i)
+		{
+			common::Smoothed<int64_t>& rMicroseconds = mGpuTimers[i].smoothedMicroseconds;
+			mpDumpLog->Write("{},gpu,{},{},{},{},{},", iMs, i, kGpuTimerNames[i], rMicroseconds.Current(), rMicroseconds.Average(), rMicroseconds.Max());
+		}
+
+		// Snapshot under the lock, write after: DiagnosticLog flushes per line, and dozens of flushed lines under mCpuTimerMutex would block dispatch/submit/network CpuStart/CpuStop once per second, distorting the timers being measured.
+		struct CpuTimerSample
+		{
+			int64_t iCurrentUs;
+			int64_t iAverageUs;
+			int64_t iMaxUs;
+			int64_t iAllocations;
+		};
+		int64_t iCpuTimerCount = GetCpuTimerCount();
+		auto pSamples = common::gpThreadLocal->mWorkbuffer.PushBuffer<CpuTimerSample*>(iCpuTimerCount * static_cast<int64_t>(sizeof(CpuTimerSample)));
+		{
+			std::lock_guard lock(mCpuTimerMutex);
+			for (int64_t i = 0; i < iCpuTimerCount; ++i)
+			{
+				CpuTimer& rCpuTimer = GetCpuTimer(i);
+				pSamples[i] = CpuTimerSample {rCpuTimer.smoothedMicroseconds.Current(), rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max(), rCpuTimer.smoothedAllocations.Current()};
+			}
+		}
+		for (int64_t i = 0; i < iCpuTimerCount; ++i)
+		{
+			mpDumpLog->Write("{},cpu,{},{},{},{},{},{}", iMs, i, GetCpuTimerName(i), pSamples[i].iCurrentUs, pSamples[i].iAverageUs, pSamples[i].iMaxUs, pSamples[i].iAllocations);
+		}
+
+		int64_t iCpuCounterCount = GetCpuCounterCount();
+		for (int64_t i = 0; i < iCpuCounterCount; ++i)
+		{
+			mpDumpLog->Write("{},counter,{},{},{},,,", iMs, i, GetCpuCounterName(i), GetCpuCounter(i).iCount);
+		}
+	}
+}
+#endif // BT_CLIENT
+
 void ProfileManagerBase::SmoothCpuTimers()
 {
 	if constexpr (kbProfiling)
@@ -393,6 +484,12 @@ void ProfileManagerBase::UpdateProfileText()
 		for (GpuTimer& rGpuTimer : mGpuTimers)
 		{
 			rGpuTimer.smoothedMicroseconds.Update();
+		}
+
+		// Before the kOff early-out so the dump runs with the overlay hidden.
+		if constexpr (kbProfilingDump)
+		{
+			DumpTimers();
 		}
 
 		if (meProfileScreen == ProfileScreen::kOff)

@@ -157,8 +157,8 @@ private:
 	void BackupExistingFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 
 	void LoadPackFiles();
-	void LoadingThread();
-	void LoadChunk(const LoadRequest& rRequest);
+	void LoadingThread(int64_t iThreadIndex);
+	void LoadChunk(const LoadRequest& rRequest, int64_t iThreadIndex);
 	std::filesystem::path GetDataFilePath(data::DataTypes eDataType, std::string_view extension) const;
 
 	std::filesystem::path mAppDataDirectory;
@@ -178,8 +178,14 @@ private:
 	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Model, Shaders
 	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Islands, Texture
 	
-	// Background loading thread, assigned inside the async eager-load task (mLoadingFuture), not the ctor body. Its LoadingThread reads the sync members below (mWakeCondition/mQueueMutex/mRequestQueue/mShutdown), so ~FileManager first drains mLoadingFuture (ensuring this assignment has happened), then sets mShutdown + notifies + join()s the thread before those members destruct.
-	std::thread mLoadingThread;
+	// N background loading threads, assigned inside the async eager-load task (mLoadingFuture), not the ctor body.
+	// Each LoadingThread pops from the shared priority queue and reads the sync members below
+	// (mWakeCondition/mQueueMutex/mRequestQueue/mShutdown), owning a private read buffer + decompress scratch
+	// (indexed by thread index). ~FileManager first drains mLoadingFuture (ensuring these assignments have
+	// happened), then sets mShutdown + notify_all()s + join()s every thread before those members destruct.
+	// Count is deliberately small: each thread doubles the read-buffer + decompress-scratch memory footprint.
+	static constexpr int64_t kiLoadingThreadCount = 2;
+	std::thread mLoadingThreads[kiLoadingThreadCount];
 	std::condition_variable mWakeCondition;
 	std::condition_variable mCompletionCondition;
 	mutable std::mutex mQueueMutex;
@@ -198,8 +204,9 @@ private:
 	// Persistent pack file handles for lazy loading (opened with FILE_FLAG_NO_BUFFERING)
 	HANDLE mLazyPackFileHandles[data::kDataTypeCount] {};
 
-	// Sector-aligned read buffer (reused across all chunk reads)
-	std::byte* mpReadBuffer = nullptr;
+	// Per-loading-thread sector-aligned read buffers (one per thread, indexed by thread index; reused across that
+	// thread's chunk reads). Size is shared — identical for every thread.
+	std::byte* mpReadBuffers[kiLoadingThreadCount] {};
 	int64_t miReadBufferSize = 0;
 	int64_t miSectorSize = 0;
 	int64_t miPageSize = 0; // VM page granularity for lazy-chunk sub-range decommit/recommit
@@ -208,9 +215,9 @@ private:
 	std::byte* mpLazyPool = nullptr;
 	int64_t miLazyPoolSize = 0;
 
-	// Scratch buffer used by the loading thread for zlib-compressed chunks.
-	// Sized at boot to the largest compressed chunk on disk; reused per chunk.
-	std::byte* mpDecompressScratch = nullptr;
+	// Per-loading-thread scratch buffers for compressed chunks (LZ4 or zlib; one per thread, indexed by thread index).
+	// Each sized at boot to the largest compressed chunk on disk; reused per chunk. Size is shared.
+	std::byte* mpDecompressScratches[kiLoadingThreadCount] {};
 	int64_t miDecompressScratchSize = 0;
 
 	// Sub-read size for chunked disk reads (256KB balances NVMe throughput vs L3 cache pressure)

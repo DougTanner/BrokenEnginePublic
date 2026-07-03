@@ -31,11 +31,11 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 - `ResetClientState()` is the canonical session-reset point; any new per-coord counter must reset there or state leaks across sessions.
 - Server dual-buffer: `SwapFrames()` per tick; post-swap `pNext` holds stale data reused by the next `EnsureNextFrames()`.
 - ID minting is server-authoritative (frame IDs wrap uint16, global IDs monotonic int64). Clients receive both via serialization — never mint locally.
-- Client render-side sim clock (`mfRenderTime`) integrates sim seconds and is clamped to the closed `[source, tail]` window of `kiRenderBehindTicks` committed ticks, so every rendered frame interpolates between two simulated ticks — never extrapolates past tail velocity. Seeded once at the window midpoint; rebases only on multi-tick regression.
+- Client render-side sim clock (`mfRenderTime`) integrates sim seconds and is clamped to the closed one-tick window starting `kiRenderBehindTicks` behind the ring tail (newer committed ticks are held as starvation cushion), so every rendered frame interpolates between two simulated ticks — never extrapolates past committed state. Seeded once at the window midpoint; rebases only on a multi-tick discontinuity (window regression or burst advance), never per commit.
 
 ## Tick Flow
 
-- **Client**: single-pass poll / reconcile / advance. Clamps to `GetTargetSimTick()` via `AbsorbUnusedTicks()` so StatusChanges arrive before their tick simulates. Physics advances only inside reconcile — no separate client physics loop.
+- **Client**: single-pass poll / reconcile / advance. Clamps to `GetSimTickCeiling()` (clock-servo target + `kiSimCeilingSlackTicks`) via `AbsorbUnusedTicks()` — the slack keeps arrival jitter from stalling the sim while StatusChanges still normally arrive before their tick simulates. Physics advances only inside reconcile — no separate client physics loop.
 - **Server**: `ServerUpdate` orchestrates network pre-tick, save/load/replay, tick wait, per-tick simulation/broadcast, resends, and autosave; quickload may early-return the whole update. Full-tick count ≠ 1 logs a warning.
 - **Finalize**: cross-frame transfer harvest is skipped during replay for deterministic reproduction; per-tick status changes are cleared after broadcast.
 - **Dispatch**: `ActiveFrameRef` pre-resolved into workbuffer, fanned out across grid coordinates via `common::gpMultithreading->Dispatch()` when enabled, else sequential; `thread_local` globals enable safe parallel physics.

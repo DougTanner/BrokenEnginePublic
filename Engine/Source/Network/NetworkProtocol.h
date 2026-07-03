@@ -72,6 +72,12 @@ inline constexpr int64_t kiClockErrorDisconnectConsecutiveFrames = 4;
 // Fixed jitter safety buffer added on top of measured jitter when computing miCurrentTargetBehind.
 // 125ms = 4 ticks at 32Hz; preserved in wall-clock terms if the tick rate ever changes.
 inline constexpr int64_t kiJitterSafetyUs = 125'000;
+// Slack between the clock-servo target (latestServerTick - miCurrentTargetBehind) and the hard sim
+// ceiling in GameBase::ClientUpdate. The servo steers toward the bare target so the sim never rests
+// against the ceiling; the slack absorbs per-packet arrival jitter and the 2-tick targetBehind
+// hysteresis step without stalling the sim. Must stay below ComputeClockCorrectionNs's |error| >= 4
+// aggressive-correction threshold so steady state never triggers it.
+inline constexpr int64_t kiSimCeilingSlackTicks = 3;
 inline constexpr int64_t kiMaxPacketSize = 64 * 1024;
 inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
 

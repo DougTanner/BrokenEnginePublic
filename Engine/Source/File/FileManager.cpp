@@ -56,11 +56,11 @@ FileManager::FileManager()
 
 FileManager::~FileManager()
 {
-	// Drain the eager-load task first: mLoadingThread is assigned inside it (see LoadPackFiles), so a join
-	// before the task runs would hit a not-yet-joinable thread. On the client GetEagerChunkMap() already
+	// Drain the eager-load task first: the loading threads are assigned inside it (see LoadPackFiles), so a join
+	// before the task runs would hit not-yet-joinable threads. On the client GetEagerChunkMap() already
 	// drained it during boot (valid() is then false); on the server nothing else ever drains it. get()
 	// rethrows if the task threw (corrupt-pack ASSERT, OOM, thread-create failure); swallow it so a
-	// destructor never terminates the process, and let the joinable() guard below skip the never-started thread.
+	// destructor never terminates the process, and let the joinable() guard below skip never-started threads.
 	if (mLoadingFuture.valid())
 	{
 		try
@@ -74,19 +74,23 @@ FileManager::~FileManager()
 		}
 	}
 
-	// Shutdown background loading thread
+	// Shutdown background loading threads. notify_all (not notify_one): every waiting loading thread must wake
+	// to observe mShutdown, otherwise a thread left asleep would never reach join() below and hang teardown.
 	{
 		std::unique_lock lock(mQueueMutex);
 		mShutdown = true;
 	}
-	mWakeCondition.notify_one();
-	// joinable() is false only if the eager-load task threw before assigning mLoadingThread (catch above).
-	if (mLoadingThread.joinable())
+	mWakeCondition.notify_all();
+	// joinable() is false only if the eager-load task threw before assigning the threads (catch above).
+	for (std::thread& rLoadingThread : mLoadingThreads)
 	{
-		mLoadingThread.join();
+		if (rLoadingThread.joinable())
+		{
+			rLoadingThread.join();
+		}
 	}
 
-	// Close persistent pack file handles and free read buffer
+	// Close persistent pack file handles and free per-thread read + decompress buffers
 	for (HANDLE& rHandle : mLazyPackFileHandles)
 	{
 		if (rHandle != nullptr && rHandle != INVALID_HANDLE_VALUE)
@@ -95,11 +99,17 @@ FileManager::~FileManager()
 		}
 		rHandle = nullptr;
 	}
-	_aligned_free(mpReadBuffer);
-	VirtualFree(mpLazyPool, 0, MEM_RELEASE);
-	if (mpDecompressScratch != nullptr)
+	for (std::byte* pReadBuffer : mpReadBuffers)
 	{
-		VirtualFree(mpDecompressScratch, 0, MEM_RELEASE);
+		_aligned_free(pReadBuffer);
+	}
+	VirtualFree(mpLazyPool, 0, MEM_RELEASE);
+	for (std::byte* pDecompressScratch : mpDecompressScratches)
+	{
+		if (pDecompressScratch != nullptr)
+		{
+			VirtualFree(pDecompressScratch, 0, MEM_RELEASE);
+		}
 	}
 
 	if (gpFileManager == this)
@@ -331,10 +341,10 @@ void FileManager::LoadPackFiles()
 			packStream.read(reinterpret_cast<char*>(&chunkHeader), sizeof(chunkHeader));
 
 			// Add to lazy chunk map. iDataSize is the size of the data in pData after any decompression
-			// (i.e., what consumers see). For zlib-compressed chunks, that's the uncompressed size; otherwise
+			// (i.e., what consumers see). For compressed chunks, that's the uncompressed size; otherwise
 			// it's the on-disk chunk-data size. The on-disk size is always recoverable from `location.uiSize`.
 			int64_t iOnDiskSize = rChunkLocation.uiSize - common::kiChunkDataOffset;
-			bool bCompressed = chunkHeader.flags & common::ChunkFlags::kZlibCompressed;
+			bool bCompressed = common::IsCompressed(chunkHeader.flags);
 			int64_t iDataSize = bCompressed ? chunkHeader.iUncompressedSize : iOnDiskSize;
 			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.location = rChunkLocation, .header = chunkHeader, .iDataSize = iDataSize});
 			if (!bInserted)
@@ -374,10 +384,14 @@ void FileManager::LoadPackFiles()
 		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(rLazyChunk.iDataSize);
 	}
 
-	// Decompress scratch (sized to largest compressed chunk on disk; only allocated if any chunks are compressed)
+	// Per-thread decompress scratch (sized to largest compressed chunk on disk; only allocated if any chunks are
+	// compressed). One per loading thread so concurrent decompresses never share a scratch buffer.
 	if (miDecompressScratchSize > 0)
 	{
-		mpDecompressScratch = static_cast<std::byte*>(VirtualAlloc(nullptr, miDecompressScratchSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+		for (std::byte*& rDecompressScratch : mpDecompressScratches)
+		{
+			rDecompressScratch = static_cast<std::byte*>(VirtualAlloc(nullptr, miDecompressScratchSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+		}
 	}
 
 	// Query disk sector size for FILE_FLAG_NO_BUFFERING alignment requirements
@@ -413,9 +427,13 @@ void FileManager::LoadPackFiles()
 		}
 	}
 
-	// Allocate sector-aligned read buffer (one sub-read + sector padding)
+	// Allocate per-thread sector-aligned read buffers (one sub-read + sector padding each) so concurrent
+	// loading threads never share a read buffer.
 	miReadBufferSize = common::RoundUp(kiSubReadSize + miSectorSize, miSectorSize);
-	mpReadBuffer = static_cast<std::byte*>(_aligned_malloc(miReadBufferSize, static_cast<size_t>(miSectorSize)));
+	for (std::byte*& rReadBuffer : mpReadBuffers)
+	{
+		rReadBuffer = static_cast<std::byte*>(_aligned_malloc(miReadBufferSize, static_cast<size_t>(miSectorSize)));
+	}
 
 	mLoadingFuture = std::async(std::launch::async, [this]()
 	{
@@ -460,8 +478,11 @@ void FileManager::LoadPackFiles()
 		// Eager map + pack buffers are now fully populated; publish to acquiring readers.
 		mbEagerLoadComplete.store(true, std::memory_order_release);
 
-		// Start background loading thread
-		mLoadingThread = std::thread(&FileManager::LoadingThread, this);
+		// Start background loading threads (each services the shared priority queue with its own read/scratch buffers)
+		for (int64_t iThreadIndex = 0; iThreadIndex < kiLoadingThreadCount; ++iThreadIndex)
+		{
+			mLoadingThreads[iThreadIndex] = std::thread(&FileManager::LoadingThread, this, iThreadIndex);
+		}
 	});
 }
 
@@ -523,7 +544,11 @@ void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPrio
 
 	if (bAddedAny)
 	{
-		mWakeCondition.notify_one();
+		// notify_all (not notify_one): a single call can enqueue a burst of chunks (e.g. an island subscription
+		// or WaitForChunks span). notify_one would wake just one loading thread, which would drain the whole
+		// burst serially while the others slept — defeating the parallelism. Waking all engages every thread;
+		// any woken with nothing left to pop simply returns to wait (a cheap, harmless spurious wakeup).
+		mWakeCondition.notify_all();
 	}
 }
 
@@ -545,10 +570,12 @@ void FileManager::WaitForChunks(std::span<const common::crc_t> crcs)
 	});
 }
 
-void FileManager::LoadingThread()
+void FileManager::LoadingThread(int64_t iThreadIndex)
 {
+	// All loading threads share the semantically-correct kThreadLazyLoad id: nothing keys shared state off the
+	// thread id (it only tags log lines and gates the DxDiag-thread check), so distinct ids are unnecessary.
 	common::ThreadLocal threadLocal(0, common::kThreadLazyLoad);
-	
+
 	// Note: do NOT use THREAD_MODE_BACKGROUND_BEGIN. That mode sets `IoPriorityVeryLow`, which during
 	// app startup (or any contention with OS-level foreground I/O such as Defender, indexing, OneDrive)
 	// causes large `ReadFile`s to stall for many seconds behind foreground requests. BELOW_NORMAL keeps
@@ -577,15 +604,15 @@ void FileManager::LoadingThread()
 			mRequestQueue.pop();
 		}
 		
-		LoadChunk(loadRequest);
+		LoadChunk(loadRequest, iThreadIndex);
 	}
 }
 
-void FileManager::LoadChunk(const LoadRequest& rRequest)
+void FileManager::LoadChunk(const LoadRequest& rRequest, int64_t iThreadIndex)
 {
 	LazyChunk& rLazyChunk = mLazyChunkMap.at(rRequest.crc);
 
-	bool bCompressed = rLazyChunk.header.flags & common::ChunkFlags::kZlibCompressed;
+	bool bCompressed = common::IsCompressed(rLazyChunk.header.flags);
 
 	// Calculate sector-aligned read parameters for unbuffered I/O
 	int64_t iFileOffset = rLazyChunk.location.uiOffset + common::kiChunkDataOffset;
@@ -593,8 +620,10 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	int64_t iAlignedOffset = common::RoundDown(iFileOffset, miSectorSize);
 	int64_t iPrefix = iFileOffset - iAlignedOffset;
 
-	// Compressed chunks read into the scratch and decompress into pData; uncompressed chunks read directly into pData.
-	std::byte* pReadDst = bCompressed ? mpDecompressScratch : rLazyChunk.pData;
+	// Compressed chunks read into this thread's scratch and decompress into pData; uncompressed chunks read directly into pData.
+	std::byte* pDecompressScratch = mpDecompressScratches[iThreadIndex];
+	std::byte* pReadBuffer = mpReadBuffers[iThreadIndex];
+	std::byte* pReadDst = bCompressed ? pDecompressScratch : rLazyChunk.pData;
 
 	// Corrupt chunk header (no type flag): fail the load instead of indexing past the handle array.
 	// Mark ready (pool data stays zero-filled) so WaitForChunks callers don't block forever on the chunk.
@@ -615,14 +644,20 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 
 	while (iDataCopied < iOnDiskSize)
 	{
-		// Read one sector-aligned sub-chunk from disk
+		// Read one sector-aligned sub-chunk from disk. The pack handle is shared across loading threads, so the
+		// read must be positional (offset in an OVERLAPPED) rather than SetFilePointerEx + ReadFile — the latter
+		// mutates the handle's shared file position and would race between threads, tearing reads. A synchronous
+		// (non-FILE_FLAG_OVERLAPPED) handle still completes the read synchronously when given an OVERLAPPED; the
+		// explicit offset supersedes the shared file pointer, so concurrent positional reads don't interfere.
+		// iFilePos stays sector-aligned (required by FILE_FLAG_NO_BUFFERING): it starts aligned and advances by
+		// uiBytesRead, which equals the sector-multiple uiReadSize on every read except the final (loop-exiting) one.
 		int64_t iSrcOffset = (iDataCopied == 0) ? iPrefix : 0;
 		DWORD uiReadSize = static_cast<DWORD>(common::RoundUp(std::min(kiSubReadSize, iOnDiskSize - iDataCopied) + iSrcOffset, miSectorSize));
-		LARGE_INTEGER seekPos {};
-		seekPos.QuadPart = iFilePos;
-		SetFilePointerEx(hFile, seekPos, nullptr, FILE_BEGIN);
+		OVERLAPPED overlapped {};
+		overlapped.Offset = static_cast<DWORD>(iFilePos & 0xFFFFFFFF);
+		overlapped.OffsetHigh = static_cast<DWORD>((iFilePos >> 32) & 0xFFFFFFFF);
 		DWORD uiBytesRead = 0;
-		static_cast<void>(ReadFile(hFile, mpReadBuffer, uiReadSize, &uiBytesRead, nullptr));
+		static_cast<void>(ReadFile(hFile, pReadBuffer, uiReadSize, &uiBytesRead, &overlapped));
 
 		int64_t iCopySize = std::min(static_cast<int64_t>(uiBytesRead) - iSrcOffset, iOnDiskSize - iDataCopied);
 		// Trust boundary: a truncated/locked .pack can return a 0-byte read (non-positive copy) that never advances
@@ -635,13 +670,13 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 			NotifyChunkCompletion();
 			return;
 		}
-		std::byte* pSrc = mpReadBuffer + iSrcOffset;
+		std::byte* pSrc = pReadBuffer + iSrcOffset;
 		std::byte* pDst = pReadDst + iDataCopied;
 
 		if (bCompressed)
 		{
 			// Compressed reads land in scratch; the decompress pass below will pull them back through cache anyway,
-			// so use a regular memcpy (not _mm_stream_si128) so the bytes stay hot for inflate().
+			// so use a regular memcpy (not _mm_stream_si128) so the bytes stay hot for the LZ4/zlib decompress.
 			std::memcpy(pDst, pSrc, iCopySize);
 		}
 		else
@@ -673,18 +708,40 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 
 	if (bCompressed)
 	{
-		uLongf uiUncompressedSize = static_cast<uLongf>(rLazyChunk.iDataSize);
-		int iZlibResult = uncompress(reinterpret_cast<Bytef*>(rLazyChunk.pData), &uiUncompressedSize, reinterpret_cast<const Bytef*>(mpDecompressScratch), static_cast<uLong>(iOnDiskSize));
-		// External-data trust boundary: a corrupted .pack or producer/runtime contract drift (e.g. raw payload
-		// tagged kZlibCompressed) makes uncompress fail or under-fill. Fail the chunk soft (ready, pool stays
-		// zero-filled) instead of throwing on the loading thread, where there is no try/catch to catch it.
-		if (iZlibResult != Z_OK || static_cast<int64_t>(uiUncompressedSize) != rLazyChunk.iDataSize) [[unlikely]]
+		// External-data trust boundary (both codecs): a corrupted .pack or a producer/runtime contract drift
+		// (e.g. a raw payload mistagged compressed) makes the decompress fail or under-fill. Fail the chunk
+		// soft (ready, pool stays zero-filled) instead of throwing on the loading thread, where there is no
+		// try/catch to catch it. Texture chunks are LZ4 today; kZlibCompressed stays a legal decode branch.
+		if (rLazyChunk.header.flags & common::ChunkFlags::kLz4Compressed)
 		{
-			LOG(kLoading, kError, "Zlib decompress failed for chunk {} (result {})", rRequest.crc, iZlibResult);
-			DEBUG_BREAK();
-			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
-			NotifyChunkCompletion();
-			return;
+			// LZ4_decompress_safe bounds writes to the pool-slot capacity and returns bytes produced (< 0 on
+			// malformed input); it allocates nothing, so it is allocation-tracking safe on the loading thread.
+			// Unlike zlib (self-terminating deflate stream), the LZ4 block format has no end marker: a full
+			// decode requires the EXACT compressed length or it errors on the final-literals parse check. Pass
+			// header.iSize (the exact compressed payload byte count), not iOnDiskSize, which is rounded up to
+			// kiAlignmentBytes and so carries up to 15 trailing pad bytes.
+			int iLz4Result = LZ4_decompress_safe(reinterpret_cast<const char*>(pDecompressScratch), reinterpret_cast<char*>(rLazyChunk.pData), static_cast<int>(rLazyChunk.header.iSize), static_cast<int>(rLazyChunk.iDataSize));
+			if (iLz4Result < 0 || static_cast<int64_t>(iLz4Result) != rLazyChunk.iDataSize) [[unlikely]]
+			{
+				LOG(kLoading, kError, "LZ4 decompress failed for chunk {} (result {})", rRequest.crc, iLz4Result);
+				DEBUG_BREAK();
+				rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+				NotifyChunkCompletion();
+				return;
+			}
+		}
+		else
+		{
+			uLongf uiUncompressedSize = static_cast<uLongf>(rLazyChunk.iDataSize);
+			int iZlibResult = uncompress(reinterpret_cast<Bytef*>(rLazyChunk.pData), &uiUncompressedSize, reinterpret_cast<const Bytef*>(pDecompressScratch), static_cast<uLong>(iOnDiskSize));
+			if (iZlibResult != Z_OK || static_cast<int64_t>(uiUncompressedSize) != rLazyChunk.iDataSize) [[unlikely]]
+			{
+				LOG(kLoading, kError, "Zlib decompress failed for chunk {} (result {})", rRequest.crc, iZlibResult);
+				DEBUG_BREAK();
+				rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+				NotifyChunkCompletion();
+				return;
+			}
 		}
 	}
 
@@ -753,7 +810,7 @@ void FileManager::ResetTextureChunkStates(std::span<const common::crc_t> targetC
 	int64_t iPoolOffset = 0;
 	for (auto& [crc, rLazyChunk] : mLazyChunkMap)
 	{
-		bool bCompressed = rLazyChunk.header.flags & common::ChunkFlags::kZlibCompressed;
+		bool bCompressed = common::IsCompressed(rLazyChunk.header.flags);
 		int64_t iOnDiskSize = rLazyChunk.location.uiSize - common::kiChunkDataOffset;
 		rLazyChunk.iDataSize = bCompressed ? rLazyChunk.header.iUncompressedSize : iOnDiskSize;
 		rLazyChunk.pData = mpLazyPool + iPoolOffset;
@@ -913,9 +970,9 @@ void FileManager::RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffs
 	// this — for a loaded chunk it copies from the (now-decommitted) resident pool and would fault — so read directly.
 	// Uncompressed chunks only (on-disk payload == pool layout); islands satisfy this (iUncompressedSize == 0).
 	LazyChunk& rLazyChunk = mLazyChunkMap.at(crc);
-	// A compressed chunk's pool holds inflated bytes, so the raw disk re-read below would silently reload garbage
+	// A compressed chunk's pool holds decompressed bytes, so the raw disk re-read below would silently reload garbage
 	// (not crash). Islands never compress; assert the contract so a future compressed-island route fails loud here.
-	ASSERT(!(rLazyChunk.header.flags & common::ChunkFlags::kZlibCompressed));
+	ASSERT(!common::IsCompressed(rLazyChunk.header.flags));
 	uintptr_t uiRangeStart = reinterpret_cast<uintptr_t>(rLazyChunk.pData) + uiOffset;
 	uintptr_t uiRangeEnd = uiRangeStart + uiLength;
 	uintptr_t uiAlignedStart = common::RoundUp(uiRangeStart, static_cast<uintptr_t>(miPageSize));

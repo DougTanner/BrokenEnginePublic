@@ -215,6 +215,19 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterSkyboxLod = gLightingWaterSkyboxLod.Get();
 	rMainLayout.fWaterSpecAAVariance = gWaterSpecAAVariance.Get();
 	rMainLayout.fWaterSpecAAThreshold = gWaterSpecAAThreshold.Get();
+	rMainLayout.fWaterSpecAAMipScale = gWaterSpecAAMipScale.Get();
+	rMainLayout.fWaterNormalMipBias = gWaterNormalMipBias.Get();
+	// WATER_SPEC_AA_MIP_HANDOFF: per-mip Toksvig variance tables for the three selected octave-group
+	// textures, copied from the header-baked TextureManager tables every frame (30 floats — cheap, and
+	// chevron re-selection then needs no separate invalidation path).
+	std::memcpy(&rMainLayout.pfWaterSpecAAMipVariance[0 * shaders::kiWaterSpecAAMipTableSize], gpTextureManager->mpfWaterNormalMipVariance[gWaterNormalIndexOne.Get<int64_t>()], shaders::kiWaterSpecAAMipTableSize * sizeof(float));
+	std::memcpy(&rMainLayout.pfWaterSpecAAMipVariance[1 * shaders::kiWaterSpecAAMipTableSize], gpTextureManager->mpfWaterNormalMipVariance[gWaterNormalIndexTwo.Get<int64_t>()], shaders::kiWaterSpecAAMipTableSize * sizeof(float));
+	std::memcpy(&rMainLayout.pfWaterSpecAAMipVariance[2 * shaders::kiWaterSpecAAMipTableSize], gpTextureManager->mpfWaterNormalMipVariance[gWaterNormalIndexThree.Get<int64_t>()], shaders::kiWaterSpecAAMipTableSize * sizeof(float));
+	// Full-detail reference weights for WATER_SPEC_AA_FADE_HANDOFF: the same LerpAtHeight the live
+	// fWaterNormalWeight* uploads above use, evaluated at the near-camera endpoint height.
+	rMainLayout.fWaterNormalWeightFullOne = engine::LerpAtHeight(game::Camera::kfCameraEyeHeightDefault, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightOneMin.Get(), gLightingSampledNormalsWeightOneMax.Get());
+	rMainLayout.fWaterNormalWeightFullTwo = engine::LerpAtHeight(game::Camera::kfCameraEyeHeightDefault, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightTwoMin.Get(), gLightingSampledNormalsWeightTwoMax.Get());
+	rMainLayout.fWaterNormalWeightFullThree = engine::LerpAtHeight(game::Camera::kfCameraEyeHeightDefault, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightThreeMin.Get(), gLightingSampledNormalsWeightThreeMax.Get());
 
 	rMainLayout.fLightingWaterReflectedAmount = gLightingWaterReflectedAmount.Get();
 	rMainLayout.fLightingWaterReflectedNormalBlendWave = gLightingWaterReflectedNormalBlendWave.Get();

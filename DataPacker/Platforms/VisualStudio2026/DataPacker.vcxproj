@@ -25,6 +25,7 @@
     <ClCompile Include="..\..\..\Common\Log\Log.cpp" />
     <ClCompile Include="..\..\..\Common\Log\LogDifference.cpp" />
     <ClCompile Include="..\..\..\Common\Smoothed.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\AudioRepair.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportAudio.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportCubemapIbl.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportFont.cpp" />
@@ -81,6 +82,7 @@
     <ClInclude Include="..\..\..\Common\StringUtils.h" />
     <ClInclude Include="..\..\..\Common\TextureFormat.h" />
     <ClInclude Include="..\..\..\Common\WindowsUtils.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\AudioRepair.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportAudio.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportCubemapIbl.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportFont.h" />

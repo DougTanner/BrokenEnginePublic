@@ -382,7 +382,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 		.flags = {kDepthTest, kDepthWrite, kCullBack, kUpdateAfterBind},
 		.ppShaders = {&mShaders.at(data::kShadersTerrainTerrainvertCrc), &mShaders.at(data::kShadersTerrainTerrainfragCrc)},
 		// pVertexBuffer is null: vertex buffer is per-island and bound at draw time. Vertex input
-		// stride and attribute layout come from shader reflection (Terrain.vert declares vec3 in).
+		// stride and attribute layout come from shader reflection (Terrain.vert declares vec2 f2InPosition).
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -464,7 +464,7 @@ void PipelineManager::CreateLightingShadowDependentPipelines()
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = TextureManager::kPrefilteredWaterCrc},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC4NoisepngCrc},
-			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = TextureManager::kiWaterNormalCount, .ppTextures = mppWaterNormalTextures},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeatWater}, .iCount = TextureManager::kiWaterNormalCount, .ppTextures = mppWaterNormalTextures},
 			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesWaterDepthLutpngCrc},
 			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne},
 			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mAmbientCombineTexture},

@@ -13,7 +13,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). The batch's one s
 - Fix the stale "twice as wide as default" comment (:154) — predates the parameterized `fWidthMultiplier` [~5m]
 
 ### Sibling guard/include alignment
-- `TweaksScreenBase.cpp:1-6` places non-corresponding includes *inside* the `#if defined(BT_CLIENT)` guard; all ten per-section siblings place them before it — align the ten siblings to guard-first (matches Base; safer default for client-only headers like `TextureManager.h`, unguarded at `TweaksScreenWater.cpp:1-7`). Also fix `TweaksScreenWater.cpp:3-5` include ordering (style rule 47) [~15m]
+- `TweaksScreenBase.cpp:1-6` places non-corresponding includes *inside* the `#if defined(BT_CLIENT)` guard; all ten per-section siblings place them before it — align the ten siblings to guard-first (matches Base and the wider engine convention, e.g. `Graphics.cpp`/`ImGuiManager.cpp`; safer default for client-only headers like `TextureManager.h`, which is not self-guarded and sits outside the guard at `TweaksScreenWater.cpp:5`) [~15m]
 
 ## Critical files
 - `Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenBase.{h,cpp}`, `TweaksScreenWater.cpp`, `TweaksScreenLighting.cpp`, `TweaksScreenWind.cpp`, `TweaksScreenSmoke.cpp`, `TweaksScreenSound.cpp` (+ the other five siblings for the guard alignment)
@@ -28,3 +28,8 @@ Source: /external-refactor-clean on Engine/Source (recursive). The batch's one s
 ## Notes
 - Invariant exposure: none — client-only debug UI; no determinism/CRC/wire. The handshake helper must reproduce the exact SetSelected/clear/write-back sequencing (tab restore across screen reopen depends on it) — convert one screen, verify tab behavior, then sweep the rest
 - Grill decision: none — mechanical; the CLAUDE.md rule update lands with the helper
+
+## Verification Notes
+- All 15 cited handshake copies verified verbatim at the cited line ranges (Water 4, Lighting 5, Wind 2, Smoke 2, Sound 2); game side has 3 more (Particles: Missile/Player/Spaceship). `mActiveSlider = mapKey.data();` confirmed at `TweaksScreenBase.cpp:180` (`mActiveSlider` is `std::string_view`, header :95); stale comment confirmed at :154. The CLAUDE.md "must replicate this apply-flag handshake in every `BeginTabItem`" sentence confirmed.
+- Dropped from the original draft: a `TweaksScreenWater.cpp:3-5` include-reorder sub-item — the current order (0/1/2 subdirectory depths ascending) already satisfies style rule 47's "fewer subdirectories first" reading; ambiguous at best and code-style-review territory regardless.
+- No overlap with `Engine/TweaksScreenDynamicFontMigration.md` (it owns the two `SetWindowFontScale(kfUiScale)` sites at `TweaksScreenBase.cpp` ~:251/~:357 — untouched here), but both plans edit `TweaksScreenBase.cpp`, so co-schedule or refresh citations if it lands first.

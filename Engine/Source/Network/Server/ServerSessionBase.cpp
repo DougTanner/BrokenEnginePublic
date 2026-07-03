@@ -26,7 +26,7 @@ ServerSessionBase::~ServerSessionBase()
 void ServerSessionBase::WaitForTick(TimeStep& rTimeStep, std::chrono::nanoseconds tickNs)
 {
 	// Server sleeps until next tick (there is no VSync wait), hybrid approach: waitable timer for the bulk, then spin-wait for precision
-	static constexpr std::chrono::nanoseconds kSpinMarginNs = 2'000'000ns;
+	static constexpr std::chrono::nanoseconds kSpinMarginNs = 500'000ns;
 	std::chrono::nanoseconds remainingNs = tickNs - rTimeStep.mTickRemainderNs - rTimeStep.mRealTime.GetDeltaNs();
 	std::chrono::nanoseconds sleepNs = remainingNs - kSpinMarginNs;
 	if (sleepNs > 0ns)
@@ -39,6 +39,7 @@ void ServerSessionBase::WaitForTick(TimeStep& rTimeStep, std::chrono::nanosecond
 	// Spin-wait
 	while (rTimeStep.mRealTime.GetDeltaNs() + rTimeStep.mTickRemainderNs < tickNs)
 	{
+		YieldProcessor();
 	}
 
 	// Verify precision

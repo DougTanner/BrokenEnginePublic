@@ -32,6 +32,50 @@ static constexpr int64_t kiCopyButtonMargin = 10;
 static RECT sCopyButtonRect {};
 static std::string sProfileText;
 
+// Persistent GDI objects (one window per process): the back-buffer DC/bitmap and font are created on first
+// paint and the bitmap is recreated only when the client size changes; the palette brushes/pens are a fixed
+// RGB set created once instead of per-cell per-paint. Nothing is explicitly destroyed — process teardown
+// reclaims GDI objects.
+static HDC shdcBuffer = nullptr;
+static HBITMAP shbmBuffer = nullptr;
+static int siBufferWidth = 0;
+static int siBufferHeight = 0;
+static HFONT shFont = nullptr;
+
+static HBRUSH shBrushBackground = nullptr;  // RGB(30, 30, 30) — window / content background
+static HBRUSH shBrushCellClient = nullptr;  // RGB(40, 60, 140) — client-authorized cell
+static HBRUSH shBrushCellActive = nullptr;  // RGB(30, 100, 30) — active cell
+static HBRUSH shBrushGrayFill = nullptr;    // RGB(50, 50, 50) — idle cell / copy button
+static HBRUSH shBrushTabActive = nullptr;   // RGB(60, 60, 60) — active tab
+static HBRUSH shBrushTabInactive = nullptr; // RGB(40, 40, 40) — inactive tab
+
+static HPEN shPenCellBorderClient = nullptr; // RGB(100, 140, 255) — client cell border
+static HPEN shPenGray = nullptr;             // RGB(80, 80, 80) — normal borders / tab bottom line
+static HPEN shPenRed = nullptr;              // RGB(220, 40, 40) — subscribed-cell interior border
+static HPEN shPenBlue = nullptr;             // RGB(100, 180, 255) — active tab border / copy button border
+
+static void EnsureCachedGdiObjects()
+{
+	if (shFont != nullptr)
+	{
+		return;
+	}
+
+	shFont = CreateFont(28, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, "Consolas");
+
+	shBrushBackground = CreateSolidBrush(RGB(30, 30, 30));
+	shBrushCellClient = CreateSolidBrush(RGB(40, 60, 140));
+	shBrushCellActive = CreateSolidBrush(RGB(30, 100, 30));
+	shBrushGrayFill = CreateSolidBrush(RGB(50, 50, 50));
+	shBrushTabActive = CreateSolidBrush(RGB(60, 60, 60));
+	shBrushTabInactive = CreateSolidBrush(RGB(40, 40, 40));
+
+	shPenCellBorderClient = CreatePen(PS_SOLID, 1, RGB(100, 140, 255));
+	shPenGray = CreatePen(PS_SOLID, 1, RGB(80, 80, 80));
+	shPenRed = CreatePen(PS_SOLID, 1, RGB(220, 40, 40));
+	shPenBlue = CreatePen(PS_SOLID, 1, RGB(100, 180, 255));
+}
+
 void ServerUpdateDisplayStats()
 {
 	if constexpr (!kbProfiling)
@@ -162,27 +206,19 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 			}
 
 			// Fill cell
-			COLORREF uiFillColor = 0;
+			HBRUSH hBrushCell = shBrushGrayFill;
 			if (iClientsInCell > 0)
 			{
-				uiFillColor = RGB(40, 60, 140);
+				hBrushCell = shBrushCellClient;
 			}
 			else if (bIsActive)
 			{
-				uiFillColor = RGB(30, 100, 30);
+				hBrushCell = shBrushCellActive;
 			}
-			else
-			{
-				uiFillColor = RGB(50, 50, 50);
-			}
-
-			HBRUSH hBrushCell = CreateSolidBrush(uiFillColor);
 			FillRect(hdcBuffer, &cellRect, hBrushCell);
-			DeleteObject(hBrushCell);
 
 			// Border
-			COLORREF uiBorderColor = (iClientsInCell > 0) ? RGB(100, 140, 255) : RGB(80, 80, 80);
-			HPEN hPen = CreatePen(PS_SOLID, 1, uiBorderColor);
+			HPEN hPen = (iClientsInCell > 0) ? shPenCellBorderClient : shPenGray;
 			HPEN hOldPen = static_cast<HPEN>(SelectObject(hdcBuffer, hPen));
 			MoveToEx(hdcBuffer, iCellLeft, iCellTop, nullptr);
 			LineTo(hdcBuffer, iCellLeft + iCellSize, iCellTop);
@@ -190,19 +226,16 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 			LineTo(hdcBuffer, iCellLeft, iCellTop + iCellSize);
 			LineTo(hdcBuffer, iCellLeft, iCellTop);
 			SelectObject(hdcBuffer, hOldPen);
-			DeleteObject(hPen);
 
 			// Red interior border for subscribed cells
 			if (bIsSubscribed && iCellSize >= 20)
 			{
 				static constexpr int kiInset = 2;
-				HPEN hRedPen = CreatePen(PS_SOLID, 1, RGB(220, 40, 40));
-				HPEN hOldPen2 = static_cast<HPEN>(SelectObject(hdcBuffer, hRedPen));
+				HPEN hOldPen2 = static_cast<HPEN>(SelectObject(hdcBuffer, shPenRed));
 				HBRUSH hOldBrush = static_cast<HBRUSH>(SelectObject(hdcBuffer, GetStockObject(NULL_BRUSH)));
 				Rectangle(hdcBuffer, iCellLeft + kiInset, iCellTop + kiInset, iCellLeft + iCellSize - kiInset + 1, iCellTop + iCellSize - kiInset + 1);
 				SelectObject(hdcBuffer, hOldBrush);
 				SelectObject(hdcBuffer, hOldPen2);
-				DeleteObject(hRedPen);
 			}
 
 			// Cell labels for active cells
@@ -390,19 +423,15 @@ static void PaintProfilePanel(HDC hdcBuffer, int iLeft, int iTop, [[maybe_unused
 	int64_t iButtonTop = iTop + iHeight - kiCopyButtonHeight - kiCopyButtonMargin;
 	sCopyButtonRect = {static_cast<int>(iButtonLeft), static_cast<int>(iButtonTop), static_cast<int>(iButtonLeft + kiCopyButtonWidth), static_cast<int>(iButtonTop + kiCopyButtonHeight)};
 
-	HBRUSH hBrush = CreateSolidBrush(RGB(50, 50, 50));
-	FillRect(hdcBuffer, &sCopyButtonRect, hBrush);
-	DeleteObject(hBrush);
+	FillRect(hdcBuffer, &sCopyButtonRect, shBrushGrayFill);
 
-	HPEN hPen = CreatePen(PS_SOLID, 1, RGB(100, 180, 255));
-	HPEN hOldPen = static_cast<HPEN>(SelectObject(hdcBuffer, hPen));
+	HPEN hOldPen = static_cast<HPEN>(SelectObject(hdcBuffer, shPenBlue));
 	MoveToEx(hdcBuffer, sCopyButtonRect.left, sCopyButtonRect.top, nullptr);
 	LineTo(hdcBuffer, sCopyButtonRect.right, sCopyButtonRect.top);
 	LineTo(hdcBuffer, sCopyButtonRect.right, sCopyButtonRect.bottom);
 	LineTo(hdcBuffer, sCopyButtonRect.left, sCopyButtonRect.bottom);
 	LineTo(hdcBuffer, sCopyButtonRect.left, sCopyButtonRect.top);
 	SelectObject(hdcBuffer, hOldPen);
-	DeleteObject(hPen);
 
 	SetTextColor(hdcBuffer, RGB(200, 200, 200));
 	TextOutA(hdcBuffer, sCopyButtonRect.left + 14, sCopyButtonRect.top + 2, "Copy", 4);
@@ -416,13 +445,11 @@ static void PaintTabBar(HDC hdcBuffer, int iWidth)
 		RECT tabRect {iTabLeft, 0, static_cast<int>(iTabLeft + kiTabWidth), static_cast<int>(kiTabHeight)};
 
 		bool bActive = (i == static_cast<int64_t>(seActiveTab));
-		COLORREF uiColor = bActive ? RGB(60, 60, 60) : RGB(40, 40, 40);
-		HBRUSH hBrush = CreateSolidBrush(uiColor);
+		HBRUSH hBrush = bActive ? shBrushTabActive : shBrushTabInactive;
 		FillRect(hdcBuffer, &tabRect, hBrush);
-		DeleteObject(hBrush);
 
 		// Border
-		HPEN hPen = CreatePen(PS_SOLID, 1, bActive ? RGB(100, 180, 255) : RGB(80, 80, 80));
+		HPEN hPen = bActive ? shPenBlue : shPenGray;
 		HPEN hOldPen = static_cast<HPEN>(SelectObject(hdcBuffer, hPen));
 		MoveToEx(hdcBuffer, iTabLeft, static_cast<int>(kiTabHeight), nullptr);
 		LineTo(hdcBuffer, iTabLeft, 0);
@@ -433,7 +460,6 @@ static void PaintTabBar(HDC hdcBuffer, int iWidth)
 			LineTo(hdcBuffer, iTabLeft, static_cast<int>(kiTabHeight));
 		}
 		SelectObject(hdcBuffer, hOldPen);
-		DeleteObject(hPen);
 
 		// Label
 		SetTextColor(hdcBuffer, bActive ? RGB(255, 255, 255) : RGB(160, 160, 160));
@@ -441,13 +467,11 @@ static void PaintTabBar(HDC hdcBuffer, int iWidth)
 	}
 
 	// Bottom line across non-tab area
-	HPEN hLinePen = CreatePen(PS_SOLID, 1, RGB(80, 80, 80));
-	HPEN hOldPen = static_cast<HPEN>(SelectObject(hdcBuffer, hLinePen));
+	HPEN hOldPen = static_cast<HPEN>(SelectObject(hdcBuffer, shPenGray));
 	int iTabsEnd = static_cast<int>(kiTabBarLeft + kiTabCount * kiTabWidth);
 	MoveToEx(hdcBuffer, iTabsEnd, kiTabHeight, nullptr);
 	LineTo(hdcBuffer, iWidth, kiTabHeight);
 	SelectObject(hdcBuffer, hOldPen);
-	DeleteObject(hLinePen);
 }
 
 void PaintServerDisplay(HWND hWnd)
@@ -460,19 +484,32 @@ void PaintServerDisplay(HWND hWnd)
 	int iWidth = clientRect.right - clientRect.left;
 	int iHeight = clientRect.bottom - clientRect.top;
 
-	// Double-buffer: paint to off-screen bitmap, then blit to screen
-	HDC hdcBuffer = CreateCompatibleDC(hdc);
-	HBITMAP hbmBuffer = CreateCompatibleBitmap(hdc, iWidth, iHeight);
-	HBITMAP hbmOld = static_cast<HBITMAP>(SelectObject(hdcBuffer, hbmBuffer));
+	EnsureCachedGdiObjects();
+
+	// Persistent double-buffer: create the DC on first paint; recreate the bitmap only when the client size changes.
+	if (shdcBuffer == nullptr)
+	{
+		shdcBuffer = CreateCompatibleDC(hdc);
+	}
+	if (shbmBuffer == nullptr || iWidth != siBufferWidth || iHeight != siBufferHeight)
+	{
+		HBITMAP hbmNew = CreateCompatibleBitmap(hdc, iWidth, iHeight);
+		SelectObject(shdcBuffer, hbmNew); // deselects the previous bitmap (or the DC's default stock bitmap on first paint)
+		if (shbmBuffer != nullptr)
+		{
+			DeleteObject(shbmBuffer);
+		}
+		shbmBuffer = hbmNew;
+		siBufferWidth = iWidth;
+		siBufferHeight = iHeight;
+	}
+	HDC hdcBuffer = shdcBuffer;
 
 	// Fill background
-	HBRUSH hBrushBackground = CreateSolidBrush(RGB(30, 30, 30));
-	FillRect(hdcBuffer, &clientRect, hBrushBackground);
-	DeleteObject(hBrushBackground);
+	FillRect(hdcBuffer, &clientRect, shBrushBackground);
 
-	// Create font
-	HFONT hFont = CreateFont(28, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, "Consolas");
-	HFONT hOldFont = static_cast<HFONT>(SelectObject(hdcBuffer, hFont));
+	// Select cached font
+	SelectObject(hdcBuffer, shFont);
 	SetBkMode(hdcBuffer, TRANSPARENT);
 
 	// Read frame data from origin coord
@@ -557,16 +594,8 @@ void PaintServerDisplay(HWND hWnd)
 		PaintProfilePanel(hdcBuffer, iContentLeft, iContentTop, iContentWidth, iContentHeight);
 	}
 
-	SelectObject(hdcBuffer, hOldFont);
-	DeleteObject(hFont);
-
-	// Blit buffer to screen
+	// Blit buffer to screen (buffer, font, and bitmap persist across paints — process teardown reclaims them)
 	BitBlt(hdc, 0, 0, iWidth, iHeight, hdcBuffer, 0, 0, SRCCOPY);
-
-	// Cleanup buffer
-	SelectObject(hdcBuffer, hbmOld);
-	DeleteObject(hbmBuffer);
-	DeleteDC(hdcBuffer);
 
 	EndPaint(hWnd, &ps);
 }

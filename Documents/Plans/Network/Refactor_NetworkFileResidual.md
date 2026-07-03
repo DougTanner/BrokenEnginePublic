@@ -9,7 +9,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). The engine Networ
 - Change `WriteVersionedFile`'s `STRUCT_TYPE& rStructure` (:300) to `const STRUCT_TYPE&` — the body only writes (the `has_binary_stream_operators` trait at :238 requires const-compatible `operator<<`; `common::Write` takes const). The non-const signature forces a documented defensive copy at `ClientSessionBase.cpp:36-37` — delete the copy + comment, pass `rGuid` directly. `ClientSessionBase.cpp` is slated for deletion by `Refactor_SessionBaseCollapse` — land whichever comes first; the other adjusts trivially [~15m]
 
 ### Engine/Source/File/DifferenceStream.h
-- Make `DifferenceStreamWriter::miStartTick` (:140) a ctor local — assigned at :29, read only in the :33 LOG, no other reference (the *reader*'s `miStartTick` is genuinely used) [~5m]
+- Make `DifferenceStreamWriter::miStartTick` (:140) a ctor local — assigned at :29, read only in the ctor LOGs at :33 and :38, no reference outside the ctor (the *reader*'s `miStartTick` is genuinely used, `:285`) [~5m]
 
 ### Engine/Source/Network/Server/ServerReceive.cpp
 - Dedupe the slot-validation predicate in `ClientAckStream` — the accept branch (:48-51) and the epoch-mismatch log branch (:69-71) both re-evaluate `uiSlotIndex < std::ssize(...) && (flags & kActive)`; restructure so the index/active check happens once. **Fold into or co-schedule with `Architecture_WireFormatPairing`** (it restructures this function's read layout); do not interleave [~15m]

@@ -145,6 +145,11 @@ CONSTEXPR int kiModelBindingJointMatrix = 16;
 // (Water.frag pWaterNormalSamplers[] sampler array).
 CONSTEXPR int kiWaterNormalCount = 17;
 
+// Length of each per-octave-group mip-variance table uploaded for Water.frag's
+// WATER_SPEC_AA_MIP_HANDOFF kernel. Must equal common::TextureHeader::kiMipVarianceCount
+// (static_assert in TextureManager.cpp) — the tables are copied verbatim from texture chunk headers.
+CONSTEXPR int kiWaterSpecAAMipTableSize = 10;
+
 // Island bindless-slot ceiling: shared by C++ and the terrain shaders, it sizes the bindless
 // sampler arrays (Terrain.frag / TerrainElevation.frag), their descriptor counts (PipelineManager),
 // and the TextureManager render-target pointer vectors. Raised 64 -> 128 so island 01's 10 routes
@@ -513,6 +518,17 @@ struct MainLayout
 	// Specular-AA tuning for Water.frag's WATER_SPEC_AA_MODE variants (variance: modes 1-3; threshold: modes 2-3)
 	float fWaterSpecAAVariance INIT;
 	float fWaterSpecAAThreshold INIT;
+	// WATER_SPEC_AA_MIP_HANDOFF inputs: per-mip Toksvig variance tables for the three selected
+	// octave-group textures (DataPacker-baked into TextureHeader, padded past the real chain with
+	// the last value), the handoff scale slider, the water-normal sampler's mip LOD bias (added to
+	// the shader's analytic LOD so the table lookup tracks the hardware fetch), and the three
+	// near-camera full-detail weights (WATER_SPEC_AA_FADE_HANDOFF reference; ratio-clamped in-shader)
+	float pfWaterSpecAAMipVariance[3 * kiWaterSpecAAMipTableSize] INIT;
+	float fWaterSpecAAMipScale INIT;
+	float fWaterNormalMipBias INIT;
+	float fWaterNormalWeightFullOne INIT;
+	float fWaterNormalWeightFullTwo INIT;
+	float fWaterNormalWeightFullThree INIT;
 
 	float fLightingWaterReflectedAmount INIT;
 	float fLightingWaterReflectedNormalBlendWave INIT;

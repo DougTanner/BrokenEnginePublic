@@ -12,7 +12,18 @@
 // 2 = NDF variance widening — Kaplanyan/Tokuyoshi geometric specular AA via the Vlachos production form
 // 3 = octave-agreement Toksvig — variance from the multi-sample normal weighted-sum length
 // 4 = 2x2 analytic supersample — lobe chain re-evaluated at derivative-extrapolated normals (ALU only)
-#define WATER_SPEC_AA_MODE 2
+#define WATER_SPEC_AA_MODE 3
+
+// Zoom/minification handoff for modes 2-3: adds DataPacker-baked per-mip Toksvig variance — the
+// normal variance the BC5 mip chain averages away, invisible to the screen-space kernels above
+// because DecodeNormal re-unitizes every fetch — into the lobe kernel via an analytic per-octave
+// LOD (Bruneton-style geometry->BRDF transition). Fixes camera-zoom specular flicker.
+// Runtime sliders: fWaterSpecAAMipScale scales the term; fWaterNormalMipBias biases the analytic
+// LOD in lockstep with the water-normal sampler's LOD bias.
+#define WATER_SPEC_AA_MIP_HANDOFF 1
+// Also hand off the variance the camera-height weight fade removes, referenced to the near-camera
+// full-weight look — far water keeps its statistical roughness instead of flattening to gloss.
+#define WATER_SPEC_AA_FADE_HANDOFF 0
 
 // Uniforms
 layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
@@ -82,6 +93,28 @@ float FilteredPowerLobe(float fIntensity, float fPower, float fSpecularLog2, flo
 	float fFilteredPower = max(2.0f / (2.0f / (fPower + 2.0f) + fKernel) - 2.0f, 0.0f);
 	return fIntensity * ((1.0f + fFilteredPower) / (1.0f + fPower)) * exp2(fFilteredPower * fSpecularLog2);
 }
+
+#if WATER_SPEC_AA_MIP_HANDOFF
+// Lerped lookup into one group's slice of the baked per-mip Toksvig variance table. Entries past the
+// real mip chain are pre-padded with the last value at pack time, so clamping to the table bounds is
+// sufficient — no per-texture mip count needed.
+float MipVarianceLookup(int iTableBase, float fLod)
+{
+	float fClamped = clamp(fLod, 0.0f, float(kiWaterSpecAAMipTableSize - 1));
+	int iLow = int(fClamped);
+	int iHigh = min(iLow + 1, kiWaterSpecAAMipTableSize - 1);
+	return mix(mainLayout.pfWaterSpecAAMipVariance[iTableBase + iLow], mainLayout.pfWaterSpecAAMipVariance[iTableBase + iHigh], fClamped - float(iLow));
+}
+
+// Mean unresolved variance across one sample group's three octaves; the size multipliers are the
+// group's compile-time constants from the SAMPLE_NORMAL_PRECISE call sites.
+float GroupMipVariance(int iTableBase, float fLodBase, float fSizeMultA, float fSizeMultB, float fSizeMultC)
+{
+	return (MipVarianceLookup(iTableBase, fLodBase + log2(fSizeMultA))
+		+ MipVarianceLookup(iTableBase, fLodBase + log2(fSizeMultB))
+		+ MipVarianceLookup(iTableBase, fLodBase + log2(fSizeMultC))) / 3.0f;
+}
+#endif
 #endif
 
 void main()
@@ -305,17 +338,65 @@ void main()
 			fIntensityThree * exp2(fPowerThree * fSpecularLog2);
 	}
 #elif WATER_SPEC_AA_MODE == 2 || WATER_SPEC_AA_MODE == 3
+	#if WATER_SPEC_AA_MIP_HANDOFF
+	// Minification handoff: the octave fetches' mips have already averaged away sub-texel normal
+	// variance (BC5 + DecodeNormal re-unitize every sample), so the screen-space kernels below can't
+	// see it — the source of camera-zoom flicker. Recompute each octave's fetch LOD analytically from
+	// the same gradients SAMPLE_NORMAL_PRECISE passed to textureGrad, look up the baked per-mip
+	// Toksvig variance, and add the unresolved slope variance to the lobe kernel. Weight shares are
+	// squared because weighted-sum-then-normalize scales each octave's slope contribution linearly.
+	// ALU only — no extra fetches.
+	float fMipKernel = 0.0f;
+	float fWeightTotal = fWeightOne + fWeightTwo + fWeightThree;
+	if (fWeightTotal > 0.0f)
+	{
+		float fDerivLog2 = log2(max(max(length(f2LocalDx), length(f2LocalDy)), 1e-12f)) + mainLayout.fWaterNormalMipBias;
+		float fLodBaseOne = fDerivLog2 + log2(fSizeOne * float(textureSize(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], 0).x));
+		float fLodBaseTwo = fDerivLog2 + log2(fSizeTwo * float(textureSize(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], 0).x));
+		float fLodBaseThree = fDerivLog2 + log2(fSizeThree * float(textureSize(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], 0).x));
+		float fWRelOne = fWeightOne / fWeightTotal;
+		float fWRelTwo = fWeightTwo / fWeightTotal;
+		float fWRelThree = fWeightThree / fWeightTotal;
+		// Octave size multipliers must match the SAMPLE_NORMAL_PRECISE call sites above
+		float fMipVariance =
+			fWRelOne * fWRelOne * GroupMipVariance(0 * kiWaterSpecAAMipTableSize, fLodBaseOne, 0.2f, 1.1f, 2.5f) +
+			fWRelTwo * fWRelTwo * GroupMipVariance(1 * kiWaterSpecAAMipTableSize, fLodBaseTwo, 0.3f, 1.2f, 3.0f) +
+			fWRelThree * fWRelThree * GroupMipVariance(2 * kiWaterSpecAAMipTableSize, fLodBaseThree, 0.4f, 1.3f, 3.5f);
+	#if WATER_SPEC_AA_FADE_HANDOFF
+		// Fade handoff: reference the near-camera full-weight appearance — each group also adds its
+		// TOTAL variance (last table entry, everything averaged away) times the weight share the
+		// height fade removed, so far water keeps its statistical roughness through the fade band.
+		float fWeightTotalFull = mainLayout.fWaterNormalWeightFullOne + mainLayout.fWaterNormalWeightFullTwo + mainLayout.fWaterNormalWeightFullThree;
+		if (fWeightTotalFull > 0.0f)
+		{
+			float fWRelFullOne = mainLayout.fWaterNormalWeightFullOne / fWeightTotalFull;
+			float fWRelFullTwo = mainLayout.fWaterNormalWeightFullTwo / fWeightTotalFull;
+			float fWRelFullThree = mainLayout.fWaterNormalWeightFullThree / fWeightTotalFull;
+			fMipVariance +=
+				max(fWRelFullOne * fWRelFullOne - fWRelOne * fWRelOne, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[1 * kiWaterSpecAAMipTableSize - 1] +
+				max(fWRelFullTwo * fWRelFullTwo - fWRelTwo * fWRelTwo, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[2 * kiWaterSpecAAMipTableSize - 1] +
+				max(fWRelFullThree * fWRelFullThree - fWRelThree * fWRelThree, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[3 * kiWaterSpecAAMipTableSize - 1];
+		}
+	#endif
+		// The factor 2 maps Toksvig inverse-power variance into the kernel's alpha^2 ~= 2/(p+2) domain
+		// (Toksvig: 1/p' = 1/p + variance, so the FilteredPowerLobe kernel contribution is 2*variance).
+		fMipKernel = mainLayout.fWaterSpecAAMipScale * 2.0f * fMipVariance;
+	}
+	#else
+	const float fMipKernel = 0.0f;
+	#endif
 	#if WATER_SPEC_AA_MODE == 2
 	// Slope-space variance from the screen-space change of the reflection normal (Vlachos GDC15 / Filament form)
 	vec3 f3NormalDx = dFdx(f3SkyboxWaveNormal);
 	vec3 f3NormalDy = dFdy(f3SkyboxWaveNormal);
-	float fKernel = min(2.0f * mainLayout.fWaterSpecAAVariance * (dot(f3NormalDx, f3NormalDx) + dot(f3NormalDy, f3NormalDy)), mainLayout.fWaterSpecAAThreshold);
+	float fKernel = min(2.0f * mainLayout.fWaterSpecAAVariance * (dot(f3NormalDx, f3NormalDx) + dot(f3NormalDy, f3NormalDy)) + fMipKernel, mainLayout.fWaterSpecAAThreshold);
 	#else
 	// Toksvig-style variance from the agreement of the nine summed octave normals: length(f3WeightedSum)
 	// shrinks as the octaves disagree (each DecodeNormal result is ~unit). Note: BC5 + DecodeNormal
-	// re-unitizes each sample, so this measures inter-wave disagreement, not true footprint mip variance.
+	// re-unitizes each sample, so this measures inter-wave disagreement, not true footprint mip variance
+	// (that part is restored by the WATER_SPEC_AA_MIP_HANDOFF term).
 	float fAgreement = length(f3WeightedSum) / max(3.0f * (fWeightOne + fWeightTwo + fWeightThree), kfEpsilon);
-	float fKernel = min(mainLayout.fWaterSpecAAVariance * (1.0f - fAgreement) / max(fAgreement, 0.001f), mainLayout.fWaterSpecAAThreshold);
+	float fKernel = min(mainLayout.fWaterSpecAAVariance * (1.0f - fAgreement) / max(fAgreement, 0.001f) + fMipKernel, mainLayout.fWaterSpecAAThreshold);
 	#endif
 	if (fSpecularFactor > 0.0f)
 	{

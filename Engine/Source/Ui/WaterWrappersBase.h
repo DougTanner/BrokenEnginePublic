@@ -42,6 +42,8 @@ extern Wrapper gLightingWaterSkyboxThreePower;
 extern Wrapper gLightingWaterSkyboxLod;
 extern Wrapper gWaterSpecAAVariance;
 extern Wrapper gWaterSpecAAThreshold;
+extern Wrapper gWaterSpecAAMipScale;
+extern Wrapper gWaterNormalMipBias;
 
 // Specular - Height Darken
 extern Wrapper gWaterHeightDarkenTop;

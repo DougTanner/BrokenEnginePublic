@@ -39,22 +39,27 @@ Wrapper gWaterWaveNormalBlend(0.8f, 0.0f, 1.0f);
 
 // Specular - Skybox
 Wrapper gLightingWaterSkyboxSunBias(3.3f, 0.0f, 4.0f);
-Wrapper gLightingWaterSkyboxNormalSoftenSunrise(0.89f, 0.0f, 1.0f);
-Wrapper gLightingWaterSkyboxNormalSoftenNoon(0.7f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxNormalSoftenSunrise(0.75f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxNormalSoftenNoon(0.65f, 0.0f, 1.0f);
 Wrapper gLightingWaterSkyboxNormalBlendWave(0.13f, 0.0f, 0.4f);
 Wrapper gLightingWaterSkyboxIntensity(0.00039f, 0.0001f, 0.002f);
 Wrapper gLightingWaterSkyboxAdd(2.0f, 0.0f, 4.0f);
-Wrapper gLightingWaterSkyboxOne(2500.0f, 0.0f, 5000.0f);
+Wrapper gLightingWaterSkyboxOne(6000.0f, 0.0f, 10000.0f);
 Wrapper gLightingWaterSkyboxOnePower(200.0f, 50.0f, 400.0f);
-Wrapper gLightingWaterSkyboxTwo(350.0f, 0.0f, 1500.0f);
-Wrapper gLightingWaterSkyboxTwoPower(30.0f, 1.0f, 200.0f);
-Wrapper gLightingWaterSkyboxThree(190.0f, 1.0f, 800.0f);
-Wrapper gLightingWaterSkyboxThreePower(0.001f, 0.001f, 1.0f);
+Wrapper gLightingWaterSkyboxTwo(600.0f, 0.0f, 1500.0f);
+Wrapper gLightingWaterSkyboxTwoPower(40.0f, 1.0f, 200.0f);
+Wrapper gLightingWaterSkyboxThree(200.0f, 1.0f, 800.0f);
+Wrapper gLightingWaterSkyboxThreePower(0.001f, 0.001f, 2.0f);
 Wrapper gLightingWaterSkyboxLod(7.5f, 0.0f, 10.0f);
 // Specular-AA tuning for Water.frag's WATER_SPEC_AA_MODE variants: variance scales the filter kernel
 // (mode 2 default 0.25; mode 1 maps 0.25 -> exact pixel footprint), threshold clamps the widening.
 Wrapper gWaterSpecAAVariance(0.25f, 0.0f, 2.0f);
 Wrapper gWaterSpecAAThreshold(0.18f, 0.0f, 1.0f);
+// WATER_SPEC_AA_MIP_HANDOFF: mip scale multiplies the baked per-mip Toksvig variance term (1.0 = the
+// physically-derived kernel); mip bias is the water-normal sampler's LOD bias (negative = sharpen,
+// positive = blur; 0 = unbiased, unlike the global -gMipLodBias sharpen), sampler recreate on change.
+Wrapper gWaterSpecAAMipScale(1.0f, 0.0f, 4.0f);
+Wrapper gWaterNormalMipBias(0.0f, -2.0f, 2.0f);
 
 // Specular - Height Darken
 Wrapper gWaterHeightDarkenTop(0.05f, -0.1f, 0.05f);
@@ -79,7 +84,7 @@ Wrapper gWaterBeachFadeTop(-0.06f, -0.1f, 0.0f);
 Wrapper gWaterBeachFadeBottom(-0.14f, -0.2f, -0.07f);
 // Camera-height fade for low-frequency wave amplitudes. At camera eye height ≤ Start, multiplier = 1.0 (full waves). At ≥ End, multiplier = 0.0 (no low waves). Linear in between. Defaults preserve the previous hardcoded 1× → 2× default-eye-height ramp.
 Wrapper gWaterLowAmplitudeFadeStart(300.0f, 0.0f, 1000.0f);
-Wrapper gWaterLowAmplitudeFadeEnd(500.0f, 0.0f, 1000.0f);
+Wrapper gWaterLowAmplitudeFadeEnd(700.0f, 0.0f, 1000.0f);
 
 // Medium frequency waves
 Wrapper gWaterMediumCount(int64_t {255}, std::vector<int64_t> {15, 31, 63, 127, 255});

@@ -24,7 +24,7 @@ The snap threshold lives function-local in the game layer while its siblings (`k
 
 ### (c) Snap resets `miLatestServerTick = -1` unnecessarily
 
-The snap sets `miLatestServerTick = -1` (`ClientSession.cpp` ~line 227). `ClientSessionBase::GetTargetSimTick()` (`ClientSessionBase.h` ~line 49) returns `-1` when `miLatestServerTick < 0`. In `GameBase::ClientUpdate` (`Engine/Source/GameBase.cpp` ~line 62), the hard-ceiling clamp is gated on `iCeiling >= 0` (~line 63) — so with the ceiling at `-1` the clamp is **skipped**, and the client sim can free-run past the server until the next coord update re-learns `miLatestServerTick` (`ClientSessionBase::ApplyReceivedUpdatesBase` ~line 266: `miLatestServerTick = std::max(miLatestServerTick, rUpdate.iTick)`, only for updates with `iTick > iConfirmedTick`). During a loss burst the ceiling stays off across several frames. The reset appears unnecessary: the snap already set `miClockError = 0` and moved `miTickCounter` to the target, so `miLatestServerTick` need not be discarded — keeping it preserves the hard ceiling across the snap.
+The snap sets `miLatestServerTick = -1` (`ClientSession.cpp` ~line 227). `ClientSessionBase::GetSimTickCeiling()` (`ClientSessionBase.h` ~line 49) returns `-1` when `miLatestServerTick < 0`. In `GameBase::ClientUpdate` (`Engine/Source/GameBase.cpp` ~line 64), the hard-ceiling clamp is gated on `iCeiling >= 0` (~line 66) — so with the ceiling at `-1` the clamp is **skipped**, and the client sim can free-run past the server until the next coord update re-learns `miLatestServerTick` (`ClientSessionBase::ApplyReceivedUpdatesBase` ~line 266: `miLatestServerTick = std::max(miLatestServerTick, rUpdate.iTick)`, only for updates with `iTick > iConfirmedTick`). During a loss burst the ceiling stays off across several frames. The reset appears unnecessary: the snap already set `miClockError = 0` and moved `miTickCounter` to the target, so `miLatestServerTick` need not be discarded — keeping it preserves the hard ceiling across the snap.
 
 ### (d) Doc: accumulator-nudge magnitude wrong
 
@@ -45,7 +45,7 @@ Move `kiClockSnapThreshold` to `NetworkProtocol.h` beside its siblings (rename t
 
 ### (c)
 
-Remove the `miLatestServerTick = -1` assignment from the snap in `ClientSession::Reconcile` (~line 227) — keep the learned value so `GetTargetSimTick()` stays `>= 0` and the `ClientUpdate` hard ceiling remains in force immediately after a snap. (The session-reset paths that legitimately clear it to `-1` — `ResetForServerLoad`, disconnect — are unaffected.)
+Remove the `miLatestServerTick = -1` assignment from the snap in `ClientSession::Reconcile` (~line 227) — keep the learned value so `GetSimTickCeiling()` stays `>= 0` and the `ClientUpdate` hard ceiling remains in force immediately after a snap. (The session-reset paths that legitimately clear it to `-1` — `ResetForServerLoad`, disconnect — are unaffected.)
 
 ### (d)
 
@@ -55,9 +55,9 @@ Fix `Network.md` (~line 20): correct the nudge description to the implemented `�
 
 - `Projects/BrokenEngineSandbox/Source/Network/Client/ClientSession.cpp` — `Reconcile` snap block: `kiClockSnapThreshold` relocation (b), `kClockErrorDisconnect` term / counter clears per (a), `miLatestServerTick = -1` removal (c); `ResetForServerLoad` reset sites if (a)=A.
 - `Engine/Source/Network/Client/ClientSessionBase.cpp` — `ComputeClockCorrectionNs` accumulate/reset block (a); reset sites ~lines 61, 318 (a); accumulator nudge is the doc reference for (d).
-- `Engine/Source/Network/Client/ClientSessionBase.h` — `GetTargetSimTick()` (behavioral reference for (c)); `miConsecutiveClockErrorFrames` member if (a)=A.
+- `Engine/Source/Network/Client/ClientSessionBase.h` — `GetSimTickCeiling()` (behavioral reference for (c)); `miConsecutiveClockErrorFrames` member if (a)=A.
 - `Engine/Source/Network/NetworkProtocol.h` — `kiClockSnapThreshold` new home (b); disconnect constants removed if (a)=A.
-- `Engine/Source/GameBase.cpp` — `ClientUpdate` hard-ceiling clamp (~lines 62-63): the consumer of `GetTargetSimTick()` whose behavior (c) restores across the snap.
+- `Engine/Source/GameBase.cpp` — `ClientUpdate` hard-ceiling clamp (~lines 64-66): the consumer of `GetSimTickCeiling()` whose behavior (c) restores across the snap.
 - `Documents/Architecture/Network.md` — clock-error section (~line 20): nudge magnitude + disconnect/`miLatestServerTick` wording (d).
 
 ## Out of scope
@@ -70,7 +70,7 @@ Fix `Network.md` (~line 20): correct the nudge description to the implemented `�
 ## Acceptance criteria
 
 - No path can set `SessionStateFlags::kClockErrorDisconnect` and then fail to act on it (Option A removes it; Option B makes escalation reachable).
-- After a clock snap, `GetTargetSimTick()` returns `>= 0` (ceiling active) so the client sim cannot free-run past the server during a subsequent loss burst.
+- After a clock snap, `GetSimTickCeiling()` returns `>= 0` (ceiling active) so the client sim cannot free-run past the server during a subsequent loss burst.
 - `kiClockSnapThreshold` is defined once, in `NetworkProtocol.h`, with no game-layer duplicate.
 - `Network.md`'s clock-error section matches the code: nudge `≤ 0.5 tick/frame`, and no claim of a disconnect that cannot happen.
 

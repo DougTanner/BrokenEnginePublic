@@ -26,7 +26,16 @@ Interview the user about every aspect of this plan until reaching shared underst
 1. Read the plan file from the current conversation context
 2. Identify all decision points, ambiguities, and unstated assumptions
 3. Walk each branch of the decision tree, resolving dependencies one-by-one
-4. When all branches are resolved, silently update the plan file with the resolved details, then immediately return control to the calling context to begin implementation — no summary, no "ready to proceed?" prompt, no stop. CLAUDE.md step 1 mandates this: "DO NOT stop or summarize — immediately continue to step 2 in the same turn."
+4. Ask the Closing Question (below) as the final interview question
+5. When all branches are resolved, silently update the plan file with the resolved details, then immediately return control to the calling context to begin implementation — no summary, no "ready to proceed?" prompt, no stop. CLAUDE.md step 1 mandates this: "DO NOT stop or summarize — immediately continue to step 2 in the same turn."
+
+## Closing Question
+
+After all branches are resolved but before updating the plan file, ask one final question:
+
+> "The biggest thing I think you may be missing about this situation is: \<X\>."
+
+Derive X by zooming out from the plan — adjacent systems it silently affects, a simpler approach that makes the plan unnecessary, an existing mechanism it duplicates, or a consequence the plan doesn't mention. If nothing qualifies, say so and skip — do not invent one. If the user's answer changes anything, fold it into the plan before the silent update.
 
 ## Role Boundary
 This skill fills gaps in an existing plan. **Do not re-design** the interface — that is `/external-design-interface`'s job. If the plan's interface shape is itself unclear, stop and recommend running `/external-design-interface` first.

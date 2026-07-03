@@ -69,8 +69,18 @@ enum class ChunkFlags : uint64_t
 	kChunkAudio      = 0x00020000,
 	kRaw             = 0x00040000,
 	kZlibCompressed  = 0x00080000,
+	kLz4Compressed   = 0x00100000,
 };
 using ChunkFlags_t = Flags<ChunkFlags>;
+
+// A chunk payload is compressed on disk (and must be decompressed into the lazy pool at load) when it
+// carries either compression flag. Texture chunks are LZ4-compressed today; kZlibCompressed stays a
+// legal on-disk form (the FileManager decode path still handles it). Single predicate so every
+// "is this chunk compressed" test covers both codecs rather than double-checking each flag at each site.
+inline bool IsCompressed(ChunkFlags_t flags)
+{
+	return (flags & ChunkFlags::kLz4Compressed) || (flags & ChunkFlags::kZlibCompressed);
+}
 
 struct FontHeader
 {
@@ -373,12 +383,20 @@ static_assert(sizeof(ShaderHeader) == 24, "ShaderHeader layout changed — bump 
 
 struct TextureHeader
 {
+	// Per-mip Toksvig slope variance mean((1 - |avgN|) / |avgN|), baked by ExportTexture for BC5
+	// normal maps on the regular export path (zeros for every other format/path). Entries past the
+	// real mip chain are padded with the last real value at write time, so readers index by any
+	// clamped LOD without a count. Sized so TextureHeader matches the largest ChunkHeader union
+	// member (IslandHeader, 72 bytes) — real BC5 chains max out at 9 mips (1024^2).
+	static constexpr int64_t kiMipVarianceCount = 10;
+
 	int64_t iTextureWidth = 0;
 	int64_t iTextureHeight = 0;
 	int64_t iMipLevels = 0;
 	VkFormat vkFormat = VK_FORMAT_UNDEFINED;
+	float pfMipVariance[kiMipVarianceCount] {};
 };
-static_assert(sizeof(TextureHeader) == 32, "TextureHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportTexture::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
+static_assert(sizeof(TextureHeader) == 72, "TextureHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportTexture::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
 // Audio format metadata for PCM WAV files
 struct AudioHeader
@@ -426,13 +444,13 @@ struct DataHeader
 	// Auto-bumps when sizeof(ChunkHeader) changes (largest-union-member or outer-field edits). Layout
 	// edits that DON'T change sizeof — reordering/shrinking a non-largest union member, or changing a
 	// non-union payload struct — are instead caught by the per-struct sizeof/offsetof static_asserts
-	// beside each header; bump the manual 46 below when one of those fires. A kiVersion bump forces a
+	// beside each header; bump the manual 48 below when one of those fires. A kiVersion bump forces a
 	// full re-export: the DataPacker manifest check (Main.cpp RunExportJobs) re-runs everything on a
 	// version mismatch, and the engine ASSERTs on a stale-version manifest. Per-job chunk caches are
 	// separate — payload-struct SIZE changes auto-dirty them via the sizeof folds in each job's
 	// GetVersion (ExportScene/ExportModel/ExportFont); same-size reorders still need that raw version
 	// bumped by hand (the static_assert message beside each struct names the owning job).
-	static constexpr int64_t kiVersion = 46 + sizeof(ChunkHeader);
+	static constexpr int64_t kiVersion = 48 + sizeof(ChunkHeader);
 	int64_t iVersion = kiVersion;
 
 	int64_t iChunkCount = 0;

@@ -6,7 +6,7 @@ Source: /external-architecture-review on Engine/Source (recursive). The library-
 ## Design
 
 ### Candidate: delete the TextManager overlay-text stack, render via imgui draw lists
-- **Module/cluster**: `Engine/Source/Graphics/Managers/TextManager.h` (152 lines) + `TextManager.cpp` (120 lines); plus the text-pass glue: `kPipelineText`/quad-buffer entries in `PipelineManager`/`BufferManager`, the `kGpuTimerText` record block in `CommandBufferRecordMain.cpp`, `Text` shaders under `Engine/Data/Shaders`, and downstream the DataPacker font-bake path and the eager `Font` chunk type in `FileManager`
+- **Module/cluster**: `Engine/Source/Graphics/Managers/TextManager.h` (151 lines) + `TextManager.cpp` (120 lines); plus the text-pass glue: `kPipelineProfileText` (`PipelineManager.h:23`) / `mTextStorageBuffers` (`BufferManager.h:60`), the `kGpuTimerText` record block (`CommandBufferRecordMain.cpp:309-311`), the `Ui/ProfileText.*` shaders under `Engine/Data/Shaders`, and downstream the DataPacker font-bake path (`ExportFont.{h,cpp}`) and the eager `Font` chunk type in `FileManager`
 - **Lines removable**: ~250 in Engine/Source directly; realistically 400-600 repo-wide once shaders + DataPacker font baking + `common::Character` go
 - **Proposed library**: **imgui** (MIT — on the ThirdParty/CLAUDE.md allow list; **already imported**, so this is coverage extension, not a new import). Its background/foreground draw-list text is the standard for debug/profile overlays; `ImGuiManager` already exists and re-records its CB per frame
 - **Fit**: every `TextAreas` consumer is debug/profile (`kTextDebug`, `kTextGraphics`, `kTextProfile*` — `TextManager.h:8-21`); no gameplay text exists. A bespoke Vulkan pipeline + bitmap-font atlas + pack-file font chunk is maintained solely to draw overlay text imgui can draw
@@ -26,7 +26,7 @@ Source: /external-architecture-review on Engine/Source (recursive). The library-
 ## Critical files
 - `Engine/Source/Graphics/Managers/TextManager.{h,cpp}`, `PipelineManager.cpp`, `BufferManager.cpp`, `CommandBufferRecordMain.cpp`, `ImGuiManager.{h,cpp}`
 - `Engine/Source/Profile/ProfileScreens.cpp`
-- `Engine/Data/Shaders/Text*`, DataPacker font-bake path, `Engine/Source/File/FileManager.*` (Font eager chunk)
+- `Engine/Data/Shaders/Ui/ProfileText.*`, DataPacker `ExportFont.{h,cpp}`, `Engine/Source/File/FileManager.*` (Font eager chunk)
 
 ## Out of scope
 - Any other library import or replacement (all rejected above)
@@ -34,5 +34,5 @@ Source: /external-architecture-review on Engine/Source (recursive). The library-
 - ImGui version upgrades
 
 ## Notes
-- Invariant exposure: none for determinism/CRC/wire. Removing the `Font` pack type touches `.pack` contents and the DataPacker — likely a `DataHeader::kiVersion` bump (repack-all); flag at grill. The `kGpuTimerText` removal touches the game GPU-timer enum the Profile overlay reads
+- Invariant exposure: none for determinism/CRC/wire. Removing the `Font` pack type touches `.pack` contents and the DataPacker — likely a `DataHeader::kiVersion` bump (repack-all); flag at grill. The `kGpuTimerText` removal touches the engine GPU-timer enum (`ProfileManagerBase.h:171`) the Profile overlay reads
 - Grill decision: proceed with the replacement vs accept the bespoke stack (the deciding question: is the EFIGS baked-atlas look worth a dedicated pipeline + asset type?). Decision plan — deliverable is the choice; implementation follows as its own execution

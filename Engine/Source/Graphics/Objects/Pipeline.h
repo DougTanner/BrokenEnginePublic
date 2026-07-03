@@ -22,6 +22,7 @@ enum class DescriptorFlags : uint64_t
 		kSamplerBorderWhite         = 0x0200, // CLAMP_TO_BORDER + opaque white (1.0) — shadow's "no shadow" beyond coverage
 		kSamplerWindClamp           = 0x10000,
 		kSamplerElevation           = 0x20000,
+		kSamplerMirroredRepeatWater = 0x80000, // MirroredRepeat with the gWaterNormalMipBias slider instead of the global -gMipLodBias sharpen (water normal maps)
 	kStorageImages                  = 0x0400,
 
 	kUniformBuffer                  = 0x0800,

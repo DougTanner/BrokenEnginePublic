@@ -338,9 +338,10 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 		miCurrentTargetBehind = iComputedTargetBehind;
 	}
 
-	// Sim runs BEHIND latestServerTick by miCurrentTargetBehind. Positive iError = sim is past the target
-	// (too far ahead — should be prevented by the hard clamp in ClientUpdate). Negative iError = sim is
-	// behind the target and needs to catch up via gradual correction or the snap cliff.
+	// Sim runs BEHIND latestServerTick by miCurrentTargetBehind. Positive iError = sim is past the target;
+	// normal up to kiSimCeilingSlackTicks (the ClientUpdate ceiling bounds it there), drained by gradual
+	// correction. Negative iError = sim is behind the target and needs to catch up via gradual correction
+	// or the snap cliff.
 	int64_t iTargetSimTick = miLatestServerTick - miCurrentTargetBehind;
 	int64_t iOffset = iPreReconcileTick - miLatestServerTick;
 	int64_t iError = iPreReconcileTick - iTargetSimTick;

@@ -53,6 +53,15 @@ public:
 	std::array<VkDrawIndexedIndirectCommand*, kiMaxFramebuffers> mppIslandsIndirectMapped {};
 
 	int64_t miTemplateCount = 0;  // Cached gpIslandTerrain->mIslandCrcsSorted.size() (fixed at boot).
+
+	// Per-framebuffer record of the per-template placement counts written the last time that framebuffer
+	// index was populated. Slots are written densely from each template's base (iTemplate *
+	// kiMaxPlacementsPerTemplate) via UpdateActiveIslands' running counter, so a single count per template
+	// fully describes the written (and thus possibly-stale) range. UpdateActiveIslands clears only these
+	// ranges before rewriting, instead of memset-ing the whole reserved SSBO slab every frame. Each inner
+	// vector is sized to miTemplateCount once in the ctor (boot, outside allocation tracking) and stays
+	// zero-initialized to match the ctor's baseline full memset.
+	std::array<std::vector<uint32_t>, kiMaxFramebuffers> mLastWrittenCounts;
 };
 
 inline Islands* gpIslands = nullptr;

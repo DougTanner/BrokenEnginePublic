@@ -70,8 +70,9 @@ IXAudio2SourceVoice* StaticVoices::PlayOneShotLocked(common::crc_t uiAudioCrc, b
 	{
 		CHECK_HRESULT(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
 	}
-	CHECK_HRESULT(pIXAudio2SourceVoice->SetFrequencyRatio(rfPitch));
+	CHECK_HRESULT(pIXAudio2SourceVoice->SetFrequencyRatio(SnapFrequencyRatio(rfPitch)));
 	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
+
 	return pIXAudio2SourceVoice;
 }
 
@@ -230,8 +231,9 @@ void StaticVoices::InvalidationPass(const SoundsInterpolate& rSoundsInterpolate)
 		}
 		else
 		{
+			// Fade starts from the current mfFadeOutVolume — a voice still mid-fade-in would step UP
+			// to full volume for a frame if this reset to 1.0, popping. AdvanceFadeOut ramps down from here.
 			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
-			rVoice.mfFadeOutVolume = 1.0f;
 			++miFadeOutCount;
 		}
 
@@ -385,7 +387,8 @@ void StaticVoices::PriorityPass(const SoundsInterpolate& rSoundsInterpolate, con
 
 		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
 		IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
-		if (pVoice == nullptr)
+		bool bFromPool = pVoice != nullptr;
+		if (!bFromPool)
 		{
 			if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, LoadVoiceFlags::k3d))
 			{
@@ -394,11 +397,19 @@ void StaticVoices::PriorityPass(const SoundsInterpolate& rSoundsInterpolate, con
 		}
 		float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
 		mVoices.push_back(StaticVoice(pVoice, id, fSoundVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity, uiCrc));
-		// Establish the attenuated 3D mix this same pass — the ctor now starts the voice silent
-		// (SetVolume(0)), so without this the first quantum would be inaudible until the next
-		// UpdateVolumes. Matches what UpdateVolumes computes (mfFadeOutVolume initializes to 1.0).
-		Apply3dVolume(pVoice, vecPosition, vecVelocity, fSoundVolume, fPitch);
-		mVoices.back().mFlags.Set(StaticVoiceFlags::kActivatedThisFrame);
+		StaticVoice& rNewVoice = mVoices.back();
+		if (bFromPool)
+		{
+			// Pooled voices are never flushed, so Start() resumes mid-buffer at a random loop phase —
+			// ramp in from silence (AdvanceFadeIn) to mask the discontinuity, matching the reactivation path.
+			rNewVoice.mfFadeOutVolume = 0.0f;
+		}
+		// Establish the attenuated 3D mix this same pass — the ctor starts the voice silent
+		// (SetVolume(0)), so without this the first quantum of a fresh voice would be inaudible
+		// until the next UpdateVolumes. Scaled by mfFadeOutVolume so a pooled voice stays silent
+		// for its first quantum and enters the fade-in ramp instead.
+		Apply3dVolume(pVoice, vecPosition, vecVelocity, rNewVoice.mfFadeOutVolume * fSoundVolume, fPitch);
+		rNewVoice.mFlags.Set(StaticVoiceFlags::kActivatedThisFrame);
 	}
 }
 
@@ -435,8 +446,8 @@ void StaticVoices::DeactivationPass()
 				DEBUG_BREAK();
 				continue;
 			}
+			// Fade starts from the current mfFadeOutVolume (see InvalidationPass) — no reset to 1.0
 			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
-			rVoice.mfFadeOutVolume = 1.0f;
 			++miFadeOutCount;
 			LOG(kAudio, kDebug, "voice FADING id={} dist={}", rVoice.mId, common::Wb(common::Distance(rVoice.mVecPosition, mVecListenerPosition), 2));
 		}
@@ -445,17 +456,18 @@ void StaticVoices::DeactivationPass()
 
 void StaticVoices::AdvanceFadeOut(float fDeltaTime)
 {
-	// Advance kFadingOut entries' mfFadeOutVolume. On completion, return the XAudio2 voice
-	// to the per-crc pool and transition to kInactive — the entry stays in mVoices so a
-	// re-entering sound can reactivate via the existing kInactive path. InvalidationPass
-	// erases owner-removed kInactive entries next frame.
+	// Advance kFadingOut entries' mfFadeOutVolume, clamped at zero. Retirement is deferred until
+	// the frame AFTER the ramp reaches zero: UpdateVolumes has then already applied silence to the
+	// XAudio2 voice, so the Stop() in ReturnVoiceToPool never cuts an audible waveform mid-sample.
+	// On retirement the voice returns to the per-crc pool and the entry transitions to kInactive —
+	// it stays in mVoices so a re-entering sound can reactivate via the existing kInactive path.
+	// InvalidationPass erases owner-removed kInactive entries next frame.
 	for (StaticVoice& rVoice : mVoices)
 	{
 		if (!(rVoice.mFlags & StaticVoiceFlags::kFadingOut))
 		{
 			continue;
 		}
-		rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
 		if (rVoice.mfFadeOutVolume <= 0.0f)
 		{
 			if (rVoice.mpVoice != nullptr)
@@ -465,9 +477,10 @@ void StaticVoices::AdvanceFadeOut(float fDeltaTime)
 			}
 			rVoice.mFlags.Clear(StaticVoiceFlags::kFadingOut);
 			rVoice.mFlags.Set(StaticVoiceFlags::kInactive);
-			rVoice.mfFadeOutVolume = 0.0f;
 			--miFadeOutCount;
+			continue;
 		}
+		rVoice.mfFadeOutVolume = std::max(0.0f, rVoice.mfFadeOutVolume - fDeltaTime / rVoice.mfFadeOutTime);
 	}
 }
 
@@ -635,7 +648,7 @@ void XM_CALLCONV StaticVoices::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 
 	float fFinalPower = VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume);
 	CHECK_HRESULT(pVoice->SetVolume(fFinalPower));
-	CHECK_HRESULT(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));
+	CHECK_HRESULT(pVoice->SetFrequencyRatio(SnapFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch)));
 }
 
 } // namespace engine

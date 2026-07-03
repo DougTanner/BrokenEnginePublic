@@ -150,9 +150,11 @@ void TextureUploadManager::RequestUpload(common::crc_t crc, LoadPriority ePriori
 
 void TextureUploadManager::WaitIdle()
 {
-	// Nothing in flight to drain once the thread has been told to exit (or was never started); returning
-	//   matches the original empty-lock no-op and avoids waiting on an ack that will never come.
-	if (mbShutdown)
+	// Nothing in flight to drain once the thread has been told to exit or was never started (first-boot
+	//   Create() calls Destroy() before TextureManager creation runs StartThread(), and mbShutdown starts
+	//   false); returning matches the original empty-lock no-op and avoids waiting on an ack that will
+	//   never come. joinable() is main-thread-only state here: this thread is the sole starter/joiner.
+	if (mbShutdown || !mUploadThread.joinable())
 	{
 		return;
 	}

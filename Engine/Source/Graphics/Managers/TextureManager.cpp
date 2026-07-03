@@ -5,6 +5,7 @@
 #include "Profile/ProfileManager.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
+#include "Ui/WaterWrappersBase.h"
 
 namespace engine
 {
@@ -189,6 +190,19 @@ TextureManager::TextureManager()
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 			.eTextureLayout = kShaderReadOnly,
 		}, bCubemap ? mWhiteCubeTexture.mVkImageView : mWhiteTexture.mVkImageView);
+
+		// Water normal maps: copy the DataPacker-baked per-mip Toksvig variance table (already
+		// padded past the real mip chain with the last value) for the WATER_SPEC_AA_MIP_HANDOFF
+		// uniform upload. Header-resident so no lazy chunk data is needed at startup.
+		static_assert(shaders::kiWaterSpecAAMipTableSize == common::TextureHeader::kiMipVarianceCount, "The shader-side mip-variance table length must match the pack format's");
+		for (int64_t i = 0; i < kiWaterNormalCount; ++i)
+		{
+			if (kpWaterNormalCrcs[i] == rCrc)
+			{
+				std::memcpy(mpfWaterNormalMipVariance[i], rLazyChunk.header.textureHeader.pfMipVariance, sizeof(mpfWaterNormalMipVariance[i]));
+				break;
+			}
+		}
 	}
 
 	// Pre-fill texture arrays with white placeholders for lazy index assignment
@@ -440,6 +454,15 @@ void TextureManager::CreateSamplers()
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotMirroredRepeat]));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotMirroredRepeat], "MirroredRepeat");
+
+	// Water-normal variant: its own slider-driven bias instead of the global -gMipLodBias sharpen —
+	// a sharpen bias tuned for albedo pushes minified normal fetches toward noisier mips (specular
+	// shimmer), and Water.frag's WATER_SPEC_AA_MIP_HANDOFF analytic LOD must track the hardware LOD
+	// (the slider value is also uploaded as fWaterNormalMipBias). Applied directly, not negated:
+	// negative = sharpen, positive = blur.
+	vkSamplerCreateInfo.mipLodBias = std::clamp(gWaterNormalMipBias.Get(), -gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxSamplerLodBias, gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxSamplerLodBias);
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotMirroredRepeatWater]));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotMirroredRepeatWater], "MirroredRepeatWater");
 }
 
 VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
@@ -454,6 +477,7 @@ VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
 		{DescriptorFlags::kSamplerBorderWhite, kSamplerSlotBorderWhite},
 		{DescriptorFlags::kSamplerRepeat, kSamplerSlotRepeat},
 		{DescriptorFlags::kSamplerMirroredRepeat, kSamplerSlotMirroredRepeat},
+		{DescriptorFlags::kSamplerMirroredRepeatWater, kSamplerSlotMirroredRepeatWater},
 		{DescriptorFlags::kSamplerSmoke, kSamplerSlotSmoke},
 		{DescriptorFlags::kSamplerWindClamp, kSamplerSlotWindClamp},
 	};

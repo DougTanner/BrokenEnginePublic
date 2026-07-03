@@ -17,7 +17,7 @@ public:
 
 	~ExportAudio() override = default;
 
-	int64_t GetVersion() const override { return Version(28); }
+	int64_t GetVersion() const override { return Version(31); }
 
 protected:
 
