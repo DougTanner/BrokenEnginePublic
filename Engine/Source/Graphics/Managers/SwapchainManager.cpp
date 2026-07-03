@@ -25,15 +25,20 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 
 void SwapchainManager::CreateRenderPass()
 {
-	// Based on https://github.com/Overv/VulkanTutorial
-	// The render pass attachment description will specify how many color and depth buffers there will be, how many samples to use for each of them and how their contents should be handled throughout the rendering operations
-	VkAttachmentDescription pVkAttachmentDescriptions[]
+	// The scene renders into an F16 HDR intermediate so accumulated PBR / emissive / additive-particle
+	// highlights are not clamped by the UNORM swapchain. The fullscreen HDR-resolve pass (kPipelineHdrResolve)
+	// then tone-maps + color-grades the whole frame into the swapchain via the simplified mVkRenderPass below.
+
+	// --- HDR scene render pass: today's structure (color + depth + optional MSAA) in F16, color ends up
+	//     SHADER_READ_ONLY so the resolve pass can sample it in the same command buffer. ---
+	VkFormat hdrVkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+	VkAttachmentDescription pHdrVkAttachmentDescriptions[]
 	{
-		// Present framebuffer
+		// HDR color (resolve target when multisampling)
 		VkAttachmentDescription
 		{
 			.flags = 0,
-			.format = gpInstanceManager->mFramebufferVkFormat,
+			.format = hdrVkFormat,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
 			.loadOp = kbFramebufferClearColor
 				? (gMultisampling.Get<bool>() ? VK_ATTACHMENT_LOAD_OP_DONT_CARE : VK_ATTACHMENT_LOAD_OP_CLEAR)
@@ -42,7 +47,7 @@ void SwapchainManager::CreateRenderPass()
 			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		},
 		// Depth
 		VkAttachmentDescription
@@ -57,11 +62,11 @@ void SwapchainManager::CreateRenderPass()
 			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 			.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 		},
-		// Multisample framebuffer
+		// Multisample HDR framebuffer
 		VkAttachmentDescription
 		{
 			.flags = 0,
-			.format = gpInstanceManager->mFramebufferVkFormat,
+			.format = hdrVkFormat,
 			.samples = gSampleCount.Get<VkSampleCountFlagBits>(),
 			.loadOp = kbFramebufferClearColor ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 			.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -72,7 +77,7 @@ void SwapchainManager::CreateRenderPass()
 		}
 	};
 
-	VkAttachmentReference presentVkAttachmentReference
+	VkAttachmentReference hdrColorVkAttachmentReference
 	{
 		.attachment = 0,
 		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -87,53 +92,117 @@ void SwapchainManager::CreateRenderPass()
 		.attachment = 2,
 		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 	};
-	VkSubpassDescription vkSubpassDescription
+	VkSubpassDescription hdrVkSubpassDescription
 	{
 		.flags = 0,
 		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
 		.inputAttachmentCount = 0,
 		.pInputAttachments = nullptr,
 		.colorAttachmentCount = 1,
-		.pColorAttachments = gMultisampling.Get<bool>() ? &multisamplingVkAttachmentReference : &presentVkAttachmentReference,
-		.pResolveAttachments = gMultisampling.Get<bool>() ? &presentVkAttachmentReference : nullptr,
+		.pColorAttachments = gMultisampling.Get<bool>() ? &multisamplingVkAttachmentReference : &hdrColorVkAttachmentReference,
+		.pResolveAttachments = gMultisampling.Get<bool>() ? &hdrColorVkAttachmentReference : nullptr,
 		.pDepthStencilAttachment = &depthVkAttachmentReference,
 		.preserveAttachmentCount = 0,
 		.pPreserveAttachments = nullptr,
 	};
 
-	// There are two built-in dependencies that take care of the transition at the start of the render pass and at the end of the render pass, but the former does not occur at the right time
-	// It assumes that the transition occurs at the start of the pipeline, but we haven't acquired the image yet at that point!
-	// There are two ways to deal with this problem. We could change the waitStages for the imageAvailableSemaphore to VK_PIPELINE_STAGE_TOP_OF_PIPELINE_BIT to ensure that the render passes don't begin until the image is available
-	// or we can make the render pass wait for the VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT stage
-	// The vkPipelineStageFlags and pWaitSemaphores specify which semaphores to wait on before execution begins and in which stages of the pipeline to wait
-	// We want to wait with writing colors to the image until it's available, so we're specifying the stage of the graphics pipeline that writes to the color attachment
-	// That means that theoretically the implementation can already start executing our vertex shader and such while the image is not available yet
-	//
-	// Only need a dependency coming in to ensure that the first layout transition happens at the right time.
-	// Second external dependency is implied by having a different finalLayout and subpass layout.
-	VkSubpassDependency vkSubpassDependency
+	// Incoming: WAR against the previous frame's resolve pass sampling this HDR color (FRAGMENT_SHADER read),
+	// plus the acquire-time color/depth transition. Outgoing: order the same-command-buffer resolve pass's
+	// sampling (COLOR_ATTACHMENT_WRITE -> FRAGMENT_SHADER SHADER_READ).
+	VkSubpassDependency pHdrVkSubpassDependencies[]
 	{
-		.srcSubpass = VK_SUBPASS_EXTERNAL,
-		.dstSubpass = 0,
-		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		.srcAccessMask = 0,
-		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-		.dependencyFlags = 0,
+		VkSubpassDependency
+		{
+			.srcSubpass = VK_SUBPASS_EXTERNAL,
+			.dstSubpass = 0,
+			.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.srcAccessMask = 0,
+			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+			.dependencyFlags = 0,
+		},
+		VkSubpassDependency
+		{
+			.srcSubpass = 0,
+			.dstSubpass = VK_SUBPASS_EXTERNAL,
+			.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.dependencyFlags = 0,
+		},
 	};
 
-	// Create the render pass from the attachments description and subpasses
-	VkRenderPassCreateInfo vkRenderPassCreateInfo
+	VkRenderPassCreateInfo hdrVkRenderPassCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
 		.attachmentCount = gMultisampling.Get<bool>() ? 3u : 2u,
-		.pAttachments = pVkAttachmentDescriptions,
+		.pAttachments = pHdrVkAttachmentDescriptions,
 		.subpassCount = 1,
-		.pSubpasses = &vkSubpassDescription,
+		.pSubpasses = &hdrVkSubpassDescription,
+		.dependencyCount = static_cast<uint32_t>(std::size(pHdrVkSubpassDependencies)),
+		.pDependencies = pHdrVkSubpassDependencies,
+	};
+	CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &hdrVkRenderPassCreateInfo, nullptr, &mHdrVkRenderPass));
+	VkName(VK_OBJECT_TYPE_RENDER_PASS, mHdrVkRenderPass, "SwapchainManagerHdr");
+
+	// --- Present render pass: single color attachment, single sample. The resolve quad is its only client
+	//     (all scene pipelines now target the HDR pass), so no depth/MSAA. DONT_CARE load (fully overwritten),
+	//     PRESENT_SRC_KHR final. Keep the acquire-semaphore incoming dependency (color-only). ---
+	VkAttachmentDescription presentVkAttachmentDescription
+	{
+		.flags = 0,
+		.format = gpInstanceManager->mFramebufferVkFormat,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+	};
+	VkAttachmentReference presentVkAttachmentReference
+	{
+		.attachment = 0,
+		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+	};
+	VkSubpassDescription presentVkSubpassDescription
+	{
+		.flags = 0,
+		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+		.inputAttachmentCount = 0,
+		.pInputAttachments = nullptr,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &presentVkAttachmentReference,
+		.pResolveAttachments = nullptr,
+		.pDepthStencilAttachment = nullptr,
+		.preserveAttachmentCount = 0,
+		.pPreserveAttachments = nullptr,
+	};
+	// Wait to write colors until the acquired image is available (see the swapchain acquire semaphore chain).
+	VkSubpassDependency presentVkSubpassDependency
+	{
+		.srcSubpass = VK_SUBPASS_EXTERNAL,
+		.dstSubpass = 0,
+		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.srcAccessMask = 0,
+		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.dependencyFlags = 0,
+	};
+	VkRenderPassCreateInfo vkRenderPassCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.attachmentCount = 1,
+		.pAttachments = &presentVkAttachmentDescription,
+		.subpassCount = 1,
+		.pSubpasses = &presentVkSubpassDescription,
 		.dependencyCount = 1,
-		.pDependencies = &vkSubpassDependency,
+		.pDependencies = &presentVkSubpassDependency,
 	};
 	CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mVkRenderPass));
 	VkName(VK_OBJECT_TYPE_RENDER_PASS, mVkRenderPass, "SwapchainManager");
@@ -302,7 +371,7 @@ void SwapchainManager::CreateFramebuffers()
 		.eTextureLayout = TextureLayout::kUndefined,
 	});
 
-	// Multisampling
+	// Multisampling (F16 HDR MSAA attachment for mHdrVkRenderPass, resolved into mHdrTexture)
 	if (gMultisampling.Get<bool>())
 	{
 		mMultisamplingTexture.Create(TextureInfo
@@ -310,7 +379,7 @@ void SwapchainManager::CreateFramebuffers()
 			.textureFlags = {},
 			.name = "Multisampling",
 			.flags = 0,
-			.format = gpInstanceManager->mFramebufferVkFormat,
+			.format = VK_FORMAT_R16G16B16A16_SFLOAT,
 			.extent = VkExtent3D {.width = gpGraphics->mFramebufferExtent2D.width, .height = gpGraphics->mFramebufferExtent2D.height, .depth = 1},
 			.mipLevels = 1,
 			.arrayLayers = 1,
@@ -321,6 +390,41 @@ void SwapchainManager::CreateFramebuffers()
 			.eTextureLayout = TextureLayout::kUndefined,
 		});
 	}
+
+	// HDR intermediate color: the scene render pass writes here; the resolve pass samples it.
+	mHdrTexture.Create(TextureInfo
+	{
+		.textureFlags = {},
+		.name = "Hdr",
+		.flags = 0,
+		.format = VK_FORMAT_R16G16B16A16_SFLOAT,
+		.extent = VkExtent3D {.width = gpGraphics->mFramebufferExtent2D.width, .height = gpGraphics->mFramebufferExtent2D.height, .depth = 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = TextureLayout::kShaderReadOnly,
+	});
+
+	// Single HDR framebuffer: none of its attachments (HDR color / depth / MSAA) are per-swapchain-image.
+	// Attachment order matches mHdrVkRenderPass: HDR color (0), depth (1), MSAA (2).
+	VkImageView pHdrVkImageViews[] {mHdrTexture.mVkImageView, mDepthTexture.mVkImageView, mMultisamplingTexture.mVkImageView};
+	VkFramebufferCreateInfo hdrVkFramebufferCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.renderPass = mHdrVkRenderPass,
+		.attachmentCount = gMultisampling.Get<bool>() ? 3u : 2u,
+		.pAttachments = pHdrVkImageViews,
+		.width = gpGraphics->mFramebufferExtent2D.width,
+		.height = gpGraphics->mFramebufferExtent2D.height,
+		.layers = 1,
+	};
+	CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &hdrVkFramebufferCreateInfo, nullptr, &mHdrVkFramebuffer));
+	VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mHdrVkFramebuffer, "Hdr");
 
 	mFramebuffers.resize(uiImageCount);
 	miFramebufferIndex = 0;
@@ -360,15 +464,16 @@ void SwapchainManager::CreateFramebuffers()
 		// The attachments specified during render pass creation are bound by wrapping them into a VkFramebuffer object
 		// A framebuffer object references all of the VkImageView objects that represent the attachments
 		// However, the image that we have to use as attachment depends on which image the swap chain returns when we retrieve one for presentation
-		// That means that we have to create a framebuffer for all of the images in the swap chain and use the one that corresponds to the retrieved image at drawing time
-		VkImageView pVkImageViews[] {rFrameBuffer.presentVkImageView, mDepthTexture.mVkImageView, mMultisamplingTexture.mVkImageView};
+		// That means that we have to create a framebuffer for all of the images in the swap chain and use the one that corresponds to the retrieved image at drawing time.
+		// Single color attachment: the present pass only runs the HDR-resolve quad (depth/MSAA live on mHdrVkFramebuffer).
+		VkImageView pVkImageViews[] {rFrameBuffer.presentVkImageView};
 		VkFramebufferCreateInfo vkFramebufferCreateInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
 			.pNext = nullptr,
 			.flags = 0,
 			.renderPass = mVkRenderPass,
-			.attachmentCount = gMultisampling.Get<bool>() ? 3u : 2u,
+			.attachmentCount = 1,
 			.pAttachments = pVkImageViews,
 			.width = gpGraphics->mFramebufferExtent2D.width,
 			.height = gpGraphics->mFramebufferExtent2D.height,
@@ -433,6 +538,8 @@ SwapchainManager::~SwapchainManager()
 	{
 		vkDestroySwapchainKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, nullptr);
 	}
+	vkDestroyFramebuffer(gpDeviceManager->mVkDevice, mHdrVkFramebuffer, nullptr);
+	vkDestroyRenderPass(gpDeviceManager->mVkDevice, mHdrVkRenderPass, nullptr);
 	vkDestroyRenderPass(gpDeviceManager->mVkDevice, mVkRenderPass, nullptr);
 
 	if (gpSwapchainManager == this)

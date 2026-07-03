@@ -1,7 +1,9 @@
 # Architecture: Library Replacement — TextManager → imgui
 
 ## Context
-Source: /external-architecture-review on Engine/Source (recursive). The library-replacement survey found the codebase already outsources nearly every wheel-shaped problem (compression, allocation, networking, clipping, image I/O, audio device layer, stack capture, noise). The one substantive candidate: the bespoke overlay-text stack. **Decision plan (present options).**
+Source: /external-architecture-review on Engine/Source (recursive). The library-replacement survey found the codebase already outsources nearly every wheel-shaped problem (compression, allocation, networking, clipping, image I/O, audio device layer, stack capture, noise). The one substantive candidate: the bespoke overlay-text stack.
+
+**Decision (2026-07-03): proceed with the TextManager → imgui replacement.** Remaining plan content is the implementation spec below.
 
 ## Design
 
@@ -35,4 +37,4 @@ Source: /external-architecture-review on Engine/Source (recursive). The library-
 
 ## Notes
 - Invariant exposure: none for determinism/CRC/wire. Removing the `Font` pack type touches `.pack` contents and the DataPacker — likely a `DataHeader::kiVersion` bump (repack-all); flag at grill. The `kGpuTimerText` removal touches the engine GPU-timer enum (`ProfileManagerBase.h:171`) the Profile overlay reads
-- Grill decision: proceed with the replacement vs accept the bespoke stack (the deciding question: is the EFIGS baked-atlas look worth a dedicated pipeline + asset type?). Decision plan — deliverable is the choice; implementation follows as its own execution
+- Decision (2026-07-03): proceed with the replacement (the EFIGS baked-atlas look is not worth a dedicated pipeline + asset type). Implementation follows this plan's candidate section as its spec

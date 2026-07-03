@@ -32,12 +32,9 @@ The snap sets `miLatestServerTick = -1` (`ClientSession.cpp` ~line 227). `Client
 
 ## Design
 
-### (a) — Decision plan (present options)
+### (a)
 
-- **Option A — Delete the disconnect machinery.** Remove `kiClockErrorDisconnectThreshold`, `kiClockErrorDisconnectConsecutiveFrames`, `miConsecutiveClockErrorFrames`, `SessionStateFlags::kClockErrorDisconnect`, the accumulate/reset block in `ComputeClockCorrectionNs`, and the `kClockErrorDisconnect` term in the snap condition and its clears (the snap already fires on `|error| >= 28` alone). Update every reset site of the removed members (`ClientSessionBase.cpp` ~lines 61, 318; `ClientSession::ResetForServerLoad` ~lines 350-351). Simplest; matches actual behavior (snap-and-recover, no clock-based disconnect). The existing gap-based disconnects (`Client::TrackReceivedTick` "too many missing frames" ~line 271) remain the real disconnect path.
-- **Option B — Make it real.** Escalate to disconnect after N snaps within a window (a snap-rate counter, since a lone snap is normal init/stall-recovery but repeated snapping means the client can't hold clock lock). Preserves the documented intent; adds a new counter + window constant and a design decision on thresholds.
-
-Lean A unless a real "endless snap-loop" scenario is worth defending against — B reintroduces a policy that must be tuned and tested. Resolve via grill.
+Decision (2026-07-03): Option A — delete the disconnect machinery. Remove `kiClockErrorDisconnectThreshold`, `kiClockErrorDisconnectConsecutiveFrames`, `miConsecutiveClockErrorFrames`, `SessionStateFlags::kClockErrorDisconnect`, the accumulate/reset block in `ComputeClockCorrectionNs`, and the `kClockErrorDisconnect` term in the snap condition and its clears (the snap already fires on `|error| >= 28` alone). Update every reset site of the removed members (`ClientSessionBase.cpp` ~lines 61, 318; `ClientSession::ResetForServerLoad` ~lines 350-351). Matches actual behavior (snap-and-recover, no clock-based disconnect). The existing gap-based disconnects (`Client::TrackReceivedTick` "too many missing frames" ~line 271) remain the real disconnect path. (Option B — escalate to disconnect after N snaps within a window — rejected: reintroduces a policy that would need its own tuning/testing for what is otherwise dead-code removal.)
 
 ### (b)
 
@@ -76,7 +73,7 @@ Fix `Network.md` (~line 20): correct the nudge description to the implemented `�
 
 ## Notes
 
-- **Decision plan (present options)** — item (a) delete-vs-make-real is the one open decision; (b), (c), (d) are determined.
+- Item (a) is decided (Option A, delete); (b), (c), (d) were already determined.
 - **Invariant exposure**: no wire change; client clock/disconnect policy and cross-frame tick state only. No `Frame::kiVersion` / CRC / determinism exposure. Item (c) changes runtime ceiling behavior immediately after a snap (Risk: needs a packet-loss-burst playtest to confirm no new startup/recovery stall); (a) Option A is dead-code removal, Option B adds tested policy.
-- **Grill decision to pre-stage**: (a) Option A (delete) vs Option B (snap-rate escalation window) — and if B, the snap-count and window constants. Confirm (c) with A: removing `miLatestServerTick = -1` while also deleting the disconnect path means the only prior consumer of the `-1` transient (the un-reset counter window) is gone, so the two changes are mutually reinforcing.
+- **Decision (2026-07-03)**: (a) Option A confirmed (delete). (c) confirmed with A: removing `miLatestServerTick = -1` while also deleting the disconnect path means the only prior consumer of the `-1` transient (the un-reset counter window) is gone, so the two changes are mutually reinforcing.
 - **Co-scheduling**: touches `ClientSessionBase.{h,cpp}` and `ClientSession.cpp` clock paths; no other queued plan edits these, so standalone. `Network.md` doc edit pairs naturally with the `update-architecture-diagrams` step.

@@ -54,6 +54,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 			return VK_FALSE;
 		}
 
+		// VK_SUBOPTIMAL_KHR from present is expected while a window resize / fullscreen transition races the surface: presentation still succeeds and the next frame's swapchain recreate resolves it. Suppress the best-practices warning; the recreate path already handles the result code.
+		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "SuboptimalSwapchain") != nullptr)
+		{
+			return VK_FALSE;
+		}
+
 		// GPU-AV defaults its ray-hit-object / mesh-shading sub-checks on; on hardware lacking rayTracingInvocationReorder / meshShader the layer auto-disables them at vkCreateDevice and logs this. We already opt those out in the layer settings above; this guards against any other benign setting auto-adjustment too.
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "WARNING-Setting-Limit-Adjusted") != nullptr)
 		{

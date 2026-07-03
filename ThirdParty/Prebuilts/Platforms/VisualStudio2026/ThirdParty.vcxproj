@@ -79,9 +79,10 @@
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <TreatWarningAsError>false</TreatWarningAsError>
       <Optimization>Disabled</Optimization>
+      <SupportJustMyCode>false</SupportJustMyCode>
       <LanguageStandard>stdcpp23</LanguageStandard>
       <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\..\..\..\;$(ProjectDir)\..\..\..\imgui;$(ProjectDir)\..\..\..\implot;$(ProjectDir)\..\..\..\DirectXTK\Inc;$(ProjectDir)\..\..\..\DirectXTK\Src;$(ProjectDir)\..\..\..\mimalloc\include;$(ProjectDir)\..\..\..\zlib;$(ProjectDir)\..\..\..\lz4\lib;$(ProjectDir)\..\..\..\enet\include;$(ProjectDir)\..\..\..\Clipper2\CPP\Clipper2Lib\include;$(ProjectDir)\..\..\Source\DataPacker\openexr;$(ProjectDir)\..\..\..\cmft\include;$(ProjectDir)\..\..\..\cmft\src;$(ProjectDir)\..\..\..\cmft\dependency;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>USING_XINPUT;VK_NO_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USING_XINPUT;VK_NO_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;_ITERATOR_DEBUG_LEVEL=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <ExceptionHandling>Async</ExceptionHandling>

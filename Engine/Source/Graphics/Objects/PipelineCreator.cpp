@@ -649,7 +649,9 @@ void PipelineCreator::CreateGraphicsPipeline(Pipeline& rPipeline)
 	pVkPipelineShaderStageCreateInfos[1].module = rPipeline.mInfo.ppShaders[1]->mVkShaderModule;
 
 	vkGraphicsPipelineCreateInfo.layout = rPipeline.mVkPipelineLayout;
-	vkGraphicsPipelineCreateInfo.renderPass = rPipeline.mInfo.flags & kRenderTarget ? rPipeline.mInfo.vkRenderPass : gpSwapchainManager->mVkRenderPass;
+	// Default (non-kRenderTarget) scene pipelines render into the F16 HDR intermediate; the resolve pass
+	// (itself kRenderTarget with vkRenderPass = mVkRenderPass) writes the swapchain.
+	vkGraphicsPipelineCreateInfo.renderPass = rPipeline.mInfo.flags & kRenderTarget ? rPipeline.mInfo.vkRenderPass : gpSwapchainManager->mHdrVkRenderPass;
 
 	CHECK_VK(vkCreateGraphicsPipelines(gpDeviceManager->mVkDevice, gpDeviceManager->mVkPipelineCache, 1, &vkGraphicsPipelineCreateInfo, nullptr, &rPipeline.mVkPipeline));
 	VkName(VK_OBJECT_TYPE_PIPELINE, rPipeline.mVkPipeline, rPipeline.mInfo.name.data());

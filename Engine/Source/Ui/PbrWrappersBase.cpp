@@ -12,8 +12,12 @@ Wrapper gPbrBrdfDiffusePower(0.8f, 0.5f, 1.0f);
 Wrapper gPbrBrdfSpecular(20.0f, 0.0f, 30.0f);
 Wrapper gPbrBrdfSpecularPower(0.30f, 0.1f, 1.0f);
 // Pbr - Tone Mapping
-Wrapper gPbrExposure(3.0f, 0.0f, 10.0f);
-Wrapper gPbrGamma(2.2f, 1.0f, 3.0f);
+Wrapper gPbrExposure(0.9f, 0.0f, 2.0f);
+Wrapper gPbrGamma(0.9f, 0.0f, 2.0f);
+// Pbr - Color Grading
+Wrapper gColorGradingSaturation(1.05f, 0.0f, 2.0f);
+Wrapper gColorGradingContrast(1.1f, 0.5f, 2.0f);
+Wrapper gColorGradingTemperature(-0.2f, -1.0f, 1.0f);
 // Pbr - Post Lighting
 Wrapper gPbrLightingSpecular(0.5f, 0.0f, 1.0f);
 Wrapper gPbrLightingSpecularPower(0.5f, 0.1f, 1.0f);

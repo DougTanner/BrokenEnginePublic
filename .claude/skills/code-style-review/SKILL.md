@@ -1,18 +1,18 @@
 ---
 name: code-style-review
-description: Reviews and auto-fixes C++ style violations in files modified during the session, per `Documents/C++StyleGuide.txt` — Hungarian notation, `auto` restrictions, float literal suffixes, `nullptr`, `override`, naming/abbreviation rules, brace and argument formatting. Use after any C++ code change (C++ Code Change Process step 5), or when the user asks for a style review, style check, or naming/formatting cleanup.
+description: Reviews and auto-fixes C++ style violations in files modified during the session, per `Documents/C++StyleGuide.txt` — Hungarian notation, `auto` restrictions, float literal suffixes, `nullptr`, `override`, naming/abbreviation rules, brace and argument formatting. Use after any C++ code change, or when the user asks for a style review, style check, or naming/formatting cleanup.
 allowed-tools: [Read, Edit, Grep]
 ---
 
 # Code Style Review
 
-Reviews C++ files edited in this conversation and fixes style violations per `Documents/C++StyleGuide.txt`. Scope: auto-fix within the modified line ranges — not a full-file rewrite.
+Reviews C++ files edited in this conversation and fixes style violations per `Documents/C++StyleGuide.txt`. Scope: auto-fix within the modified line ranges — not a full-file rewrite. One exception: cross-file references broken by renames applied here are also fixed (see Fix Policy).
 
 ## Instructions
 
 ### 1. Identify Modified Files
 
-List all `.cpp` and `.h` files you edited in this conversation (check your Edit/Write tool calls). Apply fixes only to line ranges that were modified.
+If invoked as a subagent, use the changed-file list and touched regions from the caller's prompt. Otherwise list all `.cpp` and `.h` files you edited in this conversation (check your Edit/Write tool calls). Apply fixes only to line ranges that were modified.
 
 ### 2. Read the Style Guide
 
@@ -52,11 +52,11 @@ These are project-wide conventions that complement `Documents/C++StyleGuide.txt`
 
 - Fix violations directly without asking permission — auto-apply within changed files.
 - For mechanical rules (`NULL` → `nullptr`, float suffix, `override`, etc.) the risk is near-zero; apply silently.
-- For **Rule 3 (Hungarian notation)** and **Rule 56 (abbreviation expansion)** renames, the risk is real: renaming an identifier referenced from outside the modified file will break callers. Apply the rename anyway — the user has accepted this tradeoff — but report every such rename in the output so the user can verify cross-file references compile. After the rename, run a follow-up Grep on the old identifier across the repo and list any remaining hits in the report.
+- For **Rule 3 (Hungarian notation)** and **Rule 56 (abbreviation expansion)** renames, the risk is real: renaming an identifier referenced from outside the modified file will break callers. Apply the rename anyway — the user has accepted this tradeoff. After the rename, Grep the old identifier across the repo and fix every remaining reference in code files only (`.cpp`/`.h`/shader sources — breakage caused by the rename is in scope, even outside the modified files); report each rename and the cross-file fixes applied. Do not edit CLAUDE.md, docs, or plan files (other steps own those concurrently) — list any doc/plan hits of the old identifier in the report so the caller can route them.
 
 ### 5. Report
 
-List fixes applied by rule number, and any cross-file references left over after Hungarian/abbreviation renames.
+List fixes applied by rule number, and cross-file fixes made after Hungarian/abbreviation renames.
 
 ```
 ## Style Review Results
@@ -64,7 +64,10 @@ List fixes applied by rule number, and any cross-file references left over after
 ### Fixes Applied
 - file:line — Rule N — <short description>
 
-### Cross-File References to Verify (Hungarian / abbreviation renames)
+### Cross-File Fixes (Hungarian / abbreviation renames)
 - <old identifier> → <new identifier>
-  - file:line (in another file) still uses <old identifier>
+  - file:line (in another file) updated
+
+### Doc/Plan References Not Edited
+- <old identifier> — <CLAUDE.md/doc/plan file:line> (routed to caller)
 ```

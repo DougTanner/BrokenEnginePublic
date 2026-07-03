@@ -13,7 +13,7 @@ In the `AudioManager::Update` device-reset path:
 1. Capture the `bool` result of `Reset(&mPinnedOutputFormat, nullptr)`.
 2. On failure, fall back to `Reset(nullptr, nullptr)` (device-default format — audio returns at the new device's native rate/channels; only the SRC bypass is lost). Log one `kWarning` naming the fallback.
 3. On either successful path, the existing post-reset re-cache of `miMasteringVoiceChannels` (reads the actual voice) keeps the 3D mix self-consistent.
-4. Optional (decide at grill): after a successful fallback, rebuild `mPinnedOutputFormat` from the new device's channel count (+48000) and attempt the pin once more on the *next* reset, restoring the bypass after a same-rate hot-swap.
+4. ~~Optional re-pin rider~~ — **dropped by decision, do not implement** (see Notes). `mPinnedOutputFormat` stays immutable after the constructor; after a fallback, audio runs at device-default format until the next app launch re-pins.
 
 ## Critical files
 
@@ -33,4 +33,4 @@ In the `AudioManager::Update` device-reset path:
 
 - Client-only (`Audio/` is client-only); no CRC/determinism/wire/pack exposure.
 - Shares `AudioManager.cpp` with `Audio/Architecture_AudioVoiceSeams.md` (ctor decompose + mastering-channel cache dedup) — co-schedule or refresh citations.
-- Grill: whether to include the optional re-pin-next-reset step (item 4) or keep the minimal fallback.
+- Decision (2026-07-03): **minimal fallback only — no re-pin rider (Design item 4 dropped).** YAGNI: the rider only pays off after a channel-count-changing hot-swap followed by a *second* device reset in the same session, and its payoff is merely restoring the SRC-bypass micro-optimization; meanwhile it makes `mPinnedOutputFormat` mutable mid-session, complicating the invariant that the pin is the startup capture (`AudioManager.cpp:143-149`). Losing the bypass until next launch is a negligible cost; audio itself is restored by the fallback `Reset(nullptr, nullptr)`.

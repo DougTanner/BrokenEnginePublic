@@ -2,8 +2,8 @@
 name: external-grill-plan
 description: >-
   Interviews the user about a loaded plan to resolve ambiguities and fill gaps
-  before implementation. Step 1 of the CLAUDE.md C++ Code Change Process —
-  invoke after a plan is loaded or created and before any code changes. Walks
+  before implementation. Invoke after a plan is loaded or created and before
+  any code changes. Walks
   each decision branch with engine-specific questions (determinism,
   client/server, memory, threading, frame phases), recommending an answer for
   each from codebase exploration.
@@ -24,10 +24,10 @@ Interview the user about every aspect of this plan until reaching shared underst
 
 ## Workflow
 1. Read the plan file from the current conversation context
-2. Identify all decision points, ambiguities, and unstated assumptions
+2. Identify all decision points, ambiguities, and unstated assumptions — scan against the Decision-Point Taxonomy below; plans routinely leave these classes implicit
 3. Walk each branch of the decision tree, resolving dependencies one-by-one
 4. Ask the Closing Question (below) as the final interview question
-5. When all branches are resolved, silently update the plan file with the resolved details, then immediately return control to the calling context to begin implementation — no summary, no "ready to proceed?" prompt, no stop. CLAUDE.md step 1 mandates this: "DO NOT stop or summarize — immediately continue to step 2 in the same turn."
+5. When all branches are resolved, silently update the plan file with the resolved details, then immediately return control to the calling context to begin implementation — no summary, no "ready to proceed?" prompt, no stop.
 
 ## Closing Question
 
@@ -35,7 +35,29 @@ After all branches are resolved but before updating the plan file, ask one final
 
 > "The biggest thing I think you may be missing about this situation is: \<X\>."
 
-Derive X by zooming out from the plan — adjacent systems it silently affects, a simpler approach that makes the plan unnecessary, an existing mechanism it duplicates, or a consequence the plan doesn't mention. If nothing qualifies, say so and skip — do not invent one. If the user's answer changes anything, fold it into the plan before the silent update.
+Derive X by zooming out from the plan. Run these prompts and present the strongest hit:
+
+1. Which queued plan (`Documents/Plans/Order.md` or `Documents/Features/Order.md`) shares these files/symbols — does this plan's shape contradict it or invalidate its citations?
+2. What adjacent system consumes the state this plan changes (collection members, manager outputs, shared headers), and does the plan account for it?
+3. Is there a simpler move that makes the plan unnecessary — delete the code instead of fixing it, reuse an existing `common::` mechanism, or vendor a library?
+4. What invariant surface (CRC, `kiVersion`/`.pack` layout, network protocol, save/replay format, main-loop allocation tracking) does this touch that the plan never mentions?
+5. What does the plan assume about scale that the unbounded world breaks — uncapped entity counts, sparse-cell parallelism, kilometer-scale coordinate magnitudes?
+
+If nothing qualifies, say so and skip — do not invent one. If the user's answer changes anything, fold it into the plan before the silent update.
+
+## Decision-Point Taxonomy
+
+Recurring ambiguity classes to scan for in Workflow step 2:
+
+- **Unresolved option list** — the plan presents A/B/C alternatives without committing; resolve to exactly one before implementation.
+- **Placement/ownership** — "add a helper/field/manager" without saying which layer, TU, or class owns it.
+- **Delete-vs-reserve** — dead machinery: remove outright, or keep the enum slot / wire ID / version term reserved for compatibility.
+- **Behavior change hiding in a refactor** — a "rename/unify/collapse" step that silently alters semantics (ordering, error path, a default).
+- **Granularity** — per-field vs per-system gates, one split vs several, single vs split arenas/buffers.
+- **Magic defaults** — sizes, thresholds, counts stated without justification, or needed but absent.
+- **Undeclared invariant exposure** — the edit touches CRC'd state, `kiVersion`/`.pack` layout, protocol, save/replay format, or allocation-tracked paths, but the plan never says so.
+- **Self-contradicting requirements** — two statements in the plan that cannot both hold (e.g., an "always/never" in one clause revoked by another); surface the contradiction and resolve it with the user, never pick one side silently.
+- **Cross-plan contradiction** — another queued plan touches the same files/symbols with an incompatible shape (also probed by Closing Question prompt 1).
 
 ## Role Boundary
 This skill fills gaps in an existing plan. **Do not re-design** the interface — that is `/external-design-interface`'s job. If the plan's interface shape is itself unclear, stop and recommend running `/external-design-interface` first.
@@ -48,7 +70,7 @@ Skip the gate for: bug fixes, refactors, tuning passes, content-only changes, en
 
 Steps:
 1. Form a one-sentence statement of the capability being built (e.g., "polygon offsetting", "navmesh generation from triangle soup", "Reed-Solomon erasure coding").
-2. Identify 1–3 candidate libraries that already implement this with a commercial-friendly license (MIT, BSD, Zlib, Apache-2.0, Boost, MPL-2.0). Reject GPL / AGPL / LGPL-static / "non-commercial" / "source-available".
+2. Identify 1–3 candidate libraries that already implement this with a commercial-friendly license (MIT, BSD, Zlib, Apache-2.0, Boost, MPL-2.0). Reject GPL / AGPL / LGPL-static / "non-commercial" / "source-available". Delegate the WebSearch legwork to Haiku subagents returning links and quoted facts (license, last release, platform support) — never summaries.
 3. For each candidate, note in one line: license, maturity (last release / active commits), C++ compatibility (header-only? C++23 clean? Windows MSVC builds?), and integration cost vs. the plan's hand-rolled scope.
 4. Check `ThirdParty/` and `ThirdParty/Prebuilts/` — we may already vendor a library that covers this.
 5. **Present the candidates to the user with a recommendation** before grilling implementation details:

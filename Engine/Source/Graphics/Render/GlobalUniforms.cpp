@@ -465,21 +465,45 @@ static void PopulateWaterReducedUv(shaders::GlobalLayout& rGlobalLayout)
 	double dSizeBaseThree = static_cast<double>(gLightingSampledNormalsThreeSize.Get());
 	// Camera-height-driven speed lerp — single-sourced fade endpoint shared with LightingUniforms.cpp.
 	float fCameraHeightZoomFactor = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, 0.0f, 1.0f);
-	double dSpeed = static_cast<double>(std::lerp(gLightingSampledNormalsSpeedMin.Get(), gLightingSampledNormalsSpeedMax.Get(), fCameraHeightZoomFactor));
+	double dSpeedOne = static_cast<double>(std::lerp(gLightingSampledNormalsSpeedOneMin.Get(), gLightingSampledNormalsSpeedOneMax.Get(), fCameraHeightZoomFactor));
+	double dSpeedTwo = static_cast<double>(std::lerp(gLightingSampledNormalsSpeedTwoMin.Get(), gLightingSampledNormalsSpeedTwoMax.Get(), fCameraHeightZoomFactor));
+	double dSpeedThree = static_cast<double>(std::lerp(gLightingSampledNormalsSpeedThreeMin.Get(), gLightingSampledNormalsSpeedThreeMax.Get(), fCameraHeightZoomFactor));
+	// Rotation angles hoisted (shared with the RotatedCamera calls below).
+	float fRotationOne = gWaterNormalRotationOne.Get();
+	float fRotationTwo = gWaterNormalRotationTwo.Get();
+	float fRotationThree = gWaterNormalRotationThree.Get();
 	// Per-sample reduced-time accumulators: integrate (size * speed * dt) per frame and fmod 10.0
 	// rather than recomputing fmod(size * speed * t, 10.0). Per-frame integration keeps the UV
 	// phase continuous when size or speed slide smoothly (e.g. zoom-driven speed lerp); the old
 	// formulation produced a per-frame jump proportional to (deltaSpeed * t) that grew with playtime.
-	static double sdReducedTimeOne = 0.0;
-	static double sdReducedTimeTwo = 0.0;
-	static double sdReducedTimeThree = 0.0;
+	// vec2 form: the scalar delta (size * speed * dt) along base direction (1,1) is rotated by the
+	// sample's rotation R(-θ) before accumulation, so scroll follows the pattern's rotated UV space;
+	// each component wraps at 10.0 independently and speedMult * 10 stays integer so fract() absorbs it.
+	static double sdReducedTimeOneX = 0.0;
+	static double sdReducedTimeOneY = 0.0;
+	static double sdReducedTimeTwoX = 0.0;
+	static double sdReducedTimeTwoY = 0.0;
+	static double sdReducedTimeThreeX = 0.0;
+	static double sdReducedTimeThreeY = 0.0;
 	static float sfPrevElapsedTime = 0.0f;
 	float fDeltaTime = std::max(0.0f, rGlobalLayout.fElapsedTime - sfPrevElapsedTime);
 	sfPrevElapsedTime = rGlobalLayout.fElapsedTime;
 	double dDeltaTime = static_cast<double>(fDeltaTime);
-	sdReducedTimeOne   = std::fmod(sdReducedTimeOne   + dSizeBaseOne   * dSpeed * dDeltaTime, 10.0);
-	sdReducedTimeTwo   = std::fmod(sdReducedTimeTwo   + dSizeBaseTwo   * dSpeed * dDeltaTime, 10.0);
-	sdReducedTimeThree = std::fmod(sdReducedTimeThree + dSizeBaseThree * dSpeed * dDeltaTime, 10.0);
+	double dDeltaOne = dSizeBaseOne * dSpeedOne * dDeltaTime;
+	double dCosOne = static_cast<double>(std::cos(fRotationOne));
+	double dSinOne = static_cast<double>(std::sin(fRotationOne));
+	sdReducedTimeOneX = std::fmod(sdReducedTimeOneX + dDeltaOne * (dCosOne + dSinOne), 10.0);
+	sdReducedTimeOneY = std::fmod(sdReducedTimeOneY + dDeltaOne * (dCosOne - dSinOne), 10.0);
+	double dDeltaTwo = dSizeBaseTwo * dSpeedTwo * dDeltaTime;
+	double dCosTwo = static_cast<double>(std::cos(fRotationTwo));
+	double dSinTwo = static_cast<double>(std::sin(fRotationTwo));
+	sdReducedTimeTwoX = std::fmod(sdReducedTimeTwoX + dDeltaTwo * (dCosTwo + dSinTwo), 10.0);
+	sdReducedTimeTwoY = std::fmod(sdReducedTimeTwoY + dDeltaTwo * (dCosTwo - dSinTwo), 10.0);
+	double dDeltaThree = dSizeBaseThree * dSpeedThree * dDeltaTime;
+	double dCosThree = static_cast<double>(std::cos(fRotationThree));
+	double dSinThree = static_cast<double>(std::sin(fRotationThree));
+	sdReducedTimeThreeX = std::fmod(sdReducedTimeThreeX + dDeltaThree * (dCosThree + dSinThree), 10.0);
+	sdReducedTimeThreeY = std::fmod(sdReducedTimeThreeY + dDeltaThree * (dCosThree - dSinThree), 10.0);
 	double dCameraX = static_cast<double>(f4CameraPos.x);
 	double dCameraY = static_cast<double>(f4CameraPos.y);
 
@@ -489,29 +513,35 @@ static void PopulateWaterReducedUv(shaders::GlobalLayout& rGlobalLayout)
 	// absorbed by fract). If we instead let the shader rotate reducedOrigin, the wrap shift
 	// becomes R*(sizeMult*10, 0) — non-integer for any θ that isn't a multiple of π/2 — and
 	// produces a visible normal-pattern jump every time size*cameraXY crosses a multiple of 10.
-	auto RotatedCamera = [&](float fRotation, double& rdOutX, double& rdOutY)
+	// Takes precomputed cos/sin (shared with the reduced-time accumulation above) rather than
+	// recomputing the same trig per sample.
+	auto RotatedCamera = [&](double dCos, double dSin, double& rdOutX, double& rdOutY)
 	{
-		double dCos = static_cast<double>(std::cos(fRotation));
-		double dSin = static_cast<double>(std::sin(fRotation));
 		rdOutX = dCos * dCameraX + dSin * dCameraY;
 		rdOutY = -dSin * dCameraX + dCos * dCameraY;
 	};
-	double dRotCameraXOne, dRotCameraYOne;
-	double dRotCameraXTwo, dRotCameraYTwo;
-	double dRotCameraXThree, dRotCameraYThree;
-	RotatedCamera(gWaterNormalRotationOne.Get(),   dRotCameraXOne,   dRotCameraYOne);
-	RotatedCamera(gWaterNormalRotationTwo.Get(),   dRotCameraXTwo,   dRotCameraYTwo);
-	RotatedCamera(gWaterNormalRotationThree.Get(), dRotCameraXThree, dRotCameraYThree);
+	double dRotCameraXOne = 0.0;
+	double dRotCameraYOne = 0.0;
+	double dRotCameraXTwo = 0.0;
+	double dRotCameraYTwo = 0.0;
+	double dRotCameraXThree = 0.0;
+	double dRotCameraYThree = 0.0;
+	RotatedCamera(dCosOne, dSinOne, dRotCameraXOne, dRotCameraYOne);
+	RotatedCamera(dCosTwo, dSinTwo, dRotCameraXTwo, dRotCameraYTwo);
+	RotatedCamera(dCosThree, dSinThree, dRotCameraXThree, dRotCameraYThree);
 
 	rGlobalLayout.fWaterReducedNormalOriginX = static_cast<float>(std::fmod(dSizeBaseOne * dRotCameraXOne, 10.0));
 	rGlobalLayout.fWaterReducedNormalOriginY = static_cast<float>(std::fmod(dSizeBaseOne * dRotCameraYOne, 10.0));
-	rGlobalLayout.fWaterReducedNormalTime = static_cast<float>(sdReducedTimeOne);
+	rGlobalLayout.fWaterReducedNormalTimeX = static_cast<float>(sdReducedTimeOneX);
+	rGlobalLayout.fWaterReducedNormalTimeY = static_cast<float>(sdReducedTimeOneY);
 	rGlobalLayout.fWaterReducedNormalOriginTwoX = static_cast<float>(std::fmod(dSizeBaseTwo * dRotCameraXTwo, 10.0));
 	rGlobalLayout.fWaterReducedNormalOriginTwoY = static_cast<float>(std::fmod(dSizeBaseTwo * dRotCameraYTwo, 10.0));
-	rGlobalLayout.fWaterReducedNormalTimeTwo = static_cast<float>(sdReducedTimeTwo);
+	rGlobalLayout.fWaterReducedNormalTimeTwoX = static_cast<float>(sdReducedTimeTwoX);
+	rGlobalLayout.fWaterReducedNormalTimeTwoY = static_cast<float>(sdReducedTimeTwoY);
 	rGlobalLayout.fWaterReducedNormalOriginThreeX = static_cast<float>(std::fmod(dSizeBaseThree * dRotCameraXThree, 10.0));
 	rGlobalLayout.fWaterReducedNormalOriginThreeY = static_cast<float>(std::fmod(dSizeBaseThree * dRotCameraYThree, 10.0));
-	rGlobalLayout.fWaterReducedNormalTimeThree = static_cast<float>(sdReducedTimeThree);
+	rGlobalLayout.fWaterReducedNormalTimeThreeX = static_cast<float>(sdReducedTimeThreeX);
+	rGlobalLayout.fWaterReducedNormalTimeThreeY = static_cast<float>(sdReducedTimeThreeY);
 
 	// Modulus 10.0 (not 1.0) so the shader's per-sample multipliers fWaterColorNoiseMultiplierOne/Two
 	// produce integer UV wraps for the calibrated defaults (0.2 * 10 = 2, 1.0 * 10 = 10) — fract()

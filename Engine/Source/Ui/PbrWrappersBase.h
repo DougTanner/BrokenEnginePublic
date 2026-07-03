@@ -16,6 +16,10 @@ extern Wrapper gPbrBrdfSpecularPower;
 // Pbr - Tone Mapping
 extern Wrapper gPbrExposure;
 extern Wrapper gPbrGamma;
+// Pbr - Color Grading
+extern Wrapper gColorGradingSaturation;
+extern Wrapper gColorGradingContrast;
+extern Wrapper gColorGradingTemperature;
 // Pbr - Post Lighting
 extern Wrapper gPbrLightingSpecular;
 extern Wrapper gPbrLightingSpecularPower;

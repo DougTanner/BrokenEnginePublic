@@ -32,6 +32,10 @@ static constexpr int64_t kiCopyButtonMargin = 10;
 static RECT sCopyButtonRect {};
 static std::string sProfileText;
 
+// Dirty-check state for the throttled repaint: coarse hash of the last content the window drew.
+static uint64_t suLastContentHash = 0;
+static bool sbHasLastContentHash = false;
+
 // Persistent GDI objects (one window per process): the back-buffer DC/bitmap and font are created on first
 // paint and the bitmap is recreated only when the client size changes; the palette brushes/pens are a fixed
 // RGB set created once instead of per-cell per-paint. Nothing is explicitly destroyed — process teardown
@@ -122,6 +126,73 @@ void ServerUpdateDisplayStats()
 #endif
 
 	gpProfileManager->UpdateProfileText();
+}
+
+bool ServerDisplayContentChanged()
+{
+	// Coarse FNV-1a fold over the substantive stats/map inputs the window draws — active coords and their
+	// entity totals, the client list with its authorized/subscribed coords, the active tab, and memory
+	// stats. The free-running tick/time and CPU-timer values are deliberately excluded so an idle server
+	// (stable entity/map state) stops repainting instead of blitting an all-but-identical frame at 4 Hz.
+	// POD-only fold — no heap allocation, so it stays inside the caller's ScopedSuppressAllocationTracking.
+	uint64_t uHash = 14695981039346656037ULL;
+	auto Mix = [&uHash](int64_t iValue)
+	{
+		uHash ^= static_cast<uint64_t>(iValue);
+		uHash *= 1099511628211ULL;
+	};
+
+	Mix(static_cast<int64_t>(seActiveTab));
+
+	for (const engine::GridCoord& rCoord : game::gpGame->mActiveCoords)
+	{
+		Mix(rCoord.x);
+		Mix(rCoord.y);
+
+		// Mix each count separately — summing would alias conversions (e.g. spaceship death -1 spaceship
+		// +1 explosion leaves the sum unchanged) and skip a repaint whose displayed numbers did change.
+		const game::Frame& rFrame = game::gpGame->CurrentFrame(rCoord);
+		Mix(rFrame.interpolate.pPlayers->iCount);
+		Mix(rFrame.interpolate.pSpaceships->iCount);
+		Mix(rFrame.interpolate.pBlasters->iCount);
+		Mix(rFrame.interpolate.pMissiles->iCount);
+		Mix(rFrame.interpolate.pTargets->iCount);
+		Mix(rFrame.interpolate.explosions.iCount);
+	}
+
+	const std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+	Mix(static_cast<int64_t>(rClients.size()));
+	for (const engine::ClientConnection& rClient : rClients)
+	{
+		for (const engine::GridCoord& rOwnedCoord : rClient.authorizedCoords)
+		{
+			Mix(rOwnedCoord.x);
+			Mix(rOwnedCoord.y);
+		}
+
+		for (const engine::ClientCoordSubscription& rSubscription : rClient.coordSubscriptions)
+		{
+			if (rSubscription.flags & engine::SubscriptionFlags::kActive)
+			{
+				Mix(rSubscription.coord.x);
+				Mix(rSubscription.coord.y);
+			}
+		}
+	}
+
+#if !defined(ENABLE_CRT_DEBUG_HEAP)
+	Mix(gpProfileManager->miMimallocCommittedMib);
+	Mix(gpProfileManager->miMimallocHeapUsedMib);
+#endif
+
+	if (sbHasLastContentHash && uHash == suLastContentHash)
+	{
+		return false;
+	}
+
+	suLastContentHash = uHash;
+	sbHasLastContentHash = true;
+	return true;
 }
 
 static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMapLeft, int iMapTop, int iMapWidth, int iMapHeight, const std::vector<engine::ClientConnection>& rClients)

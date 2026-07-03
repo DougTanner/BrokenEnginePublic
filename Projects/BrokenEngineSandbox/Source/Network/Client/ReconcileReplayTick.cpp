@@ -323,6 +323,11 @@ void ReconcileReplayCoord(CoordWork& rWork, const ReconcileInputs& rInputs, int6
 		{
 			rScratch.iNewConfirmedOffset = SnapshotIndex(rScratch.iReplayWriteHead, rScratch.iLastValidatedIndex - 1);
 		}
+		// Replay head points directly at the confirmed frame — clear any retention delta left by
+		// this run's fast-path walk (CrcApplyMatchResult), otherwise writeback commits an
+		// iSnapshotHead/iConfirmedOffset pair whose next full rollback seeds replay from the frame
+		// kiRenderBehindTicks past confirmed, producing a false desync.
+		rScratch.iNewConfirmedInnerOffset = 0;
 	}
 }
 

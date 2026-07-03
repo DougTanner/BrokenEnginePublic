@@ -28,4 +28,4 @@ Consequences:
 ## Notes
 
 - Invariant exposure: version gate for saves/replays/network handshake. Bumping deliberately invalidates pre-bump saves and replays (dev-only cost; replays recorded in the broken window are already unusable — they false-desync).
-- Grill decision (single): plain bump (recommended — KISS, one shared gate) vs a dedicated `kiCrcAlgorithmVersion` constant folded into the sum so future CRC-algorithm bumps are self-documenting. Old grid saves' *data* is unaffected by the CRC algorithm, so a split constant would let saves survive CRC-only bumps — but a split gate is extra machinery for a rare event.
+- Decision (2026-07-03): **plain bump** — change the base constant 115 → 116 in the `Frame::kiVersion` sum (`Frame.cpp:11`); no dedicated `kiCrcAlgorithmVersion` term. KISS: CRC-algorithm changes are rare (one in the project's history), the split constant's only benefit (dev saves surviving a CRC-only bump) is marginal, and the comment mandated in Design item 2 already makes future bumps self-documenting. One shared gate, no new machinery.

@@ -266,6 +266,9 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	// Pbr
 	rMainLayout.fPbrExposure = gPbrExposure.Get();
 	rMainLayout.fPbrGamma = gPbrGamma.Get();
+	rMainLayout.fColorGradingSaturation = gColorGradingSaturation.Get();
+	rMainLayout.fColorGradingContrast = gColorGradingContrast.Get();
+	rMainLayout.fColorGradingTemperature = gColorGradingTemperature.Get();
 	rMainLayout.fPbrDayBrightness = gPbrDayBrightness.Get();
 	rMainLayout.fPbrAmbient = gPbrIblAmbient.Get();
 

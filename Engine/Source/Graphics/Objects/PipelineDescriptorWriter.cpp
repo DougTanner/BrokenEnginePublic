@@ -248,8 +248,13 @@ void WriteCombinedSamplers(const DescriptorInfo& rDescriptorInfo, VkWriteDescrip
 		}
 		else
 		{
-			// Array of texture pointers
-			rVkDescriptorImageInfo.imageView = rDescriptorInfo.ppTextures[k]->mVkImageView;
+			// Array of texture pointers. A slot mid-reload after eviction points at an mTextureMap
+			// entry whose view FreeGpuResources destroyed and AdoptTransferredImage has not yet
+			// re-attached (post-eviction re-mint window) — a pipeline rebuild (settings/fullscreen
+			// recreate) snapshotting that null view trips VUID-02997. Fall back to the array's
+			// slot-0 placeholder; the adoption path patches the real view in afterward.
+			VkImageView vkImageView = rDescriptorInfo.ppTextures[k]->mVkImageView;
+			rVkDescriptorImageInfo.imageView = vkImageView != VK_NULL_HANDLE ? vkImageView : rDescriptorInfo.ppTextures[0]->mVkImageView;
 		}
 
 		rVkDescriptorImageInfo.imageLayout = rDescriptorInfo.flags & kCombinedSamplers ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;

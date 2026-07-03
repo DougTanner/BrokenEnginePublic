@@ -42,7 +42,7 @@ constexpr float kfSpaceshipAvoidTerrainPlayerDistance = 40.0f;
 // Forward declarations for shared helpers (defined in Spaceships.cpp)
 [[nodiscard]] bool XM_CALLCONV NearestAlivePlayerPosition(const PlayersInterpolate& rPlayers, const PlayersPostRender& rPlayersPostRender, FXMVECTOR vecFrom, XMVECTOR& rVecResult);
 
-void XM_CALLCONV SpaceshipsPostRender::ComputeSteering(const engine::FrameStaticData& rStaticData, FXMVECTOR vecPosition, FXMVECTOR vecDirection, bool bPlayerAlive, FXMVECTOR vecNearestPlayer, float fDeltaTime, SpaceshipFlags_t& rFlags, float& rfDeltaRotation)
+void XM_CALLCONV SpaceshipsPostRender::ComputeSteering(std::span<const XMFLOAT4> islandCandidates, FXMVECTOR vecPosition, FXMVECTOR vecDirection, bool bPlayerAlive, FXMVECTOR vecNearestPlayer, float fDeltaTime, SpaceshipFlags_t& rFlags, float& rfDeltaRotation)
 {
 	XMVECTOR vecToPlayer = bPlayerAlive ? XMVectorSubtract(vecNearestPlayer, vecPosition) : XMVectorZero();
 	float fPlayerDistance = bPlayerAlive ? XMVectorGetX(XMVector3Length(vecToPlayer)) : kfSpaceshipFleeEndDistance + 1.0f;
@@ -56,11 +56,13 @@ void XM_CALLCONV SpaceshipsPostRender::ComputeSteering(const engine::FrameStatic
 	}
 
 	// Per-cell island center: pick the nearest placement to this spaceship for return-to-island steering.
-	XMVECTOR vecIslandCenter = XMVectorSet(rStaticData.islands.at(0).f2WorldPos.x, rStaticData.islands.at(0).f2WorldPos.y, engine::gBaseHeight.Get(), 1.0f);
+	// Candidates are precomputed once per coord in Update (tick-invariant across ships); values are bit-identical
+	// to the former per-ship XMVectorSet(x, y, gBaseHeight.Get(), 1.0f) — same floats, computed once.
+	XMVECTOR vecIslandCenter = XMLoadFloat4(&islandCandidates[0]);
 	float fNearestDistanceSq = std::numeric_limits<float>::max();
-	for (const engine::IslandPlacement& rPlacement : rStaticData.islands)
+	for (const XMFLOAT4& rCandidate : islandCandidates)
 	{
-		XMVECTOR vecCandidate = XMVectorSet(rPlacement.f2WorldPos.x, rPlacement.f2WorldPos.y, engine::gBaseHeight.Get(), 1.0f);
+		XMVECTOR vecCandidate = XMLoadFloat4(&rCandidate);
 		float fDistSq = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(vecCandidate, vecPosition)));
 		if (fDistSq < fNearestDistanceSq)
 		{

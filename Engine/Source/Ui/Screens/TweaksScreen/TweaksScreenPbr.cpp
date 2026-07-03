@@ -23,6 +23,10 @@ const TweaksSliderMapRegistrar gPbrRegistrar
 	// Tone Mapping
 	{"Exposure", &gPbrExposure},
 	{"Gamma", &gPbrGamma},
+	// Color Grading
+	{"Saturation", &gColorGradingSaturation},
+	{"Contrast", &gColorGradingContrast},
+	{"Temperature", &gColorGradingTemperature},
 	// Post Lighting
 	{"Lighting Specular", &gPbrLightingSpecular},
 	{"Lighting Specular Power", &gPbrLightingSpecularPower},
@@ -67,6 +71,11 @@ void TweaksScreenBase::RenderPbrSection()
 		WrapperSeparatorText("Tone Mapping");
 		WrapperSlider("Exposure", kiSection, 1.0f);
 		WrapperSlider("Gamma", kiSection, 1.0f);
+
+		WrapperSeparatorText("Color Grading");
+		WrapperSlider("Saturation", kiSection, 1.0f);
+		WrapperSlider("Contrast", kiSection, 1.0f);
+		WrapperSlider("Temperature", kiSection, 1.0f);
 
 		WrapperSeparatorText("Post Lighting");
 		WrapperSlider("Lighting Specular", kiSection, 1.0f);

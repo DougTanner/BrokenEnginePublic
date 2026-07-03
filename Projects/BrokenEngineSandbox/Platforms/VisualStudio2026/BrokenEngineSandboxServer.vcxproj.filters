@@ -4,6 +4,12 @@
     <Filter Include="Engine">
       <UniqueIdentifier>{e35d3a05-faec-49a6-9f8c-a51693ff27a6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Data">
+      <UniqueIdentifier>{1f2a3b4c-5d6e-7f8a-9b0c-d1e2f3a4b5c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Data\Shaders">
+      <UniqueIdentifier>{4c249a6c-c550-4fa7-b6ac-0423c9b76a55}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Engine\File">
       <UniqueIdentifier>{3fe45fda-e682-4800-9af3-387e4a8937cc}</UniqueIdentifier>
     </Filter>
@@ -141,6 +147,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\..\Engine\Data\Shaders\ShaderLayoutsBase.h">
+      <Filter>Engine\Data\Shaders</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\File\FileManager.h">
       <Filter>Engine\File</Filter>
     </ClInclude>

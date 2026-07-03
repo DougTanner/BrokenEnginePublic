@@ -1,6 +1,6 @@
 ---
 name: repo-code-review
-description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, useless-ASSERT discipline, collection integrity, determinism, client/server guard scope, vcxproj inclusion. Use after any C++ code change (C++ Code Change Process step 4), when the user says "review my changes", "check my code", "code review", or before declaring an implementation complete. Flags oversized files for /reduce-file. Logic and correctness only — formatting/style belongs to code-style-review.
+description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, useless-ASSERT discipline, collection integrity, determinism, client/server guard scope and affinity. Use after any C++ code change, when the user says "review my changes", "check my code", "code review", or before declaring an implementation complete. Flags oversized files for /reduce-file. Logic and correctness only — formatting/style belongs to code-style-review.
 allowed-tools: [Read, Grep, Glob, WebFetch]
 ---
 
@@ -12,7 +12,7 @@ Reviews this session's C++ changes for **logic and correctness** — formatting/
 
 ### 1. Identify Modified Code
 
-Review the conversation history to find all files that were edited during this session. Focus on:
+If invoked as a subagent, use the changed-file list, touched functions/regions (they scope the §2c/§2d "added this session" checks), and any focus areas from the caller's prompt. Otherwise review the conversation history to find all files that were edited during this session. Focus on:
 - New functions/methods added
 - Modified logic in existing functions
 - New data structures or classes
@@ -65,7 +65,7 @@ Not a finding: a comment stating a current invariant, gotcha, or still-relevant 
 
 Reword, don't just delete, when the comment carries a real reason — keep the rationale, drop the history: "eliminates the duplicate sum the two passes used to evaluate via the now-removed GerstnerLow/Medium helpers" → "eliminates the duplicate sum the two passes would otherwise each evaluate".
 
-The same no-changelog rule applies to any CLAUDE.md, plan, or other doc this session touched (`/update-claude-docs` enforces it for CLAUDE.md; `Documents/Plans/CLAUDE.md` for the plan queue) — flag stray "we did this" narration wherever this session introduced it.
+The same no-changelog rule applies to any CLAUDE.md, plan, or other doc this session touched — flag stray "we did this" narration wherever this session introduced it.
 
 ### 3. Verify Broken Engine Patterns
 
@@ -87,9 +87,9 @@ If modifying or adding managers:
 - Managers created in correct initialization order (check `Main.cpp`)
 - No circular dependencies between managers
 
-#### Engine → Game Access
+#### Engine → Game Layering
 
-Engine code must access game functionality through `game::gpGame` (the game-derived singleton), never through Base-class globals or direct game-type references. Flag direct use of game-specific enums, collections, or types from inside `Engine/Source/**`.
+Engine→game access is sanctioned by design — do **not** flag engine code reading `game::gp*` globals, calling `game::` static functions, or referencing game types/constants/compile-time symbols (see `Engine/Source/CLAUDE.md` → Hub Conventions). The real violation is the reverse direction: engine *types* naming game concepts — e.g. an `engine::PacketType` enumerator only the game uses, or an engine class `friend`-ed to a game class. Flag only those. When engine code uses a Base-class global where a game-derived one exists (`GameBase` vs `game::gpGame`, `CameraBase` vs `Camera`), flag it — prefer the game version.
 
 #### Client/Server Guard Scope
 
@@ -128,22 +128,12 @@ If `common::ValidateVector<IS_POSITION>()` was added, removed, or moved, verify 
 - GPU resources wrapped in RAII classes (Buffer, Texture, Pipeline, CommandBuffer)
 - Use `common::AlignedUniquePtr` for 64-byte aligned allocations (SIMD data)
 
-### 4. Verify vcxproj Inclusion
+### 4. Flag Guard-Affinity Changes
 
-If new `.cpp` files were created during this session, verify they are added to the correct vcxproj:
-- If the file is fully wrapped in `#if defined(BT_CLIENT)` — must be in client vcxproj only, NOT in server vcxproj
-- If the file is fully wrapped in `#if defined(BT_SERVER)` — must be in server vcxproj only, NOT in client vcxproj
-- If the file has shared code (no guard or partial guards) — must be in both vcxproj files
+vcxproj membership/filter mechanics belong to the `update-vcxproj` skill (process step 7) — never grep the project XML here. This review owns affinity only:
 
-If an existing file was changed to be fully wrapped in a `BT_` guard that it wasn't before, flag that it should be removed from the opposite vcxproj.
-
-### 4b. Verify vcxproj.filters Paths
-
-If files were added to `.vcxproj.filters` during this session, verify the filter path mirrors the on-disk directory:
-- `Engine/Source/<path>/File.h` must use filter `Engine\<path>` (backslash-separated)
-- `Projects/BrokenEngineSandbox/Source/<path>/File.h` must use filter `Game\<path>`
-- If a new subdirectory filter is needed, verify it was added to the filter definitions with a unique GUID
-- Flag any file whose filter doesn't match its on-disk directory
+- Flag the required affinity (client-only / server-only) of any file created this session that is fully wrapped in `#if defined(BT_CLIENT)` / `BT_SERVER`, and any existing file that gained or lost a file-wide guard (its membership must change).
+- Exception: guardless engine files may be client-only by design via client-vcxproj membership + the `Engine.h` BT_CLIENT aggregation span (root `CLAUDE.md` → Client/Server Targets) — check before flagging.
 
 ### 5. Verify Determinism (Replay-Sensitive Code)
 
@@ -157,35 +147,12 @@ If the code affects game state that participates in replay:
 
 ### 6. Check Common Library Usage
 
-Verify that existing utilities are used instead of reimplementing:
-
-**String & Hash**:
-- `common::Crc(std::string_view)` - constexpr string hashing for asset IDs (`common::CrcConsteval` where compile-time evaluation must be guaranteed)
-- `common::Crc(const T*, count)` - hash trivially copyable arrays by bytes
-
-**Memory**:
-- `common::AlignedUniquePtr<T>` - 64-byte aligned RAII memory for SIMD
-- `common::MakeAligned<T>(count)` - factory function for aligned allocation
-
-**Binary I/O**:
-- `common::Read(stream, value)` / `common::Write(stream, value)` - handles reinterpret_cast
-
-**Math**:
-- `common::Distance(vec1, vec2)` - 3D distance calculation
-- `common::DirectionTo(from, to)` - normalized direction vector
-- `common::RoundUp<T>(value, multiple)` - integer rounding up
-
-**Colors**:
-- `common::ColorToVector(uint32_t)` - packed RGBA to XMVECTOR
-- `common::ColorLerp(color1, color2, t)` - interpolate packed colors
-
-**Type Safety**:
-- `common::Flags<ENUM>` - type-safe bitfield wrapper with Set/Clear/Toggle
+Verify existing `common::` utilities are used instead of reimplementing. `Common/CLAUDE.md` is the authoritative, current catalog — Read it and check the changed code against it. High-frequency offenders: hashing (`common::Crc` family, `CrcConsteval` where compile-time evaluation must be guaranteed), aligned SIMD memory (`AlignedUniquePtr`/`MakeAligned`), binary stream I/O (`common::Read`/`Write`), math helpers (`Distance`, `DirectionTo`, `RoundUp`), packed-color conversion/lerp (`ColorToVector`, `ColorLerp`), and `common::Flags<ENUM>` over raw bools/bitfields.
 
 ### 7. File Size Check
 
 For each modified `.cpp` file, check its total line count:
-- **Over 1000 lines**: Always flag as **REQUIRED** — the file needs `/reduce-file`. Per the C++ Code Change Process, the caller routes flagged files to a step-10 follow-up plan in `Documents/Plans/`; the split is never run inline during a review
+- **Over 1000 lines**: Always flag as **REQUIRED** — the file needs `/reduce-file`. The caller routes flagged files to a follow-up plan in `Documents/Plans/`; the split is never run inline during a review
 - **500-1000 lines**: Only flag as **RECOMMEND** if you identified a natural split point during the review (e.g., distinct responsibility groups, client/server code that could separate, utility functions that belong in a `*Utils` file). Do not flag files in this range that are cohesive and have no obvious split
 - **Struct splitting**: Structs with static methods (e.g., SOA collections) can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). Classes must NOT be split this way — extract independent classes instead. See `/reduce-file` skill
 
@@ -193,7 +160,11 @@ For each modified `.cpp` file, check its total line count:
 
 Evaluate the changes holistically:
 - **Completeness** - Does the implementation fully address the user's request?
-- **Integration** - Were all callers, related systems, and edge cases updated?
+- **Integration** - Were all callers, related systems, and edge cases updated? Integration-missed tripwires — grep, don't trust the diff narrative:
+	- Changed function semantics (units, W convention, frame phase, ownership, a default) → grep every caller; the diff shows only the call sites the implementer remembered.
+	- Mirrored patterns half-applied: client edit without server counterpart, per-collection pattern applied to N−1 of N collections, C++ struct changed without its shared GLSL header (and vice versa), Spawn updated but Transfer/AllocateAndCopy/LogDifferences not.
+	- New enum value → grep every switch/dispatch/serialization table over that enum.
+	- Anything renamed → grep comments, CLAUDE.md, plans, and shared headers for the old name.
 - **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested.
 - **Function size**: Aim for 50-100 lines max per function. Soft guideline — some functions are legitimately large. If a modified function has grown past this, flag with "function does too much" and recommend a split only if a natural responsibility boundary exists.
 
@@ -217,9 +188,14 @@ Marker equivalence: `✗` in Engine Pattern Issues = no-prefix (required); file-
 - **Quantify problems when possible.** "This will allocate ~200 bytes per frame and trip the allocation tracker" beats "this could be slow."
 - **Push back on approaches with clear problems.** Sycophancy is a failure mode in reviews.
 
+Severity calibration — worked examples (severity comes from the invariant surface hit, not the code pattern):
+
+- Local `std::vector` in a once-at-startup load function: not a finding — the allocation tracker covers the main loop only. The same vector in a per-tick `Update()`: **Critical:** (tracker `DEBUG_BREAK()`).
+- `==` float compare in Interpolate-only visual code: **Consider:** — outside the CRC, cannot desync. The same compare gating a write to PostRender (CRC'd) state: **Critical:** — divergent rounding across machines is a desync source.
+
 ### 11. API Verification
 
-For non-obvious API calls — Vulkan 1.2 entry points (especially extensions), DirectXMath alignment-sensitive ops, C++23 features new to the project, third-party library calls used at fewer than ~3 existing call sites — WebFetch the official spec before accepting the call. Cite the URL or section in the review note.
+For non-obvious API calls — Vulkan 1.2 entry points (especially extensions), DirectXMath alignment-sensitive ops, C++23 features new to the project, third-party library calls used at fewer than ~3 existing call sites — verify against the official spec before accepting the call. This review normally runs inside a subagent, which does not spawn further subagents and should not pull large spec pages into its context: emit each needed check as an entry under `### API Verification Requests` in the output — the API/symbol, the spec URL, and exactly what to confirm plus which finding depends on it — and the caller dispatches Haiku fetch subagents to resolve them. Use WebFetch directly only for a small targeted page (a single man-page-style entry), citing the URL or section in the review note.
 
 - Vulkan 1.2 spec: https://registry.khronos.org/vulkan/specs/1.2-extensions/man/html/
 - DirectXMath: https://learn.microsoft.com/en-us/windows/win32/dxmath/ovw-xnamath-reference
@@ -253,9 +229,12 @@ Only include sections where issues were found. For sections with no issues, omit
 ### Implementation Issues
 - [Description of completeness, integration, minimality, or simplification concern]
 
+### API Verification Requests
+- <api/symbol> — <spec URL> — <what to confirm, and which finding depends on it>
+
 ### Recommendation
 [PASS / NEEDS FIXES]
 Brief summary of overall assessment.
 ```
 
-If no issues were found in any category, output only the Files Reviewed list and "PASS — no issues found."
+If no issues were found in any category, output the Files Reviewed list and "PASS — no issues found." In every case, the caller-required residuals footer (C++ Code Change Process) is appended after this template — it is not optional even on a clean PASS.

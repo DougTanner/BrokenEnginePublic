@@ -77,6 +77,7 @@ layout (location = 0) out vec4 f4OutColor;
 
 // Constants
 const float kMinRoughness = 0.04;
+const float kfIblSpecularMax = 16.0; // Firefly clamp: prefiltered sun-disc texels reach F16 max at sharp mips
 
 // Select UV based on texture set index
 vec2 getUV(int textureSet)
@@ -97,23 +98,6 @@ vec4 SRGBtoLinear(vec4 srgb)
 vec3 SRGBtoLinear(vec3 srgb)
 {
 	return pow(srgb, vec3(2.2));
-}
-
-// ACES filmic tone mapping (Narkowicz fit)
-vec3 ACESFilm(vec3 x)
-{
-	const float a = 2.51;
-	const float b = 0.03;
-	const float c = 2.43;
-	const float d = 0.59;
-	const float e = 0.14;
-	return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
-}
-
-vec3 Tonemap(vec3 color, float exposure, float gamma)
-{
-	color = ACESFilm(color * exposure);
-	return pow(color, vec3(1.0 / gamma));
 }
 
 // GGX/Trowbridge-Reitz normal distribution function
@@ -192,13 +176,6 @@ vec3 ToCubemapCoord(vec3 worldNormal)
 	return vec3(worldNormal.x, worldNormal.z, worldNormal.y);
 }
 
-// Tonemap for IBL cubemap samples
-vec4 TonemapIBL(vec4 color)
-{
-	vec3 mapped = ACESFilm(color.rgb * mainLayout.fPbrExposure);
-	return vec4(pow(mapped, vec3(1.0 / mainLayout.fPbrGamma)), color.a);
-}
-
 // IBL contribution using split-sum approximation
 void GetIBLContribution(float NdotV, float perceptualRoughness, vec3 diffuseColor, vec3 specularColor,
                         vec3 n, vec3 reflection, out vec3 f3Diffuse, out vec3 f3Specular)
@@ -206,8 +183,8 @@ void GetIBLContribution(float NdotV, float perceptualRoughness, vec3 diffuseColo
 	float lod = pow(perceptualRoughness, mainLayout.fPbrCubemapLodPower) * mainLayout.fPbrMipCount
 	            + perceptualRoughness * mainLayout.fPbrCubemapLodOffset;
 	vec3 brdf = texture(samplerBRDFLUT, vec2(NdotV, 1.0 - perceptualRoughness)).rgb;
-	vec3 diffuseLight = SRGBtoLinear(TonemapIBL(texture(samplerIrradiance, ToCubemapCoord(n)))).rgb;
-	vec3 specularLight = SRGBtoLinear(TonemapIBL(textureLod(prefilteredMap, ToCubemapCoord(reflection), lod))).rgb;
+	vec3 diffuseLight = SRGBtoLinear(texture(samplerIrradiance, ToCubemapCoord(n))).rgb;
+	vec3 specularLight = min(SRGBtoLinear(textureLod(prefilteredMap, ToCubemapCoord(reflection), lod)).rgb, vec3(kfIblSpecularMax));
 	f3Diffuse = diffuseLight * diffuseColor;
 	f3Specular = specularLight * (specularColor * brdf.x + brdf.y);
 }

@@ -221,3 +221,17 @@ Notes
 - Future work from Engine.txt: nighttime stars, animated sun/moon
   position in the cubemap, and HDRI / LatLong panorama support can
   build on this pass without structural changes
+
+HDR resolve landed (HdrResolveAndColorGrading)
+----------------------------------------------
+- The scene now renders into an F16 HDR intermediate and a fullscreen
+  HDR-resolve pass tone-maps + color-grades the whole frame into the
+  swapchain. Sky.frag must therefore output LINEAR HDR (cubemap sample
+  x optional sky exposure only) -- drop this plan's spec'd
+  ACESFilm(...) + pow(1/fPbrGamma); that per-material tone-map/gamma
+  code no longer exists in Model.frag (the resolve pass owns final
+  tone mapping).
+- This plan's CommandBufferManager.cpp / WrapperBase / TweaksSliderMap
+  / mGpuTimers citations carry the same line-number drift corrected in
+  HdrResolveAndColorGrading.txt; re-verify anchors against current code
+  before editing.

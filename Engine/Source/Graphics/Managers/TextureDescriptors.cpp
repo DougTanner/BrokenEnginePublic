@@ -141,10 +141,13 @@ void TextureDescriptors::WriteArrayBindingDescriptors(TextureBinding& rBinding, 
 	if (rBinding.iArrayIndex >= 0)
 	{
 		Texture* pTexture = rBinding.textures.at(rBinding.iArrayIndex);
+		// Null-view guard alongside the null-pointer guard: a slot mid-reload after eviction has a live
+		// Texture whose view is destroyed until AdoptTransferredImage re-attaches it (see the mirrored
+		// fallback in PipelineDescriptorWriter's WriteCombinedSamplers).
 		VkDescriptorImageInfo imageInfo
 		{
 			.sampler = vkSampler,
-			.imageView = pTexture != nullptr ? pTexture->mVkImageView : mrTextureManager.mWhiteTexture.mVkImageView,
+			.imageView = pTexture != nullptr && pTexture->mVkImageView != VK_NULL_HANDLE ? pTexture->mVkImageView : mrTextureManager.mWhiteTexture.mVkImageView,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 		for (VkDescriptorSet& rVkDescriptorSet : rBinding.pPipeline->mVkDescriptorSets)
@@ -184,7 +187,8 @@ void TextureDescriptors::WriteFullArrayDescriptors(Pipeline& rPipeline, int64_t 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
 		pImageInfos[i].sampler = vkSampler;
-		pImageInfos[i].imageView = ppArray[i] != nullptr ? ppArray[i]->mVkImageView : mrTextureManager.mWhiteTexture.mVkImageView;
+		// Null-view guard: mid-reload slot (see WriteArrayBindingDescriptors)
+		pImageInfos[i].imageView = ppArray[i] != nullptr && ppArray[i]->mVkImageView != VK_NULL_HANDLE ? ppArray[i]->mVkImageView : mrTextureManager.mWhiteTexture.mVkImageView;
 		pImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
@@ -215,7 +219,8 @@ void TextureDescriptors::WriteArrayElementFromLive(Texture** ppArray, int64_t iI
 	ASSERT(it != mBindlessArrayConsumers.end());
 
 	Texture* pTexture = ppArray[iIndex];
-	VkImageView vkImageView = pTexture != nullptr ? pTexture->mVkImageView : mrTextureManager.mWhiteTexture.mVkImageView;
+	// Null-view guard: mid-reload slot (see WriteArrayBindingDescriptors)
+	VkImageView vkImageView = pTexture != nullptr && pTexture->mVkImageView != VK_NULL_HANDLE ? pTexture->mVkImageView : mrTextureManager.mWhiteTexture.mVkImageView;
 	for (const BindlessArrayConsumer& rConsumer : it->second)
 	{
 		VkSampler vkSampler = mrTextureManager.GetSampler(rConsumer.samplerFlags);

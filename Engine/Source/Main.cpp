@@ -311,7 +311,20 @@ void MainThread(HINSTANCE hinstance)
 			if (++siServerDisplayRepaintCounter >= kiServerDisplayRepaintTicks)
 			{
 				siServerDisplayRepaintCounter = 0;
-				InvalidateRect(sHwnd, nullptr, FALSE);
+
+				// Skip the repaint when it would blit nothing new: a minimized/hidden window paints offscreen for no benefit, and a visible window whose displayed stats/map are unchanged need not repaint an identical frame. Clicks still repaint immediately via WM_LBUTTONDOWN.
+				// Keep a slow heartbeat while visible-but-unchanged so the free-running tick/timer text (deliberately outside the content hash) stays visibly alive instead of reading as a hung server.
+				static constexpr int64_t kiServerDisplayHeartbeatWindows = 4; // 4 x 8-tick windows = 1 Hz at the 32 Hz tick rate
+				static int64_t siServerDisplayHeartbeatCounter = 0;
+				if (!IsIconic(sHwnd) && IsWindowVisible(sHwnd))
+				{
+					bool bHeartbeat = ++siServerDisplayHeartbeatCounter >= kiServerDisplayHeartbeatWindows;
+					if (game::ServerDisplayContentChanged() || bHeartbeat)
+					{
+						siServerDisplayHeartbeatCounter = 0;
+						InvalidateRect(sHwnd, nullptr, FALSE);
+					}
+				}
 			}
 		}
 #endif // BT_CLIENT

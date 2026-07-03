@@ -39,8 +39,11 @@ void main()
 	uint uiColor = render.pParticles[i].iColor;
 	int iCookie = render.pParticles[i].iCookie;
 
-	// Clamp pow base — fVisibleIntensity can briefly go negative under aggressive decay (1 - dt*decay < 0)
-	float fIntensity = pow(max(fVisibleIntensity, 0.0f), fIntensityPower);
+	// Clamp pow base — fVisibleIntensity can briefly go negative under aggressive decay (1 - dt*decay < 0).
+	// pow(0, y<=0) is undefined/Inf; the per-type IntensityPowerScale sliders allow y down to 0.0, and a small
+	// fractional power (e.g. 0.01) applied via the old 1e-5 floor made dead (<=0 intensity) particles visibly
+	// flash (pow(1e-5, 0.01) ~= 0.89) instead of staying invisible.
+	float fIntensity = fIntensityPower <= 0.0f ? 1.0f : pow(max(fVisibleIntensity, 0.0f), fIntensityPower);
 
 	vec4 f4Color = unpackUnorm4x8(uiColor).abgr;
 	float fCookie = texture(sampler2D(pTextures[nonuniformEXT(iCookie)], particleSampler), f2InTexcoord).x;

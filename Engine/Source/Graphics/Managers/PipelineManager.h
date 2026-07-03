@@ -56,6 +56,8 @@ enum Pipelines
 	kPipelineDebugCircle,
 	kPipelineDebugLine,
 
+	kPipelineHdrResolve,
+
 	kPipelineCount
 };
 

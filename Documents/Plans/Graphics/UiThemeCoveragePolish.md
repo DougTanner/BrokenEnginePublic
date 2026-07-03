@@ -28,12 +28,10 @@ Most read acceptably by coincidence, but `TextLink` and `DragDropTarget` render 
 
 `GraphicsMenuScreen` and `SoundMenuScreen` each register an opaque rect for depth-prepass occlusion (`engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize())` — `GraphicsMenuScreen.cpp` ~line 30, `SoundMenuScreen.cpp` ~line 28) exactly like the HUD, but draw neither `DrawPanelAccents` nor `DrawPanelBackground`, so they read as stock themed windows rather than the new chrome language. `HudScreen.cpp` (~lines 208-213, 401-406) is the reference treatment: `RegisterOpaqueRect` followed by `DrawPanelAccents(ImGui::GetWindowDrawList(), vPanelMin, vPanelMax)` — border + accent strip only, leaving the opaque themed `WindowBg` intact for the occlusion rect.
 
-Decide one of:
-
-- **Apply the HUD treatment**: add a single `DrawPanelAccents(...)` call to each screen after its `RegisterOpaqueRect`, matching the `HudScreen.cpp` pattern (one line each; do not add `DrawPanelBackground` — the opaque themed `WindowBg` must stay intact for the occlusion rect, per the HUD comment).
-- **Document as intentionally stock**: if the two config screens are meant to stay plain, add a short comment at each `RegisterOpaqueRect` site noting the deliberate omission and close the finding.
-
-Lean toward applying `DrawPanelAccents` for visual consistency unless the user prefers the config screens stay stock; surface the call at grill.
+**Decision (2026-07-03): apply the HUD treatment.** Add a single `DrawPanelAccents(...)` call to each
+screen after its `RegisterOpaqueRect`, matching the `HudScreen.cpp` pattern (one line each). Do **not**
+add `DrawPanelBackground` — the opaque themed `WindowBg` must stay intact for the occlusion rect, per the
+HUD comment.
 
 ## Critical files
 
@@ -53,5 +51,5 @@ Lean toward applying `DrawPanelAccents` for visual consistency unless the user p
 ## Notes
 
 - Client/graphics-only appearance polish. No determinism/CRC/`kiVersion`/`.pack`/wire/allocation-tracked-path exposure; no shader repack.
-- Finding A is a mechanical mapping extension (compile-checked). Finding B is a one-line cosmetic addition or a comment — the only open decision is the apply-vs-stock call, pre-staged for grill.
+- Finding A is a mechanical mapping extension (compile-checked). Finding B is a one-line cosmetic addition per screen (decided above).
 - Both findings are independent; either can land without the other.

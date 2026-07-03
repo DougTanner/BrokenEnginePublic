@@ -1,6 +1,6 @@
 ---
 name: update-claude-docs
-description: Updates CLAUDE.md files after code changes — syncs docs in the directories modified this session (C++ Code Change Process step 6). Also has an explicit audit mode that grades every CLAUDE.md in the repo against a rubric, reports, then applies improvements.
+description: Updates CLAUDE.md files after code changes — syncs docs in the directories modified this session. Also has an explicit audit mode that grades every CLAUDE.md in the repo against a rubric, reports, then applies improvements.
 when_to_use: Sync mode (default) — after any code change, or "update CLAUDE.md", "sync project memory", "refresh the docs". Audit mode — "audit CLAUDE.md", "grade CLAUDE.md files", "CLAUDE.md quality report", "improve CLAUDE.md across the repo".
 allowed-tools: [Read, Edit, Write, Grep, Glob]
 ---
@@ -150,7 +150,7 @@ The CLAUDE.md tree (root → subsystem hubs → leaves) is this codebase's autho
 
    > _Note: this change contradicts the "all engine code accesses game through `game::gpGame`" rule in `Engine/Source/CLAUDE.md`. The contradiction may be intentional (new exception) or accidental (rule still holds and the change should be revisited)._
 
-   Then ask the user which it is — a silent override leaves two docs describing the same area with conflicting rules, and the next reader has to guess which is current.
+   The user must decide which it is — a silent override leaves two docs describing the same area with conflicting rules, and the next reader has to guess which is current. When running as a subagent, report the contradiction as a residual for the caller to route to the user; when running interactively in the main session, ask the user directly.
 
 ### Tone and Emphasis
 

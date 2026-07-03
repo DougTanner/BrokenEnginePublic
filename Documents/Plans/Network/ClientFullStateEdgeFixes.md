@@ -24,14 +24,15 @@ So when the matching tick is unreachable, the coord re-enters full replay every 
 
 ## Design
 
-### (a) — grill decision, options pre-staged in Notes
+### (a) — decided: A2, remove the stall short-circuit from the receive path
 
-Ensure receive buffers are not silently discarded while stalled. Two viable approaches:
+**Decision (2026-07-03): chose A2 because `PollConnection` must keep running `Poll()` every frame during a stall — the stall can only clear via `ClientDesyncManager::PollDebugFrameResponse` (`ClientSession.cpp:317`) draining `mpReceivedDebugFrame`, which is populated inside `Poll()`'s packet dispatch (`Engine/Source/Network/Client/Client.cpp:206-207` → `ServerDebugFrame`). A1 (skip `Poll()` while stalled) would deadlock the stall and also disable disconnect detection (`PollConnectionStatus` `:310`, `WasDisconnected` `:320`) and desync timeout (`PollDesyncTimeout` `:318`).**
 
-- **A1 — skip `mpClientNetwork->Poll()` while stalled.** ENet queues incoming packets; do not drain them until the stall clears, so nothing activates or is destroyed mid-stall. Cleanest match to the invariant; must confirm nothing else in `PollConnection` (disconnect detection, debug-frame drain, LAN discovery) depends on `Poll()` running each frame during a stall.
-- **A2 — run the adoption steps before the stall short-circuit.** Reorder so at minimum `ApplyReceivedFullStates` (and ideally static data + player events) runs before the `IsStalled()` early return, so an activated slot always gets its `CoordFrames` entry adopted in the same frame.
+Steps:
 
-Either restores the same-frame invariant; the pick hinges on what else `PollConnection` must keep doing during a stall.
+1. In `ClientSession::PollConnection` (`ClientSession.cpp:299-334`), delete the `IsStalled()` early return and its "Waiting for debug frame response — skip normal processing" comment (`:327-331`); the function keeps its existing null-network, connection-status, and `WasDisconnected` returns unchanged.
+2. `ClientSession::PollNetwork` (`:59-118`) then runs its full body while stalled with no reordering: load notification, `ParsePlayerEvents`/`ApplyPlayerEvent`, timespeed decode, `ParseFleetSync`/`SyncFleets`, `ApplyReceivedStaticData`, `ApplyReceivedFullStates`, `UpdateSubscriptions`, `ApplyReceivedUpdates`. Every drained buffer is adopted in the same frame it was activated, restoring the invariant for full states and reliable game packets alike.
+3. Sim/replay remain frozen during the stall by the existing gates that stay untouched: `ClientSession::Reconcile` early-returns on `IsStalled()` (`:193-196`, plus the inner `:203` check). Verify no other caller of `PollConnection`'s return value relied on the stall distinction (currently only `PollNetwork:64`).
 
 ### (b)
 
@@ -60,5 +61,5 @@ In the no-replay-possible case (`pendingFullState` present but its tick is unrea
 ## Notes
 
 - **Invariant exposure**: (b) touches the rollback/replay path (determinism/CRC-adjacent) but changes **frame/state selection only — no sim math** (adopts an authoritative full state as confirmed, mirroring an existing path). (a) is receive-ordering, no sim exposure. Both game-client-only (`BT_CLIENT`). No wire/`kiVersion` change (Risk: cross-frame reconcile state, hard to verify).
-- **Grill decision to pre-stage**: option A1 (skip `Poll()` while stalled) vs A2 (run adoption steps before the short-circuit) for fix (a) — see Design. Recommend A1 unless `PollConnection`'s in-stall responsibilities (disconnect detection, debug-frame drain) require `Poll()` each frame, in which case A2. Fix (b) has no open decision.
+- **No open decisions.** Fix (a)'s A1-vs-A2 choice is resolved to A2 in Design (see the Decision note there); fix (b) never had one.
 - Largely independent of the engine-layer plans (`ResyncFullStateRepair.md`, `SubscriptionLifecycleRaceHardening.md`), but conceptually paired: those restore correct slot activation; this ensures the game layer adopts the resulting full states. Can land in the same network session or standalone.

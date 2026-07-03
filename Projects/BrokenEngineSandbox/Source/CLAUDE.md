@@ -2,7 +2,7 @@
 
 ## Overview
 
-Space combat game demonstrating the Broken Engine's client/server architecture. All game code lives in the `game` namespace.
+Tech demo that demonstrates and stress-tests engine features — not a game: no human player or win condition. AI-driven spaceship fleets (flagship + wingmen) fight continuously spawning enemies over the island ocean. All game code lives in the `game` namespace.
 
 ## Frame Purity Constraint
 

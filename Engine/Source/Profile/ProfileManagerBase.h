@@ -176,6 +176,7 @@ enum GpuTimers : int64_t
 		kGpuTimerSquareParticlesRender,
 		kGpuTimerVisibleLights,
 		kGpuTimerBillboards,
+		kGpuTimerHdrResolve,
 	kGpuTimerUiRender,
 
 	kGpuTimerCount
@@ -219,6 +220,7 @@ inline constexpr std::string_view kGpuTimerNames[]
 	"    Square Particles Render",
 	"    VisibleLights",
 	"    Billboards",
+	"    HDR Resolve",
 	"Ui Render",
 };
 static_assert(std::size(kGpuTimerNames) == static_cast<size_t>(kGpuTimerCount));

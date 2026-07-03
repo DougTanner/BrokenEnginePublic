@@ -214,17 +214,12 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 #endif
 }
 
-float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
+namespace
 {
-	// Frame Purity Constraint (IslandTerrain.h): GlobalElevation/GlobalNormal walk mCoordFrames with
-	// libm trig and must never run from frame-tick code — the sim hot path uses FrameElevation/FrameNormal.
-	// GlobalNormal routes every finite-difference tap through this function, so guarding here covers both.
-	ASSERT(common::gpThreadLocal == nullptr || !common::gpThreadLocal->mbInFrameTick);
 
-	XMFLOAT4A f4Position {};
-	XMStoreFloat4A(&f4Position, vecPosition);
-
-	// Compute grid cell from world position
+// Grid cell containing a world position, matching GlobalElevation/GlobalNormal's cell mapping.
+GridCoord CoordFromPosition(const XMFLOAT4A& f4Position)
+{
 	static constexpr float fCellWidth = game::Frame::kfCellWidth;
 	static constexpr float fCellHeight = game::Frame::kfCellHeight;
 	static constexpr float fCellMinX = game::Frame::kfBaseAreaMinX;
@@ -232,32 +227,35 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 
 	int32_t iGridX = static_cast<int32_t>(std::floor((f4Position.x - fCellMinX) / fCellWidth));
 	int32_t iGridY = static_cast<int32_t>(std::floor((f4Position.y - fCellMinY) / fCellHeight));
-	GridCoord coord {iGridX, iGridY};
+	return {iGridX, iGridY};
+}
 
-	// Look up per-cell placements. Cells outside the simulated set fall through to sea floor.
-	auto it = game::gpGame->mCoordFrames.find(coord);
-	if (it == game::gpGame->mCoordFrames.end())
-	{
-		return mfSeaFloorElevation;
-	}
-
-	// MAX over every island whose footprint rectangle contains the point. Rectangles may overlap now (the
-	// chain packs by hull, not rectangle), so first-match would pick an arbitrary island; the highest terrain
-	// must win, matching the GPU elevation prepass. Commutative max → order-independent and deterministic.
-	// Each placement's query (inverse-rotation cos/sin + footprint + heightmap pointer/dims) is precomputed
-	// once per cell (FrameStaticData::BuildRenderPlacementCache, index-parallel to islands) so this render
-	// path does zero hash lookups and zero libm trig per island. During the one-frame window after a
-	// placement edit clears the caches (network resend, menu cycle) the query cache can lag its rebuild by a
-	// tick — and the server never builds it at all — so fall back to inline trig + one mIslands.at lookup per
-	// island until RunFrameTick refills. The fallback reproduces a query from the placement + template.
-	const std::vector<IslandPlacement>& rIslands = it->second.staticData.islands;
-	const std::vector<IslandRenderQuery>& rQueries = it->second.staticData.islandRenderQueries;
+// MAX terrain elevation at f4Position over one already-resolved cell's island list — the shared body of
+// GlobalElevation (a single point) and GlobalNormal (4 finite-difference taps). Split out so GlobalNormal
+// can resolve the cell (hash lookup + island/query list) once and reuse it across taps that share a cell;
+// results are identical to the previous per-point form.
+//
+// MAX over every island whose footprint rectangle contains the point. Rectangles may overlap now (the
+// chain packs by hull, not rectangle), so first-match would pick an arbitrary island; the highest terrain
+// must win, matching the GPU elevation prepass. Commutative max → order-independent and deterministic.
+// Each placement's query (inverse-rotation cos/sin + footprint + heightmap pointer/dims) is precomputed
+// once per cell (FrameStaticData::BuildRenderPlacementCache, index-parallel to islands) so this render
+// path does zero hash lookups and zero libm trig per island. During the one-frame window after a
+// placement edit clears the caches (network resend, menu cycle) the query cache can lag its rebuild by a
+// tick — and the server never builds it at all — so fall back to inline trig + one mIslands.at lookup per
+// island until RunFrameTick refills. The fallback reproduces a query from the placement + template.
+float CellElevation(const IslandTerrain& rTerrain, const FrameStaticData& rStaticData, const XMFLOAT4A& f4Position)
+{
+	const std::vector<IslandPlacement>& rIslands = rStaticData.islands;
+	const std::vector<IslandRenderQuery>& rQueries = rStaticData.islandRenderQueries;
 	bool bHaveQueryCache = rQueries.size() == rIslands.size();
 
-	float fMaxElevation = mfSeaFloorElevation;
+	// Reused across the fallback path's iterations (every field overwritten before use each time), so the
+	// common cache-hit path constructs nothing per island.
+	IslandRenderQuery fallbackQuery;
+	float fMaxElevation = rTerrain.mfSeaFloorElevation;
 	for (size_t i = 0; i < rIslands.size(); ++i)
 	{
-		IslandRenderQuery fallbackQuery;
 		const IslandRenderQuery* pQuery = nullptr;
 		if (bHaveQueryCache)
 		{
@@ -266,7 +264,7 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 		else
 		{
 			const IslandPlacement& rPlacement = rIslands[i];
-			const IslandTemplate& rTemplate = mIslands.at(rPlacement.islandCrc);
+			const IslandTemplate& rTemplate = rTerrain.mIslands.at(rPlacement.islandCrc);
 			fallbackQuery.fCos = std::cos(-rPlacement.fRotation);
 			fallbackQuery.fSin = std::sin(-rPlacement.fRotation);
 			fallbackQuery.f2WorldPos = rPlacement.f2WorldPos;
@@ -306,6 +304,29 @@ float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
 	}
 
 	return fMaxElevation;
+}
+
+} // anonymous namespace
+
+float XM_CALLCONV IslandTerrain::GlobalElevation(FXMVECTOR vecPosition) const
+{
+	// Frame Purity Constraint (IslandTerrain.h): GlobalElevation/GlobalNormal walk mCoordFrames with
+	// libm trig and must never run from frame-tick code — the sim hot path uses FrameElevation/FrameNormal.
+	ASSERT(common::gpThreadLocal == nullptr || !common::gpThreadLocal->mbInFrameTick);
+
+	XMFLOAT4A f4Position {};
+	XMStoreFloat4A(&f4Position, vecPosition);
+
+	GridCoord coord = CoordFromPosition(f4Position);
+
+	// Look up per-cell placements. Cells outside the simulated set fall through to sea floor.
+	auto it = game::gpGame->mCoordFrames.find(coord);
+	if (it == game::gpGame->mCoordFrames.end())
+	{
+		return mfSeaFloorElevation;
+	}
+
+	return CellElevation(*this, it->second.staticData, f4Position);
 }
 
 namespace
@@ -415,36 +436,60 @@ void XM_CALLCONV IslandTerrain::BuildElevationGrid(GridCoord coord, const std::v
 	}
 }
 
-float XM_CALLCONV IslandTerrain::FrameElevation(const FrameStaticData& rStaticData, FXMVECTOR vecPosition) const
+FrameElevationSampler XM_CALLCONV IslandTerrain::MakeFrameElevationSampler(const FrameStaticData& rStaticData) const
 {
+	static constexpr float fCellWidth = game::Frame::kfCellWidth;
+	static constexpr float fCellHeight = game::Frame::kfCellHeight;
+	static constexpr float fCellMinX = game::Frame::kfBaseAreaMinX;
+	static constexpr float fCellMinY = game::Frame::kfBaseAreaMinY;
+
+	FrameElevationSampler sampler;
+	sampler.fSeaFloor = mfSeaFloorElevation;
 	if (rStaticData.elevationGrid.empty())
 	{
-		return mfSeaFloorElevation;
+		// pGrid stays null → Sample returns fSeaFloor, matching the old empty-grid early-out.
+		return sampler;
+	}
+
+	sampler.pGrid = &rStaticData.elevationGrid;
+	sampler.fCellOriginX = fCellMinX + static_cast<float>(rStaticData.coord.x) * fCellWidth;
+	sampler.fCellOriginY = fCellMinY + static_cast<float>(rStaticData.coord.y) * fCellHeight;
+	return sampler;
+}
+
+float XM_CALLCONV IslandTerrain::FrameElevation(const FrameStaticData& rStaticData, FXMVECTOR vecPosition) const
+{
+	// Single-source-of-truth for the sim/CRC elevation lookup: FrameElevation and every batched
+	// FrameElevationSampler::Sample share one arithmetic path so they can never drift out of bit-exactness.
+	return MakeFrameElevationSampler(rStaticData).Sample(vecPosition);
+}
+
+float XM_CALLCONV FrameElevationSampler::Sample(FXMVECTOR vecPosition) const
+{
+	if (pGrid == nullptr)
+	{
+		return fSeaFloor;
 	}
 
 	static constexpr int64_t kiDim = game::Frame::kiElevationGridDim;
 	static constexpr float fCellWidth = game::Frame::kfCellWidth;
 	static constexpr float fCellHeight = game::Frame::kfCellHeight;
-	static constexpr float fCellMinX = game::Frame::kfBaseAreaMinX;
-	static constexpr float fCellMinY = game::Frame::kfBaseAreaMinY;
 	static constexpr float fGridPitchX = fCellWidth / static_cast<float>(kiDim);
 	static constexpr float fGridPitchY = fCellHeight / static_cast<float>(kiDim);
 
 	XMFLOAT4A f4Position {};
 	XMStoreFloat4A(&f4Position, vecPosition);
 
-	float fCellOriginX = fCellMinX + static_cast<float>(rStaticData.coord.x) * fCellWidth;
-	float fCellOriginY = fCellMinY + static_cast<float>(rStaticData.coord.y) * fCellHeight;
 	float fLocalX = f4Position.x - fCellOriginX;
 	float fLocalY = f4Position.y - fCellOriginY;
 	int64_t iGx = static_cast<int64_t>(std::floor(fLocalX / fGridPitchX));
 	int64_t iGy = static_cast<int64_t>(std::floor(fLocalY / fGridPitchY));
 	if (iGx < 0 || iGx >= kiDim || iGy < 0 || iGy >= kiDim)
 	{
-		return mfSeaFloorElevation;
+		return fSeaFloor;
 	}
 
-	return rStaticData.elevationGrid[static_cast<size_t>(iGy * kiDim + iGx)];
+	return (*pGrid)[static_cast<size_t>(iGy * kiDim + iGx)];
 }
 
 XMVECTOR XM_CALLCONV IslandTerrain::FrameNormal(const FrameStaticData& rStaticData, FXMVECTOR vecPosition) const
@@ -467,22 +512,49 @@ XMVECTOR XM_CALLCONV IslandTerrain::FrameNormal(const FrameStaticData& rStaticDa
 
 XMVECTOR XM_CALLCONV IslandTerrain::GlobalNormal(FXMVECTOR vecPosition) const
 {
-	// 4-tap finite-difference over GlobalElevation. Each tap routes through GlobalElevation
-	// which finds its own island template, so a single fixed baseline works across multiple
-	// islands at different scales. The 2-unit cross-tap baseline (1 meter per half-step, since
-	// islands use 1 m = 1 engine unit) is fine-grained enough to capture normals without
-	// falling below per-pixel heightmap noise.
+	// Frame Purity Constraint (see GlobalElevation): must never run from frame-tick code. GlobalNormal
+	// resolves cells itself (batching the 4 taps' lookups below) rather than routing each tap through
+	// GlobalElevation, so it carries its own guard.
+	ASSERT(common::gpThreadLocal == nullptr || !common::gpThreadLocal->mbInFrameTick);
+
+	// 4-tap finite-difference over the terrain elevation. Each tap resolves its own cell/island list, so a
+	// single fixed baseline works across multiple islands at different scales. The 2-unit cross-tap baseline
+	// (1 meter per half-step, since islands use 1 m = 1 engine unit) is fine-grained enough to capture
+	// normals without falling below per-pixel heightmap noise.
 	float fDistance = 2.0f;
+
+	// The 4 taps sit ±fDistance around the center, so they almost always land in the same cell. Resolve the
+	// cell (hash lookup + island/query list) once and cache it, re-resolving only when a tap crosses into a
+	// neighbor cell — collapsing 4 hash lookups + 4 list walks to ~1 in the common case. Same per-tap
+	// arithmetic and cell mapping as GlobalElevation, so results are identical.
+	bool bHaveCachedCoord = false;
+	GridCoord cachedCoord {};
+	const FrameStaticData* pCachedStaticData = nullptr;
+
+	auto SampleElevation = [&](FXMVECTOR vecTap) -> float
+	{
+		XMFLOAT4A f4Tap {};
+		XMStoreFloat4A(&f4Tap, vecTap);
+		GridCoord coord = CoordFromPosition(f4Tap);
+		if (!bHaveCachedCoord || coord != cachedCoord)
+		{
+			auto it = game::gpGame->mCoordFrames.find(coord);
+			pCachedStaticData = it == game::gpGame->mCoordFrames.end() ? nullptr : &it->second.staticData;
+			cachedCoord = coord;
+			bHaveCachedCoord = true;
+		}
+		return pCachedStaticData == nullptr ? mfSeaFloorElevation : CellElevation(*this, *pCachedStaticData, f4Tap);
+	};
 
 	// Sample 4 surrounding points (seamless across grid cell boundaries)
 	auto vecTopLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, fDistance, 0.0f, 0.0f));
-	vecTopLeft = XMVectorSetZ(vecTopLeft, GlobalElevation(vecTopLeft));
+	vecTopLeft = XMVectorSetZ(vecTopLeft, SampleElevation(vecTopLeft));
 	auto vecTopRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, fDistance, 0.0f, 0.0f));
-	vecTopRight = XMVectorSetZ(vecTopRight, GlobalElevation(vecTopRight));
+	vecTopRight = XMVectorSetZ(vecTopRight, SampleElevation(vecTopRight));
 	auto vecBottomLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, -fDistance, 0.0f, 0.0f));
-	vecBottomLeft = XMVectorSetZ(vecBottomLeft, GlobalElevation(vecBottomLeft));
+	vecBottomLeft = XMVectorSetZ(vecBottomLeft, SampleElevation(vecBottomLeft));
 	auto vecBottomRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, -fDistance, 0.0f, 0.0f));
-	vecBottomRight = XMVectorSetZ(vecBottomRight, GlobalElevation(vecBottomRight));
+	vecBottomRight = XMVectorSetZ(vecBottomRight, SampleElevation(vecBottomRight));
 
 	return XMVector3Normalize(XMVector3Cross(XMVectorSubtract(vecTopRight, vecBottomLeft), XMVectorSubtract(vecTopLeft, vecBottomRight)));
 }

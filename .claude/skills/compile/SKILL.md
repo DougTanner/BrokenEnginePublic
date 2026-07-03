@@ -14,6 +14,8 @@ Builds Broken Engine projects via `.claude/msbuild.sh`, a lock wrapper that seri
 
 If the request doesn't specify a project, build **BrokenEngineSandbox client** (Debug).
 
+If given a changed-file list and any file is shared code (under `Common/`, `Engine/`, or game code not client/server-exclusive), build BOTH client and server.
+
 All paths below use `$ROOT` for the absolute repo root (the cwd from the environment block, or `pwd`).
 
 ### 2. Build the Project
@@ -63,12 +65,17 @@ bash "$ROOT/.claude/msbuild.sh" --files <path1.cpp> <path2.cpp> -- \
   /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
-Use when verifying a single-file change rather than a full solution rebuild. Constraints: target the `.vcxproj` (not the `.sln`); only `.cpp` paths are accepted — after a header change, pass the `.cpp` files that include it.
+Use when verifying a single-file change rather than a full solution rebuild. Constraints: target the `.vcxproj` (not the `.sln`); only `.cpp` paths are accepted — after a header change, pass the `.cpp` files that include it; each file must already be a member of the target vcxproj — a `.cpp` not in the project is silently skipped, so add new files to the vcxproj/filters before building them.
+
+Shader sources (`.vert`/`.frag`/`.comp`, shader headers) cannot be passed to `--files` (the wrapper rejects non-`.cpp`). Shaders are compiled by DataPacker, which runs as a custom build step in every BrokenEngineSandbox build — including `--files` builds. After a shader-only change, run any client build (a `--files` build listing an arbitrary already-member `.cpp` is the cheapest) and check the DataPacker step output for shader compile errors.
 
 ### 3. Report Results
 
-- If the build succeeds, report success.
-- If the build fails, show the error output and suggest fixes, with two exceptions:
-  - **LNK errors (LNK1168, LNK2019 on the EXE)**: the client or server executable may be running and holding the `.exe` locked. `CLAUDE.md` says these can be ignored — do not chase them unless the user asks. Ask the user whether the exe is running first.
+Report compactly — never paste the full build log, never summarize diagnostics:
+- Final status: success / fail.
+- Every `error` line verbatim (includes file:line).
+- `warning` lines verbatim, only from files involved in the change — steady-state warnings elsewhere are noise.
+- Special cases (name the one that applied):
+  - **LNK errors (LNK1168, LNK2019 on the EXE)**: the client or server executable may be running and holding the `.exe` locked, preventing linking. These can be ignored — do not chase them unless the user asks. Report the condition to the caller so the user can confirm whether the exe is running.
   - **`unsuccessfulbuild` marker leftover**: a prior killed build leaves this marker; the next successful build clears it automatically. Do not hand-delete tlog files — just re-run the build.
   - **`Timed out waiting for lock`**: another build of the same solution is genuinely still running (stale locks are cleaned automatically via PID check). Re-run after it finishes; do not hand-delete `.claude/build-locks/` files — that can clobber a live build's lock.

@@ -250,20 +250,23 @@ struct OptionalIdToIndex<T, FLAGS>
 		common::crc_t checksum = 0;
 		checksum = (checksum ^ common::Crc(static_cast<int64_t>(idToIndexMap.size()))) * common::kCrcMultiplier;
 
+		// Sort the raw int64 key values, not id_t objects: id_t/uuid_t defaulted <=> reduces to comparing
+		// the single int64_t iValue, so int64 order is identical to id_t order (byte-for-byte CRC), while
+		// the comparator collapses to a single integer compare instead of the un-inlined id_t/uuid_t stack.
 		int64_t iKeyCount = static_cast<int64_t>(idToIndexMap.size());
-		auto pKeysAlloc = common::gpThreadLocal->mWorkbuffer.PushBuffer<id_t*>(iKeyCount * sizeof(id_t));
-		id_t* pKeys = static_cast<id_t*>(pKeysAlloc);
+		auto pKeysAlloc = common::gpThreadLocal->mWorkbuffer.PushBuffer<int64_t*>(iKeyCount * sizeof(int64_t));
+		int64_t* pKeys = static_cast<int64_t*>(pKeysAlloc);
 		int64_t i = 0;
 		for (const auto& [key, value] : idToIndexMap)
 		{
-			pKeys[i++] = key;
+			pKeys[i++] = key.ToUuid().Value();
 		}
 		std::sort(pKeys, pKeys + iKeyCount);
 
 		for (int64_t j = 0; j < iKeyCount; ++j)
 		{
-			checksum = (checksum ^ common::Crc(pKeys[j].ToUuid().Value())) * common::kCrcMultiplier;
-			checksum = (checksum ^ common::Crc(idToIndexMap.at(pKeys[j]))) * common::kCrcMultiplier;
+			checksum = (checksum ^ common::Crc(pKeys[j])) * common::kCrcMultiplier;
+			checksum = (checksum ^ common::Crc(idToIndexMap.at(id_t {uuid_t {pKeys[j]}}))) * common::kCrcMultiplier;
 		}
 
 		return checksum;
@@ -279,7 +282,12 @@ private:
 		{
 			vecKeys.push_back(key);
 		}
-		std::sort(vecKeys.begin(), vecKeys.end());
+		// Order by the raw int64 key value: id_t/uuid_t defaulted <=> reduces to comparing iValue, so this
+		// yields the identical order as the default id_t comparator while collapsing to one integer compare.
+		std::sort(vecKeys.begin(), vecKeys.end(), [](const id_t& rLeft, const id_t& rRight)
+		{
+			return rLeft.ToUuid().Value() < rRight.ToUuid().Value();
+		});
 		return vecKeys;
 	}
 };

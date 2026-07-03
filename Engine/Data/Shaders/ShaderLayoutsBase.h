@@ -421,9 +421,12 @@ struct GlobalLayout
 	float fWaterLowAmplitude INIT;
 	float fWaterMediumAmplitude INIT;
 	float fWaterZOffsetTemp INIT; // DT: TEMP
-	float fWaterReducedNormalTime INIT;
-	float fWaterReducedNormalTimeTwo INIT;
-	float fWaterReducedNormalTimeThree INIT;
+	float fWaterReducedNormalTimeX INIT;
+	float fWaterReducedNormalTimeY INIT;
+	float fWaterReducedNormalTimeTwoX INIT;
+	float fWaterReducedNormalTimeTwoY INIT;
+	float fWaterReducedNormalTimeThreeX INIT;
+	float fWaterReducedNormalTimeThreeY INIT;
 
 	// Particles
 	float fParticlesStretchVelocityStart INIT;
@@ -567,6 +570,9 @@ struct MainLayout
 	// Pbr
 	float fPbrExposure INIT;
 	float fPbrGamma INIT;
+	float fColorGradingSaturation INIT;
+	float fColorGradingContrast INIT;
+	float fColorGradingTemperature INIT;
 	float fPbrDayBrightness INIT;
 	float fPbrAmbient INIT;
 

@@ -650,6 +650,18 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 	const PlayersPostRender& rPlayersPostRender = *rPreviousFrame.postRender.pPlayers;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
+	// Hoist tick-invariant per-cell island-center candidates out of the per-ship steering loop: the island set and
+	// base height are fixed per coord, so build the XMVectorSet(x, y, gBaseHeight.Get(), 1.0f) candidates once (into
+	// the per-thread workbuffer) instead of N ships x M islands times. Values feed ComputeSteering bit-identically.
+	int64_t iIslandCount = static_cast<int64_t>(rStaticData.islands.size());
+	auto pIslandCandidates = common::gpThreadLocal->mWorkbuffer.PushBuffer<XMFLOAT4*>(iIslandCount * static_cast<int64_t>(sizeof(XMFLOAT4)));
+	for (int64_t iIsland = 0; iIsland < iIslandCount; ++iIsland)
+	{
+		const engine::IslandPlacement& rPlacement = rStaticData.islands[iIsland];
+		XMStoreFloat4(&pIslandCandidates[iIsland], XMVectorSet(rPlacement.f2WorldPos.x, rPlacement.f2WorldPos.y, engine::gBaseHeight.Get(), 1.0f));
+	}
+	std::span<const XMFLOAT4> islandCandidates(static_cast<XMFLOAT4*>(pIslandCandidates), static_cast<size_t>(iIslandCount));
+
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load from PostRender (static fields copied via memcpy in AllocateAndCopy)
@@ -679,7 +691,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 
 		if (!(flags & kExploding)) [[likely]]
 		{
-			ComputeSteering(rStaticData, rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.pVecDirections[i], bPlayerAlive, vecNearestPlayer, fDeltaTime, flags, fDeltaRotation);
+			ComputeSteering(islandCandidates, rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.pVecDirections[i], bPlayerAlive, vecNearestPlayer, fDeltaTime, flags, fDeltaRotation);
 			ApplyMovement(rFrame, rCurrentInterpolate, i, flags, fDeltaTime, vecVelocity);
 		}
 		else

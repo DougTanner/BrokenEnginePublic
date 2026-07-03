@@ -158,6 +158,25 @@ PipelineManager::PipelineManager()
 	CreateSmokeWindPipelines();
 
 	CreateParticlePipelines();
+
+	// HDR resolve: fullscreen quad sampling the F16 scene intermediate, tone-mapping + color-grading into the
+	// swapchain (mVkRenderPass). kRenderTarget forces samples=1 to match the single-sample present pass.
+	mpPipelines[kPipelineHdrResolve].Create(
+	{
+		.name = "HdrResolve",
+		.flags = {kRenderTarget, kNoWireframe},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersHdrResolvefragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpSwapchainManager->mVkRenderPass,
+		.vkExtent3D = gpSwapchainManager->mHdrTexture.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpSwapchainManager->mHdrTexture},
+		},
+	});
+
 	CreateDebugRenderPipelines();
 
 	game::FrameInterpolate::GraphicsResources();

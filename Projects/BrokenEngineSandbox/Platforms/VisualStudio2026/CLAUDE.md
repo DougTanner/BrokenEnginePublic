@@ -17,7 +17,7 @@ Both use `$(ProjectName)` in `IntDir`, so client and server builds can run simul
 - **Compiler**: C++23, `Pch.h` force-included, `/fp:strict` in every config of both projects (cross-binary float determinism for client reconciliation/replay — see `Documents/FloatingPointDeterminism.txt`). Compile settings are mirrored between the two vcxprojs: when changing one, change the other.
 - **PreBuildEvent**: builds the ThirdParty static lib and `DataPacker.exe` only if missing — existence check, not freshness; stale artifacts need a manual rebuild. DataPacker is always built Release regardless of game config. See [ThirdParty Prebuilts CLAUDE.md](../../../../ThirdParty/Prebuilts/Platforms/VisualStudio2026/CLAUDE.md).
 - **CustomBuildStep**: runs DataPacker against `Engine/Data` + game `Data` into `Output/Data` (packed assets + generated headers, listed as `ClInclude`). Declared always out-of-date on purpose — DataPacker runs every build and does its own incremental checking.
-- **Clang-Tidy**: server enables it in all configs; client in Debug and Release (off in Profile).
+- **Clang-Tidy**: server enables it in all configs; client in Debug and Release (off in Profile). Checks come from the repo-root `.clang-tidy`; VS appends the `clang-analyzer-*` suite after the config's Checks, so analyzer exclusions live in each vcxproj's `<ClangTidyChecks>`, not in `.clang-tidy`. Opt-in per project: *Properties → Code Analysis → Enable Clang-Tidy*. Agent builds via `/compile` force-disable it (the bundled `clang-tidy.exe` crashes on this codebase), so tidy diagnostics appear only in the IDE.
 
 ## vcxproj File Inclusion Rules
 

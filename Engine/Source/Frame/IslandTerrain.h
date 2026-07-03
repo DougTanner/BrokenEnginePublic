@@ -111,6 +111,23 @@ struct IslandTemplate
 #endif
 };
 
+// Precomputed per-cell elevation sampler. Hoists FrameElevation's per-cell constants (grid pointer,
+// cell origin, sea floor) so a batch of samples that all fall in one cell pays the origin compute and
+// the empty check once, then samples by position. Sample() is bit-identical to FrameElevation per
+// sample (same float ops in the same order) — this is the CRC/determinism sim path (/fp:strict), so a
+// caller batching many samples (e.g. game::ComputeTerrainAvoidance) gets results identical to calling
+// FrameElevation directly. FrameElevation is itself implemented on top of this, so the arithmetic has
+// one home. pGrid is null when the cell has no elevation grid (Sample returns fSeaFloor).
+struct FrameElevationSampler
+{
+	const std::vector<float>* pGrid = nullptr;
+	float fCellOriginX = 0.0f;
+	float fCellOriginY = 0.0f;
+	float fSeaFloor = 0.0f;
+
+	[[nodiscard]] float XM_CALLCONV Sample(FXMVECTOR vecPosition) const;
+};
+
 class IslandTerrain
 {
 public:
@@ -127,6 +144,11 @@ public:
 	// RunFrameTick (see FrameTick.cpp), before any sim phase that would query.
 	[[nodiscard]] float XM_CALLCONV FrameElevation(const FrameStaticData& rStaticData, FXMVECTOR vecPosition) const;
 	[[nodiscard]] XMVECTOR XM_CALLCONV FrameNormal(const FrameStaticData& rStaticData, FXMVECTOR vecPosition) const;
+
+	// Build a FrameElevationSampler for one cell so a caller can batch many FrameElevation-equivalent
+	// samples without redoing the per-cell origin compute / empty check each call. Same sim/CRC path as
+	// FrameElevation (bit-identical per sample). See FrameElevationSampler above.
+	[[nodiscard]] FrameElevationSampler XM_CALLCONV MakeFrameElevationSampler(const FrameStaticData& rStaticData) const;
 
 	// Build the cell's elevation grid by splatting each placement's heightmap into the per-cell
 	// float grid (max-blend across overlapping footprints, matching the per-point semantics of

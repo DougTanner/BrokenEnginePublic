@@ -59,9 +59,26 @@ constexpr crc_t Crc(std::string_view pData)
 	crc_t crc = kCrcSeed;
 	// Fold each byte as unsigned char so values >= 0x80 zero-extend deterministically regardless of
 	// char signedness (signed char sign-extends on the XOR, changing the hash cross-toolchain).
-	for (unsigned char uiByte : pData)
+	// Raw-pointer index loop with an 8-wide manual unroll: preserves the exact per-byte fold order and
+	// ops while shedding the Debug range-for iterator overhead. static_cast (not reinterpret_cast) keeps
+	// the char->unsigned char conversion a value cast, so the fold stays constexpr-evaluable.
+	const char* pBytes = pData.data();
+	int64_t iSize = static_cast<int64_t>(pData.size());
+	int64_t i = 0;
+	for (; i + 8 <= iSize; i += 8)
 	{
-		crc = (crc ^ uiByte) * kCrcMultiplier;
+		crc = (crc ^ static_cast<unsigned char>(pBytes[i + 0])) * kCrcMultiplier;
+		crc = (crc ^ static_cast<unsigned char>(pBytes[i + 1])) * kCrcMultiplier;
+		crc = (crc ^ static_cast<unsigned char>(pBytes[i + 2])) * kCrcMultiplier;
+		crc = (crc ^ static_cast<unsigned char>(pBytes[i + 3])) * kCrcMultiplier;
+		crc = (crc ^ static_cast<unsigned char>(pBytes[i + 4])) * kCrcMultiplier;
+		crc = (crc ^ static_cast<unsigned char>(pBytes[i + 5])) * kCrcMultiplier;
+		crc = (crc ^ static_cast<unsigned char>(pBytes[i + 6])) * kCrcMultiplier;
+		crc = (crc ^ static_cast<unsigned char>(pBytes[i + 7])) * kCrcMultiplier;
+	}
+	for (; i < iSize; ++i)
+	{
+		crc = (crc ^ static_cast<unsigned char>(pBytes[i])) * kCrcMultiplier;
 	}
 	return crc;
 }

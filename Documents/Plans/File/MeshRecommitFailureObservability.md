@@ -8,7 +8,9 @@ Requires a double fault (device loss + OS commit failure) to trigger, so severit
 
 ## Design
 
-Return `bool` from `RecommitAndReloadChunkRange`. On `false`, `CreateClientMeshBuffers` skips the GPU upload for that template and logs `kError` — the template renders as evicted (zero-instance indirect draw; inactive slots are GPU-culled by design) until a later recovery. Alternative if skipping fights the record-once-CB template-count invariant at execution time: fail loud at the call site (log + rethrow `DeviceLostException` equivalent). Recommend skip-and-log.
+Return `bool` from `RecommitAndReloadChunkRange` — `false` on every soft-fail exit (MEM_COMMIT failure, pack-open failure, short read), `true` on success. On `false`, `CreateClientMeshBuffers` fails loud: log `kError` naming the chunk CRC and the recommit as the cause, then throw `std::runtime_error` with a message naming the chunk and failure (the same type `ASSERT` throws; routed to `engine::HandleException` for a crash report outside the debugger) — do **not** proceed to `Buffer::Create`, and do **not** silently skip the template.
+
+Why not skip-and-log: the record-once terrain CB unconditionally binds every template's mesh buffer at record time (`CommandBufferRecordMain.cpp:255-256` — `ASSERT(rTemplate.mMeshBuffer.mDeviceLocalVkBuffer != VK_NULL_HANDLE)` then `RecordBindVertexBuffer`), so a skipped upload leaves a null vertex-buffer bind in the CB — the "renders as evicted" story only applies to textures, not the mesh bind. Skipping would trade one crash for another (or invalid Vulkan), plus extra machinery to survive to a "later recovery" that record-once CBs don't support. Fail-loud at the true cause site converts the obscured downstream access violation into a diagnosable crash report; per repo ASSERT discipline this is the graceful-recovery-impossible branch, where loud-and-attributable is correct.
 
 ## Critical files
 
@@ -24,4 +26,4 @@ Return `bool` from `RecommitAndReloadChunkRange`. On `false`, `CreateClientMeshB
 
 - Client-only path (device-loss recovery); no determinism/CRC/`kiVersion`/wire exposure.
 - Shares `FileManager.{h,cpp}` with the live File plans — resolve `Architecture_FileManagerSplitDecision` first or refresh citations; small enough to co-schedule with any of them.
-- Grill decision (single): skip-and-log (recommended) vs fail-loud, per Design.
+- Decision (2026-07-03): **fail-loud** (log `kError` + throw at the call site). Skip-and-log was refuted against current code: the record-once CB binds every template's mesh unconditionally (`CommandBufferRecordMain.cpp:255-256`), so a skipped upload is a null-buffer bind, not a graceful degrade. Rationale detail in Design.

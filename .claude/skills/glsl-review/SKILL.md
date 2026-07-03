@@ -210,7 +210,7 @@ In addition to §4:
 
 ### 9. API Verification
 
-For non-obvious GLSL/Vulkan calls — extension intrinsics, recent SPIR-V opcodes, GLSL features beyond `#version 460`, subgroup ops, ray-tracing intrinsics, image-format-specific atomics — WebFetch the official spec before accepting the call. Cite the URL or section in the review note.
+For non-obvious GLSL/Vulkan calls — extension intrinsics, recent SPIR-V opcodes, GLSL features beyond `#version 460`, subgroup ops, ray-tracing intrinsics, image-format-specific atomics — verify against the official spec before accepting the call. This review normally runs inside a subagent, which does not spawn further subagents and should not pull large spec pages into its context: emit each needed check as an entry under `### API Verification Requests` in the output — the API/symbol, the spec URL, and exactly what to confirm plus which finding depends on it — and the caller dispatches Haiku fetch subagents to resolve them. Use WebFetch directly only for a small targeted page (a single man-page-style entry), citing the URL or section in the review note.
 
 - Khronos GLSL spec (4.60): https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.60.html
 - Vulkan 1.2 spec: https://registry.khronos.org/vulkan/specs/1.2-extensions/man/html/
@@ -249,6 +249,9 @@ Only include sections where issues were found. Omit empty sections entirely.
 
 ### File Size Warnings
 - file (N lines) - [RECOMMEND] split or extract into ShaderFunctions.h
+
+### API Verification Requests
+- <api/symbol> — <spec URL> — <what to confirm, and which finding depends on it>
 
 ### Recommendation
 [PASS / NEEDS FIXES]

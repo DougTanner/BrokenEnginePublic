@@ -13,7 +13,6 @@ Counterpart: `Documents/Plans/Order.md` holds refactor/bugfix plans. See `Docume
 | Plan | Tier | Effort | Impact | Risks | Score | Notes |
 |------|------|--------|--------|-------|-------|-------|
 | [Graphics/SkyboxRenderPass.txt](Graphics/SkyboxRenderPass.txt) | Small | 1 | 4 | 0 | -3 | Fullscreen sky draw (Kloofendal IBL cubemap loaded but no sky pass; water reflections use a separate Ryfjallet map). Star field at night, sun/moon disc using existing fSunAngle. |
-| [Graphics/HdrResolveAndColorGrading.txt](Graphics/HdrResolveAndColorGrading.txt) | Medium | 3 | 5 | 1 | -1 | Render to F16 intermediate, tone-map resolve (dead Tonemap() exists in Model.frag; reconcile ACES vs existing Uchimura), 3D LUT color grading. Unlocks all HDR effects. |
 | [Engine/GradientParticlesAndCurlNoise.txt](Engine/GradientParticlesAndCurlNoise.txt) | Small | 2 | 3 | 0 | -1 | Lifetime color gradient for particles (white->orange->smoke). Curl noise in smoke spread shader. |
 | [Graphics/WaterFoam.md](Graphics/WaterFoam.md) | Small | 2 | 4 | 1 | -1 | Whitecaps + shore foam as add-on to current water shader: Jacobian foam baked into WaterDisplacement.comp's free W channel, shore smoothstep, noise breakup; ~7 floats. |
 | [Graphics/WaterSunGlitter.md](Graphics/WaterSunGlitter.md) | Small | 1 | 3 | 1 | -1 | Noise-jittered micro-normal sparkle added into the existing skybox specular; inherits shadow/height-darken; ~4 floats. |
@@ -34,7 +33,7 @@ Counterpart: `Documents/Plans/Order.md` holds refactor/bugfix plans. See `Docume
 | [Engine/GrassRendering.txt](Engine/GrassRendering.txt) | Large | 4 | 3 | 2 | 3 | Instanced grass patches, vertex shader height, noise textures for dryness/height. New collection + shaders. |
 | [Engine/TreePlacementAndRendering.txt](Engine/TreePlacementAndRendering.txt) | Large | 4 | 3 | 2 | 3 | Tree/bush placement with LOD. New collection and instanced rendering. |
 | [Frame/Future_SharedBehaviorTraits.txt](Frame/Future_SharedBehaviorTraits.txt) | Large | 4 | 3 | 2 | 3 | Reusable SOA trait structs composed into collections via tuple_cat with shared logic functions. Revisit at 20-25 collections (currently 16, trending down). |
-| [Frame/FrameRelativePositions.txt](Frame/FrameRelativePositions.txt) | Large | 5 | 5 | 3 | 3 | Convert world-absolute Frame positions to frame-relative + new camera-frame-relative render-merge step. Fixes float precision degradation at distance (~1cm jitter at 140 frames from origin); enables larger maps. Requires save-format bump. |
+| [Frame/FrameRelativePositions.md](Frame/FrameRelativePositions.md) | Architectural | 5 | 5 | 3 | 3 | Convert world-absolute Frame positions to frame-relative (centered ±450 local) + camera-frame-relative render rebase at the `mRenderInterpolates` copy. Fixes float precision degradation at distance (~1cm jitter at 90 cells from origin); enables larger maps. Requires `Frame::kiVersion` bump. |
 | [Audio/ReplaceDirectXTKAudioWithMiniaudio.txt](Audio/ReplaceDirectXTKAudioWithMiniaudio.txt) | Large | 5 | 3 | 2 | 4 | Replace audio engine with miniaudio. Enables cross-platform (Linux/macOS/iOS/Android). Deferred until cross-platform is a goal. |
 | [Frame/Future_CollectionVariants.txt](Frame/Future_CollectionVariants.txt) | Large | 4 | 2 | 2 | 4 | Optional sparse SOA extensions for subset-only fields. No evidence of need currently. |
 | [Engine/RmlUiPlayerFacingUi.md](Engine/RmlUiPlayerFacingUi.md) | Architectural | 5 | 3 | 2 | 4 | Adopt RmlUi (MIT, HTML/CSS) for the ~8 player-facing screens (~125 ImGui call sites): vendor lib (+FreeType decision), Vulkan `RenderInterface`, Wrapper data binding, per-screen `.rml` documents; TweaksScreen/ImPlot stay ImGui. Revisit-When gated (art direction outgrows the ImGui facelift). |
@@ -45,8 +44,8 @@ None currently.
 
 ## Dependencies
 
-- `Graphics/HdrResolveAndColorGrading.txt` preferably lands before `Graphics/HeatDistortionAndShockwave.txt` and `Graphics/WaterRefraction.md` — it decides the scene-copy/intermediate format (F16 vs swapchain). Not a hard blocker; both plans document the swapchain-format fallback.
-- `Graphics/HeatDistortionAndShockwave.txt` and `Graphics/WaterRefraction.md` both need a scene-color-copy texture in `RenderTargetTextures` — whichever lands first creates it, the other reuses it (verify the two copy points can share one texture).
+- `Graphics/HeatDistortionAndShockwave.txt` and `Graphics/WaterRefraction.md` both need a scene-color-copy texture in `RenderTargetTextures` — whichever lands first creates it, the other reuses it (verify the two copy points can share one texture). HDR resolve has landed: source scene copies from `gpSwapchainManager->mHdrTexture` (F16, pre-resolve), not the post-tonemap swapchain; HeatDistortion's `GetResolveImage` assumption is stale.
+- `Frame/FrameRelativePositions.md` bumps the `Frame::kiVersion` base constant; `Documents/Plans/Frame/CrcVersionGateBump.md` bumps the same constant (115→116). Either order works, but land them as separate bumps — FrameRelativePositions takes whatever base it finds +1.
 
 ## File Groups
 

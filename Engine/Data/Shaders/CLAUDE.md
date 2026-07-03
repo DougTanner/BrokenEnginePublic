@@ -16,6 +16,7 @@ Nearly every shader `#include "ShaderLayouts.h"` — the per-project wrapper (`P
 
 - **Clear.frag** — writes the push-constant pipeline color; VS-out interface declared-but-unused so it matches paired fullscreen vertex shaders and avoids validation warnings.
 - **Log.vert** — fullscreen vertex shader that emits per-frame `debugPrintfEXT` diagnostics (frame/render number).
+- **HdrResolve.frag** — fullscreen pass resolving the F16 HDR scene target to the swapchain: exposure → ACES filmic (Narkowicz) → saturation/contrast/temperature color grading → gamma. The single final-frame tone map — material shaders output linear HDR, and the lighting-combine Uchimura is a separate pre-material light compression, not a frame tonemapper.
 - **DebugTexture.frag** — render-target visualizer; branches on a format selector to decode each debug-view family (EWNS directional including combined-direction modes, linear, terrain elevation, plain RGB/grayscale), applying the same Uchimura tone map as the lighting combine pass to the float16 lighting-directional view (combined-direction modes skip tone mapping).
 
 ## Ui Shaders

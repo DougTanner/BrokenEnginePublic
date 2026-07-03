@@ -83,7 +83,11 @@ constexpr float kfDeltaAngleChangeAvoidTerrain = 0.995f;
 
 float XM_CALLCONV ComputeTerrainAvoidance(const engine::FrameStaticData& rStaticData, FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fCurrentDeltaRotation)
 {
-	// Sample terrain elevation in front and to sides
+	// Sample terrain elevation in front and to sides. Every sample below is in this one cell's grid, so
+	// build the elevation sampler once (hoisting the per-cell origin compute + empty check out of the
+	// nested sample loop); Sample() is bit-identical to FrameElevation per sample.
+	engine::FrameElevationSampler sampler = engine::gpIslandTerrain->MakeFrameElevationSampler(rStaticData);
+
 	XMVECTOR vecLeftDirection = XMVector3Cross(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), vecDirection);
 	float fLeftElevation = 0.0f;
 	float fRightElevation = 0.0f;
@@ -100,10 +104,10 @@ float XM_CALLCONV ComputeTerrainAvoidance(const engine::FrameStaticData& rStatic
 			fTotalWeight += fWeight;
 
 			XMVECTOR vecSamplePositionLeft = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(k + 1) * kfSideSamplesStep), vecLeftDirection, vecSamplePosition);
-			fLeftElevation += fWeight * engine::gpIslandTerrain->FrameElevation(rStaticData, vecSamplePositionLeft);
+			fLeftElevation += fWeight * sampler.Sample(vecSamplePositionLeft);
 
 			XMVECTOR vecSamplePositionRight = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(k + 1) * -kfSideSamplesStep), vecLeftDirection, vecSamplePosition);
-			fRightElevation += fWeight * engine::gpIslandTerrain->FrameElevation(rStaticData, vecSamplePositionRight);
+			fRightElevation += fWeight * sampler.Sample(vecSamplePositionRight);
 		}
 	}
 

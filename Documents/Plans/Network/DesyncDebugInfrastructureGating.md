@@ -18,11 +18,8 @@ Both amplify a tiny request into CPU/bandwidth, and both flood the in-memory log
 
 ## Design
 
-- **(a)** Gate full-frame buffering. Options (pre-staged for grill — pick one):
-  1. **Compile-time flag** — an `inline constexpr bool` (game `Pch.h` alongside `keNetworkSimulation`, or `NetworkProtocol.h`) wrapping the `ServerBroadcaster.cpp:150-160` block and the serve path; zero production cost, no runtime debug capability.
-  2. **On-demand** — start buffering only after the first `kClientDesyncReport` / `kClientDebugFrameRequest` arrives (a server-side `mbDebugCaptureArmed` flag); first request misses (acceptable — a desyncing client keeps reporting).
-  3. **Shrink the ring** — a dedicated small depth constant for the full-frame ring (decoupled from `kiMaxBufferedFrames`), since debug requests target recent ticks only.
-- **(b)** Add a per-client cooldown counter (tick-based) on both `ClientDesyncReport` and `ClientDebugFrameRequest` in `ClientConnection` (`ServerTypes.h`), resetting like the existing `resendLogCooldowns` pattern; drop over-rate requests silently (or `kVerbose`). Optionally gate the debug-frame *serving* behind the same server-side flag chosen in (a). Cooldown fields must be sized/reset wherever `ClientConnection` slot vectors are initialized (`Server::Connect`, `Server.cpp:126-132`).
+- **(a)** Gate full-frame buffering. Decision (2026-07-03): compile-time flag — an `inline constexpr bool` (game `Pch.h` alongside `keNetworkSimulation`, or `NetworkProtocol.h`) wrapping the `ServerBroadcaster.cpp:150-160` block and the serve path; zero production cost, no runtime debug capability.
+- **(b)** Add a per-client cooldown counter (tick-based) on both `ClientDesyncReport` and `ClientDebugFrameRequest` in `ClientConnection` (`ServerTypes.h`), resetting like the existing `resendLogCooldowns` pattern; drop over-rate requests silently (or `kVerbose`). Unconditional regardless of (a)'s flag state. Also gate the debug-frame *serving* path behind the same compile-time flag chosen in (a) — confirmed. Cooldown fields must be sized/reset wherever `ClientConnection` slot vectors are initialized (`Server::Connect`, `Server.cpp:126-132`).
 
 ## Critical files
 
@@ -47,4 +44,4 @@ Both amplify a tiny request into CPU/bandwidth, and both flood the in-memory log
 ## Notes
 
 - **Invariant exposure**: none — server-side debug infrastructure only; no wire/CRC/`kiVersion`/determinism change. All edits are `BT_SERVER` paths. Allocation-tracked: gating removes per-tick work rather than adding any; cooldown counters are POD in `ClientConnection`.
-- **Grill decision**: the (a) gating strategy (compile-flag vs on-demand-arm vs shrink-ring). Recommend compile-time flag for zero production cost, with (b) cooldowns applied unconditionally so the log/amplification surface is bounded even when a build ships with the flag on.
+- **Decision (2026-07-03)**: (a) compile-time flag, for zero production cost; (b) cooldowns applied unconditionally so the log/amplification surface is bounded even when a build ships with the flag on; the debug-frame serve path in (b) is gated behind the same compile-time flag.

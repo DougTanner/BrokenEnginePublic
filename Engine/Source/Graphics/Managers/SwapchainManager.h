@@ -38,12 +38,19 @@ public:
 	Texture mDepthTexture;
 	Texture mMultisamplingTexture;
 
+	// HDR intermediate: the scene renders into this F16 target (mHdrVkRenderPass / mHdrVkFramebuffer);
+	// the fullscreen HDR-resolve pass samples it and writes the swapchain via mVkRenderPass. Single
+	// framebuffer (no per-swapchain-image attachment among the HDR pass's color/MSAA/depth).
+	Texture mHdrTexture;
+
 	std::vector<Framebuffer> mFramebuffers;
 	int64_t miFramebufferIndex = 0;
 
 	VkSemaphore mImageAvailableVkSemaphore = VK_NULL_HANDLE;
 
 	VkRenderPass mVkRenderPass = VK_NULL_HANDLE;
+	VkRenderPass mHdrVkRenderPass = VK_NULL_HANDLE;
+	VkFramebuffer mHdrVkFramebuffer = VK_NULL_HANDLE;
 	VkSwapchainKHR mVkSwapchainKHR = VK_NULL_HANDLE;
 
 	common::PersistentWorker mPresent;

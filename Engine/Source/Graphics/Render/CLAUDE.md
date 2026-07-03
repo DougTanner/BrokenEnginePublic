@@ -31,7 +31,7 @@ The global pass resolves a single sun angle into the full lighting/shadow/water 
 CPU computes phase / UV origins in `double`, `std::fmod` reduces to a small modulus, then `static_cast<float>` — prevents precision loss kilometers from origin. Moduli chosen so shader-side size multipliers remain integer after reduction. Two invariants on top:
 
 - Reduced-time accumulators integrate `size * speed * dt` per frame (then fmod) instead of recomputing `fmod(size * speed * t)` — keeps UV phase continuous when size or speed slide smoothly (zoom-driven speed lerp); the recompute form jumps proportionally to playtime.
-- Rotated octaves rotate cameraXY on the CPU by the same R(−θ) the shader uses, then fmod. Rotating the reduced origin shader-side instead makes the wrap shift non-integer for any θ not a multiple of π/2, producing a visible pattern jump at every wrap.
+- Rotated octaves rotate cameraXY (and, for scrolling samples, the per-frame reduced-time delta — a vec2, so scroll direction follows the pattern rotation) on the CPU by the same R(−θ) the shader uses, then fmod. Rotating the reduced origin or time delta shader-side instead makes the wrap shift non-integer for any θ not a multiple of π/2, producing a visible pattern jump at every wrap; the shader consumes both outside its UV-rotation multiply.
 
 ## World-Area Uniforms
 

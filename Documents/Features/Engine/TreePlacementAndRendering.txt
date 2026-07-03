@@ -13,27 +13,42 @@ already provide CPU heightmap data via IslandTerrain for elevation queries.
 Tree positions should be pre-baked by the DataPacker during island export
 using Poisson disk sampling on the heightmap -- this avoids runtime
 placement cost, guarantees determinism, and lets artists control density
-per biome via a placement mask texture.  At runtime, trees are a
-client-only visual collection (no physics, no server simulation).
+per biome via a placement mask texture.  At runtime, trees are
+client-only static visuals (no physics, no server simulation).
 
 LOD strategy:
 - Near: full 3D model via ModelPipeline (existing instanced path)
 - Far: billboard impostor (camera-facing quad with pre-rendered texture)
 - Very far: culled entirely
 
+Decision (2026-07-03)
+---------------------
+Trees are rendered by a client-only TreeRenderer singleton owned by
+Graphics (the Islands/gpIslands pattern), NOT a frame Collection<T>.
+Rationale: no deterministic simulation code reads tree state (no
+collision, no damage, no server relevance -- placement is baked offline
+by the DataPacker), so Collection<T>'s machinery (dual-buffered frame
+state, CRC/serialization, Collections() tuple registration, phase-hook
+stubs, deterministic capacity growth) is all dead weight for a static
+per-island dataset whose count never changes.  Islands is the direct
+precedent: static world visuals live in Graphics, not the frame.
+FrameBase.h is untouched.  Revisit only if gameplay later requires
+sim-visible trees (e.g. destructible or blocking), in which case they
+become a shared collection per the add-collection skill.
+
 Why
 ---
 - Pre-baked placement avoids runtime Poisson sampling and keeps the
   server build unaffected (trees are purely visual)
 - Reusing ModelPipeline and DynamicPipelines means no new rendering
-  infrastructure -- just a new collection following the Spaceships
-  pattern
+  infrastructure -- TreeRenderer drives the same instanced-model path
+  Spaceships uses, plus a billboard pipeline
 - Billboard impostors at distance keep draw call and vertex counts low
   while maintaining visual coverage
 - The DataPacker already processes islands and can embed placement data
   in the island chunk with a version bump
 
-Changes (19 files)
+Changes (15 files)
 ------------------
 
 1. DataPacker/Source/ExportJobs/ExportIsland.h
@@ -109,37 +124,41 @@ Changes (19 files)
    discard for tree silhouette edges.  Apply basic directional
    lighting from globalLayout sun direction.
 
-9. Engine/Source/Frame/Collections/Trees/Trees.h  (new file)
-   Client-only collection header (#ifdef BT_CLIENT).  Trees are visual-
-   only so there is no PostRender struct -- only an Interpolate struct:
+9. Engine/Source/Graphics/Trees/TreeRenderer.h  (new file)
+   Client-only singleton class managing tree rendering (no frame
+   collection, no FrameBase.h change -- see Decision above).  Follows
+   the Islands pattern: whole-file client affinity via client-vcxproj
+   membership; the .cpp is #if defined(BT_CLIENT)-wrapped like
+   Islands.cpp:
 
-     struct TreesInterpolate
+     class TreeRenderer
      {
-         static constexpr const char* kName = "Trees";
-         static constexpr common::crc_t kCrc = CrcConsteval("Trees");
+     public:
+         TreeRenderer();
+         ~TreeRenderer();
 
-         static void Register();
-         static void GraphicsResources();
+         void LoadPlacements(const IslandTerrain& rTerrain);
+         void GraphicsResources();
+         void BeginRender(int64_t iCommandBuffer, ...);
+         void Render(int64_t iCommandBuffer);
+         void EndRender(int64_t iCommandBuffer);
 
-         static void BeginRender(int64_t iCommandBuffer, ...);
-         static void Render(const FrameInterpolate& rFrameInterpolate,
-                            int64_t iCommandBuffer);
-         static void EndRender(int64_t iCommandBuffer);
+         // Per-island tree data
+         struct IslandTrees
+         {
+             std::vector<IslandTerrain::TreePlacement> placements;
+         };
+         std::vector<IslandTrees> mIslandTrees;
      };
 
-   Trees do not inherit from Collection<T> since they are not part of
-   the dual-buffered frame state.  They are static per-island data
-   loaded once from IslandTerrain placements and rendered each frame.
-   Use a simple struct with a static vector of per-island render data.
+     inline TreeRenderer* gpTreeRenderer = nullptr;
 
-   Alternatively, if fitting into the existing collection pattern is
-   preferred, use Collection<TreesInterpolate> with Members() but no
-   serialization (count/capacity set once from placement data, never
-   modified).
+   Register tree/bush model types (tree model CRCs from data constants)
+   during construction or GraphicsResources().
 
-10. Engine/Source/Frame/Collections/Trees/TreesRender.cpp  (new file)
-    Implements GraphicsResources(), BeginRender(), Render(), EndRender()
-    following the Spaceships pattern:
+10. Engine/Source/Graphics/Trees/TreeRenderer.cpp  (new file)
+    Constructor/destructor, LoadPlacements, and the render
+    implementation, reusing the Spaceships instanced-model machinery:
 
     GraphicsResources():
     - CreateDynamicBuffer for model LOD (sizeof ModelLayout)
@@ -171,76 +190,30 @@ Changes (19 files)
     - WriteIndirectBuffer for model pipeline (near LOD count)
     - WriteIndirectBuffer for billboard pipeline (far LOD count)
 
-11. Engine/Source/Frame/Collections/Trees/Trees.cpp  (new file)
-    Register() implementation -- register tree/bush model types.
-    Load tree model CRCs from data constants.
-
-12. Engine/Source/Frame/FrameBase.h
-    Add Trees to the client-only section of FrameInterpolateBase.
-    This is where engine-level collections live.  Since trees are
-    static visual data (not per-frame simulation state), they may
-    instead be managed by Islands or a standalone TreeRenderer class.
-
-    Decision point: if trees are static per-island data, they should
-    NOT be in the frame at all.  Instead, create a TreeRenderer
-    singleton (like Islands) that loads placement data and renders.
-    This avoids polluting the frame with non-simulated data.
-
-    Preferred approach: TreeRenderer singleton, not a frame collection.
-
-13. Engine/Source/Graphics/Trees/TreeRenderer.h  (new file, preferred)
-    Singleton class managing tree rendering:
-
-      class TreeRenderer
-      {
-      public:
-          TreeRenderer();
-          ~TreeRenderer();
-
-          void LoadPlacements(const IslandTerrain& rTerrain);
-          void GraphicsResources();
-          void BeginRender(int64_t iCommandBuffer, ...);
-          void Render(int64_t iCommandBuffer);
-          void EndRender(int64_t iCommandBuffer);
-
-          // Per-island tree data
-          struct IslandTrees
-          {
-              std::vector<IslandTerrain::TreePlacement> placements;
-          };
-          std::vector<IslandTrees> mIslandTrees;
-      };
-
-      inline TreeRenderer* gpTreeRenderer = nullptr;
-
-14. Engine/Source/Graphics/Trees/TreeRenderer.cpp  (new file)
-    Constructor/destructor, LoadPlacements, and the render
-    implementation (model LOD + billboard LOD) as described in item 10.
-
-15. Engine/Source/Graphics/Graphics.h
+11. Engine/Source/Graphics/Graphics.h
     Add #include for TreeRenderer.h and forward declaration.
     Add TreeRenderer member to Graphics class (owned, created after
     Islands in the initialization order).
 
-16. Engine/Source/Graphics/Graphics.cpp
+12. Engine/Source/Graphics/Graphics.cpp
     Create gpTreeRenderer after gpIslands in the constructor.
     Call LoadPlacements() after island terrain data is loaded.
     Destroy gpTreeRenderer before gpIslands in the destructor.
     Call TreeRenderer GraphicsResources/BeginRender/Render/EndRender
     from the appropriate Graphics render orchestration points.
 
-17. Engine/Source/Graphics/Managers/CommandBufferManager.cpp
+13. Engine/Source/Graphics/Managers/CommandBufferManager.cpp
     Add RecordDrawIndirect calls for tree model and billboard
     pipelines in RecordMainCommandBuffer.  Insert after existing
     model pipeline draws (the shadow and opaque passes).  Billboard
     trees render after opaque objects but before transparent objects.
 
-18. Engine/Source/Graphics/Managers/DynamicPipelines.h
+14. Engine/Source/Graphics/Managers/DynamicPipelines.h
     Add kDynamicPipelineTreeBillboard to the DynamicPipelineType enum.
     Add a CreatePipelineTreeBillboard method, or reuse an existing
     billboard pipeline creation path if the vertex format matches.
 
-19. Engine/Source/Profile/ProfileManagerBase.h
+15. Engine/Source/Profile/ProfileManagerBase.h
     Add GPU and CPU timers for tree rendering:
       kGpuTimerTreeModels
       kGpuTimerTreeBillboards

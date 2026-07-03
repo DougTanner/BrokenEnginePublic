@@ -119,7 +119,10 @@ float Sum(vec4 pf4Lighting[3])
 
 vec3 DirectionalLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, float fPower, float fPowerMode)
 {
-	vec2 f2Normal = normalize(f3Normal.xy);
+	// Guard exact (0,0,1) normals (flat-top geometry): normalize() of a zero-length xy NaNs. Zero weights = no
+	// directional contribution, the intended degenerate behavior.
+	float fLen = length(f3Normal.xy);
+	vec2 f2Normal = fLen > kfEpsilon ? f3Normal.xy / fLen : vec2(0.0f);
 	float fWeightE = max(0.0f, f2Normal.x);
 	float fWeightW = max(0.0f, -f2Normal.x);
 	float fWeightN = max(0.0f, f2Normal.y);
@@ -146,7 +149,10 @@ vec3 DirectionalLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fIntensity, f
 
 vec3 WaterLighting(vec4 pf4Lighting[3], vec3 f3Normal, float fSoften, float fOne, float fOnePower, float fTwo, float fTwoPower, float fThree, float fThreePower, float fPowerMode)
 {
-	vec2 f2Normal = normalize(f3Normal.xy);
+	// Guard exact (0,0,1) normals (flat-top geometry): normalize() of a zero-length xy NaNs. Zero weights = no
+	// directional contribution, the intended degenerate behavior.
+	float fLen = length(f3Normal.xy);
+	vec2 f2Normal = fLen > kfEpsilon ? f3Normal.xy / fLen : vec2(0.0f);
 	float fWeightE = mix(max(0.0f, f2Normal.x), 0.25f, fSoften);
 	float fWeightW = mix(max(0.0f, -f2Normal.x), 0.25f, fSoften);
 	float fWeightN = mix(max(0.0f, f2Normal.y), 0.25f, fSoften);

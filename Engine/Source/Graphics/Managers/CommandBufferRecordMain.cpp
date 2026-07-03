@@ -206,7 +206,7 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 		{
 			renderPassFlags.Set(RenderPassFlags::kMultisampling);
 		}
-		Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, renderPassFlags, VK_SUBPASS_CONTENTS_INLINE);
+		Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mHdrVkRenderPass, gpSwapchainManager->mHdrVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, renderPassFlags, VK_SUBPASS_CONTENTS_INLINE);
 	}
 
 	// UI depth pre-pass: depth-only quads at ImGui window positions (instanceCount=0 when disabled)
@@ -316,6 +316,15 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerText);
 
 	Texture::RecordEndRenderPass(vkCommandBuffer);
+
+	// HDR resolve: tone-map + color-grade the F16 scene intermediate into the swapchain. Single DONT_CARE
+	// color attachment (fully overwritten by the fullscreen quad) — empty flags, no clear.
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerHdrResolve);
+	Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, RenderPassFlags_t {}, VK_SUBPASS_CONTENTS_INLINE);
+	pPipelines[kPipelineHdrResolve].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
+	Texture::RecordEndRenderPass(vkCommandBuffer);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerHdrResolve);
+
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
 
 	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));

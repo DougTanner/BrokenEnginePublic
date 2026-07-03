@@ -24,7 +24,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Texture/render-ta
 - ASSERT/log the discarded `bool` results of `ImGui_ImplWin32_Init` (:115) and `ImGui_ImplVulkan_Init` (:135) — opaque third-party boundary; boot-fail-loud [~5m]
 
 ### Engine/Source/Graphics/Managers/TextManager.{h,cpp}
-- De-template `WriteQuads` (`TextManager.h:101-140` — `template<typename T, typename U>` with exactly one instantiation, sole caller `TextManager.cpp:96`); move the 40-line body to the .cpp. **Skip if `Engine/Architecture_LibraryReplacement.md` proceeds with the TextManager→imgui replacement (moot)** [~15m]
+- ~~De-template `WriteQuads`~~ — **moot**: `Engine/Architecture_LibraryReplacement.md` decided (2026-07-03) to proceed with the TextManager→imgui replacement, which deletes this file
 
 ## Critical files
 - `Engine/Source/Graphics/Managers/TextureManager.cpp`, `TextureUploadManager.{h,cpp}`, `TextureCache.{h,cpp}`, `ImGuiManager.cpp`, `TextManager.{h,cpp}`
@@ -36,7 +36,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Texture/render-ta
 
 ## Notes
 - Invariant exposure: none — client/graphics-only; the validation item is trust-boundary hardening of on-disk data (soft-fail path mirrors the existing upload-thread behavior). `TextureManager.cpp`/`TextureUploadManager.cpp` are shared with four live plans (Order.md File Groups) — co-schedule or refresh citations
-- Grill decision: none material; TextManager item is contingent on the library-replacement decision
+- Grill decision: none material; TextManager item is moot per the library-replacement decision above
 
 ## Verification Notes
 

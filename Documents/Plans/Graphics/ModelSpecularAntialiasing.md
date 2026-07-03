@@ -55,16 +55,11 @@ Then swap the aliasing `D_GGX` inputs:
 
 **Derivative placement (helper-invocation safety):** `dFdx(n)` / `dFdy(n)` must be evaluated at uniform (non-divergent) control-flow depth so helper invocations produce valid derivatives — compute them at `main()` top level, not inside the `ENABLE_SPECULAR_LIGHTING` block or the EWNS `for` loop (matches Water's mode-2 placement of `dFdx(f3SkyboxWaveNormal)` before any branch). `n` is already computed unconditionally at `main()` scope.
 
-**Design decision (pre-staged for grill): does the widened alpha feed the `V` (visibility) term too?** `V_SmithGGXCorrelated` also takes `alphaRoughness`. Options:
-- **A (recommend): widen `D` only** — mirrors Water's NDF-only widening; the visibility term is a smooth, non-aliasing shadowing factor, and widening it slightly over-darkens the (already dimmed) highlight. Minimal, matches the precedent.
-- **B: widen both `D` and `V`** — physically, sub-pixel normal variance raises effective roughness for both terms; a rougher surface's `V` broadens too. Marginally more energy-consistent but no visible aliasing benefit.
-Recommend A (feed `alphaRoughnessAA` to the two `D_GGX` calls; leave `V_SmithGGXCorrelated` on the material `alphaRoughness`).
+**Decision (2026-07-03): widen `D` only (option A).** Feed `alphaRoughnessAA` to the two `D_GGX` calls (`Model.frag:303`, `:376`); leave both `V_SmithGGXCorrelated` calls (`:304`, `:377`) on the material `alphaRoughness`. The visibility term is a smooth shadowing factor with no aliasing to fix — widening it only over-darkens the already-dimmed highlight — and D-only mirrors the landed Water precedent (NDF-only widening).
 
 ### 2. Tuning uniforms — model-specific (recommended) vs. reuse Water's
 
-**Design decision (pre-staged for grill):** reuse the existing `fWaterSpecAAVariance` / `fWaterSpecAAThreshold` `MainLayout` fields, or add model-specific `fPbrSpecAAVariance` / `fPbrSpecAAThreshold`?
-
-- **Recommend model-specific fields.** The tuning domains differ fundamentally: Water's sliders scale a Phong-power (`p ~ 200`) skybox-lobe variance; Model's scale a GGX `alpha^2` (metal roughness `~ 0.04-0.1^2`) slope-space kernel with a different unit basis and a different sensible default range. Sharing one slider would couple two unrelated visual tunings. The cost of separate fields is trivial (two floats in a uniform already dense with per-target lighting scalars).
+**Decision (2026-07-03): add model-specific `fPbrSpecAAVariance` / `fPbrSpecAAThreshold` fields** (do not reuse Water's `fWaterSpecAA*`). The tuning domains differ fundamentally: Water's sliders scale a Phong-power (`p ~ 200`) skybox-lobe variance; Model's scale a GGX `alpha^2` (metal roughness `~ 0.04-0.1^2`) slope-space kernel with a different unit basis and a different sensible default range. Sharing one slider would couple two unrelated visual tunings. The cost of separate fields is trivial (two floats in a uniform already dense with per-target lighting scalars).
 
 Add to `MainLayout` in `ShaderLayoutsBase.h` (next to the existing `fWaterSpecAA*` pair or in the Pbr grouping):
 ```glsl
@@ -119,7 +114,7 @@ The drop is a one-line flag removal; keep it as the final, separately-confirmed 
 ## Notes
 
 - **Zoom/minification residual — reuse the Water mip-variance bake.** Screen-space-derivative AA (this plan's §1) cannot see variance the mip chain already averaged away, so low-roughness models will still flicker under camera zoom after this lands — the same failure the water shader fixed with its `WATER_SPEC_AA_MIP_HANDOFF` term. Model normal maps are regular-path BC5, so DataPacker **already bakes their per-mip Toksvig variance into `TextureHeader::pfMipVariance`** (the bake covers all regular-path BC5). The remaining work if the residual is visible in A/B: read the model normal map's table (bindless CRC→header lookup), compute an analytic LOD (or `textureQueryLod`), and add the variance into `alphaRoughnessAA`'s kernel in GGX `alpha^2` domain — no pack-format change needed.
-- **Grill decisions (2):** (1) tuning uniforms — model-specific `fPbrSpecAA*` (recommended) vs. reuse Water's `fWaterSpecAA*`; (2) widen `D` only (recommended) vs. `D` and `V`. Both pre-staged in Design §1/§2.
+- **Decisions (2026-07-03, both resolved in Design §1/§2):** (1) tuning uniforms — model-specific `fPbrSpecAA*` (separate GGX-alpha² tuning domain from Water's Phong-power domain); (2) widen `D` only (V is a smooth non-aliasing term; matches Water's NDF-only precedent). Verified against `Model.frag:303-304`/`:376-377` — the D/V call pairs and line cites hold in current code.
 - **Compile-time mode + repack:** `MODEL_SPEC_AA_MODE` is edit-and-repack like `WATER_SPEC_AA_MODE` — DataPacker shader rebuild required after any shader edit.
 - **Invariant exposure declared:** client/graphics-only; two new `MainLayout` uniform fields (per-frame, CPU-populated, not serialized/CRC'd); no determinism / CRC / `kiVersion` / `.pack` / wire exposure.
 - **Shared-file overlaps (see `Order.md` Dependencies):** the optional `kSampleShading` drop edits `CreateModelPipeline` in `DynamicPipelines.cpp`, the same function `Meta/ReviewSweepQuickWins.md` item 13 folds the try/catch into — refresh line cites if co-scheduled. The new `MainLayout` fields append to `ShaderLayoutsBase.h`, which `Graphics/WindowedLightingShadowDispatch.md` may also grow — additive, refresh cites. Both overlaps are line-drift only, no logic conflict.

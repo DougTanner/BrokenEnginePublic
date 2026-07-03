@@ -56,4 +56,9 @@ void main()
 	// Edge
 	float fEdgeMultiplier = mainLayout.fHexShieldEdgeMultiplier * pow(max(length(f3InOriginalPosition) - mainLayout.fHexShieldEdgeDistance, 0.0f), mainLayout.fHexShieldEdgePower);
 	f4OutColor.a *= pHexShields[i].f4Color.a * fEdgeMultiplier;
+
+	// Accumulated alpha can exceed 1 (or fall below 0 via the edge/direction terms); SRC_ALPHA/ONE_MINUS_SRC_ALPHA
+	// blend factors are only clamped for fixed-point attachments, so on the F16 target an out-of-range alpha
+	// would go negative and subtract the scene / amplify the destination.
+	f4OutColor.a = clamp(f4OutColor.a, 0.0f, 1.0f);
 }

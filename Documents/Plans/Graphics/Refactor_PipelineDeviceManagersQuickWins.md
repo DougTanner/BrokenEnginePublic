@@ -12,7 +12,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical in-fun
 
 ### Engine/Source/Graphics/Managers/DeviceManager.cpp
 - `CHECK_VK`-wrap the bare `vkEnumerateDeviceExtensionProperties` calls (:18,20) and the two `vkGetPipelineCacheData` calls in the dtor (:321,323) — every comparable enumeration in the directory is wrapped [~5m]
-- Resolve the separate-present-queue contradiction: `DeviceManager.cpp:246` does `ASSERT(false)` then executes a correct fallback, while `SwapchainManager::CreateSwapchain` (:239-257) carries live `VK_SHARING_MODE_CONCURRENT` support for exactly that case. Either the configuration is supported (delete the ASSERT) or not (delete the CONCURRENT machinery, fail loud at device selection) — today the debug build breaks on hardware the release build handles [~15m]
+- Separate-present-queue contradiction — **Decision (2026-07-03): the configuration is supported; delete the `ASSERT(false)` at `DeviceManager.cpp:246`** (keep the `vkGetDeviceQueue` + `VkName` fallback and all `VK_SHARING_MODE_CONCURRENT` machinery in `SwapchainManager::CreateSwapchain` :241-257). The fallback path is complete and correct — the present queue is retrieved from its own family and the swapchain switches to CONCURRENT sharing with both family indices — and it is exactly what release builds already execute on such hardware; the ASSERT is the textbook useless-ASSERT (breaks debug builds on a configuration the very next lines handle). Optionally replace it with a one-line `kInfo` LOG noting the separate present family, mirroring the transfer-queue logging at :253/:259 [~15m]
 
 ### Engine/Source/Graphics/Managers/SwapchainManager.cpp
 - Replace the two width/height if/else-if clamp ladders in `CreateSwapchain` (:196-214) with `std::clamp` [~5m]
@@ -51,7 +51,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical in-fun
 
 ## Notes
 - Invariant exposure: none — client/graphics-only, boot/teardown or record-once paths; no determinism/CRC/wire. `PipelineManager.cpp` line cites drift if `Refactor_PipelineManagerSplit` lands first — refresh
-- Grill decision: item 5 — support graphics≠present queues (delete ASSERT) vs fail loud (delete CONCURRENT machinery); recommend delete the ASSERT (the fallback is correct and tested by the release build)
+- Decision (2026-07-03): graphics≠present queues are supported — delete the `ASSERT(false)` (`DeviceManager.cpp:246`), keep the fallback and the CONCURRENT swapchain machinery; see the DeviceManager item for rationale
 
 ## Verification Notes
 

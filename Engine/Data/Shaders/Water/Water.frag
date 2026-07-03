@@ -149,9 +149,9 @@ void main()
 	vec2 f2ReducedOrigin = vec2(globalLayout.fWaterReducedNormalOriginX, globalLayout.fWaterReducedNormalOriginY);
 	vec2 f2ReducedOriginTwo = vec2(globalLayout.fWaterReducedNormalOriginTwoX, globalLayout.fWaterReducedNormalOriginTwoY);
 	vec2 f2ReducedOriginThree = vec2(globalLayout.fWaterReducedNormalOriginThreeX, globalLayout.fWaterReducedNormalOriginThreeY);
-	float fReducedTime = globalLayout.fWaterReducedNormalTime;
-	float fReducedTimeTwo = globalLayout.fWaterReducedNormalTimeTwo;
-	float fReducedTimeThree = globalLayout.fWaterReducedNormalTimeThree;
+	vec2 f2ReducedTime = vec2(globalLayout.fWaterReducedNormalTimeX, globalLayout.fWaterReducedNormalTimeY);
+	vec2 f2ReducedTimeTwo = vec2(globalLayout.fWaterReducedNormalTimeTwoX, globalLayout.fWaterReducedNormalTimeTwoY);
+	vec2 f2ReducedTimeThree = vec2(globalLayout.fWaterReducedNormalTimeThreeX, globalLayout.fWaterReducedNormalTimeThreeY);
 	vec2 f2LocalDx = dFdx(f2InInitialPosition);
 	vec2 f2LocalDy = dFdy(f2InInitialPosition);
 
@@ -169,14 +169,16 @@ void main()
 	// rotation angle to rotate cameraXY before fmod). Rotating it again here would double-rotate
 	// AND break precision: the wrap shift sizeMult*10 must be integer for fract() to absorb it,
 	// but R*(sizeMult*10, 0) is non-integer for arbitrary θ. So m2UvRot is applied to the
-	// camera-relative position and derivatives only — the reducedOrigin stays as-is.
+	// camera-relative position and derivatives only — the reducedOrigin stays as-is. reducedTime
+	// carries the same invariant: it is the per-frame scroll delta already rotated CPU-side before
+	// accumulation/fmod, so it must not be rotated here either.
 	#define SAMPLE_NORMAL_PRECISE(sampler, size, reducedOrigin, reducedTime, m2UvRot, sizeMult, speedMult, offset) \
 	{ \
 		float fCallSize = sizeMult * size; \
 		vec2 f2UV = offset \
 			+ fCallSize * (m2UvRot * f2InInitialPosition) \
 			+ sizeMult * reducedOrigin \
-			+ speedMult * vec2(reducedTime); \
+			+ speedMult * reducedTime; \
 		vec2 f2Dx = fCallSize * (m2UvRot * f2LocalDx); \
 		vec2 f2Dy = fCallSize * (m2UvRot * f2LocalDy); \
 		f3Accum += DecodeNormal(textureGrad(sampler, fract(f2UV), f2Dx, f2Dy).rg); \
@@ -191,9 +193,9 @@ void main()
 		mat2 m2UvRotOne = mat2(fCosOne, -fSinOne, fSinOne, fCosOne);
 		mat2 m2NormalRotOne = mat2(fCosOne, fSinOne, -fSinOne, fCosOne);
 		vec3 f3Accum = vec3(0.0f);
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, m2UvRotOne, 0.2f, 1.1f, vec2(0.1f, 0.2f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, m2UvRotOne, 1.1f, 1.2f, vec2(0.2f, 0.3f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, fReducedTime, m2UvRotOne, 2.5f, 1.3f, vec2(0.3f, 0.4f))
+		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, f2ReducedTime, m2UvRotOne, 0.2f, 1.1f, vec2(0.1f, 0.2f))
+		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, f2ReducedTime, m2UvRotOne, 1.1f, 1.2f, vec2(0.2f, 0.3f))
+		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, f2ReducedTime, m2UvRotOne, 2.5f, 1.3f, vec2(0.3f, 0.4f))
 		f3SampledNormalOne = f3Accum;
 		f3SampledNormalOne.xy = m2NormalRotOne * f3SampledNormalOne.xy;
 	}
@@ -207,9 +209,9 @@ void main()
 		mat2 m2UvRotTwo = mat2(fCosTwo, -fSinTwo, fSinTwo, fCosTwo);
 		mat2 m2NormalRotTwo = mat2(fCosTwo, fSinTwo, -fSinTwo, fCosTwo);
 		vec3 f3Accum = vec3(0.0f);
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, m2UvRotTwo, 0.3f, 1.4f, vec2(0.4f, 0.5f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, m2UvRotTwo, 1.2f, 1.5f, vec2(0.6f, 0.7f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, fReducedTimeTwo, m2UvRotTwo, 3.0f, 1.6f, vec2(0.8f, 0.9f))
+		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, f2ReducedTimeTwo, m2UvRotTwo, 0.3f, 1.4f, vec2(0.4f, 0.5f))
+		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, f2ReducedTimeTwo, m2UvRotTwo, 1.2f, 1.5f, vec2(0.6f, 0.7f))
+		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, f2ReducedTimeTwo, m2UvRotTwo, 3.0f, 1.6f, vec2(0.8f, 0.9f))
 		f3SampledNormalTwo = f3Accum;
 		f3SampledNormalTwo.xy = m2NormalRotTwo * f3SampledNormalTwo.xy;
 	}
@@ -223,9 +225,9 @@ void main()
 		mat2 m2UvRotThree = mat2(fCosThree, -fSinThree, fSinThree, fCosThree);
 		mat2 m2NormalRotThree = mat2(fCosThree, fSinThree, -fSinThree, fCosThree);
 		vec3 f3Accum = vec3(0.0f);
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, m2UvRotThree, 0.4f, 1.7f, vec2(1.0f, 1.1f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, m2UvRotThree, 1.3f, 1.8f, vec2(1.2f, 1.3f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, fReducedTimeThree, m2UvRotThree, 3.5f, 1.9f, vec2(1.4f, 1.5f))
+		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, f2ReducedTimeThree, m2UvRotThree, 0.4f, 1.7f, vec2(1.0f, 1.1f))
+		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, f2ReducedTimeThree, m2UvRotThree, 1.3f, 1.8f, vec2(1.2f, 1.3f))
+		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, f2ReducedTimeThree, m2UvRotThree, 3.5f, 1.9f, vec2(1.4f, 1.5f))
 		f3SampledNormalThree = f3Accum;
 		f3SampledNormalThree.xy = m2NormalRotThree * f3SampledNormalThree.xy;
 	}
@@ -433,7 +435,9 @@ void main()
 	// mix(A, B, t) + add*t*B = (1-t)*A + (1+add)*t*B → base = (1-fReflection)*f3LightingColor, specular = (1+fSkyboxAdd)*fReflection*f3SkyboxColorSun.
 	float fSkyboxAdd = mainLayout.fLightingWaterSkyboxAdd;
 	vec3 f3SkyboxSpecular = (1.0f + fSkyboxAdd) * fReflection * f3SkyboxColorSun;
-	f3LightingColor = (1.0f - fReflection) * f3LightingColor;
+	// fReflection is unbounded (~2.5 at defaults at highlight peaks); clamp only this attenuation use so
+	// (1-fReflection) can't go negative and drive negative RGB into the F16 target (UNORM used to clamp this).
+	f3LightingColor = (1.0f - min(fReflection, 1.0f)) * f3LightingColor;
 
 	// Wave trough darken: at z >= Top no darkening (multiplier 1.0); at z <= Bottom max darkening (multiplier 1.0 - Target).
 	// Source/Lighting weights independently mix the per-path multiplier toward 1.0 so each contribution can opt in/out.

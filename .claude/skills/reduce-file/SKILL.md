@@ -1,13 +1,15 @@
 ---
 name: reduce-file
-description: Analyzes a C++ file that exceeds size guidelines (500-1000 lines) and produces a structured plan for refactoring or splitting it into smaller files. Invoke when executing a plan that calls for reducing an oversized file (e.g., one pulled by /next-plan), or when the user runs /reduce-file. Do not run inline during the C++ Code Change Process — review findings route to a step-10 follow-up plan instead.
+description: Analyzes a C++ file that exceeds size guidelines (500-1000 lines) and produces a structured plan for refactoring or splitting it into smaller files. Invoke when executing a plan that calls for reducing an oversized file (e.g., one pulled by /next-plan), or when the user runs /reduce-file. Do not run inline during review passes — flagged files route to a follow-up plan in `Documents/Plans/` instead.
 argument-hint: <file-path>
-allowed-tools: [Read, Grep, Glob, Bash]
+allowed-tools: [Read, Grep, Glob, Bash, AskUserQuestion]
 ---
 
 # Reduce File
 
 Analyzes a C++ source file that exceeds the project's size guidelines (500-1000 lines) and produces a structured plan for reducing it — either through extracting helpers to utility files, extracting new classes, or splitting struct implementations across multiple `.cpp` files.
+
+Interactive — runs in the main session (it asks the user about direction in step 2 and for the final option choice); do not dispatch it to a subagent.
 
 ## Key Principles
 

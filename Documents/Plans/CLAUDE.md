@@ -12,6 +12,8 @@ Priority index — single table of all live plans sorted by score, lowest first 
 
 Debt-score / review-sweep retrospectives do **not** belong in `Order.md` — capture that context (if wanted) in the individual plan files' `## Context`, not in the priority index.
 
+A Notes cell prefixed `[CLAIMED]` marks a plan a session is actively executing — `/next-plan` claims the row on selection and removes row + file only on completion (rejection unclaims). Other sessions skip claimed rows; only the user may unclaim a stale one.
+
 ## Subdirectories
 
 Plans live in area subdirectories (`Common/`, `Engine/`, `Frame/`, `Graphics/`, `Save/`, …), never at the `Plans/` root. Add area folders as needed when a new area accrues plans.

@@ -2,29 +2,33 @@
 
 ## Context
 
-Source: /external-architecture-review on `Engine/Source/File`. **Decision plan (present options).** `FileManager` fuses two modules with fully disjoint consumer sets: (1) general file I/O — `Exists`/`OpenFile`/`RemoveFile`/`WriteFileAtomically`/`BackupExistingFile` plus the `Write/ReadVersionedFile` templates (consumers: saves, settings, ClientGuid, caches); (2) the packed-asset chunk system — eager/lazy maps, atomic state machine, loading thread, memory pool, decompression (consumers: Graphics, Audio, IslandTerrain). Related integration risk: the lazy-chunk state machine's transitions are co-owned by four files (FileManager, TextureUploadManager, TextureManager, IslandTerrain) through `GetLazyChunk()`'s mutable `LazyChunk&` and raw `eState` polling, with a thread-safety contract that is documented rather than asserted (`FileManager.cpp:618-627` says so explicitly).
+Source: /external-architecture-review on `Engine/Source/File`. `FileManager` fuses two modules with fully disjoint consumer sets: (1) general file I/O — `Exists`/`OpenFile`/`RemoveFile`/`WriteFileAtomically`/`BackupExistingFile` plus the `Write/ReadVersionedFile` templates (consumers: saves, settings, ClientGuid, caches); (2) the packed-asset chunk system — eager/lazy maps, atomic state machine, loading threads, memory pool, decompression (consumers: Graphics, Audio, IslandTerrain). The lazy-chunk `eState` machine's transitions are stored by three files (`FileManager.cpp`, `TextureUploadManager.cpp`, `TextureManager.cpp`) with read-only polling from a fourth (`IslandTerrainResidency.cpp`, via the mutable `GetLazyChunk()` ref), and the reset-path thread-safety contract is documented rather than asserted (`ResetTextureChunkStates` comment, `FileManager.cpp:794-799`).
 
-## Design
+## Decision (2026-07-03): chose Option C (accept + document) over A (class split) and B (narrow the chunk seam)
 
-Present options; resolve via /external-grill-plan before any edit:
+- **Against A**: a new `PackManager` singleton + `Engine.h` + four-vcxproj wiring + churn across ~26 TUs (`gpFileManager` call sites) buys cohesion that benefits only readers — the two consumer sets never interfere at runtime, and the oversized-TU problem is already owned by the cheaper, mechanical `File/FileManagerReduceFile.md`.
+- **Against B**: the distributed `eState` machine is *deliberate, documented design* — `File/CLAUDE.md` states "the per-chunk `eState` release/acquire machine tolerates any thread performing the store". Intent APIs (e.g. `AdoptChunkGpuHandles`) would be forwarding trampolines that import texture-upload phase vocabulary into FileManager while the real contract (transfer-thread/reset ordering, `FileManager.cpp:794-799`) remains unassertable either way. B is also not behavior-neutral: `TextureUploadManager` passes `&rLazyChunk.vkImage`/`vmaAllocation` directly to `vmaCreateImage` as out-params, so an adopt-after API must stage handles in locals and copy on success — changing what state exists in the chunk mid-failure/device-loss.
+- **For C**: KISS/YAGNI for a single-game engine — the fusion works, is thread-correct by design, and is nearly fully documented already; only the *deliberateness* of the two-halves fusion and of the distributed state machine is missing from the docs.
 
-- **Option A — split the class.** `FileManager` keeps general file I/O + versioned/atomic writes; a new `PackManager` (name at grill) owns pack files, chunk maps, loading thread, and pool. Two deep modules, each with a small interface. Cost: a new `gp*` singleton, `Engine.h` + vcxproj wiring, call-site churn across ~22 TUs; zero behavior change. [~2-3d]
-- **Option B — keep one class, narrow the chunk seam.** Leave the fusion, but replace `GetLazyChunk()` mutable-ref leakage with intent-named APIs (e.g. `AdoptChunkGpuHandles(crc, ...)` for the upload thread's writes, a read-only state poll for IslandTerrain) so state transitions are owned by FileManager alone. Smaller diff; addresses the four-file state machine without the rename ripple. [~1d]
-- **Option C — accept and document.** A `File/CLAUDE.md` note naming the two halves and the distributed state machine; revisit if the directory grows.
+## Design (executable — documentation only, no code changes)
+
+1. In `Engine/Source/File/CLAUDE.md`, under the `## FileManager` heading (before `### Eager vs Lazy`), add a short paragraph (2-3 sentences) stating:
+	- `FileManager` deliberately hosts two consumer-disjoint halves — general file I/O + versioned/atomic writes (saves, settings, caches) and the packed-asset chunk system (Graphics, Audio, IslandTerrain) — one class, one `gpFileManager`; do not split into a separate pack/chunk manager unless the directory grows another module.
+	- The lazy-chunk `eState` transitions are intentionally distributed: stores in `FileManager.cpp`, `TextureUploadManager.cpp`, `TextureManager.cpp`; read-only polling in `IslandTerrainResidency.cpp` — sanctioned by the release/acquire design (see `### Lazy Loading`), not a seam to be narrowed.
+2. No other file changes. `GetLazyChunk()`'s mutable ref stays as-is (upload path writes GPU handles in place via `vmaCreateImage` out-params).
 
 ## Critical files
 
-- `Engine/Source/File/FileManager.h` / `.cpp`
-- `Engine/Source/Graphics/Managers/TextureUploadManager.cpp`, `TextureManager.cpp`, `Engine/Source/Frame/IslandTerrain.cpp` (chunk-seam consumers)
-- `Engine/Source/Engine.h` + client/server vcxproj (Option A only)
+- `Engine/Source/File/CLAUDE.md` — the only file edited.
 
 ## Out of scope
 
-- `DifferenceStream` — unaffected by every option.
-- The boot/teardown-window races — `File/Architecture_LoadThreadLifecycleSafety.md` (land it first; this decision must not block those fixes).
-- Behavior or performance changes of any kind — every option is interface reshaping only.
+- Any code change to `FileManager.h/.cpp`, `TextureUploadManager.cpp`, `TextureManager.cpp`, `IslandTerrain*.cpp` — every rejected option's edits included.
+- `DifferenceStream` — unaffected.
+- The boot/teardown-window races — `File/Architecture_LoadThreadLifecycleSafety.md` (independent; not blocked by this).
+- `FileManager.cpp` size remediation — `File/FileManagerReduceFile.md` executes as planned (this decision un-gates it; its "option A obviates this plan" branch is dead).
 
 ## Notes
 
-- Decision plan (present options). KISS lens: Option B (or C) is likely the right size for a single-game engine — Option A is the textbook shape but pays a ~22-TU rename for cohesion that mostly bothers readers, not the compiler.
-- No determinism/CRC/network/`kiVersion` exposure under any option.
+- Decision resolved 2026-07-03 by code analysis (this file's Decision section); no grill branch remains.
+- No determinism/CRC/network/`kiVersion` exposure.
