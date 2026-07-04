@@ -1,6 +1,6 @@
 # Broken Engine
 
-A C++23 Vulkan game engine client/server using data-oriented design, with data pre-packer (offline; runtime reads only `.pack` chunks). Top-down RTS-scale camera: kilometers above an ocean of islands, small units on screen. West is -x, East is +x, North is +y, South is -y, Up is +z, Down is -z. The client and server run a deterministic simulation, user input (client simulation change requests) are rare so we prioritize CPU/GPU smoothness over client -> server -> client input latency. The world is an unbounded sparse grid of cells, each simulated independently in parallel; entity counts are uncapped — design data-parallel. Fixed sim tick rate; render free-runs via interpolation. PostRender state is bit-deterministic (`/fp:strict`, CRC-checked per tick); Interpolate/render and client-only visuals are not, and stay out of the CRC.
+A C++23 Vulkan game engine client/server using data-oriented design, with data pre-packer (offline; runtime reads only `.pack` chunks). Top-down RTS-scale camera: kilometers above an ocean with islands, small units on screen. West is -x, East is +x, North is +y, South is -y, Up is +z, Down is -z. The client and server run a deterministic simulation, user input (client simulation change requests) are rare so we prioritize CPU/GPU smoothness over client -> server -> client input latency. The world is an unbounded sparse grid of cells, each simulated independently in parallel. Fixed sim tick rate; render free-runs via interpolation. PostRender state is bit-deterministic (`/fp:strict`, CRC-checked per tick); Interpolate/render and client-only visuals are not, and stay out of the CRC.
 
 ## Environment
 
@@ -14,40 +14,39 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 ### Subagents
 
 - Main session is manager: delegate aggressively to keep the context small, except trivial edits
-- Subagent instructions: CONCISE but COMPLETE — objective, scope, file paths, output format; add explicit non-scope when adjacent code could read as in-scope (sibling patterns, sites owned by another step or dispatch). Under-specification causes duplicated/out-of-scope work, but don't provide more than they need.
+- Subagent instructions: CONCISE but COMPLETE — objective, scope, file paths, output format. Provide them only with the instructions and context they need.
 
 ### When to use each model
 
-Fable is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down, except if Fable is not available fallback to Opus.
+Opus is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down.
 
 - Code/Web search: Haiku — must never summarize; return direct quotes, file:line references, or links for the main context to analyze
-- Builds: Haiku — invoke `/compile`; return status + error/warning lines verbatim (main-session dispatch; implementing/fixing subagents build inline)
-- Large-file/log filtering (game logs, LogDifferences output): Haiku — return matching lines verbatim
-- Planning: Fable (fallback to Opus)
+- Builds: Haiku — invoke `/compile`; return status + error/warning lines verbatim
+- Large-file/log filtering: Haiku — return matching lines verbatim
+- Planning: Opus
 - New Code: Opus
 - Code edits: Sonnet
 - Style review: Sonnet
 - Documentation: Opus
-- Code/session review: Fable (fallback to Opus)
+- Code/session review: Opus
 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
-Exception: for one-line changes, make the edit, then do step 3 and a selective `/compile`.
-Each subagent reports files changed + functions/regions touched (one line each), ending with residuals — incomplete items, skipped fixes, findings not acted on — or "none"; main session accumulates and passes to all later steps (fresh contexts can't see other contexts' edit history), and re-dispatches residuals or routes them to step 10, never drops them silently. The residuals footer is appended after any skill-defined output format and takes precedence over a skill's "output only the template" phrasing.
-Fix-dispatch subagents (steps 4 and 9) verify each finding still holds in current code before editing; a finding that doesn't hold returns REFUTED with evidence instead of an edit. A fix that changes semantics or one instance of a mirrored pattern must check counterpart sites (update-affected-code §3) and update them or report them as residuals.
+
+Exception for one-line changes: Make the edit yourself, then do step 3
+Each subagent reports files changed + functions/regions touched (one line each), ending with residuals — incomplete items, skipped fixes, findings not acted on — or "none"; main session accumulates and passes to all later steps (subagents can't see other subagents' session), and re-dispatches residuals or routes them to step 10, never drops them silently. The residuals footer is appended after any skill-defined output format and takes precedence over a skill's "output only the template" phrasing.
+
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 	- DO NOT add a 'Verification' section — agents cannot run/play the game, so manual-test steps are noise
-1. Invoke /external-grill-plan to interview the user about the plan. **When the grill completes, DO NOT stop or summarize — immediately continue to step 2 in the same turn.**
-2. An Opus subagent makes the code changes from the planning document, adds new files via the /update-vcxproj skill, builds changed files (selective `/compile`), and fixes compile errors before returning. If mid-implementation the plan contradicts actual code (wrong structural assumption, step can't work as written), stop that item and report it as a residual — never improvise past the contradiction. For large plans, split across multiple Opus subagents with disjoint file sets — each owns the full step 2 contract (including 2b) for its slice
-	- 2b. Same subagent then invokes /external-self-audit; main session passes its handed-off items to the step 4 and step 9 reviewers as focus areas; sweep-exhaustiveness items also go to step 3
-3. Use a Sonnet subagent to invoke the /update-affected-code skill — pass the changed-file list, touched functions/regions, the plan document (or intent summary), and the step 2b sweep-exhaustiveness handoffs
-4. Use a Fable (fallback to Opus) subagent to invoke the /repo-code-review skill; the subagent returns findings, uncertain items, and API-verification requests — main session resolves verification requests via Haiku WebFetch subagents, evaluates validity, queries the user if unsure, then dispatches accepted fixes to a Sonnet subagent (Opus if a fix needs new code). If review flags any files for `/reduce-file`, route them through step 10. If shader files changed this session, a second Fable (fallback to Opus) subagent invokes the /glsl-review skill concurrently; its findings route identically
-	- Steps 5, 6, and 7 have disjoint write sets (code style / CLAUDE.md docs / vcxproj verify) — once step 4's fixes land, dispatch all three concurrently in one message; step 8 is the barrier and builds step 5's fixes with the rest (step 9's code-vs-docs audit backstops rare doc staleness from step 5 renames)
+1. Invoke /external-grill-plan to interview the user about the plan. **When the user has responded to the grill, DO NOT stop or summarize — immediately continue to step 2 in the same turn.**
+2. Have Opus subagents make the code changes from the planning document, for large plans split across multiple Opus subagents with disjoint file sets. If mid-implementation the plan contradicts actual code (wrong structural assumption, step can't work as written), stop that item and report it as a residual — subagents never improvise past the contradiction. After the code is written the subagent's session then invokes /external-self-audit; main session passes its handed-off items to the step 4 and step 9 reviewers as focus areas; sweep-exhaustiveness items also go to step 3
+3. Use a Sonnet subagent to invoke the /update-affected-code skill — pass the changed-file list, touched functions/regions, the plan document (or intent summary), and the step 2 sweep-exhaustiveness handoffs
+4. Use an Opus subagent to invoke the /repo-code-review skill; the subagent returns findings, uncertain items, and API-verification requests — main session resolves verification requests via Haiku WebFetch subagents, evaluates validity, queries the user if unsure, then dispatches accepted fixes to an Opus subagent. If review flags any files for `/reduce-file`, route them through step 10. If shader files changed this session, a second Opus subagent invokes the /glsl-review skill concurrently; its findings route identically
 5. Use a Sonnet subagent to invoke the /code-style-review skill
-6. Use an Opus subagent to invoke the /update-claude-docs skill — and the /update-architecture-diagrams skill when its trigger applies
-7. Haiku subagent invokes the /update-vcxproj skill (verify mode, fixing FAILs in place via add mode) on all files changed this session — reports pass/fixed/NOTE per file. This step owns vcxproj membership/filter mechanics
-8. A Haiku subagent invokes the /compile skill. On errors: Sonnet subagent fixes (Opus if new code), rebuild; fixed files join the accumulated list
-9. After all previous steps complete, Fable (fallback to Opus) subagents invoke the /session-audit skill on all files changed this session — fine-grained logical groups (per subsystem or per plan-step slice), code separate from docs. Findings only; main dispatches accepted fixes to Sonnet (Opus if new code) — keep fixes small, structural → step 10. Fixing subagent style-checks its edits and rebuilds via selective `/compile`; shader-touching fixes instead get a client build (DataPacker compiles shaders) and a glsl-review pass
-10. For problems and residuals from any step that weren't auto-fixed (architectural decisions, larger issues out-of-scope of the current plan), have a Fable (fallback to Opus) subagent create plan files in `Documents/Plans/`
+6. Use an Opus subagent to invoke the /update-claude-docs skill — and the /update-architecture-diagrams skill if its trigger applies
+7. A Sonnet subagent invokes the /update-vcxproj skill (verify mode, fixing FAILs in place via add mode) on all files changed this session — reports pass/fixed/NOTE per file. This step owns vcxproj membership/filter mechanics
+8. A Haiku subagent invokes the /compile skill. On errors: Opus subagent fixes
+9. After all previous steps complete, Opus subagents invoke the /session-audit skill on all files changed this session — fine-grained logical groups (per subsystem or per plan-step slice), code separate from docs. /session-audit reports findings only; main session dispatches new Opus subagents to validate then fix accepted findings (structural issues → step 10).
+10. For problems and residuals from any step that weren't auto-fixed (architectural decisions, larger issues out-of-scope of the current plan), have an Opus subagent create plan files in `Documents/Plans/`
 
 ## Resolving Ambiguity
 

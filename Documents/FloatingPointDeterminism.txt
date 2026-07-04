@@ -128,12 +128,14 @@ floating-point aggregation occurs during simulation.
 
 10. CRC Validation
 -------------------
-A dual CRC system detects any divergence:
+A single shared CRC detects any divergence. It is computed over the
+cross-build-shared collection subset (ServerCollections(), currently
+explosions and pushers) and excludes both client-only visual data and
+server-only fields, so both builds produce identical CRCs from the same
+simulation (FrameInterpolateBase::Crcs() and FramePostRenderBase::Crcs()
+in Engine/Source/Frame/FrameBase.cpp).
 
-  - Crc():       includes all collections (client self-check)
-  - ServerCrc(): excludes client-only visual data (cross-build check)
-
-CRCs are computed after every tick and compared during reconciliation.
+The CRC is computed after every tick and compared during reconciliation.
 On mismatch, the client performs rollback-and-replay. Persistent
 mismatches trigger a soft resync request to the server; 3 desyncs
 within 10 seconds escalate to disconnect.

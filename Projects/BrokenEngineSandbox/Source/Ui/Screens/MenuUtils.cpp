@@ -139,15 +139,15 @@ constexpr MenuChrome kMenuChromes[]
 		.f4ButtonActive = ImVec4(0.62f, 0.42f, 0.10f, 0.95f),
 		.f4BackdropDim = ImVec4(0.0f, 0.0f, 0.0f, 0.55f),
 	},
-	// kMonochrome
+	// kMidnightMauve
 	{
-		.f4PanelFillTop = ImVec4(0.13f, 0.13f, 0.13f, 0.92f),
-		.f4PanelFillBottom = ImVec4(0.06f, 0.06f, 0.06f, 0.92f),
-		.f4PanelBorder = ImVec4(0.42f, 0.42f, 0.42f, 0.8f),
-		.f4Accent = ImVec4(0.90f, 0.90f, 0.90f, 1.0f),
-		.f4ButtonFill = ImVec4(0.13f, 0.13f, 0.13f, 0.75f),
-		.f4ButtonHover = ImVec4(0.32f, 0.32f, 0.32f, 0.9f),
-		.f4ButtonActive = ImVec4(0.50f, 0.50f, 0.50f, 0.95f),
+		.f4PanelFillTop = ImVec4(0.14f, 0.14f, 0.20f, 0.92f),
+		.f4PanelFillBottom = ImVec4(0.09f, 0.09f, 0.14f, 0.92f),
+		.f4PanelBorder = ImVec4(0.36f, 0.36f, 0.48f, 0.8f),
+		.f4Accent = ImVec4(0.80f, 0.65f, 0.97f, 1.0f),
+		.f4ButtonFill = ImVec4(0.14f, 0.14f, 0.20f, 0.75f),
+		.f4ButtonHover = ImVec4(0.30f, 0.26f, 0.42f, 0.9f),
+		.f4ButtonActive = ImVec4(0.55f, 0.42f, 0.72f, 0.95f),
 		.f4BackdropDim = ImVec4(0.0f, 0.0f, 0.0f, 0.55f),
 	},
 };

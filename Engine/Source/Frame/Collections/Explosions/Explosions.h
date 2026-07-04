@@ -189,6 +189,9 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 
 struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 {
+	// Bump on any SOA layout change — feeds the Frame::kiVersion save/replay gate
+	static constexpr int64_t kiVersion = 1;
+
 	// Allocate and copy
 	static void AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious);
 

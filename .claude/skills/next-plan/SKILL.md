@@ -1,6 +1,6 @@
 ---
 name: next-plan
-description: First reconciles any orphaned plan files on disk that aren't referenced in `Documents/Plans/Order.md` by dispatching an Opus subagent to score them and inserting their rows. Then pulls the highest-priority plan, follows any unfinished prerequisites, validates it against the current codebase, refreshes stale details, scans the codebase for similar changes the plan may have missed, and presents a ready-to-execute plan for approval. Claims the selected plan by marking its Order.md row `[CLAIMED]`; the row and plan file are removed only after the plan is fully executed, and rejection unclaims the row. Use when the user invokes `/next-plan`.
+description: First reconciles any orphaned plan files on disk that aren't referenced in `Documents/Plans/Order.md` by dispatching an Opus subagent to score them and inserting their rows. Then pulls the highest-priority plan, follows any unfinished prerequisites, validates it against the current codebase, refreshes stale details, scans the codebase for similar changes the plan may have missed, grills the plan up front to resolve open decisions, and presents a ready-to-execute plan for approval. Claims the selected plan by marking its Order.md row `[CLAIMED]`; the row and plan file are removed only after the plan is fully executed, and rejection unclaims the row. Use when the user invokes `/next-plan`.
 disable-model-invocation: true
 argument-hint: "[plan-file-path]"
 allowed-tools: [Read, Write, Grep, Glob, Agent, Edit, Bash, AskUserQuestion]
@@ -8,13 +8,13 @@ allowed-tools: [Read, Write, Grep, Glob, Agent, Edit, Bash, AskUserQuestion]
 
 # Next Plan
 
-Reconciles orphaned plan files on disk into `Documents/Plans/Order.md`, then walks the `## Plans` table, picks the top-priority unblocked plan, verifies it still describes a real problem in the current code, refreshes stale line numbers or paths, scans the codebase for similar changes the plan may have missed, and presents a ready-to-execute plan for explicit user approval.
+Reconciles orphaned plan files on disk into `Documents/Plans/Order.md`, then walks the `## Plans` table, picks the top-priority unblocked plan, verifies it still describes a real problem in the current code, refreshes stale line numbers or paths, scans the codebase for similar changes the plan may have missed, grills the plan up front to resolve open decisions, and presents a ready-to-execute plan for explicit user approval.
 
 ## Preconditions
 
 - The skill assumes **bypass-permissions** mode and mutates without further confirmation: it inserts `Order.md` rows for orphaned plan files (Step 0), marks the target row `[CLAIMED]` as soon as the candidate is selected (Step 2), and overwrites the plan file with the synthesized plan (Step 7). Row removal and plan-file deletion happen only when the plan is fully executed — after the C++ Code Change Process completes, or immediately when Step 3 finds the plan Obsolete (Step 8's completion contract). Rejection at Step 9 unclaims the row and keeps the file. User approval is requested only on the final synthesized plan, not on the mutations.
 - `Documents/Plans/Order.md` must exist. If it does not, report the missing file and stop.
-- The skill does **not** require — and does not use — plan mode. It mimics plan mode's "review-before-implement" UX by printing the final plan as a standalone turn-ending text message (so it is readable and scrollable in the session window), then asking for approval via `AskUserQuestion` before the standard C++ Code Change Process begins. See Step 9 for the exact two-turn presentation contract.
+- The skill does **not** require — and does not use — plan mode. It mimics plan mode's "review-before-implement" UX by grilling the plan (`/external-grill-plan`) up front to resolve decisions, then printing the final refined plan as a standalone turn-ending text message (readable and scrollable in the session window), then asking for approval via `AskUserQuestion`. Because the grill runs **before** approval, an `Approve` (or "execute") jumps straight into implementation (C++ Code Change Process step 2) with no further interview. See Step 9 for the exact grill-then-present-then-approve contract.
 - **Order.md is shared mutable state — expect concurrent writers.** The user routinely runs several agent sessions at once, each executing plans, so `Order.md` rows and plan files appear and vanish **while this skill is running**. Consequences:
   - Re-read the relevant `Order.md` region immediately before *every* edit (Step 0f inserts, Step 2 claim, completion cleanup, any annotation); a snapshot from earlier in the run is already stale. If an `Edit` fails with "file modified since read", that is the expected concurrency signal — re-read and re-apply, don't escalate.
   - Key every row edit on the **plan path text**, never on a remembered line number — parallel inserts/removals shift lines constantly.
@@ -31,7 +31,7 @@ Order.md has a single `## Plans` table. Columns are: `Plan | Tier | Effort | Imp
 
 ## Workflow
 
-Execute these steps in order. Mutation points (bypass-permissions assumed): Step 0 inserts rows for orphaned plan files, Step 2 marks the target's Order.md row `[CLAIMED]` the moment it is selected, Step 7 overwrites the plan file with the synthesized plan, and Step 8 defines the completion contract — the row is removed and the file deleted only once the plan is fully executed. Everything else is read-only research and synthesis; user approval happens at Step 9.
+Execute these steps in order. Mutation points (bypass-permissions assumed): Step 0 inserts rows for orphaned plan files, Step 2 marks the target's Order.md row `[CLAIMED]` the moment it is selected, Step 7 overwrites the plan file with the synthesized plan, and Step 8 defines the completion contract — the row is removed and the file deleted only once the plan is fully executed. Everything else is read-only research and synthesis; the plan grill and user approval both happen at Step 9 (grill first, then approval).
 
 ### Step 0. Reconcile orphaned plan files into `Order.md`
 
@@ -248,29 +248,39 @@ Nothing is deleted at selection time. The claimed row and the plan file are remo
 
 If the run ends any other way — rejection in Step 9, an error, or the user stopping mid-execution — do **not** delete anything. On rejection, unclaim instead: strip the `[CLAIMED] ` prefix from the Notes cell so the plan returns to the queue; the plan file (now holding the Step 7 refreshed version) stays on disk. If execution is simply abandoned mid-way, leave the claim in place and tell the user the plan's state so they can decide whether to unclaim it.
 
-### Step 9. Present the final plan and request approval
+### Step 9. Grill the plan, present it, and request approval
+
+The grill runs **before** approval so that once the user approves, implementation begins immediately with no further interview round-trip. Do the three sub-steps in order; all of Step 9 stays under one `Step 9` label so existing cross-references (the Step 8 contract, the edge cases) stay valid.
+
+#### 9a. Grill the plan (pre-approval)
+
+Invoke `/external-grill-plan` on the plan file Step 7 wrote — this is C++ Code Change Process step 1, pulled ahead of approval. It interviews the user, resolves the plan's decision points, and silently updates the plan file with the resolved answers, so the plan the user approves in 9c is already the refined one.
+
+- On a trivial/mechanical plan the grill commonly finds no decision points and returns with nothing to ask — expected; proceed straight to 9b.
+- **Do not stop or summarise when the grill returns** — continue to 9b in the same turn. The only legitimate reasons to pause here are (a) the grill asked the user a question that is still open, or (b) the grill recommended running `/external-design-interface` first per its role-boundary clause; resolve those before presenting.
+
+#### 9b. Present the final (grill-refined) plan
 
 **The plan and its rationale MUST land in the session context window before approval is requested — the user must be able to scroll up and read the full plan text in the transcript while (and after) deciding.** Text sandwiched between tool calls, or emitted in the same assistant message as a tool call, is not reliably rendered to the user; an `AskUserQuestion` option `preview` pane is not scrollback and does not satisfy this requirement on its own.
 
-Concretely, present in two turns:
+Output the Step 7 markdown (as refined by 9a) as the **final text of the turn, with no tool calls in that message and none after it**, so it renders fully in the session window. End the turn there.
 
-  1. Output the Step 7 markdown as the **final text of the turn, with no tool calls in that message and none after it**, so it renders fully in the session window. End the turn there.
-  2. When the user responds (any acknowledgement — the content of their reply doesn't matter unless it raises questions), call `AskUserQuestion` for the approval. Optionally duplicate the plan in the `Approve` option's `preview` as a convenience copy, but never as the only copy.
+#### 9c. Request approval
 
-If the user's reply to (1) already contains an unambiguous decision ("approved", "reject", "skip the TextureCache one"), honor it directly and skip or trim the `AskUserQuestion` accordingly.
+When the user responds (any acknowledgement — the content of their reply doesn't matter unless it raises questions), call `AskUserQuestion` for the approval. Optionally duplicate the plan in the `Approve` option's `preview` as a convenience copy, but never as the only copy.
+
+If the user's reply to 9b already contains an unambiguous decision ("approved", "execute", "reject", "skip the TextureCache one"), honor it directly and skip or trim the `AskUserQuestion` accordingly.
 
 The `AskUserQuestion` is a single question along the lines of:
 
 - **question**: "Approve this plan and proceed with implementation?"
-- **options**: `Approve` (proceed to the C++ Code Change Process), `Reject` (the row is unclaimed and the refreshed plan file kept — the plan returns to the queue)
+- **options**: `Approve` (proceed to implementation), `Reject` (the row is unclaimed and the refreshed plan file kept — the plan returns to the queue)
 
 If the `## Additional candidate locations` section contains any **Surfaced** entries (only those the Step 6 extension-review gate flagged as carrying new invariant exposure, needing a design decision, or unconfirmable — everything else was auto-folded), ask the user whether to fold them into the execution scope, defer them to a follow-up plan, or ignore them. Use a separate `AskUserQuestion` call (or a multi-select question) so the approval decision and the scope-expansion decision are tracked independently. Do **not** ask about auto-folded candidates — those are already in `## Execution steps` by design; just mention them in the presentation so the user can veto if they disagree, but don't gate on it. Because the review gate now clears the routine cases automatically, the Surface set is usually empty — when it is (or when every candidate was auto-folded), skip the scope-expansion question entirely.
 
-If the user picks `Approve`, follow the standard C++ Code Change Process defined in the top-level `CLAUDE.md`, starting from its first step — the grill reads and updates the plan file Step 7 wrote. Carry the user's decisions on additional candidates into the process so the implementation reflects the agreed scope. When the process completes, execute the Step 8 completion cleanup (remove the claimed row, delete the plan file).
+If the user picks `Approve`, follow the standard C++ Code Change Process defined in the top-level `CLAUDE.md`, **starting from step 2 (implementation)** — step 1 (the grill) already ran in 9a. Carry the user's decisions on additional candidates into the process so the implementation reflects the agreed scope, and proceed straight into the edit in the same turn — do not re-summarise or wait. When the process completes, execute the Step 8 completion cleanup (remove the claimed row, delete the plan file).
 
-**Do not stop after the grill returns.** The grill's contract is to interrogate the plan and silently update it when it has questions; if it walks every branch and finds no decision points needing user input (common for trivial single-line refactors and dead-code deletions), it returns control with nothing to summarise. That return is **not** a checkpoint — it is the handoff into implementation. Proceed to the edit immediately in the same turn. The only legitimate reasons to pause after the grill are (a) the grill itself asked the user a question that is still open, or (b) the grill explicitly recommended running `/external-design-interface` first per its role-boundary clause. Otherwise, edit.
-
-If the user picks `Reject`, unclaim the row (strip the `[CLAIMED] ` prefix from its Notes cell) and stop. The plan file — now containing the Step 7 refreshed plan — stays on disk and the row stays queued for a future run.
+If the user picks `Reject`, unclaim the row (strip the `[CLAIMED] ` prefix from its Notes cell) and stop. The plan file — now containing the Step 7 refreshed plan plus any grill refinements — stays on disk and the row stays queued for a future run.
 
 ## Edge cases
 
@@ -291,7 +301,7 @@ If the user picks `Reject`, unclaim the row (strip the `[CLAIMED] ` prefix from 
 
 ## What this skill does not do
 
-- Does not execute the plan — that happens after Step 9 approval, and follows the main `CLAUDE.md` C++ Code Change Process.
+- Does not execute the plan — that happens after Step 9 approval. Step 9 grills the plan first (Step 9a — C++ Code Change Process step 1, pulled ahead of approval), so an approval proceeds into the process at step 2 (implementation).
 - Does not re-prioritize the `## Plans` table. Changing priorities is a separate concern — if Step 4 surfaces that the score is stale, surface it to the user rather than silently re-ranking.
 - Does not remove the Order.md row or delete the plan file at selection time. Selection only claims the row (Step 2); cleanup fires exclusively through the Step 8 completion contract — after full execution or terminal abandonment — and rejection unclaims the row instead.
 - Does not blindly expand scope, but **does auto-fold aggressively**: every Step 6 candidate that the dedicated extension-review subagent clears (confirmed same transformation, mechanical, no new undeclared invariant exposure) is folded into `## Execution steps` with no user ask, tagged `[auto-folded sibling]` and listed **Folded** under `## Additional candidate locations` so it stays visible and vetoable. This includes **Related** and lower-confidence siblings — the thorough review gate, not a reflexive user prompt, is what vets them. Only candidates the review gate flags (new invariant exposure, a needed design decision, or unconfirmable sameness) are surfaced for an explicit Step 9 decision.

@@ -10,7 +10,7 @@ enum class UiTheme : uint8_t
 {
 	kNavalSteel = 0,
 	kDarkAmber,
-	kMonochrome,
+	kMidnightMauve,
 
 	kCount,
 };

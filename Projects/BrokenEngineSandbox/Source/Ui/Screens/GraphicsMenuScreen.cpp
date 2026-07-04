@@ -29,6 +29,11 @@ void GraphicsMenuScreen::Render()
 
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
 
+	// Border + accent strip only — the opaque themed WindowBg must stay intact for RegisterOpaqueRect occlusion
+	ImVec2 vPanelPos = ImGui::GetWindowPos();
+	ImVec2 vPanelSize = ImGui::GetWindowSize();
+	DrawPanelAccents(ImGui::GetWindowDrawList(), vPanelPos, ImVec2(vPanelPos.x + vPanelSize.x, vPanelPos.y + vPanelSize.y));
+
 	{
 		ScopedMenuFont headingFont(kfMenuUiScale * kfMenuHeadingScale);
 		ImGui::TextUnformatted(AppendUtf8(common::gpThreadLocal->mWorkbuffer, TranslatedString(kStringGraphics)));
@@ -151,9 +156,9 @@ void GraphicsMenuScreen::Render()
 		engine::gUiTheme.Set<engine::UiTheme>(engine::UiTheme::kDarkAmber);
 	}
 	ImGui::SameLine();
-	if (ImGui::RadioButton("Monochrome", eTheme == engine::UiTheme::kMonochrome))
+	if (ImGui::RadioButton("Midnight Mauve", eTheme == engine::UiTheme::kMidnightMauve))
 	{
-		engine::gUiTheme.Set<engine::UiTheme>(engine::UiTheme::kMonochrome);
+		engine::gUiTheme.Set<engine::UiTheme>(engine::UiTheme::kMidnightMauve);
 	}
 
 	ImGui::Columns(1);

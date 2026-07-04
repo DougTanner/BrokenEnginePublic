@@ -61,16 +61,16 @@ constexpr ThemePalette kThemePalettes[]
 		.f4AccentActive = ImVec4(0.80f, 0.52f, 0.10f, 1.0f),
 		.f4Border = ImVec4(0.38f, 0.33f, 0.26f, 1.0f),
 	},
-	// kMonochrome: pure greyscale, white accents
+	// kMidnightMauve: near-black indigo base, lavender/mauve accent (Catppuccin Mocha) — designer-pass placeholders
 	{
-		.f4Text = ImVec4(0.92f, 0.92f, 0.92f, 1.0f),
-		.f4TextDisabled = ImVec4(0.50f, 0.50f, 0.50f, 1.0f),
-		.f4Bg = ImVec4(0.08f, 0.08f, 0.08f, 1.0f),
-		.f4BgElevated = ImVec4(0.14f, 0.14f, 0.14f, 1.0f),
-		.f4Accent = ImVec4(0.85f, 0.85f, 0.85f, 1.0f),
-		.f4AccentHover = ImVec4(1.0f, 1.0f, 1.0f, 1.0f),
-		.f4AccentActive = ImVec4(0.70f, 0.70f, 0.70f, 1.0f),
-		.f4Border = ImVec4(0.35f, 0.35f, 0.35f, 1.0f),
+		.f4Text = ImVec4(0.80f, 0.84f, 0.96f, 1.0f),
+		.f4TextDisabled = ImVec4(0.50f, 0.52f, 0.61f, 1.0f),
+		.f4Bg = ImVec4(0.12f, 0.12f, 0.18f, 1.0f),
+		.f4BgElevated = ImVec4(0.19f, 0.20f, 0.27f, 1.0f),
+		.f4Accent = ImVec4(0.80f, 0.65f, 0.97f, 1.0f),
+		.f4AccentHover = ImVec4(0.85f, 0.73f, 1.0f, 1.0f),
+		.f4AccentActive = ImVec4(0.68f, 0.52f, 0.86f, 1.0f),
+		.f4Border = ImVec4(0.27f, 0.28f, 0.35f, 1.0f),
 	},
 };
 static_assert(std::size(kThemePalettes) == static_cast<size_t>(UiTheme::kCount));
@@ -243,6 +243,23 @@ void ImGuiManager::ApplyThemeColors(UiTheme eTheme)
 	pColors[ImGuiCol_PlotHistogramHovered] = rPalette.f4AccentHover;
 	pColors[ImGuiCol_TextSelectedBg] = WithAlpha(rPalette.f4Accent, 0.35f);
 	pColors[ImGuiCol_NavCursor] = rPalette.f4Accent;
+
+	pColors[ImGuiCol_TextLink] = rPalette.f4Accent;
+	pColors[ImGuiCol_InputTextCursor] = rPalette.f4Text;
+	pColors[ImGuiCol_TreeLines] = WithAlpha(rPalette.f4Border, 0.6f);
+	pColors[ImGuiCol_BorderShadow] = ImVec4(0.0f, 0.0f, 0.0f, 0.3f);
+	pColors[ImGuiCol_UnsavedMarker] = rPalette.f4Accent;
+	pColors[ImGuiCol_DragDropTarget] = rPalette.f4Accent;
+	pColors[ImGuiCol_DragDropTargetBg] = WithAlpha(rPalette.f4Accent, 0.25f);
+	pColors[ImGuiCol_TableHeaderBg] = rPalette.f4BgElevated;
+	pColors[ImGuiCol_TableBorderStrong] = WithAlpha(rPalette.f4Border, 0.6f);
+	pColors[ImGuiCol_TableBorderLight] = WithAlpha(rPalette.f4Border, 0.35f);
+	pColors[ImGuiCol_TableRowBg] = WithAlpha(rPalette.f4Bg, 0.0f);
+	pColors[ImGuiCol_TableRowBgAlt] = WithAlpha(rPalette.f4BgElevated, 0.35f);
+	pColors[ImGuiCol_NavWindowingHighlight] = WithAlpha(rPalette.f4Accent, 0.7f);
+	pColors[ImGuiCol_NavWindowingDimBg] = WithAlpha(rPalette.f4Bg, 0.2f);
+	pColors[ImGuiCol_ModalWindowDimBg] = WithAlpha(rPalette.f4Bg, 0.35f);
+	pColors[ImGuiCol_TabDimmedSelectedOverline] = WithAlpha(rPalette.f4Accent, 0.5f);
 }
 
 ImGuiManager::~ImGuiManager()

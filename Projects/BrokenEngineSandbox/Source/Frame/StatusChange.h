@@ -3,6 +3,7 @@
 namespace game
 {
 
+// Underlying values are serialized wire/save bytes — enumerators are append-only; never reorder or insert.
 enum class StatusChangeType : uint8_t
 {
 	kSpawnPlayer,
@@ -22,6 +23,8 @@ inline constexpr bool IsTransferType(StatusChangeType eType)
 {
 	return eType >= StatusChangeType::kTransferPlayer && eType <= StatusChangeType::kTransferMissile;
 }
+
+static_assert(static_cast<uint8_t>(StatusChangeType::kTransferSpaceship) == static_cast<uint8_t>(StatusChangeType::kTransferPlayer) + 1 && static_cast<uint8_t>(StatusChangeType::kTransferBlaster) == static_cast<uint8_t>(StatusChangeType::kTransferPlayer) + 2 && static_cast<uint8_t>(StatusChangeType::kTransferMissile) == static_cast<uint8_t>(StatusChangeType::kTransferPlayer) + 3, "IsTransferType assumes kTransferPlayer..kTransferMissile stay contiguous; inserting an enumerator between them breaks the range check.");
 
 inline const char* StatusChangeTypeName(StatusChangeType eType)
 {

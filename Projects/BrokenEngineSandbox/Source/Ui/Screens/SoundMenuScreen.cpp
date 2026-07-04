@@ -27,6 +27,11 @@ void SoundMenuScreen::Render()
 
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
 
+	// Border + accent strip only — the opaque themed WindowBg must stay intact for RegisterOpaqueRect occlusion
+	ImVec2 vPanelPos = ImGui::GetWindowPos();
+	ImVec2 vPanelSize = ImGui::GetWindowSize();
+	DrawPanelAccents(ImGui::GetWindowDrawList(), vPanelPos, ImVec2(vPanelPos.x + vPanelSize.x, vPanelPos.y + vPanelSize.y));
+
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
 	{

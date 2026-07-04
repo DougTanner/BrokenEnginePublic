@@ -48,6 +48,9 @@ constexpr std::string IntToString(int64_t i)
 // consteval CrcConsteval wrapper so the two evaluation paths can never diverge.
 inline constexpr crc_t kCrcSeed = 0xabcdef123456789a;
 inline constexpr crc_t kCrcMultiplier = 0x123456789abcdef1;
+// Changing these constants or the mixing fold below alters every persisted/replicated CRC — bump the
+// save/replay version gate game::Frame::kiVersion in the same change. That gate is the only signal
+// separating "data desynced" from "checksum algorithm changed" (skip it and straddling replays false-desync).
 
 // Compile-time CRC hash function for string hashing
 // Used extensively for asset identification and lookup throughout the codebase

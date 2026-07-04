@@ -137,6 +137,9 @@ void Input::UpdateCameraInput()
 #endif
 }
 
+// Same-session-only CRC: feeds the replay DifferenceStream writer-side dedup and a verbose reader log,
+// never persisted or compared cross-build. Unlike the frame CRC it needs no game::Frame::kiVersion bump
+// when the mixing algorithm changes.
 common::crc_t FrameInput::Crc() const
 {
 	common::crc_t checksum = 0;

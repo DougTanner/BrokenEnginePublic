@@ -26,6 +26,12 @@ constexpr float kfFlagshipCloseDistanceSquared = 12.5f * 12.5f;
 // is identical on client and server -> deterministic.
 constexpr int64_t kiNavRecomputeInterval = 16;
 
+// Option A (throttle-overshoot fix): force an off-cadence pathfind recompute when the held steering
+// bearing points into rising terrain within this many units — re-path before the stale bearing drives the
+// ship into an obstacle corner. Near terrain this collapses to per-tick pathfinding; open water keeps the
+// throttle.
+constexpr float kfNavTerrainLookahead = 8.0f;
+
 // [DIAG] Temporary stale-bearing capture (kNavData / kVerbose). See the block at the end of
 // ComputeNavigation. Flip to false (and remove the block) once the throttle regression is confirmed/fixed.
 constexpr bool kbDiagNavStale = true;
@@ -266,6 +272,22 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 	bool bRecompute = bReseededDirection
 		|| (riNavDirection != iEntryNavDirection)
 		|| (((rFrame.interpolate.iTick + rCurrent.pGlobalPlayerIds[i].iValue) % kiNavRecomputeInterval) == 0);
+
+	// Option A (throttle-overshoot fix): the throttle holds rVecAiDirection (a world-space bearing) for up
+	// to kiNavRecomputeInterval ticks, so a ship rounding an obstacle corner overshoots the turn on the
+	// stale bearing and drives into the island. Force an immediate recompute when the carried bearing would
+	// put the ship into rising terrain within kfNavTerrainLookahead — re-path before the overshoot rather
+	// than after. Deterministic: rVecAiDirection (carried, shared), vecPosition, and FrameElevation (shared
+	// per-cell grid read) are identical on client and server, and this draws no RNG (RNG parity preserved).
+	// Roam (mode -1) already re-steers every tick via ComputeAiSteering, so it is exempt.
+	if (!bRecompute && riNavDirection >= 0 && XMVectorGetX(XMVector3LengthSq(rVecAiDirection)) > 0.001f)
+	{
+		XMVECTOR vecTerrainProbe = XMVectorMultiplyAdd(XMVectorReplicate(kfNavTerrainLookahead), rVecAiDirection, vecPosition);
+		if (engine::gpIslandTerrain->FrameElevation(rStaticData, vecTerrainProbe) >= engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin)
+		{
+			bRecompute = true;
+		}
+	}
 
 	if (riNavDirection == 5)
 	{

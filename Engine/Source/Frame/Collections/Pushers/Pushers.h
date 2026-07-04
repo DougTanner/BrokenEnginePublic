@@ -33,6 +33,9 @@ using PusherFlags_t = common::Flags<PusherFlags>;
 
 struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlags::kIdToIndex>
 {
+	// Bump on any SOA layout change — feeds the Frame::kiVersion save/replay gate
+	static constexpr int64_t kiVersion = 1;
+
 	// Register
 	static void Register();
 
@@ -89,6 +92,9 @@ using pusher_t = PushersInterpolate::id_t;
 
 struct PushersPostRender : public Collection<PushersPostRender>
 {
+	// Bump on any SOA layout change — feeds the Frame::kiVersion save/replay gate
+	static constexpr int64_t kiVersion = 1;
+
 	// Allocate and copy
 	static void AllocateAndCopy(PushersPostRender& rCurrent, const PushersPostRender& rPrevious);
 

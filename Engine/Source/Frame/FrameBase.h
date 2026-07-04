@@ -91,6 +91,14 @@ struct FrameInterpolateBase
 	WindTrailsInterpolate windTrails {};
 #endif
 
+	// Tuple order is load-bearing for cross-collection Sync: an owner collection that Syncs
+	// into an owned collection must precede it here, because the owned collection may read
+	// its just-Synced current-frame data in the SAME phase walk. Live case: explosions
+	// (index 2) Syncs smokeTrails positions in ExplosionsInterpolate::Update (via
+	// SyncExplosionTrail), and SmokeTrailsInterpolate::Update then smooths those positions,
+	// so explosions must precede smokeTrails (index 8). Reordering looks free (the
+	// kCollectionCount / ServerCollections() static_asserts do not constrain order) but
+	// would introduce a one-frame trail lag.
 	auto Collections(this auto&& rSelf)
 	{
 		return std::tie(
