@@ -5,7 +5,7 @@
 namespace engine
 {
 
-// Specular - Normals (per-sample row layout: chevron | size | weight-min | weight-max | rotation | speed-min | speed-max)
+// Specular - Normals (per-sample row layout: chevron | size | weight-min | weight-max | rotation | speed-min | speed-max | speed-direction)
 extern Wrapper gWaterNormalIndexOne;
 extern Wrapper gLightingSampledNormalsOneSize;
 extern Wrapper gLightingSampledNormalsWeightOneMin;
@@ -13,6 +13,7 @@ extern Wrapper gLightingSampledNormalsWeightOneMax;
 extern Wrapper gWaterNormalRotationOne;
 extern Wrapper gLightingSampledNormalsSpeedOneMin;
 extern Wrapper gLightingSampledNormalsSpeedOneMax;
+extern Wrapper gWaterNormalSpeedDirectionOne;
 extern Wrapper gWaterNormalIndexTwo;
 extern Wrapper gLightingSampledNormalsTwoSize;
 extern Wrapper gLightingSampledNormalsWeightTwoMin;
@@ -20,6 +21,7 @@ extern Wrapper gLightingSampledNormalsWeightTwoMax;
 extern Wrapper gWaterNormalRotationTwo;
 extern Wrapper gLightingSampledNormalsSpeedTwoMin;
 extern Wrapper gLightingSampledNormalsSpeedTwoMax;
+extern Wrapper gWaterNormalSpeedDirectionTwo;
 extern Wrapper gWaterNormalIndexThree;
 extern Wrapper gLightingSampledNormalsThreeSize;
 extern Wrapper gLightingSampledNormalsWeightThreeMin;
@@ -27,6 +29,7 @@ extern Wrapper gLightingSampledNormalsWeightThreeMax;
 extern Wrapper gWaterNormalRotationThree;
 extern Wrapper gLightingSampledNormalsSpeedThreeMin;
 extern Wrapper gLightingSampledNormalsSpeedThreeMax;
+extern Wrapper gWaterNormalSpeedDirectionThree;
 extern Wrapper gWaterDepthReflectionFeather;
 extern Wrapper gWaterWaveNormalBlend;
 

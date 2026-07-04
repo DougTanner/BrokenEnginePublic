@@ -13,25 +13,28 @@ namespace
 {
 const TweaksSliderMapRegistrar gWaterRegistrar
 {
-	// Specular - Normals (per-sample row layout: chevron | size | weight-min | weight-max | rotation | speed-min | speed-max)
+	// Specular - Normals (per-sample row layout: chevron | size | weight-min | weight-max | rotation | speed-min | speed-max | speed-direction)
 	{"Size 1", &gLightingSampledNormalsOneSize},
 	{"Weight Min 1", &gLightingSampledNormalsWeightOneMin},
 	{"Weight Max 1", &gLightingSampledNormalsWeightOneMax},
 	{"Rotation 1", &gWaterNormalRotationOne},
 	{"Speed Min 1", &gLightingSampledNormalsSpeedOneMin},
 	{"Speed Max 1", &gLightingSampledNormalsSpeedOneMax},
+	{"Speed Direction 1", &gWaterNormalSpeedDirectionOne},
 	{"Size 2", &gLightingSampledNormalsTwoSize},
 	{"Weight Min 2", &gLightingSampledNormalsWeightTwoMin},
 	{"Weight Max 2", &gLightingSampledNormalsWeightTwoMax},
 	{"Rotation 2", &gWaterNormalRotationTwo},
 	{"Speed Min 2", &gLightingSampledNormalsSpeedTwoMin},
 	{"Speed Max 2", &gLightingSampledNormalsSpeedTwoMax},
+	{"Speed Direction 2", &gWaterNormalSpeedDirectionTwo},
 	{"Size 3", &gLightingSampledNormalsThreeSize},
 	{"Weight Min 3", &gLightingSampledNormalsWeightThreeMin},
 	{"Weight Max 3", &gLightingSampledNormalsWeightThreeMax},
 	{"Rotation 3", &gWaterNormalRotationThree},
 	{"Speed Min 3", &gLightingSampledNormalsSpeedThreeMin},
 	{"Speed Max 3", &gLightingSampledNormalsSpeedThreeMax},
+	{"Speed Direction 3", &gWaterNormalSpeedDirectionThree},
 	{"Depth Reflection Feather", &gWaterDepthReflectionFeather},
 	{"Wave Normal Blend (Global)", &gWaterWaveNormalBlend},
 	// Specular - Skybox
@@ -142,6 +145,7 @@ void TweaksScreenBase::RenderWaterSection()
 				WrapperSlider("Rotation 1", kiSection, 1.0f);
 				WrapperSlider("Speed Min 1", kiSection, 1.0f);
 				WrapperSlider("Speed Max 1", kiSection, 1.0f);
+				WrapperSlider("Speed Direction 1", kiSection, 1.0f);
 
 				ChevronIndexSelector("Sample 2", gWaterNormalIndexTwo, TextureManager::kpWaterNormalNames, TextureManager::kiWaterNormalCount);
 				WrapperSlider("Size 2", kiSection, 1.0f);
@@ -150,6 +154,7 @@ void TweaksScreenBase::RenderWaterSection()
 				WrapperSlider("Rotation 2", kiSection, 1.0f);
 				WrapperSlider("Speed Min 2", kiSection, 1.0f);
 				WrapperSlider("Speed Max 2", kiSection, 1.0f);
+				WrapperSlider("Speed Direction 2", kiSection, 1.0f);
 
 				ChevronIndexSelector("Sample 3", gWaterNormalIndexThree, TextureManager::kpWaterNormalNames, TextureManager::kiWaterNormalCount);
 				WrapperSlider("Size 3", kiSection, 1.0f);
@@ -158,6 +163,7 @@ void TweaksScreenBase::RenderWaterSection()
 				WrapperSlider("Rotation 3", kiSection, 1.0f);
 				WrapperSlider("Speed Min 3", kiSection, 1.0f);
 				WrapperSlider("Speed Max 3", kiSection, 1.0f);
+				WrapperSlider("Speed Direction 3", kiSection, 1.0f);
 
 				WrapperSlider("Depth Reflection Feather", kiSection, 1.0f);
 				WrapperSlider("Wave Normal Blend (Global)", kiSection, 1.0f);

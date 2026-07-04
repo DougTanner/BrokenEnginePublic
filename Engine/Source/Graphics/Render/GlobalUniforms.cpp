@@ -472,13 +472,20 @@ static void PopulateWaterReducedUv(shaders::GlobalLayout& rGlobalLayout)
 	float fRotationOne = gWaterNormalRotationOne.Get();
 	float fRotationTwo = gWaterNormalRotationTwo.Get();
 	float fRotationThree = gWaterNormalRotationThree.Get();
+	// Per-sample scroll-direction offsets φ (independent of rotation θ; the default 0 scrolls along world (1,1)).
+	float fSpeedDirectionOne = gWaterNormalSpeedDirectionOne.Get();
+	float fSpeedDirectionTwo = gWaterNormalSpeedDirectionTwo.Get();
+	float fSpeedDirectionThree = gWaterNormalSpeedDirectionThree.Get();
 	// Per-sample reduced-time accumulators: integrate (size * speed * dt) per frame and fmod 10.0
 	// rather than recomputing fmod(size * speed * t, 10.0). Per-frame integration keeps the UV
 	// phase continuous when size or speed slide smoothly (e.g. zoom-driven speed lerp); the old
 	// formulation produced a per-frame jump proportional to (deltaSpeed * t) that grew with playtime.
-	// vec2 form: the scalar delta (size * speed * dt) along base direction (1,1) is rotated by the
-	// sample's rotation R(-θ) before accumulation, so scroll follows the pattern's rotated UV space;
-	// each component wraps at 10.0 independently and speedMult * 10 stays integer so fract() absorbs it.
+	// vec2 form: the scalar delta (size * speed * dt) scrolls along an independent per-sample world
+	// direction R(φ)·(1,1) (φ = gWaterNormalSpeedDirection; the default 0 scrolls along world (1,1)), decoupled from the
+	// pattern rotation θ. The CPU applies the UV-space direction R(γ) with γ = φ − θ so the shader's
+	// R(θ) cancels back to world R(φ); magnitude stays √2 for all φ (direction never alters scroll speed).
+	// Each component wraps at 10.0 independently and speedMult * 10 stays integer so fract() absorbs the
+	// wrap for any φ (precision pact intact).
 	static double sdReducedTimeOneX = 0.0;
 	static double sdReducedTimeOneY = 0.0;
 	static double sdReducedTimeTwoX = 0.0;
@@ -492,18 +499,28 @@ static void PopulateWaterReducedUv(shaders::GlobalLayout& rGlobalLayout)
 	double dDeltaOne = dSizeBaseOne * dSpeedOne * dDeltaTime;
 	double dCosOne = static_cast<double>(std::cos(fRotationOne));
 	double dSinOne = static_cast<double>(std::sin(fRotationOne));
-	sdReducedTimeOneX = std::fmod(sdReducedTimeOneX + dDeltaOne * (dCosOne + dSinOne), 10.0);
-	sdReducedTimeOneY = std::fmod(sdReducedTimeOneY + dDeltaOne * (dCosOne - dSinOne), 10.0);
+	// scroll direction γ = speedDirection − rotation (world dir R(φ)·(1,1); see block comment above)
+	double dScrollGammaOne = static_cast<double>(fSpeedDirectionOne) - static_cast<double>(fRotationOne);
+	double dScrollCosOne = std::cos(dScrollGammaOne);
+	double dScrollSinOne = std::sin(dScrollGammaOne);
+	sdReducedTimeOneX = std::fmod(sdReducedTimeOneX + dDeltaOne * (dScrollCosOne - dScrollSinOne), 10.0);
+	sdReducedTimeOneY = std::fmod(sdReducedTimeOneY + dDeltaOne * (dScrollCosOne + dScrollSinOne), 10.0);
 	double dDeltaTwo = dSizeBaseTwo * dSpeedTwo * dDeltaTime;
 	double dCosTwo = static_cast<double>(std::cos(fRotationTwo));
 	double dSinTwo = static_cast<double>(std::sin(fRotationTwo));
-	sdReducedTimeTwoX = std::fmod(sdReducedTimeTwoX + dDeltaTwo * (dCosTwo + dSinTwo), 10.0);
-	sdReducedTimeTwoY = std::fmod(sdReducedTimeTwoY + dDeltaTwo * (dCosTwo - dSinTwo), 10.0);
+	double dScrollGammaTwo = static_cast<double>(fSpeedDirectionTwo) - static_cast<double>(fRotationTwo);
+	double dScrollCosTwo = std::cos(dScrollGammaTwo);
+	double dScrollSinTwo = std::sin(dScrollGammaTwo);
+	sdReducedTimeTwoX = std::fmod(sdReducedTimeTwoX + dDeltaTwo * (dScrollCosTwo - dScrollSinTwo), 10.0);
+	sdReducedTimeTwoY = std::fmod(sdReducedTimeTwoY + dDeltaTwo * (dScrollCosTwo + dScrollSinTwo), 10.0);
 	double dDeltaThree = dSizeBaseThree * dSpeedThree * dDeltaTime;
 	double dCosThree = static_cast<double>(std::cos(fRotationThree));
 	double dSinThree = static_cast<double>(std::sin(fRotationThree));
-	sdReducedTimeThreeX = std::fmod(sdReducedTimeThreeX + dDeltaThree * (dCosThree + dSinThree), 10.0);
-	sdReducedTimeThreeY = std::fmod(sdReducedTimeThreeY + dDeltaThree * (dCosThree - dSinThree), 10.0);
+	double dScrollGammaThree = static_cast<double>(fSpeedDirectionThree) - static_cast<double>(fRotationThree);
+	double dScrollCosThree = std::cos(dScrollGammaThree);
+	double dScrollSinThree = std::sin(dScrollGammaThree);
+	sdReducedTimeThreeX = std::fmod(sdReducedTimeThreeX + dDeltaThree * (dScrollCosThree - dScrollSinThree), 10.0);
+	sdReducedTimeThreeY = std::fmod(sdReducedTimeThreeY + dDeltaThree * (dScrollCosThree + dScrollSinThree), 10.0);
 	double dCameraX = static_cast<double>(f4CameraPos.x);
 	double dCameraY = static_cast<double>(f4CameraPos.y);
 
@@ -513,8 +530,9 @@ static void PopulateWaterReducedUv(shaders::GlobalLayout& rGlobalLayout)
 	// absorbed by fract). If we instead let the shader rotate reducedOrigin, the wrap shift
 	// becomes R*(sizeMult*10, 0) — non-integer for any θ that isn't a multiple of π/2 — and
 	// produces a visible normal-pattern jump every time size*cameraXY crosses a multiple of 10.
-	// Takes precomputed cos/sin (shared with the reduced-time accumulation above) rather than
-	// recomputing the same trig per sample.
+	// Takes the precomputed rotation cos/sin (dCos*/dSin*, computed once above) rather than
+	// recomputing the same trig per sample. Note the reduced-time accumulation uses its own
+	// dScrollCos*/dScrollSin* (of γ = φ − θ), not these rotation-only values.
 	auto RotatedCamera = [&](double dCos, double dSin, double& rdOutX, double& rdOutY)
 	{
 		rdOutX = dCos * dCameraX + dSin * dCameraY;

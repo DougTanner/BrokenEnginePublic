@@ -1,0 +1,525 @@
+
+INFO: mastering voice has 2 channels, 192000 sample rate, 00000003 channel mask
+INFO: Mastering volume limiter enabled
+WARNING: Called Reset for active audio graph; going silent in preparation for migration
+INFO: mastering voice has 2 channels, 48000 sample rate, 00000003 channel mask
+INFO: Mastering volume limiter enabled
+INFO: AudioEngine Reset using device [{0.0.0.00000000}.{7866507a-95de-4e07-8e9b-ba9da4f61cf3}]
+onecore\net\netprofiles\service\src\nsp\dll\namespaceserviceprovider.cpp(607)\nlansp_c.dll!00007FFCFEB8DA9C: (caller: 00007FFD1606E6F7) LogHr(1) tid(3cb4) 8007277C No such service is known. The service cannot be found in the specified name space.
+  [Tick: 30218] Player 3 NavSwitch: arrived at island dest pos=(-77.0,680.9) dest=(-84.3,674.7)
+  [Tick: 30219] Player 3 NavSwitch: island dest generated pos=(-77.6,680.4) dest=(-10.2,753.9)
+  [Tick: 30252] Player 1 NavSwitch: island dest generated pos=(-65.8,690.0) dest=(31.4,706.7)
+  [Tick: 30253] Player 0 NavSwitch: island dest generated pos=(-68.5,692.8) dest=(-244.4,1101.4)
+  [Tick: 30391] Player 3 NavSwitch: arrived at island dest pos=(-19.9,752.3) dest=(-10.2,753.9)
+  [Tick: 30392] Player 3 NavSwitch: island dest generated pos=(-19.3,752.6) dest=(56.1,1260.9)
+  Timespeed changed Multiply: 2 Divide: 1
+  Timespeed changed Multiply: 4 Divide: 1
+  [Tick: 31106] Player 0 NavSwitch: island dest generated pos=(57.9,1230.0) dest=(-240.7,608.7)
+  [Tick: 31118] Player 3 NavSwitch: arrived at island dest pos=(56.6,1251.4) dest=(56.1,1260.9)
+  [Tick: 31119] Player 3 NavSwitch: island dest generated pos=(56.6,1252.2) dest=(-130.5,1187.5)
+  [Tick: 31145] Player 1 NavSwitch: island dest generated pos=(56.3,1253.4) dest=(-43.0,575.3)
+  [Tick: 31157] NavStale gid=1 mode=4 age=6/16 pos=(40.4,1262.3) heldDir=(-0.73,-0.68) freshDir=(-0.60,-0.80) cos=0.98 lookElev=4.2 pushH=4.2
+  [Tick: 31158] NavStale gid=3 mode=4 age=9/16 pos=(79.3,1235.2) heldDir=(0.36,-0.93) freshDir=(0.32,-0.95) cos=1.00 lookElev=6.2 pushH=4.2
+  [Tick: 31159] NavStale gid=3 mode=4 age=10/16 pos=(79.8,1234.7) heldDir=(0.36,-0.93) freshDir=(0.26,-0.96) cos=1.00 lookElev=7.4 pushH=4.2
+  [Tick: 31162] NavStale gid=1 mode=4 age=10/16 pos=(37.8,1261.7) heldDir=(-0.73,-0.68) freshDir=(1.00,0.04) cos=-0.76 lookElev=4.7 pushH=4.2
+  [Tick: 31162] NavStale gid=1 mode=4 age=11/16 pos=(37.1,1261.5) heldDir=(-0.73,-0.68) freshDir=(1.00,0.04) cos=-0.76 lookElev=5.2 pushH=4.2
+  [Tick: 31165] NavStale gid=1 mode=4 age=14/16 pos=(35.6,1260.9) heldDir=(-0.73,-0.68) freshDir=(1.00,0.04) cos=-0.76 lookElev=4.3 pushH=4.2
+  [Tick: 31169] Player 2 NavSwitch: island dest generated pos=(49.3,1259.3) dest=(45.2,731.1)
+  [Tick: 31211] Player 0 NavSwitch: island dest generated pos=(60.3,1244.3) dest=(82.9,1244.2)
+  [Tick: 31247] Player 0 GlobalId: 3 fleet override NavDir: 2 WantedCoord: (1,1) CellCoord: (0,1)
+  [Tick: 31247] Player 1 GlobalId: 4 fleet override NavDir: 2 WantedCoord: (1,1) CellCoord: (0,1)
+  [Tick: 31247] Player 2 GlobalId: 2 fleet override NavDir: 2 WantedCoord: (1,1) CellCoord: (0,1)
+  [Tick: 31247] Player 3 GlobalId: 1 fleet override NavDir: 2 WantedCoord: (1,1) CellCoord: (0,1)
+  [Tick: 31921] Player 3 NavSwitch: island dest generated pos=(472.9,1054.5) dest=(833.9,662.0)
+  Timespeed changed Multiply: 8 Divide: 1
+  [Tick: 32464] Player 1 NavSwitch: island dest generated pos=(631.1,704.1) dest=(651.4,570.9)
+  [Tick: 32553] Player 2 NavSwitch: island dest generated pos=(669.7,649.1) dest=(903.0,846.9)
+  [Tick: 32812] Player 3 NavSwitch: arrived at island dest pos=(829.5,670.5) dest=(833.9,662.0)
+  [Tick: 32814] Player 3 NavSwitch: island dest generated pos=(830.2,670.4) dest=(950.3,711.0)
+  [Tick: 33036] NavStale gid=1 mode=4 age=11/16 pos=(955.9,720.5) heldDir=(-0.87,-0.50) freshDir=(-0.51,-0.86) cos=0.87 lookElev=4.9 pushH=4.2
+  [Tick: 33036] NavStale gid=1 mode=4 age=12/16 pos=(955.4,720.7) heldDir=(-0.87,-0.50) freshDir=(-0.47,-0.88) cos=0.85 lookElev=4.9 pushH=4.2
+  [Tick: 33036] NavStale gid=1 mode=4 age=13/16 pos=(954.9,720.8) heldDir=(-0.87,-0.50) freshDir=(-0.42,-0.91) cos=0.82 lookElev=6.2 pushH=4.2
+  [Tick: 33038] NavStale gid=1 mode=4 age=14/16 pos=(954.4,720.9) heldDir=(-0.87,-0.50) freshDir=(-0.38,-0.93) cos=0.79 lookElev=7.5 pushH=4.2
+  [Tick: 33038] NavStale gid=1 mode=4 age=15/16 pos=(953.8,721.1) heldDir=(-0.87,-0.50) freshDir=(-0.33,-0.94) cos=0.76 lookElev=7.5 pushH=4.2
+  [Tick: 33044] NavStale gid=1 mode=4 age=5/16 pos=(950.6,721.1) heldDir=(-0.28,-0.96) freshDir=(-0.03,-1.00) cos=0.97 lookElev=5.0 pushH=4.2
+  [Tick: 33046] NavStale gid=1 mode=4 age=6/16 pos=(950.0,721.0) heldDir=(-0.28,-0.96) freshDir=(1.00,0.01) cos=-0.30 lookElev=5.0 pushH=4.2
+  [Tick: 33046] Player 3 NavSwitch: arrived at island dest pos=(949.5,720.9) dest=(950.3,711.0)
+  [Tick: 33046] NavStale gid=1 mode=4 age=7/16 pos=(949.5,720.9) heldDir=(-0.28,-0.96) freshDir=(0.59,0.80) cos=-0.94 lookElev=6.2 pushH=4.2
+  [Tick: 33048] Player 3 NavSwitch: island dest generated pos=(949.0,720.7) dest=(603.8,583.9)
+  [Tick: 33070] Player 2 NavSwitch: island dest generated pos=(964.5,714.9) dest=(904.6,725.6)
+  [Tick: 33171] Player 2 NavSwitch: arrived at island dest pos=(909.9,734.0) dest=(904.6,725.6)
+  [Tick: 33173] Player 2 NavSwitch: island dest generated pos=(909.2,733.8) dest=(1043.0,839.5)
+  [Tick: 33566] NavStale gid=3 mode=5 age=15/16 pos=(668.3,604.1) heldDir=(-0.82,0.57) freshDir=(-0.68,0.73) cos=0.98 lookElev=4.6 pushH=4.2
+  [Tick: 33571] NavStale gid=3 mode=5 age=6/16 pos=(663.2,606.4) heldDir=(-0.66,0.75) freshDir=(0.82,0.57) cos=-0.12 lookElev=4.6 pushH=4.2
+  [Tick: 33574] NavStale gid=3 mode=5 age=7/16 pos=(662.5,606.7) heldDir=(-0.66,0.75) freshDir=(0.82,0.57) cos=-0.12 lookElev=4.2 pushH=4.2
+  [Tick: 33574] NavStale gid=4 mode=5 age=8/16 pos=(667.0,603.0) heldDir=(-0.74,0.68) freshDir=(-0.55,0.83) cos=0.97 lookElev=4.6 pushH=4.2
+  [Tick: 33574] NavStale gid=3 mode=5 age=8/16 pos=(661.8,607.1) heldDir=(-0.66,0.75) freshDir=(0.82,0.57) cos=-0.12 lookElev=4.2 pushH=4.2
+  [Tick: 33574] NavStale gid=4 mode=5 age=9/16 pos=(666.3,603.2) heldDir=(-0.74,0.68) freshDir=(-0.47,0.88) cos=0.94 lookElev=5.7 pushH=4.2
+  [Tick: 33574] NavStale gid=4 mode=5 age=10/16 pos=(665.5,603.6) heldDir=(-0.74,0.68) freshDir=(0.91,0.41) cos=-0.40 lookElev=7.1 pushH=4.2
+  [Tick: 33577] NavStale gid=4 mode=5 age=11/16 pos=(664.8,603.9) heldDir=(-0.74,0.68) freshDir=(0.91,0.41) cos=-0.40 lookElev=7.9 pushH=4.2
+  [Tick: 33577] NavStale gid=4 mode=5 age=12/16 pos=(664.1,604.2) heldDir=(-0.74,0.68) freshDir=(0.91,0.41) cos=-0.40 lookElev=8.8 pushH=4.2
+  [Tick: 33577] NavStale gid=4 mode=5 age=13/16 pos=(663.4,604.5) heldDir=(-0.74,0.68) freshDir=(0.91,0.41) cos=-0.40 lookElev=8.8 pushH=4.2
+  [Tick: 33579] NavStale gid=4 mode=5 age=14/16 pos=(662.6,604.8) heldDir=(-0.74,0.68) freshDir=(0.91,0.41) cos=-0.40 lookElev=8.1 pushH=4.2
+  [Tick: 33579] NavStale gid=4 mode=5 age=15/16 pos=(662.9,605.7) heldDir=(-0.74,0.68) freshDir=(0.82,0.57) cos=-0.22 lookElev=6.3 pushH=4.2
+  [Tick: 33684] Player 3 NavSwitch: arrived at island dest pos=(603.2,593.5) dest=(603.8,583.9)
+  [Tick: 33684] Player 3 NavSwitch: island dest generated pos=(602.9,592.8) dest=(724.2,896.6)
+  [Tick: 33714] Player 0 NavSwitch: island dest generated pos=(600.6,604.3) dest=(845.7,716.8)
+  [Tick: 33729] Player 2 NavSwitch: island dest generated pos=(600.6,610.1) dest=(776.4,1057.3)
+  [Tick: 33733] Player 1 NavSwitch: island dest generated pos=(595.8,613.7) dest=(982.2,712.6)
+  [Tick: 33840] Player 0 GlobalId: 3 fleet override NavDir: 2 WantedCoord: (2,1) CellCoord: (1,1)
+  [Tick: 33840] Player 1 GlobalId: 4 fleet override NavDir: 2 WantedCoord: (2,1) CellCoord: (1,1)
+  [Tick: 33840] Player 2 GlobalId: 2 fleet override NavDir: 2 WantedCoord: (2,1) CellCoord: (1,1)
+  [Tick: 33840] Player 3 GlobalId: 1 fleet override NavDir: 2 WantedCoord: (2,1) CellCoord: (1,1)
+  [Tick: 33851] NavStale gid=2 mode=2 age=13/16 pos=(603.6,659.9) heldDir=(0.81,-0.58) freshDir=(0.43,-0.90) cos=0.88 lookElev=4.3 pushH=4.2
+  [Tick: 33853] NavStale gid=2 mode=2 age=14/16 pos=(603.9,660.2) heldDir=(0.81,-0.58) freshDir=(0.48,0.88) cos=-0.12 lookElev=4.3 pushH=4.2
+  Timespeed changed Multiply: 16 Divide: 1
+  [Tick: 34990] Player 1 NavSwitch: island dest generated pos=(1373.5,776.9) dest=(1585.9,879.6)
+  [Tick: 35122] NavStale gid=3 mode=5 age=5/16 pos=(1436.2,777.4) heldDir=(-0.66,0.75) freshDir=(-0.58,-0.82) cos=-0.23 lookElev=4.4 pushH=4.2
+  [Tick: 35126] NavStale gid=3 mode=5 age=6/16 pos=(1436.5,777.4) heldDir=(-0.66,0.75) freshDir=(-0.58,-0.82) cos=-0.23 lookElev=4.4 pushH=4.2
+  [Tick: 35126] NavStale gid=3 mode=5 age=7/16 pos=(1436.7,777.1) heldDir=(-0.66,0.75) freshDir=(-0.58,-0.82) cos=-0.23 lookElev=4.4 pushH=4.2
+  [Tick: 35126] NavStale gid=3 mode=5 age=9/16 pos=(1437.2,776.7) heldDir=(-0.66,0.75) freshDir=(-0.58,-0.82) cos=-0.23 lookElev=4.2 pushH=4.2
+  [Tick: 35130] NavStale gid=3 mode=5 age=10/16 pos=(1437.4,776.6) heldDir=(-0.66,0.75) freshDir=(-0.58,-0.82) cos=-0.23 lookElev=4.2 pushH=4.2
+  [Tick: 35130] NavStale gid=3 mode=5 age=11/16 pos=(1437.5,776.5) heldDir=(-0.66,0.75) freshDir=(-0.58,-0.82) cos=-0.23 lookElev=4.2 pushH=4.2
+  [Tick: 35130] NavStale gid=3 mode=5 age=12/16 pos=(1437.6,776.5) heldDir=(-0.66,0.75) freshDir=(-0.58,-0.82) cos=-0.23 lookElev=4.2 pushH=4.2
+  [Tick: 35130] NavStale gid=3 mode=5 age=13/16 pos=(1437.6,776.5) heldDir=(-0.66,0.75) freshDir=(-0.58,-0.82) cos=-0.23 lookElev=4.2 pushH=4.2
+  [Tick: 35134] NavStale gid=3 mode=5 age=14/16 pos=(1437.5,776.6) heldDir=(-0.66,0.75) freshDir=(-0.58,-0.82) cos=-0.23 lookElev=4.2 pushH=4.2
+  [Tick: 35134] NavStale gid=3 mode=5 age=15/16 pos=(1437.4,776.8) heldDir=(-0.66,0.75) freshDir=(-0.58,-0.82) cos=-0.23 lookElev=4.2 pushH=4.2
+  [Tick: 35170] ClientSession::Reconcile Clock snap OldTick: 35174 NewTick: 35202 LatestServerTick: 35208 TargetBehind: 6
+  [Tick: 35311] Player 1 NavSwitch: arrived at island dest pos=(1576.5,877.8) dest=(1585.9,879.6)
+  [Tick: 35311] Player 1 NavSwitch: island dest generated pos=(1577.2,878.0) dest=(1487.0,701.1)
+  [Tick: 35570] ClientSession::Reconcile Clock snap OldTick: 35574 NewTick: 35602 LatestServerTick: 35608 TargetBehind: 6
+  [Tick: 35617] Player 1 NavSwitch: arrived at island dest pos=(1489.5,710.7) dest=(1487.0,701.1)
+  [Tick: 35621] Player 1 NavSwitch: island dest generated pos=(1489.3,709.9) dest=(1436.5,691.7)
+  [Tick: 35729] Player 1 NavSwitch: arrived at island dest pos=(1430.8,683.6) dest=(1436.5,691.7)
+  [Tick: 35729] Player 1 NavSwitch: island dest generated pos=(1430.3,684.1) dest=(1837.5,792.4)
+  [Tick: 35781] Player 3 NavSwitch: island dest generated pos=(1451.1,673.6) dest=(1565.4,825.7)
+  [Tick: 35829] NavStale gid=3 mode=5 age=5/16 pos=(1449.4,690.0) heldDir=(0.66,-0.75) freshDir=(0.46,-0.89) cos=0.97 lookElev=4.4 pushH=4.2
+  [Tick: 35829] NavStale gid=3 mode=5 age=6/16 pos=(1450.1,689.9) heldDir=(0.66,-0.75) freshDir=(0.37,-0.93) cos=0.94 lookElev=4.4 pushH=4.2
+  [Tick: 35829] NavStale gid=3 mode=5 age=7/16 pos=(1450.8,689.8) heldDir=(0.66,-0.75) freshDir=(0.25,-0.97) cos=0.89 lookElev=4.4 pushH=4.2
+  [Tick: 35833] NavStale gid=2 mode=5 age=10/16 pos=(1448.6,692.8) heldDir=(0.69,-0.73) freshDir=(0.40,-0.92) cos=0.94 lookElev=5.6 pushH=4.2
+  [Tick: 35833] NavStale gid=2 mode=5 age=11/16 pos=(1449.4,692.6) heldDir=(0.69,-0.73) freshDir=(0.33,-0.94) cos=0.91 lookElev=7.2 pushH=4.2
+  [Tick: 35837] NavStale gid=2 mode=5 age=12/16 pos=(1450.1,692.4) heldDir=(0.69,-0.73) freshDir=(0.26,-0.97) cos=0.88 lookElev=8.7 pushH=4.2
+  [Tick: 35837] NavStale gid=2 mode=5 age=13/16 pos=(1450.8,692.2) heldDir=(0.69,-0.73) freshDir=(0.18,-0.98) cos=0.84 lookElev=6.3 pushH=4.2
+  [Tick: 35837] NavStale gid=2 mode=5 age=14/16 pos=(1451.5,691.9) heldDir=(0.69,-0.73) freshDir=(0.09,-1.00) cos=0.78 lookElev=5.9 pushH=4.2
+  [Tick: 35837] NavStale gid=2 mode=5 age=15/16 pos=(1452.3,691.7) heldDir=(0.69,-0.73) freshDir=(-0.98,0.19) cos=-0.81 lookElev=5.3 pushH=4.2
+  [Tick: 35945] ClientSession::Reconcile Clock snap OldTick: 35949 NewTick: 35977 LatestServerTick: 35983 TargetBehind: 6
+  [Tick: 36316] ClientSession::Reconcile Clock snap OldTick: 36320 NewTick: 36348 LatestServerTick: 36354 TargetBehind: 6
+  [Tick: 36419] Player 1 NavSwitch: arrived at island dest pos=(1830.2,786.4) dest=(1837.5,792.4)
+  [Tick: 36423] Player 1 NavSwitch: island dest generated pos=(1830.7,787.0) dest=(1634.3,577.2)
+  [Tick: 36435] Player 3 NavSwitch: island dest generated pos=(1826.5,781.8) dest=(1430.2,683.2)
+  [Tick: 36467] Player 0 NavSwitch: island dest generated pos=(1823.1,780.5) dest=(1658.6,584.5)
+  [Tick: 36471] Player 2 NavSwitch: island dest generated pos=(1822.7,778.9) dest=(1548.3,834.8)
+  [Tick: 36683] ClientSession::Reconcile Clock snap OldTick: 36687 NewTick: 36715 LatestServerTick: 36721 TargetBehind: 6
+  [Tick: 36719] Death spiral detected: 21 ticks at 16x speed
+  Timespeed changed Multiply: 8 Divide: 1
+  [Tick: 36734] ClientSession::Reconcile Clock snap OldTick: 36736 NewTick: 36765 LatestServerTick: 36771 TargetBehind: 6
+  [Tick: 36777] ClientSession::Reconcile Clock snap OldTick: 36780 NewTick: 36808 LatestServerTick: 36814 TargetBehind: 6
+  [Tick: 36820] ClientSession::Reconcile Clock snap OldTick: 36822 NewTick: 36851 LatestServerTick: 36857 TargetBehind: 6
+  [Tick: 36853] Player 0 NavSwitch: arrived at island dest pos=(1663.9,592.3) dest=(1658.6,584.5)
+  [Tick: 36853] Player 0 NavSwitch: island dest generated pos=(1663.4,591.7) dest=(1436.2,709.3)
+  [Tick: 36853] Player 1 NavSwitch: arrived at island dest pos=(1641.2,584.4) dest=(1634.3,577.2)
+  [Tick: 36853] Player 1 NavSwitch: island dest generated pos=(1640.7,583.9) dest=(1662.3,1298.6)
+  [Tick: 36865] ClientSession::Reconcile Clock snap OldTick: 36869 NewTick: 36899 LatestServerTick: 36905 TargetBehind: 6
+  [Tick: 36905] Player 0 GlobalId: 3 fleet override NavDir: 0 WantedCoord: (2,2) CellCoord: (2,1)
+  [Tick: 36905] NavStale gid=3 mode=0 age=12/16 pos=(1616.6,600.2) heldDir=(0.23,-0.97) freshDir=(0.23,-0.97) cos=1.00 lookElev=6.1 pushH=4.2
+  [Tick: 36905] Player 1 GlobalId: 1 fleet override NavDir: 0 WantedCoord: (2,2) CellCoord: (2,1)
+  [Tick: 36905] Player 2 GlobalId: 2 fleet override NavDir: 0 WantedCoord: (2,2) CellCoord: (2,1)
+  [Tick: 36905] Player 3 GlobalId: 4 fleet override NavDir: 0 WantedCoord: (2,2) CellCoord: (2,1)
+  [Tick: 36907] NavStale gid=3 mode=0 age=13/16 pos=(1616.0,600.6) heldDir=(0.23,-0.97) freshDir=(0.33,-0.95) cos=0.99 lookElev=6.3 pushH=4.2
+  [Tick: 36907] NavStale gid=3 mode=0 age=14/16 pos=(1615.4,601.0) heldDir=(0.23,-0.97) freshDir=(0.40,-0.92) cos=0.98 lookElev=6.3 pushH=4.2
+  [Tick: 36910] NavStale gid=3 mode=0 age=15/16 pos=(1614.8,601.4) heldDir=(0.23,-0.97) freshDir=(0.46,-0.89) cos=0.97 lookElev=5.1 pushH=4.2
+  [Tick: 36919] NavStale gid=4 mode=0 age=10/16 pos=(1607.4,597.5) heldDir=(0.80,-0.60) freshDir=(0.81,-0.58) cos=1.00 lookElev=4.6 pushH=4.2
+  [Tick: 36919] NavStale gid=4 mode=0 age=11/16 pos=(1607.9,597.0) heldDir=(0.80,-0.60) freshDir=(0.81,-0.58) cos=1.00 lookElev=5.3 pushH=4.2
+  [Tick: 36916] ClientSession::Reconcile Clock snap OldTick: 36919 NewTick: 36947 LatestServerTick: 36953 TargetBehind: 6
+  [Tick: 36949] NavStale gid=4 mode=0 age=12/16 pos=(1608.5,596.6) heldDir=(0.80,-0.60) freshDir=(0.82,-0.58) cos=1.00 lookElev=6.0 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=13/16 pos=(1609.1,596.1) heldDir=(0.80,-0.60) freshDir=(0.82,-0.57) cos=1.00 lookElev=7.3 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=14/16 pos=(1609.7,595.7) heldDir=(0.80,-0.60) freshDir=(0.82,-0.57) cos=1.00 lookElev=7.3 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=15/16 pos=(1610.3,595.2) heldDir=(0.80,-0.60) freshDir=(0.83,-0.55) cos=1.00 lookElev=9.5 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=0/16 pos=(1610.9,594.8) heldDir=(0.85,-0.53) freshDir=(0.85,-0.53) cos=1.00 lookElev=10.1 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=1/16 pos=(1611.5,594.4) heldDir=(0.85,-0.53) freshDir=(0.87,-0.49) cos=1.00 lookElev=10.5 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=2/16 pos=(1612.1,593.9) heldDir=(0.85,-0.53) freshDir=(0.97,-0.26) cos=0.96 lookElev=11.7 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=3/16 pos=(1612.6,593.5) heldDir=(0.85,-0.53) freshDir=(-0.79,0.61) cos=-1.00 lookElev=11.1 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=4/16 pos=(1613.2,593.0) heldDir=(0.85,-0.53) freshDir=(-0.36,0.93) cos=-0.80 lookElev=10.9 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=5/16 pos=(1613.8,592.6) heldDir=(0.85,-0.53) freshDir=(-0.36,0.93) cos=-0.80 lookElev=10.9 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=5/16 pos=(1609.9,598.7) heldDir=(0.36,-0.93) freshDir=(0.47,-0.88) cos=0.99 lookElev=4.3 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=6/16 pos=(1614.4,592.2) heldDir=(0.85,-0.53) freshDir=(-0.36,0.93) cos=-0.80 lookElev=10.5 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=6/16 pos=(1609.9,598.2) heldDir=(0.36,-0.93) freshDir=(0.50,-0.87) cos=0.99 lookElev=4.3 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=7/16 pos=(1614.9,591.8) heldDir=(0.85,-0.53) freshDir=(-0.36,0.93) cos=-0.80 lookElev=9.4 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=7/16 pos=(1610.0,597.7) heldDir=(0.36,-0.93) freshDir=(0.54,-0.84) cos=0.98 lookElev=5.9 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=8/16 pos=(1615.2,591.9) heldDir=(0.85,-0.53) freshDir=(-0.36,0.93) cos=-0.80 lookElev=9.4 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=8/16 pos=(1610.1,597.1) heldDir=(0.36,-0.93) freshDir=(0.58,-0.81) cos=0.97 lookElev=6.1 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=9/16 pos=(1615.0,592.6) heldDir=(0.85,-0.53) freshDir=(-0.36,0.93) cos=-0.80 lookElev=8.6 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=9/16 pos=(1610.2,596.5) heldDir=(0.36,-0.93) freshDir=(0.64,-0.77) cos=0.95 lookElev=6.1 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=10/16 pos=(1614.9,593.3) heldDir=(0.85,-0.53) freshDir=(-0.36,0.93) cos=-0.80 lookElev=7.9 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=10/16 pos=(1610.3,596.0) heldDir=(0.36,-0.93) freshDir=(0.71,-0.70) cos=0.91 lookElev=6.9 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=11/16 pos=(1614.8,593.9) heldDir=(0.85,-0.53) freshDir=(-0.36,0.93) cos=-0.80 lookElev=8.9 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=11/16 pos=(1610.4,595.3) heldDir=(0.36,-0.93) freshDir=(0.80,-0.60) cos=0.85 lookElev=7.2 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=12/16 pos=(1614.7,594.5) heldDir=(0.85,-0.53) freshDir=(-0.36,0.93) cos=-0.80 lookElev=8.0 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=12/16 pos=(1610.5,594.7) heldDir=(0.36,-0.93) freshDir=(0.90,-0.43) cos=0.72 lookElev=7.2 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=13/16 pos=(1614.6,595.1) heldDir=(0.85,-0.53) freshDir=(-0.86,-0.51) cos=-0.45 lookElev=6.8 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=13/16 pos=(1610.7,594.1) heldDir=(0.36,-0.93) freshDir=(0.99,-0.15) cos=0.49 lookElev=7.6 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=14/16 pos=(1614.6,595.6) heldDir=(0.85,-0.53) freshDir=(-0.76,-0.65) cos=-0.30 lookElev=6.8 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=14/16 pos=(1610.8,593.4) heldDir=(0.36,-0.93) freshDir=(0.97,0.22) cos=0.14 lookElev=8.8 pushH=4.2
+  [Tick: 36949] NavStale gid=4 mode=0 age=15/16 pos=(1614.6,596.1) heldDir=(0.85,-0.53) freshDir=(1.00,-0.10) cos=0.89 lookElev=4.9 pushH=4.2
+  [Tick: 36949] NavStale gid=3 mode=0 age=15/16 pos=(1611.0,592.8) heldDir=(0.36,-0.93) freshDir=(0.82,0.57) cos=-0.24 lookElev=9.6 pushH=4.2
+  [Tick: 36949] Death spiral detected: 13 ticks at 8x speed
+  Timespeed changed Multiply: 4 Divide: 1
+  [Tick: 36956] NavStale gid=4 mode=0 age=0/16 pos=(1619.8,601.0) heldDir=(-0.39,-0.92) freshDir=(-0.39,-0.92) cos=1.00 lookElev=5.1 pushH=4.2
+  [Tick: 36957] NavStale gid=3 mode=0 age=0/16 pos=(1605.1,584.6) heldDir=(0.96,0.30) freshDir=(0.96,0.30) cos=1.00 lookElev=6.2 pushH=4.2
+  [Tick: 36957] NavStale gid=4 mode=0 age=1/16 pos=(1620.3,601.1) heldDir=(-0.39,-0.92) freshDir=(-0.16,-0.99) cos=0.97 lookElev=5.2 pushH=4.2
+  [Tick: 36956] ClientSession::Reconcile Clock snap OldTick: 36957 NewTick: 36989 LatestServerTick: 36995 TargetBehind: 6
+  [Tick: 36990] NavStale gid=3 mode=0 age=1/16 pos=(1604.4,584.3) heldDir=(0.96,0.30) freshDir=(0.95,0.32) cos=1.00 lookElev=6.2 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=2/16 pos=(1620.8,601.2) heldDir=(-0.39,-0.92) freshDir=(-0.24,-0.97) cos=0.99 lookElev=5.2 pushH=4.2
+  [Tick: 36990] NavStale gid=3 mode=0 age=2/16 pos=(1603.8,583.9) heldDir=(0.96,0.30) freshDir=(0.94,0.34) cos=1.00 lookElev=5.2 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=3/16 pos=(1621.3,601.3) heldDir=(-0.39,-0.92) freshDir=(-0.31,-0.95) cos=1.00 lookElev=5.3 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=4/16 pos=(1621.8,601.3) heldDir=(-0.39,-0.92) freshDir=(-0.37,-0.93) cos=1.00 lookElev=5.3 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=5/16 pos=(1622.2,601.3) heldDir=(-0.39,-0.92) freshDir=(-0.42,-0.91) cos=1.00 lookElev=4.8 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=6/16 pos=(1622.6,601.3) heldDir=(-0.39,-0.92) freshDir=(-0.47,-0.88) cos=1.00 lookElev=4.8 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=7/16 pos=(1622.9,601.2) heldDir=(-0.39,-0.92) freshDir=(-0.51,-0.86) cos=0.99 lookElev=4.8 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=11/16 pos=(1624.0,600.4) heldDir=(-0.39,-0.92) freshDir=(-0.67,-0.74) cos=0.94 lookElev=4.2 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=12/16 pos=(1624.2,600.1) heldDir=(-0.39,-0.92) freshDir=(-0.71,-0.70) cos=0.92 lookElev=4.2 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=13/16 pos=(1624.4,599.8) heldDir=(-0.39,-0.92) freshDir=(-0.75,-0.67) cos=0.90 lookElev=4.2 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=14/16 pos=(1624.6,599.4) heldDir=(-0.39,-0.92) freshDir=(-0.78,-0.62) cos=0.88 lookElev=4.9 pushH=4.2
+  [Tick: 36990] NavStale gid=4 mode=0 age=15/16 pos=(1624.7,599.1) heldDir=(-0.39,-0.92) freshDir=(-0.82,-0.57) cos=0.85 lookElev=4.2 pushH=4.2
+  [Tick: 36990] NavStale gid=3 mode=0 age=12/16 pos=(1603.4,581.1) heldDir=(0.98,0.21) freshDir=(0.95,0.32) cos=0.99 lookElev=4.4 pushH=4.2
+  [Tick: 36990] NavStale gid=3 mode=0 age=13/16 pos=(1603.9,581.2) heldDir=(0.98,0.21) freshDir=(0.94,0.34) cos=0.99 lookElev=4.4 pushH=4.2
+  [Tick: 36990] NavStale gid=3 mode=0 age=14/16 pos=(1604.5,581.3) heldDir=(0.98,0.21) freshDir=(0.93,0.36) cos=0.99 lookElev=5.7 pushH=4.2
+  [Tick: 36990] NavStale gid=3 mode=0 age=15/16 pos=(1605.0,581.4) heldDir=(0.98,0.21) freshDir=(0.92,0.38) cos=0.98 lookElev=7.2 pushH=4.2
+  [Tick: 36990] NavStale gid=3 mode=0 age=0/16 pos=(1605.6,581.4) heldDir=(0.91,0.41) freshDir=(0.91,0.41) cos=1.00 lookElev=8.5 pushH=4.2
+  [Tick: 36990] NavStale gid=3 mode=0 age=1/16 pos=(1606.2,581.5) heldDir=(0.91,0.41) freshDir=(0.90,0.45) cos=1.00 lookElev=8.5 pushH=4.2
+  [Tick: 36994] NavStale gid=3 mode=0 age=2/16 pos=(1606.8,581.6) heldDir=(0.91,0.41) freshDir=(0.87,0.49) cos=1.00 lookElev=9.6 pushH=4.2
+  [Tick: 36994] NavStale gid=3 mode=0 age=3/16 pos=(1607.4,581.7) heldDir=(0.91,0.41) freshDir=(0.83,0.55) cos=0.99 lookElev=10.8 pushH=4.2
+  [Tick: 36994] NavStale gid=3 mode=0 age=4/16 pos=(1608.1,581.8) heldDir=(0.91,0.41) freshDir=(0.77,0.64) cos=0.96 lookElev=10.8 pushH=4.2
+  [Tick: 36994] NavStale gid=3 mode=0 age=5/16 pos=(1608.7,582.0) heldDir=(0.91,0.41) freshDir=(0.64,0.76) cos=0.90 lookElev=11.8 pushH=4.2
+  [Tick: 36996] NavStale gid=3 mode=0 age=6/16 pos=(1609.4,582.1) heldDir=(0.91,0.41) freshDir=(0.38,0.93) cos=0.72 lookElev=13.6 pushH=4.2
+  [Tick: 36996] NavStale gid=3 mode=0 age=7/16 pos=(1610.0,582.2) heldDir=(0.91,0.41) freshDir=(-0.14,0.99) cos=0.27 lookElev=15.0 pushH=4.2
+  [Tick: 36994] ClientSession::Reconcile Clock snap OldTick: 36996 NewTick: 37034 LatestServerTick: 37040 TargetBehind: 6
+  [Tick: 37034] NavStale gid=3 mode=0 age=8/16 pos=(1610.7,582.4) heldDir=(0.91,0.41) freshDir=(-0.89,-0.46) cos=-1.00 lookElev=15.0 pushH=4.2
+  [Tick: 37034] NavStale gid=3 mode=0 age=9/16 pos=(1611.4,582.6) heldDir=(0.91,0.41) freshDir=(-0.89,-0.46) cos=-1.00 lookElev=15.5 pushH=4.2
+  [Tick: 37034] NavStale gid=3 mode=0 age=10/16 pos=(1612.1,582.7) heldDir=(0.91,0.41) freshDir=(-0.89,-0.46) cos=-1.00 lookElev=15.0 pushH=4.2
+  [Tick: 37034] NavStale gid=3 mode=0 age=11/16 pos=(1612.7,582.9) heldDir=(0.91,0.41) freshDir=(-0.89,-0.46) cos=-1.00 lookElev=13.9 pushH=4.2
+  [Tick: 37034] NavStale gid=3 mode=0 age=12/16 pos=(1613.2,583.0) heldDir=(0.91,0.41) freshDir=(-0.89,-0.46) cos=-1.00 lookElev=12.6 pushH=4.2
+  [Tick: 37034] NavStale gid=3 mode=0 age=13/16 pos=(1612.7,582.8) heldDir=(0.91,0.41) freshDir=(-0.89,-0.46) cos=-1.00 lookElev=13.9 pushH=4.2
+  [Tick: 37034] NavStale gid=3 mode=0 age=14/16 pos=(1612.2,582.5) heldDir=(0.91,0.41) freshDir=(-0.89,-0.46) cos=-1.00 lookElev=15.0 pushH=4.2
+  [Tick: 37034] NavStale gid=3 mode=0 age=15/16 pos=(1611.6,582.3) heldDir=(0.91,0.41) freshDir=(-0.89,-0.46) cos=-1.00 lookElev=15.5 pushH=4.2
+  [Tick: 37043] ClientSession::Reconcile Clock snap OldTick: 37044 NewTick: 37074 LatestServerTick: 37080 TargetBehind: 6
+  [Tick: 37074] NavStale gid=3 mode=0 age=4/16 pos=(1603.7,581.3) heldDir=(0.93,0.37) freshDir=(0.95,0.31) cos=1.00 lookElev=4.7 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=5/16 pos=(1604.3,581.7) heldDir=(0.93,0.37) freshDir=(0.96,0.29) cos=1.00 lookElev=5.4 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=6/16 pos=(1604.9,582.0) heldDir=(0.93,0.37) freshDir=(0.97,0.26) cos=0.99 lookElev=7.3 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=7/16 pos=(1605.5,582.4) heldDir=(0.93,0.37) freshDir=(0.98,0.22) cos=0.99 lookElev=8.8 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=8/16 pos=(1606.1,582.7) heldDir=(0.93,0.37) freshDir=(0.99,0.17) cos=0.98 lookElev=8.8 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=9/16 pos=(1606.7,583.1) heldDir=(0.93,0.37) freshDir=(1.00,0.09) cos=0.96 lookElev=9.8 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=10/16 pos=(1607.3,583.4) heldDir=(0.93,0.37) freshDir=(1.00,-0.02) cos=0.92 lookElev=10.5 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=11/16 pos=(1608.0,583.7) heldDir=(0.93,0.37) freshDir=(0.98,-0.20) cos=0.84 lookElev=10.5 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=12/16 pos=(1608.6,584.1) heldDir=(0.93,0.37) freshDir=(0.88,-0.48) cos=0.63 lookElev=11.8 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=13/16 pos=(1609.2,584.4) heldDir=(0.93,0.37) freshDir=(0.54,-0.84) cos=0.19 lookElev=12.6 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=14/16 pos=(1609.8,584.7) heldDir=(0.93,0.37) freshDir=(-0.98,-0.18) cos=-0.98 lookElev=13.5 pushH=4.2
+  [Tick: 37074] NavStale gid=3 mode=0 age=15/16 pos=(1610.5,585.1) heldDir=(0.93,0.37) freshDir=(-0.98,-0.18) cos=-0.98 lookElev=12.7 pushH=4.2
+  [Tick: 37082] ClientSession::Reconcile Clock snap OldTick: 37084 NewTick: 37113 LatestServerTick: 37119 TargetBehind: 6
+  [Tick: 37117] NavStale gid=3 mode=0 age=15/16 pos=(1603.9,585.9) heldDir=(0.96,-0.28) freshDir=(1.00,0.01) cos=0.96 lookElev=4.7 pushH=4.2
+  [Tick: 37117] NavStale gid=3 mode=0 age=0/16 pos=(1604.5,585.7) heldDir=(1.00,0.06) freshDir=(1.00,0.06) cos=1.00 lookElev=7.6 pushH=4.2
+  [Tick: 37119] NavStale gid=3 mode=0 age=1/16 pos=(1605.1,585.4) heldDir=(1.00,0.06) freshDir=(0.99,0.13) cos=1.00 lookElev=8.8 pushH=4.2
+  [Tick: 37119] NavStale gid=3 mode=0 age=2/16 pos=(1605.7,585.2) heldDir=(1.00,0.06) freshDir=(0.98,0.21) cos=0.99 lookElev=9.8 pushH=4.2
+  [Tick: 37120] NavStale gid=3 mode=0 age=3/16 pos=(1606.3,584.9) heldDir=(1.00,0.06) freshDir=(0.95,0.32) cos=0.97 lookElev=9.8 pushH=4.2
+  [Tick: 37121] NavStale gid=3 mode=0 age=4/16 pos=(1606.9,584.7) heldDir=(1.00,0.06) freshDir=(0.89,0.45) cos=0.92 lookElev=10.8 pushH=4.2
+  [Tick: 37124] NavStale gid=3 mode=0 age=5/16 pos=(1607.5,584.5) heldDir=(1.00,0.06) freshDir=(0.79,0.62) cos=0.82 lookElev=11.8 pushH=4.2
+  [Tick: 37124] NavStale gid=3 mode=0 age=6/16 pos=(1608.2,584.3) heldDir=(1.00,0.06) freshDir=(0.89,-0.46) cos=0.86 lookElev=11.8 pushH=4.2
+  [Tick: 37124] NavStale gid=3 mode=0 age=7/16 pos=(1608.8,584.0) heldDir=(1.00,0.06) freshDir=(0.84,-0.55) cos=0.80 lookElev=13.2 pushH=4.2
+  [Tick: 37126] NavStale gid=3 mode=0 age=8/16 pos=(1609.5,583.9) heldDir=(1.00,0.06) freshDir=(0.64,-0.77) cos=0.59 lookElev=14.6 pushH=4.2
+  [Tick: 37126] NavStale gid=3 mode=0 age=9/16 pos=(1610.1,583.7) heldDir=(1.00,0.06) freshDir=(-0.98,-0.18) cos=-0.99 lookElev=15.7 pushH=4.2
+  [Tick: 37124] ClientSession::Reconcile Clock snap OldTick: 37126 NewTick: 37157 LatestServerTick: 37163 TargetBehind: 6
+  [Tick: 37158] NavStale gid=3 mode=0 age=10/16 pos=(1610.8,583.5) heldDir=(1.00,0.06) freshDir=(-0.89,-0.46) cos=-0.91 lookElev=15.7 pushH=4.2
+  [Tick: 37158] NavStale gid=3 mode=0 age=11/16 pos=(1611.5,583.3) heldDir=(1.00,0.06) freshDir=(-0.89,-0.46) cos=-0.91 lookElev=16.6 pushH=4.2
+  [Tick: 37158] NavStale gid=3 mode=0 age=12/16 pos=(1612.1,583.2) heldDir=(1.00,0.06) freshDir=(-0.89,-0.46) cos=-0.91 lookElev=17.0 pushH=4.2
+  [Tick: 37158] NavStale gid=3 mode=0 age=13/16 pos=(1612.8,583.0) heldDir=(1.00,0.06) freshDir=(-0.89,-0.46) cos=-0.91 lookElev=18.3 pushH=4.2
+  [Tick: 37158] NavStale gid=3 mode=0 age=14/16 pos=(1612.5,582.4) heldDir=(1.00,0.06) freshDir=(-0.89,-0.46) cos=-0.91 lookElev=18.0 pushH=4.2
+  [Tick: 37158] NavStale gid=3 mode=0 age=15/16 pos=(1612.0,581.9) heldDir=(1.00,0.06) freshDir=(-0.89,-0.46) cos=-0.91 lookElev=17.8 pushH=4.2
+  [Tick: 37168] ClientSession::Reconcile Clock snap OldTick: 37170 NewTick: 37198 LatestServerTick: 37204 TargetBehind: 6
+  [Tick: 37199] NavStale gid=3 mode=0 age=7/16 pos=(1609.1,563.9) heldDir=(0.69,0.73) freshDir=(0.71,0.70) cos=1.00 lookElev=4.4 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=8/16 pos=(1609.7,564.0) heldDir=(0.69,0.73) freshDir=(0.68,0.74) cos=1.00 lookElev=4.4 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=9/16 pos=(1610.4,564.2) heldDir=(0.69,0.73) freshDir=(0.63,0.77) cos=1.00 lookElev=4.8 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=10/16 pos=(1611.0,564.3) heldDir=(0.69,0.73) freshDir=(0.58,0.81) cos=0.99 lookElev=5.0 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=11/16 pos=(1611.6,564.5) heldDir=(0.69,0.73) freshDir=(0.52,0.86) cos=0.98 lookElev=5.0 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=12/16 pos=(1612.3,564.7) heldDir=(0.69,0.73) freshDir=(0.44,0.90) cos=0.95 lookElev=6.7 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=13/16 pos=(1612.9,564.9) heldDir=(0.69,0.73) freshDir=(0.33,0.94) cos=0.91 lookElev=8.1 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=14/16 pos=(1613.5,565.1) heldDir=(0.69,0.73) freshDir=(0.21,0.98) cos=0.85 lookElev=9.9 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=15/16 pos=(1614.1,565.4) heldDir=(0.69,0.73) freshDir=(0.05,1.00) cos=0.76 lookElev=9.9 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=0/16 pos=(1614.8,565.6) heldDir=(0.95,0.31) freshDir=(0.95,0.31) cos=1.00 lookElev=5.6 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=1/16 pos=(1615.4,565.9) heldDir=(0.95,0.31) freshDir=(0.96,0.28) cos=1.00 lookElev=8.0 pushH=4.2
+  [Tick: 37199] NavStale gid=3 mode=0 age=2/16 pos=(1616.0,566.2) heldDir=(0.95,0.31) freshDir=(0.97,0.25) cos=1.00 lookElev=9.2 pushH=4.2
+  [Tick: 37203] NavStale gid=3 mode=0 age=3/16 pos=(1616.7,566.4) heldDir=(0.95,0.31) freshDir=(0.99,0.17) cos=0.99 lookElev=12.1 pushH=4.2
+  [Tick: 37203] NavStale gid=3 mode=0 age=4/16 pos=(1617.3,566.7) heldDir=(0.95,0.31) freshDir=(0.99,-0.15) cos=0.89 lookElev=12.1 pushH=4.2
+  [Tick: 37203] NavStale gid=3 mode=0 age=5/16 pos=(1618.0,567.0) heldDir=(0.95,0.31) freshDir=(0.18,-0.98) cos=-0.13 lookElev=13.8 pushH=4.2
+  [Tick: 37203] NavStale gid=3 mode=0 age=6/16 pos=(1618.6,567.2) heldDir=(0.95,0.31) freshDir=(0.18,-0.98) cos=-0.13 lookElev=17.8 pushH=4.2
+  [Tick: 37204] NavStale gid=3 mode=0 age=7/16 pos=(1619.3,567.5) heldDir=(0.95,0.31) freshDir=(0.18,-0.98) cos=-0.13 lookElev=19.3 pushH=4.2
+  [Tick: 37206] NavStale gid=3 mode=0 age=8/16 pos=(1619.9,567.7) heldDir=(0.95,0.31) freshDir=(-0.32,-0.95) cos=-0.59 lookElev=19.3 pushH=4.2
+  [Tick: 37206] NavStale gid=3 mode=0 age=9/16 pos=(1620.6,568.0) heldDir=(0.95,0.31) freshDir=(-0.32,-0.95) cos=-0.59 lookElev=22.6 pushH=4.2
+  [Tick: 37207] NavStale gid=3 mode=0 age=10/16 pos=(1621.3,568.3) heldDir=(0.95,0.31) freshDir=(-0.32,-0.95) cos=-0.59 lookElev=24.5 pushH=4.2
+  [Tick: 37209] NavStale gid=3 mode=0 age=11/16 pos=(1621.5,567.5) heldDir=(0.95,0.31) freshDir=(-0.32,-0.95) cos=-0.59 lookElev=23.0 pushH=4.2
+  [Tick: 37209] NavStale gid=3 mode=0 age=12/16 pos=(1621.8,566.7) heldDir=(0.95,0.31) freshDir=(-0.51,-0.86) cos=-0.75 lookElev=21.6 pushH=4.2
+  [Tick: 37207] ClientSession::Reconcile Clock snap OldTick: 37209 NewTick: 37237 LatestServerTick: 37243 TargetBehind: 6
+  [Tick: 37238] NavStale gid=3 mode=0 age=13/16 pos=(1622.0,566.0) heldDir=(0.95,0.31) freshDir=(-0.83,-0.55) cos=-0.96 lookElev=21.9 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=14/16 pos=(1622.3,565.3) heldDir=(0.95,0.31) freshDir=(-0.83,-0.55) cos=-0.96 lookElev=20.7 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=15/16 pos=(1622.6,564.7) heldDir=(0.95,0.31) freshDir=(-0.83,-0.55) cos=-0.96 lookElev=20.7 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=0/16 pos=(1622.9,564.0) heldDir=(0.83,-0.56) freshDir=(0.83,-0.56) cos=1.00 lookElev=6.5 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=1/16 pos=(1623.2,563.4) heldDir=(0.83,-0.56) freshDir=(-0.34,0.94) cos=-0.81 lookElev=6.8 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=2/16 pos=(1623.5,562.8) heldDir=(0.83,-0.56) freshDir=(-0.41,0.91) cos=-0.85 lookElev=6.8 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=3/16 pos=(1623.9,562.2) heldDir=(0.83,-0.56) freshDir=(0.96,-0.27) cos=0.95 lookElev=8.4 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=4/16 pos=(1624.2,561.7) heldDir=(0.83,-0.56) freshDir=(1.00,0.06) cos=0.79 lookElev=7.7 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=5/16 pos=(1624.5,561.1) heldDir=(0.83,-0.56) freshDir=(0.87,-0.50) cos=1.00 lookElev=7.7 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=6/16 pos=(1624.9,560.5) heldDir=(0.83,-0.56) freshDir=(1.00,0.06) cos=0.79 lookElev=6.6 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=7/16 pos=(1625.3,559.9) heldDir=(0.83,-0.56) freshDir=(0.33,0.95) cos=-0.26 lookElev=4.3 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=8/16 pos=(1625.6,559.3) heldDir=(0.83,-0.56) freshDir=(0.68,-0.73) cos=0.97 lookElev=4.3 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=0/16 pos=(1628.9,554.9) heldDir=(1.00,-0.03) freshDir=(1.00,-0.03) cos=1.00 lookElev=5.2 pushH=4.2
+  [Tick: 37238] NavStale gid=3 mode=0 age=1/16 pos=(1629.4,554.3) heldDir=(1.00,-0.03) freshDir=(0.30,0.95) cos=0.26 lookElev=4.2 pushH=4.2
+  [Tick: 37245] NavStale gid=3 mode=0 age=0/16 pos=(1637.4,547.7) heldDir=(0.13,0.99) freshDir=(0.13,0.99) cos=1.00 lookElev=6.2 pushH=4.2
+  [Tick: 37246] NavStale gid=3 mode=0 age=1/16 pos=(1638.0,547.4) heldDir=(0.13,0.99) freshDir=(0.01,1.00) cos=0.99 lookElev=4.8 pushH=4.2
+  [Tick: 37248] NavStale gid=3 mode=0 age=2/16 pos=(1638.6,547.1) heldDir=(0.13,0.99) freshDir=(-0.09,1.00) cos=0.98 lookElev=4.9 pushH=4.2
+  [Tick: 37248] NavStale gid=3 mode=0 age=3/16 pos=(1639.2,546.8) heldDir=(0.13,0.99) freshDir=(0.61,0.79) cos=0.86 lookElev=4.4 pushH=4.2
+  [Tick: 37248] ClientSession::Reconcile Clock snap OldTick: 37249 NewTick: 37279 LatestServerTick: 37285 TargetBehind: 6
+  [Tick: 37290] ClientSession::Reconcile Clock snap OldTick: 37292 NewTick: 37322 LatestServerTick: 37328 TargetBehind: 6
+  [Tick: 37334] ClientSession::Reconcile Clock snap OldTick: 37335 NewTick: 37364 LatestServerTick: 37370 TargetBehind: 6
+  [Tick: 37374] ClientSession::Reconcile Clock snap OldTick: 37376 NewTick: 37404 LatestServerTick: 37410 TargetBehind: 6
+  Timespeed changed Multiply: 8 Divide: 1
+  [Tick: 38026] Player 0 NavSwitch: island dest generated pos=(1702.4,1372.8) dest=(1629.2,1562.5)
+  [Tick: 38319] Player 0 NavSwitch: arrived at island dest pos=(1636.2,1555.5) dest=(1629.2,1562.5)
+  [Tick: 38319] Player 0 NavSwitch: island dest generated pos=(1635.7,1556.1) dest=(1588.5,1794.5)
+  [Tick: 38475] NavStale gid=1 mode=4 age=12/16 pos=(1697.7,1636.8) heldDir=(-0.02,1.00) freshDir=(1.00,0.06) cos=0.04 lookElev=4.7 pushH=4.2
+  [Tick: 38477] NavStale gid=1 mode=4 age=13/16 pos=(1698.1,1637.4) heldDir=(-0.02,1.00) freshDir=(0.02,-1.00) cos=-1.00 lookElev=5.6 pushH=4.2
+  [Tick: 38477] NavStale gid=1 mode=4 age=14/16 pos=(1698.5,1637.9) heldDir=(-0.02,1.00) freshDir=(0.02,-1.00) cos=-1.00 lookElev=5.7 pushH=4.2
+  [Tick: 38479] NavStale gid=1 mode=4 age=15/16 pos=(1698.9,1638.4) heldDir=(-0.02,1.00) freshDir=(0.02,-1.00) cos=-1.00 lookElev=5.6 pushH=4.2
+  [Tick: 38862] Player 0 NavSwitch: arrived at island dest pos=(1598.0,1796.5) dest=(1588.5,1794.5)
+  [Tick: 38862] Player 0 NavSwitch: island dest generated pos=(1597.3,1796.6) dest=(1906.9,1652.5)
+  [Tick: 38877] Player 2 NavSwitch: island dest generated pos=(1603.7,1798.8) dest=(1551.7,1757.6)
+  [Tick: 38884] Player 1 NavSwitch: island dest generated pos=(1604.9,1799.3) dest=(1742.4,1741.9)
+  [Tick: 38974] Player 3 NavSwitch: island dest generated pos=(1665.7,1776.8) dest=(1475.5,1444.8)
+  [Tick: 39138] Player 1 NavSwitch: arrived at island dest pos=(1735.2,1748.6) dest=(1742.4,1741.9)
+  [Tick: 39140] Player 1 NavSwitch: island dest generated pos=(1735.7,1748.1) dest=(1572.3,1810.9)
+  [Tick: 39379] Player 0 NavSwitch: arrived at island dest pos=(1897.0,1653.0) dest=(1906.9,1652.5)
+  [Tick: 39379] Player 0 NavSwitch: island dest generated pos=(1897.7,1652.8) dest=(2045.4,1946.3)
+  [Tick: 39826] Player 0 NavSwitch: arrived at island dest pos=(2041.7,1937.2) dest=(2045.4,1946.3)
+  [Tick: 39826] Player 0 NavSwitch: island dest generated pos=(2042.0,1937.9) dest=(1495.9,1746.4)
+  [Tick: 39841] Player 2 NavSwitch: island dest generated pos=(2039.7,1932.8) dest=(1618.0,1797.4)
+  [Tick: 39858] Player 1 NavSwitch: island dest generated pos=(2041.0,1935.8) dest=(1382.5,1965.0)
+  [Tick: 39892] NavStale gid=1 mode=4 age=5/16 pos=(2012.2,1939.0) heldDir=(-0.73,-0.68) freshDir=(-0.66,-0.76) cos=0.99 lookElev=4.2 pushH=4.2
+  [Tick: 39894] NavStale gid=1 mode=4 age=6/16 pos=(2011.6,1938.7) heldDir=(-0.73,-0.68) freshDir=(-0.63,-0.77) cos=0.99 lookElev=4.2 pushH=4.2
+  [Tick: 39894] NavStale gid=1 mode=4 age=7/16 pos=(2010.9,1938.3) heldDir=(-0.73,-0.68) freshDir=(-0.61,-0.79) cos=0.99 lookElev=4.6 pushH=4.2
+  [Tick: 39897] NavStale gid=1 mode=4 age=8/16 pos=(2010.3,1937.9) heldDir=(-0.73,-0.68) freshDir=(-0.58,-0.82) cos=0.98 lookElev=4.6 pushH=4.2
+  [Tick: 39897] NavStale gid=1 mode=4 age=9/16 pos=(2009.7,1937.6) heldDir=(-0.73,-0.68) freshDir=(-0.54,-0.84) cos=0.97 lookElev=7.2 pushH=4.2
+  [Tick: 39897] NavStale gid=1 mode=4 age=10/16 pos=(2009.0,1937.2) heldDir=(-0.73,-0.68) freshDir=(-0.47,-0.88) cos=0.95 lookElev=5.2 pushH=4.2
+  [Tick: 39899] NavStale gid=1 mode=4 age=11/16 pos=(2008.4,1936.8) heldDir=(-0.73,-0.68) freshDir=(-0.37,-0.93) cos=0.91 lookElev=7.9 pushH=4.2
+  [Tick: 39899] NavStale gid=1 mode=4 age=12/16 pos=(2007.8,1936.5) heldDir=(-0.73,-0.68) freshDir=(-0.23,-0.97) cos=0.83 lookElev=8.4 pushH=4.2
+  [Tick: 39901] NavStale gid=1 mode=4 age=13/16 pos=(2007.2,1936.1) heldDir=(-0.73,-0.68) freshDir=(0.99,-0.11) cos=-0.65 lookElev=7.4 pushH=4.2
+  [Tick: 39901] NavStale gid=1 mode=4 age=14/16 pos=(2006.6,1935.7) heldDir=(-0.73,-0.68) freshDir=(0.99,-0.11) cos=-0.65 lookElev=8.9 pushH=4.2
+  [Tick: 39903] NavStale gid=1 mode=4 age=15/16 pos=(2006.0,1935.3) heldDir=(-0.73,-0.68) freshDir=(0.99,-0.11) cos=-0.65 lookElev=8.4 pushH=4.2
+  [Tick: 39905] NavStale gid=4 mode=4 age=4/16 pos=(2012.3,1938.5) heldDir=(-0.74,-0.67) freshDir=(-0.69,-0.73) cos=1.00 lookElev=4.2 pushH=4.2
+  [Tick: 39905] NavStale gid=4 mode=4 age=5/16 pos=(2011.6,1938.2) heldDir=(-0.74,-0.67) freshDir=(-0.66,-0.75) cos=0.99 lookElev=4.2 pushH=4.2
+  [Tick: 39907] NavStale gid=4 mode=4 age=6/16 pos=(2011.0,1937.9) heldDir=(-0.74,-0.67) freshDir=(-0.63,-0.77) cos=0.99 lookElev=4.2 pushH=4.2
+  [Tick: 39907] NavStale gid=4 mode=4 age=7/16 pos=(2010.3,1937.6) heldDir=(-0.74,-0.67) freshDir=(-0.60,-0.80) cos=0.98 lookElev=4.6 pushH=4.2
+  [Tick: 39910] NavStale gid=4 mode=4 age=8/16 pos=(2009.7,1937.3) heldDir=(-0.74,-0.67) freshDir=(-0.56,-0.83) cos=0.97 lookElev=7.2 pushH=4.2
+  [Tick: 39910] NavStale gid=4 mode=4 age=9/16 pos=(2009.0,1936.9) heldDir=(-0.74,-0.67) freshDir=(-0.50,-0.87) cos=0.95 lookElev=5.2 pushH=4.2
+  [Tick: 39910] NavStale gid=4 mode=4 age=10/16 pos=(2008.4,1936.6) heldDir=(-0.74,-0.67) freshDir=(-0.39,-0.92) cos=0.91 lookElev=7.9 pushH=4.2
+  [Tick: 39912] NavStale gid=4 mode=4 age=11/16 pos=(2007.7,1936.3) heldDir=(-0.74,-0.67) freshDir=(-0.23,-0.97) cos=0.82 lookElev=7.4 pushH=4.2
+  [Tick: 39912] NavStale gid=4 mode=4 age=12/16 pos=(2007.1,1935.9) heldDir=(-0.74,-0.67) freshDir=(0.99,-0.11) cos=-0.66 lookElev=8.9 pushH=4.2
+  [Tick: 39914] NavStale gid=4 mode=4 age=13/16 pos=(2006.5,1935.6) heldDir=(-0.74,-0.67) freshDir=(0.99,-0.11) cos=-0.66 lookElev=8.9 pushH=4.2
+  [Tick: 39914] NavStale gid=4 mode=4 age=14/16 pos=(2005.8,1935.3) heldDir=(-0.74,-0.67) freshDir=(0.99,-0.11) cos=-0.66 lookElev=8.4 pushH=4.2
+  [Tick: 39916] NavStale gid=4 mode=4 age=15/16 pos=(2005.2,1934.9) heldDir=(-0.74,-0.67) freshDir=(0.99,-0.11) cos=-0.66 lookElev=9.9 pushH=4.2
+  [Tick: 39927] NavStale gid=2 mode=4 age=9/16 pos=(2009.8,1954.8) heldDir=(-0.73,-0.68) freshDir=(-0.69,-0.72) cos=1.00 lookElev=4.8 pushH=4.2
+  [Tick: 39929] NavStale gid=2 mode=4 age=10/16 pos=(2009.2,1954.6) heldDir=(-0.73,-0.68) freshDir=(-0.64,-0.77) cos=0.99 lookElev=4.8 pushH=4.2
+  [Tick: 39929] NavStale gid=2 mode=4 age=11/16 pos=(2008.5,1954.4) heldDir=(-0.73,-0.68) freshDir=(-0.56,-0.83) cos=0.97 lookElev=4.4 pushH=4.2
+  [Tick: 39931] NavStale gid=2 mode=4 age=13/16 pos=(2007.2,1953.9) heldDir=(-0.73,-0.68) freshDir=(-0.32,-0.95) cos=0.88 lookElev=5.0 pushH=4.2
+  [Tick: 39933] NavStale gid=2 mode=4 age=14/16 pos=(2006.5,1953.7) heldDir=(-0.73,-0.68) freshDir=(-0.12,-0.99) cos=0.77 lookElev=4.6 pushH=4.2
+  [Tick: 39935] NavStale gid=2 mode=4 age=0/16 pos=(2005.2,1953.2) heldDir=(0.39,-0.92) freshDir=(0.39,-0.92) cos=1.00 lookElev=4.5 pushH=4.2
+  [Tick: 39935] NavStale gid=2 mode=4 age=1/16 pos=(2004.5,1952.9) heldDir=(0.39,-0.92) freshDir=(-0.29,-0.96) cos=0.77 lookElev=5.0 pushH=4.2
+  [Tick: 39938] NavStale gid=2 mode=4 age=2/16 pos=(2003.9,1952.7) heldDir=(0.39,-0.92) freshDir=(-0.00,-1.00) cos=0.92 lookElev=5.5 pushH=4.2
+  [Tick: 39938] NavStale gid=2 mode=4 age=3/16 pos=(2003.3,1952.4) heldDir=(0.39,-0.92) freshDir=(0.37,-0.93) cos=1.00 lookElev=6.1 pushH=4.2
+  [Tick: 39938] NavStale gid=3 mode=5 age=4/16 pos=(2009.8,1951.0) heldDir=(-0.14,-0.99) freshDir=(0.15,-0.99) cos=0.96 lookElev=4.5 pushH=4.2
+  [Tick: 39938] NavStale gid=2 mode=4 age=4/16 pos=(2002.8,1952.0) heldDir=(0.39,-0.92) freshDir=(0.70,-0.72) cos=0.93 lookElev=6.1 pushH=4.2
+  [Tick: 39938] NavStale gid=3 mode=5 age=5/16 pos=(2009.2,1950.5) heldDir=(-0.14,-0.99) freshDir=(0.28,-0.96) cos=0.91 lookElev=5.3 pushH=4.2
+  [Tick: 39940] NavStale gid=2 mode=4 age=5/16 pos=(2002.2,1951.7) heldDir=(0.39,-0.92) freshDir=(0.89,-0.45) cos=0.76 lookElev=6.7 pushH=4.2
+  [Tick: 39940] NavStale gid=3 mode=5 age=6/16 pos=(2008.7,1950.0) heldDir=(-0.14,-0.99) freshDir=(0.42,-0.91) cos=0.84 lookElev=5.3 pushH=4.2
+  [Tick: 39940] NavStale gid=2 mode=4 age=6/16 pos=(2001.7,1951.4) heldDir=(0.39,-0.92) freshDir=(0.97,-0.23) cos=0.59 lookElev=6.9 pushH=4.2
+  [Tick: 39940] NavStale gid=3 mode=5 age=7/16 pos=(2008.1,1949.5) heldDir=(-0.14,-0.99) freshDir=(0.66,-0.75) cos=0.65 lookElev=6.0 pushH=4.2
+  [Tick: 39942] NavStale gid=2 mode=4 age=7/16 pos=(2001.2,1951.0) heldDir=(0.39,-0.92) freshDir=(1.00,-0.05) cos=0.44 lookElev=7.6 pushH=4.2
+  [Tick: 39942] NavStale gid=3 mode=5 age=8/16 pos=(2007.6,1949.0) heldDir=(-0.14,-0.99) freshDir=(0.63,0.78) cos=-0.86 lookElev=7.1 pushH=4.2
+  [Tick: 39942] NavStale gid=2 mode=4 age=8/16 pos=(2000.8,1950.6) heldDir=(0.39,-0.92) freshDir=(1.00,0.08) cos=0.32 lookElev=7.9 pushH=4.2
+  [Tick: 39942] NavStale gid=3 mode=5 age=9/16 pos=(2007.0,1948.4) heldDir=(-0.14,-0.99) freshDir=(0.63,0.78) cos=-0.86 lookElev=7.2 pushH=4.2
+  [Tick: 39945] NavStale gid=2 mode=4 age=9/16 pos=(2000.4,1950.2) heldDir=(0.39,-0.92) freshDir=(-0.69,-0.73) cos=0.40 lookElev=8.3 pushH=4.2
+  [Tick: 39945] NavStale gid=3 mode=5 age=10/16 pos=(2006.5,1947.9) heldDir=(-0.14,-0.99) freshDir=(0.63,0.78) cos=-0.86 lookElev=8.0 pushH=4.2
+  [Tick: 39945] Player 0 GlobalId: 1 fleet override NavDir: 2 WantedCoord: (3,2) CellCoord: (2,2)
+  [Tick: 39945] Player 1 GlobalId: 2 fleet override NavDir: 2 WantedCoord: (3,2) CellCoord: (2,2)
+  [Tick: 39945] Player 2 GlobalId: 4 fleet override NavDir: 2 WantedCoord: (3,2) CellCoord: (2,2)
+  [Tick: 39945] Player 3 GlobalId: 3 fleet override NavDir: 2 WantedCoord: (3,2) CellCoord: (2,2)
+  [Tick: 40322] Player 1 NavSwitch: island dest generated pos=(2273.8,1865.4) dest=(2400.3,1471.9)
+  [Tick: 40926] Player 1 NavSwitch: arrived at island dest pos=(2391.4,1475.5) dest=(2400.3,1471.9)
+  [Tick: 40929] Player 1 NavSwitch: island dest generated pos=(2391.6,1474.7) dest=(2443.6,1772.1)
+  [Tick: 40939] Death spiral detected: 13 ticks at 8x speed
+  Timespeed changed Multiply: 4 Divide: 1
+  [Tick: 40954] Player 0 NavSwitch: island dest generated pos=(2381.8,1479.3) dest=(2635.5,1844.2)
+  [Tick: 40958] Player 3 NavSwitch: island dest generated pos=(2389.9,1487.7) dest=(2607.6,1796.7)
+  [Tick: 40963] Player 2 NavSwitch: island dest generated pos=(2379.8,1481.8) dest=(2401.5,1788.0)
+  [Tick: 40987] NavStale gid=2 mode=4 age=13/16 pos=(2395.4,1492.5) heldDir=(0.96,0.26) freshDir=(-0.18,-0.98) cos=-0.44 lookElev=4.2 pushH=4.2
+  [Tick: 40984] ClientSession::Reconcile Clock snap OldTick: 40987 NewTick: 41015 LatestServerTick: 41021 TargetBehind: 6
+  [Tick: 41016] NavStale gid=2 mode=4 age=14/16 pos=(2395.9,1492.9) heldDir=(0.96,0.26) freshDir=(0.14,-0.99) cos=-0.13 lookElev=4.2 pushH=4.2
+  [Tick: 41016] NavStale gid=2 mode=4 age=15/16 pos=(2396.3,1493.2) heldDir=(0.96,0.26) freshDir=(0.14,-0.99) cos=-0.13 lookElev=4.4 pushH=4.2
+  [Tick: 41074] ClientSession::Reconcile Clock snap OldTick: 41077 NewTick: 41106 LatestServerTick: 41112 TargetBehind: 6
+  [Tick: 41107] NavStale gid=2 mode=5 age=5/16 pos=(2406.8,1494.8) heldDir=(0.06,1.00) freshDir=(0.56,0.83) cos=0.86 lookElev=4.7 pushH=4.2
+  [Tick: 41107] NavStale gid=2 mode=5 age=6/16 pos=(2406.4,1495.4) heldDir=(0.06,1.00) freshDir=(0.99,-0.16) cos=-0.10 lookElev=4.5 pushH=4.2
+  [Tick: 41107] NavStale gid=2 mode=5 age=7/16 pos=(2405.9,1496.0) heldDir=(0.06,1.00) freshDir=(0.99,-0.16) cos=-0.10 lookElev=4.4 pushH=4.2
+  [Tick: 41107] NavStale gid=2 mode=5 age=8/16 pos=(2405.5,1496.7) heldDir=(0.06,1.00) freshDir=(0.99,-0.16) cos=-0.10 lookElev=4.4 pushH=4.2
+  [Tick: 41166] ClientSession::Reconcile Clock snap OldTick: 41167 NewTick: 41195 LatestServerTick: 41201 TargetBehind: 6
+  [Tick: 41261] ClientSession::Reconcile Clock snap OldTick: 41263 NewTick: 41291 LatestServerTick: 41297 TargetBehind: 6
+  [Tick: 41356] ClientSession::Reconcile Clock snap OldTick: 41357 NewTick: 41385 LatestServerTick: 41391 TargetBehind: 6
+  [Tick: 41386] Player 2 NavSwitch: arrived at island dest pos=(2400.8,1778.7) dest=(2401.5,1788.0)
+  [Tick: 41386] Player 2 NavSwitch: island dest generated pos=(2400.9,1779.4) dest=(2407.8,1809.9)
+  [Tick: 41394] NavStale gid=3 mode=4 age=4/16 pos=(2400.6,1785.5) heldDir=(-0.97,0.23) freshDir=(-1.00,-0.01) cos=0.97 lookElev=4.4 pushH=4.2
+  [Tick: 41394] NavStale gid=3 mode=4 age=5/16 pos=(2400.4,1786.2) heldDir=(-0.97,0.23) freshDir=(-0.99,-0.15) cos=0.93 lookElev=5.3 pushH=4.2
+  [Tick: 41396] NavStale gid=3 mode=4 age=6/16 pos=(2400.2,1786.8) heldDir=(-0.97,0.23) freshDir=(-0.89,-0.46) cos=0.76 lookElev=6.8 pushH=4.2
+  [Tick: 41396] NavStale gid=3 mode=4 age=7/16 pos=(2400.0,1787.4) heldDir=(-0.97,0.23) freshDir=(0.78,-0.63) cos=-0.90 lookElev=7.0 pushH=4.2
+  [Tick: 41397] NavStale gid=3 mode=4 age=8/16 pos=(2399.8,1788.0) heldDir=(-0.97,0.23) freshDir=(0.78,-0.63) cos=-0.90 lookElev=7.9 pushH=4.2
+  [Tick: 41399] NavStale gid=3 mode=4 age=9/16 pos=(2399.6,1788.5) heldDir=(-0.97,0.23) freshDir=(0.78,-0.63) cos=-0.90 lookElev=8.7 pushH=4.2
+  [Tick: 41399] NavStale gid=3 mode=4 age=10/16 pos=(2399.3,1789.1) heldDir=(-0.97,0.23) freshDir=(0.78,-0.63) cos=-0.90 lookElev=8.7 pushH=4.2
+  [Tick: 41400] NavStale gid=3 mode=4 age=11/16 pos=(2399.0,1789.7) heldDir=(-0.97,0.23) freshDir=(0.78,-0.63) cos=-0.90 lookElev=9.5 pushH=4.2
+  [Tick: 41402] NavStale gid=3 mode=4 age=12/16 pos=(2398.8,1790.0) heldDir=(-0.97,0.23) freshDir=(0.78,-0.63) cos=-0.90 lookElev=9.5 pushH=4.2
+  [Tick: 41402] NavStale gid=3 mode=4 age=13/16 pos=(2398.8,1789.4) heldDir=(-0.97,0.23) freshDir=(0.78,-0.63) cos=-0.90 lookElev=9.5 pushH=4.2
+  [Tick: 41403] NavStale gid=3 mode=4 age=14/16 pos=(2398.8,1788.8) heldDir=(-0.97,0.23) freshDir=(0.78,-0.63) cos=-0.90 lookElev=8.6 pushH=4.2
+  [Tick: 41405] NavStale gid=3 mode=4 age=15/16 pos=(2398.8,1788.1) heldDir=(-0.97,0.23) freshDir=(0.78,-0.63) cos=-0.90 lookElev=8.2 pushH=4.2
+  [Tick: 41410] Player 1 NavSwitch: arrived at island dest pos=(2436.8,1765.0) dest=(2443.6,1772.1)
+  [Tick: 41410] Player 1 NavSwitch: island dest generated pos=(2437.2,1765.6) dest=(2387.9,1454.6)
+  [Tick: 41444] Player 3 NavSwitch: island dest generated pos=(2428.6,1755.6) dest=(2415.4,1806.2)
+  [Tick: 41454] ClientSession::Reconcile Clock snap OldTick: 41455 NewTick: 41483 LatestServerTick: 41489 TargetBehind: 6
+  [Tick: 41551] ClientSession::Reconcile Clock snap OldTick: 41553 NewTick: 41581 LatestServerTick: 41587 TargetBehind: 6
+  [Tick: 41648] ClientSession::Reconcile Clock snap OldTick: 41649 NewTick: 41677 LatestServerTick: 41683 TargetBehind: 6
+  [Tick: 41746] ClientSession::Reconcile Clock snap OldTick: 41747 NewTick: 41775 LatestServerTick: 41781 TargetBehind: 6
+  [Tick: 41846] ClientSession::Reconcile Clock snap OldTick: 41847 NewTick: 41875 LatestServerTick: 41881 TargetBehind: 6
+  [Tick: 41876] Player 1 NavSwitch: arrived at island dest pos=(2387.5,1464.4) dest=(2387.9,1454.6)
+  [Tick: 41876] Player 1 NavSwitch: island dest generated pos=(2387.5,1463.6) dest=(2841.7,1990.4)
+  Timespeed changed Multiply: 4 Divide: 1
+  [Tick: 41900] Player 2 NavSwitch: island dest generated pos=(2387.4,1477.1) dest=(2493.2,1499.9)
+  [Tick: 41903] Player 3 NavSwitch: island dest generated pos=(2386.8,1478.5) dest=(2720.3,2089.2)
+  [Tick: 41911] Player 0 NavSwitch: island dest generated pos=(2387.3,1484.1) dest=(2437.1,1792.1)
+  [Tick: 41927] NavStale gid=1 mode=4 age=8/16 pos=(2395.4,1484.8) heldDir=(0.13,0.99) freshDir=(0.03,1.00) cos=0.99 lookElev=4.6 pushH=4.2
+  [Tick: 41928] NavStale gid=1 mode=4 age=9/16 pos=(2395.6,1485.5) heldDir=(0.13,0.99) freshDir=(-0.00,1.00) cos=0.99 lookElev=5.3 pushH=4.2
+  [Tick: 41929] NavStale gid=1 mode=4 age=10/16 pos=(2395.8,1486.2) heldDir=(0.13,0.99) freshDir=(-0.04,1.00) cos=0.99 lookElev=5.2 pushH=4.2
+  [Tick: 41931] NavStale gid=1 mode=4 age=11/16 pos=(2395.9,1486.9) heldDir=(0.13,0.99) freshDir=(-0.09,1.00) cos=0.98 lookElev=6.4 pushH=4.2
+  [Tick: 41931] NavStale gid=1 mode=4 age=12/16 pos=(2396.1,1487.6) heldDir=(0.13,0.99) freshDir=(-0.16,0.99) cos=0.96 lookElev=7.3 pushH=4.2
+  [Tick: 41932] NavStale gid=1 mode=4 age=13/16 pos=(2396.2,1488.3) heldDir=(0.13,0.99) freshDir=(-0.26,0.97) cos=0.92 lookElev=8.2 pushH=4.2
+  [Tick: 41933] NavStale gid=1 mode=4 age=14/16 pos=(2396.4,1489.0) heldDir=(0.13,0.99) freshDir=(-0.43,0.90) cos=0.84 lookElev=8.2 pushH=4.2
+  [Tick: 41934] NavStale gid=1 mode=4 age=15/16 pos=(2396.5,1489.7) heldDir=(0.13,0.99) freshDir=(-0.70,0.72) cos=0.62 lookElev=8.2 pushH=4.2
+  [Tick: 41951] NavStale gid=1 mode=4 age=0/16 pos=(2395.8,1489.3) heldDir=(-0.12,0.99) freshDir=(-0.12,0.99) cos=1.00 lookElev=6.7 pushH=4.2
+  [Tick: 41952] NavStale gid=1 mode=4 age=1/16 pos=(2395.5,1488.8) heldDir=(-0.12,0.99) freshDir=(0.06,1.00) cos=0.98 lookElev=6.8 pushH=4.2
+  [Tick: 41953] NavStale gid=1 mode=4 age=2/16 pos=(2395.2,1488.4) heldDir=(-0.12,0.99) freshDir=(0.17,0.99) cos=0.96 lookElev=6.8 pushH=4.2
+  [Tick: 41954] NavStale gid=1 mode=4 age=3/16 pos=(2394.9,1488.0) heldDir=(-0.12,0.99) freshDir=(0.24,0.97) cos=0.93 lookElev=5.7 pushH=4.2
+  [Tick: 41956] NavStale gid=1 mode=4 age=4/16 pos=(2394.6,1487.6) heldDir=(-0.12,0.99) freshDir=(0.30,0.95) cos=0.91 lookElev=5.6 pushH=4.2
+  [Tick: 41956] NavStale gid=1 mode=4 age=5/16 pos=(2394.4,1487.4) heldDir=(-0.12,0.99) freshDir=(0.35,0.94) cos=0.89 lookElev=5.6 pushH=4.2
+  [Tick: 41957] NavStale gid=1 mode=4 age=6/16 pos=(2394.1,1487.1) heldDir=(-0.12,0.99) freshDir=(0.39,0.92) cos=0.87 lookElev=5.1 pushH=4.2
+  [Tick: 41958] NavStale gid=1 mode=4 age=7/16 pos=(2393.8,1487.0) heldDir=(-0.12,0.99) freshDir=(0.43,0.90) cos=0.84 lookElev=5.1 pushH=4.2
+  [Tick: 41959] NavStale gid=1 mode=4 age=8/16 pos=(2393.6,1486.9) heldDir=(-0.12,0.99) freshDir=(0.47,0.88) cos=0.82 lookElev=5.1 pushH=4.2
+  [Tick: 41960] NavStale gid=1 mode=4 age=9/16 pos=(2393.3,1486.8) heldDir=(-0.12,0.99) freshDir=(0.51,0.86) cos=0.79 lookElev=4.5 pushH=4.2
+  [Tick: 41961] NavStale gid=1 mode=4 age=10/16 pos=(2393.0,1486.8) heldDir=(-0.12,0.99) freshDir=(0.55,0.84) cos=0.77 lookElev=4.5 pushH=4.2
+  [Tick: 41962] NavStale gid=1 mode=4 age=11/16 pos=(2392.8,1486.8) heldDir=(-0.12,0.99) freshDir=(-0.25,0.97) cos=0.99 lookElev=4.5 pushH=4.2
+  [Tick: 41963] NavStale gid=1 mode=4 age=12/16 pos=(2392.5,1486.9) heldDir=(-0.12,0.99) freshDir=(-0.20,0.98) cos=1.00 lookElev=4.5 pushH=4.2
+  [Tick: 41967] NavStale gid=1 mode=4 age=0/16 pos=(2391.5,1487.9) heldDir=(0.03,1.00) freshDir=(0.03,1.00) cos=1.00 lookElev=4.3 pushH=4.2
+  Timespeed changed Multiply: 2 Divide: 1
+  [Tick: 41983] NavStale gid=1 mode=4 age=0/16 pos=(2388.4,1496.2) heldDir=(0.94,0.35) freshDir=(0.94,0.35) cos=1.00 lookElev=6.9 pushH=4.2
+  [Tick: 41984] NavStale gid=1 mode=4 age=1/16 pos=(2388.2,1496.8) heldDir=(0.94,0.35) freshDir=(0.97,-0.25) cos=0.82 lookElev=6.3 pushH=4.2
+  [Tick: 41985] NavStale gid=1 mode=4 age=2/16 pos=(2388.1,1497.4) heldDir=(0.94,0.35) freshDir=(0.80,-0.60) cos=0.53 lookElev=6.3 pushH=4.2
+  [Tick: 41986] NavStale gid=1 mode=4 age=3/16 pos=(2388.0,1498.1) heldDir=(0.94,0.35) freshDir=(0.65,-0.76) cos=0.34 lookElev=5.7 pushH=4.2
+  [Tick: 41987] NavStale gid=1 mode=4 age=4/16 pos=(2388.0,1498.7) heldDir=(0.94,0.35) freshDir=(0.53,-0.84) cos=0.20 lookElev=5.2 pushH=4.2
+  [Tick: 41988] NavStale gid=1 mode=4 age=5/16 pos=(2387.9,1499.3) heldDir=(0.94,0.35) freshDir=(0.90,0.44) cos=1.00 lookElev=4.4 pushH=4.2
+  [Tick: 41989] NavStale gid=1 mode=4 age=6/16 pos=(2387.9,1499.9) heldDir=(0.94,0.35) freshDir=(0.97,0.25) cos=0.99 lookElev=4.4 pushH=4.2
+  [Tick: 42001] NavStale gid=1 mode=4 age=2/16 pos=(2390.1,1506.6) heldDir=(0.18,-0.98) freshDir=(0.99,-0.17) cos=0.34 lookElev=4.2 pushH=4.2
+  [Tick: 42002] NavStale gid=1 mode=4 age=3/16 pos=(2390.4,1507.1) heldDir=(0.18,-0.98) freshDir=(0.97,-0.25) cos=0.42 lookElev=4.2 pushH=4.2
+  [Tick: 42004] NavStale gid=1 mode=4 age=5/16 pos=(2391.0,1507.8) heldDir=(0.18,-0.98) freshDir=(0.91,-0.41) cos=0.57 lookElev=4.6 pushH=4.2
+  [Tick: 42005] NavStale gid=1 mode=4 age=6/16 pos=(2391.3,1508.2) heldDir=(0.18,-0.98) freshDir=(0.88,-0.48) cos=0.63 lookElev=4.6 pushH=4.2
+  [Tick: 42006] NavStale gid=1 mode=4 age=7/16 pos=(2391.5,1508.4) heldDir=(0.18,-0.98) freshDir=(0.84,-0.54) cos=0.69 lookElev=4.2 pushH=4.2
+  [Tick: 42007] NavStale gid=1 mode=4 age=8/16 pos=(2391.8,1508.6) heldDir=(0.18,-0.98) freshDir=(0.80,-0.60) cos=0.73 lookElev=4.7 pushH=4.2
+  [Tick: 42008] NavStale gid=1 mode=4 age=9/16 pos=(2392.1,1508.8) heldDir=(0.18,-0.98) freshDir=(0.77,-0.64) cos=0.77 lookElev=4.7 pushH=4.2
+  [Tick: 42009] NavStale gid=1 mode=4 age=10/16 pos=(2392.4,1508.9) heldDir=(0.18,-0.98) freshDir=(0.73,-0.68) cos=0.80 lookElev=4.7 pushH=4.2
+  [Tick: 42010] NavStale gid=1 mode=4 age=11/16 pos=(2392.7,1508.9) heldDir=(0.18,-0.98) freshDir=(0.70,-0.72) cos=0.83 lookElev=4.7 pushH=4.2
+  [Tick: 42011] NavStale gid=1 mode=4 age=12/16 pos=(2393.0,1508.9) heldDir=(0.18,-0.98) freshDir=(0.66,-0.75) cos=0.85 lookElev=5.3 pushH=4.2
+  [Tick: 42012] NavStale gid=1 mode=4 age=13/16 pos=(2393.3,1508.8) heldDir=(0.18,-0.98) freshDir=(0.63,-0.77) cos=0.88 lookElev=5.3 pushH=4.2
+  [Tick: 42013] NavStale gid=1 mode=4 age=14/16 pos=(2393.5,1508.7) heldDir=(0.18,-0.98) freshDir=(0.60,-0.80) cos=0.89 lookElev=5.3 pushH=4.2
+  [Tick: 42014] NavStale gid=1 mode=4 age=15/16 pos=(2393.8,1508.5) heldDir=(0.18,-0.98) freshDir=(0.57,-0.82) cos=0.91 lookElev=5.7 pushH=4.2
+  [Tick: 42015] NavStale gid=1 mode=4 age=0/16 pos=(2394.1,1508.3) heldDir=(0.54,-0.84) freshDir=(0.54,-0.84) cos=1.00 lookElev=6.7 pushH=4.2
+  [Tick: 42016] NavStale gid=1 mode=4 age=1/16 pos=(2394.4,1508.1) heldDir=(0.54,-0.84) freshDir=(0.51,-0.86) cos=1.00 lookElev=6.9 pushH=4.2
+  [Tick: 42017] NavStale gid=1 mode=4 age=2/16 pos=(2394.7,1507.8) heldDir=(0.54,-0.84) freshDir=(0.47,-0.88) cos=1.00 lookElev=7.4 pushH=4.2
+  [Tick: 42018] NavStale gid=1 mode=4 age=3/16 pos=(2395.0,1507.5) heldDir=(0.54,-0.84) freshDir=(0.41,-0.91) cos=0.99 lookElev=7.4 pushH=4.2
+  [Tick: 42019] NavStale gid=1 mode=4 age=4/16 pos=(2395.4,1507.1) heldDir=(0.54,-0.84) freshDir=(0.31,-0.95) cos=0.97 lookElev=7.3 pushH=4.2
+  [Tick: 42020] NavStale gid=1 mode=4 age=5/16 pos=(2395.7,1506.8) heldDir=(0.54,-0.84) freshDir=(0.13,-0.99) cos=0.90 lookElev=7.6 pushH=4.2
+  [Tick: 42021] NavStale gid=1 mode=4 age=6/16 pos=(2396.0,1506.4) heldDir=(0.54,-0.84) freshDir=(-0.26,-0.97) cos=0.67 lookElev=7.3 pushH=4.2
+  [Tick: 42022] NavStale gid=1 mode=4 age=7/16 pos=(2396.4,1506.0) heldDir=(0.54,-0.84) freshDir=(-0.84,-0.54) cos=-0.00 lookElev=7.3 pushH=4.2
+  [Tick: 42023] NavStale gid=1 mode=4 age=8/16 pos=(2396.8,1505.6) heldDir=(0.54,-0.84) freshDir=(-0.45,0.89) cos=-0.99 lookElev=7.3 pushH=4.2
+  [Tick: 42024] NavStale gid=1 mode=4 age=9/16 pos=(2397.1,1505.2) heldDir=(0.54,-0.84) freshDir=(-0.45,0.89) cos=-0.99 lookElev=6.7 pushH=4.2
+  [Tick: 42025] NavStale gid=1 mode=4 age=10/16 pos=(2397.5,1504.7) heldDir=(0.54,-0.84) freshDir=(-0.45,0.89) cos=-0.99 lookElev=6.7 pushH=4.2
+  [Tick: 42026] NavStale gid=1 mode=4 age=11/16 pos=(2397.9,1504.3) heldDir=(0.54,-0.84) freshDir=(-0.45,0.89) cos=-0.99 lookElev=6.3 pushH=4.2
+  [Tick: 42027] NavStale gid=1 mode=4 age=12/16 pos=(2398.3,1503.8) heldDir=(0.54,-0.84) freshDir=(-0.45,0.89) cos=-0.99 lookElev=6.3 pushH=4.2
+  [Tick: 42028] NavStale gid=1 mode=4 age=13/16 pos=(2398.6,1503.5) heldDir=(0.54,-0.84) freshDir=(-0.45,0.89) cos=-0.99 lookElev=6.6 pushH=4.2
+  [Tick: 42029] NavStale gid=1 mode=4 age=14/16 pos=(2398.8,1503.3) heldDir=(0.54,-0.84) freshDir=(-0.45,0.89) cos=-0.99 lookElev=6.1 pushH=4.2
+  [Tick: 42030] NavStale gid=1 mode=4 age=15/16 pos=(2398.5,1503.9) heldDir=(0.54,-0.84) freshDir=(-0.45,0.89) cos=-0.99 lookElev=6.3 pushH=4.2
+  [Tick: 42041] NavStale gid=3 mode=5 age=12/16 pos=(2413.3,1495.5) heldDir=(-0.66,0.75) freshDir=(-0.46,0.89) cos=0.97 lookElev=4.2 pushH=4.2
+  [Tick: 42043] NavStale gid=3 mode=5 age=14/16 pos=(2412.1,1496.6) heldDir=(-0.66,0.75) freshDir=(-0.38,0.92) cos=0.95 lookElev=4.7 pushH=4.2
+  [Tick: 42044] NavStale gid=3 mode=5 age=15/16 pos=(2411.5,1497.2) heldDir=(-0.66,0.75) freshDir=(-0.32,0.95) cos=0.92 lookElev=4.7 pushH=4.2
+  [Tick: 42069] Player 2 NavSwitch: island dest generated pos=(2405.2,1514.6) dest=(2903.7,1955.2)
+  [Tick: 42080] NavStale gid=1 mode=4 age=1/16 pos=(2397.3,1513.0) heldDir=(0.29,-0.96) freshDir=(0.25,-0.97) cos=1.00 lookElev=4.8 pushH=4.2
+  [Tick: 42081] NavStale gid=1 mode=4 age=2/16 pos=(2397.7,1512.4) heldDir=(0.29,-0.96) freshDir=(0.21,-0.98) cos=1.00 lookElev=4.8 pushH=4.2
+  [Tick: 42082] NavStale gid=1 mode=4 age=3/16 pos=(2398.1,1511.9) heldDir=(0.29,-0.96) freshDir=(0.16,-0.99) cos=0.99 lookElev=5.4 pushH=4.2
+  [Tick: 42083] NavStale gid=1 mode=4 age=4/16 pos=(2398.4,1511.3) heldDir=(0.29,-0.96) freshDir=(0.10,-0.99) cos=0.98 lookElev=6.0 pushH=4.2
+  [Tick: 42084] NavStale gid=1 mode=4 age=5/16 pos=(2398.8,1510.8) heldDir=(0.29,-0.96) freshDir=(0.02,-1.00) cos=0.96 lookElev=6.0 pushH=4.2
+  [Tick: 42085] NavStale gid=1 mode=4 age=6/16 pos=(2399.2,1510.2) heldDir=(0.29,-0.96) freshDir=(-0.09,-1.00) cos=0.93 lookElev=5.8 pushH=4.2
+  [Tick: 42086] NavStale gid=1 mode=4 age=7/16 pos=(2399.5,1509.6) heldDir=(0.29,-0.96) freshDir=(-0.25,-0.97) cos=0.86 lookElev=6.1 pushH=4.2
+  [Tick: 42087] NavStale gid=1 mode=4 age=8/16 pos=(2399.9,1509.0) heldDir=(0.29,-0.96) freshDir=(-0.46,-0.89) cos=0.71 lookElev=5.2 pushH=4.2
+  [Tick: 42088] NavStale gid=1 mode=4 age=9/16 pos=(2400.2,1508.4) heldDir=(0.29,-0.96) freshDir=(-0.72,-0.69) cos=0.45 lookElev=5.6 pushH=4.2
+  [Tick: 42089] NavStale gid=1 mode=4 age=10/16 pos=(2400.5,1507.8) heldDir=(0.29,-0.96) freshDir=(-0.93,-0.37) cos=0.08 lookElev=5.8 pushH=4.2
+  [Tick: 42090] NavStale gid=1 mode=4 age=11/16 pos=(2400.9,1507.2) heldDir=(0.29,-0.96) freshDir=(-0.11,0.99) cos=-0.98 lookElev=5.2 pushH=4.2
+  [Tick: 42091] NavStale gid=1 mode=4 age=12/16 pos=(2401.2,1506.6) heldDir=(0.29,-0.96) freshDir=(-0.11,0.99) cos=-0.98 lookElev=5.5 pushH=4.2
+  [Tick: 42092] NavStale gid=1 mode=4 age=13/16 pos=(2401.6,1505.9) heldDir=(0.29,-0.96) freshDir=(-0.11,0.99) cos=-0.98 lookElev=4.9 pushH=4.2
+  [Tick: 42093] NavStale gid=1 mode=4 age=14/16 pos=(2401.9,1505.3) heldDir=(0.29,-0.96) freshDir=(-0.11,0.99) cos=-0.98 lookElev=4.6 pushH=4.2
+  [Tick: 42094] NavStale gid=1 mode=4 age=15/16 pos=(2402.2,1504.7) heldDir=(0.29,-0.96) freshDir=(-0.11,0.99) cos=-0.98 lookElev=4.6 pushH=4.2
+  [Tick: 42111] NavStale gid=1 mode=4 age=0/16 pos=(2413.5,1509.2) heldDir=(0.07,-1.00) freshDir=(0.07,-1.00) cos=1.00 lookElev=4.6 pushH=4.2
+  [Tick: 42112] NavStale gid=1 mode=4 age=1/16 pos=(2414.1,1509.6) heldDir=(0.07,-1.00) freshDir=(-0.14,-0.99) cos=0.98 lookElev=4.7 pushH=4.2
+  [Tick: 42113] NavStale gid=1 mode=4 age=2/16 pos=(2414.7,1509.9) heldDir=(0.07,-1.00) freshDir=(0.23,-0.97) cos=0.99 lookElev=4.8 pushH=4.2
+  [Tick: 42114] NavStale gid=1 mode=4 age=3/16 pos=(2415.2,1510.3) heldDir=(0.07,-1.00) freshDir=(0.06,-1.00) cos=1.00 lookElev=4.6 pushH=4.2
+  [Tick: 42115] NavStale gid=1 mode=4 age=4/16 pos=(2415.8,1510.5) heldDir=(0.07,-1.00) freshDir=(-0.09,-1.00) cos=0.99 lookElev=4.3 pushH=4.2
+  [Tick: 42116] NavStale gid=1 mode=4 age=5/16 pos=(2416.3,1510.8) heldDir=(0.07,-1.00) freshDir=(-0.21,-0.98) cos=0.96 lookElev=4.3 pushH=4.2
+  [Tick: 42135] NavStale gid=1 mode=4 age=8/16 pos=(2423.3,1507.7) heldDir=(-0.85,-0.53) freshDir=(-0.79,-0.62) cos=0.99 lookElev=4.2 pushH=4.2
+  [Tick: 42136] NavStale gid=1 mode=4 age=9/16 pos=(2423.3,1507.3) heldDir=(-0.85,-0.53) freshDir=(-0.82,-0.57) cos=1.00 lookElev=4.2 pushH=4.2
+  [Tick: 42137] NavStale gid=1 mode=4 age=10/16 pos=(2423.3,1506.9) heldDir=(-0.85,-0.53) freshDir=(-0.85,-0.52) cos=1.00 lookElev=4.3 pushH=4.2
+  [Tick: 42138] NavStale gid=1 mode=4 age=11/16 pos=(2423.3,1506.5) heldDir=(-0.85,-0.53) freshDir=(-0.88,-0.47) cos=1.00 lookElev=4.3 pushH=4.2
+  [Tick: 42139] NavStale gid=1 mode=4 age=12/16 pos=(2423.2,1506.1) heldDir=(-0.85,-0.53) freshDir=(-0.91,-0.41) cos=0.99 lookElev=4.4 pushH=4.2
+  [Tick: 42140] NavStale gid=1 mode=4 age=13/16 pos=(2423.1,1505.6) heldDir=(-0.85,-0.53) freshDir=(-0.94,-0.34) cos=0.98 lookElev=4.4 pushH=4.2
+  [Tick: 42141] NavStale gid=1 mode=4 age=14/16 pos=(2422.9,1505.2) heldDir=(-0.85,-0.53) freshDir=(-0.97,-0.26) cos=0.96 lookElev=4.7 pushH=4.2
+  [Tick: 42142] NavStale gid=1 mode=4 age=15/16 pos=(2422.8,1504.7) heldDir=(-0.85,-0.53) freshDir=(-0.99,-0.17) cos=0.92 lookElev=4.9 pushH=4.2
+  [Tick: 42143] NavStale gid=1 mode=4 age=0/16 pos=(2422.6,1504.3) heldDir=(-1.00,-0.07) freshDir=(-1.00,-0.07) cos=1.00 lookElev=4.6 pushH=4.2
+  [Tick: 42144] NavStale gid=1 mode=4 age=1/16 pos=(2422.3,1503.8) heldDir=(-1.00,-0.07) freshDir=(-1.00,0.05) cos=0.99 lookElev=4.7 pushH=4.2
+  [Tick: 42145] NavStale gid=1 mode=4 age=2/16 pos=(2422.1,1503.3) heldDir=(-1.00,-0.07) freshDir=(-0.98,0.18) cos=0.97 lookElev=4.8 pushH=4.2
+  [Tick: 42146] NavStale gid=1 mode=4 age=3/16 pos=(2421.8,1502.9) heldDir=(-1.00,-0.07) freshDir=(-0.75,-0.66) cos=0.79 lookElev=4.8 pushH=4.2
+  [Tick: 42147] NavStale gid=1 mode=4 age=4/16 pos=(2421.5,1502.4) heldDir=(-1.00,-0.07) freshDir=(-0.78,-0.63) cos=0.82 lookElev=4.6 pushH=4.2
+  [Tick: 42148] NavStale gid=1 mode=4 age=5/16 pos=(2421.2,1502.0) heldDir=(-1.00,-0.07) freshDir=(-0.81,-0.58) cos=0.85 lookElev=4.4 pushH=4.2
+  [Tick: 42157] Player 3 NavSwitch: island dest generated pos=(2410.0,1508.4) dest=(2835.1,1841.5)
+  [Tick: 42165] NavStale gid=4 mode=5 age=9/16 pos=(2408.2,1509.5) heldDir=(0.82,-0.57) freshDir=(0.30,-0.95) cos=0.79 lookElev=4.3 pushH=4.2
+  [Tick: 42168] NavStale gid=4 mode=5 age=12/16 pos=(2409.8,1507.8) heldDir=(0.82,-0.57) freshDir=(0.11,-0.99) cos=0.65 lookElev=4.2 pushH=4.2
+  [Tick: 42169] NavStale gid=4 mode=5 age=13/16 pos=(2410.3,1507.2) heldDir=(0.82,-0.57) freshDir=(0.02,-1.00) cos=0.59 lookElev=4.3 pushH=4.2
+  [Tick: 42177] NavStale gid=1 mode=4 age=2/16 pos=(2407.4,1489.8) heldDir=(-0.35,0.94) freshDir=(-0.16,0.99) cos=0.98 lookElev=4.6 pushH=4.2
+  [Tick: 42178] NavStale gid=1 mode=4 age=3/16 pos=(2407.0,1489.3) heldDir=(-0.35,0.94) freshDir=(-0.91,0.41) cos=0.71 lookElev=4.6 pushH=4.2
+  [Tick: 42179] NavStale gid=1 mode=4 age=4/16 pos=(2406.6,1488.9) heldDir=(-0.35,0.94) freshDir=(-0.86,0.50) cos=0.77 lookElev=6.1 pushH=4.2
+  [Tick: 42180] NavStale gid=1 mode=4 age=5/16 pos=(2406.2,1488.5) heldDir=(-0.35,0.94) freshDir=(-0.81,0.59) cos=0.83 lookElev=6.1 pushH=4.2
+  [Tick: 42181] NavStale gid=1 mode=4 age=6/16 pos=(2405.8,1488.2) heldDir=(-0.35,0.94) freshDir=(-0.75,0.66) cos=0.88 lookElev=5.3 pushH=4.2
+  [Tick: 42182] NavStale gid=1 mode=4 age=7/16 pos=(2405.4,1487.9) heldDir=(-0.35,0.94) freshDir=(-0.68,0.73) cos=0.92 lookElev=6.4 pushH=4.2
+  [Tick: 42183] NavStale gid=1 mode=4 age=8/16 pos=(2405.0,1487.7) heldDir=(-0.35,0.94) freshDir=(-0.62,0.79) cos=0.95 lookElev=6.4 pushH=4.2
+  [Tick: 42184] NavStale gid=1 mode=4 age=9/16 pos=(2404.6,1487.5) heldDir=(-0.35,0.94) freshDir=(-0.54,0.84) cos=0.98 lookElev=5.5 pushH=4.2
+  [Tick: 42185] NavStale gid=1 mode=4 age=10/16 pos=(2404.2,1487.4) heldDir=(-0.35,0.94) freshDir=(-0.47,0.88) cos=0.99 lookElev=5.5 pushH=4.2
+  [Tick: 42186] NavStale gid=1 mode=4 age=11/16 pos=(2403.8,1487.3) heldDir=(-0.35,0.94) freshDir=(-0.39,0.92) cos=1.00 lookElev=6.1 pushH=4.2
+  [Tick: 42187] NavStale gid=1 mode=4 age=12/16 pos=(2403.4,1487.2) heldDir=(-0.35,0.94) freshDir=(-0.31,0.95) cos=1.00 lookElev=6.1 pushH=4.2
+  [Tick: 42188] NavStale gid=1 mode=4 age=13/16 pos=(2402.9,1487.2) heldDir=(-0.35,0.94) freshDir=(-0.22,0.98) cos=0.99 lookElev=6.1 pushH=4.2
+  [Tick: 42189] NavStale gid=4 mode=5 age=1/16 pos=(2412.9,1508.3) heldDir=(-0.59,-0.81) freshDir=(-0.42,-0.91) cos=0.98 lookElev=4.2 pushH=4.2
+  [Tick: 42189] NavStale gid=1 mode=4 age=14/16 pos=(2402.5,1487.3) heldDir=(-0.35,0.94) freshDir=(-0.13,0.99) cos=0.97 lookElev=6.1 pushH=4.2
+  [Tick: 42190] NavStale gid=1 mode=4 age=15/16 pos=(2402.1,1487.4) heldDir=(-0.35,0.94) freshDir=(-0.03,1.00) cos=0.95 lookElev=6.2 pushH=4.2
+  [Tick: 42191] NavStale gid=1 mode=4 age=0/16 pos=(2401.7,1487.5) heldDir=(0.08,1.00) freshDir=(0.08,1.00) cos=1.00 lookElev=6.4 pushH=4.2
+  [Tick: 42192] NavStale gid=4 mode=5 age=4/16 pos=(2412.0,1510.0) heldDir=(-0.59,-0.81) freshDir=(-0.26,-0.97) cos=0.93 lookElev=4.5 pushH=4.2
+  [Tick: 42192] NavStale gid=1 mode=4 age=1/16 pos=(2401.2,1487.6) heldDir=(0.08,1.00) freshDir=(0.18,0.98) cos=0.99 lookElev=6.8 pushH=4.2
+  [Tick: 42193] NavStale gid=1 mode=4 age=2/16 pos=(2400.8,1487.8) heldDir=(0.08,1.00) freshDir=(0.29,0.96) cos=0.98 lookElev=6.8 pushH=4.2
+  [Tick: 42194] NavStale gid=1 mode=4 age=3/16 pos=(2400.4,1488.0) heldDir=(0.08,1.00) freshDir=(0.40,0.92) cos=0.94 lookElev=7.3 pushH=4.2
+  [Tick: 42195] NavStale gid=1 mode=4 age=4/16 pos=(2400.0,1488.3) heldDir=(0.08,1.00) freshDir=(0.50,0.86) cos=0.90 lookElev=7.3 pushH=4.2
+  [Tick: 42196] NavStale gid=1 mode=4 age=5/16 pos=(2399.7,1488.5) heldDir=(0.08,1.00) freshDir=(0.60,0.80) cos=0.84 lookElev=7.8 pushH=4.2
+  [Tick: 42197] NavStale gid=1 mode=4 age=6/16 pos=(2399.3,1488.8) heldDir=(0.08,1.00) freshDir=(0.70,0.72) cos=0.77 lookElev=8.1 pushH=4.2

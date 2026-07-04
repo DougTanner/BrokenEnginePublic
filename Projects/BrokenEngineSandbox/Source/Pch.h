@@ -88,8 +88,8 @@ inline constexpr LogLevel keLogLevelDefault = kWarning;
 inline constexpr LogLevel keLogLevelAudio = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelGraphics = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelLoading = keLogLevelDefault;
-inline constexpr LogLevel keLogLevelNavData = keLogLevelDefault;
-inline constexpr LogLevel keLogLevelNetwork = kVerbose; // DT: TEMP keLogLevelDefault;
+inline constexpr LogLevel keLogLevelNavData = kVerbose; // DT: TEMP keLogLevelDefault;
+inline constexpr LogLevel keLogLevelNetwork = keLogLevelDefault;
 inline constexpr LogLevel keLogLevelInput = keLogLevelDefault;
 
 // Include order is load-bearing: ExternalHeaders.h (top of this file) supplies the DirectXMath/Vulkan/std symbols ShaderLayouts.h uses (ShaderLayoutsBase.h
