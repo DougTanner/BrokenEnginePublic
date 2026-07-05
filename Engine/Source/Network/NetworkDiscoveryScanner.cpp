@@ -10,12 +10,22 @@ namespace engine
 NetworkDiscoveryScanner::NetworkDiscoveryScanner()
 {
 	mSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (mSocket == INVALID_SOCKET)
+	{
+		LOG(kNetwork, kError, "NetworkDiscoveryScanner socket creation failed: {}", WSAGetLastError());
+	}
 
 	BOOL bBroadcast = TRUE;
-	setsockopt(mSocket, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&bBroadcast), sizeof(bBroadcast));
+	if (setsockopt(mSocket, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&bBroadcast), sizeof(bBroadcast)) == SOCKET_ERROR)
+	{
+		LOG(kNetwork, kError, "NetworkDiscoveryScanner setsockopt SO_BROADCAST failed: {}", WSAGetLastError());
+	}
 
 	u_long uiNonBlocking = 1;
-	ioctlsocket(mSocket, FIONBIO, &uiNonBlocking);
+	if (ioctlsocket(mSocket, FIONBIO, &uiNonBlocking) == SOCKET_ERROR)
+	{
+		LOG(kNetwork, kError, "NetworkDiscoveryScanner ioctlsocket failed: {}", WSAGetLastError());
+	}
 }
 
 NetworkDiscoveryScanner::~NetworkDiscoveryScanner()

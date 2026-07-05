@@ -43,6 +43,7 @@ struct ReplayMeta
 	engine::GridCoord clientGridCoord {};
 	int64_t iClientPlayerIdValue = 0;
 	float fPreviousClientArmor = 0.0f;
+	uint8_t uiPad[4] {};
 };
 
 class Game : public engine::GameBase

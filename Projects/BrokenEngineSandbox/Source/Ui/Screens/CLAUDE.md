@@ -6,7 +6,7 @@ ImGui screens rendered by engine's `ImGuiManager`. The `.cpp` bodies are fully `
 
 Children do not re-document these:
 
-- **Menu scale**: player screens size text by pushing a dynamic font via `ScopedMenuFont` (see `MenuUtils`); TweaksScreen alone scales via the engine base's `SetWindowFontScale(kfUiScale)`. `ScopedMenuScale` scales padding/spacing uniformly.
+- **Menu scale**: player screens size text by pushing a dynamic font via `ScopedMenuFont` (see `MenuUtils`); TweaksScreen's engine base scales the same way, with a direct `PushFont(nullptr, GetStyle().FontSizeBase * kfUiScale)`/`PopFont()` inside each window. `ScopedMenuScale` scales padding/spacing uniformly.
 - **Visibility**: screens self-gate on `gpGame->meUiState` plus game flags, early-returning when inactive, and transition by writing `meUiState` directly in button handlers — no state-machine object (MainMenu/Pause partition `kPause` on `InMainMenu()`). Self-gating is mandatory: ImGuiManager outer-gates the in-game screens on `ShouldShowInGameUi()` but renders MainMenu and Modal unconditionally, so a client with Tweaks persisted-open can still reach Connect.
 - **Positioning**: proportional screen percentages for resolution independence.
 - **Opaque-UI occlusion**: opaque-background screens register their rect via `gpImGuiManager->RegisterOpaqueRect()` unconditionally (`gOpaqueUi` gating lives in ImGuiManager); transparent-window screens (MainMenu, Pause) don't register.

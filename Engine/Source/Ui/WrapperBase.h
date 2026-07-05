@@ -230,7 +230,6 @@ extern Wrapper gBaseHeight;
 // Islands & terrain
 extern Wrapper gVisibleAreaExtraTop;
 extern Wrapper gVisibleAreaExtraBottom;
-extern Wrapper gTerrainEarlyOut;
 extern Wrapper gTerrainElevationTextureMultiplier;
 
 // Smoke

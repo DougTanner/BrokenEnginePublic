@@ -47,6 +47,15 @@ BufferManager::BufferManager()
 			continue;
 		}
 
+		// Trust boundary: iSize is an on-disk ChunkHeader field. Bound it against the chunk's true in-memory
+		// extent (EagerChunk::iDataSize) before it drives the buffer allocation size AND the copy, so a corrupt
+		// header can neither size a bogus allocation nor overread off pData. Reject non-positive too: a negative
+		// int64 iSize would pass the upper bound and convert to a huge memcpy size_t.
+		if (rChunk.pHeader->iSize <= 0 || rChunk.pHeader->iSize > rChunk.iDataSize)
+		{
+			throw common::CorruptStreamException("BufferManager model");
+		}
+
 		auto [it, bInserted] = mModelMap.try_emplace(rCrc, BufferInfo
 		{
 			.name = rChunk.pHeader->pcPath,
@@ -777,7 +786,6 @@ void BufferManager::CreateWaterMesh()
 	std::vector<std::byte> vertices;
 	BuildLodConcatMesh(iLod0QuadX, iLod0QuadY, mWaterMeshLods, indices, vertices);
 
-	mWaterMeshBuffer.Destroy();
 	mWaterMeshBuffer.Create(
 	{
 		.name = "WaterMesh",

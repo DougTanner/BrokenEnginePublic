@@ -18,7 +18,7 @@ void BillboardsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 
 	rBillboards.pVecPositions[iIndex] = XMVectorSetW(rData.vecPosition, 1.0f);
 	rBillboards.puiTypeIndices[iIndex] = rData.uiTypeIndex;
-	rBillboards.puiFlags[iIndex] = rData.uiFlags;
+	rBillboards.pFlags[iIndex] = rData.flags;
 	rBillboards.pfRotations[iIndex] = rData.fRotation;
 	rBillboards.pfExtra[iIndex] = rData.fExtra;
 }
@@ -43,7 +43,7 @@ void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId,
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	rInterpolate.puiFlags[uiSpawnIndex] = 0;
+	rInterpolate.pFlags[uiSpawnIndex] = {};
 	rInterpolate.pfRotations[uiSpawnIndex] = 0.0f;
 	rInterpolate.pfExtra[uiSpawnIndex] = 0.0f;
 	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();

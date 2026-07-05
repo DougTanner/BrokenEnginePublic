@@ -536,8 +536,6 @@ void Graphics::RecreateResources()
 		if (gpTextureManager != nullptr)
 		{
 			// Texel grid must match the water-mesh vertex grid (see RenderTargetTextures.h comment).
-			gpTextureManager->mRenderTargetTextures.mWaterDisplacementTexture.Destroy();
-			gpTextureManager->mRenderTargetTextures.mWaterDisplacementNormalTexture.Destroy();
 			gpTextureManager->mRenderTargetTextures.CreateWaterDisplacementTextures();
 		}
 	}

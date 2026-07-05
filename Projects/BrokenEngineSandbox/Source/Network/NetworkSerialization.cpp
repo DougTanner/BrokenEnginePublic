@@ -139,8 +139,36 @@ static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferDat
 	rData.uiPendingWeaponModeTicks = ReadUint8(pCursor);
 }
 
-// Upper bound on a single serialized StatusChange of any type; sizes the CompressStatusChangeBatch scratch and is enforced per item in SerializeGroup
-constexpr int64_t kiMaxBytesPerItem = 120;
+// Serialized wire size of one item of each StatusChangeType, excluding the per-group [type:1][count:2] header.
+// Receive-side mirror of the per-case write widths in SerializeGroup (and the Serialize* helpers) below —
+// DeserializeStatusChangeBatch bounds-checks each item against this before reading, then rejects the whole batch on
+// any shortfall. Any StatusChangeType payload change must update this alongside the two switches, DefaultDataForType,
+// and kiMaxStatusChangeBytesPerItem (see the game Network/CLAUDE.md "Adding a StatusChangeType" checklist).
+static int64_t StatusChangeItemWireSize(game::StatusChangeType eType)
+{
+	static constexpr int64_t kiU8 = sizeof(uint8_t);
+	static constexpr int64_t kiU16 = sizeof(uint16_t);
+	static constexpr int64_t kiU32 = sizeof(uint32_t);
+	static constexpr int64_t kiI64 = sizeof(int64_t);
+	static constexpr int64_t kiF32 = sizeof(float);
+	static constexpr int64_t kiVec4 = sizeof(XMFLOAT4A);
+	static constexpr int64_t kiCoord = 2 * kiU32; // GridCoord = two int32
+
+	switch (eType)
+	{
+		case game::StatusChangeType::kSpawnPlayer:       return kiI64 + kiU8 + kiCoord + kiU8;
+		case game::StatusChangeType::kRespawnPlayer:     return 0;
+		case game::StatusChangeType::kTransferBlaster:   return 2 * kiVec4 + kiU8 + kiU32 + 3 * kiF32;
+		case game::StatusChangeType::kTransferSpaceship: return 3 * kiVec4 + kiU32 + 3 * kiF32;
+		case game::StatusChangeType::kTransferMissile:   return 3 * kiVec4 + kiU32 + 5 * kiF32 + kiI64;
+		case game::StatusChangeType::kTransferPlayer:    return 3 * kiVec4 + kiU32 + 11 * kiF32 + kiU16 + kiI64 + kiCoord + 2 * kiU8;
+		case game::StatusChangeType::kDestroyPlayer:     return kiI64;
+		case game::StatusChangeType::kUpdatePlayer:      return kiI64 + kiU8 + kiF32 + kiU8;
+		case game::StatusChangeType::kUpdateFleet:       return kiI64 + kiU8 + kiCoord + kiU8;
+	}
+
+	return 0;
+}
 
 // Serialize a group of StatusChanges that share the same type
 static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, const game::StatusChange* pChanges, const int64_t* pIndices, int64_t iGroupCount)
@@ -206,7 +234,7 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 			}
 		}
 
-		ASSERT(pCursor - pItemStart <= kiMaxBytesPerItem);
+		ASSERT(pCursor - pItemStart <= kiMaxStatusChangeBytesPerItem);
 	}
 }
 
@@ -242,16 +270,10 @@ int64_t SerializeStatusChangeBatch(const game::StatusChange* pChanges, int64_t i
 
 	uint8_t* pCursor = static_cast<uint8_t*>(pDest);
 
-	// Group indices by type using workbuffer
+	// Group indices by type in a workbuffer reservation (GroupIndicesByType writes every slot, so no zero-fill)
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		rWorkbuffer.PushBack(int64_t{0});
-	}
-	std::span<int64_t> sortedSpan = rWorkbuffer.Span<int64_t>();
-	int64_t* pSorted = sortedSpan.data();
+	common::ScopedWorkbufferAllocation<int64_t*> sortedAllocation = rWorkbuffer.PushBuffer<int64_t*>(iCount * static_cast<int64_t>(sizeof(int64_t)));
+	int64_t* pSorted = sortedAllocation;
 
 	int64_t piGroupCounts[kiTypeCount] = {};
 	int64_t piOffsets[kiTypeCount] = {};
@@ -273,17 +295,35 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 		return 0;
 	}
 
-	const uint8_t* pCursor = static_cast<const uint8_t*>(pSource);
-	const uint8_t* pEnd = pCursor + iSourceSize;
+	// Trust boundary (network input): drive every read through a bounded cursor and reject the whole batch on any
+	// shortfall or out-of-range type byte, rather than over-reading pEnd or emitting a defaulted item. No partial
+	// application — the client resyncs via CRC. StatusChangeItemWireSize above is the per-type read-width mirror.
+	BoundedCursor cursor {static_cast<const uint8_t*>(pSource), static_cast<const uint8_t*>(pSource) + iSourceSize};
 	int64_t iOutputCount = 0;
 
-	while (pCursor < pEnd && iOutputCount < iMaxCount)
+	// [type:1][count:2] group header, then uiGroupCount items of StatusChangeItemWireSize(eType) bytes each.
+	while (cursor.Has(static_cast<int64_t>(sizeof(uint8_t) + sizeof(uint16_t))) && iOutputCount < iMaxCount)
 	{
-		game::StatusChangeType eType = static_cast<game::StatusChangeType>(ReadUint8(pCursor));
-		uint16_t uiGroupCount = ReadUint16(pCursor);
+		uint8_t uiType = ReadUint8(cursor.pCursor);
+		uint16_t uiGroupCount = ReadUint16(cursor.pCursor);
 
-		for (uint16_t i = 0; i < uiGroupCount && iOutputCount < iMaxCount && pCursor < pEnd; ++i)
+		if (uiType >= kiTypeCount)
 		{
+			LOG(kNetwork, kWarning, "DeserializeStatusChangeBatch: out-of-range type byte {} (deserialized {})", static_cast<int>(uiType), iOutputCount);
+			return 0;
+		}
+
+		game::StatusChangeType eType = static_cast<game::StatusChangeType>(uiType);
+		int64_t iItemWireSize = StatusChangeItemWireSize(eType);
+
+		for (uint16_t i = 0; i < uiGroupCount && iOutputCount < iMaxCount; ++i)
+		{
+			if (!cursor.Has(iItemWireSize))
+			{
+				LOG(kNetwork, kWarning, "DeserializeStatusChangeBatch: truncated mid-group (type {}, deserialized {})", static_cast<int>(uiType), iOutputCount);
+				return 0;
+			}
+
 			game::StatusChange& rChange = pDest[iOutputCount++];
 			rChange = {};
 			rChange.eType = eType;
@@ -295,54 +335,48 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 				case game::StatusChangeType::kSpawnPlayer:
 				{
 					game::SpawnPlayerData& rSpawn = std::get<game::SpawnPlayerData>(rChange.data);
-					rSpawn.iGlobalId = ReadInt64(pCursor);
-					rSpawn.bIsFlagship = ReadUint8(pCursor) != 0;
-					rSpawn.fleetWantedCoord = ReadGridCoord(pCursor);
-					rSpawn.uiPendingFleetWantedCoordTicks = ReadUint8(pCursor);
+					rSpawn.iGlobalId = ReadInt64(cursor.pCursor);
+					rSpawn.bIsFlagship = ReadUint8(cursor.pCursor) != 0;
+					rSpawn.fleetWantedCoord = ReadGridCoord(cursor.pCursor);
+					rSpawn.uiPendingFleetWantedCoordTicks = ReadUint8(cursor.pCursor);
 					break;
 				}
 				case game::StatusChangeType::kRespawnPlayer:
 					break;
 				case game::StatusChangeType::kTransferBlaster:
-					DeserializeBlasterTransfer(pCursor, std::get<game::TransferData>(rChange.data));
+					DeserializeBlasterTransfer(cursor.pCursor, std::get<game::TransferData>(rChange.data));
 					break;
 				case game::StatusChangeType::kTransferSpaceship:
-					DeserializeSpaceshipTransfer(pCursor, std::get<game::TransferData>(rChange.data));
+					DeserializeSpaceshipTransfer(cursor.pCursor, std::get<game::TransferData>(rChange.data));
 					break;
 				case game::StatusChangeType::kTransferMissile:
-					DeserializeMissileTransfer(pCursor, std::get<game::TransferData>(rChange.data));
+					DeserializeMissileTransfer(cursor.pCursor, std::get<game::TransferData>(rChange.data));
 					break;
 				case game::StatusChangeType::kTransferPlayer:
-					DeserializePlayerTransfer(pCursor, std::get<game::TransferData>(rChange.data));
+					DeserializePlayerTransfer(cursor.pCursor, std::get<game::TransferData>(rChange.data));
 					break;
 				case game::StatusChangeType::kDestroyPlayer:
-					std::get<game::DestroyPlayerData>(rChange.data).iPlayerUuid = ReadInt64(pCursor);
+					std::get<game::DestroyPlayerData>(rChange.data).iPlayerUuid = ReadInt64(cursor.pCursor);
 					break;
 				case game::StatusChangeType::kUpdatePlayer:
 				{
 					game::UpdatePlayerData& rUpdate = std::get<game::UpdatePlayerData>(rChange.data);
-					rUpdate.iPlayerUuid = ReadInt64(pCursor);
-					rUpdate.bUseMissiles = ReadUint8(pCursor) != 0;
-					rUpdate.fNavigationDelay = ReadFloat(pCursor);
-					rUpdate.uiPendingWeaponModeTicks = ReadUint8(pCursor);
+					rUpdate.iPlayerUuid = ReadInt64(cursor.pCursor);
+					rUpdate.bUseMissiles = ReadUint8(cursor.pCursor) != 0;
+					rUpdate.fNavigationDelay = ReadFloat(cursor.pCursor);
+					rUpdate.uiPendingWeaponModeTicks = ReadUint8(cursor.pCursor);
 					break;
 				}
 				case game::StatusChangeType::kUpdateFleet:
 				{
 					game::UpdateFleetData& rUpdate = std::get<game::UpdateFleetData>(rChange.data);
-					rUpdate.iPlayerUuid = ReadInt64(pCursor);
-					rUpdate.bIsFlagship = ReadUint8(pCursor) != 0;
-					rUpdate.fleetWantedCoord = ReadGridCoord(pCursor);
-					rUpdate.uiPendingFleetWantedCoordTicks = ReadUint8(pCursor);
+					rUpdate.iPlayerUuid = ReadInt64(cursor.pCursor);
+					rUpdate.bIsFlagship = ReadUint8(cursor.pCursor) != 0;
+					rUpdate.fleetWantedCoord = ReadGridCoord(cursor.pCursor);
+					rUpdate.uiPendingFleetWantedCoordTicks = ReadUint8(cursor.pCursor);
 					break;
 				}
 			}
-		}
-
-		if (pCursor > pEnd)
-		{
-			LOG(kNetwork, kVerbose, "DeserializeStatusChangeBatch: data truncated mid-group (type {}, deserialized {})", static_cast<int>(eType), iOutputCount);
-			break;
 		}
 	}
 
@@ -356,21 +390,14 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 		return 0;
 	}
 
-	// Serialize into workbuffer, then LZ4 compress into pDest
+	// Serialize into a workbuffer reservation (SerializeStatusChangeBatch writes only iSerializedSize bytes and only
+	// those are compressed, so no zero-fill), then LZ4 compress into pDest
 	constexpr int64_t kiMaxGroupHeaders = kiTypeCount * 3;
-	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
+	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxStatusChangeBytesPerItem;
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	// Reserve space in workbuffer
-	int64_t iChunks = (iMaxSerializedSize + static_cast<int64_t>(sizeof(int64_t)) - 1) / static_cast<int64_t>(sizeof(int64_t));
-	for (int64_t i = 0; i < iChunks; ++i)
-	{
-		rWorkbuffer.PushBack<int64_t>(0);
-	}
-	std::span<uint8_t> serializedSpan = rWorkbuffer.Span<uint8_t>();
-	uint8_t* pSerialized = serializedSpan.data();
+	common::ScopedWorkbufferAllocation<uint8_t*> serializedAllocation = rWorkbuffer.PushBuffer<uint8_t*>(iMaxSerializedSize);
+	uint8_t* pSerialized = serializedAllocation;
 
 	int64_t iSerializedSize = SerializeStatusChangeBatch(pChanges, iCount, pSerialized);
 
@@ -380,8 +407,15 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 	std::memcpy(pOutput, &iUncompressedSize, sizeof(int32_t));
 
 	int iCompressedSize = LZ4_compress_default(reinterpret_cast<const char*>(pSerialized), reinterpret_cast<char*>(pOutput + sizeof(int32_t)), static_cast<int>(iSerializedSize), static_cast<int>(iDestCapacity - sizeof(int32_t)));
+	if (iCompressedSize <= 0)
+	{
+		// Belt (the caller sizes pDest to fit any valid capped batch): a 0 return means the batch did not fit. Drop it
+		// rather than ship the 4-byte prefix alone, which the client would decode as zero changes and silently desync.
+		LOG(kNetwork, kError, "CompressStatusChangeBatch: LZ4 compression failed (items {}, serialized {}, dest capacity {})", iCount, iSerializedSize, iDestCapacity);
+		return 0;
+	}
 
-	return sizeof(int32_t) + iCompressedSize;
+	return static_cast<int64_t>(sizeof(int32_t)) + iCompressedSize;
 }
 
 int64_t DecompressStatusChangeBatch(const void* pSource, int64_t iSourceSize, game::StatusChange* pDest, int64_t iMaxCount)
@@ -396,17 +430,20 @@ int64_t DecompressStatusChangeBatch(const void* pSource, int64_t iSourceSize, ga
 	int32_t iUncompressedSize = 0;
 	std::memcpy(&iUncompressedSize, pInput, sizeof(int32_t));
 
-	// Decompress into workbuffer
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	int64_t iChunks = (iUncompressedSize + static_cast<int64_t>(sizeof(int64_t)) - 1) / static_cast<int64_t>(sizeof(int64_t));
-	for (int64_t i = 0; i < iChunks; ++i)
+	// Trust boundary (network input): clamp the wire-controlled size against the true maximum serialized batch size
+	// before it drives the decompress-buffer reservation, rejecting a hostile prefix that would otherwise allocate up
+	// to ~2 GB. A valid batch's uncompressed size is at or below this bound by construction (the send side sizes its
+	// compress scratch from the same constant).
+	if (iUncompressedSize <= 0 || iUncompressedSize > kiMaxSerializedStatusChangeBatchBytes)
 	{
-		rWorkbuffer.PushBack<int64_t>(0);
+		return 0;
 	}
-	std::span<uint8_t> decompressedSpan = rWorkbuffer.Span<uint8_t>();
-	uint8_t* pDecompressed = decompressedSpan.data();
+
+	// Decompress into a workbuffer reservation (LZ4 writes iResult bytes and only those are deserialized, so no
+	// zero-fill; item (b)'s bounded reads never run past iResult, so the prior chunk-rounded slack is unneeded)
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferAllocation<uint8_t*> decompressedAllocation = rWorkbuffer.PushBuffer<uint8_t*>(iUncompressedSize);
+	uint8_t* pDecompressed = decompressedAllocation;
 
 	int iResult = LZ4_decompress_safe(reinterpret_cast<const char*>(pInput + sizeof(int32_t)), reinterpret_cast<char*>(pDecompressed), static_cast<int>(iSourceSize - sizeof(int32_t)), iUncompressedSize);
 

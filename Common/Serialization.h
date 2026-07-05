@@ -24,6 +24,11 @@ public:
 // a clean reject-and-log instead of a bad_alloc.
 inline constexpr int64_t kiMaxDeserializedCapacity = 1 << 24; // 16,777,216 elements
 
+// Companion byte ceiling for a deserialized SOA capacity. kiMaxDeserializedCapacity bounds the element
+// count, but a large per-element stride (multi-hundred-byte SOA row) can still reserve multi-GB before the
+// count is even read. 256 MiB caps the reservation regardless of stride.
+inline constexpr int64_t kiMaxDeserializedBytes = 256 << 20; // 268,435,456 bytes
+
 // Bytes between the stream's current get position and its end. Requires a seekable stream — every
 // save/replay file stream and the network istringstream are. Restores the get position.
 inline int64_t StreamBytesRemaining(std::istream& rStream)
@@ -52,7 +57,10 @@ inline void ValidateDeserializedCount(int64_t iCount, int64_t iElementBytes, std
 // sizes the buffer, so it is bounded by the absolute ceiling rather than the stream length.
 inline void ValidateDeserializedCountCapacity(int64_t iCount, int64_t iCapacity, int64_t iElementBytes, std::istream& rStream, const char* pcReader)
 {
-	if (iCount < 0 || iCapacity < 0 || iCount > iCapacity || iCapacity > kiMaxDeserializedCapacity)
+	// The byte-ceiling clause divides (never multiplies) so the bound cannot overflow; iElementBytes <= 0 is
+	// left to ValidateDeserializedCount below, which throws on it.
+	if (iCount < 0 || iCapacity < 0 || iCount > iCapacity || iCapacity > kiMaxDeserializedCapacity
+		|| (iElementBytes > 0 && iCapacity > kiMaxDeserializedBytes / iElementBytes))
 	{
 		throw CorruptStreamException(pcReader);
 	}

@@ -7,7 +7,10 @@ namespace engine
 
 NetworkManager::NetworkManager()
 {
-	enet_initialize();
+	if (enet_initialize() != 0)
+	{
+		LOG(kNetwork, kError, "NetworkManager::NetworkManager enet_initialize failed");
+	}
 }
 
 NetworkManager::~NetworkManager()

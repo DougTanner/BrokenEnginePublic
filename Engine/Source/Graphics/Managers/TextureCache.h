@@ -25,8 +25,8 @@ public:
 
 	void GeneratePbrLutBrdf();
 
-	bool TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers, common::crc_t sourceCrc = 0);
-	void SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, VkFormat vkFormat, common::crc_t sourceCrc = 0);
+	bool TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, common::crc_t sourceCrc = 0);
+	void SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, common::crc_t sourceCrc = 0);
 
 	static void CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, bool bFromSwapchain, std::vector<std::byte>& rOutData);
 

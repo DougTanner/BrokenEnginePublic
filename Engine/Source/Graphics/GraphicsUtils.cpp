@@ -47,7 +47,11 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 		if (vkSetDebugUtilsObjectNameEXT != nullptr)
 		{
 			common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-			const char* pcPrefix = string_VkObjectType(type) + std::char_traits<char>::length("VK_OBJECT_TYPE_");
+			// string_VkObjectType returns "Unhandled VkObjectType" for unrecognized types (no "VK_OBJECT_TYPE_"
+			// prefix); strip the prefix only when present, else the fixed skip mis-truncates the fallback into a garbage tail.
+			const char* pcTypeName = string_VkObjectType(type);
+			size_t iPrefixLength = std::char_traits<char>::length("VK_OBJECT_TYPE_");
+			const char* pcPrefix = std::char_traits<char>::compare(pcTypeName, "VK_OBJECT_TYPE_", iPrefixLength) == 0 ? pcTypeName + iPrefixLength : pcTypeName;
 			common::ScopedWorkbufferArena innerArena = rWorkbuffer.Push();
 			rWorkbuffer.Append(pcPrefix);
 			rWorkbuffer.Append(" ");

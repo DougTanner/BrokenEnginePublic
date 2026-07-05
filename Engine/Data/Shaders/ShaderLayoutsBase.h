@@ -377,7 +377,6 @@ struct GlobalLayout
 	// Terrain. Heightmap pixels carry absolute meters directly — fIslandHeight / fWaterDepth
 	// scale factors retired with the meters-everywhere refactor.
 	float fIslandAmbientOcclusion INIT;
-	float fTerrainEarlyOut INIT;
 	float fWaterEarlyOut INIT;
 	float fWaterReducedNormalOriginX INIT;
 	float fWaterReducedNormalOriginY INIT;

@@ -11,7 +11,6 @@ Wrapper gBaseHeight(6.0f, 0.0f, 20.0f);
 // Islands & terrain
 Wrapper gVisibleAreaExtraTop(0.046f, 0.0f, 1.0f);
 Wrapper gVisibleAreaExtraBottom(0.16f, 0.0f, 1.0f);
-Wrapper gTerrainEarlyOut(-0.1f, -1.0f, 0.0f);
 Wrapper gTerrainElevationTextureMultiplier(0.5f, 0.25f, 1.0f);
 
 // Smoke

@@ -22,6 +22,7 @@ static std::unique_ptr<game::Frame> DecompressAndReadFrame(const uint8_t*& pCurs
 	int32_t iCompressedSize = ReadInt32(pCursor);
 
 	if (iUncompressedSize <= 0 || iCompressedSize <= 0
+		|| static_cast<int64_t>(iUncompressedSize) > kiMaxUncompressedFrameBytes
 		|| static_cast<size_t>(iCompressedSize) > iRemaining - 8)
 	{
 		return nullptr;
@@ -91,7 +92,18 @@ Client::FullStateFlags_t Client::ClassifyFullState(uint8_t uiSlotIndex, uint16_t
 		return FullStateFlags::kCommit;
 	}
 
-	// kActive or kUnsubscribing — silent reject
+	// kActive: resync full-state re-commit when coord+epoch match (desync recovery).
+	// A genuine resend re-activates the slot at the resend tick via ServerCoordFullState's
+	// commit block; a stale/ghost full state (wrong coord or superseded epoch) still falls
+	// through to the reject below.
+	if (rSlot.eState == CoordSubscriptionState::kActive
+		&& rSlot.coord == coord
+		&& uiEpoch == rSlot.ackState.uiEpoch)
+	{
+		return FullStateFlags::kCommit;
+	}
+
+	// kActive (mismatched) or kUnsubscribing — silent reject
 	return {};
 }
 

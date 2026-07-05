@@ -13,6 +13,9 @@
 namespace game
 {
 
+// On-disk version of the F7.replay.manifest coord list. Bump on layout change; old manifests are rejected on read.
+static constexpr int64_t kiReplayManifestVersion = 1;
+
 GameSaveLoad::GameSaveLoad(engine::GameBase& rGameBase)
 	: mrGameBase(rGameBase)
 {
@@ -146,7 +149,6 @@ bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 			if (bQuickloaded)
 			{
 				game::gpGame->SetClientGridCoord(loadedClientGridCoord);
-				ASSERT(mrGameBase.mCoordFrames.contains(game::gpGame->mClientGridCoord));
 				game::gpServerSession->ResetClientsForLoad();
 			}
 			else
@@ -196,6 +198,14 @@ void GameSaveLoad::SaveLoadReplay()
 					LOG(kDefault, kError, "Failed to read replay manifest");
 					return;
 				}
+				int64_t iManifestVersion = 0;
+				common::Read(manifestStream, iManifestVersion);
+				if (iManifestVersion != kiReplayManifestVersion)
+				{
+					LOG(kDefault, kError, "Replay manifest version {} != {}", iManifestVersion, kiReplayManifestVersion);
+					return;
+				}
+
 				int64_t iCoordCount = 0;
 				common::Read(manifestStream, iCoordCount);
 				// Trust boundary (replay manifest file): bound the coord count against the stream before reserve.
@@ -301,12 +311,24 @@ void GameSaveLoad::SyncReplayTick()
 			// Write manifest listing all recorded coords
 			static_cast<void>(engine::gpFileManager->WriteFileAtomically({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.manifest"), [&](std::fstream& rManifestStream)
 			{
+				common::Write(rManifestStream, kiReplayManifestVersion);
+
 				int64_t iCoordCount = static_cast<int64_t>(mReplayWriters.size());
 				common::Write(rManifestStream, iCoordCount);
 
+				// Sort by coord key for deterministic output (mirrors WriteGrid).
+				std::vector<uint64_t> keys;
+				keys.reserve(mReplayWriters.size());
 				for (const auto& [rCoord, rpWriter] : mReplayWriters)
 				{
-					rCoord.Write(rManifestStream);
+					keys.push_back(rCoord.ToKey());
+				}
+				std::sort(keys.begin(), keys.end());
+
+				for (uint64_t uiKey : keys)
+				{
+					engine::GridCoord coord = engine::GridCoord::FromKey(uiKey);
+					coord.Write(rManifestStream);
 				}
 			}));
 
@@ -337,7 +359,7 @@ void GameSaveLoad::SyncReplayTick()
 			{
 				if (mrGameBase.mCoordFrames.contains(rCoord))
 				{
-					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
+					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.try_emplace(rCoord).first->second;
 					rpWriter->Update(mrGameBase.TickCounter(), rFrameInput, mrGameBase.CurrentFrame(rCoord));
 				}
 			}
@@ -349,7 +371,7 @@ void GameSaveLoad::SyncReplayTick()
 			bool bEndReached = false;
 			for (auto& [rCoord, rpReader] : mReplayReaders)
 			{
-				game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
+				game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.try_emplace(rCoord).first->second;
 				if (!rpReader->LoadDifference(mrGameBase.TickCounter(), rFrameInput))
 				{
 					bEndReached = true;
@@ -424,14 +446,20 @@ bool GameSaveLoad::ReadGrid(const engine::FileFlags_t& rFlags, const std::filesy
 	// Trust boundary (save file): a corrupt count/capacity anywhere in the grid / fleet / frame
 	// deserialization throws CorruptStreamException (or .at()/bad_alloc) — abort the load gracefully
 	// (return false) so a hand-crafted or truncated save file can't overrun a buffer or crash the server.
+	int64_t iNextGlobalId = 0;
 	try
 	{
 		// Bound the frame count against the stream (each coord frame serializes at least its GridCoord).
 		common::ValidateDeserializedCount(iFrameCount, sizeof(engine::GridCoord), fileStream, "ReadGrid frames");
 		rClientGridCoord.Read(fileStream);
-		int64_t iNextGlobalId = 0;
 		common::Read(fileStream, iNextGlobalId);
-		mrGameBase.SetNextGlobalId(iNextGlobalId);
+		// Trust boundary (save file): the global-id counter is a monotonic positive int64 (fresh games start at
+		// 1). Validate now but apply only past the stream-good gate below, so a failed or silently-torn load
+		// leaves the fresh-fallback game minting from a clean base rather than a garbage/advanced one.
+		if (iNextGlobalId <= 0)
+		{
+			throw common::CorruptStreamException("iNextGlobalId");
+		}
 
 		game::gpServerSession->ReadFleetData(fileStream);
 
@@ -448,6 +476,14 @@ bool GameSaveLoad::ReadGrid(const engine::FileFlags_t& rFlags, const std::filesy
 			fileStream >> *pFrame;
 			rSub.pCurrent = std::move(pFrame);
 			rSub.pNext = std::make_unique<game::Frame>();
+		}
+
+		// Trust boundary (save file): the client grid coord is file-derived and every load entry
+		// (ServerLoad/Autoload/Quickload) adopts it as the followed cell — it must name a frame we just read,
+		// else the grid is torn. Reject uniformly here (replaces the former Quickload ASSERT on file data).
+		if (!mrGameBase.mCoordFrames.contains(rClientGridCoord))
+		{
+			throw common::CorruptStreamException("client grid coord absent from frames");
 		}
 
 		if (!mrGameBase.mCoordFrames.empty())
@@ -468,8 +504,24 @@ bool GameSaveLoad::ReadGrid(const engine::FileFlags_t& rFlags, const std::filesy
 		return false;
 	}
 
+	if (!fileStream.good())
+	{
+		// A silently-failed istream::read left zeroed defaults that passed the validators while the loop ran on
+		// garbage. Give this the same clean-slate failure shape as the catch above rather than committing torn
+		// state, so ServerLoad's caller falls back uniformly.
+		mrGameBase.mCoordFrames.clear();
+		game::gpServerSession->mpFleetManager->ResetState();
+		LOG(kDefault, kError, "ReadGrid {} aborted: stream failure after read", rFilename);
+		return false;
+	}
+
+	// Adopt the validated global-id counter only now that the load fully succeeded — every failure path (a
+	// mid-load throw caught above, or a silent stream failure at the good() gate) returns first, so the
+	// fresh-fallback game keeps minting from its own clean base rather than a torn/advanced one.
+	mrGameBase.SetNextGlobalId(iNextGlobalId);
+
 	LOG(kDefault, kDebug, "ReadGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
-	return fileStream.good();
+	return true;
 }
 
 } // namespace game

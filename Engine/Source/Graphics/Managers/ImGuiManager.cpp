@@ -106,13 +106,23 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	fontConfig.OversampleH = 2;
 	fontConfig.OversampleV = 1;
 	fontConfig.FontDataOwnedByAtlas = false;
+	// Trust boundary: on-disk ChunkHeader::iSize drives the TTF byte length ImGui reads from pData; bound it to the eager chunk's true extent before the copy (reject non-positive too — a negative int64 passes the upper bound and reaches stb_truetype as a negative int).
+	if (rEfigsFontChunk.pHeader->iSize <= 0 || rEfigsFontChunk.pHeader->iSize > rEfigsFontChunk.iDataSize)
+	{
+		throw common::CorruptStreamException("ImGuiManager font");
+	}
 	ImGui::GetIO().Fonts->AddFontFromMemoryTTF(rEfigsFontChunk.pData, static_cast<int>(rEfigsFontChunk.pHeader->iSize), 26.0f, &fontConfig);
 
 	// Load Chinese font for CJK text support
 	const EagerChunk& rChineseFontChunk = gpFileManager->GetEagerChunkMap().at(data::kRawNotoSansSCLightotfCrc);
+	if (rChineseFontChunk.pHeader->iSize <= 0 || rChineseFontChunk.pHeader->iSize > rChineseFontChunk.iDataSize)
+	{
+		throw common::CorruptStreamException("ImGuiManager font");
+	}
 	mpChineseFont = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(rChineseFontChunk.pData, static_cast<int>(rChineseFontChunk.pHeader->iSize), 26.0f, &fontConfig);
 
-	ImGui_ImplWin32_Init(hwnd);
+	bool bWin32Init = ImGui_ImplWin32_Init(hwnd);
+	ASSERT(bWin32Init);
 
 	ImGui_ImplVulkan_InitInfo initInfo
 	{
@@ -132,6 +142,7 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 		},
 		.MinAllocationSize = 1024 * 1024,
 	};
+	// ImGui_ImplVulkan_Init unconditionally returns true (failures trip internal IM_ASSERTs), so its result is not worth checking.
 	ImGui_ImplVulkan_Init(&initInfo);
 
 	SetupThemeGeometry();

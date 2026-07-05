@@ -8,12 +8,7 @@
 namespace engine
 {
 
-struct WindTrailsRenderState
-{
-	std::unordered_map<wind_trail_t, XMVECTOR> previousPositions;
-};
-
-static WindTrailsRenderState sRenderState;
+static std::unordered_map<wind_trail_t, XMVECTOR> sPreviousPositions;
 static int64_t siRendered = 0;
 
 void WindTrailsInterpolate::GraphicsResources()
@@ -25,7 +20,7 @@ void WindTrailsInterpolate::GraphicsResources()
 
 void WindTrailsInterpolate::ResetRenderState()
 {
-	sRenderState.previousPositions.clear();
+	sPreviousPositions.clear();
 }
 
 void WindTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords)
@@ -40,7 +35,7 @@ void WindTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 	int64_t iTotalCapacity = AccumulateRenderCapacity(rRenderInterpolates, rActiveCoords,
 		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.windTrails; });
 
-	EraseStaleRenderState(sRenderState.previousPositions, rRenderInterpolates, rActiveCoords,
+	EraseStaleRenderState(sPreviousPositions, rRenderInterpolates, rActiveCoords,
 		[](const game::FrameInterpolate& rInterpolate) -> const auto& { return rInterpolate.windTrails.idToIndexMap; });
 
 	if (iTotalCapacity == 0)
@@ -71,8 +66,6 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Heap: unordered_map insertions/lookups for per-trail previous positions
 		ScopedSuppressAllocationTracking suppress;
 
-		WindTrailsRenderState& rRenderState = sRenderState;
-
 		// Build GPU quads
 		for (const auto& [id, iIndex] : rCurrent.idToIndexMap)
 		{
@@ -88,8 +81,8 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 			}
 
 			// Look up or initialize previous position
-			auto it = rRenderState.previousPositions.find(id);
-			XMVECTOR vecPreviousPosition = (it != rRenderState.previousPositions.end()) ? it->second : vecPosition;
+			auto it = sPreviousPositions.find(id);
+			XMVECTOR vecPreviousPosition = (it != sPreviousPositions.end()) ? it->second : vecPosition;
 			float fLengthMultiplier = rCurrent.pfLengthMultipliers[iIndex];
 
 			// Project to base height
@@ -149,7 +142,7 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Snapshot current positions as previous for next render
 		for (const auto& [id, iIndex] : rCurrent.idToIndexMap)
 		{
-			rRenderState.previousPositions.insert_or_assign(id, rCurrent.pVecPositions[iIndex]);
+			sPreviousPositions.insert_or_assign(id, rCurrent.pVecPositions[iIndex]);
 		}
 	}
 }

@@ -2,7 +2,7 @@
 
 #include "ExternalHeaders.h"
 
-inline constexpr bool kbDesyncRecovery = false; // DT: TODO Need to properly test true;
+inline constexpr bool kbDesyncRecovery = true; // DT: Recovery enabled; confirm in playtest
 inline constexpr bool kbFrameDispatch = true;
 inline constexpr bool kbLogging = true;
 inline constexpr bool kbInvincibility = true;

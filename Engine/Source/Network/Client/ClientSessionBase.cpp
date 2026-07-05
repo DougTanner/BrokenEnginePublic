@@ -34,8 +34,7 @@ void PersistClientGuidToDisk(const ClientGuid& rGuid)
 	// Heap: filesystem path and fstream operations for GUID persistence
 	ScopedSuppressAllocationTracking suppress;
 
-	ClientGuid guid = rGuid; // WriteVersionedFile takes a non-const reference
-	if (!WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"), guid))
+	if (!WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("ClientGuid.bin"), rGuid))
 	{
 		LOG(kNetwork, kError, "Failed to persist ClientGuid.bin (next session will re-handshake as a new client)");
 	}

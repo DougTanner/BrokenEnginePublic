@@ -161,7 +161,7 @@ public:
 	VmaAllocation mIndirectVmaAllocation = VK_NULL_HANDLE;
 	VkDrawIndexedIndirectCommand* mpIndirectMappedMemory = nullptr;
 	VkDispatchIndirectCommand* mpIndirectComputeMappedMemory = nullptr; // Host-visible dispatch map (kIndirectHostVisible | kCompute); mutually exclusive with the draw map above
-	int64_t miIndirectSlotCount = 0; // Indirect buffer slot capacity (= max(framebufferCount, 3)); bounds the Record*Indirect command-buffer index
+	int64_t miIndirectSlotCount = 0; // Indirect buffer slot capacity bounding the Record*Indirect command-buffer index. SetupIndirectBuffer stamps every graphics pipeline (= max(framebufferCount, 3), even no-indirect ones); the kIndirectDeviceLocal compute branch overrides it to 1
 
 	Buffer mModelMaterialsStorageBuffer;
 

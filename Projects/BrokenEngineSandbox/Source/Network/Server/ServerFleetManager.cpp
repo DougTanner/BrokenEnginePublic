@@ -13,6 +13,11 @@ namespace game
 
 #if defined(BT_SERVER)
 
+// DoS ceiling on per-client fleet count — well above any real use; bounds mFleets against a spamming client.
+constexpr int64_t kiMaxFleetsPerClient = 16;
+// Per-fleet member cap — parity with Frame.cpp's kiMaxFleetSize (16); bounds Fleet::members against a spamming client.
+constexpr size_t kiMaxFleetMembers = 16;
+
 ServerFleetManager::ServerFleetManager()
 {
 	mRandomEngine.TimeSeed();
@@ -54,6 +59,12 @@ void ServerFleetManager::ProcessCreateFleetRequests()
 		}
 
 		engine::ClientGuid guid = pClient->clientGuid;
+		auto it = mFleets.find(guid);
+		if (it != mFleets.end() && std::ssize(it->second) >= kiMaxFleetsPerClient)
+		{
+			LOG(kNetwork, kWarning, "ServerFleetManager::ProcessCreateFleetRequests Client: {} at fleet cap {}, ignoring create", rRequest.iClientId, kiMaxFleetsPerClient);
+			continue;
+		}
 		Fleet& rNewFleet = mFleets.try_emplace(guid).first->second.emplace_back();
 		rNewFleet.guid.uiHigh = common::RandomNext(mRandomEngine);
 		rNewFleet.guid.uiLow = common::RandomNext(mRandomEngine);
@@ -275,7 +286,14 @@ void ServerFleetManager::OnPlayerSpawned(int64_t iClientId, const ClientSpawnInf
 	}
 	else
 	{
-		// New member
+		// New member — cap per-fleet member count so a spamming client can't grow members unboundedly.
+		// At cap, drop this spawn from the fleet roster entirely (return before flagship/mPlayerToGuid mutation)
+		// rather than skip only the push: a phantom member would corrupt flagship assignment and player-to-guid mapping.
+		if (rFleet.members.size() >= kiMaxFleetMembers)
+		{
+			LOG(kNetwork, kWarning, "ServerFleetManager::OnPlayerSpawned Client: {} Fleet: {} at member cap {}, ignoring spawn", iClientId, rSpawnInfo.iFleetIndex, kiMaxFleetMembers);
+			return;
+		}
 		rFleet.members.push_back(FleetMember {globalPlayerId, true, engine::kOriginCoord});
 	}
 

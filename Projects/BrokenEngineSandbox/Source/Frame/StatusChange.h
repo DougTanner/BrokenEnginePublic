@@ -19,6 +19,13 @@ enum class StatusChangeType : uint8_t
 	kCount,
 };
 
+// Trust-boundary predicate: a deserialized type tag is a valid enumerator only in [0, kCount). The replay
+// FrameInput reader uses it to reject an unknown tag before it seats the wrong variant alternative.
+inline constexpr bool IsKnownStatusChangeType(StatusChangeType eType)
+{
+	return eType < StatusChangeType::kCount;
+}
+
 inline constexpr bool IsTransferType(StatusChangeType eType)
 {
 	return eType >= StatusChangeType::kTransferPlayer && eType <= StatusChangeType::kTransferMissile;

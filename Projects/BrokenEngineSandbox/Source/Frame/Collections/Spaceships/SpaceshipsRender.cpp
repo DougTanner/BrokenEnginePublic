@@ -35,6 +35,24 @@ static int64_t siRendered = 0;
 // accumulates across them and offsets each call's slab writes. Parallelizing coord renders would race.
 static std::atomic<bool> sbRenderActive = false;
 
+namespace
+{
+// RAII tripwire guard: sets sbRenderActive on entry, clears it on scope exit — so an exception between the
+// capacity ASSERT and the slab writes unwinds it instead of wedging it true (every later Render would else false-assert).
+struct RenderActiveGuard
+{
+	RenderActiveGuard()
+	{
+		ASSERT(!sbRenderActive.exchange(true));
+	}
+
+	~RenderActiveGuard()
+	{
+		sbRenderActive.store(false);
+	}
+};
+} // namespace
+
 void SpaceshipsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords)
 {
 	siRendered = 0;
@@ -54,11 +72,10 @@ void SpaceshipsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 		return;
 	}
 
-	int64_t iFramebuffer = iCommandBuffer;
 	if (engine::Buffer* pBuffer = engine::gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, engine::kBufferMain, kName, sizeof(shaders::ModelLayout), iTotalCapacity, iCommandBuffer))
 	{
-		engine::gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, pBuffer);
-		engine::gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, pBuffer);
+		engine::gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->UpdateStorageBufferDescriptors(iCommandBuffer, 2, pBuffer);
+		engine::gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->UpdateStorageBufferDescriptors(iCommandBuffer, 2, pBuffer);
 	}
 }
 
@@ -74,11 +91,12 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 		return;
 	}
 
-	ASSERT(!sbRenderActive.exchange(true));
+	RenderActiveGuard renderActiveGuard;
 
 	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 
 	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, engine::kBufferMain, iCommandBuffer);
+	ASSERT(siRendered + rCurrent.iCount <= iBufferCapacity);
 
 	// Look up animation data and chunk info (hoisted outside loop)
 	const engine::AnimationData* pAnimationData = nullptr;
@@ -186,7 +204,6 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 	common::gpMultithreading->Dispatch(iVisibleCount, processRange);
 
 	siRendered += iVisibleCount;
-	sbRenderActive.store(false);
 }
 
 void SpaceshipsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)

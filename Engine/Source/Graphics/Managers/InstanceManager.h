@@ -1,7 +1,5 @@
 #pragma once
 
-#include "renderdoc_app.h"
-
 namespace engine
 {
 

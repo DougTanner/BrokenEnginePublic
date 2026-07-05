@@ -31,7 +31,11 @@ public:
 		ScopedSuppressAllocationTracking suppress;
 		// Heap: ENet allocates packet data internally
 		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), uiFlags);
-		enet_peer_send(pPeer, uiChannel, pPacket);
+		if (enet_peer_send(pPeer, uiChannel, pPacket) < 0)
+		{
+			// enet_peer_send does not take ownership of the packet on failure — free it to avoid a leak.
+			enet_packet_destroy(pPacket);
+		}
 	}
 };
 

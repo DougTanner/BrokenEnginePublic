@@ -248,7 +248,7 @@ void TweaksScreenBase::RenderToggleBar()
 	ImGui::SetNextWindowPos(ImVec2(0.0f, 10.0f), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x, 0.0f));
 	ImGui::Begin("Tweaks", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
-	ImGui::SetWindowFontScale(kfUiScale);
+	ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * kfUiScale);
 
 	// Calculate content width (full screen minus window padding)
 	float fContentWidth = rIo.DisplaySize.x - ImGui::GetStyle().WindowPadding.x * 2.0f;
@@ -299,6 +299,7 @@ void TweaksScreenBase::RenderToggleBar()
 
 	mfToggleBarBottom = ImGui::GetWindowPos().y + ImGui::GetWindowSize().y;
 
+	ImGui::PopFont();
 	ImGui::End();
 
 	ImGui::PopStyleColor(2);
@@ -354,7 +355,7 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 	ImGui::SetNextWindowCollapsed(mSectionCollapsed & SectionFlag(iSection), ImGuiCond_FirstUseEver);
 	bool bSectionVisible = (mSectionVisible & SectionFlag(iSection)); // ImGui::Begin writes the close-button [x] state back through this bool*
 	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &bSectionVisible, ImGuiWindowFlags_AlwaysAutoResize);
-	ImGui::SetWindowFontScale(kfUiScale);
+	ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * kfUiScale);
 	mWindowPositions[iSection] = ImGui::GetWindowPos();
 	mSectionCollapsed.Set(SectionFlag(iSection), ImGui::IsWindowCollapsed());
 	if (!bHasActiveSlider)
@@ -364,6 +365,7 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 
 	(this->*kRenderSectionFunctions[iSection])();
 
+	ImGui::PopFont();
 	ImGui::End();
 
 	if (bHasActiveSlider)

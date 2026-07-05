@@ -182,15 +182,13 @@ void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const M
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
 	// Copy child IDs
+#if defined(BT_CLIENT)
 	if (rCurrent.iCount > 0)
 	{
-#if defined(BT_CLIENT)
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
-#endif
-#if defined(BT_CLIENT)
 		std::memcpy(rCurrent.puiSmokeTrails, rPrevious.puiSmokeTrails, rCurrent.iCount * sizeof(rCurrent.puiSmokeTrails[0]));
-#endif
 	}
+#endif
 }
 
 void MissilesInterpolate::Register()

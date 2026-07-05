@@ -48,13 +48,13 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	}
 
 	auto [pLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::BillboardLayout>(kCrc, kBufferMain, iCommandBuffer);
+	ASSERT(siRendered + rCurrent.iCount <= iBufferCapacity);
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
 		uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
-		BillboardFlags_t flags {};
-		flags.meFlags = static_cast<BillboardFlags>(rCurrent.puiFlags[i]);
+		BillboardFlags_t flags = rCurrent.pFlags[i];
 		float fRotation = rCurrent.pfRotations[i];
 		float fExtra = rCurrent.pfExtra[i];
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
@@ -64,12 +64,12 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Project world position to clip space
 		XMVECTOR vecProjection = XMVector4Transform(vecPosition, XMMatrixMultiply(game::gpCamera->mMatView, game::gpCamera->mMatPerspective));
 
-		XMFLOAT4A f4Position {0.0f, 0.0f, 0.0f, 1.0f};
+		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, vecProjection);
 		f4Position.x /= f4Position.w;
 		f4Position.y /= f4Position.w;
 		f4Position.z /= f4Position.w;
-		f4Position.w /= f4Position.w;
+		f4Position.w = 1.0f;
 
 		// Handle offscreen-only billboards (like offscreen indicators)
 		if (flags & kOffscreenOnly && !(f4Position.x < -1.0f - fExtra || f4Position.x > 1.0f + fExtra || f4Position.y > 1.0f + fExtra || f4Position.y < -1.0f - fExtra))

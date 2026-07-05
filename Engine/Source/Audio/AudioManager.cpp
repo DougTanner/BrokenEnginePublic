@@ -305,9 +305,35 @@ void AudioManager::Update(const game::Frame* pFrame)
 	{
 		LOG(kAudio, kWarning, "Music streaming: Audio device not present, resetting audio engine");
 
-		// Re-apply the pinned 48 kHz format (native channels captured at startup) — Reset(nullptr) would
-		// otherwise recreate the mastering voice at the new default device's rate, breaking the SRC bypass.
-		mpAudioEngine->Reset(&mPinnedOutputFormat, nullptr);
+		// Re-apply the pinned 48 kHz format (native channels captured at startup) so the mastering voice keeps the
+		// SRC bypass; Reset(nullptr) would otherwise recreate it at the new default device's rate. DirectXTK reports
+		// failure two ways: Reset returns false for a missing/busy device, but THROWS for any other failure — including
+		// CreateMasteringVoice failing when the pinned channel count exceeds the new device's (e.g. a 7.1 -> stereo
+		// hot-swap). Guard both at this trust boundary (the ctor guards Reset the same way) and fall back to the
+		// device-default format, which requests the device's own channels/rate and so cannot mismatch (only the SRC
+		// bypass is lost until the next launch re-pins).
+		bool bMasteringReset = false;
+		try
+		{
+			bMasteringReset = mpAudioEngine->Reset(&mPinnedOutputFormat, nullptr);
+		}
+		catch (const std::exception&)
+		{
+			LOG(kAudio, kWarning, "Pinned mastering format Reset threw (device incompatible with the pinned channel count); falling back to device-default format");
+		}
+
+		if (!bMasteringReset)
+		{
+			try
+			{
+				mpAudioEngine->Reset(nullptr, nullptr);
+			}
+			catch (const std::exception&)
+			{
+				// Device fully unusable; the IsAudioDevicePresent() retry loop below re-enters the reset path next frame.
+				LOG(kAudio, kWarning, "Device-default format Reset also failed; audio stays off until the device recovers");
+			}
+		}
 
 		// Re-cache mastering voice channels after device reset
 		{

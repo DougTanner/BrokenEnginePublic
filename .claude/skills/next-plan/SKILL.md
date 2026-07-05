@@ -254,9 +254,11 @@ The grill runs **before** approval so that once the user approves, implementatio
 
 #### 9a. Grill the plan (pre-approval)
 
+**Before invoking the grill, emit the plan's two-part `## Summary` (the **What this plan does** / **Why it's good for the codebase** pair from Step 7) as plain session text** so the user has the plan's context in front of them when the grill's questions arrive — a grill question answered blind is a bad interview. Print the Summary as ordinary text (not inside a tool call), then invoke the grill in the same turn.
+
 Invoke `/external-grill-plan` on the plan file Step 7 wrote — this is C++ Code Change Process step 1, pulled ahead of approval. It interviews the user, resolves the plan's decision points, and silently updates the plan file with the resolved answers, so the plan the user approves in 9c is already the refined one.
 
-- On a trivial/mechanical plan the grill commonly finds no decision points and returns with nothing to ask — expected; proceed straight to 9b.
+- On a trivial/mechanical plan the grill commonly finds no decision points and returns with nothing to ask — expected; proceed straight to 9b (the Summary already printed above carries into the full-plan presentation).
 - **Do not stop or summarise when the grill returns** — continue to 9b in the same turn. The only legitimate reasons to pause here are (a) the grill asked the user a question that is still open, or (b) the grill recommended running `/external-design-interface` first per its role-boundary clause; resolve those before presenting.
 
 #### 9b. Present the final (grill-refined) plan

@@ -187,6 +187,14 @@ void RemoveOrphanedLeafFolders(const std::filesystem::path& rRouteDir, int64_t i
 		{
 			continue;
 		}
+		// std::stoll throws std::out_of_range on an all-digit name too long for int64_t (>= 19 digits). The
+		// split loop only ever creates leaf folders for indices 0 .. iLeafCount-1, so a name with more digits
+		// than int64_t always holds (digits10 == 18) can't be one of ours — skip it rather than parse (and
+		// never remove_all a folder we can't confidently classify).
+		if (name.size() > static_cast<size_t>(std::numeric_limits<int64_t>::digits10))
+		{
+			continue;
+		}
 		if (std::stoll(name) >= iLeafCount)
 		{
 			orphanedLeafFolders.push_back(rEntry.path());

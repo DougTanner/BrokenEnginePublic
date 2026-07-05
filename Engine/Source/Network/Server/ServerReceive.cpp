@@ -45,9 +45,14 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		uint64_t uiSlotBitfieldLow = ReadUint64(pCursor);
 		uint64_t uiSlotBitfieldHigh = ReadUint64(pCursor);
 
-		if (uiSlotIndex < std::ssize(pClient->coordSubscriptions) &&
-			(pClient->coordSubscriptions.at(uiSlotIndex).flags & SubscriptionFlags::kActive) &&
-			uiSlotEpoch == pClient->coordAckStates.at(uiSlotIndex).uiEpoch &&
+		// Invalid-index or inactive slots match neither branch below; skip after the reads so the cursor stays aligned
+		if (!(uiSlotIndex < std::ssize(pClient->coordSubscriptions) &&
+			(pClient->coordSubscriptions.at(uiSlotIndex).flags & SubscriptionFlags::kActive)))
+		{
+			continue;
+		}
+
+		if (uiSlotEpoch == pClient->coordAckStates.at(uiSlotIndex).uiEpoch &&
 			iSlotAckFloor >= pClient->coordAckStates.at(uiSlotIndex).iAckFloor)
 		{
 			// Clamp to server's latest sent tick to prevent future ACK floors
@@ -66,9 +71,7 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 				rAckState.uiReceivedBitfieldHigh = uiSlotBitfieldHigh;
 			}
 		}
-		else if (uiSlotIndex < std::ssize(pClient->coordSubscriptions) &&
-			(pClient->coordSubscriptions.at(uiSlotIndex).flags & SubscriptionFlags::kActive) &&
-			uiSlotEpoch != pClient->coordAckStates.at(uiSlotIndex).uiEpoch)
+		else if (uiSlotEpoch != pClient->coordAckStates.at(uiSlotIndex).uiEpoch)
 		{
 			LOG(kNetwork, kVerbose, "Server::ClientAckStream EpochMismatch Client: {} Slot: {} ClientEpoch: {} ServerEpoch: {}", iClientId, uiSlotIndex, uiSlotEpoch, pClient->coordAckStates.at(uiSlotIndex).uiEpoch);
 		}
@@ -293,6 +296,24 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 		clientGuid.uiLow = ReadUint64(pCursor);
 	}
 
+	// Reject a Hello for a client with no server-side connection state (never accept a ghost).
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr)
+	{
+		LOG(kNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: no connection state", iClientId);
+		return;
+	}
+
+	// Idempotent replay: an already-handshaken client re-sends the accept using its STORED GUID.
+	// Do not overwrite established identity (fleet ownership is GUID-keyed) or mint a fresh GUID.
+	if (pClient->bHandshakeComplete)
+	{
+		LOG(kNetwork, kInfo, "Server::ClientHello Replay Client: {} GUID: {} {}", iClientId, pClient->clientGuid.uiHigh, pClient->clientGuid.uiLow);
+		SendConnectionResponse(pPeer, true, nullptr, &pClient->clientGuid);
+		game::gpServerSession->SendTimespeedToNewClient(pPeer);
+		return;
+	}
+
 	// Generate GUID if client sent empty
 	if (clientGuid.IsEmpty())
 	{
@@ -302,12 +323,8 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 		std::memcpy(&clientGuid.uiLow, reinterpret_cast<const uint8_t*>(&uuid) + 8, 8);
 	}
 
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient != nullptr)
-	{
-		pClient->bHandshakeComplete = true;
-		pClient->clientGuid = clientGuid;
-	}
+	pClient->bHandshakeComplete = true;
+	pClient->clientGuid = clientGuid;
 
 	LOG(kNetwork, kInfo, "Server::ClientHello Accepted Client: {} Config: {} GUID: {} {}", iClientId, pcClientConfig, clientGuid.uiHigh, clientGuid.uiLow);
 	SendConnectionResponse(pPeer, true, nullptr, &clientGuid);
@@ -377,8 +394,18 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	SendSubscribeAccept(*pClient, iSlot, coord);
 
 	ScopedSuppressAllocationTracking suppress;
-	// Heap: pending subscription entry
-	mPendingNewSubscriptions.push_back({iClientId, iSlot, coord});
+	// Replace an existing pending entry for this client+slot (a subscribe->unsubscribe->subscribe
+	// cycle reuses the slot with a new coord) rather than appending a duplicate.
+	auto pendingIt = std::ranges::find_if(mPendingNewSubscriptions, [iClientId, iSlot](const PendingNewSubscription& rPending) { return rPending.iClientId == iClientId && rPending.iSlot == iSlot; });
+	if (pendingIt != mPendingNewSubscriptions.end())
+	{
+		pendingIt->coord = coord;
+	}
+	else
+	{
+		// Heap: pending subscription entry
+		mPendingNewSubscriptions.push_back({iClientId, iSlot, coord});
+	}
 }
 
 void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId)
@@ -420,7 +447,12 @@ void Server::ClientResyncRequest(int64_t iClientId)
 		return;
 	}
 
-	LOG(kNetwork, kError, "Server::ClientResyncRequest Client: {}", iClientId);
+	LOG(kNetwork, kWarning, "Server::ClientResyncRequest Client: {}", iClientId);
+
+	if (std::ranges::contains(mPendingResyncClientIds, iClientId))
+	{
+		return;
+	}
 
 	// Heap: pending resync client-id vector grows on request
 	ScopedSuppressAllocationTracking suppress;

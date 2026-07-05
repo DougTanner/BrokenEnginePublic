@@ -71,6 +71,15 @@ static void ReadFleet(std::fstream& rFileStream, Fleet& rFleet, std::unordered_m
 	int64_t iMemberCount = 0;
 	common::Read(rFileStream, iMemberCount);
 	common::Read(rFileStream, rFleet.iFlagshipIndex);
+	// Trust boundary (save / replay file): a negative flagship index passes the consumers' upper-bound-only
+	// guard (iFlagshipIndex < ssize(members)) and reaches .at(size_t(negative)), throwing out of ServerUpdate
+	// minutes later. Reject it here. Upper bound (>= iMemberCount) is intentionally NOT rejected: a
+	// legitimately saved empty fleet carries the default iFlagshipIndex 0 == iMemberCount 0, and consumers
+	// already tolerate an out-of-range index gracefully — only the negative value crashes. See plan residual.
+	if (rFleet.iFlagshipIndex < 0)
+	{
+		throw common::CorruptStreamException("Fleet iFlagshipIndex");
+	}
 	int32_t iWantedX = 0;
 	int32_t iWantedY = 0;
 	common::Read(rFileStream, iWantedX);

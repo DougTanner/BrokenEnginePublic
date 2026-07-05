@@ -109,15 +109,20 @@ void SwapchainManager::CreateRenderPass()
 	// Incoming: WAR against the previous frame's resolve pass sampling this HDR color (FRAGMENT_SHADER read),
 	// plus the acquire-time color/depth transition. Outgoing: order the same-command-buffer resolve pass's
 	// sampling (COLOR_ATTACHMENT_WRITE -> FRAGMENT_SHADER SHADER_READ).
+	// Incoming also covers a depth WAW: the depth attachment is the single mDepthTexture reused every frame with
+	// UNDEFINED initial layout + CLEAR loadOp, so the previous frame's DEPTH_STENCIL_ATTACHMENT_WRITEs (at the
+	// EARLY/LATE_FRAGMENT_TESTS stages) must be made available before this frame's automatic
+	// UNDEFINED -> DEPTH_STENCIL_ATTACHMENT_OPTIMAL transition/clear -- otherwise a latent write-after-write the
+	// sync-validation layer flags.
 	VkSubpassDependency pHdrVkSubpassDependencies[]
 	{
 		VkSubpassDependency
 		{
 			.srcSubpass = VK_SUBPASS_EXTERNAL,
 			.dstSubpass = 0,
-			.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-			.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.srcAccessMask = 0,
+			.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+			.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
 			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
 			.dependencyFlags = 0,
 		},

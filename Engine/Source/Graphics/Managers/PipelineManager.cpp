@@ -198,7 +198,6 @@ void PipelineManager::CreateLightingPipelines()
 	// Pass 0 reads deposit textures, passes 1+ read previous pass spread textures
 	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
 	{
-		mSpreadPipelines[iPass].Destroy();
 		mSpreadPipelineNames[iPass] = std::format("LightingSpread{}", iPass);
 		mSpreadPipelines[iPass].Create(
 		{
@@ -231,7 +230,6 @@ void PipelineManager::CreateLightingPipelines()
 		ppSpreadG[i] = &rTextures.mpSpreadOnlyTextures[i][1];
 		ppSpreadB[i] = &rTextures.mpSpreadOnlyTextures[i][2];
 	}
-	mCombinePipeline.Destroy();
 	mCombinePipeline.Create(
 	{
 		.name = "LightCombine",
@@ -253,7 +251,6 @@ void PipelineManager::CreateLightingPipelines()
 
 	// Temporal pass: 4 history samplers + the 4 combine outputs (read-write storage images), reprojected and
 	// EMA-blended in place. No push constants — the shader reads the combine extent via imageSize().
-	mLightingTemporalPipeline.Destroy();
 	mLightingTemporalPipeline.Create(
 	{
 		.name = "LightingTemporal",

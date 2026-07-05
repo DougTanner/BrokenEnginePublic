@@ -46,6 +46,7 @@ void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __r
 	}
 
 	auto [pPuffsLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::AxisAlignedQuadLayout>(kCrc, kBufferMain, iCommandBuffer);
+	ASSERT(siRendered + rCurrent.iCount <= iBufferCapacity);
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{

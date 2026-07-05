@@ -1,7 +1,5 @@
 #include "TweaksScreen.h"
 
-#include "Ui/HexShieldWrappers.h"
-
 #if defined(BT_CLIENT)
 
 namespace game

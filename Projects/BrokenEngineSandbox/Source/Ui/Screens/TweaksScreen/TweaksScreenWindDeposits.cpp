@@ -1,7 +1,5 @@
 #include "TweaksScreen.h"
 
-#include "Ui/WindDepositsWrappers.h"
-
 #if defined(BT_CLIENT)
 
 namespace game

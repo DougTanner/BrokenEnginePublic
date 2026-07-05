@@ -2,7 +2,6 @@
 
 #include "TweaksSliderMap.h"
 #include "Ui/MiscWrappersBase.h"
-#include "Ui/TerrainWrappersBase.h"
 
 #if defined(BT_CLIENT)
 

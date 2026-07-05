@@ -391,7 +391,6 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 	// Terrain. Heightmap pixel values carry absolute meters directly, so the shader applies no
 	// height/depth multiplier.
 	rGlobalLayout.fIslandAmbientOcclusion = fNoonPercent * gIslandAmbientOcclusion.Get();
-	rGlobalLayout.fTerrainEarlyOut = gTerrainEarlyOut.Get();
 
 	rGlobalLayout.fTerrainSnowBlend = gTerrainSnowBlend.Get();
 	rGlobalLayout.fTerrainSnowAmbientOcclusionExclusion = gTerrainSnowAmbientOcclusionExclusion.Get();

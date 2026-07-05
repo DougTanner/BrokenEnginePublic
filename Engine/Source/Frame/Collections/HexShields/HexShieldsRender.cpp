@@ -34,9 +34,8 @@ void HexShieldsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 
 	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::HexShieldLayout), iTotalCapacity, iCommandBuffer))
 	{
-		int64_t iFramebuffer = iCommandBuffer;
-		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineHexShields].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
-		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineHexShieldsLighting].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
+		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineHexShields].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 2, pBuffer);
+		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineHexShieldsLighting].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 2, pBuffer);
 	}
 }
 
@@ -51,6 +50,7 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	}
 
 	auto [pLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::HexShieldLayout>(kCrc, kBufferMain, iCommandBuffer);
+	ASSERT(siRendered + rCurrent.iCount <= iBufferCapacity);
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{

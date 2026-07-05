@@ -19,7 +19,7 @@ void BillboardsInterpolate::AllocateAndCopy(BillboardsInterpolate& rCurrent, con
 	if (rCurrent.iCount > 0)
 	{
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
-		std::memcpy(rCurrent.puiFlags, rPrevious.puiFlags, rCurrent.iCount * sizeof(rCurrent.puiFlags[0]));
+		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
 		std::memcpy(rCurrent.pfRotations, rPrevious.pfRotations, rCurrent.iCount * sizeof(rCurrent.pfRotations[0]));
 		std::memcpy(rCurrent.pfExtra, rPrevious.pfExtra, rCurrent.iCount * sizeof(rCurrent.pfExtra[0]));
 		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));

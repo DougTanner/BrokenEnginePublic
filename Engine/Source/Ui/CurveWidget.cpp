@@ -9,7 +9,8 @@ namespace
 {
 
 constexpr int kiCurveSamples = 256;
-constexpr float kfPointRadius = 5.0f;
+constexpr float kfPointRadius = 8.0f;    // control-point dot radius + DragPoint grab half-size in px (was 5, widened so nearby clicks grab)
+constexpr float kfGrabTolerance = 24.0f; // pixel radius within which a left-click targets an existing point instead of adding a new one
 constexpr ImVec4 kGoldColor(0.95f, 0.75f, 0.2f, 1.0f);
 
 } // namespace
@@ -77,35 +78,31 @@ bool CurveWidget(std::string_view label, CurveData& rCurve)
 		curveSpec.LineWeight = 2.0f;
 		ImPlot::PlotLine("##Curve", pfX, pfY, kiCurveSamples + 1, curveSpec);
 
-		// Draggable control points. CurveData owns endpoint X-locking and interior neighbor clamping,
-		// so the dragged value is fed straight through MovePoint and re-read from GetPoint next frame.
-		int iHoverIndex = -1;
+		// Nearest existing control point within the grab tolerance (pixel space) — drives add-suppression and
+		// right-click delete so a click aimed at a point never spawns a stray one, mirroring the old ~24px feel.
+		ImVec2 mousePixels = ImGui::GetMousePos();
+		int iNearestPoint = -1;
+		float fNearestDistSq = kfGrabTolerance * kfGrabTolerance;
 		for (int i = 0; i < rCurve.GetPointCount(); ++i)
 		{
 			const ImVec2& rPoint = rCurve.GetPoint(i);
-			double fX = rPoint.x;
-			double fY = rPoint.y;
-			bool bHovered = false;
-			bool bHeld = false;
-			if (ImPlot::DragPoint(i, &fX, &fY, kGoldColor, kfPointRadius, ImPlotDragToolFlags_Delayed, nullptr, &bHovered, &bHeld))
+			ImVec2 pointPixels = ImPlot::PlotToPixels(static_cast<double>(rPoint.x), static_cast<double>(rPoint.y));
+			float fDx = mousePixels.x - pointPixels.x;
+			float fDy = mousePixels.y - pointPixels.y;
+			float fDistSq = fDx * fDx + fDy * fDy;
+			if (fDistSq < fNearestDistSq)
 			{
-				rCurve.MovePoint(i, ImVec2(static_cast<float>(fX), static_cast<float>(fY)));
-				bInteracting = true;
-			}
-			if (bHovered)
-			{
-				iHoverIndex = i;
-			}
-			if (bHeld)
-			{
-				bInteracting = true;
+				fNearestDistSq = fDistSq;
+				iNearestPoint = i;
 			}
 		}
 
 		// Left-click empty space adds a point; right-click a non-endpoint deletes it (context menu disabled via CanvasOnly).
+		// Handled before the DragPoint loop so a freshly added point's DragPoint below grabs the still-active click
+		// this frame (add-then-drag); the pixel tolerance above suppresses a stray add next to an existing point.
 		if (ImPlot::IsPlotHovered())
 		{
-			if (iHoverIndex < 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+			if (iNearestPoint < 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 			{
 				ImPlotPoint mouse = ImPlot::GetPlotMousePos();
 				if (rCurve.AddPoint(ImVec2(static_cast<float>(mouse.x), static_cast<float>(mouse.y))) >= 0)
@@ -113,9 +110,28 @@ bool CurveWidget(std::string_view label, CurveData& rCurve)
 					bInteracting = true;
 				}
 			}
-			else if (iHoverIndex >= 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Right) && !rCurve.IsEndpoint(iHoverIndex))
+			else if (iNearestPoint >= 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Right) && !rCurve.IsEndpoint(iNearestPoint))
 			{
-				rCurve.RemovePoint(iHoverIndex);
+				rCurve.RemovePoint(iNearestPoint);
+				bInteracting = true;
+			}
+		}
+
+		// Draggable control points (drawn last so they sit atop the curve). CurveData owns endpoint X-locking and
+		// interior neighbor clamping, so the dragged value is fed straight through MovePoint and re-read next frame.
+		for (int i = 0; i < rCurve.GetPointCount(); ++i)
+		{
+			const ImVec2& rPoint = rCurve.GetPoint(i);
+			double fX = rPoint.x;
+			double fY = rPoint.y;
+			bool bHeld = false;
+			if (ImPlot::DragPoint(i, &fX, &fY, kGoldColor, kfPointRadius, ImPlotDragToolFlags_Delayed, nullptr, nullptr, &bHeld))
+			{
+				rCurve.MovePoint(i, ImVec2(static_cast<float>(fX), static_cast<float>(fY)));
+				bInteracting = true;
+			}
+			if (bHeld)
+			{
 				bInteracting = true;
 			}
 		}

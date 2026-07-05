@@ -16,15 +16,15 @@ Game-layer multiplayer orchestration. `ClientSession` and `ServerSession` extend
 ## StatusChange Batch Format
 
 - Indices sorted by `StatusChangeType` (counting sort via workbuffer scratch) for deterministic byte output; each group prefixed with a type byte + uint16 count.
-- LZ4 envelope: int32 uncompressed-size prefix + compressed data; serialize/decompress scratch borrowed via the workbuffer.
-- Deserialization detects truncation after reading (post-group cursor check, logged at `kVerbose`) — the source buffer needs slack past its logical end; the int64-chunk-rounded workbuffer scratch provides it.
-- `kiMaxBytesPerItem` bounds every serialized item: a runtime `ASSERT` in `SerializeGroup` checks each item after writing, covering all `StatusChangeType`s — bump the constant when any payload grows past it (the ASSERT fires on violation).
+- LZ4 envelope: int32 uncompressed-size prefix + compressed data; serialize/decompress scratch borrowed via the workbuffer (decompress scratch exact-sized to the clamped uncompressed size — no slack). The prefix is a trust boundary: clamped against `kiMaxSerializedStatusChangeBatchBytes` before it sizes the decompress reservation (rejects a hostile prefix that would otherwise over-allocate).
+- Deserialization is bounds-checked up front: a `BoundedCursor` gates every item read against the per-type `StatusChangeItemWireSize` table; any shortfall or out-of-range type byte rejects the whole batch (returns 0, logged `kNetwork`/`kWarning`) — no partial application, the client resyncs via CRC.
+- `kiMaxStatusChangeBytesPerItem` (engine-side `NetworkSerialization.h`) bounds every serialized item: a runtime `ASSERT` in `SerializeGroup` checks each item after writing, covering all `StatusChangeType`s — bump the constant when any payload grows past it (the ASSERT fires on violation).
 - Client-only fields (e.g., missile smoke-trail id) are still written/read on server to preserve identical wire size; server discards on read via `BT_CLIENT` gating.
-- LZ4 decompression failure logs at `kNetwork`/`kWarning` and returns 0; compression result is unchecked.
+- LZ4 decompression failure logs at `kNetwork`/`kWarning` and returns 0; compression failure logs at `kNetwork`/`kError` and returns 0 (dropped, not shipped as a bare prefix the client would decode as zero changes).
 
 ## Adding a StatusChangeType
 
-Update both switches in `SerializeGroup` and `DeserializeStatusChangeBatch`, extend `DefaultDataForType`, and re-check `kiMaxBytesPerItem` covers the new payload (the `SerializeGroup` ASSERT catches an overrun at serialize time).
+Update both switches (`SerializeGroup` / `DeserializeStatusChangeBatch`), the co-located `StatusChangeItemWireSize` table (bounds reads — must exactly match the case's write widths), and `DefaultDataForType`; re-check `kiMaxStatusChangeBytesPerItem` covers the new payload (the `SerializeGroup` ASSERT catches an overrun at serialize time).
 
 ## Subdirectories
 

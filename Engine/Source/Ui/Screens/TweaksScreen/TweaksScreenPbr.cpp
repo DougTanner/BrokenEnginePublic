@@ -61,6 +61,7 @@ void TweaksScreenBase::RenderPbrSection()
 
 		WrapperSeparatorText("Engine Variables");
 		WrapperSlider("Sun", kiSection, 1.0f);
+		WrapperSlider("Day Brightness", kiSection, 1.0f);
 
 		WrapperSeparatorText("BRDF");
 		WrapperSlider("BRDF Diffuse", kiSection, 1.0f);

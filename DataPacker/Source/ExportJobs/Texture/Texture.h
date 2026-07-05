@@ -63,6 +63,13 @@ std::vector<std::byte> ZlibCompress(const std::byte* puiSource, int64_t iSourceS
 // no adler32 pass). Offline cost of max level is acceptable. Sibling of ZlibCompress.
 std::vector<std::byte> Lz4Compress(const std::byte* puiSource, int64_t iSourceSize);
 
+// Loads a gli container (.ktx / .dds / .kmg) through a wide-correct path read. gli::load(path) opens via ANSI
+// fopen_s (no UTF-8 conversion), so a non-ASCII path fails or mis-resolves; this reads the whole file with the
+// wide-correct std::filesystem::path stream, then hands gli the bytes via its memory overload. gli::load(path)
+// itself does the identical read-whole-file-then-memory-parse, so the returned texture is byte-identical for
+// valid inputs. Shared by ExportTexture's KTX cubemap path and the IBL cubemap pre-pass (ExportCubemapIbl).
+gli::texture LoadGliFromPath(const std::filesystem::path& rPath);
+
 // Parsed header of a Texture::Save'd texture intermediate plus the offset where its payload begins.
 // Texture::Save writes [magic][width][height][mipCount][payload]; legacy files omit the magic (a
 // 3-qword header). bHadMagic distinguishes the two; the payload occupies [iPayloadOffset, buffer end).

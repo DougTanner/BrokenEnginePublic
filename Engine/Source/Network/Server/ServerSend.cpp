@@ -164,26 +164,20 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 	// Iterate per-slot: each active subscription has its own ACK state and coord ring buffer
 	for (int64_t iSlot = 0; iSlot < std::ssize(rClient.coordSubscriptions); ++iSlot)
 	{
+		GridCoord coord = rClient.coordSubscriptions.at(iSlot).coord;
+
 		if (!(rClient.coordSubscriptions.at(iSlot).flags & SubscriptionFlags::kActive))
 		{
-			if (rClient.prevResendCounts.at(iSlot) != 0)
-			{
-				rClient.prevResendCounts.at(iSlot) = 0;
-			}
+			UpdateResendLogState(rClient, iSlot, 0, coord);
 			continue;
 		}
 
 		const AckState& rAckState = rClient.coordAckStates.at(iSlot);
 		if (rAckState.iAckFloor < 0)
 		{
-			if (rClient.prevResendCounts.at(iSlot) != 0)
-			{
-				rClient.prevResendCounts.at(iSlot) = 0;
-			}
+			UpdateResendLogState(rClient, iSlot, 0, coord);
 			continue;
 		}
-
-		GridCoord coord = rClient.coordSubscriptions.at(iSlot).coord;
 
 		int64_t iAckGap = iTick - rAckState.iAckFloor;
 		if (iAckGap > 64)
@@ -193,10 +187,7 @@ void Server::SendResends(ClientConnection& rClient, int64_t iTick)
 
 		if (rAckState.uiReceivedBitfieldLow == 0 && rAckState.uiReceivedBitfieldHigh == 0)
 		{
-			if (rClient.prevResendCounts.at(iSlot) != 0)
-			{
-				rClient.prevResendCounts.at(iSlot) = 0;
-			}
+			UpdateResendLogState(rClient, iSlot, 0, coord);
 			continue;
 		}
 		int64_t iScanLimit = (rAckState.uiReceivedBitfieldHigh != 0)

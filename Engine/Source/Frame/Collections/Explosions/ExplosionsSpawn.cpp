@@ -74,12 +74,12 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 #endif
 
 	// Fire-and-forget effects: Primary puff
+#if defined(BT_CLIENT)
 	if (rType.uiPrimaryPuffControllerTypeIndex != kuiInvalidControllerType)
 	{
-#if defined(BT_CLIENT)
 		PuffsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiPrimaryPuffControllerTypeIndex, rInfo.vecPosition);
-#endif
 	}
+#endif
 
 	// Fire-and-forget effects: Secondary explosions (staggered)
 	int64_t iSecondaryExplosions = static_cast<int64_t>(rType.uiSecondaryExplosionCount);
@@ -104,22 +104,22 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 #endif
 
 		// Secondary puff
+#if defined(BT_CLIENT)
 		if (rType.uiSecondaryPuffControllerTypeIndex != kuiInvalidControllerType)
 		{
-#if defined(BT_CLIENT)
 			PuffsPostRender::AddControlled(rFrame, fCurrentTime + fDelay, rType.uiSecondaryPuffControllerTypeIndex, vecSecondaryPosition);
-#endif
 		}
+#endif
 	}
 
 	// Fire-and-forget wind deposit (radial, auto-expires)
+#if defined(BT_CLIENT)
 	if (rType.uiWindRadialControllerTypeIndex != kuiInvalidControllerType)
 	{
-#if defined(BT_CLIENT)
 		float fWindSizePercent = std::sqrt(rInfo.fSizePercent);
 		WindRadialsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiWindRadialControllerTypeIndex, rInfo.vecPosition, game::gWindDepositExplosionsIntensity.Get() * fWindSizePercent, game::gWindDepositExplosionsWidth.Get() * fWindSizePercent);
-#endif
 	}
+#endif
 
 	// Create trails
 	XMVECTOR vecDirection2dNormal = XMVector3Normalize(XMVectorMultiply(XMVectorSet(1.0f, 1.0f, 0.0f, 0.0f), rInfo.vecDirection));

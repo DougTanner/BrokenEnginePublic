@@ -58,6 +58,9 @@ private:
 
 	static constexpr int64_t kiByteBudgetPerFrame = 4 * 1024 * 1024;
 
+	// Zeroes the five "In-progress upload state" fields below (full reset between textures / on teardown / corruption)
+	void ResetUploadProgress();
+
 	// In-progress upload state (persists across frames for one texture at a time)
 	common::crc_t mCurrentCrc = 0;
 	uint32_t muiCurrentLayer = 0;
@@ -70,6 +73,7 @@ private:
 	std::condition_variable mIdleConditionVariable; // WaitIdle() waits on this; UploadThread notifies when it acks a drain probe (guarded by mWorkMutex)
 	bool mbDrainRequested = false; // WaitIdle() sets this; UploadThread acks instead of submitting (guarded by mWorkMutex)
 	bool mbDrained = false; // UploadThread sets this to confirm it reached a quiescent point (guarded by mWorkMutex)
+	std::atomic<bool> mbThreadExited {false}; // UploadThread sets this on every loop exit (under mWorkMutex so the CV wait sees no lost wakeup); WaitIdle reads it lock-free to unblock/early-return
 	std::mutex mUploadMutex;
 	std::priority_queue<LoadRequest> mUploadQueue;
 	std::atomic<bool> mbShutdown {false};

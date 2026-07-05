@@ -301,7 +301,13 @@ void Pipeline::RecordDrawIndirectSet2(int64_t iCommandBuffer, VkCommandBuffer vk
 	// Bind pipeline and Set 2 only (Set 0, Set 1, and vertex buffer already bound by ModelPipeline)
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipeline);
 	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 2, 1, &mVkDescriptorSetsSet2[iCommandBuffer], 0, nullptr);
-	VkDeviceSize vkIndirectOffset = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+	// Device-local reads slot 0; host-visible indexes per-framebuffer
+	int64_t iIndirectSlot = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer;
+	VkDeviceSize vkIndirectOffset = iIndirectSlot * sizeof(VkDrawIndexedIndirectCommand);
+
+	// Verify the indexed slot is within the indirect buffer's slot capacity
+	ASSERT(iIndirectSlot < miIndirectSlotCount);
+
 	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, vkIndirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
 }
 

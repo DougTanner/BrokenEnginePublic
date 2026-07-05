@@ -27,6 +27,7 @@ void TextureUploadManager::InitTransferResources()
 	//   (WaitIdle always returns with these false today, but keep the re-init symmetric and future-proof).
 	mbDrainRequested = false;
 	mbDrained = false;
+	mbThreadExited = false; // A recreated thread starts un-exited
 
 	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
 	{
@@ -71,8 +72,11 @@ void TextureUploadManager::DestroyTransferResources()
 		return;
 	}
 
-	// Join upload thread first
+	// Join upload thread first. Drain any pending permit before the release: a WaitIdle that returned early via
+	//   mbThreadExited (device-loss thread-exit path) can leave its probe permit pending, and an unguarded release
+	//   would push the binary_semaphore past its max of 1 (UB). Same drain-then-release idiom as WaitIdle.
 	mbShutdown = true;
+	std::ignore = mFrameSignal.try_acquire();
 	mFrameSignal.release();
 	if (mUploadThread.joinable())
 	{
@@ -80,11 +84,7 @@ void TextureUploadManager::DestroyTransferResources()
 	}
 
 	// Reset upload-in-progress state
-	mCurrentCrc = 0;
-	muiCurrentLayer = 0;
-	muiCurrentMip = 0;
-	muiCurrentMipY = 0;
-	mCurrentDataOffset = 0;
+	ResetUploadProgress();
 
 	// Clear stale upload queue
 	{
@@ -94,6 +94,7 @@ void TextureUploadManager::DestroyTransferResources()
 
 	if (mTransferVkFence != VK_NULL_HANDLE)
 	{
+		// Intentionally unchecked (teardown drain): the file's only unchecked Vulkan result — do not "fix" with CHECK_VK, which could throw mid-destroy.
 		vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count());
 	}
 
@@ -126,6 +127,15 @@ void TextureUploadManager::DestroyTransferResources()
 	mTransferVkCommandPool = VK_NULL_HANDLE;
 }
 
+void TextureUploadManager::ResetUploadProgress()
+{
+	mCurrentCrc = 0;
+	muiCurrentLayer = 0;
+	muiCurrentMip = 0;
+	muiCurrentMipY = 0;
+	mCurrentDataOffset = 0;
+}
+
 void TextureUploadManager::StartThread()
 {
 	if (mUploadThread.joinable())
@@ -154,7 +164,7 @@ void TextureUploadManager::WaitIdle()
 	//   Create() calls Destroy() before TextureManager creation runs StartThread(), and mbShutdown starts
 	//   false); returning matches the original empty-lock no-op and avoids waiting on an ack that will
 	//   never come. joinable() is main-thread-only state here: this thread is the sole starter/joiner.
-	if (mbShutdown || !mUploadThread.joinable())
+	if (mbShutdown || mbThreadExited || !mUploadThread.joinable())
 	{
 		return;
 	}
@@ -179,7 +189,7 @@ void TextureUploadManager::WaitIdle()
 	mFrameSignal.release();
 
 	std::unique_lock lock(mWorkMutex);
-	mIdleConditionVariable.wait(lock, [this] { return mbDrained; });
+	mIdleConditionVariable.wait(lock, [this] { return mbDrained || mbThreadExited; });
 	mbDrainRequested = false;
 }
 
@@ -195,6 +205,13 @@ void TextureUploadManager::UploadThread()
 		mFrameSignal.acquire();
 		if (mbShutdown)
 		{
+			// mWorkMutex is not yet held here (workLock is taken below), so lock it to set the exit flag and
+			//   notify under the lock -- a WaitIdle parked on mIdleConditionVariable then sees no lost wakeup.
+			{
+				std::unique_lock exitLock(mWorkMutex);
+				mbThreadExited = true;
+				mIdleConditionVariable.notify_all();
+			}
 			break;
 		}
 
@@ -208,6 +225,10 @@ void TextureUploadManager::UploadThread()
 			mbDrainRequested = false;
 			mbDrained = true;
 			mIdleConditionVariable.notify_all();
+			// Swallow the pending probe permit so it can't drive one more acquire() -> vkQueueSubmit after
+			//   WaitIdle returns (the stray permit would race teardown's vkDeviceWaitIdle). Same idiom as
+			//   TextureManager::WaitForTextures; a real frame signal re-posts next frame by design.
+			std::ignore = mFrameSignal.try_acquire();
 			continue;
 		}
 
@@ -303,6 +324,12 @@ void TextureUploadManager::UploadThread()
 				NotifyChunkAdoptable(); // kUploading -> kDiskLoaded: arm the pending-adoption counter
 				mCurrentCrc = 0;
 			}
+			// workLock is already held here (this catch lives inside its scope) and mWorkMutex is non-recursive,
+			//   so set the exit flag and notify directly -- re-locking would self-deadlock. Unblocks a WaitIdle
+			//   parked on the drain probe that this exiting thread would otherwise never ack -- the device-loss
+			//   teardown deadlock the mbThreadExited flag closes.
+			mbThreadExited = true;
+			mIdleConditionVariable.notify_all();
 			break;
 		}
 		catch (const std::exception& rException)
@@ -321,11 +348,7 @@ void TextureUploadManager::UploadThread()
 				LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(mCurrentCrc);
 				rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
 				gpFileManager->NotifyChunkCompletion(); // No NotifyChunkAdoptable: nothing valid to adopt (no GPU image created)
-				mCurrentCrc = 0;
-				mCurrentDataOffset = 0;
-				muiCurrentLayer = 0;
-				muiCurrentMip = 0;
-				muiCurrentMipY = 0;
+				ResetUploadProgress();
 			}
 			continue;
 		}
@@ -573,11 +596,7 @@ void TextureUploadManager::SubmitChunkUpload(LazyChunk& rLazyChunk, VkImageMemor
 		NotifyChunkAdoptable(); // kUploading -> kGpuUploadComplete: arm the pending-adoption counter
 		gpFileManager->NotifyChunkCompletion();
 
-		mCurrentCrc = 0;
-		mCurrentDataOffset = 0;
-		muiCurrentLayer = 0;
-		muiCurrentMip = 0;
-		muiCurrentMipY = 0;
+		ResetUploadProgress();
 	}
 }
 

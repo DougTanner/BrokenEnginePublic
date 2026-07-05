@@ -40,7 +40,7 @@ Key the four request payloads by `FleetGuid` and have the server resolve guid �
 - `kClientCreateFleetRequest` — no fleet target (creates one), unchanged.
 - `kServerFleetSync` layout — already carries `Fleet::guid`; no change needed for the server→client direction.
 - The `ProcessDeleteFleetRequests`-before-spawn drain ordering itself — keying by guid removes the ordering *hazard*; reordering the drain is neither needed nor in scope.
-- Server-side DoS caps / dedup on these same handlers — that is `Network/ServerTrustBoundaryHardening.md` (co-scheduled; both edit `ServerFleetManager` fleet handlers).
+- Server-side DoS caps / dedup on these same handlers — already in place (`ServerFleetManager` fleet-count/member caps + `QueueSpawnForClient` dedup).
 
 ## Acceptance criteria
 

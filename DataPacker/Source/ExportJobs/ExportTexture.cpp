@@ -86,7 +86,7 @@ void ExportTexture::Export()
 
 void ExportTexture::ProcessKtxCubemap()
 {
-	gli::texture texture = gli::load(mInputPath.string());
+	gli::texture texture = LoadGliFromPath(mInputPath);
 	ASSERT(!texture.empty() && texture.target() == gli::TARGET_CUBE);
 
 	gli::texture_cube textureCube(texture);

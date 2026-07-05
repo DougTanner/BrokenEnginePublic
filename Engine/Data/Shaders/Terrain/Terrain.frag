@@ -57,7 +57,7 @@ void main()
 		texture(elevationTextureSampler, f2InVisibleAreaTexcoord).x
 	);
 
-	// No fTerrainEarlyOut discard here: the per-island Gaea Mesher mesh only draws where geometry
+	// No terrain early-out discard here: the per-island Gaea Mesher mesh only draws where geometry
 	// exists (including the underwater skirt), so a discard would black-out valid underwater content.
 	// The mesh is cropped to the heightmap bbox at bake time (ProcessBakedRegion.cpp), so no fringe
 	// overshoot survives to sample neighbouring composite content.

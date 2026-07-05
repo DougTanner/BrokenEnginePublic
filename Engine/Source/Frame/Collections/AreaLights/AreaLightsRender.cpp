@@ -33,14 +33,13 @@ void AreaLightsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 		return;
 	}
 
-	int64_t iFramebuffer = iCommandBuffer;
 	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout), iTotalCapacity, iCommandBuffer))
 	{
-		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineLighting].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, pBuffer);
+		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineLighting].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
 	}
 	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferVisibleLights, kName, sizeof(shaders::VisibleLightQuadLayout), iTotalCapacity, iCommandBuffer))
 	{
-		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
+		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 2, pBuffer);
 	}
 }
 
@@ -80,7 +79,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Calculate center and get type configuration
 		XMVECTOR vecCenter = XMVectorScale(XMVectorAdd(XMVectorAdd(vecVisiblePos0, vecVisiblePos1), XMVectorAdd(vecVisiblePos2, vecVisiblePos3)), 0.25f);
 		const AreaLightsType& rType = AreaLightsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
-		float fTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc));
+		int64_t iTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
 		float fBlurredTextureIndex = gpTextureManager->mTextureDescriptors.CrcToBlurredIndex(rType.crc);
 		float fIntensityMultiplier = rCurrent.pfIntensityMultipliers[i];
 		float fVisibleIntensity = rType.pVisibleIntensityWrapper != nullptr ? rType.pVisibleIntensityWrapper->Get() : rType.fVisibleIntensity;
@@ -124,7 +123,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 		rVisibleLayout.fIntensity = fVisibleIntensity * fIntensityMultiplier;
 		rVisibleLayout.fRotation = 0.0f;
-		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(fTextureIndex);
+		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(iTextureIndex);
 
 		// Populate area light quad with base height positions for ground shadow effect
 		shaders::QuadLayout& rAreaLayout = pAreaLightsLayouts[siRendered];

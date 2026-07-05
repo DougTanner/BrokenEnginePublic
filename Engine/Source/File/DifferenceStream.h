@@ -26,16 +26,16 @@ public:
 		mDifferences.reserve(1024);
 
 		// Initialize starting state and frame
-		miStartTick = rSavedStart.interpolate.iTick;
+		int64_t iStartTick = rSavedStart.interpolate.iTick;
 		TransferViaStream(rSavedStart, mSavedStart);
 		mInitialDifference = rInitialDifference;
 		mCurrentDifference = rInitialDifference;
-		LOG(kDefault, kVerbose, "DifferenceStreamWriter at frame {}: Saved start: {} Initial difference: {}", miStartTick, mSavedStart.Crc(), mInitialDifference.Crc());
+		LOG(kDefault, kVerbose, "DifferenceStreamWriter at frame {}: Saved start: {} Initial difference: {}", iStartTick, mSavedStart.Crc(), mInitialDifference.Crc());
 
 		// Record initial checksum
 		mChecksums.reserve(1024);
 		mChecksums.push_back(mSavedStart.Crc());
-		LOG(kDefault, kVerbose, "Checksum DifferenceStreamWriter {}: {}", miStartTick, *std::prev(mChecksums.end()));
+		LOG(kDefault, kVerbose, "Checksum DifferenceStreamWriter {}: {}", iStartTick, *std::prev(mChecksums.end()));
 
 		if constexpr (kbReplayFullFrames)
 		{
@@ -70,7 +70,7 @@ public:
 		int64_t iDifferenceCount = mDifferences.size();
 
 		// Write header with version info, start/end states and metadata
-		static_cast<void>(gpFileManager->WriteFileAtomically(fileFlags, rFilename, [&](std::fstream& rHeaderStream)
+		const bool bHeaderWritten = gpFileManager->WriteFileAtomically(fileFlags, rFilename, [&](std::fstream& rHeaderStream)
 		{
 			// Write version headers (matches WriteVersionedFile pattern)
 			WriteVersionHeader<SAVED_TYPE>(rHeaderStream);
@@ -83,11 +83,12 @@ public:
 				rHeaderStream << mInitialDifference;
 			common::Write(rHeaderStream, iDifferenceCount);
 			rHeaderStream << rSavedEnd;
-		}));
+		});
 		LOG(kDefault, kVerbose, "DifferenceStreamWriter save at frame {}: Count {} Checksum {}", rSavedEnd.interpolate.iTick, iDifferenceCount, rSavedEnd.Crc());
 
 		// Write difference records
-		static_cast<void>(gpFileManager->WriteFileAtomically(fileFlags, std::filesystem::path(rFilename).concat(".frames"), [&](std::fstream& rFramesStream)
+		const std::filesystem::path framesFilename = std::filesystem::path(rFilename).concat(".frames");
+		const bool bFramesWritten = gpFileManager->WriteFileAtomically(fileFlags, framesFilename, [&](std::fstream& rFramesStream)
 		{
 			if (!mDifferences.empty())
 			{
@@ -104,27 +105,53 @@ public:
 					}
 				}
 			}
-		}));
+		});
 
 		// Write checksums for validation
 		mChecksums.push_back(rSavedEnd.Crc());
 		LOG(kDefault, kVerbose, "Checksum DifferenceStreamWriter Save {}: {}", rSavedEnd.interpolate.iTick, *std::prev(mChecksums.end()));
-		static_cast<void>(gpFileManager->WriteFileAtomically(fileFlags, std::filesystem::path(rFilename).concat(".checksums"), [&](std::fstream& rChecksumStream)
+		const std::filesystem::path checksumsFilename = std::filesystem::path(rFilename).concat(".checksums");
+		const bool bChecksumsWritten = gpFileManager->WriteFileAtomically(fileFlags, checksumsFilename, [&](std::fstream& rChecksumStream)
 		{
 			if (!mChecksums.empty())
 			{
 				common::Write(rChecksumStream, mChecksums);
 			}
-		}));
+		});
+
+		// Track the first sibling that failed so a torn set can be reported and cleaned up as a whole.
+		std::filesystem::path failedFilename;
+		if (!bHeaderWritten)
+			failedFilename = rFilename;
+		else if (!bFramesWritten)
+			failedFilename = framesFilename;
+		else if (!bChecksumsWritten)
+			failedFilename = checksumsFilename;
 
 		if constexpr (kbReplayFullFrames)
 		{
 			// Write complete frame snapshots for debugging
 			mFullFramesStream << rSavedEnd;
-			static_cast<void>(gpFileManager->WriteFileAtomically(fileFlags, std::filesystem::path(rFilename).concat(".fullframes"), [&](std::fstream& rFullFramesStream)
+			const std::filesystem::path fullFramesFilename = std::filesystem::path(rFilename).concat(".fullframes");
+			const bool bFullFramesWritten = gpFileManager->WriteFileAtomically(fileFlags, fullFramesFilename, [&](std::fstream& rFullFramesStream)
 			{
 				rFullFramesStream << mFullFramesStream.str();
-			}));
+			});
+			if (!bFullFramesWritten && failedFilename.empty())
+				failedFilename = fullFramesFilename;
+		}
+
+		// Any in-process write failure leaves a torn recording; delete the whole sibling set so a partial replay isn't loaded.
+		if (!failedFilename.empty())
+		{
+			LOG(kDefault, kError, "DifferenceStreamWriter save failed writing \"{}\"; deleting partial replay set", failedFilename.string());
+			gpFileManager->RemoveFile(fileFlags, rFilename);
+			gpFileManager->RemoveFile(fileFlags, framesFilename);
+			gpFileManager->RemoveFile(fileFlags, checksumsFilename);
+			if constexpr (kbReplayFullFrames)
+			{
+				gpFileManager->RemoveFile(fileFlags, std::filesystem::path(rFilename).concat(".fullframes"));
+			}
 		}
 	}
 
@@ -137,7 +164,6 @@ private:
 	DIFFERENCE_TYPE mCurrentDifference {};
 
 	std::vector<common::crc_t> mChecksums;
-	int64_t miStartTick = 0;
 
 	std::stringstream mFullFramesStream;
 };

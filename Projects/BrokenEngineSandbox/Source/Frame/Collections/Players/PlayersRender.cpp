@@ -50,6 +50,27 @@ void PlayersInterpolate::GraphicsResources()
 }
 
 static int64_t siRendered = 0;
+// Non-concurrency tripwire: per-frame Render calls must run sequentially across active coords — siRendered
+// accumulates across them and offsets each call's slab writes. Parallelizing coord renders would race.
+static std::atomic<bool> sbRenderActive = false;
+
+namespace
+{
+// RAII tripwire guard: sets sbRenderActive on entry, clears it on scope exit — so an exception between the
+// capacity ASSERT and the slab writes unwinds it instead of wedging it true (every later Render would else false-assert).
+struct RenderActiveGuard
+{
+	RenderActiveGuard()
+	{
+		ASSERT(!sbRenderActive.exchange(true));
+	}
+
+	~RenderActiveGuard()
+	{
+		sbRenderActive.store(false);
+	}
+};
+} // namespace
 
 void PlayersInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords)
 {
@@ -78,9 +99,8 @@ void PlayersInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, co
 	if (rBuffer.mInfo.dataVkDeviceSize < requiredSize)
 	{
 		engine::gpBufferManager->ResizeDynamicBuffer(kCrc, engine::kBufferMain, kName, requiredSize, iCommandBuffer);
-		int64_t iFramebuffer = iCommandBuffer;
-		engine::gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
-		engine::gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+		engine::gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->UpdateStorageBufferDescriptors(iCommandBuffer, 2, &rBuffer);
+		engine::gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->UpdateStorageBufferDescriptors(iCommandBuffer, 2, &rBuffer);
 	}
 }
 
@@ -97,7 +117,10 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 		return;
 	}
 
+	RenderActiveGuard renderActiveGuard;
+
 	auto [pPlayerLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, engine::kBufferMain, iCommandBuffer);
+	ASSERT(siRendered + rCurrent.iCount <= iBufferCapacity);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{

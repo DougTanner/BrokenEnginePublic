@@ -51,6 +51,8 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 		LOG(kInput, kInfo, "RegisterRawInputDevices");
 		if (RegisterRawInputDevices(pRawinputdevices, 1, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
+			// Heap: common::LastErrorString() returns a std::string by value (exceeds SSO), and this LOG sits in the allocation-tracked main loop
+			ScopedSuppressAllocationTracking suppress;
 			LOG(kInput, kError, "Failed to register raw input: {}", common::LastErrorString().data());
 		}
 
@@ -73,6 +75,8 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 		LOG(kInput, kInfo, "UnregisterRawInputDevices");
 		if (RegisterRawInputDevices(pRawinputdevices, 1, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
+			// Heap: common::LastErrorString() returns a std::string by value (exceeds SSO), and this LOG sits in the allocation-tracked main loop
+			ScopedSuppressAllocationTracking suppress;
 			LOG(kInput, kError, "Failed to unregister raw input: {}", common::LastErrorString().data());
 		}
 
@@ -211,6 +215,8 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 	UINT uiRawInputBytes = sizeof(rawinput);
 	if (GetRawInputData(hrawinput, RID_INPUT, &rawinput, &uiRawInputBytes, sizeof(RAWINPUTHEADER)) == static_cast<UINT>(-1))
 	{
+		// Heap: common::LastErrorString() returns a std::string by value (exceeds SSO), and this LOG sits in the allocation-tracked main loop
+		ScopedSuppressAllocationTracking suppress;
 		LOG(kInput, kWarning, "GetRawInputData failed: {}", common::LastErrorString().data());
 		DEBUG_BREAK();
 		return;

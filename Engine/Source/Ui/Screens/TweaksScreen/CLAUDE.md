@@ -12,7 +12,7 @@ Data-driven: a section-name array plus a parallel function-pointer table drive s
 
 **Toggle bar**: full-width bar hosts section show/hide selectables plus a special-cased full-width Sun Angle slider not in the main slider map.
 
-**Slider map lifetime**: `TweaksSliderMap::Get()` returns a function-local static `std::unordered_map` wrapped in `ScopedSuppressAllocationTracking` (STL hash buckets heap-allocate; workbuffer unusable because lifetime is program-wide). Engine and game per-section `.cpp` files populate it at static-init time via anonymous-namespace `TweaksSliderMapRegistrar` instances co-located with the matching `Render*` function — each registrar owns exactly the labels its section consumes.
+**Slider map lifetime**: `TweaksSliderMap::Get()` returns a function-local static `std::unordered_map` wrapped in `ScopedSuppressAllocationTracking` (STL hash buckets heap-allocate; workbuffer unusable because lifetime is program-wide). Engine and game per-section `.cpp` files populate it at static-init time via anonymous-namespace `TweaksSliderMapRegistrar` instances co-located with the matching `Render*` function — each registrar owns exactly the labels its section consumes. Every registrar feeds one flat keyspace, so keys must be globally unique across all sections; the registrar inserts singly and asserts at static-init on a duplicate key. A slider whose label collides with another section's must pass a distinct `mapKey`.
 
 **Extension hooks**: Pure virtuals for game-only sections (hex shield, particles); default-empty virtual hooks for game-only tabs hosted inside an engine section (e.g., the Wind window's Deposits tab, the Lighting window's Visible/Lighting tabs).
 

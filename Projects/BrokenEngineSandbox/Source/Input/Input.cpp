@@ -168,10 +168,19 @@ std::istream& operator>>(std::istream& rStream, FrameInput& rInput)
 {
 	int64_t iStatusCount = 0;
 	common::Read(rStream, iStatusCount);
+	// Trust boundary (replay stream): bound the count against the stream before the resize — each
+	// StatusChange serializes at least a type byte plus one payload byte.
+	common::ValidateDeserializedCount(iStatusCount, sizeof(uint8_t) + 1, rStream, "FrameInput statusChanges");
 	rInput.statusChanges.resize(iStatusCount);
 	for (StatusChange& rChange : rInput.statusChanges)
 	{
 		common::Read(rStream, rChange.eType);
+		// Trust boundary (replay stream): an unknown type tag seats the default variant alternative and reads
+		// the wrong payload byte count, silently desyncing the rest of the stream — reject it.
+		if (!IsKnownStatusChangeType(rChange.eType))
+		{
+			throw common::CorruptStreamException("FrameInput StatusChange type");
+		}
 		rChange.data = DefaultDataForType(rChange.eType);
 		std::visit([&](auto& payload) { common::Read(rStream, payload); }, rChange.data);
 	}

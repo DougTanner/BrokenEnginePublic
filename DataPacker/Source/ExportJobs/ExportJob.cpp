@@ -144,7 +144,17 @@ std::vector<std::byte>& ExportJob::RunExport()
 		std::fstream fileStream(mChunkFile, std::ios::in | std::ios::binary);
 		fileStream.seekg(sizeof(kiMagic) + sizeof(int64_t)); // Skip magic and version
 		fileStream.read(reinterpret_cast<char*>(mHeaderAndData.data()), mHeaderAndData.size());
-		return mHeaderAndData;
+
+		// CheckDirty only validated the 16-byte header, and resize() zero-inits the buffer, so a short read
+		// (truncated/interrupted chunk) would silently pack a zero tail. Verify the full body was read; if not,
+		// discard the cache and fall through to a full dirty re-export rather than shipping the zeroed bytes.
+		if (fileStream.good() && fileStream.gcount() == static_cast<std::streamsize>(mHeaderAndData.size()))
+		{
+			return mHeaderAndData;
+		}
+
+		LOG(kDefault, kWarning, "Cached chunk file \"{}\" is truncated ({} of {} bytes read); re-exporting", mChunkFile.string(), fileStream.gcount(), mHeaderAndData.size());
+		mbDirty = true;
 	}
 
 	try

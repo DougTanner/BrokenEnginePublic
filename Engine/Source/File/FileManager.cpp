@@ -963,7 +963,7 @@ void FileManager::DecommitChunkRange(common::crc_t crc, uint64_t uiOffset, uint6
 	}
 }
 
-void FileManager::RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength)
+bool FileManager::RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength)
 {
 	// Inverse of DecommitChunkRange for device-loss recovery: re-commit the same page-aligned interior, then re-read
 	// the whole [uiOffset, uiOffset + uiLength) range straight from the pack file on disk. ReadChunkData cannot serve
@@ -985,7 +985,7 @@ void FileManager::RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffs
 		{
 			LOG(kLoading, kError, "Recommit MEM_COMMIT failed for chunk {}", crc);
 			DEBUG_BREAK();
-			return;
+			return false;
 		}
 	}
 
@@ -999,7 +999,7 @@ void FileManager::RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffs
 	{
 		LOG(kLoading, kError, "Recommit reload failed to open pack for chunk {}", crc);
 		DEBUG_BREAK();
-		return;
+		return false;
 	}
 	packStream.seekg(iDataOffset + static_cast<int64_t>(uiOffset));
 	packStream.read(reinterpret_cast<char*>(rLazyChunk.pData + uiOffset), static_cast<std::streamsize>(uiLength));
@@ -1007,7 +1007,10 @@ void FileManager::RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffs
 	{
 		LOG(kLoading, kError, "Recommit reload short read for chunk {}", crc);
 		DEBUG_BREAK();
+		return false;
 	}
+
+	return true;
 }
 
 MemoryStats FileManager::GetEagerStats() const

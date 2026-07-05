@@ -227,6 +227,11 @@ inline constexpr bool XmIsInf(float fValue)
 	#include "PerlinNoise/PerlinNoise.hpp"
 #endif
 
+// RenderDoc - in-application frame capture API (client-only; consumed by InstanceManager)
+#if defined(BT_CLIENT)
+	#include "RenderDoc/renderdoc_app.h"
+#endif
+
 // StackWalker
 #include "StackWalker/Main/StackWalker/StackWalker.h"
 

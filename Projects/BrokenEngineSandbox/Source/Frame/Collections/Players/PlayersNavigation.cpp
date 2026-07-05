@@ -32,11 +32,6 @@ constexpr int64_t kiNavRecomputeInterval = 16;
 // throttle.
 constexpr float kfNavTerrainLookahead = 8.0f;
 
-// [DIAG] Temporary stale-bearing capture (kNavData / kVerbose). See the block at the end of
-// ComputeNavigation. Flip to false (and remove the block) once the throttle regression is confirmed/fixed.
-constexpr bool kbDiagNavStale = true;
-constexpr float kfNavStaleLookahead = 8.0f;
-
 namespace
 {
 
@@ -166,10 +161,6 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 	int8_t iEntryNavDirection = riNavDirection;
 	bool bReseededDirection = false;
 
-	// [DIAG] Steering target used by the stale-bearing check at the end of this function; each nav-driven
-	// branch below sets it to the destination it hands NavQueryDirection. Left zero for roam (mode -1).
-	XMVECTOR vecActiveDestination = XMVectorZero();
-
 	// Initialize direction if zero (first spawn or after reset)
 	if (XMVectorGetX(XMVector3LengthSq(rVecAiDirection)) < 0.001f)
 	{
@@ -291,7 +282,6 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 
 	if (riNavDirection == 5)
 	{
-		vecActiveDestination = rVecIslandDestination; // [DIAG] flagship-follow target
 		// Following flagship via NavQuery pathfinding.
 		// Mirror mode 4's three entry draws (island pick + footprint X + footprint Y) so flipping
 		// between modes 4 and 5 does not desync the shared random stream. Only the draw COUNT matters:
@@ -383,8 +373,6 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 #endif // BT_CLIENT
 		}
 
-		vecActiveDestination = rVecIslandDestination; // [DIAG] island-destination target (zeroed only on arrival below)
-
 		// Arrival check (unconditional — independent of the pathfind throttle). Zeroing the destination
 		// makes the next tick's mode-4 entry block immediately pick the next island in the
 		// largest -> smallest -> random sequence (no idle between islands). Staying in mode 4 keeps the
@@ -418,7 +406,6 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 			default:
 				break;
 		}
-		vecActiveDestination = vecDestination; // [DIAG] neighbor-frame-crossing target
 
 		if (bRecompute)
 		{
@@ -457,38 +444,6 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 			rCurrent.pVecDebugNavWaypoints[i] = XMVectorZero();
 		}
 #endif // BT_CLIENT
-	}
-
-	// [DIAG kNavData/kVerbose] Stale-bearing capture for the pathfind throttle (kiNavRecomputeInterval).
-	// rVecAiDirection is refreshed only on recompute ticks, then held; a ship rounding an obstacle corner
-	// keeps steering the stale world-space bearing and can sail into the island — the reported "flying into
-	// terrain / nav line into the yellow exclusion". Fires only when the bearing the ship will actually
-	// steer this tick probes into rising terrain (so normal open-water steering is silent). Fields:
-	//   age     = ticks since the last pathfind (0 = fresh recompute)
-	//   heldDir = the throttled bearing being steered; freshDir = NavQueryDirection re-run from HERE
-	//   cos     = dot(heldDir, freshDir): cos << 1 at age > 0 confirms the throttle drove a STALE bearing
-	//             into terrain; a hit at age 0 would instead implicate the NavQuery result (an LOS bug).
-	// Reads only (no frame/RNG mutation) -> CRC-neutral. Remove once confirmed/fixed.
-	if constexpr (kbDiagNavStale)
-	{
-		if (riNavDirection >= 0
-			&& XMVectorGetX(XMVector3LengthSq(rVecAiDirection)) > 0.001f
-			&& XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(vecActiveDestination, vecPosition))) > 1.0f)
-		{
-			XMVECTOR vecLookahead = XMVectorMultiplyAdd(XMVectorReplicate(kfNavStaleLookahead), rVecAiDirection, vecPosition);
-			float fLookaheadElevation = engine::gpIslandTerrain->FrameElevation(rStaticData, vecLookahead);
-			float fPushHeight = engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin;
-			if (fLookaheadElevation >= fPushHeight)
-			{
-				int64_t iAge = (rFrame.interpolate.iTick + rCurrent.pGlobalPlayerIds[i].iValue) % kiNavRecomputeInterval;
-				XMVECTOR vecFresh = engine::NavQueryDirection(vecPosition, vecActiveDestination, rStaticData.navData, nullptr);
-				float fCos = XMVectorGetX(XMVector3LengthSq(vecFresh)) > 0.001f ? XMVectorGetX(XMVector3Dot(rVecAiDirection, vecFresh)) : 2.0f;
-				LOG(kNavData, kVerbose, "NavStale gid={} mode={} age={}/{} pos={} heldDir={} freshDir={} cos={} lookElev={} pushH={}",
-					rCurrent.pGlobalPlayerIds[i], static_cast<int32_t>(riNavDirection), iAge, kiNavRecomputeInterval,
-					common::WbV2(vecPosition, 1), common::WbV2(rVecAiDirection, 2), common::WbV2(vecFresh, 2),
-					common::Wb(fCos, 2), common::Wb(fLookaheadElevation, 1), common::Wb(fPushHeight, 1));
-			}
-		}
 	}
 }
 

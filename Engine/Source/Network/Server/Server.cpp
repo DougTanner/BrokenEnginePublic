@@ -20,8 +20,9 @@ Server::Server(uint16_t uiPort)
 	address.port = uiPort;
 
 	ScopedSuppressAllocationTracking suppress;
-	// Heap: one-time compression scratch buffer
-	mCompressionBuffer.resize(kiMaxPacketSize);
+	// Heap: one-time compression scratch buffer, sized so any valid capped StatusChange batch always fits
+	// (CompressToBuffer grows it further on demand for full debug frames)
+	mCompressionBuffer.resize(kiMaxCompressedStatusChangeBatchBytes);
 	// Heap: ENet allocates host data internally
 	mpHost = enet_host_create(&address, 64, NetworkManager::kuiChannelCount, 0, 0);
 	if (mpHost == nullptr)
@@ -176,49 +177,60 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 	int64_t iClientId = reinterpret_cast<int64_t>(pPeer->data);
 	PacketType eType = static_cast<PacketType>(pData[0]);
 
-	switch (eType)
+	try
 	{
-		case PacketType::kClientAckStream:
-			ClientAckStream(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientSpawnRequest:
-			ClientSpawnRequest(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientDesyncReport:
-			ClientDesyncReport(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientDebugFrameRequest:
-			ClientDebugFrameRequest(pData, iSize, pPeer, iClientId);
-			break;
-		case PacketType::kClientHello:
-			ClientHello(pData, iSize, pPeer, iClientId);
-			break;
-		case PacketType::kClientSubscribe:
-			ClientSubscribe(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientUnsubscribe:
-			ClientUnsubscribe(pData, iSize, iClientId);
-			break;
-		case PacketType::kClientResyncRequest:
-			ClientResyncRequest(iClientId);
-			break;
-		default:
-			if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
-			{
-				ClientConnection* pClient = FindHandshakenClient(iClientId);
-				if (pClient == nullptr)
+		switch (eType)
+		{
+			case PacketType::kClientAckStream:
+				ClientAckStream(pData, iSize, iClientId);
+				break;
+			case PacketType::kClientSpawnRequest:
+				ClientSpawnRequest(pData, iSize, iClientId);
+				break;
+			case PacketType::kClientDesyncReport:
+				ClientDesyncReport(pData, iSize, iClientId);
+				break;
+			case PacketType::kClientDebugFrameRequest:
+				ClientDebugFrameRequest(pData, iSize, pPeer, iClientId);
+				break;
+			case PacketType::kClientHello:
+				ClientHello(pData, iSize, pPeer, iClientId);
+				break;
+			case PacketType::kClientSubscribe:
+				ClientSubscribe(pData, iSize, iClientId);
+				break;
+			case PacketType::kClientUnsubscribe:
+				ClientUnsubscribe(pData, iSize, iClientId);
+				break;
+			case PacketType::kClientResyncRequest:
+				ClientResyncRequest(iClientId);
+				break;
+			default:
+				if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
 				{
-					break;
+					ClientConnection* pClient = FindHandshakenClient(iClientId);
+					if (pClient == nullptr)
+					{
+						break;
+					}
+					ScopedSuppressAllocationTracking suppress;
+					// Heap: raw game packet buffer grows on game-specific packets
+					mReceivedGamePackets.push_back({iClientId, pData[0], std::vector<uint8_t>(pData + 1, pData + iSize)});
 				}
-				ScopedSuppressAllocationTracking suppress;
-				// Heap: raw game packet buffer grows on game-specific packets
-				mReceivedGamePackets.push_back({iClientId, pData[0], std::vector<uint8_t>(pData + 1, pData + iSize)});
-			}
-			else
-			{
-				LOG(kNetwork, kWarning, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
-			}
-			break;
+				else
+				{
+					LOG(kNetwork, kWarning, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
+				}
+				break;
+		}
+	}
+	catch (const std::exception& rException)
+	{
+		// Trust boundary: a corrupt count/size in a received payload throws CorruptStreamException
+		// (or .at()/bad_alloc) from the reader before any client state is mutated (handlers land
+		// parsed values in locals first). Drop the single packet and let the client resend/reconnect,
+		// rather than tearing down the peer.
+		LOG(kNetwork, kWarning, "Server::Receive dropped corrupt packet (type {}) Client: {}: {}", static_cast<uint8_t>(eType), iClientId, rException.what());
 	}
 }
 
@@ -243,8 +255,30 @@ void Server::BufferFrame(int64_t iTick, std::span<const std::pair<GridCoord, Gri
 
 		if (!rUpdateData.statusChanges.empty())
 		{
-			int64_t iCompressedSize = CompressStatusChangeBatch(rUpdateData.statusChanges.data(), static_cast<int64_t>(rUpdateData.statusChanges.size()), mCompressionBuffer.data(), kiMaxPacketSize);
-			buffered.compressedData.assign(mCompressionBuffer.begin(), mCompressionBuffer.begin() + iCompressedSize);
+			int64_t iStatusChangeCount = static_cast<int64_t>(rUpdateData.statusChanges.size());
+			if (iStatusChangeCount > kiMaxStatusChangesPerCell)
+			{
+				// Should never happen: the sim must not exceed the protocol's per-cell cap (also the client decode
+				// scratch size and the compression-scratch sizing basis). Alert in debug, then drop the payload rather
+				// than overflow the scratch. The frame is still buffered (ring contiguity) with its sharedCrc, so the
+				// client CRC-mismatches and resyncs instead of applying a truncated batch.
+				DEBUG_BREAK();
+				LOG(kNetwork, kError, "Server::BufferFrame status change count {} exceeds cap {}, dropping payload Coord: ({},{}) Frame: {}", iStatusChangeCount, kiMaxStatusChangesPerCell, rCoord.x, rCoord.y, iTick);
+			}
+			else
+			{
+				int64_t iCompressedSize = CompressStatusChangeBatch(rUpdateData.statusChanges.data(), iStatusChangeCount, mCompressionBuffer.data(), static_cast<int64_t>(mCompressionBuffer.size()));
+				if (iCompressedSize > 0)
+				{
+					buffered.compressedData.assign(mCompressionBuffer.begin(), mCompressionBuffer.begin() + iCompressedSize);
+				}
+				else
+				{
+					// Compression failed despite the sized scratch — drop the payload (logged kError by the codec)
+					// rather than buffer an empty prefix the client would decode as zero changes and silently desync.
+					LOG(kNetwork, kError, "Server::BufferFrame compression failed, dropping payload Coord: ({},{}) Frame: {} Count: {}", rCoord.x, rCoord.y, iTick, iStatusChangeCount);
+				}
+			}
 		}
 
 		std::deque<PerCoordBufferedFrame>& rCoordBuffer = mPerCoordBufferedFrames.try_emplace(rCoord).first->second;

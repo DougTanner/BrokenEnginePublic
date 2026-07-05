@@ -143,7 +143,9 @@ public:
 	void DecommitChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength);
 	// Inverse of DecommitChunkRange: MEM_COMMITs the interior and re-reads [uiOffset, uiOffset + uiLength)
 	// straight from the pack file on disk into the pool (NOT via the decommitted resident copy). Uncompressed chunks only.
-	void RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength);
+	// Returns true on success; false on soft-fail (MEM_COMMIT failure / pack-open failure / short read). On false the
+	// caller must NOT read the range — the interior may be decommitted or hold partial data.
+	[[nodiscard]] bool RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength);
 
 	// Memory profiling
 	MemoryStats GetEagerStats() const;
@@ -276,8 +278,8 @@ bool FileManager::WriteFileAtomically(const FileFlags_t& rFlags, const std::file
 	}
 
 	fnWrite(stream);
-	bool bGood = stream.good();
 	stream.close();
+	const bool bGood = !stream.fail();
 
 	return CommitAtomicWrite(rFlags, rFilename, bGood);
 }
@@ -304,7 +306,7 @@ bool ReadAndValidateVersionHeader(std::fstream& rFileStream, int64_t& riVersion,
 }
 
 template <typename STRUCT_TYPE>
-bool WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, STRUCT_TYPE& rStructure)
+bool WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, const STRUCT_TYPE& rStructure)
 {
 	return gpFileManager->WriteFileAtomically(rFlags, rFilename, [&](std::fstream& rFileStream)
 	{

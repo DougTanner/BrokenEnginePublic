@@ -17,7 +17,7 @@ struct KtxCubemapData
 static KtxCubemapData LoadKtxCubemapAsFloat(const std::filesystem::path& rPath)
 {
 	KtxCubemapData result;
-	gli::texture texture = gli::load(rPath.string());
+	gli::texture texture = LoadGliFromPath(rPath);
 	ASSERT(!texture.empty() && texture.target() == gli::TARGET_CUBE);
 	gli::texture_cube textureCube(texture);
 	ASSERT(textureCube.format() == gli::FORMAT_RGBA16_SFLOAT_PACK16);
@@ -268,8 +268,9 @@ static void ProcessFaceImageCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClC
 			cmft::Image faceImages[6];
 			for (int64_t i = 0; i < 6; ++i)
 			{
-				std::string facePath = (rDirectoryEntry.path() / pFaceNames[i]).string();
-				cmft::imageLoadStb(faceImages[i], facePath.c_str(), cmft::TextureFormat::RGBA32F);
+				// stb link-resolves to the shared first-party STBI_WINDOWS_UTF8 build (cmft's vendored stb is not compiled), so imageLoadStb decodes this UTF-8 path correctly.
+				std::u8string facePath = (rDirectoryEntry.path() / pFaceNames[i]).u8string();
+				cmft::imageLoadStb(faceImages[i], reinterpret_cast<const char*>(facePath.c_str()), cmft::TextureFormat::RGBA32F);
 			}
 
 			cmft::Image srcImage;

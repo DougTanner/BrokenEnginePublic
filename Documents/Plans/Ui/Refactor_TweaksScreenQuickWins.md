@@ -20,7 +20,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). The batch's one s
 - `Engine/Source/Ui/Screens/TweaksScreen/CLAUDE.md`
 
 ## Out of scope
-- Registrar key collisions, "Day Brightness" orphan, `TweakSection` enumerators (`Ui/Architecture_TweaksRegistryIntegrity.md` — same files, co-schedule in one session)
+- `TweakSection` game-extensibility (`Ui/Architecture_TweakSectionGameExtension.md` — shares `TweaksScreenBase.{h,cpp}`, co-schedule in one session)
 - Wave-count radio list duplication of wrapper allowed-sets (accept — stable, one call site; would need a `Wrapper` allowed-values accessor)
 - `HeightLerpWrapperQuartet` 4-key string assembly (~20 sites; note-tier)
 - `CurveData.h` int/`operator[]` style items (code-style-review territory)
@@ -32,4 +32,4 @@ Source: /external-refactor-clean on Engine/Source (recursive). The batch's one s
 ## Verification Notes
 - All 15 cited handshake copies verified verbatim at the cited line ranges (Water 4, Lighting 5, Wind 2, Smoke 2, Sound 2); game side has 3 more (Particles: Missile/Player/Spaceship). `mActiveSlider = mapKey.data();` confirmed at `TweaksScreenBase.cpp:180` (`mActiveSlider` is `std::string_view`, header :95); stale comment confirmed at :154. The CLAUDE.md "must replicate this apply-flag handshake in every `BeginTabItem`" sentence confirmed.
 - Dropped from the original draft: a `TweaksScreenWater.cpp:3-5` include-reorder sub-item — the current order (0/1/2 subdirectory depths ascending) already satisfies style rule 47's "fewer subdirectories first" reading; ambiguous at best and code-style-review territory regardless.
-- No overlap with `Engine/TweaksScreenDynamicFontMigration.md` (it owns the two `SetWindowFontScale(kfUiScale)` sites at `TweaksScreenBase.cpp` ~:251/~:357 — untouched here), but both plans edit `TweaksScreenBase.cpp`, so co-schedule or refresh citations if it lands first.
+- The two dev-UI font-scale sites in `TweaksScreenBase::Render` (~:251 toggle bar, ~:358 per-section) already use the ImGui dynamic-font `PushFont(nullptr, GetStyle().FontSizeBase * kfUiScale)`/`PopFont()` pattern (migrated) — this plan's `BeginSubtab`/string_view/comment work doesn't touch them, but the added push/pop lines shifted nearby citations, so refresh line numbers at execution.

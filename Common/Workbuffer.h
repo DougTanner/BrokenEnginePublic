@@ -15,6 +15,7 @@ public:
 	: mBuffer(rBuffer)
 	{
 		mSavedBase.resize(64); // Pre-sized for the deepest arena nesting source structure ever reaches (see RawPush).
+		mSavedSize.resize(64); // Parallel to mSavedBase: saves each parent frame's exact pre-push miSize for Pop to restore.
 	}
 
 	// Non-copyable/non-movable: mBuffer is a reference member, so a copy would bind into the source's storage.
@@ -31,7 +32,9 @@ public:
 	template<typename T>
 	[[nodiscard]] ScopedWorkbufferAllocation<T> PushBuffer(int64_t iSizeInBytes);
 
-	// String building. Append/View/Span are valid only within an open frame (Push()/PushBuffer()) — a read at
+	// Every open frame starts 16-byte aligned (RawPush/RawPushBuffer round the base up to 16), so every PushBuffer<T>
+	// reservation is SIMD-safe (XMVECTOR/XMMATRIX movaps) by construction.
+	// String building. Append/View/Span are valid only within an open frame (Push()/PushBuffer()) — a read/append at
 	// depth 0 (no open frame) is asserted, since miBase/miSize are frame-relative.
 	void Append(std::string_view text);
 	void Append(std::wstring_view text);
@@ -43,6 +46,7 @@ public:
 	template<typename T>
 	void PushBack(const T& rValue)
 	{
+		ASSERT(miDepth > 0);
 		int64_t iNeeded = miSize + static_cast<int64_t>(sizeof(T));
 		if (iNeeded > static_cast<int64_t>(mBuffer.size())) [[unlikely]]
 		{
@@ -59,6 +63,7 @@ public:
 		// The tracked PushBuffer size must belong to the current top frame; a bare Push() opening a deeper frame
 		// after the PushBuffer would otherwise corrupt the live frame's size accounting.
 		ASSERT(miDepth == miLastPushBufferDepth);
+		ASSERT(iActualSize >= 0 && iActualSize <= miLastPushBufferSize);
 		miSize -= (miLastPushBufferSize - iActualSize);
 		miLastPushBufferSize = iActualSize;
 	}
@@ -89,10 +94,15 @@ private:
 			// Heap: under-sizing recovery growth, flagged by the DEBUG_BREAK above
 			ScopedSuppressAllocationTracking suppress;
 			mSavedBase.resize(mSavedBase.size() * 2);
+			mSavedSize.resize(mSavedSize.size() * 2);
 		}
 		mSavedBase[miDepth] = miBase;
+		mSavedSize[miDepth] = miSize; // Capture parent's exact size before we advance miSize below, so Pop restores it.
 		++miDepth;
+		// 16-byte frame-start guarantee: keep the empty-frame invariant miBase == miSize by advancing both.
+		miSize = common::RoundUp(miSize, static_cast<int64_t>(16));
 		miBase = miSize;
+		miLastPushBufferDepth = -1;
 	}
 
 	template<typename T>
@@ -105,15 +115,20 @@ private:
 			// Heap: under-sizing recovery growth, flagged by the DEBUG_BREAK above
 			ScopedSuppressAllocationTracking suppress;
 			mSavedBase.resize(mSavedBase.size() * 2);
+			mSavedSize.resize(mSavedSize.size() * 2);
 		}
-		mSavedBase[miDepth] = miBase;
-		++miDepth;
-		miBase = miSize;
-		int64_t iNeeded = miBase + iSizeInBytes;
+		// 16-byte frame-start guarantee: align the base up; the padding falls before miBase so the reservation is SIMD-safe.
+		int64_t iAlignedBase = common::RoundUp(miSize, static_cast<int64_t>(16));
+		int64_t iNeeded = iAlignedBase + iSizeInBytes;
+		// Grow before mutating frame accounting so a bad_alloc mid-grow unwinds with a balanced (still-closed) frame.
 		if (iNeeded > static_cast<int64_t>(mBuffer.size())) [[unlikely]]
 		{
 			Grow(iNeeded);
 		}
+		mSavedBase[miDepth] = miBase;
+		mSavedSize[miDepth] = miSize; // Capture parent's exact size before miSize = iNeeded below, so Pop restores it.
+		++miDepth;
+		miBase = iAlignedBase;
 		miSize = iNeeded;
 		miLastPushBufferSize = iSizeInBytes;
 		miLastPushBufferDepth = miDepth;
@@ -121,12 +136,15 @@ private:
 		return static_cast<T>(pData);
 	}
 
-	void Pop()
+	void Pop(int64_t iExpectedDepth)
 	{
 		ASSERT(miDepth > 0);
+		// Frames must pop in strict LIFO order — the closing handle must own the current top frame.
+		ASSERT(miDepth == iExpectedDepth);
 		--miDepth;
-		miSize = miBase;
+		miSize = mSavedSize[miDepth]; // Restore the parent's exact pre-push size (not miBase, which is the child's rounded-up base).
 		miBase = mSavedBase[miDepth];
+		miLastPushBufferDepth = -1;
 	}
 
 	void Grow(int64_t iNeededCapacity);
@@ -136,8 +154,9 @@ private:
 	int64_t miBase = 0;
 	int64_t miDepth = 0;
 	int64_t miLastPushBufferSize = 0;
-	int64_t miLastPushBufferDepth = 0;
+	int64_t miLastPushBufferDepth = -1;
 	std::vector<int64_t> mSavedBase;
+	std::vector<int64_t> mSavedSize;
 
 	friend class ScopedWorkbufferArena;
 	template<typename> friend class ScopedWorkbufferAllocation;
@@ -151,9 +170,10 @@ public:
 	: mBuffer(rBuffer)
 	{
 		mBuffer.RawPush();
+		miOwningDepth = mBuffer.miDepth;
 	}
 
-	~ScopedWorkbufferArena() { mBuffer.Pop(); }
+	~ScopedWorkbufferArena() { mBuffer.Pop(miOwningDepth); }
 
 	ScopedWorkbufferArena(const ScopedWorkbufferArena&) = delete;
 	ScopedWorkbufferArena& operator=(const ScopedWorkbufferArena&) = delete;
@@ -171,6 +191,7 @@ public:
 private:
 
 	Workbuffer& mBuffer;
+	int64_t miOwningDepth = 0;
 };
 
 template<typename T>
@@ -182,7 +203,7 @@ public:
 	{
 		if (mpBuffer != nullptr) [[likely]]
 		{
-			mpBuffer->Pop();
+			mpBuffer->Pop(miOwningDepth);
 		}
 	}
 
@@ -194,6 +215,7 @@ public:
 	ScopedWorkbufferAllocation(ScopedWorkbufferAllocation&& rOther) noexcept
 	: mpBuffer(rOther.mpBuffer)
 	, mpData(rOther.mpData)
+	, miOwningDepth(rOther.miOwningDepth)
 	{
 		rOther.mpBuffer = nullptr;
 	}
@@ -216,11 +238,13 @@ private:
 	ScopedWorkbufferAllocation(Workbuffer& rBuffer, T pData)
 	: mpBuffer(&rBuffer)
 	, mpData(pData)
+	, miOwningDepth(rBuffer.miDepth) // Frame already opened by RawPushBuffer (or inherited via Adopt); capture the top depth.
 	{
 	}
 
 	Workbuffer* mpBuffer;
 	T mpData;
+	int64_t miOwningDepth;
 
 	friend class Workbuffer;
 	template<typename> friend class ScopedWorkbufferAllocation;

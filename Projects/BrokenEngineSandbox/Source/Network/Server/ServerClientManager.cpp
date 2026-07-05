@@ -16,9 +16,20 @@ namespace game
 
 void ServerClientManager::QueueSpawnForClient(int64_t iClientId, engine::GridCoord spawnCoord, int64_t iFleetIndex, int64_t iMemberIndex)
 {
+	// A queued spawn revives the client: clear its dead/processed state unconditionally, matching ProcessSpawnRequests.
 	mDeadClientIds.erase(iClientId);
 	mProcessedClientIds.erase(iClientId);
-	mClientsWaitingForSpawn.push_back({iClientId, spawnCoord, iFleetIndex, iMemberIndex});
+
+	// Dedup only the queue push on the full spawn identity so a client spamming spawn-into/respawn queues at most one spawn
+	// per (fleet, member). Skip duplicates without reordering — preserves the order-sensitive spawn-assignment invariant (Server/CLAUDE.md).
+	bool bAlreadyQueued = std::ranges::any_of(mClientsWaitingForSpawn, [&](const ClientSpawnInfo& rInfo)
+	{
+		return rInfo.iClientId == iClientId && rInfo.iFleetIndex == iFleetIndex && rInfo.iMemberIndex == iMemberIndex;
+	});
+	if (!bAlreadyQueued)
+	{
+		mClientsWaitingForSpawn.push_back({iClientId, spawnCoord, iFleetIndex, iMemberIndex});
+	}
 }
 
 void ServerClientManager::ProcessSpawnRequests()

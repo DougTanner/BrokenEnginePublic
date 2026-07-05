@@ -1,14 +1,13 @@
 # Refactor: Frame Root Quick Wins (Nav/Collision/Terrain)
 
 ## Context
-Source: /external-refactor-clean on Engine/Source (recursive). Simulation-adjacent mechanical cleanup. No finding requires reordering floating-point ops in a sim path; the two items touching sim code (pair-context struct, polygon-range helper) are integer/plumbing-only and flagged for byte-identical arithmetic. One latent crash-class guard (workbuffer alignment).
+Source: /external-refactor-clean on Engine/Source (recursive). Simulation-adjacent mechanical cleanup. No finding requires reordering floating-point ops in a sim path; the two items touching sim code (pair-context struct, polygon-range helper) are integer/plumbing-only and flagged for byte-identical arithmetic.
 
 ## Design
 
 ### Engine/Source/Frame/Collision.{h,cpp}
 - Delete the write-only `siResultEntryCount` (`Collision.h:107`, defined `.cpp:71`, single assignment `.cpp:366` — never read; result consumption goes through `sResultSpans`/`sResultEntries`) [~5m]
 - Bundle the per-layer-pair-invariant tuple (`rLayerA`, `rLayerB`, `uiLayerA`, `uiLayerB`, `bSweptPair`, `rAlignments`) into a pair-context struct built once in `CollideLayerPair` (:507) — `TestAndRecordPair` takes 10 params (:439), `RecordCollision` 7 (:413). Keep bodies byte-identical (sim hot path) [~30m]
-- Workbuffer alignment guard: `PendingCollisionResult` (holds two `XMVECTOR`s, alignof 16) round-trips through `Workbuffer` `PushBack` (:415) / `Span<T>` reinterpret_cast (:328 → `Common/Workbuffer.h:70`, non-const overload :77) with no alignment guarantee and no existing guard anywhere in `Workbuffer.{h,cpp}` (`Span<T>` asserts only frame depth). `miBase` is whatever `miSize` was at frame open, so alignment holds today only incidentally — any non-16-multiple append preceding the `Collide` arena silently misaligns every element (UB; MSVC may emit `movaps` for the `XMVECTOR` member loads). Add an `ASSERT((miBase % alignof(T)) == 0)`-style guard in both `Workbuffer::Span<T>` overloads (Common change, guards all users) [~15m]
 - Delete the redundant whole-vector `memset` after the value-initializing `resize` of `sTestedBGeneration` (:522-523 — appended elements are already zero; pre-existing stamps are stale generations that can never match a future generation, and wraparound re-zeroes explicitly at :545) [~5m]
 
 ### Engine/Source/Frame/NavQuery.cpp
@@ -29,7 +28,6 @@ Source: /external-refactor-clean on Engine/Source (recursive). Simulation-adjace
 
 ## Critical files
 - `Engine/Source/Frame/Collision.{h,cpp}`, `NavQuery.cpp`, `NavBuild.cpp`, `NavCellData.cpp`, `NavBuildInternal.h`, `IslandTerrainResidency.cpp`, `TimeStep.h`
-- `Common/Workbuffer.h` (alignment guard)
 
 ## Out of scope
 - Island residency lifecycle (live island-series plans share `IslandTerrainResidency.cpp` — co-schedule or refresh)
@@ -37,8 +35,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Simulation-adjace
 - `gBaseHeight` wrapper-in-sim tuning-desync exposure (established repo pattern; not filed)
 
 ## Notes
-- Invariant exposure: MODERATE — items touch sim-path files but are integer/plumbing/dead-code only; the pair-context and polygon-range changes must keep arithmetic byte-identical (`/fp:strict` paths). The workbuffer ASSERT is crash-class hardening, not a behavior change. Client/server both compile
-- Grill decision: workbuffer guard location — generic `Span<T>`/`PushBack` assert in Common (recommended) vs a site-local assert at `Collide`
+- Invariant exposure: MODERATE — items touch sim-path files but are integer/plumbing/dead-code only; the pair-context and polygon-range changes must keep arithmetic byte-identical (`/fp:strict` paths). Client/server both compile
 
 ## Verification Notes
-- Verified against source 2026-07-02. All headline claims held: `siResultEntryCount` is write-only (decl `Collision.h:107`, def `.cpp:71`, sole assignment `.cpp:366`); the `AStarPath` start→end LOS test (:505-508) re-runs the exact test its sole caller `NavQueryDirection` failed at :662 with identical (post-snap, :640-659) coordinates; `GetTimeMultiplier()` has zero call sites; `AnyEvictionPending` (:228-235) hand-mirrors `EvictTemplate` (:283-290) with a "Mirrors the EvictionSweep skip logic" comment; all four channel-CRC array builds confirmed (:196-202, :254-260, :295-301, :408-414). Workbuffer special check: no alignment guard exists and the cast is not aligned by construction — item stands. A stray-blank-line cosmetic fragment was dropped; polygon-range site count corrected ~8 → 11 (added `NavCellData.cpp:314-317`)
+- Verified against source 2026-07-02. All headline claims held: `siResultEntryCount` is write-only (decl `Collision.h:107`, def `.cpp:71`, sole assignment `.cpp:366`); the `AStarPath` start→end LOS test (:505-508) re-runs the exact test its sole caller `NavQueryDirection` failed at :662 with identical (post-snap, :640-659) coordinates; `GetTimeMultiplier()` has zero call sites; `AnyEvictionPending` (:228-235) hand-mirrors `EvictTemplate` (:283-290) with a "Mirrors the EvictionSweep skip logic" comment; all four channel-CRC array builds confirmed (:196-202, :254-260, :295-301, :408-414). A stray-blank-line cosmetic fragment was dropped; polygon-range site count corrected ~8 → 11 (added `NavCellData.cpp:314-317`)

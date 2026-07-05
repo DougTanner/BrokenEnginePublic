@@ -32,14 +32,13 @@ void PointLightsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer
 		return;
 	}
 
-	int64_t iFramebuffer = iCommandBuffer;
 	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout), iTotalCapacity, iCommandBuffer))
 	{
-		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineAxisAlignedLighting].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, pBuffer);
+		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineAxisAlignedLighting].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
 	}
 	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferVisibleLights, kName, sizeof(shaders::VisibleLightQuadLayout), iTotalCapacity, iCommandBuffer))
 	{
-		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
+		gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 2, pBuffer);
 	}
 }
 
@@ -94,7 +93,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		XMStoreFloat4A(&f4Position, ProjectToBaseHeight(vecPosition));
 
 		// Build AxisAlignedQuadLayout for lighting pass (uses base height projected position)
-		float fTextureIndex = static_cast<float>(gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc));
+		int64_t iTextureIndex = gpTextureManager->mTextureDescriptors.CrcToIndex(rType.crc);
 		float fBlurredTextureIndex = gpTextureManager->mTextureDescriptors.CrcToBlurredIndex(rType.crc);
 		XMFLOAT4A f4Params {};
 		f4Params.x = fBlurredTextureIndex;
@@ -146,7 +145,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 		rVisibleLayout.fIntensity = fVisibleIntensity;
 		rVisibleLayout.fRotation = fRotation;
-		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(fTextureIndex);
+		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(iTextureIndex);
 
 		++siRendered;
 	}

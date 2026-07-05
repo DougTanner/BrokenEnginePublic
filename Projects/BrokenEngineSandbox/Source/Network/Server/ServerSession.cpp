@@ -107,6 +107,14 @@ void ServerSession::WaitForTick(engine::TimeStep& rTimeStep)
 	ServerSessionBase::WaitForTick(rTimeStep, scaledTickNs);
 }
 
+// Clamp a wire-supplied navigation delay before it enters server-authoritative sim state.
+// Range [0.0f, 60.0f] matches the UI slider (HudScreen.cpp); NaN/Inf substitute the Fleet::fNavigationDelay default (60.0f)
+// so a hostile non-finite value can't freeze fleet navigation (every fFrameChangeTimer <= 0 comparison against NaN is false).
+static float ValidateNavigationDelay(float fDelay)
+{
+	return std::isfinite(fDelay) ? std::clamp(fDelay, 0.0f, 60.0f) : 60.0f;
+}
+
 void ServerSession::ParseReceivedGamePackets()
 {
 	for (const engine::ReceivedGamePacket& rPacket : engine::gpServer->DrainReceivedGamePackets())
@@ -126,7 +134,7 @@ void ServerSession::ParseReceivedGamePackets()
 				engine::global_id_t globalId {};
 				globalId.iValue = engine::ReadInt64(pCursor);
 				bool bUseMissiles = engine::ReadUint8(pCursor) != 0;
-				float fNavigationDelay = engine::ReadFloat(pCursor);
+				float fNavigationDelay = ValidateNavigationDelay(engine::ReadFloat(pCursor));
 				mpBroadcaster->QueueUpdatePlayerRequest({rPacket.iClientId, globalId, bUseMissiles, fNavigationDelay});
 				break;
 			}
@@ -180,7 +188,7 @@ void ServerSession::ParseReceivedGamePackets()
 				}
 				const uint8_t* pCursor = rPacket.payload.data();
 				int64_t iFleetIndex = engine::ReadInt64(pCursor);
-				float fDelay = engine::ReadFloat(pCursor);
+				float fDelay = ValidateNavigationDelay(engine::ReadFloat(pCursor));
 				const engine::ClientConnection* pClient = engine::gpServer->FindClient(rPacket.iClientId);
 				if (pClient != nullptr)
 				{
@@ -197,7 +205,14 @@ void ServerSession::ParseReceivedGamePackets()
 			case GamePacketType::kClientLoadRequest:
 			{
 				LOG(kDefault, kDebug, "ServerSession::kClientLoadRequest Client: {}", rPacket.iClientId);
-				gpGame->mGameSaveLoad.ServerLoad();
+				if (!gpGame->mGameSaveLoad.ServerLoad())
+				{
+					// Corrupt/truncated save: ReadGrid already left a clean-slate grid, but ServerLoad's success
+					// tail (client reset + active-set recompute) never ran. Fall back exactly like ServerReset
+					// (fresh frame + reset connected clients for load) rather than ticking a torn grid.
+					LOG(kDefault, kError, "ServerSession::kClientLoadRequest ServerLoad failed; resetting to fresh game");
+					gpGame->mGameSaveLoad.ServerReset();
+				}
 				break;
 			}
 			case GamePacketType::kClientResetRequest:
@@ -459,7 +474,7 @@ void ServerSession::HandleResyncRequests()
 			continue;
 		}
 
-		LOG(kNetwork, kError, "ServerSession::HandleResyncRequests Client: {}", iClientId);
+		LOG(kNetwork, kWarning, "ServerSession::HandleResyncRequests Client: {}", iClientId);
 
 		for (int64_t iSlot = 0; iSlot < std::ssize(pClient->coordSubscriptions); ++iSlot)
 		{

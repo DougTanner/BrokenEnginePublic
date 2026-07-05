@@ -14,8 +14,8 @@ const TweaksSliderMapRegistrar gShadowRegistrar
 {
 	// Quality / Perf
 	{"Resolution", &gShadowRenderMultiplier},
-	{"Texel Ramp Speed", &gShadowTexelRampMetersPerSec},
-	{"Temporal Blend", &gShadowTemporalBlend},
+	{"Shadow Texel Ramp Speed", &gShadowTexelRampMetersPerSec},
+	{"Shadow Temporal Blend", &gShadowTemporalBlend},
 	// Feather
 	{"Feather Noon", &gShadowFeatherNoon},
 	{"Feather Noon Offset", &gShadowFeatherNoonOffset},
@@ -35,7 +35,7 @@ const TweaksSliderMapRegistrar gShadowRegistrar
 	{"Sunset Stretch", &gObjectShadowsSunsetStretch},
 	{"Object Blur Sigma", &gObjectShadowsBlurSigma},
 	{"Object Blur Radius", &gObjectShadowsBlurRadius},
-	{"Grow", &gObjectShadowsGrow},
+	{"Object Shadow Grow", &gObjectShadowsGrow},
 	{"Smoke Shadow Intensity", &gSmokeShadowIntensity},
 };
 }
@@ -46,8 +46,8 @@ void TweaksScreenBase::RenderShadowSection()
 
 	WrapperSeparatorText("Quality / Perf");
 	WrapperSlider("Resolution", kiSection);
-	WrapperSlider("Texel Ramp Speed", kiSection);
-	WrapperSlider("Temporal Blend", kiSection);
+	WrapperSlider("Texel Ramp Speed", kiSection, 2.0f, "Shadow Texel Ramp Speed");
+	WrapperSlider("Temporal Blend", kiSection, 2.0f, "Shadow Temporal Blend");
 
 	WrapperSeparatorText("Feather");
 	WrapperSlider("Feather Noon", kiSection);
@@ -69,7 +69,7 @@ void TweaksScreenBase::RenderShadowSection()
 	WrapperSlider("Sunset Stretch", kiSection);
 	WrapperSlider("Object Blur Sigma", kiSection);
 	WrapperSlider("Object Blur Radius", kiSection);
-	WrapperSlider("Grow", kiSection);
+	WrapperSlider("Grow", kiSection, 2.0f, "Object Shadow Grow");
 	WrapperSlider("Smoke Shadow Intensity", kiSection);
 }
 

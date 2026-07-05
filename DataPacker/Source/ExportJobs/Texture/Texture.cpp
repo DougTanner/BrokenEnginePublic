@@ -139,7 +139,7 @@ void Texture::LoadExr(const std::filesystem::path& rPath)
 {
 	exr_context_initializer_t exrContextInitializer = EXR_DEFAULT_CONTEXT_INITIALIZER;
 	exr_context_t exrContext {};
-	exr_result_t exrResult = exr_start_read(&exrContext, rPath.string().c_str(), &exrContextInitializer);
+	exr_result_t exrResult = exr_start_read(&exrContext, reinterpret_cast<const char*>(rPath.u8string().c_str()), &exrContextInitializer);
 	ASSERT(exrResult == EXR_ERR_SUCCESS);
 	common::ScopedLambda releaseExrContext([=]()
 	{
@@ -609,6 +609,15 @@ std::vector<std::byte> Lz4Compress(const std::byte* puiSource, int64_t iSourceSi
 	ASSERT(iCompressedSize > 0);
 	compressed.resize(static_cast<size_t>(iCompressedSize));
 	return compressed;
+}
+
+gli::texture LoadGliFromPath(const std::filesystem::path& rPath)
+{
+	// Read via the wide-correct path stream (ReadEntireFile uses the std::filesystem::path ifstream ctor),
+	// then dispatch through gli's memory overload — the same code gli::load(path) runs after its own read,
+	// so the result is byte-identical while fixing gli's ANSI-only fopen_s path handling.
+	std::vector<std::byte> data = common::ReadEntireFile(rPath);
+	return gli::load(reinterpret_cast<const char*>(data.data()), data.size());
 }
 
 TextureIntermediateHeader ReadTextureIntermediateHeader(const std::byte* puiData, int64_t iDataSize)

@@ -145,7 +145,7 @@ void TextureCache::GeneratePbrLutBrdf()
 		};
 		mPbrLutBrdfTexture.Create(textureInfo);
 
-		if (TryLoadCachedTexture("BrdfLut.cache", mPbrLutBrdfTexture, vkFormat, iSize, iSize, 1, 1))
+		if (TryLoadCachedTexture("BrdfLut.cache", mPbrLutBrdfTexture))
 		{
 			return;
 		}
@@ -197,10 +197,10 @@ void TextureCache::GeneratePbrLutBrdf()
 	}
 
 	// Save generated texture to cache
-	SaveTextureToCache("BrdfLut.cache", mPbrLutBrdfTexture, vkFormat);
+	SaveTextureToCache("BrdfLut.cache", mPbrLutBrdfTexture);
 }
 
-bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers, common::crc_t sourceCrc)
+bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, common::crc_t sourceCrc)
 {
 	// Heap: the cached-payload vector below runs from GeneratePbrLutBrdf in the PipelineManager ctor, which also fires on pipeline-tier recreate (settings change / device loss) with the main-loop tracker armed. Mirrors SaveTextureToCache's CopyImageToHostMemory suppression.
 	ScopedSuppressAllocationTracking suppress;
@@ -220,7 +220,7 @@ bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath,
 	fileStream.read(reinterpret_cast<char*>(&header), sizeof(TextureFileCacheHeader));
 
 	// Validate header (including source CRC if provided)
-	if (!fileStream || header.iMagic != TextureFileCacheHeader::kiMagic || header.iVersion != TextureFileCacheHeader::kiVersion || header.vkFormat != vkFormat || header.iWidth != iWidth || header.iHeight != iHeight || header.iMipLevels != iMipLevels || header.iArrayLayers != iArrayLayers || (sourceCrc != 0 && header.sourceCrc != sourceCrc))
+	if (!fileStream || header.iMagic != TextureFileCacheHeader::kiMagic || header.iVersion != TextureFileCacheHeader::kiVersion || header.vkFormat != rTexture.mInfo.format || header.iWidth != rTexture.mInfo.extent.width || header.iHeight != rTexture.mInfo.extent.height || header.iMipLevels != rTexture.mInfo.mipLevels || header.iArrayLayers != rTexture.mInfo.arrayLayers || (sourceCrc != 0 && header.sourceCrc != sourceCrc))
 	{
 		fileStream.close();
 		LOG(kGraphics, kWarning, "Invalid cache file {} (header validation failed), regenerating", rCachePath.string());
@@ -228,7 +228,7 @@ bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath,
 	}
 
 	// The on-disk iDataSize is opaque (cache file is a trust boundary); validate it against the size computed from the already-validated dims/format before trusting it. A too-small value would overread in the upload memcpy below; a negative value would blow up the std::vector ctor.
-	const int64_t iExpectedDataSize = common::ComputeImageByteSize(vkFormat, iWidth, iHeight, iMipLevels, iArrayLayers, 1);
+	const int64_t iExpectedDataSize = common::ComputeImageByteSize(rTexture.mInfo.format, rTexture.mInfo.extent.width, rTexture.mInfo.extent.height, rTexture.mInfo.mipLevels, rTexture.mInfo.arrayLayers, 1);
 	if (header.iDataSize != iExpectedDataSize)
 	{
 		fileStream.close();
@@ -257,13 +257,13 @@ bool TextureCache::TryLoadCachedTexture(const std::filesystem::path& rCachePath,
 	return true;
 }
 
-void TextureCache::SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, VkFormat vkFormat, common::crc_t sourceCrc)
+void TextureCache::SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, common::crc_t sourceCrc)
 {
 	// Prepare header
 	TextureFileCacheHeader header {};
 	header.iMagic = TextureFileCacheHeader::kiMagic;
 	header.iVersion = TextureFileCacheHeader::kiVersion;
-	header.vkFormat = vkFormat;
+	header.vkFormat = rTexture.mInfo.format;
 	header.iWidth = rTexture.mInfo.extent.width;
 	header.iHeight = rTexture.mInfo.extent.height;
 	header.iMipLevels = rTexture.mInfo.mipLevels;
@@ -272,7 +272,7 @@ void TextureCache::SaveTextureToCache(const std::filesystem::path& rCachePath, c
 
 	// Read texture data from GPU
 	std::vector<std::byte> data;
-	CopyImageToHostMemory(rTexture.mVkImage, rTexture.mInfo.extent, vkFormat, rTexture.mInfo.mipLevels, rTexture.mInfo.arrayLayers, false, data);
+	CopyImageToHostMemory(rTexture.mVkImage, rTexture.mInfo.extent, rTexture.mInfo.format, rTexture.mInfo.mipLevels, rTexture.mInfo.arrayLayers, false, data);
 
 	header.iDataSize = static_cast<int64_t>(data.size());
 

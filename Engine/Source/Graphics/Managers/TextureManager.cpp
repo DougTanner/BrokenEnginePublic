@@ -227,10 +227,7 @@ TextureManager::TextureManager()
 	// kPipelineTerrain). Without this, every island
 	// would silently stay on the placeholder set up by the fan-out loop below — see
 	// Graphics/DynamicIslandLoadingFollowups.md Follow-up 1.
-	if (gpIslandTerrain != nullptr)
-	{
-		gpIslandTerrain->ResetTextureSlots();
-	}
+	gpIslandTerrain->ResetTextureSlots();
 
 	// Island textures load dynamically per ClientDataReceiver::ApplyReceivedStaticData. Slot 0 is
 	// a permanent neutral placeholder; higher slots alias slot 0 until AcquireTextureSlot binds a
@@ -429,9 +426,6 @@ void TextureManager::CreateSamplers()
 	// so this stays LINEAR unconditionally — no device-support downgrade, unlike the R32_SFLOAT smoke sampler.
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotElevation]));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotElevation], "Elevation");
-	// Restore filters for subsequent Border/Repeat/MirroredRepeat samplers (they serve spec-mandated formats).
-	vkSamplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-	vkSamplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
@@ -546,6 +540,22 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 		else if (eState == ChunkState::kDiskLoaded)
 		{
 			// Fallback: upload thread didn't GPU upload (same queue family)
+
+			// Trust boundary: the fallback copy loop below sizes its memcpy off rLazyChunk.pData using the on-disk
+			// TextureHeader dims stored in rTexture.mInfo. The upload thread bounds those via ValidateTextureDimensions
+			// before uploading, but the same-queue-family / no-transfer-pool early-out (HandleUploadEarlyOut) reaches
+			// kDiskLoaded unvalidated, so bound here too. Mirror the upload thread's iDataSize check; on violation
+			// soft-fail the chunk to kReady (leaving the borrowed white placeholder) rather than read off pData.
+			int64_t iExpectedBytes = common::ComputeImageByteSize(rTexture.mInfo.format, rTexture.mInfo.extent.width, rTexture.mInfo.extent.height, rTexture.mInfo.mipLevels, rTexture.mInfo.arrayLayers, rTexture.mInfo.extent.depth);
+			if (iExpectedBytes <= 0 || iExpectedBytes > rLazyChunk.iDataSize)
+			{
+				LOG(kLoading, kError, "Corrupt texture chunk {}: expected {} bytes exceeds chunk data {}; marking ready without adopt", rCrc, iExpectedBytes, rLazyChunk.iDataSize);
+				DEBUG_BREAK();
+				rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+				gpTextureUploadManager->NotifyChunkAdopted(); // adoptable -> kReady: disarm the pending-adoption counter armed when the chunk reached kDiskLoaded
+				continue;
+			}
+
 			rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
 			{
 				std::memcpy(pData, &rLazyChunk.pData[iPosition], iSize);
@@ -579,7 +589,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 	// "plain member published across a PersistentWorker Wake/Wait edge" family as CommandBuffers.h (mFlags/mVkFence).
 	if (bRecordedBarriers)
 	{
-		vkEndCommandBuffer(vkAcquireCommandBuffer);
+		CHECK_VK(vkEndCommandBuffer(vkAcquireCommandBuffer));
 		mbHasPendingAcquireBarriers = true;
 	}
 }
@@ -592,10 +602,9 @@ void TextureManager::AdoptUploadedChunk(common::crc_t crc, Texture& rTexture, bo
 	rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
 
 	bool bIsLightingTexture = mLightingTextureCrcs.contains(crc);
-	bool bNeedsAcquire = bNeedAcquireBarrier;
 
 	// Lighting textures handle their own acquire barrier inside BlurLightingTexture's OneShotCommandBuffer
-	if (bNeedsAcquire && !bIsLightingTexture)
+	if (bNeedAcquireBarrier && !bIsLightingTexture)
 	{
 		EnsureAcquireCommandBufferBegun(vkAcquireCommandBuffer, brRecordedBarriers);
 		rTexture.RecordAcquireBarrier(vkAcquireCommandBuffer);
@@ -614,7 +623,7 @@ void TextureManager::AdoptUploadedChunk(common::crc_t crc, Texture& rTexture, bo
 
 	if (bIsLightingTexture)
 	{
-		BlurLightingTexture(crc, bNeedsAcquire);
+		BlurLightingTexture(crc, bNeedAcquireBarrier);
 	}
 }
 
@@ -632,7 +641,7 @@ void TextureManager::EnsureAcquireCommandBufferBegun(VkCommandBuffer vkAcquireCo
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 		.pInheritanceInfo = nullptr,
 	};
-	vkBeginCommandBuffer(vkAcquireCommandBuffer, &vkCommandBufferBeginInfo);
+	CHECK_VK(vkBeginCommandBuffer(vkAcquireCommandBuffer, &vkCommandBufferBeginInfo));
 	brRecordedBarriers = true;
 }
 
@@ -740,12 +749,8 @@ void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBar
 	uint32_t uiWidth = rSource.mInfo.extent.width * 2;
 	uint32_t uiHeight = rSource.mInfo.extent.height * 2;
 
-	// Create or recreate intermediate texture
-	auto [itIntermediate, bInsertedIntermediate] = mBlurIntermediateTextures.try_emplace(crc);
-	if (!bInsertedIntermediate)
-	{
-		itIntermediate->second.Destroy();
-	}
+	// Create or recreate intermediate texture (Texture::Create self-destroys any prior image)
+	auto itIntermediate = mBlurIntermediateTextures.try_emplace(crc).first;
 	itIntermediate->second.Create(
 	{
 		.textureFlags = {},
@@ -762,12 +767,8 @@ void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBar
 		.eTextureLayout = kComputeReadWrite,
 	});
 
-	// Create or recreate result texture
-	auto [itResult, bInsertedResult] = mBlurredLightingTextures.try_emplace(crc);
-	if (!bInsertedResult)
-	{
-		itResult->second.Destroy();
-	}
+	// Create or recreate result texture (Texture::Create self-destroys any prior image)
+	auto itResult = mBlurredLightingTextures.try_emplace(crc).first;
 	itResult->second.Create(
 	{
 		.textureFlags = {},

@@ -35,7 +35,15 @@ void IslandTerrain::CreateClientMeshBuffers()
 		int64_t iMeshBytes = iMeshPositionBytes + iMeshIndexBytes;
 		if (rTemplate.mbMeshCpuDecommitted)
 		{
-			gpFileManager->RecommitAndReloadChunkRange(rCrc, static_cast<uint64_t>(iHeightmapBytes), static_cast<uint64_t>(iMeshBytes));
+			if (!gpFileManager->RecommitAndReloadChunkRange(rCrc, static_cast<uint64_t>(iHeightmapBytes), static_cast<uint64_t>(iMeshBytes)))
+			{
+				// Recommit soft-failed (MEM_COMMIT / pack-open / short read): the mesh CPU slice was NOT reloaded, so the
+				// Buffer::Create memcpy below would read decommitted/partial pages and fault far from the true cause. Fail
+				// loud here at the real cause site instead.
+				ScopedSuppressAllocationTracking suppress; // Heap: std::format builds the throw message on the allocation-tracked device-loss recovery path
+				LOG(kGraphics, kError, "Island mesh CPU recommit failed for chunk {} on device-loss recovery", rCrc);
+				throw std::runtime_error(std::format("Island mesh CPU recommit failed for chunk {}", rCrc));
+			}
 		}
 
 		rTemplate.mMeshBuffer.Create(

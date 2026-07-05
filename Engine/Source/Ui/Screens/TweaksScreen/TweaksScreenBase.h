@@ -40,7 +40,7 @@ enum class TweakSectionFlags : uint32_t
 	kWind      = 1u << 10,
 	kParticles = 1u << 11,
 };
-static_assert(static_cast<int>(TweakSection::kCount) <= 32, "TweakSectionFlags backing is uint32_t");
+static_assert(static_cast<int>(TweakSection::kCount) < 32, "TweakSectionFlags backing is uint32_t");
 
 // Section index (0..kCount) -> its single TweakSectionFlags bit.
 inline TweakSectionFlags SectionFlag(int64_t iSection)

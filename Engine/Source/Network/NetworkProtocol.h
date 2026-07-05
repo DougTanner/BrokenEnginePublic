@@ -80,6 +80,11 @@ inline constexpr int64_t kiJitterSafetyUs = 125'000;
 inline constexpr int64_t kiSimCeilingSlackTicks = 3;
 inline constexpr int64_t kiMaxPacketSize = 64 * 1024;
 inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
+// Hard ceiling on a decompressed full-frame payload. Trust boundary: the wire-controlled uncompressed-size prefix in
+// kServerCoordFullState / kServerDebugFrame drives the decompress-buffer allocation, so a hostile prefix is clamped to
+// a bounded alloc before the std::string reserve (the frame reader validates element counts further). No legit
+// single-cell frame approaches 64 MiB.
+inline constexpr int64_t kiMaxUncompressedFrameBytes = 64 * 1024 * 1024;
 
 // LAN discovery constants
 inline constexpr uint16_t kuiDiscoveryPort = kuiDefaultPort + 1;

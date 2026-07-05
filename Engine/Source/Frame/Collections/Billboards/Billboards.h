@@ -42,7 +42,7 @@ struct BillboardsInterpolate : public Collection<BillboardsInterpolate, Collecti
 	{
 		XMVECTOR vecPosition;
 		uint8_t uiTypeIndex;
-		uint8_t uiFlags;
+		BillboardFlags_t flags;
 		float fRotation;
 		float fExtra;
 	};
@@ -54,11 +54,11 @@ struct BillboardsInterpolate : public Collection<BillboardsInterpolate, Collecti
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
-	uint8_t* __restrict puiFlags = nullptr;
+	BillboardFlags_t* __restrict pFlags = nullptr;
 	float* __restrict pfRotations = nullptr;
 	float* __restrict pfExtra = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.puiFlags, rSelf.pfRotations, rSelf.pfExtra, rSelf.pVecPositions); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pFlags, rSelf.pfRotations, rSelf.pfExtra, rSelf.pVecPositions); }
 
 	// Graphics resources
 	static void GraphicsResources();
