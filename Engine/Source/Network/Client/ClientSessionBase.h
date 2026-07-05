@@ -14,7 +14,6 @@ enum class SessionStateFlags : uint8_t
 {
 	kServerDiscovered      = 1 << 0,
 	kDiscoveryScanTimedOut = 1 << 1,
-	kClockErrorDisconnect  = 1 << 2,
 	kNoFreeSlotLogged      = 1 << 3,
 };
 
@@ -61,7 +60,6 @@ public:
 	int64_t miCurrentTargetBehind = 0;
 	int64_t miLastLoggedClockTargetBehind = -1;
 	int64_t miLastPeriodicClockLogTick = -1;
-	int64_t miConsecutiveClockErrorFrames = 0;
 	int64_t miLastClockErrorLogTick = -1;
 	int64_t miCoordSlots = 0;
 	std::vector<GridCoord> mSubscriptionQueue;

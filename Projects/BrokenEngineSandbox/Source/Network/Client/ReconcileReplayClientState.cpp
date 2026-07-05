@@ -10,7 +10,7 @@ namespace game
 
 #if defined(BT_CLIENT)
 
-static std::optional<engine::global_id_t> FindMatchingPlayerInCoord(std::span<const CoordWork> works, engine::GridCoord destination, engine::global_id_t globalPlayerId)
+static bool FindMatchingPlayerInCoord(std::span<const CoordWork> works, engine::GridCoord destination, engine::global_id_t globalPlayerId)
 {
 	for (const CoordWork& rDestWork : works)
 	{
@@ -45,55 +45,18 @@ static std::optional<engine::global_id_t> FindMatchingPlayerInCoord(std::span<co
 			if (rDestFrame.postRender.pPlayers->pGlobalPlayerIds[j] == globalPlayerId)
 			{
 				LOG(kNetwork, kVerbose, "ReconcileUpdateClientState Transfer matched GlobalPlayerId: {} Coord: ({},{})", globalPlayerId, destination.x, destination.y);
-				return globalPlayerId;
+				return true;
 			}
 		}
 		LOG(kNetwork, kVerbose, "ReconcileUpdateClientState Transfer global ID match failed Coord: ({},{}) PlayerCount: {}", destination.x, destination.y, rDestFrame.postRender.pPlayers->iCount);
 		break;
 	}
-	return std::nullopt;
+	return false;
 }
 
-void ReconcileUpdateClientState(std::span<const CoordWork> works, const ReconcileInputs& rInputs, bool bAnyFullReplay, ConfirmedClientState& rInOutState)
+void ReconcileUpdateClientState(std::span<const CoordWork> works, bool bAnyFullReplay, ConfirmedClientState& rInOutState)
 {
 	ConfirmedClientState clientState = rInOutState;
-
-	// Advance fCurrentTime based on client coord's reconciliation result
-	for (const CoordWork& rWork : works)
-	{
-		if (rWork.coord != clientState.clientGridCoord)
-		{
-			continue;
-		}
-
-		const engine::CoordFrames& rFrames = *rWork.pFrames;
-		const CoordScratch& rScratch = rWork.scratch;
-
-		if (!(rScratch.flags & ReconcileScratchFlags::kCrcFastPath) && rScratch.iReplayStackCount > 0)
-		{
-			// Client coord did full replay: use replay tip's fCurrentTime
-			clientState.fCurrentTime = rScratch.replayStack[rScratch.iReplayStackCount - 1]->interpolate.fCurrentTime;
-		}
-		else
-		{
-			// Client coord fast-pathed: read time from confirmed snapshot.
-			// iNewConfirmedOffset is the new HEAD; iNewConfirmedInnerOffset is the delta to confirmed.
-			int64_t iPhysical = (rScratch.iNewConfirmedOffset >= 0)
-				? SnapshotIndex(rScratch.iNewConfirmedOffset, rScratch.iNewConfirmedInnerOffset)
-				: SnapshotIndex(rFrames.iSnapshotHead, rFrames.iConfirmedOffset);
-			if (rFrames.snapshots[iPhysical] != nullptr)
-			{
-				clientState.fCurrentTime = rFrames.snapshots[iPhysical]->interpolate.fCurrentTime;
-				// Advance to target tick so fCurrentTime matches iTickCounter when SetCurrentTime is called
-				int64_t iConfirmedTick = (rScratch.iNewConfirmedTick >= 0) ? rScratch.iNewConfirmedTick : rFrames.iConfirmedTick;
-				for (int64_t i = iConfirmedTick; i < rInputs.iTargetTick; ++i)
-				{
-					clientState.fCurrentTime += kfDeltaTime;
-				}
-			}
-		}
-		break;
-	}
 
 	if (bAnyFullReplay)
 	{
@@ -137,14 +100,9 @@ void ReconcileUpdateClientState(std::span<const CoordWork> works, const Reconcil
 					}
 					engine::GridCoord destination {rWork.coord.x + rRequest.iDeltaX, rWork.coord.y + rRequest.iDeltaY};
 					LOG(kNetwork, kVerbose, "ReconcileUpdateClientState TransferPlayer GlobalPlayerId: {} Source: ({},{}) Dest: ({},{})", clientState.clientGlobalPlayerId, rWork.coord.x, rWork.coord.y, destination.x, destination.y);
-					clientState.clientGridCoord = destination;
 					clientState.fPreviousClientArmor = rRequest.data.fHealth;
 
-					std::optional<engine::global_id_t> matchedId = FindMatchingPlayerInCoord(works, destination, clientState.clientGlobalPlayerId);
-					if (matchedId.has_value())
-					{
-						clientState.clientGlobalPlayerId = *matchedId;
-					}
+					FindMatchingPlayerInCoord(works, destination, clientState.clientGlobalPlayerId);
 				}
 			}
 		}

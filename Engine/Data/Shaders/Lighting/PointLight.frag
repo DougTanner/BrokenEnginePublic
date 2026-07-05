@@ -22,11 +22,6 @@ layout (scalar, set = 1, binding = 1) buffer readonly quadsUniform
 	AxisAlignedQuadLayout pQuads[];
 };
 
-layout (scalar, set = 1, binding = 2) buffer lightOccupancyBuffer
-{
-	uint occupancy[];
-};
-
 layout (set = 0, binding = kiGlobalBindingSamplerClamp) uniform sampler texturesSampler;
 layout (set = 0, binding = kiGlobalBindingBindlessTextures) uniform texture2D pTextures[];
 
@@ -92,10 +87,4 @@ void main()
 	f4OutColorRed = f4Base * (f4Color.r * f4Texture.r);
 	f4OutColorGreen = f4Base * (f4Color.g * f4Texture.g);
 	f4OutColorBlue = f4Base * (f4Color.b * f4Texture.b);
-
-	// Mark occupancy (deposit-texture-space tiles)
-	uint uiTileX = uint(gl_FragCoord.x) / uint(kiComputeTileSize);
-	uint uiTileY = uint(gl_FragCoord.y) / uint(kiComputeTileSize);
-	uint uiTileIndex = uiTileY * globalLayout.uiLightTilesX + uiTileX;
-	atomicOr(occupancy[uiTileIndex >> 5], 1u << (uiTileIndex & 31));
 }

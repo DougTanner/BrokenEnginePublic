@@ -15,7 +15,6 @@ struct ConfirmedClientState
 	engine::GridCoord clientGridCoord {};
 	engine::global_id_t clientGlobalPlayerId {};
 	float fPreviousClientArmor = 0.0f;
-	float fCurrentTime = 0.0f;
 };
 
 struct ReconcileProfiling
@@ -29,12 +28,7 @@ struct ReconcileProfiling
 
 struct ReconcileInputs
 {
-	ConfirmedClientState confirmedClientState;
-	uint16_t uiNextFrameId = 0;
 	int64_t iTargetTick = 0;
-	int64_t iJitterUs = 0;
-	engine::alignment_t playerAlignment {};
-	engine::Alignments alignments;
 };
 
 enum class ReconcileScratchFlags : uint8_t
@@ -114,21 +108,11 @@ public:
 
 	ReconcileDesyncInfo Run();
 	void Reset();
-	uint64_t NextGeneration() { return muiNextGeneration++; }
-
-	void InitConfirmedClientState(const ConfirmedClientState& rState)
-	{
-		if (mConfirmedClientState.fCurrentTime == 0.0f)
-		{
-			mConfirmedClientState.fCurrentTime = rState.fCurrentTime;
-		}
-	}
 
 private:
 
 	ConfirmedClientState mConfirmedClientState;
 	std::vector<CoordWork> mWorks;
-	uint64_t muiNextGeneration = 1;
 	float mfLastLoggedVisualErrorDelta = 0.0f;
 	int64_t miLastVisualErrorLogTick = -1000;
 };

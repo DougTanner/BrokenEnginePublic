@@ -13,12 +13,6 @@ struct ClientSpawnInfo
 	int64_t iMemberIndex = -1;
 };
 
-struct PendingPlayerDestroy
-{
-	engine::GridCoord coord {};
-	player_t playerId {};
-};
-
 class ServerClientManager
 {
 public:
@@ -36,7 +30,6 @@ public:
 	std::unordered_set<int64_t> mDeadClientIds;
 	std::unordered_set<int64_t> mProcessedClientIds;
 	std::vector<player_t> mPreSpawnPlayerIds;
-	std::vector<PendingPlayerDestroy> mPendingPlayerDestroys;
 
 private:
 

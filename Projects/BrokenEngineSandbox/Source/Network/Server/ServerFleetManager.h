@@ -78,7 +78,7 @@ public:
 
 	void DetectDisconnectedPlayerDeaths();
 
-	// Destructive wipe of all fleet state (mFleets, mPlayerToGuid, mGuidToClientId, pending requests).
+	// Destructive wipe of all fleet state (mFleets, mGuidToClientId, pending requests).
 	// Use ONLY for fresh-game flows (ServerReset, kResetFrame). Do NOT call from the load path —
 	// ReadFleetData is authoritative there; use ClearPendingRequests() instead.
 	void ResetState();
@@ -88,9 +88,6 @@ public:
 
 	// All fleets keyed by persistent ClientGuid (survives disconnect/reconnect)
 	std::unordered_map<engine::ClientGuid, std::vector<Fleet>, engine::ClientGuidHash> mFleets;
-
-	// Reverse lookup: find fleet owner for any player
-	std::unordered_map<engine::global_id_t, engine::ClientGuid, engine::GlobalIdHash> mPlayerToGuid;
 
 	// Connected client mapping: ClientGuid -> iClientId (0 = disconnected)
 	std::unordered_map<engine::ClientGuid, int64_t, engine::ClientGuidHash> mGuidToClientId;

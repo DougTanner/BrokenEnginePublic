@@ -287,8 +287,8 @@ void ServerFleetManager::OnPlayerSpawned(int64_t iClientId, const ClientSpawnInf
 	else
 	{
 		// New member — cap per-fleet member count so a spamming client can't grow members unboundedly.
-		// At cap, drop this spawn from the fleet roster entirely (return before flagship/mPlayerToGuid mutation)
-		// rather than skip only the push: a phantom member would corrupt flagship assignment and player-to-guid mapping.
+		// At cap, drop this spawn from the fleet roster entirely (return before flagship mutation)
+		// rather than skip only the push: a phantom member would corrupt flagship assignment.
 		if (rFleet.members.size() >= kiMaxFleetMembers)
 		{
 			LOG(kNetwork, kWarning, "ServerFleetManager::OnPlayerSpawned Client: {} Fleet: {} at member cap {}, ignoring spawn", iClientId, rSpawnInfo.iFleetIndex, kiMaxFleetMembers);
@@ -296,8 +296,6 @@ void ServerFleetManager::OnPlayerSpawned(int64_t iClientId, const ClientSpawnInf
 		}
 		rFleet.members.push_back(FleetMember {globalPlayerId, true, engine::kOriginCoord});
 	}
-
-	mPlayerToGuid.insert_or_assign(globalPlayerId, guid);
 
 	SendFleetSyncToClient(iClientId);
 
@@ -388,7 +386,7 @@ void ServerFleetManager::OnClientDisconnected(const engine::ClientGuid& rClientG
 
 void ServerFleetManager::OnResetForLoad(int64_t iClientId, const engine::ClientGuid& rClientGuid)
 {
-	// Heap: try_emplace owned-id, mPlayerToGuid rebuild, pending flagship updates after load
+	// Heap: try_emplace owned-id, pending flagship updates after load
 	ScopedSuppressAllocationTracking suppress;
 
 	const std::vector<engine::global_id_t>& rOwnedIds = gpServerSession->mClientOwnedPlayerIds.try_emplace(iClientId).first->second;
@@ -402,18 +400,6 @@ void ServerFleetManager::OnResetForLoad(int64_t iClientId, const engine::ClientG
 		for (int64_t iFleet = 0; iFleet < std::ssize(fleetIt->second); ++iFleet)
 		{
 			ResetFleetForLoad(fleetIt->second.at(static_cast<size_t>(iFleet)), rClientGuid, iFleet, rOwnedIds, pClient);
-		}
-
-		// Rebuild mPlayerToGuid for this fleet's members
-		for (const Fleet& rFleet : fleetIt->second)
-		{
-			for (const FleetMember& rMember : rFleet.members)
-			{
-				if (rMember.bAlive)
-				{
-					mPlayerToGuid.insert_or_assign(rMember.globalPlayerId, rClientGuid);
-				}
-			}
 		}
 	}
 	SendFleetSyncToClient(iClientId);
@@ -531,10 +517,10 @@ void ServerFleetManager::WriteFleetData(std::fstream& rFileStream) const
 
 void ServerFleetManager::ReadFleetData(std::fstream& rFileStream)
 {
-	// Heap: rebuild mFleets/mPlayerToGuid/mGuidToClientId from save stream
+	// Heap: rebuild mFleets/mGuidToClientId from save stream
 	ScopedSuppressAllocationTracking suppress;
 
-	::game::ReadFleetData(rFileStream, mFleets, mPlayerToGuid, mGuidToClientId, mRandomEngine);
+	::game::ReadFleetData(rFileStream, mFleets, mGuidToClientId, mRandomEngine);
 }
 
 void ServerFleetManager::UpdateFleetNavigationDelay(const engine::ClientGuid& rGuid, int64_t iFleetIndex, float fDelay)
@@ -564,7 +550,6 @@ void ServerFleetManager::ResetState()
 	mPendingSpawnIntoFleetRequests.clear();
 	mPendingRespawnInFleetRequests.clear();
 	mFleets.clear();
-	mPlayerToGuid.clear();
 	mGuidToClientId.clear();
 }
 

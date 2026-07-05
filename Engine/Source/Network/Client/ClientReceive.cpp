@@ -214,7 +214,6 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	ReceivedCoordFullState fullState {};
 	fullState.iTick = iTick;
 	fullState.coord = coord;
-	fullState.iSlot = uiSlotIndex;
 	fullState.pFrame = std::move(pFrame);
 
 	// Heap: received full states vector grows on new cell data
@@ -278,7 +277,6 @@ void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
 	std::istringstream staticStream(std::move(staticBytes), std::ios::binary);
 
 	ReceivedStaticData received {};
-	received.iSlot = uiSlotIndex;
 	received.coord = coord;
 	received.staticData.Read(staticStream, /*bIncludeNavData=*/true);
 
@@ -392,8 +390,6 @@ void Client::ServerDebugFrame(const uint8_t* pData, size_t iSize)
 	}
 
 	mpReceivedDebugFrame = std::make_unique<ReceivedDebugFrame>();
-	mpReceivedDebugFrame->iTick = iTick;
-	mpReceivedDebugFrame->coord = coord;
 	mpReceivedDebugFrame->pFrame = std::move(pFrame);
 }
 

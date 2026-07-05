@@ -57,7 +57,6 @@ private:
 	// ComputeActiveSet helpers
 	void AddSubscribedCoords();
 	void EnsurePlayerCoords();
-	void EnsureDestroyCoords();
 	void SyncActiveFrames();
 
 	// ResetClientsForLoad helpers

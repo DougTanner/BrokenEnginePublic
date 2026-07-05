@@ -49,21 +49,6 @@ void ServerBroadcaster::BuildFrameInputs()
 		LOG(kNetwork, kVerbose, "ServerBroadcaster::BuildFrameInputs::kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{}) Flagship: {}", rInfo.iClientId, iGlobalId, rInfo.spawnCoord.x, rInfo.spawnCoord.y, bIsFlagship);
 	}
 
-	// Add destroy StatusChanges for disconnected players
-	for (const PendingPlayerDestroy& rDestroy : gpServerSession->mpClientManager->mPendingPlayerDestroys)
-	{
-		auto frameInputIt = gpGame->mFrameInputs.find(rDestroy.coord);
-		if (frameInputIt == gpGame->mFrameInputs.end())
-		{
-			continue;
-		}
-
-		int64_t iPlayerUuid = rDestroy.playerId.ToUuid().Value();
-		StatusChange destroyChange {.eType = StatusChangeType::kDestroyPlayer, .data = DestroyPlayerData{.iPlayerUuid = iPlayerUuid}};
-		frameInputIt->second.statusChanges.push_back(destroyChange);
-	}
-	gpServerSession->mpClientManager->mPendingPlayerDestroys.clear();
-
 	// Inject weapon mode toggle StatusChanges
 	ProcessUpdatePlayerRequests();
 

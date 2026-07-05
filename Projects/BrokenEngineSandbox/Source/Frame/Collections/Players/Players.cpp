@@ -336,6 +336,11 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			PlayerFlags_t spawnFlags {PlayerFlags::kBlasterSpawnLeft};
 			engine::GridCoord spawnFleetWantedCoord {};
 			uint8_t spawnPendingFleetTicks = 0;
+			// kRespawnPlayer is reserved (no issuer repo-wide) — kept compilable, not wired up.
+			// TRAP: only kSpawnPlayer extracts SpawnPlayerData, so a respawn leaves globalPlayerId at 0.
+			// A wired-up respawn spawning with id 0 would be invisible to both global-id re-resolution scans
+			// (ServerBroadcaster + FleetNavigationController) — never receiving fleet updates or weapon
+			// toggles. Any future respawn must carry a real global id (or reuse kSpawnPlayer).
 			if (rStatusChange.eType == StatusChangeType::kSpawnPlayer)
 			{
 				const SpawnPlayerData& rSpawnData = std::get<SpawnPlayerData>(rStatusChange.data);

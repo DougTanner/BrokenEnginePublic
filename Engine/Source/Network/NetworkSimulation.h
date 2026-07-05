@@ -85,6 +85,7 @@ struct NetworkSimulationState
 	static constexpr uint32_t kuiSeed = 0x9E3779B9u; // Constant seed (was wall-clock) so sim runs reproduce.
 	uint32_t uiRandomState = kuiSeed;
 	int64_t iConsecutiveDrops[NetworkManager::kuiChannelCount] {};
+	std::chrono::steady_clock::time_point channelReleaseTimes[NetworkManager::kuiChannelCount] {};
 	int64_t iCoordDropCounts[NetworkManager::kiMaxEnetCoordSlots] {};
 	int64_t iControlDropCount = 0;
 };
@@ -131,11 +132,29 @@ inline DropResult ShouldDrop(NetworkSimulationState& rState, const NetworkSimula
 	return {bDrop, riDrops};
 }
 
-// Enqueue a received unreliable packet into the delay queue, or drop it.
-// Reliable packets are passed through immediately via handleReliable.
-template <typename FnHandleReliable>
-inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, NetworkSimulationState& rState, const NetworkSimulationConfig& rSimConfig, ENetEvent& rEvent, FnHandleReliable handleReliable)
+// Enqueue a received packet into the delay queue. Unreliable packets may be dropped per the sim config;
+// reliable packets are also enqueued (never dropped) in per-channel monotonic FIFO release order.
+inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, NetworkSimulationState& rState, const NetworkSimulationConfig& rSimConfig, ENetEvent& rEvent)
 {
+	// upper_bound (not lower_bound) inserts after equal-key elements, keeping same-channel FIFO stable
+	// when the reliable monotonic-release clamp produces identical release times.
+	auto enqueueDelayed = [&rDelayedPackets, &rEvent](std::chrono::steady_clock::time_point releaseTime)
+	{
+		ScopedSuppressAllocationTracking suppress;
+		// Heap: delay queue copies packet data for deferred processing
+		DelayedPacket delayed {};
+		delayed.releaseTime = releaseTime;
+		delayed.data.assign(rEvent.packet->data, rEvent.packet->data + rEvent.packet->dataLength);
+		delayed.pPeer = rEvent.peer;
+		delayed.uiChannelId = rEvent.channelID;
+		auto insertPos = std::upper_bound(rDelayedPackets.begin(), rDelayedPackets.end(), delayed, [](const DelayedPacket& rA, const DelayedPacket& rB)
+		{
+			return rA.releaseTime < rB.releaseTime;
+		});
+		rDelayedPackets.insert(insertPos, std::move(delayed));
+		enet_packet_destroy(rEvent.packet);
+	};
+
 	bool bUnreliable = NetworkManager::IsUnreliableChannel(rEvent.channelID);
 	if (bUnreliable)
 	{
@@ -162,22 +181,13 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, NetworkSim
 			enet_packet_destroy(rEvent.packet);
 			return;
 		}
-		ScopedSuppressAllocationTracking suppress;
-		// Heap: delay queue copies packet data for deferred processing
-		DelayedPacket delayed {};
-		delayed.releaseTime = std::chrono::steady_clock::now() + RandomOneWayDelay(rState, rSimConfig);
-		delayed.data.assign(rEvent.packet->data, rEvent.packet->data + rEvent.packet->dataLength);
-		delayed.pPeer = rEvent.peer;
-		delayed.uiChannelId = rEvent.channelID;
-		auto insertPos = std::lower_bound(rDelayedPackets.begin(), rDelayedPackets.end(), delayed,
-		[](const DelayedPacket& rA, const DelayedPacket& rB) { return rA.releaseTime < rB.releaseTime; });
-		rDelayedPackets.insert(insertPos, std::move(delayed));
-		enet_packet_destroy(rEvent.packet);
+		enqueueDelayed(std::chrono::steady_clock::now() + RandomOneWayDelay(rState, rSimConfig));
 	}
 	else
 	{
-		handleReliable(rEvent);
-		enet_packet_destroy(rEvent.packet);
+		std::chrono::steady_clock::time_point releaseTime = std::max(std::chrono::steady_clock::now() + RandomOneWayDelay(rState, rSimConfig), rState.channelReleaseTimes[rEvent.channelID]);
+		rState.channelReleaseTimes[rEvent.channelID] = releaseTime;
+		enqueueDelayed(releaseTime);
 	}
 }
 
@@ -192,7 +202,7 @@ inline void DispatchOrEnqueue(std::deque<DelayedPacket>& rDelayedPackets, Networ
 	}
 	else
 	{
-		EnqueueOrDrop(rDelayedPackets, rState, rSimConfig, rEvent, fnReceive);
+		EnqueueOrDrop(rDelayedPackets, rState, rSimConfig, rEvent);
 	}
 }
 

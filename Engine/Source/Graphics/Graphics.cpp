@@ -270,7 +270,7 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unord
 	gpSwapchainManager->Present(iCommandBuffer);
 
 	// Signal upload thread to process one upload iteration
-	gpTextureUploadManager->mFrameSignal.release();
+	gpTextureUploadManager->SignalFrame();
 
 	// Renders per second
 	mRendersInTheLastSecond.Set();

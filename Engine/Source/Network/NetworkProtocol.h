@@ -67,8 +67,7 @@ inline constexpr uint16_t kuiDefaultPort = 27015;
 inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiFloorStallLogThreshold = 15;
 inline constexpr int64_t kiMaxBufferedFrames = 256;
-inline constexpr int64_t kiClockErrorDisconnectThreshold = 64;
-inline constexpr int64_t kiClockErrorDisconnectConsecutiveFrames = 4;
+inline constexpr int64_t kiClockSnapThreshold = 28; // |clockError| >= this (ticks) hard-snaps miTickCounter to the servo target; see Network.md
 // Fixed jitter safety buffer added on top of measured jitter when computing miCurrentTargetBehind.
 // 125ms = 4 ticks at 32Hz; preserved in wall-clock terms if the tick rate ever changes.
 inline constexpr int64_t kiJitterSafetyUs = 125'000;

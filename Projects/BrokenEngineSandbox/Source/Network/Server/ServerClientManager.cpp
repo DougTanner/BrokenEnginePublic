@@ -353,7 +353,6 @@ void ServerClientManager::RefreshPreSpawnSnapshot()
 
 void ServerClientManager::ResetState()
 {
-	mPendingPlayerDestroys.clear();
 	mClientsWaitingForSpawn.clear();
 	mDeadClientIds.clear();
 	mProcessedClientIds.clear();

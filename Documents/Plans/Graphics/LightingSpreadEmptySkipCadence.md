@@ -8,7 +8,7 @@ Cost anatomy (why 841 µs despite tiny textures): the spread textures are small 
 
 **Relationship to `Graphics/WindowedLightingShadowDispatch.md`** (live, overlapping): that plan windows the *footprint* — indirect compute dispatch for combine/temporal/shadow and a dynamic scissor for deposit/spread — removing the off-window passthrough work. For spread specifically the off-window fragments are already a cheap 3-fetch passthrough via the in-shader early-out, so the scissor recovers only ~5–10% of the 841 µs; the in-window gather that dominates is untouched by windowing. This plan adds the orthogonal mechanism: **content gating** (don't run the gather at all when there is nothing to gather) and optionally **rate gating** (refresh at half rate). Both plans edit `CommandBufferRecordMain::RecordLightingSpreadPipeline` and `LightingUniforms.cpp` — **co-schedule in one session or land sequentially with citation refresh; never interleave**. The cadence item reuses the combine/temporal `vkCmdDispatchIndirect` conversion that plan introduces (whichever lands first implements it).
 
-Also live nearby: `Graphics/Architecture_LightingOccupancyRemoval.md` (deposit occupancy SSBO deletion — unaffected; the emptiness signal here is CPU-side instance counts, not the GPU occupancy bitmask) and `Graphics/Architecture_ShadowLightingUniformDedup.md` (extracts the temporal-area latch this plan's cadence item gates — resolve latch-gating placement together if co-scheduled).
+Also live nearby: `Graphics/Architecture_ShadowLightingUniformDedup.md` (extracts the temporal-area latch this plan's cadence item gates — resolve latch-gating placement together if co-scheduled).
 
 ## Design
 
@@ -51,7 +51,7 @@ Expected saving at cadence 2: ~**(841 + 24 + 18) / 2 ≈ 440 µs average** — a
 
 - Spread kernel quality/cost tuning — pass count, ring/direction counts, texture multipliers are already runtime sliders (`gSpreadPassCount`, `gSpreadRingCount*`, `gSpreadTextureMultiplier*`); no algorithmic kernel change (e.g. dual-Kawase pyramid replacement) — deliberately rejected as a redesign of an artistically tuned system.
 - Footprint windowing / scissor / min-texel offsets — `WindowedLightingShadowDispatch.md`.
-- The deposit pass itself (42 µs: clear + occupancy; occupancy deletion is `Architecture_LightingOccupancyRemoval.md`).
+- The deposit pass itself (the occupancy clear/atomics have already been removed; remaining deposit cost is unrelated to this plan).
 - Terrain shadow chain and object shadows.
 - Skipping the recorded render-pass begin/end + clears on empty frames (would need CB re-record — banned).
 

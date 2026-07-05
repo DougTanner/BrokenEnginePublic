@@ -74,10 +74,6 @@ void ClientDataReceiver::ApplyReceivedFullStates()
 				}
 			}
 		}
-		if (rSub.uiGeneration == 0)
-		{
-			rSub.uiGeneration = gpClientSession->mpReconciler->NextGeneration();
-		}
 
 		if (rSub.iConfirmedTick < 0)
 		{
@@ -110,13 +106,6 @@ void ClientDataReceiver::ApplyReceivedFullStates()
 				gpGame->SetCurrentTime(fFullStateTime - static_cast<float>(iAppliedBehind) * kfDeltaTime);
 				gpGame->ResetRenderClock();
 			}
-
-			ConfirmedClientState confirmedState;
-			confirmedState.clientGridCoord = gpGame->mClientGridCoord;
-			confirmedState.clientGlobalPlayerId = gpGame->ClientPlayerId();
-			confirmedState.fPreviousClientArmor = gpGame->PreviousClientArmor();
-			confirmedState.fCurrentTime = fFullStateTime;
-			gpClientSession->mpReconciler->InitConfirmedClientState(confirmedState);
 		}
 		else
 		{

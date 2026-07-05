@@ -210,8 +210,7 @@ void ClientSession::Reconcile()
 		}
 		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iCurrentTick);
 
-		static constexpr int64_t kiClockSnapThreshold = 28;
-		if (miLatestServerTick >= 0 && ((mSessionFlags & engine::SessionStateFlags::kClockErrorDisconnect) || std::abs(miClockError) >= kiClockSnapThreshold))
+		if (miLatestServerTick >= 0 && std::abs(miClockError) >= engine::kiClockSnapThreshold)
 		{
 			// Snap tick counter to recover from extreme clock error. Sim runs BEHIND latestServerTick.
 			// Clamp at 0 so a fresh post-load server (latestServerTick < currentTargetBehind)
@@ -221,10 +220,7 @@ void ClientSession::Reconcile()
 			gpGame->SetTickCounter(iSnapTick);
 			gpGame->mTimeStep.ClearAccumulator();
 			gpGame->ResetRenderClock();
-			mSessionFlags.Clear(engine::SessionStateFlags::kClockErrorDisconnect);
-			miConsecutiveClockErrorFrames = 0;
 			miClockError = 0;
-			miLatestServerTick = -1;
 		}
 		else
 		{
@@ -347,8 +343,6 @@ void ClientSession::ResetForServerLoad()
 	miLatestServerTick = -1;
 	miClockError = 0;
 	miCurrentTargetBehind = 0;
-	mSessionFlags.Clear(engine::SessionStateFlags::kClockErrorDisconnect);
-	miConsecutiveClockErrorFrames = 0;
 
 	// Clear player identity — server will reassign
 	gpGame->mClientPlayerIds.clear();

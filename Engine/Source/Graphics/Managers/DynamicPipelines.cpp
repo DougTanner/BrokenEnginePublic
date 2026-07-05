@@ -157,7 +157,6 @@ void DynamicPipelines::CreatePipelineLighting(common::crc_t crc, std::string_vie
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mLightOccupancyVkBuffers[0]},
 			{.flags = kSamplerRepeat},
 			{.flags = kTextures},
 		},
@@ -215,7 +214,6 @@ void DynamicPipelines::CreatePipelineAxisAlignedLighting(common::crc_t crc, std:
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = kStorageBuffer, .pVkBuffers = &gpBufferManager->mLightOccupancyVkBuffers[0]},
 			{.flags = kSamplerClamp},
 			{.flags = kTextures},
 		},

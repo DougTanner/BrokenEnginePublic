@@ -47,36 +47,6 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingDeposit);
 
-	// Clear occupancy buffer before deposit (deposit shaders write occupancy)
-	VkBufferMemoryBarrier vkOccupancyPreClearBarrier
-	{
-		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-		.pNext = nullptr,
-		.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-		.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.buffer = gpBufferManager->mLightOccupancyVkBuffers[0],
-		.offset = 0,
-		.size = VK_WHOLE_SIZE,
-	};
-	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &vkOccupancyPreClearBarrier, 0, nullptr);
-	vkCmdFillBuffer(vkCommandBuffer, gpBufferManager->mLightOccupancyVkBuffers[0], 0, gpBufferManager->mLightOccupancyBufferSizes[0], 0);
-
-	VkBufferMemoryBarrier vkOccupancyClearToFragmentBarrier
-	{
-		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-		.pNext = nullptr,
-		.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.buffer = gpBufferManager->mLightOccupancyVkBuffers[0],
-		.offset = 0,
-		.size = VK_WHOLE_SIZE,
-	};
-	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 1, &vkOccupancyClearToFragmentBarrier, 0, nullptr);
-
 	VkClearValue pClearValues[3] {};
 	VkRenderPassBeginInfo vkRenderPassBeginInfo
 	{
@@ -104,15 +74,15 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 	vkCmdEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingDeposit);
 
-	// Barrier: deposit MRT color attachment + occupancy writes → compute shader reads (spread)
+	// Barrier: deposit MRT color attachment → compute shader reads (spread)
 	VkMemoryBarrier vkDepositToComputeBarrier
 	{
 		.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
 		.pNext = nullptr,
-		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
 	};
-	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &vkDepositToComputeBarrier, 0, nullptr, 0, nullptr);
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &vkDepositToComputeBarrier, 0, nullptr, 0, nullptr);
 
 	RecordLightingSpreadPipeline(vkCommandBuffer, iCommandBuffer);
 

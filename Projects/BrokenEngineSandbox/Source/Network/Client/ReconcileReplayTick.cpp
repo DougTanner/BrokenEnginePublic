@@ -214,52 +214,13 @@ static bool ReconcileValidateCrcCoord(CoordWork& rWork, int64_t iTick, const eng
 	return true;
 }
 
-void ReconcileReplayCoord(CoordWork& rWork, const ReconcileInputs& rInputs, int64_t iReplayStart, int64_t iRollbackOffset, int64_t iMaxConsecutive, float& rfTime)
+void ReconcileReplayCoord(CoordWork& rWork, int64_t iReplayStart, int64_t iRollbackOffset, int64_t iMaxConsecutive, float& rfTime)
 {
 	engine::CoordFrames& rFrames = *rWork.pFrames;
 	CoordScratch& rScratch = rWork.scratch;
 
-	int64_t iAvailable = iMaxConsecutive - (iReplayStart - 1);
-	static constexpr int64_t kiLowJitterThresholdUs = 2000;
-	static constexpr int64_t kiHighJitterThresholdUs = 8000;
-	int64_t iJitterUs = rInputs.iJitterUs;
-	int64_t iMaxReplay = 0;
-	if (iJitterUs <= kiLowJitterThresholdUs)
-	{
-		iMaxReplay = iAvailable;
-	}
-	else if (iJitterUs >= kiHighJitterThresholdUs)
-	{
-		iMaxReplay = std::max<int64_t>(iAvailable / 4, 1);
-	}
-	else
-	{
-		iMaxReplay = std::max<int64_t>(iAvailable / 2, 1);
-	}
-	// Gap-aware override: when backlog is large, allow more replay to prevent cascading failure
-	int64_t iGap = rInputs.iTargetTick - rFrames.iConfirmedTick;
-	static constexpr int64_t kiGapOverrideThreshold = engine::kiNetworkBufferSize / 2;
-	if (iGap >= kiGapOverrideThreshold)
-	{
-		static constexpr int64_t kiRingBudget = engine::kiNetworkBufferSize * 3 / 4;
-		iMaxReplay = std::max(iMaxReplay, std::min(iAvailable, kiRingBudget));
-	}
-	bool bGapOverride = iGap >= kiGapOverrideThreshold;
-	if (std::abs(iMaxReplay - rFrames.iLastLoggedMaxReplay) > 1 || bGapOverride != rFrames.bLastLoggedGapOverride)
-	{
-		LOG(kNetwork, kVerbose, "ReconcileReplayCoord Throttle Coord: ({},{}) JitterUs: {} Available: {} MaxReplay: {} Gap: {} GapOverride: {}", rWork.coord.x, rWork.coord.y, iJitterUs, iAvailable, iMaxReplay, iGap, bGapOverride);
-		rFrames.iLastLoggedMaxReplay = iMaxReplay;
-		rFrames.bLastLoggedGapOverride = bGapOverride;
-	}
-	int64_t iReplayCount = 0;
-
 	for (int64_t iTick = iReplayStart; iTick <= iMaxConsecutive; ++iTick)
 	{
-		if (iReplayCount >= iMaxReplay)
-		{
-			break;
-		}
-
 		auto updateIt = rFrames.serverUpdates.find(iTick);
 		if (updateIt == rFrames.serverUpdates.end())
 		{
@@ -308,8 +269,6 @@ void ReconcileReplayCoord(CoordWork& rWork, const ReconcileInputs& rInputs, int6
 		{
 			++rScratch.profiling.iKnockOnReplayTicks;
 		}
-
-		++iReplayCount;
 	}
 
 	// Record physical ring index of new confirmed frame

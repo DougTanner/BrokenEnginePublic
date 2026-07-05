@@ -43,14 +43,9 @@ ReconcileDesyncInfo ClientReconciler::Run()
 	mConfirmedClientState.fPreviousClientArmor = gpGame->PreviousClientArmor();
 
 	ReconcileInputs inputs;
-	inputs.confirmedClientState = mConfirmedClientState;
-	inputs.uiNextFrameId = gpGame->NextFrameId();
 	inputs.iTargetTick = gpGame->TickCounter();
 	ASSERT(inputs.iTargetTick >= 0);
 	common::LogTickScope logTickScope(inputs.iTargetTick);
-	inputs.playerAlignment = gpGame->PlayerAlignment();
-	inputs.alignments = gpGame->Alignments();
-	inputs.iJitterUs = (gpClientSession->mpClientNetwork != nullptr) ? gpClientSession->mpClientNetwork->GetJitterUs() : 0;
 
 	// Populate per-coord works (only eligible coords — those with iConfirmedTick >= 0).
 	// Uses resize() + in-place assignment to retain CoordScratch::replayStack capacity
@@ -167,7 +162,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 
 	// Compute new confirmed client state (client coord time advance + transfer migration)
 	ConfirmedClientState newConfirmedClientState = mConfirmedClientState;
-	ReconcileUpdateClientState(activeWorks, inputs, bAnyFullReplay, newConfirmedClientState);
+	ReconcileUpdateClientState(activeWorks, bAnyFullReplay, newConfirmedClientState);
 
 	// Visual error offset: pre/post client position delta accumulated into gpGame
 	if (bCapturedPrePosition && bAnyFullReplay)
@@ -216,8 +211,6 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		LOG(kNetwork, kVerbose, "Replay burst ReSimTicks: {} StatusChange: {} KnockOn: {} Assumed: {} CrcValidated: {} Coords: {}", iReSimTicks, mergedProfiling.iStatusChangeReplayTicks, mergedProfiling.iKnockOnReplayTicks, mergedProfiling.iAssumedFrameTicks, mergedProfiling.iCrcValidatedFrameTicks, iActiveCount);
 	}
 
-	gpGame->SetNextFrameId(std::max(gpGame->NextFrameId(), inputs.uiNextFrameId));
-
 	if (bAnyFullReplay && engine::gpAudioManager != nullptr)
 	{
 		engine::gpAudioManager->SkipNextStaticVoiceInvalidation();
@@ -230,7 +223,6 @@ void ClientReconciler::Reset()
 {
 	mConfirmedClientState = {};
 	mWorks.clear();
-	muiNextGeneration = 1;
 	mfLastLoggedVisualErrorDelta = 0.0f;
 	miLastVisualErrorLogTick = -1000;
 }

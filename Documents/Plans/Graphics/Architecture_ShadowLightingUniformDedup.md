@@ -10,7 +10,7 @@ Source: /external-architecture-review on Engine/Source (recursive). The Render/ 
 
 ### Shared temporal-area latch
 - `GlobalUniforms.cpp:257-277` vs `LightingUniforms.cpp:48-68` (verbatim modulo Shadow/Lighting names), third partial variant `SmokeUniforms.cpp:59-65`. Extract a small `TemporalAreaLatch` struct (previous-area storage + reset-flag re-arm + blend-window logic), one instance per subsystem [~45m]
-- While consolidating, resolve the tile-count derivation divergence deliberately: `LightingUniforms.cpp:71-72` floors (with a `std::max(1u, ...)` floor-of-1) while `SmokeUniforms.cpp:37-38` / `WindUniforms.cpp:54-55` ceil — document or unify. Note the lighting floor is internally consistent with the occupancy-buffer sizing floor (`BufferManager.cpp:660-661`), and `uiLightTilesX/Y` also feed `LightingDepositEdgeFade` (`ShaderFunctions.h:257`), so a switch to ceil slightly shifts the edge-fade denominator; `Architecture_LightingOccupancyRemoval.md` keeps these uniforms (edge-fade readers) but may delete the occupancy buffer they were sized against — resolve the two plans' floor/ceil answer together [~15m]
+- While consolidating, resolve the tile-count derivation divergence deliberately: `LightingUniforms.cpp:71-72` floors (with a `std::max(1u, ...)` floor-of-1) while `SmokeUniforms.cpp:37-38` / `WindUniforms.cpp:54-55` ceil — document or unify. The lighting occupancy SSBO the floor was originally sized against has been deleted (dead write-only buffer, removed); `uiLightTilesX/Y` now only feed `LightingDepositEdgeFade` (`ShaderFunctions.h:257`), so floor-vs-ceil is purely an edge-fade-denominator choice with no buffer-sizing constraint [~15m]
 
 ## Critical files
 - `Engine/Source/Graphics/Render/GlobalUniforms.cpp`, `LightingUniforms.cpp`, `SmokeUniforms.cpp`
@@ -18,7 +18,6 @@ Source: /external-architecture-review on Engine/Source (recursive). The Render/ 
 
 ## Out of scope
 - GPU dispatch windowing (`Graphics/WindowedLightingShadowDispatch.md` — adjacent but distinct: that plan gates dispatch, this one dedups CPU population math)
-- The occupancy-grid decision (`Graphics/Architecture_LightingOccupancyRemoval.md`)
 - The Gerstner bank recompute and other per-file quick wins (`Graphics/Refactor_RenderUniformsQuickWins.md`)
 
 ## Notes

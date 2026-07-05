@@ -78,8 +78,6 @@ struct CoordFrames
 	std::optional<PendingFullState> pendingFullState;
 	int64_t iLastFullStateTick = -1;
 
-	uint64_t uiGeneration = 0;
-
 	// Log deduplication: suppress repeated mismatch logging when reconcile is stuck on same desync
 	int64_t iLastLoggedConfirmedTick = -1;
 	int64_t iLastLoggedFirstMismatch = -1;
@@ -97,10 +95,6 @@ struct CoordFrames
 	int64_t iLastReplayConfirmedTick = -1;
 	int64_t iLastReplayServerUpdateCount = -1;
 
-	// Delta-only throttle logging: only log when the computed max replay changes
-	int64_t iLastLoggedMaxReplay = -1;
-	bool bLastLoggedGapOverride = false;
-
 	void ResetClientState()
 	{
 		iConfirmedTick = -1;
@@ -113,7 +107,6 @@ struct CoordFrames
 		serverUpdates.clear();
 		pendingFullState.reset();
 		iLastFullStateTick = -1;
-		uiGeneration = 0;
 		iLastLoggedConfirmedTick = -1;
 		iLastLoggedFirstMismatch = -1;
 		iStuckFrameCount = 0;
@@ -121,8 +114,6 @@ struct CoordFrames
 		iLastSpawnTransferLogTick = -1;
 		iLastReplayConfirmedTick = -1;
 		iLastReplayServerUpdateCount = -1;
-		iLastLoggedMaxReplay = -1;
-		bLastLoggedGapOverride = false;
 	}
 #endif // BT_CLIENT
 };

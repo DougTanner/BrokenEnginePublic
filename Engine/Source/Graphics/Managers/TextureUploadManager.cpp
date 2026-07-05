@@ -193,6 +193,15 @@ void TextureUploadManager::WaitIdle()
 	mbDrainRequested = false;
 }
 
+void TextureUploadManager::SignalFrame()
+{
+	// Drain then release so the binary_semaphore (max 1) can't over-release when the upload thread is a frame
+	//   behind (mid-iteration, e.g. SubmitChunkUpload's vkWaitForFences). The dropped wake re-posts next frame --
+	//   no work lost. Same drain-then-release idiom as WaitIdle / DestroyTransferResources / WaitForTextures.
+	std::ignore = mFrameSignal.try_acquire();
+	mFrameSignal.release();
+}
+
 void TextureUploadManager::UploadThread()
 {
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);

@@ -31,14 +31,12 @@ struct ReceivedCoordFullState
 {
 	int64_t iTick = 0;
 	GridCoord coord {};
-	int64_t iSlot = -1;
 	std::unique_ptr<game::Frame> pFrame;
 };
 
 // Per-coord received static data (sent once per subscription)
 struct ReceivedStaticData
 {
-	int64_t iSlot = -1;
 	GridCoord coord {};
 	FrameStaticData staticData;
 };
@@ -61,8 +59,6 @@ struct ClientCoordSlot
 
 struct ReceivedDebugFrame
 {
-	int64_t iTick = 0;
-	GridCoord coord {};
 	std::unique_ptr<game::Frame> pFrame;
 };
 

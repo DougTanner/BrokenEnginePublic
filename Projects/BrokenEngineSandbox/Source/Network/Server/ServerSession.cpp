@@ -121,153 +121,164 @@ void ServerSession::ParseReceivedGamePackets()
 	{
 		GamePacketType eType = static_cast<GamePacketType>(rPacket.uiPacketType);
 
-		switch (eType)
+		try
 		{
-			case GamePacketType::kClientUpdatePlayerRequest:
+			switch (eType)
 			{
-				// 8B global player ID + 1B bUseMissiles + 4B fNavigationDelay = 13 bytes (type byte already stripped)
-				if (rPacket.payload.size() < 13)
+				case GamePacketType::kClientUpdatePlayerRequest:
 				{
+					// 8B global player ID + 1B bUseMissiles + 4B fNavigationDelay = 13 bytes (type byte already stripped)
+					if (rPacket.payload.size() < 13)
+					{
+						break;
+					}
+					const uint8_t* pCursor = rPacket.payload.data();
+					engine::global_id_t globalId {};
+					globalId.iValue = engine::ReadInt64(pCursor);
+					bool bUseMissiles = engine::ReadUint8(pCursor) != 0;
+					float fNavigationDelay = ValidateNavigationDelay(engine::ReadFloat(pCursor));
+					mpBroadcaster->QueueUpdatePlayerRequest({rPacket.iClientId, globalId, bUseMissiles, fNavigationDelay});
 					break;
 				}
-				const uint8_t* pCursor = rPacket.payload.data();
-				engine::global_id_t globalId {};
-				globalId.iValue = engine::ReadInt64(pCursor);
-				bool bUseMissiles = engine::ReadUint8(pCursor) != 0;
-				float fNavigationDelay = ValidateNavigationDelay(engine::ReadFloat(pCursor));
-				mpBroadcaster->QueueUpdatePlayerRequest({rPacket.iClientId, globalId, bUseMissiles, fNavigationDelay});
-				break;
-			}
-			case GamePacketType::kClientCreateFleetRequest:
-			{
-				mpFleetManager->QueueCreateRequest({rPacket.iClientId});
-				break;
-			}
-			case GamePacketType::kClientDeleteFleetRequest:
-			{
-				if (rPacket.payload.size() < 8)
+				case GamePacketType::kClientCreateFleetRequest:
 				{
+					mpFleetManager->QueueCreateRequest({rPacket.iClientId});
 					break;
 				}
-				const uint8_t* pCursor = rPacket.payload.data();
-				int64_t iFleetIndex = engine::ReadInt64(pCursor);
-				mpFleetManager->QueueDeleteRequest({rPacket.iClientId, iFleetIndex});
-				break;
-			}
-			case GamePacketType::kClientSpawnIntoFleetRequest:
-			{
-				// 8B fleetIndex = 8 bytes (type byte already stripped)
-				if (rPacket.payload.size() < 8)
+				case GamePacketType::kClientDeleteFleetRequest:
 				{
+					if (rPacket.payload.size() < 8)
+					{
+						break;
+					}
+					const uint8_t* pCursor = rPacket.payload.data();
+					int64_t iFleetIndex = engine::ReadInt64(pCursor);
+					mpFleetManager->QueueDeleteRequest({rPacket.iClientId, iFleetIndex});
 					break;
 				}
-				const uint8_t* pCursor = rPacket.payload.data();
-				int64_t iFleetIndex = engine::ReadInt64(pCursor);
-				mpFleetManager->QueueSpawnIntoRequest({rPacket.iClientId, iFleetIndex});
-				break;
-			}
-			case GamePacketType::kClientRespawnInFleetRequest:
-			{
-				// 8B fleetIndex + 8B memberIndex = 16 bytes (type byte already stripped)
-				if (rPacket.payload.size() < 16)
+				case GamePacketType::kClientSpawnIntoFleetRequest:
 				{
+					// 8B fleetIndex = 8 bytes (type byte already stripped)
+					if (rPacket.payload.size() < 8)
+					{
+						break;
+					}
+					const uint8_t* pCursor = rPacket.payload.data();
+					int64_t iFleetIndex = engine::ReadInt64(pCursor);
+					mpFleetManager->QueueSpawnIntoRequest({rPacket.iClientId, iFleetIndex});
 					break;
 				}
-				const uint8_t* pCursor = rPacket.payload.data();
-				int64_t iFleetIndex = engine::ReadInt64(pCursor);
-				int64_t iMemberIndex = engine::ReadInt64(pCursor);
-				mpFleetManager->QueueRespawnRequest({rPacket.iClientId, iFleetIndex, iMemberIndex});
-				break;
-			}
-			case GamePacketType::kClientFleetNavigationDelay:
-			{
-				// 8B fleetIndex + 4B delay = 12 bytes (type byte already stripped)
-				if (rPacket.payload.size() < 12)
+				case GamePacketType::kClientRespawnInFleetRequest:
 				{
+					// 8B fleetIndex + 8B memberIndex = 16 bytes (type byte already stripped)
+					if (rPacket.payload.size() < 16)
+					{
+						break;
+					}
+					const uint8_t* pCursor = rPacket.payload.data();
+					int64_t iFleetIndex = engine::ReadInt64(pCursor);
+					int64_t iMemberIndex = engine::ReadInt64(pCursor);
+					mpFleetManager->QueueRespawnRequest({rPacket.iClientId, iFleetIndex, iMemberIndex});
 					break;
 				}
-				const uint8_t* pCursor = rPacket.payload.data();
-				int64_t iFleetIndex = engine::ReadInt64(pCursor);
-				float fDelay = ValidateNavigationDelay(engine::ReadFloat(pCursor));
-				const engine::ClientConnection* pClient = engine::gpServer->FindClient(rPacket.iClientId);
-				if (pClient != nullptr)
+				case GamePacketType::kClientFleetNavigationDelay:
 				{
-					mpFleetManager->UpdateFleetNavigationDelay(pClient->clientGuid, iFleetIndex, fDelay);
+					// 8B fleetIndex + 4B delay = 12 bytes (type byte already stripped)
+					if (rPacket.payload.size() < 12)
+					{
+						break;
+					}
+					const uint8_t* pCursor = rPacket.payload.data();
+					int64_t iFleetIndex = engine::ReadInt64(pCursor);
+					float fDelay = ValidateNavigationDelay(engine::ReadFloat(pCursor));
+					const engine::ClientConnection* pClient = engine::gpServer->FindClient(rPacket.iClientId);
+					if (pClient != nullptr)
+					{
+						mpFleetManager->UpdateFleetNavigationDelay(pClient->clientGuid, iFleetIndex, fDelay);
+					}
+					break;
 				}
-				break;
-			}
-			case GamePacketType::kClientSaveRequest:
-			{
-				LOG(kDefault, kDebug, "ServerSession::kClientSaveRequest Client: {}", rPacket.iClientId);
-				gpGame->mGameSaveLoad.ServerSave();
-				break;
-			}
-			case GamePacketType::kClientLoadRequest:
-			{
-				LOG(kDefault, kDebug, "ServerSession::kClientLoadRequest Client: {}", rPacket.iClientId);
-				if (!gpGame->mGameSaveLoad.ServerLoad())
+				case GamePacketType::kClientSaveRequest:
 				{
-					// Corrupt/truncated save: ReadGrid already left a clean-slate grid, but ServerLoad's success
-					// tail (client reset + active-set recompute) never ran. Fall back exactly like ServerReset
-					// (fresh frame + reset connected clients for load) rather than ticking a torn grid.
-					LOG(kDefault, kError, "ServerSession::kClientLoadRequest ServerLoad failed; resetting to fresh game");
+					LOG(kDefault, kDebug, "ServerSession::kClientSaveRequest Client: {}", rPacket.iClientId);
+					gpGame->mGameSaveLoad.ServerSave();
+					break;
+				}
+				case GamePacketType::kClientLoadRequest:
+				{
+					LOG(kDefault, kDebug, "ServerSession::kClientLoadRequest Client: {}", rPacket.iClientId);
+					if (!gpGame->mGameSaveLoad.ServerLoad())
+					{
+						// Corrupt/truncated save: ReadGrid already left a clean-slate grid, but ServerLoad's success
+						// tail (client reset + active-set recompute) never ran. Fall back exactly like ServerReset
+						// (fresh frame + reset connected clients for load) rather than ticking a torn grid.
+						LOG(kDefault, kError, "ServerSession::kClientLoadRequest ServerLoad failed; resetting to fresh game");
+						gpGame->mGameSaveLoad.ServerReset();
+					}
+					break;
+				}
+				case GamePacketType::kClientResetRequest:
+				{
+					LOG(kDefault, kDebug, "ServerSession::kClientResetRequest Client: {}", rPacket.iClientId);
 					gpGame->mGameSaveLoad.ServerReset();
-				}
-				break;
-			}
-			case GamePacketType::kClientResetRequest:
-			{
-				LOG(kDefault, kDebug, "ServerSession::kClientResetRequest Client: {}", rPacket.iClientId);
-				gpGame->mGameSaveLoad.ServerReset();
-				break;
-			}
-			case GamePacketType::kClientReplayRecordRequest:
-			{
-				LOG(kDefault, kDebug, "ServerSession::kClientReplayRecordRequest Client: {}", rPacket.iClientId);
-				gpGame->mGameFlags.Set(engine::GameFlags::kSaveReplay);
-				break;
-			}
-			case GamePacketType::kClientReplayPlaybackRequest:
-			{
-				LOG(kDefault, kDebug, "ServerSession::kClientReplayPlaybackRequest Client: {}", rPacket.iClientId);
-				gpGame->mGameFlags.Set(engine::GameFlags::kLoadReplay);
-				break;
-			}
-			case GamePacketType::kClientPauseRequest:
-			{
-				// 1B paused (type byte already stripped)
-				if (rPacket.payload.size() < 1)
-				{
 					break;
 				}
-				const uint8_t* pCursor = rPacket.payload.data();
-				bool bPaused = engine::ReadUint8(pCursor) != 0;
-				gpGame->mGameFlags.Set(engine::GameFlags::kPaused, bPaused);
-				LOG(kDefault, kDebug, "Server paused: {}", bPaused);
-				break;
-			}
-			case GamePacketType::kClientTimespeedRequest:
-			{
-				// 1B direction (type byte already stripped); 0 = slower, 1 = faster
-				if (rPacket.payload.size() < 1)
+				case GamePacketType::kClientReplayRecordRequest:
 				{
+					LOG(kDefault, kDebug, "ServerSession::kClientReplayRecordRequest Client: {}", rPacket.iClientId);
+					gpGame->mGameFlags.Set(engine::GameFlags::kSaveReplay);
 					break;
 				}
-				const uint8_t* pCursor = rPacket.payload.data();
-				uint8_t uiDirection = engine::ReadUint8(pCursor);
-				if (uiDirection == 0)
+				case GamePacketType::kClientReplayPlaybackRequest:
 				{
-					gpGame->mTimeStep.DecreaseTimeScale();
+					LOG(kDefault, kDebug, "ServerSession::kClientReplayPlaybackRequest Client: {}", rPacket.iClientId);
+					gpGame->mGameFlags.Set(engine::GameFlags::kLoadReplay);
+					break;
 				}
-				else
+				case GamePacketType::kClientPauseRequest:
 				{
-					gpGame->mTimeStep.IncreaseTimeScale();
+					// 1B paused (type byte already stripped)
+					if (rPacket.payload.size() < 1)
+					{
+						break;
+					}
+					const uint8_t* pCursor = rPacket.payload.data();
+					bool bPaused = engine::ReadUint8(pCursor) != 0;
+					gpGame->mGameFlags.Set(engine::GameFlags::kPaused, bPaused);
+					LOG(kDefault, kDebug, "Server paused: {}", bPaused);
+					break;
 				}
-				BroadcastTimespeedIfChanged();
-				break;
+				case GamePacketType::kClientTimespeedRequest:
+				{
+					// 1B direction (type byte already stripped); 0 = slower, 1 = faster
+					if (rPacket.payload.size() < 1)
+					{
+						break;
+					}
+					const uint8_t* pCursor = rPacket.payload.data();
+					uint8_t uiDirection = engine::ReadUint8(pCursor);
+					if (uiDirection == 0)
+					{
+						gpGame->mTimeStep.DecreaseTimeScale();
+					}
+					else
+					{
+						gpGame->mTimeStep.IncreaseTimeScale();
+					}
+					BroadcastTimespeedIfChanged();
+					break;
+				}
+				default:
+					break;
 			}
-			default:
-				break;
+		}
+		catch (const std::exception& rException)
+		{
+			// Trust boundary: an untrusted game packet's handler can throw (corrupt count/size from a reader,
+			// .at(), file I/O). ParseReceivedGamePackets runs in PreTickNetwork — a different call stack than
+			// engine Server::Receive — so an uncaught throw would tear down ServerUpdate. Drop the single
+			// packet and continue, parity with Server::Receive/Client::Receive.
+			LOG(kNetwork, kWarning, "ServerSession::ParseReceivedGamePackets dropped corrupt packet (type {}) Client: {}: {}", static_cast<uint8_t>(eType), rPacket.iClientId, rException.what());
 		}
 	}
 }
@@ -322,17 +333,6 @@ void ServerSession::EnsurePlayerCoords()
 	}
 }
 
-void ServerSession::EnsureDestroyCoords()
-{
-	for (const PendingPlayerDestroy& rDestroy : mpClientManager->mPendingPlayerDestroys)
-	{
-		if (!std::ranges::contains(gpGame->mActiveCoords, rDestroy.coord))
-		{
-			gpGame->mActiveCoords.push_back(rDestroy.coord);
-		}
-	}
-}
-
 void ServerSession::SyncActiveFrames()
 {
 	// Create frames at missing coordinates
@@ -359,7 +359,6 @@ void ServerSession::ComputeActiveSet()
 	gpGame->mActiveCoords.clear();
 	AddSubscribedCoords();
 	EnsurePlayerCoords();
-	EnsureDestroyCoords();
 
 	if (!std::ranges::contains(gpGame->mActiveCoords, engine::kOriginCoord))
 	{
@@ -539,7 +538,7 @@ void ServerSession::ResetClientsForLoad()
 	mpClientManager->ResetState();
 	mpTransferManager->ResetState();
 	mpBroadcaster->ResetState();
-	// Fleet manager: only drop pending request queues. mFleets / mPlayerToGuid / mGuidToClientId
+	// Fleet manager: only drop pending request queues. mFleets / mGuidToClientId
 	// were just authoritatively restored by ReadFleetData + per-client OnResetForLoad above;
 	// a full ResetState() here would annihilate that restoration.
 	mpFleetManager->ClearPendingRequests();

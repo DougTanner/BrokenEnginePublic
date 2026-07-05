@@ -64,7 +64,7 @@ static void WriteFleet(std::fstream& rFileStream, const Fleet& rFleet)
 	}
 }
 
-static void ReadFleet(std::fstream& rFileStream, Fleet& rFleet, std::unordered_map<engine::global_id_t, engine::ClientGuid, engine::GlobalIdHash>& rPlayerToGuid, const engine::ClientGuid& rGuid)
+static void ReadFleet(std::fstream& rFileStream, Fleet& rFleet)
 {
 	common::Read(rFileStream, rFleet.guid.uiHigh);
 	common::Read(rFileStream, rFleet.guid.uiLow);
@@ -87,7 +87,17 @@ static void ReadFleet(std::fstream& rFileStream, Fleet& rFleet, std::unordered_m
 	rFleet.wantedCoord = engine::GridCoord {iWantedX, iWantedY};
 	common::Read(rFileStream, rFleet.uiPendingFleetWantedCoordTicks);
 	common::Read(rFileStream, rFleet.fNavigationDelay);
+	// Trust boundary (save / replay file): mirror the wire-path clamp (ValidateNavigationDelay). A non-finite
+	// fleet delay poisons FleetNavigationController (fFrameChangeTimer resets to this, then > 0.0f gates the
+	// fire): +Inf freezes fleet nav forever, NaN fire-storms every tick; it also feeds a common::Random bound.
+	// Clamp neutralizes both; non-finite substitutes the Fleet default (60.0f).
+	rFleet.fNavigationDelay = std::isfinite(rFleet.fNavigationDelay) ? std::clamp(rFleet.fNavigationDelay, 0.0f, 60.0f) : 60.0f;
 	common::Read(rFileStream, rFleet.fFrameChangeTimer);
+	// Trust boundary (save / replay file): finite-check only — fFrameChangeTimer legitimately goes/stays
+	// negative in cardinal mode (FleetNavigationController fires without resetting), so a range clamp would
+	// corrupt valid data. Only +Inf is dangerous: fFrameChangeTimer > 0.0f gates the flagship fire, so a
+	// saved +Inf freezes fleet nav forever. Substitute the Fleet default (0.0f); NaN already self-heals.
+	rFleet.fFrameChangeTimer = std::isfinite(rFleet.fFrameChangeTimer) ? rFleet.fFrameChangeTimer : 0.0f;
 	// Trust boundary (save / replay file): bound the member count against the stream before resize.
 	common::ValidateDeserializedCount(iMemberCount, sizeof(int64_t) + sizeof(uint8_t) + 2 * sizeof(int32_t), rFileStream, "ReadFleet members");
 	rFleet.members.resize(static_cast<size_t>(iMemberCount));
@@ -102,12 +112,6 @@ static void ReadFleet(std::fstream& rFileStream, Fleet& rFleet, std::unordered_m
 		common::Read(rFileStream, iCoordX);
 		common::Read(rFileStream, iCoordY);
 		rFleet.members.at(static_cast<size_t>(k)) = FleetMember {engine::global_id_t {iGlobalPlayerId}, uiAlive != 0, engine::GridCoord {iCoordX, iCoordY}};
-
-		// Rebuild reverse lookup
-		if (uiAlive != 0)
-		{
-			rPlayerToGuid.insert_or_assign(engine::global_id_t {iGlobalPlayerId}, rGuid);
-		}
 	}
 }
 
@@ -131,10 +135,9 @@ void WriteFleetData(std::fstream& rFileStream, const std::unordered_map<engine::
 	common::Write(rFileStream, rRandom.uiState);
 }
 
-void ReadFleetData(std::fstream& rFileStream, std::unordered_map<engine::ClientGuid, std::vector<Fleet>, engine::ClientGuidHash>& rFleets, std::unordered_map<engine::global_id_t, engine::ClientGuid, engine::GlobalIdHash>& rPlayerToGuid, std::unordered_map<engine::ClientGuid, int64_t, engine::ClientGuidHash>& rGuidToClientId, common::RandomEngine& rRandom)
+void ReadFleetData(std::fstream& rFileStream, std::unordered_map<engine::ClientGuid, std::vector<Fleet>, engine::ClientGuidHash>& rFleets, std::unordered_map<engine::ClientGuid, int64_t, engine::ClientGuidHash>& rGuidToClientId, common::RandomEngine& rRandom)
 {
 	rFleets.clear();
-	rPlayerToGuid.clear();
 	rGuidToClientId.clear();
 
 	int64_t iFleetOwnerCount = 0;
@@ -157,7 +160,7 @@ void ReadFleetData(std::fstream& rFileStream, std::unordered_map<engine::ClientG
 		std::vector<Fleet> fleets(static_cast<size_t>(iFleetCount));
 		for (int64_t j = 0; j < iFleetCount; ++j)
 		{
-			ReadFleet(rFileStream, fleets.at(static_cast<size_t>(j)), rPlayerToGuid, guid);
+			ReadFleet(rFileStream, fleets.at(static_cast<size_t>(j)));
 		}
 		rFleets.insert_or_assign(guid, std::move(fleets));
 		// All loaded fleets start as disconnected

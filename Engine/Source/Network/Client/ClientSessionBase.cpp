@@ -71,8 +71,6 @@ void ClientSessionBase::DisconnectFromServerBase()
 	miCurrentTargetBehind = 0;
 	miLastLoggedClockTargetBehind = -1;
 	miLastPeriodicClockLogTick = -1;
-	mSessionFlags.Clear(SessionStateFlags::kClockErrorDisconnect);
-	miConsecutiveClockErrorFrames = 0;
 	miLastClockErrorLogTick = -1;
 	mSessionFlags.Clear(SessionStateFlags::kNoFreeSlotLogged);
 }
@@ -362,24 +360,6 @@ std::chrono::nanoseconds ClientSessionBase::ComputeClockCorrectionNs(int64_t iPr
 		{
 			miLastClockErrorLogTick = iPreReconcileTick;
 		}
-	}
-
-	if (std::abs(iError) >= kiClockErrorDisconnectThreshold)
-	{
-		++miConsecutiveClockErrorFrames;
-		LOG(kNetwork, kWarning, "ClientSessionBase::ComputeClockCorrectionNs Clock error accumulating ConsecutiveFrames: {} Error: {} Offset: {} TargetBehind: {} JitterUs: {} LatestServerTick: {} PreReconcileTick: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind, iJitterUs, miLatestServerTick, iPreReconcileTick);
-		if (miConsecutiveClockErrorFrames >= kiClockErrorDisconnectConsecutiveFrames)
-		{
-			mSessionFlags.Set(SessionStateFlags::kClockErrorDisconnect);
-		}
-	}
-	else
-	{
-		if (miConsecutiveClockErrorFrames > 0)
-		{
-			LOG(kNetwork, kVerbose, "ClientSessionBase::ComputeClockCorrectionNs Clock error recovered after {} consecutive frames Error: {} Offset: {} TargetBehind: {}", miConsecutiveClockErrorFrames, iError, iOffset, miCurrentTargetBehind);
-		}
-		miConsecutiveClockErrorFrames = 0;
 	}
 
 	if (std::abs(iError) < 4)

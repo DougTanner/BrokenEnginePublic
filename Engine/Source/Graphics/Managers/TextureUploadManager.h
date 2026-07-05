@@ -19,6 +19,7 @@ public:
 
 	void RequestUpload(common::crc_t crc, LoadPriority ePriority);
 	void WaitIdle();
+	void SignalFrame();
 
 	// Pending-adoption counter: tracks chunks in an adoptable state (kDiskLoaded / kGpuUploadComplete) awaiting
 	// TextureManager::ProcessPendingTextures. Lives here (not on TextureManager) because this manager outlives the

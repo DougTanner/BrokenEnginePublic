@@ -234,7 +234,6 @@ void BufferManager::CreateDebugMeshBuffers()
 
 BufferManager::~BufferManager()
 {
-	DestroyLightingSpreadBuffers();
 	DestroyWindHierarchicalBuffers();
 	DestroySmokeHierarchicalBuffers();
 
@@ -246,7 +245,6 @@ BufferManager::~BufferManager()
 
 void BufferManager::DestroySwapchainDependentBuffers()
 {
-	DestroyLightingSpreadBuffers();
 	DestroyWindHierarchicalBuffers();
 	DestroySmokeHierarchicalBuffers();
 
@@ -658,37 +656,6 @@ void BufferManager::DestroyWindHierarchicalBuffers()
 	}
 	mWindOccupancyBufferSize = 0;
 	mWindActiveTileBufferSize = 0;
-}
-
-void BufferManager::CreateLightingSpreadBuffers()
-{
-	DestroyLightingSpreadBuffers();
-
-	// Occupancy grid: one tile per kiComputeTileSize pixels of deposit texture (pre-sized by the lighting headroom)
-	auto [iDepositX, iDepositY] = TextureManager::LightingDetailTextureSize(gLightingDepositTextureMultiplier.Get());
-	uint32_t uiTilesX = std::max(1u, static_cast<uint32_t>(iDepositX) / shaders::kiComputeTileSize);
-	uint32_t uiTilesY = std::max(1u, static_cast<uint32_t>(iDepositY) / shaders::kiComputeTileSize);
-	uint32_t uiTotalTiles = uiTilesX * uiTilesY;
-
-	// Bit-packed occupancy: 1 bit per tile, packed into uint32s
-	uint32_t uiOccupancyUints = (uiTotalTiles + 31) / 32;
-	VkDeviceSize occupancySize = static_cast<VkDeviceSize>(uiOccupancyUints) * sizeof(uint32_t);
-	mLightOccupancyBufferSizes[0] = occupancySize;
-	VkDeviceMemory unusedOccupancyMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("LightOccupancy", occupancySize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mLightOccupancyVkBuffers[0], unusedOccupancyMemory, mLightOccupancyVmaAllocations[0]);
-}
-
-void BufferManager::DestroyLightingSpreadBuffers()
-{
-	for (int64_t i = 0; i < kiMaxCascadeLevels; ++i)
-	{
-		if (mLightOccupancyVkBuffers[i] != VK_NULL_HANDLE)
-		{
-			vmaDestroyBuffer(gpDeviceManager->mpAllocator, mLightOccupancyVkBuffers[i], mLightOccupancyVmaAllocations[i]);
-			mLightOccupancyVkBuffers[i] = VK_NULL_HANDLE;
-			mLightOccupancyVmaAllocations[i] = VK_NULL_HANDLE;
-		}
-	}
 }
 
 static void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<std::byte>& rVertices)

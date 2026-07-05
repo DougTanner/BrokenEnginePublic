@@ -30,7 +30,7 @@ Wrapper gSunMoonMoonsetStart(XM_PIDIV128, 0.0f, XM_PIDIV2);
 Wrapper gSunMoonMoonsetEnd(XM_PIDIV32, 0.0f, XM_PIDIV2);
 
 // Ambient
-Wrapper gSunMoonMinimumAmbient(0.0f, 0.0f, 0.1f);
+Wrapper gSunMoonMinimumAmbient(0.01f, 0.0f, 0.1f);
 Wrapper gSunMoonAmbientMultiplier(2.0f, 0.0f, 4.0f);
 
 // Normal Tilt (radians, applied to f4SunMoonNormal only — does not affect shadows)

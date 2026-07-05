@@ -179,7 +179,7 @@ static void RunPrimaryReplay(CoordWork& rWork, const ReconcileInputs& rInputs, i
 	iReplayStart = iRollbackTick + 1;
 	int64_t iMaxConsecutive = std::min(ReconcileFindReplayRangeCoord(rWork, iReplayStart), rInputs.iTargetTick);
 
-	ReconcileReplayCoord(rWork, rInputs, iReplayStart, iRollbackOffset, iMaxConsecutive, fTime);
+	ReconcileReplayCoord(rWork, iReplayStart, iRollbackOffset, iMaxConsecutive, fTime);
 }
 
 // Two-tier rollback fallback: if shrunk rollback desynced at the very first replay tick,
@@ -234,7 +234,7 @@ static bool RunTwoTierFallback(CoordWork& rWork, const ReconcileInputs& rInputs,
 		return true;
 	}
 
-	ReconcileReplayCoord(rWork, rInputs, iReplayStart, iRollbackOffset, iMaxConsecutive, fTime);
+	ReconcileReplayCoord(rWork, iReplayStart, iRollbackOffset, iMaxConsecutive, fTime);
 	return false;
 }
 

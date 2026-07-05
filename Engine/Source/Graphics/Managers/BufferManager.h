@@ -80,14 +80,6 @@ public:
 	void CreateWindHierarchicalBuffers();
 	void DestroyWindHierarchicalBuffers();
 
-	// Lighting occupancy buffer
-	static constexpr int64_t kiMaxCascadeLevels = 8;
-	VkBuffer mLightOccupancyVkBuffers[kiMaxCascadeLevels] {};
-	VmaAllocation mLightOccupancyVmaAllocations[kiMaxCascadeLevels] {};
-	VkDeviceSize mLightOccupancyBufferSizes[kiMaxCascadeLevels] {};
-	void CreateLightingSpreadBuffers();
-	void DestroyLightingSpreadBuffers();
-
 	Buffer mQuadsVertexBuffer;
 
 	// Visible-area mesh LOD: each LOD divides total quad count by 4 (each dim by 2). LOD k starts at

@@ -83,7 +83,6 @@ PipelineManager::PipelineManager()
 	// Clear stale pipeline pointers before pipelines are recreated
 	gpTextureManager->mTextureDescriptors.ClearTextureBindings();
 
-	gpBufferManager->CreateLightingSpreadBuffers();
 	CreateLightingPipelines();
 	CreateLightingBlurPipelines();
 	CreatePipelineShadows();

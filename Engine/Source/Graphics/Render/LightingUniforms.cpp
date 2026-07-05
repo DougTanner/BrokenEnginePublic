@@ -67,7 +67,7 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout)
 	rGlobalLayout.f4LightingAreaPrevious = sf4PreviousLightingArea;
 	sf4PreviousLightingArea = rGlobalLayout.f4LightingArea;
 
-	// Light-occupancy tile grid, recomputed from the bumped deposit resolution.
+	// Edge-fade tile grid (feeds LightingDepositEdgeFade), recomputed from the bumped deposit resolution.
 	rGlobalLayout.uiLightTilesX = std::max(1u, static_cast<uint32_t>(fLightingTextureWidth) / shaders::kiComputeTileSize);
 	rGlobalLayout.uiLightTilesY = std::max(1u, static_cast<uint32_t>(fLightingTextureHeight) / shaders::kiComputeTileSize);
 

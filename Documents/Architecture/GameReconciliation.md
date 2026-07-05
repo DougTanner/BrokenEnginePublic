@@ -38,10 +38,10 @@ flowchart TD
 
     FINDRANGE["ReconcileFindReplayRangeCoord()<br/>find consecutive server frames"]:::state --> REPLAY
 
-    REPLAY["ReconcileReplayCoord()<br/>replay capped at half<br/>available frames"]:::replay
+    REPLAY["ReconcileReplayCoord()<br/>replay consecutive range<br/>up to target tick"]:::replay
 
     REPLAY --> CRCCHECK{"State CRC match?"}
-    CRCCHECK -->|"Yes"| NEXTSRV{"More server frames<br/>within cap?"}
+    CRCCHECK -->|"Yes"| NEXTSRV{"More frames in<br/>replay range?"}
     CRCCHECK -->|"No"| DESYNC["Store desync info,<br/>return early"]:::error
 
     NEXTSRV -->|"Yes"| REPLAY
@@ -51,7 +51,7 @@ flowchart TD
 
     CATCHUP --> NEXTCOORD{"More coords?"}
     NEXTCOORD -->|"Yes"| COORD
-    NEXTCOORD -->|"No"| CLIENTSTATE["ReconcileUpdateClientState()<br/>update time and track<br/>client migration"]:::state
+    NEXTCOORD -->|"No"| CLIENTSTATE["ReconcileUpdateClientState()<br/>track client<br/>migration"]:::state
 
     CLIENTSTATE --> DONE["Writeback applied in-place<br/>on engine::CoordFrames"]
     FASTDONE --> NEXTCOORD
