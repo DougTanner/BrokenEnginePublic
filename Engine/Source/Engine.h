@@ -18,6 +18,10 @@
 #include "Network/NetworkSerialization.h"
 #include "Network/NetworkSimulation.h"
 
+// Launch options and agent command channel (shared)
+#include "LaunchOptions.h"
+#include "Agent/AgentCommandServer.h"
+
 #if defined(BT_CLIENT)
 
 // Ui (client-only)
@@ -70,6 +74,10 @@
 
 // Input
 #include "Input/RawInputManager.h"
+
+// Agent client-only synthetic input + UI widget registry (self-guarded; grouped here in the BT_CLIENT span)
+#include "Agent/AgentUiRegistry.h"
+#include "Agent/AgentInput.h"
 
 // Network client
 #include "Network/NetworkDiscoveryScanner.h"

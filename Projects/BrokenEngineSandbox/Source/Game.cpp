@@ -658,9 +658,18 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 
 	if constexpr (kbScreenshots)
 	{
+		// F9 toggles continuous dev capture: while on, queue a default one-shot request each frame (preserves the
+		// prior continuous-capture behavior atop the new request mailbox). Empty request path -> default %TEMP% path.
+		static bool sbContinuousScreenshots = false;
 		if (rMenuInput.flags & MenuInputFlags::kToggleScreenshots)
 		{
-			engine::gpCommandBufferManager->mbSaveScreenshot = !engine::gpCommandBufferManager->mbSaveScreenshot;
+			sbContinuousScreenshots = !sbContinuousScreenshots;
+		}
+		if (sbContinuousScreenshots && !engine::gpGraphics->mScreenshotRequest)
+		{
+			// Fill only when empty so the per-frame F9 default request can't overwrite an agent-issued request's
+			// parameters (path / maxWidth / bPublishResult) before the capture site consumes it.
+			engine::gpGraphics->mScreenshotRequest = engine::ScreenshotRequest {};
 		}
 	}
 #endif // BT_CLIENT

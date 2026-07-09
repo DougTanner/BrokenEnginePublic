@@ -7,7 +7,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical and sm
 
 ### Engine/Source/Main.cpp
 - Drop the dead `WM_QUIT` case from `WndProc` (:587) — WM_QUIT is a thread message never routed to a window proc; quit flows through `WM_CLOSE`/`WM_DESTROY` + `sbQuit` [~5m]
-- Hoist the fullscreen-toggle reconciliation (:416-426) out of `ProcessMessages()` into the main loop (~:263) — every caller silently performs window restyling, including the teardown lambda (:158-168) where a mid-shutdown `gFullscreen` mismatch would `SetWindowPos` a dying window (harmless today only by accident) [~15m]
+- Hoist the fullscreen-toggle reconciliation (:508-518, reading `WantedFullscreen()`) out of `ProcessMessages()` into the main loop (~:263) — every caller silently performs window restyling, including the teardown lambda (:158-168) where a mid-shutdown fullscreen mismatch would `SetWindowPos` a dying window (harmless today only by accident). Constraint: `WantedFullscreen()` folds the `--windowed` override, so the override moves with the sync code — keep reading through the helper, not raw `gFullscreen` [~15m]
 - Remove `WM_INPUT` from the DirectXTK `Mouse::ProcessMessage` forwarding (:459, :471) — only the keyboard is raw-input-registered; every packet handed to Mouse is keyboard data it ignores; implies a raw-mouse path that doesn't exist [~5m]
 - `MainThread` (~290 lines, :39-329): **accept** — strictly linear boot orchestration with load-bearing, centrally documented ordering; recorded so future sweeps don't re-file
 

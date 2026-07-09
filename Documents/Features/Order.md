@@ -21,6 +21,7 @@ Counterpart: `Documents/Plans/Order.md` holds refactor/bugfix plans. See `Docume
 | [Audio/AdaptiveMusic.txt](Audio/AdaptiveMusic.txt) | Small | 2 | 2 | 0 | 0 | GetNextMusicTrack considers game state (combat, location). Crossfade infrastructure exists. |
 | [Network/RemoteEntityInterpolation.txt](Network/RemoteEntityInterpolation.txt) | Medium | 3 | 4 | 1 | 0 | Snapshot-based interpolation for remote entities. |
 | [Graphics/WaterCaustics.md](Graphics/WaterCaustics.md) | Small | 2 | 3 | 1 | 0 | Two-layer noise min() cellular caustics added to the depth-LUT color in shallow water; ~8 floats. |
+| [Agent/AgentQueryGlobalState.md](Agent/AgentQueryGlobalState.md) | Small | 2 | 3 | 1 | 0 | Read-only `query_fleets`/`query_clients`/`query_session` JSON arms over server-global (non-Frame) state — fleets, client slots, session/timestep. Extends the documented agent command surface; updates the agent-harness skill as a rider |
 | [Graphics/DecalSystem.txt](Graphics/DecalSystem.txt) | Medium | 3 | 3 | 1 | 1 | Projected texture rendering for terrain marks (bullet holes, scorches, tracks). New pipeline pass. |
 | [Engine/AddTracyProfiler.txt](Engine/AddTracyProfiler.txt) | Medium | 3 | 3 | 1 | 1 | Integrate Tracy profiler with existing profiling system. |
 | [Graphics/FlipbookSpriteAnimations.txt](Graphics/FlipbookSpriteAnimations.txt) | Medium | 3 | 2 | 1 | 2 | Sprite-sheet animation for explosions (texture atlas with frame indexing). |

@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -27,8 +29,6 @@ public:
 	VkSemaphore mParticleSyncVkSemaphore = VK_NULL_HANDLE;
 	bool mbParticleSemaphoreSignaled = false;
 
-	bool mbSaveScreenshot = false;
-
 private:
 
 	void SubmitGlobalToQueue(int64_t iFramebufferIndex);
@@ -38,3 +38,5 @@ private:
 inline CommandBufferManager* gpCommandBufferManager = nullptr;
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

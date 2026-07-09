@@ -85,6 +85,60 @@ inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
 // single-cell frame approaches 64 MiB.
 inline constexpr int64_t kiMaxUncompressedFrameBytes = 64 * 1024 * 1024;
 
+// --- Client -> Server message contract --------------------------------------------------------------
+// Declarative per-packet limits checked once at the server dispatch choke point (Server::Receive).
+// Covers only engine packet types below kGamePacketStart; game-range types are contract-checked at
+// parse via GetGamePacketContract. See Documents/Architecture/Network.md "Client -> Server Contract".
+
+// Max kClientAckStream packet size: 1B type + 1B slot count + 64 * 27B per slot (1B slot + 2B epoch +
+// 8B floor + 8B bitfieldLow + 8B bitfieldHigh) + 8B RTT timestamp. The 64 mirrors
+// NetworkManager::kiMaxEnetCoordSlots; a static_assert tying the two lives in Server.cpp because
+// NetworkProtocol.h cannot include NetworkManager.h (Engine.h include order is load-bearing).
+inline constexpr int64_t kiMaxAckStreamPacketSize = 2 + 64 * 27 + 8; // = 1738
+
+// Global per-client packet budget per poll window (approx one sim tick). With the tick-rate-locked ack
+// throttle a legit client sends ~1 ack + rare requests per tick; 256 tolerates a multi-second server
+// stall delivering many wall-clock seconds of tick-rate acks in one poll (e.g. 4 s ~= 128 acks at 32 Hz)
+// plus request bursts. Overflow counts violations -- only hostile floods reach it.
+inline constexpr int64_t kiMaxClientPacketsPerTick = 256;
+
+// Global per-client inbound byte budget per poll window. >10x legitimate steady state; caps hostile
+// parse work at ~2 MiB/s/client.
+inline constexpr int64_t kiMaxClientInboundBytesPerTick = 64 * 1024;
+
+// Lifetime contract-violation count that forces a disconnect. Never reset -- legitimate clients produce
+// zero violations; tolerates rare in-flight UDP corruption.
+inline constexpr int64_t kiContractViolationDisconnectCount = 32;
+
+// Per-client-packet contract row. Sizes are the full packet including the type byte.
+struct ClientPacketContract
+{
+	int64_t iMinSize = 0;
+	int64_t iMaxSize = 0;              // 0 = not client-sendable (sentinel)
+	int64_t iMaxPerTick = 0;
+	bool bRequiresHandshake = true;
+	bool bOverCapCountsViolation = true;
+};
+
+// Contract for engine packet types (< kGamePacketStart) only. Game-range types bypass this at
+// Server::Receive and are contract-checked at parse via GetGamePacketContract. Default row is the
+// not-client-sendable sentinel (server->client and unknown engine types).
+inline constexpr ClientPacketContract GetClientPacketContract(PacketType eType)
+{
+	switch (eType)
+	{
+		case PacketType::kClientAckStream:         return {10, kiMaxAckStreamPacketSize, 128, true, false}; // over-cap is a silent multi-tick-poll burst safety drop
+		case PacketType::kClientSpawnRequest:      return {2, 2, 8};
+		case PacketType::kClientDesyncReport:      return {33, 33, 8};
+		case PacketType::kClientDebugFrameRequest: return {17, 17, 8};
+		case PacketType::kClientHello:             return {13, 93, 4, false}; // pre-handshake by definition
+		case PacketType::kClientSubscribe:         return {9, 9, 64};
+		case PacketType::kClientUnsubscribe:       return {2, 2, 64};
+		case PacketType::kClientResyncRequest:     return {1, 1, 4};
+		default:                                   return {}; // sentinel: not client-sendable
+	}
+}
+
 // LAN discovery constants
 inline constexpr uint16_t kuiDiscoveryPort = kuiDefaultPort + 1;
 inline constexpr uint32_t kuiDiscoveryMagic = 0x42524B4E; // "BRKN"

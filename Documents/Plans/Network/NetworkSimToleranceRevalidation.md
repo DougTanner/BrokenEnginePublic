@@ -9,7 +9,7 @@ The landed `NetworkSimulationReliableDelay` change now applies simulated latency
 
 These may now systematically trip under reliable latency, either as the *intended* "instability surfaced" signal (the reliable-delay change deliberately exposes latent subscription-race bugs) or as *stale* tolerances that no longer distinguish expected latency from a real problem.
 
-This is a **measurement-gated** tuning task: it needs a live simulated run (agents can't play the game), so it was recorded as a follow-up rather than resolved inline when the source plan completed.
+This is a **measurement-gated** tuning task: it needs a live simulated run — now agent-executable via the agent-harness skill — so it was recorded as a follow-up rather than resolved inline when the source plan completed.
 
 ## Design
 

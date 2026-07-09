@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -44,3 +46,5 @@ bool SupportsColorAttachmentBlend(VkFormat vkFormat);
 } // namespace engine
 
 #define CHECK_VK(a) do { VkResult vkResultMacro = a; if (vkResultMacro != VK_SUCCESS) [[unlikely]] { CheckVk(vkResultMacro, #a); } _Analysis_assume_(vkResultMacro == VK_SUCCESS); } while (false)
+
+#endif // defined(BT_CLIENT)

@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -28,3 +30,5 @@ public:
 inline ParticleManager* gpParticleManager = nullptr;
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

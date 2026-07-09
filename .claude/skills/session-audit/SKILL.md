@@ -6,7 +6,8 @@ description: >-
   and the concrete failure modes earlier steps structurally miss
   (fix-introduced desync, half-applied mirrored edits, doc/code drift from late
   renames, edits no reviewer ever saw). Invoke after all fix/review/build steps
-  complete, once per file group. ALSO use when the user asks for a "session
+  complete; the caller runs two independent instances per file group (one
+  Fable, one Opus) and dedupes. ALSO use when the user asks for a "session
   audit", a final fresh-eyes pass, or to check everything changed this session
   as a whole. Findings only — never edits.
 allowed-tools: [Read, Grep, Glob]
@@ -14,7 +15,7 @@ allowed-tools: [Read, Grep, Glob]
 
 # Session Audit
 
-Fresh-eyes lens, not a re-run of the step 4–8 checklists: read each assigned file whole, then check the group's cross-file story against the plan's intent. Findings only; the caller dispatches fixes.
+Fresh-eyes lens, not a re-run of the step 4–8 checklists: read each assigned file whole, then check the group's cross-file story against the plan's intent. Findings only; the caller dispatches fixes. A second independent instance of this skill audits the same group in another context — behave identically, don't assume you are the only auditor; the caller dedupes.
 
 ## Inputs (from caller)
 - File group (paths) + functions/regions touched this session, attributed per step (at minimum: the step 2–3 set vs later-fix regions); if attribution is missing, treat every touched region as potentially post-review
@@ -33,6 +34,8 @@ Earlier steps each see a slice; these surface only when reading the finished who
 4. **Unreviewed late edits** — fixes landed in steps 4–8 (review fixes, style fixes, compile-error fixes) were never themselves reviewed; step 3's propagation edits were (step 4 ran after them). Give diff-of-the-diff attention to everything outside the step 2 + step 3 change set — including any late edit that added or removed a file-wide `BT_CLIENT`/`BT_SERVER` guard (its vcxproj affinity is now stale vs step 7's verification).
 5. **Whole-file incoherence** — the file no longer reads as one design: logic duplicated between an old and a new path, a helper the session's edits made dead, a comment or ASSERT contradicting the new behavior, a `#include`/guard the edits made unnecessary.
 6. **Residual leakage** — every residual and focus area handed in is either resolved in current code or re-reported; never silently gone.
+7. **False completion** — earlier steps' reports are claims, not evidence: for each fix accepted in step 4/8/9 reports and each residual marked resolved, spot-check the change actually exists in current code.
+8. **Debris** — diagnostic `LOG`s left at kDebug/kVerbose from iteration, commented-out code, scratch/temp files introduced this session. Changelog-style comments belong to repo-code-review §2d — don't double-report.
 
 ## Output
 

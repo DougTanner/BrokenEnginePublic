@@ -38,7 +38,7 @@ TextManager::TextManager()
 
 		auto pCharacterIds = reinterpret_cast<uint32_t*>(rChunk.pData);
 		auto pCharacters = reinterpret_cast<common::Character*>(rChunk.pData + common::FontHeader::CharactersOffset(iCharacters));
-		LOG(kLoading, kDebug, "Loading font {:#018x} with {} characters", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);
+		LOG(kLoading, kDebug, "Loading font {} with {} characters", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);
 		mfLineHeightEfigs = static_cast<float>(rChunk.pHeader->fontHeader.iLineHeight);
 
 		for (int64_t i = 0; i < iCharacters; ++i)

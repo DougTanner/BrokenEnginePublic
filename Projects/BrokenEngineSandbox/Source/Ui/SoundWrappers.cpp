@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "SoundWrappers.h"
 
 namespace game
@@ -44,3 +46,5 @@ engine::Wrapper gSpaceshipDeathPitchRandom(0.5f, 0.0f, 1.0f);
 engine::Wrapper gSpaceshipHitVolume(0.075f, 0.0f, 0.2f);
 
 } // namespace game
+
+#endif // defined(BT_CLIENT)

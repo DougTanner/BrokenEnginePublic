@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -46,3 +48,5 @@ private:
 inline DeviceManager* gpDeviceManager = nullptr;
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

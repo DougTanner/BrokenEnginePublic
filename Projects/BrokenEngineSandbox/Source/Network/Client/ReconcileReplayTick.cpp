@@ -65,14 +65,20 @@ static void LogTransferSummary(const CoordWork& rWork, int64_t iTick, int64_t iT
 		for (int64_t i = 0; i < iTransferPlayerIdCount; ++i)
 		{
 			constexpr size_t kiReserve = 24;
-			if (iPos + kiReserve > sizeof(acPlayerIds)) break;
+			if (iPos + kiReserve > sizeof(acPlayerIds))
+			{
+				break;
+			}
 			if (i > 0)
 			{
 				acPlayerIds[iPos++] = ',';
 				acPlayerIds[iPos++] = ' ';
 			}
 			int iWritten = std::snprintf(acPlayerIds + iPos, sizeof(acPlayerIds) - iPos, "%lld", pTransferPlayerIds[i].iValue);
-			if (iWritten <= 0) break;
+			if (iWritten <= 0)
+			{
+				break;
+			}
 			iPos += static_cast<size_t>(iWritten);
 		}
 		LOG(kNetwork, kVerbose, "ReconcileRunTickCoord SpawnTransfers Coord: ({},{}) ForTick: {} TransferCount: {} PlayerCount: {} BlasterCount: {} SpaceshipCount: {} MissileCount: {} PlayerIds: [{}]", rWork.coord.x, rWork.coord.y, iTick, iTransferTotal, iTransferPlayerCount, iTransferBlasterCount, iTransferSpaceshipCount, iTransferMissileCount, acPlayerIds);

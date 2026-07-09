@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 #include "Pipeline.h"
 
 namespace engine
@@ -36,3 +38,5 @@ public:
 };
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

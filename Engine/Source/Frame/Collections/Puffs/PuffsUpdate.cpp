@@ -35,8 +35,14 @@ void PuffsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restric
 			PuffControllerType scaled = rController;
 			for (int64_t j = 0; j < rController.uiKeyframeCount; ++j)
 			{
-				if (rController.ppAreaScales[j] != nullptr)      scaled.keyframes[j].fArea *= rController.ppAreaScales[j]->Get();
-				if (rController.ppIntensityScales[j] != nullptr) scaled.keyframes[j].fIntensity *= rController.ppIntensityScales[j]->Get();
+				if (rController.ppAreaScales[j] != nullptr)
+				{
+					scaled.keyframes[j].fArea *= rController.ppAreaScales[j]->Get();
+				}
+				if (rController.ppIntensityScales[j] != nullptr)
+				{
+					scaled.keyframes[j].fIntensity *= rController.ppIntensityScales[j]->Get();
+				}
 			}
 			PuffKeyframe interpolated = InterpolateKeyframes(scaled, fElapsedTime);
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 #include "Ui/WrapperBase.h"
 
 namespace game
@@ -43,3 +45,5 @@ extern engine::Wrapper gSpaceshipDeathPitchRandom;
 extern engine::Wrapper gSpaceshipHitVolume;
 
 } // namespace game
+
+#endif // defined(BT_CLIENT)

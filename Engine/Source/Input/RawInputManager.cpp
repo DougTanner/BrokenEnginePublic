@@ -134,15 +134,29 @@ void RawInputManager::Update(bool bLostFocus)
 		TrapCursor(game::gpGame->ShouldTrapCursor());
 	}
 
-	if (!(mStateFlags & RawInputStateFlags::kHasFocus))
+	// A running agent input script relaxes the unfocused early-out so it can publish + overlay while the window is
+	// unfocused (the norm for the harness). Off the script path this stays the plain focus gate.
+	bool bScriptActive = gpAgentInput != nullptr && gpAgentInput->IsScriptActive();
+	bool bHasFocus = mStateFlags & RawInputStateFlags::kHasFocus;
+	if (!bHasFocus && !bScriptActive)
 	{
 		return;
 	}
 
 	// Keyboard
-	for (int64_t i = 0; i < kiKeyboardKeyCount; ++i)
+	if (bHasFocus)
 	{
-		mRawInput.pKeyboardKeys[i] = mpbKeyboardKeysDown[i];
+		for (int64_t i = 0; i < kiKeyboardKeyCount; ++i)
+		{
+			mRawInput.pKeyboardKeys[i] = mpbKeyboardKeysDown[i];
+		}
+	}
+	else
+	{
+		// Relaxed unfocused-publish path: the hardware keyboard is unregistered (RIDEV_REMOVE) while unfocused, so
+		// mpbKeyboardKeysDown is frozen at its last focused state — zero the published keyboard so the overlay ORs
+		// synthetic keys onto a clean snapshot instead of republishing stuck key bits for the whole script.
+		std::fill(std::begin(mRawInput.pKeyboardKeys), std::end(mRawInput.pKeyboardKeys), false);
 	}
 
 	// Mouse
@@ -155,6 +169,16 @@ void RawInputManager::Update(bool bLostFocus)
 	mRawInput.mouseButtons.Set(MouseButtons::kMouseButtonExtraOne, mouseState.xButton1);
 	mRawInput.mouseButtons.Set(MouseButtons::kMouseButtonExtraTwo, mouseState.xButton2);
 	mRawInput.iScrollWheelValue = mouseState.scrollWheelValue;
+
+	// iScrollWheelValue is a lifetime accumulator consumers diff (game Input.cpp camera zoom). The agent's persistent
+	// synthetic scroll offset must participate in EVERY publish — not only script-active frames — or the offset
+	// vanishing when a script ends (or on refocus) would look like an equal-and-opposite phantom zoom. Null-guarded:
+	// server build and the agent-disabled client path have no AgentInput. (Single owner of the addition; the Overlay
+	// sink deliberately does not re-add it.)
+	if (gpAgentInput != nullptr)
+	{
+		mRawInput.iScrollWheelValue += gpAgentInput->SyntheticScrollAccumulator();
+	}
 
 	// Game pad (only first game pad supported)
 	if (mpGamePad != nullptr)
@@ -203,6 +227,13 @@ void RawInputManager::Update(bool bLostFocus)
 
 			mRawInput.gamepadButtons = {};
 		}
+	}
+
+	// Agent synthetic-input overlay: OR script-driven keys / mouse buttons / mouse pos / scroll onto the just-
+	// published snapshot. Must run AFTER the keyboard copy loop so synthetic key bits are not overwritten by it.
+	if (bScriptActive)
+	{
+		gpAgentInput->Overlay(mRawInput);
 	}
 }
 

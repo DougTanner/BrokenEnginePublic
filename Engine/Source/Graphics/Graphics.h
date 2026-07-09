@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace game
 {
 
@@ -51,6 +53,41 @@ std::tuple<int64_t, int64_t> WaterFullDetail();
 float SmokeSimulationPixels();
 float SmokeSimulationPixelsY();
 
+// Agent/dev screenshot request queued into Graphics::mScreenshotRequest; consumed once at the capture site in
+// RenderMainPresentAcquire. Empty path -> default %TEMP%\Screenshots\agent_{N}.{jpg|png}. iMaxWidth <= 0 disables
+// downscale; the image is downscaled preserving aspect when wider than iMaxWidth.
+struct ScreenshotRequest
+{
+	std::filesystem::path path;
+	int64_t iMaxWidth = 1568;
+	bool bPng = false;
+	int64_t iQuality = 80;
+	// Set only by the agent screenshot handler: the async save publishes its result JSON to the capture-result slot
+	// (consumed by the deferred-response poll). False for F9 dev saves so they never publish into an agent response.
+	bool bPublishResult = false;
+	// Capture token minted by ResetCaptureResult(); the async save tags its result with it so a stale result from an
+	// abandoned (timed-out/disconnected) capture is not consumed as the response to a newer request. 0 for dev saves.
+	uint64_t uiCaptureToken = 0;
+};
+
+// Agent render-target dump request queued into Graphics::mDumpRenderTargetRequest; consumed at the same capture
+// site. name selects a RenderTargetTextures member (validated at request time); iIndex/iChannel index the array
+// members. Empty path -> default %TEMP%\Screenshots\dump_{name}_{N}. bRaw additionally writes the raw texel .bin.
+struct DumpRenderTargetRequest
+{
+	std::string name;
+	int64_t iIndex = 0;
+	int64_t iChannel = 0;
+	std::filesystem::path path;
+	bool bRaw = false;
+	// As ScreenshotRequest::bPublishResult — set only by the agent dump handler so the encode result reaches the
+	// deferred-response poll and no non-agent save is consumed as the response to a concurrent agent capture.
+	bool bPublishResult = false;
+	// As ScreenshotRequest::uiCaptureToken — tags the published result so a stale abandoned-capture result is not
+	// consumed as the response to a newer request. 0 for non-agent dumps.
+	uint64_t uiCaptureToken = 0;
+};
+
 class Graphics
 {
 public:
@@ -98,6 +135,11 @@ public:
 
 	common::InTheLastSecond mRendersInTheLastSecond;
 
+	// One-shot capture mailboxes filled off the render path (agent Drain / F9 toggle), consumed once at the
+	// RenderMainPresentAcquire capture site (between the UI submit and Present — see the deadlock note there).
+	std::optional<ScreenshotRequest> mScreenshotRequest;
+	std::optional<DumpRenderTargetRequest> mDumpRenderTargetRequest;
+
 	std::unordered_set<std::string> mDebugNames;
 
 private:
@@ -109,3 +151,5 @@ private:
 inline Graphics* gpGraphics = nullptr;
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

@@ -255,3 +255,14 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 		case State::kRunning:
 			break;
 	}
+
+61. "if" and "else" bodies always use curly braces, even for a single statement (braces per rule 2):
+
+	if (pLine[0] != '\0')
+	{
+		++iCount;
+	}
+	else
+	{
+		break;
+	}

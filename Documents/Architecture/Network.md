@@ -41,6 +41,42 @@
 - **Forward sim**: from the most recent Tick remaining, simulate empty-input ticks until the ring tail is less than one Tick behind the target time (`miTickCounter`, advanced by `TickRealtime()` before Reconcile runs). Forward-sim will not advance into ticks that have queued server updates still awaiting replay — empty-input simulation stops one tick before the lowest pending server update so those updates fold in via replay rather than being clobbered by an empty-input speculative state
 - **Render**: the ring tail is used as the base Frame; the sub-tick remainder (`mTickRemainderNs`) is converted to `fDeltaTime` and passed to each collection's `game::FrameInterpolate::Update(...)` (`GameBase::Render`), which does per-collection sub-tick smoothing (positions, orientations, animation state) rather than a single global velocity extrapolation
 
+## Client → Server Contract
+
+The server treats every inbound client packet as hostile/corruptible. A declarative per-packet contract is checked once at each dispatch choke point — engine types (`< kGamePacketStart`) at `Server::Receive` via `GetClientPacketContract` (`NetworkProtocol.h`); game types at `ServerSession::ParseReceivedGamePackets` via `GetGamePacketContract` (`GamePacketType.h`). Both return a `ClientPacketContract {iMinSize, iMaxSize, iMaxPerTick, bRequiresHandshake, bOverCapCountsViolation}`; sizes are the full packet including the type byte.
+
+**Enforcement model** — drop + count + escalate:
+- **Gates (in order at `Server::Receive`)**: (1) unknown client id → silent drop; (2) global per-poll budget `kiMaxClientPacketsPerTick = 256` packets / `kiMaxClientInboundBytesPerTick = 64 KiB` (all types incl. game-range) → one violation recorded at the first crossing per poll window (packet and byte budgets counted independently), with all further over-budget packets that poll dropped silently — so a stall-recovery burst costs at most 2 lifetime violations while a sustained flood still escalates to disconnect; (3) engine-type contract lookup — sentinel row (`iMaxSize == 0`, not client-sendable) or size outside `[min, max]` → violation; (4) handshake gate → **silent drop, no count** (pre-Hello ack race, below); (5) per-type per-tick cap → drop, violation only if `bOverCapCountsViolation`. Game-range types skip gates 3–5 at `Receive` (kept opaque) and take the same three checks at parse.
+- **Per-poll reset**: `Server::Poll` zeroes each client's `iTickPacketCount`/`iTickByteCount` and `tickTypeCounts` (one poll ≈ one tick window). `tickTypeCounts` is one 256-entry array shared by both dispatch points — engine and game type bytes are disjoint ranges, so sharing is coherent.
+- **Violation policy** (`Server::RecordContractViolation`): increment a **lifetime** counter (never reset); **two `kWarning` lines total per hostile client** — one on the first violation, one at disconnect (no per-packet spam). At `kiContractViolationDisconnectCount = 32` the server pushes `PendingDisconnect {clientId, guid}` itself (so fleet state persists) before `enet_peer_disconnect` + `RemoveClient`; the later ENet DISCONNECT event is a safe no-op. Legitimate clients produce zero violations; the threshold tolerates rare in-flight UDP corruption. Each dispatch `try/catch` also records a violation (engine `Server::Receive` as `"corrupt payload"`, game `ParseReceivedGamePackets` as `"game packet handler threw"`).
+- **Pre-handshake silent drop**: `Client::SendAck` streams legitimately arrive before Hello completes, so a handshake-gated packet seen pre-handshake is dropped **without** counting a violation.
+- **Tick-rate-locked client ack cadence**: `Client::SendAck` sends at most one ack per sim-tick interval (derived from `engine::kiTickRate`, not a hardcoded Hz), so ack packet rate is independent of render framerate; the 256-packet budget then only ever trips on hostile floods (a multi-second server-poll stall can still deliver many wall-seconds of tick-rate acks in one poll, which the budget tolerates).
+- **`kbDebugInput` gate**: debug-control game packets (save/load/reset/replay/pause/timespeed) contract-resolve to the sentinel on a server built with `kbDebugInput == false` → a violation, so no handshaken client can reset/pause/re-speed a non-debug server.
+
+**Contract table** (sizes = full packet incl. type byte):
+
+| Packet | Min | Max | /tick | Handshake | Over-cap | Residual semantic validation |
+|--------|----|----|------|-----------|----------|------------------------------|
+| `kClientHello` | 13 | 93 | 4 | no | violation | `kuiProtocolVersion` + `game::Frame::kiVersion` gates (mismatch rejects+disconnects); build-config warn; ghost-client drop; idempotent re-Hello |
+| `kClientAckStream` | 10 | 1738 | 128 | yes | **silent** | exact size `2 + count*27 + 8` (`BoundedCursor`); per-slot epoch match; floor clamped ≤ latest buffered tick; timestamp echo monotonic |
+| `kClientSubscribe` | 9 | 9 | 64 | yes | violation | 3×3 adjacency of an authorized coord (`kOriginCoord` always allowed); slot clamped to `game::kiDesiredCoordSlots` |
+| `kClientUnsubscribe` | 2 | 2 | 64 | yes | violation | slot index bound |
+| `kClientResyncRequest` | 1 | 1 | 4 | yes | violation | — |
+| `kClientSpawnRequest` | 2 | 2 | 8 | yes | violation | spawn/respawn flag byte |
+| `kClientDesyncReport` | 33 | 33 | 8 | yes | violation | — |
+| `kClientDebugFrameRequest` | 17 | 17 | 8 | yes | violation | — |
+| `kClientUpdatePlayerRequest` | 14 | 14 | 8 | yes | violation | nav delay finite-clamped `[0,60]`, NaN/Inf→60 (`ValidateNavigationDelay`) |
+| `kClientFleetNavigationDelay` | 13 | 13 | 8 | yes | violation | nav delay finite-clamped `[0,60]`, NaN/Inf→60 |
+| `kClientCreateFleetRequest` | 1 | 1 | 4 | yes | violation | per-client fleet cap 16 (over-cap `kWarning`) |
+| `kClientDeleteFleetRequest` | 9 | 9 | 8 | yes | violation | fleet-index lookup |
+| `kClientSpawnIntoFleetRequest` | 9 | 9 | 8 | yes | violation | per-fleet member cap 16; spawn dedup on `{client, fleet, member}` |
+| `kClientRespawnInFleetRequest` | 17 | 17 | 16 | yes | violation | member-index lookup; spawn dedup |
+| `kClientSaveRequest` / `LoadRequest` / `ResetRequest` / `ReplayRecordRequest` / `ReplayPlaybackRequest` | 1 | 1 | 2 | yes | violation | **`kbDebugInput`-gated** — sentinel (violation) on a non-debug server |
+| `kClientPauseRequest` | 2 | 2 | 4 | yes | violation | **`kbDebugInput`-gated** |
+| `kClientTimespeedRequest` | 2 | 2 | 8 | yes | violation | **`kbDebugInput`-gated** |
+
+Server→client types and unknown type bytes resolve to the sentinel (not client-sendable). No wire-format change: `kuiProtocolVersion` stays 5. Contract enforcement runs pre-sim and server-authoritative — no determinism/CRC exposure; the client ack throttle is send-timing only (acks are not CRC'd).
+
 ## See Also
 
 - [Game Reconciliation](GameReconciliation.md) — detailed reconciliation pipeline walkthrough

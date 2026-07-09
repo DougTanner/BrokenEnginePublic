@@ -93,6 +93,9 @@ using namespace std::chrono_literals;
 #include <queue>
 #include <random>
 #include <ratio>
+#if defined(BT_ENGINE)
+	#include <regex> // Runtime game agent command channel only (get_logs pattern match); kept out of the offline DataPacker and Common-only TUs.
+#endif
 #include <semaphore>
 #include <source_location>
 #include <span>
@@ -205,6 +208,14 @@ inline constexpr bool XmIsInf(float fValue)
 	#include "backends/imgui_impl_win32.h"
 	#include "backends/imgui_impl_vulkan.h"
 	#include "implot.h"
+	// Client-only: imgui internals for the agent UI registry (engine::AgentUiRegistry reads ImRect / ImGuiContext /
+	// ImGuiWindow and implements the test-engine hook externs). IMGUI_ENABLE_TEST_ENGINE only exposes those extern
+	// declarations + the ItemAdd/ItemInfo macros; the gating ImGuiContext member exists unconditionally, so the
+	// client view matches the vendored library (compiled with the same define). Kept out of the server PCH.
+	#if defined(BT_CLIENT)
+		#define IMGUI_ENABLE_TEST_ENGINE
+		#include "imgui_internal.h"
+	#endif
 	#ifdef __clang__
 		#pragma clang diagnostic pop
 	#endif
@@ -268,6 +279,15 @@ inline constexpr bool XmIsInf(float fValue)
 	#include "clipper2/clipper.offset.h"
 #endif
 
+// nlohmann::json (vendored under tinygltf) - runtime agent command channel (BT_ENGINE) and offline island
+// bake archetype/route loaders (BT_DATA_PACKER). The warning-suppression pragma travels with the header.
+#if defined(BT_ENGINE) || defined(BT_DATA_PACKER)
+	#pragma warning(push)
+	#pragma warning(disable : 5311) // nlohmann::json 3.10.4 uses the pre-C++20 literal-operator-id form 'operator "" _json'
+	#include "tinygltf/json.hpp"
+	#pragma warning(pop)
+#endif
+
 // DataPacker-only third-party consumption headers (offline asset tooling). Centralized here, gated by
 // BT_DATA_PACKER, so the consumption includes live in one place rather than scattered across the DataPacker
 // .cpp/.h files. The library *implementation* units stay in the Prebuilts/Source/DataPacker unity .cpp's by
@@ -310,13 +330,8 @@ inline constexpr bool XmIsInf(float fValue)
 	#include "stb/stb_image_resize2.h"
 	#include "stb/stb_image_write.h"
 
-	// nlohmann::json (vendored under tinygltf) - island bake archetype/route loaders
-	#pragma warning(push)
-	#pragma warning(disable : 5311) // nlohmann::json 3.10.4 uses the pre-C++20 literal-operator-id form 'operator "" _json'
-	#include "tinygltf/json.hpp"
-	#pragma warning(pop)
-
-	// tinygltf - glTF scene loader (consumption only; implementation in the Prebuilts unity .cpp)
+	// tinygltf - glTF scene loader (consumption only; implementation in the Prebuilts unity .cpp). Its
+	// vendored nlohmann::json is included above via the shared BT_ENGINE || BT_DATA_PACKER gate.
 	#include "tinygltf/tiny_gltf.h"
 
 	// meshoptimizer - vertex remap / cache optimization

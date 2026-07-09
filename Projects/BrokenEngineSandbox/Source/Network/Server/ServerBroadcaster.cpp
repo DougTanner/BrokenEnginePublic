@@ -62,6 +62,36 @@ void ServerBroadcaster::BuildFrameInputs()
 	gpServerSession->mpFleetManager->TickFleetTimers();
 	gpServerSession->mpFleetManager->ProcessFlagshipUpdates();
 
+	// Drain agent-injected StatusChanges into mFrameInputs so they ride the same broadcast / CRC / replay channel
+	// as real spawns. Entries not consumable this update stay in the map (deferred) and apply on the first update
+	// that can take them, matching the paused deferral. Whole-map defers: the update won't tick (mfLastDeltaTime == 0:
+	// paused / zero-accumulated ticks — the per-tick consumer loop won't run and the next BuildFrameInputs wipes
+	// mFrameInputs); replay playback (LoadDifference overwrites mFrameInputs from the recorded stream); or a client
+	// sits in mClientsWaitingForSpawn (an agent spawn landing the same tick would corrupt the spawn-assignment-by-
+	// snapshot-diff zip). Per-coord defers below: a coord the tick loop won't simulate (inactive, or no committed
+	// pCurrent frame yet).
+	if (gpGame->mfLastDeltaTime > 0.0f && !gpGame->mGameSaveLoad.IsReplaying() && gpServerSession->mpClientManager->mClientsWaitingForSpawn.empty())
+	{
+		for (auto it = mPendingAgentStatusChanges.begin(); it != mPendingAgentStatusChanges.end();)
+		{
+			const engine::GridCoord& rCoord = it->first;
+			auto framesIt = gpGame->mCoordFrames.find(rCoord);
+			bool bActive = std::find(gpGame->mActiveCoords.begin(), gpGame->mActiveCoords.end(), rCoord) != gpGame->mActiveCoords.end();
+			if (!bActive || framesIt == gpGame->mCoordFrames.end() || framesIt->second.pCurrent == nullptr)
+			{
+				++it;
+				continue;
+			}
+			std::vector<StatusChange>& rStatusChanges = gpGame->mFrameInputs.try_emplace(rCoord).first->second.statusChanges;
+			rStatusChanges.insert(rStatusChanges.end(), it->second.begin(), it->second.end());
+			// Sort by type: the broadcast batch emits type-grouped ascending (SerializeStatusChangeBatch) and clients
+			// apply in that wire order, so the server must tick the same order or swap-pop indices diverge → CRC desync.
+			// Stable sort preserves within-type insertion order, matching the serializer's stable type-group scan.
+			std::stable_sort(rStatusChanges.begin(), rStatusChanges.end(), [](const StatusChange& rLhs, const StatusChange& rRhs) { return rLhs.eType < rRhs.eType; });
+			it = mPendingAgentStatusChanges.erase(it);
+		}
+	}
+
 	// Save StatusChanges for broadcasting (spawns only, transfers handled separately in HarvestTransfers)
 	for (const auto& [rCoord, rFrameInput] : gpGame->mFrameInputs)
 	{
@@ -226,6 +256,13 @@ void ServerBroadcaster::QueueUpdatePlayerRequest(const PendingUpdatePlayerReques
 	mPendingUpdatePlayerRequests.push_back(rRequest);
 }
 
+void ServerBroadcaster::QueueAgentStatusChange(engine::GridCoord coord, const StatusChange& rChange)
+{
+	// Runs at the agent command drain point (top of ServerUpdate) under AgentCommandServer::Drain's blanket
+	// allocation suppression — mirrors QueueUpdatePlayerRequest (no independent inner guard).
+	mPendingAgentStatusChanges.try_emplace(coord).first->second.push_back(rChange);
+}
+
 void ServerBroadcaster::ClearPendingRequests()
 {
 	mPendingUpdatePlayerRequests.clear();
@@ -240,6 +277,9 @@ void ServerBroadcaster::ResetState()
 {
 	mSpawns.clear();
 	mPendingUpdatePlayerRequests.clear();
+	// Drop any paused-deferred agent injection so a globalId minted against the pre-load game can't leak a stale
+	// StatusChange into freshly-loaded frames. Not cleared in ClearPendingRequests (runs before the agent Drain).
+	mPendingAgentStatusChanges.clear();
 }
 
 #endif // BT_SERVER

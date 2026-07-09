@@ -181,8 +181,10 @@ void ClientSession::Poll()
 		ScopedSuppressAllocationTracking suppress;
 		if (mpClientNetwork != nullptr)
 		{
-			mpClientNetwork->SendAck();
-			mpClientNetwork->Flush();
+			if (mpClientNetwork->SendAck())
+			{
+				mpClientNetwork->Flush();
+			}
 		}
 	}
 	gpProfileManager->CpuStop(engine::kCpuTimerNetworkSend, engine::CpuStopFlags::kSmoothNow);

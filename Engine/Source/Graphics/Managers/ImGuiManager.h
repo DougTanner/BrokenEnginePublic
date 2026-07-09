@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace game
 {
 class DeathMenuScreen;
@@ -65,3 +67,5 @@ private:
 inline ImGuiManager* gpImGuiManager = nullptr;
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

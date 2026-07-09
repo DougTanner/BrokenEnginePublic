@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -143,3 +145,5 @@ private:
 inline BufferManager* gpBufferManager = nullptr;
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

@@ -345,6 +345,7 @@ Collections with client-only owned objects (area lights, wind trails, sounds) pr
 - [ ] Add `std::make_unique` in both constructors in `Frame.cpp`
 - [ ] Add both structs' `kiVersion` terms to the `Frame::kiVersion` sum in `Frame.cpp`
 - [ ] Add files to all four game `.vcxproj`/`.filters` files
+- [ ] Add an `Extract*` function + `query_collection` arm + `query_frame` count entry in `AgentCommandsServer.cpp` (server-visible collections; minimum+cheap fields: index/pos/dir/health/alignment/id where present) — otherwise the new collection is silently invisible to the agent harness
 
 **Automatic via tuple accessors:** Crcs, Write, Read, ServerRead, LogDifferences, AllocateAndCopy, all ForEach phase dispatch (Register, GraphicsResources, Update, Render, etc.)
 

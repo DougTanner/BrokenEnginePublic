@@ -9,6 +9,11 @@
 namespace engine
 {
 
+// kiMaxAckStreamPacketSize is authored with a literal 64 in NetworkProtocol.h (which cannot include
+// NetworkManager.h); tie it to the real slot ceiling here so a change to kiMaxEnetCoordSlots trips this.
+static_assert(kiMaxAckStreamPacketSize == 2 + NetworkManager::kiMaxEnetCoordSlots * 27 + 8,
+	"kiMaxAckStreamPacketSize must match the ack-stream wire layout sized by kiMaxEnetCoordSlots");
+
 Server::Server(uint16_t uiPort)
 {
 	ASSERT(gpServer == nullptr);
@@ -75,6 +80,14 @@ void Server::Poll()
 	// post-tick, so a per-poll clear would drop a subscribe/resync accepted while the server is paused
 	// (iFullTicks == 0) before any full state is sent. They persist until those consumers service and clear them.
 	mReceivedGamePackets.clear();
+
+	// Reset the per-poll (~ per-tick window) contract budgets before draining this poll's packets.
+	for (ClientConnection& rClient : mClients)
+	{
+		rClient.iTickPacketCount = 0;
+		rClient.iTickByteCount = 0;
+		std::memset(rClient.tickTypeCounts, 0, sizeof(rClient.tickTypeCounts));
+	}
 
 	ENetEvent event {};
 	while (enet_host_service(mpHost, &event, 0) > 0)
@@ -177,6 +190,79 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 	int64_t iClientId = reinterpret_cast<int64_t>(pPeer->data);
 	PacketType eType = static_cast<PacketType>(pData[0]);
 
+	// Gate 1: unknown client id (e.g. packets still in flight after a violation-disconnect + RemoveClient) -> silent drop.
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr)
+	{
+		return;
+	}
+
+	// Gate 2: per-poll (~ per-tick) global packet/byte budget -- applies to every type including game-range.
+	// Record a violation only on the FIRST crossing of each budget within the poll window; all further
+	// over-budget packets that poll drop silently. A sustained hostile flood still escalates (~1 violation per
+	// poll -> disconnect within ~32 polls ~= 1 s at 32 Hz), while a one-off multi-second stall burst (>=288
+	// queued acks after a ~9 s server stall, or a NetworkSimulation fast-forward flush draining the delayed
+	// queue) costs a legitimate client at most 2 lifetime violations (packet + byte). RecordContractViolation may
+	// invalidate pClient, so the first-crossing record is the last touch of the client and returns immediately.
+	const bool bPacketWasUnderBudget = pClient->iTickPacketCount <= kiMaxClientPacketsPerTick;
+	++pClient->iTickPacketCount;
+	if (pClient->iTickPacketCount > kiMaxClientPacketsPerTick)
+	{
+		if (bPacketWasUnderBudget)
+		{
+			RecordContractViolation(iClientId, "tick budget", pData[0], static_cast<int64_t>(iSize));
+		}
+		return;
+	}
+
+	const bool bByteWasUnderBudget = pClient->iTickByteCount <= kiMaxClientInboundBytesPerTick;
+	pClient->iTickByteCount += static_cast<int64_t>(iSize);
+	if (pClient->iTickByteCount > kiMaxClientInboundBytesPerTick)
+	{
+		if (bByteWasUnderBudget)
+		{
+			RecordContractViolation(iClientId, "tick budget", pData[0], static_cast<int64_t>(iSize));
+		}
+		return;
+	}
+
+	// Gates 3-5 apply to engine types only. Game-range types (>= kGamePacketStart) skip the contract table and
+	// keep their existing dispatch path (default branch: FindHandshakenClient gate + parse-time contract checks).
+	if (static_cast<uint8_t>(eType) < static_cast<uint8_t>(PacketType::kGamePacketStart))
+	{
+		const ClientPacketContract contract = GetClientPacketContract(eType);
+
+		// Gate 3: contract lookup -- sentinel row (not client-sendable)
+		// or size outside [min, max].
+		if (contract.iMaxSize == 0)
+		{
+			RecordContractViolation(iClientId, "not client-sendable", pData[0], static_cast<int64_t>(iSize));
+			return;
+		}
+		if (static_cast<int64_t>(iSize) < contract.iMinSize || static_cast<int64_t>(iSize) > contract.iMaxSize)
+		{
+			RecordContractViolation(iClientId, "size out of range", pData[0], static_cast<int64_t>(iSize));
+			return;
+		}
+
+		// Gate 4: handshake gate -- silent drop, no violation (pre-Hello ack race: ack streams legitimately
+		// arrive before the handshake completes).
+		if (contract.bRequiresHandshake && !pClient->bHandshakeComplete)
+		{
+			return;
+		}
+
+		// Gate 5: per-type per-tick cap -- drop; violation only if the contract counts over-cap.
+		if (++pClient->tickTypeCounts[pData[0]] > contract.iMaxPerTick)
+		{
+			if (contract.bOverCapCountsViolation)
+			{
+				RecordContractViolation(iClientId, "per-type cap", pData[0], static_cast<int64_t>(iSize));
+			}
+			return;
+		}
+	}
+
 	try
 	{
 		switch (eType)
@@ -206,20 +292,17 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 				ClientResyncRequest(iClientId);
 				break;
 			default:
-				if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
+				// Only game-range types reach the default -- engine sentinel types are caught at gate 3.
+				// Game-range handshake gate stays here (silent drop pre-handshake).
 				{
-					ClientConnection* pClient = FindHandshakenClient(iClientId);
-					if (pClient == nullptr)
+					ClientConnection* pGameClient = FindHandshakenClient(iClientId);
+					if (pGameClient == nullptr)
 					{
 						break;
 					}
 					ScopedSuppressAllocationTracking suppress;
 					// Heap: raw game packet buffer grows on game-specific packets
 					mReceivedGamePackets.push_back({iClientId, pData[0], std::vector<uint8_t>(pData + 1, pData + iSize)});
-				}
-				else
-				{
-					LOG(kNetwork, kWarning, "Server::Receive unknown packet type {} Client: {}", static_cast<uint8_t>(eType), iClientId);
 				}
 				break;
 		}
@@ -229,8 +312,9 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		// Trust boundary: a corrupt count/size in a received payload throws CorruptStreamException
 		// (or .at()/bad_alloc) from the reader before any client state is mutated (handlers land
 		// parsed values in locals first). Drop the single packet and let the client resend/reconnect,
-		// rather than tearing down the peer.
-		LOG(kNetwork, kWarning, "Server::Receive dropped corrupt packet (type {}) Client: {}: {}", static_cast<uint8_t>(eType), iClientId, rException.what());
+		// rather than tearing down the peer, and count it as a contract violation.
+		LOG(kNetwork, kDebug, "Server::Receive dropped corrupt packet (type {}) Client: {}: {}", static_cast<uint8_t>(eType), iClientId, rException.what());
+		RecordContractViolation(iClientId, "corrupt payload", pData[0], static_cast<int64_t>(iSize));
 	}
 }
 
@@ -415,6 +499,43 @@ ClientConnection* Server::FindHandshakenClient(int64_t iClientId)
 {
 	ClientConnection* pClient = FindClient(iClientId);
 	return (pClient != nullptr && pClient->bHandshakeComplete) ? pClient : nullptr;
+}
+
+void Server::RecordContractViolation(int64_t iClientId, const char* pcReason, uint8_t uiPacketType, int64_t iSize)
+{
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr)
+	{
+		return;
+	}
+
+	++pClient->iContractViolations;
+
+	// Log only on the first violation and at disconnect -- exactly two kWarning lines per hostile client,
+	// no per-packet spam, no cooldown state.
+	if (pClient->iContractViolations == 1)
+	{
+		LOG(kNetwork, kWarning, "Server::RecordContractViolation First Client: {} Reason: {} Type: {} Size: {}", iClientId, pcReason, uiPacketType, iSize);
+	}
+
+	if (pClient->iContractViolations >= kiContractViolationDisconnectCount)
+	{
+		LOG(kNetwork, kWarning, "Server::RecordContractViolation Disconnecting Client: {} Violations: {} Reason: {} Type: {} Size: {}", iClientId, pClient->iContractViolations, pcReason, uiPacketType, iSize);
+
+		// Capture peer/GUID before the client record is removed below.
+		ENetPeer* pPeer = pClient->pPeer;
+		ClientGuid clientGuid = pClient->clientGuid;
+
+		{
+			ScopedSuppressAllocationTracking suppress;
+			// Heap: push the disconnect ourselves (not via the ENet DISCONNECT event) so the game layer
+			// persists fleet state; the later DISCONNECT event finds no client (gate 1) and is a safe no-op.
+			mPendingDisconnects.push_back({iClientId, clientGuid});
+		}
+
+		enet_peer_disconnect(pPeer, 0);
+		RemoveClient(iClientId);
+	}
 }
 
 } // namespace engine

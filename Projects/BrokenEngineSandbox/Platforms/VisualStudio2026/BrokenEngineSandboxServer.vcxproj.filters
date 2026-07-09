@@ -4,6 +4,9 @@
     <Filter Include="Engine">
       <UniqueIdentifier>{e35d3a05-faec-49a6-9f8c-a51693ff27a6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Agent">
+      <UniqueIdentifier>{237139c6-f52e-48af-b40c-965138daa616}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Engine\Data">
       <UniqueIdentifier>{1f2a3b4c-5d6e-7f8a-9b0c-d1e2f3a4b5c6}</UniqueIdentifier>
     </Filter>
@@ -33,6 +36,9 @@
     </Filter>
     <Filter Include="Game">
       <UniqueIdentifier>{a470bb84-b6ed-4e31-b3ff-6414dfd76133}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\Agent">
+      <UniqueIdentifier>{099eb226-0661-4f95-918e-551150652f03}</UniqueIdentifier>
     </Filter>
     <Filter Include="Game\Network">
       <UniqueIdentifier>{c5d6e7f8-a9b0-1234-5678-9abcdef01234}</UniqueIdentifier>
@@ -303,9 +309,6 @@
     <ClInclude Include="..\..\..\..\Common\StackWalker.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Ui\NetworkUiControl.h">
-      <Filter>Engine\Ui</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\WrapperBase.h">
       <Filter>Engine\Ui</Filter>
     </ClInclude>
@@ -401,6 +404,18 @@
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h">
       <Filter>Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\LaunchOptions.h">
+      <Filter>Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Agent\AgentCommandServer.h">
+      <Filter>Engine\Agent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Agent\AgentCommands.h">
+      <Filter>Game\Agent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Agent\AgentCommandsServerQueries.h">
+      <Filter>Game\Agent</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Save\GameSaveLoad.h">
       <Filter>Game\Save</Filter>
@@ -670,6 +685,24 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp">
       <Filter>Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\LaunchOptions.cpp">
+      <Filter>Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentCommandServer.cpp">
+      <Filter>Engine\Agent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentUiRegistryServerStubs.cpp">
+      <Filter>Engine\Agent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Agent\AgentCommands.cpp">
+      <Filter>Game\Agent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Agent\AgentCommandsServer.cpp">
+      <Filter>Game\Agent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Agent\AgentCommandsServerQueries.cpp">
+      <Filter>Game\Agent</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Save\GameSaveLoad.cpp">
       <Filter>Game\Save</Filter>

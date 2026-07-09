@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 #include "DynamicPipelines.h"
 
 namespace engine
@@ -108,3 +110,5 @@ public:
 inline PipelineManager* gpPipelineManager = nullptr;
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

@@ -92,7 +92,7 @@ public:
 		NetworkManager::SendPacket(mpServerPeer, uiChannel, rWorkbuffer, uiPacketFlags);
 	}
 
-	void SendAck();
+	bool SendAck();
 	void SendSpawnRequest(ClientRequestFlags_t flags);
 	void SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual);
 	void SendDebugFrameRequest(int64_t iTick, GridCoord coord);
@@ -222,6 +222,10 @@ private:
 	// Interarrival jitter tracking
 	std::chrono::steady_clock::time_point mLastUpdateArrival {};
 	common::Smoothed<int64_t> mSmoothedJitterUs;
+
+	// Tick-rate-locked ack cadence: last wall-clock ack send time; SendAck throttles to one sim-tick
+	// interval so packet rate is decoupled from render framerate (interval derived from kiTickRate).
+	std::chrono::steady_clock::time_point mLastAckSendTime {};
 
 	ClientGuid mClientGuid {};
 	GuidAssignedCallback mpfnGuidAssigned = nullptr;

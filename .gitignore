@@ -3,10 +3,10 @@
 *.local.json
 tmpclaude*
 Log.txt
-
 Engine/Data/Islands/**/*.jpg
 Engine/Data/Islands/**/Intermediates/
 *.terrain.lock
+/.claude/build-locks/BrokenEngineSandbox.pid
 
 # Local-only directories
 .vs/
@@ -19,5 +19,4 @@ Plans/Temp
 .claude/worktrees/
 
 # Games
-Projects/KineticStorm/
-/.claude/build-locks/BrokenEngineSandbox.pid
+/Projects/Coretide

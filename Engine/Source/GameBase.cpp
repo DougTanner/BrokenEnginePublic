@@ -120,6 +120,13 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 
 	game::gpServerSession->PreTickNetwork();
 
+	// Drain agent commands with the debug-control packets, before Quickload/SaveLoadReplay/PrepareActiveSet so
+	// flag-setting commands are consumed the same update and injected StatusChanges enter the broadcast snapshot.
+	if (gpAgentCommandServer != nullptr) [[unlikely]]
+	{
+		gpAgentCommandServer->Drain();
+	}
+
 	if (game::gpGame->mGameSaveLoad.Quickload(rMenuInput)) [[unlikely]]
 	{
 		game::gpGame->ComputeActiveSet();
@@ -157,7 +164,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 
 		game::gpServerSession->PrepareTick();
 
-		if (game::gpGame->mGameSaveLoad.IsRecording() || game::gpGame->mGameSaveLoad.IsReplaying()) [[unlikely]]
+		if (game::gpGame->mGameSaveLoad.IsRecording() || game::gpGame->mGameSaveLoad.IsReplaying() || (mGameFlags & GameFlags::kSaveReplay)) [[unlikely]]
 		{
 			game::gpGame->mGameSaveLoad.SyncReplayTick();
 		}

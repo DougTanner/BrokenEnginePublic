@@ -16,7 +16,7 @@ StreamingVoice::StreamingVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice* p
 , mpVoice(pVoice)
 , mpAudioEngine(pAudioEngine)
 {
-	LOG(kAudio, kDebug, "Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, buffer size: {} bytes", mpLazyChunk->location.crc, mpLazyChunk->header.iSize, kiBufferSize);
+	LOG(kAudio, kDebug, "Music streaming: Initializing stream for CRC {}, data size: {} bytes, buffer size: {} bytes", mpLazyChunk->location.crc, mpLazyChunk->header.iSize, kiBufferSize);
 
 	CHECK_HRESULT(mpVoice->SetVolume(0.0f));
 }

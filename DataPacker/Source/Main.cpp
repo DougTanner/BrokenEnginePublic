@@ -232,7 +232,10 @@ bool RunExportJobs()
 		std::string combined;
 		for (size_t i = 0; i < failureMessages.size(); ++i)
 		{
-			if (i > 0) combined.append("\n\n");
+			if (i > 0)
+			{
+				combined.append("\n\n");
+			}
 			combined.append(failureMessages.at(i));
 		}
 		Quit(combined.c_str(), "Data Packer - Export Failed");

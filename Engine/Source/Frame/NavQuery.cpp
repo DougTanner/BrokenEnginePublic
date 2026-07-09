@@ -426,8 +426,14 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 	// Vertex position lookup (including temporary nodes)
 	auto GetPosition = [&](int32_t iNode) -> XMFLOAT2
 	{
-		if (iNode == iStartNode) return f2Start;
-		if (iNode == iEndNode) return f2End;
+		if (iNode == iStartNode)
+		{
+			return f2Start;
+		}
+		if (iNode == iEndNode)
+		{
+			return f2End;
+		}
 		return pVertices[iNode];
 	};
 

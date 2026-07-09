@@ -43,6 +43,16 @@ static constexpr LayoutMapping kLayoutMappings[]
 };
 static_assert(std::size(kLayoutMappings) == static_cast<size_t>(TextureLayout::kTransferSource) + 1);
 
+} // namespace
+
+VkImageLayout ToVkImageLayout(TextureLayout eLayout)
+{
+	return kLayoutMappings[static_cast<int>(eLayout)].vkImageLayout;
+}
+
+namespace
+{
+
 void CreateImageView(VkImage vkImage, const TextureInfo& rInfo, bool bCheckRenderPass, VkImageView& rVkImageView)
 {
 	VkComponentMapping vkComponentMapping {.r = VK_COMPONENT_SWIZZLE_R, .g = VK_COMPONENT_SWIZZLE_G, .b = VK_COMPONENT_SWIZZLE_B, .a = VK_COMPONENT_SWIZZLE_A};

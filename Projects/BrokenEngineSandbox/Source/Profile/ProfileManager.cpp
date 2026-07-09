@@ -377,11 +377,26 @@ void ProfileManager::SetClockCorrection(int64_t iOffset, int64_t iTargetBehind, 
 
 void ProfileManager::SetReconcileCounters(int64_t iCrcValidated, int64_t iAssumed, int64_t iCrcFastPath, int64_t iStatusChangeReplay, int64_t iKnockOnReplay)
 {
-	if (iCrcValidated > 0) mCrcValidatedTicksPerSecond.Set(iCrcValidated);
-	if (iAssumed > 0) mAssumedTicksPerSecond.Set(iAssumed);
-	if (iCrcFastPath > 0) mCrcFastPathEventsPerSecond.Set(iCrcFastPath);
-	if (iStatusChangeReplay > 0) mStatusChangeReplayTicksPerSecond.Set(iStatusChangeReplay);
-	if (iKnockOnReplay > 0) mKnockOnReplayTicksPerSecond.Set(iKnockOnReplay);
+	if (iCrcValidated > 0)
+	{
+		mCrcValidatedTicksPerSecond.Set(iCrcValidated);
+	}
+	if (iAssumed > 0)
+	{
+		mAssumedTicksPerSecond.Set(iAssumed);
+	}
+	if (iCrcFastPath > 0)
+	{
+		mCrcFastPathEventsPerSecond.Set(iCrcFastPath);
+	}
+	if (iStatusChangeReplay > 0)
+	{
+		mStatusChangeReplayTicksPerSecond.Set(iStatusChangeReplay);
+	}
+	if (iKnockOnReplay > 0)
+	{
+		mKnockOnReplayTicksPerSecond.Set(iKnockOnReplay);
+	}
 }
 
 #endif // BT_CLIENT

@@ -244,14 +244,38 @@ constexpr bool IsServerChunk(data::DataTypes eDataType)
 // Derive data type from chunk flags for pack file handle lookup
 constexpr data::DataTypes DataTypeFromFlags(const common::ChunkFlags_t& rFlags)
 {
-	if (rFlags & common::ChunkFlags::kFont)    return data::kDataTypeFont;
-	if (rFlags & common::ChunkFlags::kScene)   return data::kDataTypeScene;
-	if (rFlags & common::ChunkFlags::kIsland)  return data::kDataTypeIslands;
-	if (rFlags & common::ChunkFlags::kModel)   return data::kDataTypeModel;
-	if (rFlags & common::ChunkFlags::kShader)  return data::kDataTypeShader;
-	if (rFlags & common::ChunkFlags::kTexture) return data::kDataTypeTexture;
-	if (rFlags & common::ChunkFlags::kChunkAudio)   return data::kDataTypeAudio;
-	if (rFlags & common::ChunkFlags::kRaw)     return data::kDataTypeRaw;
+	if (rFlags & common::ChunkFlags::kFont)
+	{
+		return data::kDataTypeFont;
+	}
+	if (rFlags & common::ChunkFlags::kScene)
+	{
+		return data::kDataTypeScene;
+	}
+	if (rFlags & common::ChunkFlags::kIsland)
+	{
+		return data::kDataTypeIslands;
+	}
+	if (rFlags & common::ChunkFlags::kModel)
+	{
+		return data::kDataTypeModel;
+	}
+	if (rFlags & common::ChunkFlags::kShader)
+	{
+		return data::kDataTypeShader;
+	}
+	if (rFlags & common::ChunkFlags::kTexture)
+	{
+		return data::kDataTypeTexture;
+	}
+	if (rFlags & common::ChunkFlags::kChunkAudio)
+	{
+		return data::kDataTypeAudio;
+	}
+	if (rFlags & common::ChunkFlags::kRaw)
+	{
+		return data::kDataTypeRaw;
+	}
 	// External-data trust boundary: flags come from .pack chunk headers; no type flag means a corrupt pack.
 	// kDataTypeCount is one past the last valid pack array index — callers must treat it as load failure.
 	return data::kDataTypeCount;
@@ -349,7 +373,7 @@ void FileManager::LoadPackFiles()
 			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.location = rChunkLocation, .header = chunkHeader, .iDataSize = iDataSize});
 			if (!bInserted)
 			{
-				LOG(kLoading, kDebug, "Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
+				LOG(kLoading, kDebug, "Duplicate chunk CRC {} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 				DEBUG_BREAK();
 			}
 
@@ -466,7 +490,7 @@ void FileManager::LoadPackFiles()
 				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], .iDataSize = static_cast<int64_t>(rChunkLocation.uiSize - common::kiChunkDataOffset), });
 				if (!bInserted)
 				{
-					LOG(kLoading, kDebug, "Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
+					LOG(kLoading, kDebug, "Duplicate chunk CRC {} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 					DEBUG_BREAK();
 				}
 

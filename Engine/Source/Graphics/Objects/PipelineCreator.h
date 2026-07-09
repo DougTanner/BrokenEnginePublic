@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -12,3 +14,5 @@ struct PipelineCreator
 };
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

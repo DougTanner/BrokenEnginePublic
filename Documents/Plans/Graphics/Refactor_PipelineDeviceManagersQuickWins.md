@@ -19,7 +19,6 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical in-fun
 
 ### Engine/Source/Graphics/Managers/CommandBufferManager.{h,cpp}
 - Delete the `bSignalFence` parameter (`CommandBufferManager.h:17,35`, `.cpp:139,179,190`) — `false` at the single caller (`Graphics.cpp:252`); the true-branch is dead and the block comment (:173-177) already documents "which is ALWAYS". Submit with `VK_NULL_HANDLE`, keep the reset/UI-signal pairing comment [~15m]
-- Move `mbSaveScreenshot` (`CommandBufferManager.h:30`) to `Graphics` — CommandBufferManager never touches it; it's a mailbox between `game::Game` (`Game.cpp:663`) and `Graphics.cpp:263-265` [~15m]
 
 ### Engine/Source/Graphics/Managers/CommandBufferRecordMain.cpp / CommandBufferRecordGlobal.cpp
 - Drop the redundant `static_cast<uint32_t>` on the already-`uint32_t` extent members (`CommandBufferRecordMain.cpp:84`) [~5m]
@@ -40,8 +39,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical in-fun
 
 ## Critical files
 - `Engine/Source/Graphics/Managers/`: InstanceManager, DeviceManager, SwapchainManager, CommandBufferManager, CommandBufferRecordMain, CommandBufferRecordGlobal, BufferManager, DynamicPipelines, PipelineManager (one line)
-- `Engine/Source/Graphics/Graphics.{h,cpp}` (`mbSaveScreenshot` new home; `bSignalFence` caller)
-- `Projects/BrokenEngineSandbox/Source/Game.cpp` (`mbSaveScreenshot` toggle site)
+- `Engine/Source/Graphics/Graphics.{h,cpp}` (`bSignalFence` caller)
 - `Engine/Source/Profile/ProfileManagerBase.h` (`GpuTimers` enum + `kGpuTimerNames` table, terrain-gen timer removal)
 
 ## Out of scope
@@ -55,5 +53,6 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical in-fun
 
 ## Verification Notes
 
-- All items re-verified against source 2026-07-02: `mbFoundKhronosValidation` write-only (repo grep), `bSignalFence` false at its single caller (`Graphics.cpp:252`), `mbSaveScreenshot` untouched by CommandBufferManager itself (only `Game.cpp:663` writes, `Graphics.cpp:263-265` consumes), the `DeviceManager.cpp:246` `ASSERT(false)` sits ahead of a complete fallback (queue is created — the ctor's unique-family loop includes the present family — and `SwapchainManager` carries live `VK_SHARING_MODE_CONCURRENT` support at `:239-257`).
+- All items re-verified against source 2026-07-02: `mbFoundKhronosValidation` write-only (repo grep), `bSignalFence` false at its single caller (`Graphics.cpp:252`), the `DeviceManager.cpp:246` `ASSERT(false)` sits ahead of a complete fallback (queue is created — the ctor's unique-family loop includes the present family — and `SwapchainManager` carries live `VK_SHARING_MODE_CONCURRENT` support at `:239-257`).
+- The former `mbSaveScreenshot` move item is dropped: a later session deleted that member and landed the `ScreenshotRequest`/`DumpRenderTargetRequest` mailbox on `Graphics` (the superseding change is already in the codebase), so its Game.cpp/Graphics.cpp citations are dead. Batch shrank by one item accordingly.
 - The `using enum` dedup (`PipelineManager.cpp:761-762`) becomes moot if `Refactor_PipelineManagerSplit` lands first: `CreateDebugRenderPipelines` moves to the new `PipelineManagerEffects.cpp`, where a local `using enum` pair is needed again. Drop the item in that ordering.

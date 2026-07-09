@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 #include "Data/Texture.h"
 
 #include "RenderTargetTextures.h"
@@ -192,3 +194,5 @@ public:
 inline TextureManager* gpTextureManager = nullptr;
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

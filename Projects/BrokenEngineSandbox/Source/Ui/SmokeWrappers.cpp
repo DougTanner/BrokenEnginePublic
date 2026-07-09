@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "SmokeWrappers.h"
 
 namespace game
@@ -41,3 +43,5 @@ engine::Wrapper gPlayerImpactPuffIntensityTwo(0.0f, 0.0f, 20.0f);
 engine::Wrapper gMissileTrailIntensity(0.5f, 0.05f, 2.5f);
 
 } // namespace game
+
+#endif // defined(BT_CLIENT)

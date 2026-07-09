@@ -68,7 +68,9 @@ void HudScreen::Render()
 	// Ensure tick prefix for the auto-unhide log — Render() runs outside ClientUpdate's LogTickScope.
 	std::optional<common::LogTickScope> optionalTickScope;
 	if (common::gpThreadLocal->miLogTickCounter < 0)
+	{
 		optionalTickScope.emplace(gpGame->TickCounter());
+	}
 
 	if (gpGame->meUiState != UiState::kNone)
 	{
@@ -143,7 +145,7 @@ void HudScreen::Render()
 	const bool bForceOpen = (mfTimeWantingForceOpen >= kfForceOpenGracePeriodSeconds);
 
 	// Durable log on rising edge of the genuine auto-un-hide trigger — fires once per recovery event.
-	// kWarning so the keLogLevelDefault threshold (kWarning) lets it through.
+	// kWarning clears both the compile floor (keLogLevelDefault, kDebug) and the runtime default threshold (kInfo).
 	if (bForceOpen && !mbPreviousForceOpen)
 	{
 		LOG(kDefault, kWarning, "HUD auto-unhide reason: {} coord: ({},{}) frames: {}",

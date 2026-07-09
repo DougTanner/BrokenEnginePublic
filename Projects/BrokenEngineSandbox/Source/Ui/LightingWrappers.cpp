@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "LightingWrappers.h"
 
 namespace game
@@ -115,3 +117,5 @@ engine::Wrapper gHitFlashVisibleIntensityOne(1.0f, 0.1f, 5.0f);
 engine::Wrapper gHitFlashVisibleIntensityTwo(0.0f, 0.0f, 5.0f);
 
 } // namespace game
+
+#endif // defined(BT_CLIENT)

@@ -12,6 +12,11 @@ namespace engine
 
 static bool sbQuit = false;
 
+void RequestQuit()
+{
+	sbQuit = true;
+}
+
 #if defined(BT_CLIENT)
 static HCURSOR sHcursorArrow = nullptr;
 static HCURSOR sHcursorCrosshair = nullptr;
@@ -33,12 +38,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 #if defined(BT_CLIENT)
 void FindMonitor(bool bUseCurrentRect);
 VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect);
+
+// Effective fullscreen: false when --windowed WxH is set (reproducible agent capture geometry), else the saved
+// gFullscreen preference. Override only at the read sites — never gFullscreen.Set() (it is persisted to
+// GraphicsSettings.bin, so mutating it would silently rewrite the user's saved fullscreen preference).
+static bool WantedFullscreen()
+{
+	if (gLaunchOptions.windowedExtent.width != 0 && gLaunchOptions.windowedExtent.height != 0)
+	{
+		return false;
+	}
+	return gFullscreen.Get<bool>();
+}
 #endif
 bool ProcessMessages();
 
 void MainThread(HINSTANCE hinstance)
 {
 	common::ThreadLocal threadLocal(10 * 1024 * 1024);
+
+	// Tee the whole log stream to a file when requested (before allocation tracking enables, so the open is untracked).
+	if (!gLaunchOptions.logFile.empty())
+	{
+		common::EnableLogFile(gLaunchOptions.logFile);
+	}
 
 	LOG(kDefault, kInfo, "\nGame name: {}", game::kGameName);
 	LOG(kDefault, kInfo, "Game version: {}", game::kiGameVersion);
@@ -108,6 +131,40 @@ void MainThread(HINSTANCE hinstance)
 	// Network
 	auto pNetworkManager = std::make_unique<NetworkManager>();
 
+	// Agent command channel (loopback JSON control, drained on the main thread). Constructed after NetworkManager
+	// so WSAStartup (via ENet init) is done. Dormant unless --agent-port is passed; RAII teardown in reverse order.
+	std::unique_ptr<AgentCommandServer> pAgentCommandServer;
+	common::ScopedLambda clearAgentCommandServer([]()
+	{
+		gpAgentCommandServer = nullptr;
+	});
+#if defined(BT_CLIENT)
+	// Client-only synthetic-input + UI-registry layer, active alongside the agent channel. Ctors set their gp*
+	// globals; RAII teardown (reverse order) nulls them before the command server tears down.
+	std::unique_ptr<AgentUiRegistry> pAgentUiRegistry;
+	std::unique_ptr<AgentInput> pAgentInput;
+#endif
+	if constexpr (kbAgent)
+	{
+		if (gLaunchOptions.iAgentPort != 0)
+		{
+			try
+			{
+				pAgentCommandServer = std::make_unique<AgentCommandServer>(gLaunchOptions.iAgentPort);
+			}
+			catch (const AgentCommandServer::StartupException&)
+			{
+				// Ctor already logged the concrete error. Fail fast so no uncontrollable agent-launched process lingers.
+				return;
+			}
+			gpAgentCommandServer = pAgentCommandServer.get();
+#if defined(BT_CLIENT)
+			pAgentUiRegistry = std::make_unique<AgentUiRegistry>();
+			pAgentInput = std::make_unique<AgentInput>();
+#endif
+		}
+	}
+
 	// Register class
 	WNDCLASSEX wndClassEx
 	{
@@ -138,7 +195,7 @@ void MainThread(HINSTANCE hinstance)
 	// Setup window rect & matrices
 #if defined(BT_CLIENT)
 	game::LoadGraphicsSettings();
-	gWantedFramebufferExtent2D = SetupWindow(gFullscreen.Get<bool>(), sWindowStyle, sWindowRect);
+	gWantedFramebufferExtent2D = SetupWindow(WantedFullscreen(), sWindowStyle, sWindowRect);
 #else
 	LONG iWindowStyle = WS_POPUP;
 	RECT windowRect {};
@@ -265,6 +322,22 @@ void MainThread(HINSTANCE hinstance)
 		{
 			break;
 		}
+
+#if defined(BT_CLIENT)
+		// Drain agent commands before input so injected input scripts (later harness plans) act on the same frame.
+		// The server drains in GameBase::ServerUpdate instead, matching the debug-control packet ordering.
+		if (gpAgentCommandServer != nullptr) [[unlikely]]
+		{
+			gpAgentCommandServer->Drain();
+
+			// Advance the active synthetic-input script one step before input/ImGui so its ImGui IO events and
+			// RawInput-overlay state land in this frame (RawInputManager::Update runs later via ProcessInput).
+			if (gpAgentInput != nullptr) [[unlikely]]
+			{
+				gpAgentInput->AdvanceFrame();
+			}
+		}
+#endif
 
 		// Input
 		game::MenuInput menuInput {};
@@ -413,10 +486,25 @@ VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
 
 		LONG iX = common::RoundUp<LONG, 8>(static_cast<LONG>(0.05f * static_cast<float>(sMonitorInfo.rcMonitor.right)));
 		LONG iY = common::RoundUp<LONG, 8>(static_cast<LONG>(0.05f * static_cast<float>(sMonitorInfo.rcMonitor.bottom)));
-		rWindowRect.left = sMonitorInfo.rcMonitor.left + iX;
-		rWindowRect.right = sMonitorInfo.rcMonitor.right - iX;
-		rWindowRect.top = sMonitorInfo.rcMonitor.top + iY;
-		rWindowRect.bottom = sMonitorInfo.rcMonitor.bottom - iY;
+
+		if (gLaunchOptions.windowedExtent.width != 0 && gLaunchOptions.windowedExtent.height != 0)
+		{
+			// Reproducible agent capture geometry: use the requested client size (multiple-of-8 rounded, matching
+			// the default inset path), anchored at the monitor's top-left inset.
+			LONG iClientWidth = common::RoundUp<LONG, 8>(static_cast<LONG>(gLaunchOptions.windowedExtent.width));
+			LONG iClientHeight = common::RoundUp<LONG, 8>(static_cast<LONG>(gLaunchOptions.windowedExtent.height));
+			rWindowRect.left = sMonitorInfo.rcMonitor.left + iX;
+			rWindowRect.top = sMonitorInfo.rcMonitor.top + iY;
+			rWindowRect.right = rWindowRect.left + iClientWidth;
+			rWindowRect.bottom = rWindowRect.top + iClientHeight;
+		}
+		else
+		{
+			rWindowRect.left = sMonitorInfo.rcMonitor.left + iX;
+			rWindowRect.right = sMonitorInfo.rcMonitor.right - iX;
+			rWindowRect.top = sMonitorInfo.rcMonitor.top + iY;
+			rWindowRect.bottom = sMonitorInfo.rcMonitor.bottom - iY;
+		}
 	}
 
 	LONG iFramebufferWidth = rWindowRect.right - rWindowRect.left;
@@ -436,7 +524,7 @@ bool ProcessMessages()
 {
 #if defined(BT_CLIENT)
 	// Handle fullscreen toggle
-	bool bWantedFullscreen = gFullscreen.Get<bool>();
+	bool bWantedFullscreen = WantedFullscreen();
 	bool bIsFullscreen = (sWindowStyle & WS_POPUP) != 0;
 	if (bIsFullscreen != bWantedFullscreen)
 	{
@@ -551,7 +639,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_SETFOCUS:
 		{
-			LOG(kDefault, kDebug, "WM_SETFOCUS");
+			LOG(kDefault, kInfo, "WM_SETFOCUS");
 
 			if (!sbHasFocus)
 			{
@@ -571,7 +659,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_KILLFOCUS:
 		{
-			LOG(kDefault, kDebug, "WM_KILLFOCUS");
+			LOG(kDefault, kInfo, "WM_KILLFOCUS");
 
 			if (sbHasFocus)
 			{
@@ -633,6 +721,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANCE hPrevInstance, [[maybe_unused]] _In_ LPWSTR lpCmdLine, [[maybe_unused]] _In_ int nShowCmd)
 {
+	if (!engine::ParseLaunchOptions())
+	{
+		return 0; // Fatal launch-option error (e.g. --agent-port out of range); already logged kError.
+	}
+
 	// Prevent multiple instances from running simultaneously
 	std::unique_ptr<void, decltype(&CloseHandle)> pMutex(nullptr, &CloseHandle);
 	if constexpr (kbSingleInstance)
@@ -641,6 +734,13 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 		pMutex.reset(hMutex);
 		if (GetLastError() == ERROR_ALREADY_EXISTS)
 		{
+			// An agent-launched instance must never block on a modal dialog — fail fast so AgentCli sees the exit.
+			if (engine::gLaunchOptions.iAgentPort != 0)
+			{
+				LOG(kDefault, kError, "Another instance is already running; --agent-port launch aborting");
+				return 0;
+			}
+
 			MessageBox(nullptr, "Server is already running.", game::kGameName.data(), MB_OK | MB_SYSTEMMODAL);
 			return 0;
 		}

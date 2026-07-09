@@ -58,10 +58,13 @@ flowchart TD
     classDef physics fill:#fef3c7,stroke:#d97706
     classDef network fill:#fee2e2,stroke:#ef4444
     classDef render fill:#d1fae5,stroke:#059669
+    classDef agent fill:#ede9fe,stroke:#7c3aed
 
     start(["Main Loop Start"])
 
     msgs["ProcessMessages()"]:::input
+
+    agent_drain["AgentCommandServer::Drain()<br/>(dev, if --agent-port)"]:::agent
 
     preupdate["ProcessInput()"]:::input
 
@@ -90,7 +93,7 @@ flowchart TD
 
     audio["AudioManager::Update()"]:::render
 
-    start --> msgs --> preupdate --> tick_frames
+    start --> msgs --> agent_drain --> preupdate --> tick_frames
     tick_frames --> render_method --> audio
     audio -->|next iteration| start
 ```
@@ -105,6 +108,7 @@ flowchart TD
     classDef physics fill:#fef3c7,stroke:#d97706
     classDef network fill:#fee2e2,stroke:#ef4444
     classDef server fill:#f3e8ff,stroke:#9333ea
+    classDef agent fill:#ede9fe,stroke:#7c3aed
 
     start(["Server Loop Start"])
 
@@ -112,6 +116,7 @@ flowchart TD
 
     subgraph tick_frames ["GameBase::ServerUpdate()"]
         pre_tick["ServerSession::PreTickNetwork()"]:::network
+        agent_drain["AgentCommandServer::Drain()<br/>(dev, if --agent-port)"]:::agent
 
         quickload{"GameSaveLoad::Quickload()?"}:::server
         save_load_replay["GameSaveLoad::SaveLoadReplay()"]:::server
@@ -123,7 +128,7 @@ flowchart TD
 
         subgraph physics_loop ["Fixed Timestep Loop (32 Hz)"]
             prepare_tick["ServerSession::PrepareTick()"]:::network
-            sync_replay["GameSaveLoad::SyncReplayTick()<br/>(recording/replaying only)"]:::server
+            sync_replay["GameSaveLoad::SyncReplayTick()<br/>(recording/replaying/record-pending only)"]:::server
             dispatch_s["Dispatch RunFrameTick()"]:::physics
             harvest["HarvestTransfers()"]:::physics
             frame_swap["SwapFrames()"]:::physics
@@ -135,7 +140,7 @@ flowchart TD
         resends["ServerSession::SendResends()<br/>(skipped when iFullTicks == 0)"]:::network
         autosave["GameSaveLoad::TickAutosave()<br/>+ Quicksave()"]:::server
 
-        pre_tick --> quickload
+        pre_tick --> agent_drain --> quickload
         quickload -->|No| save_load_replay --> wait_tick --> ts --> prepare_active --> physics_loop
         physics_loop --> resends --> autosave
     end

@@ -18,17 +18,17 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 
 ### When to use each model
 
-Opus is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down.
+Fable is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down.
 
 - Code/Web search: Haiku — must never summarize; return direct quotes, file:line references, or links for the main context to analyze
 - Builds: Haiku — invoke `/compile`; return status + error/warning lines verbatim
 - Large-file/log filtering: Haiku — return matching lines verbatim
-- Planning: Opus
+- Planning: Fable
 - New Code: Opus
 - Code edits: Sonnet
 - Style review: Sonnet
 - Documentation: Opus
-- Code/session review: Opus
+- Code/session review: paired Fable + Opus (step 4: /repo-code-review + /adversarial-review; step 9: two /session-audit); step-9 fix re-review: Opus
 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 
@@ -36,16 +36,16 @@ Exception for one-line changes: Make the edit yourself, then do step 3
 Each subagent reports files changed + functions/regions touched (one line each), ending with residuals — incomplete items, skipped fixes, findings not acted on — or "none"; main session accumulates and passes to all later steps (subagents can't see other subagents' session), and re-dispatches residuals or routes them to step 10, never drops them silently. The residuals footer is appended after any skill-defined output format and takes precedence over a skill's "output only the template" phrasing.
 
 0. The user will use plan mode to create a planning document (or load a plan from a file)
-	- DO NOT add a 'Verification' section — agents cannot run/play the game, so manual-test steps are noise
+	- Plans MAY include a Verification section of agent-harness steps (launch, drive, query, screenshot — see the agent-harness skill); optional, so trivial refactors don't gold-plate
 1. Invoke /external-grill-plan to interview the user about the plan. **When the user has responded to the grill, DO NOT stop or summarize — immediately continue to step 2 in the same turn.**
 2. Have Opus subagents make the code changes from the planning document, for large plans split across multiple Opus subagents with disjoint file sets. If mid-implementation the plan contradicts actual code (wrong structural assumption, step can't work as written), stop that item and report it as a residual — subagents never improvise past the contradiction. After the code is written the subagent's session then invokes /external-self-audit; main session passes its handed-off items to the step 4 and step 9 reviewers as focus areas; sweep-exhaustiveness items also go to step 3
 3. Use a Sonnet subagent to invoke the /update-affected-code skill — pass the changed-file list, touched functions/regions, the plan document (or intent summary), and the step 2 sweep-exhaustiveness handoffs
-4. Use an Opus subagent to invoke the /repo-code-review skill; the subagent returns findings, uncertain items, and API-verification requests — main session resolves verification requests via Haiku WebFetch subagents, evaluates validity, queries the user if unsure, then dispatches accepted fixes to an Opus subagent. If review flags any files for `/reduce-file`, route them through step 10. If shader files changed this session, a second Opus subagent invokes the /glsl-review skill concurrently; its findings route identically
+4. Two concurrent reviewers on the same inputs (changed files, touched regions, plan, accumulated residuals/focus areas): a Fable subagent invokes the /repo-code-review skill; an Opus subagent invokes the /adversarial-review skill — independent contexts are the point. Main session merges and dedupes both finding sets (agreement is strong signal; disagreements judged on evidence, never on which model reported it), resolves API-verification requests via Haiku WebFetch subagents, evaluates validity, queries the user if unsure, then dispatches accepted fixes to an Opus subagent. If review flags any files for `/reduce-file`, route them through step 10. If shader files changed this session, another Opus subagent invokes the /glsl-review skill concurrently; its findings route identically
 5. Use a Sonnet subagent to invoke the /code-style-review skill
 6. Use an Opus subagent to invoke the /update-claude-docs skill — and the /update-architecture-diagrams skill if its trigger applies
 7. A Sonnet subagent invokes the /update-vcxproj skill (verify mode, fixing FAILs in place via add mode) on all files changed this session — reports pass/fixed/NOTE per file. This step owns vcxproj membership/filter mechanics
 8. A Haiku subagent invokes the /compile skill. On errors: Opus subagent fixes
-9. After all previous steps complete, Opus subagents invoke the /session-audit skill on all files changed this session — fine-grained logical groups (per subsystem or per plan-step slice), code separate from docs. /session-audit reports findings only; main session dispatches new Opus subagents to validate then fix accepted findings (structural issues → step 10).
+9. After all previous steps complete, per logical file group (per subsystem or per plan-step slice, code separate from docs) two concurrent subagents — one Fable, one Opus — each invoke the /session-audit skill on identical inputs. /session-audit reports findings only; main session dedupes both sets, then dispatches new Opus subagents to validate then fix accepted findings (structural issues → step 10). After fixes land: a Haiku subagent runs the /compile selective build on fixed .cpp files, and one Opus subagent re-reviews only the fixed regions against the accepted findings — one pass, no second cycle; anything still open routes to step 10
 10. For problems and residuals from any step that weren't auto-fixed (architectural decisions, larger issues out-of-scope of the current plan), have an Opus subagent create plan files in `Documents/Plans/`
 
 ## Resolving Ambiguity
@@ -85,12 +85,25 @@ Same source, two executables:
 - **server** (headless physics) — vcxproj defines `BT_SERVER`
 
 Rules:
-- Gate client-only code with `#ifdef BT_CLIENT` at the narrowest practical scope — or, for whole files/headers, via client-vcxproj membership plus the `Engine.h` `BT_CLIENT` aggregation span (the established complementary mechanism — such files carry no `#if` wrap; examples: [Engine/Source/CLAUDE.md](Engine/Source/CLAUDE.md)).
+- Gate client-only code with `#ifdef BT_CLIENT` at the narrowest practical scope. Single-build source files (whole file compiles only on one side) must carry a whole-file `#if defined(BT_CLIENT)`/`BT_SERVER` wrap — headers keep `#pragma once` outside the guard — in addition to matching vcxproj membership; the `Engine.h` `BT_CLIENT`/`BT_SERVER` spans remain as include grouping only, not the affinity mechanism. Exception: a file included unconditionally from both builds (e.g. via a shared PCH) but consumed only client/server-side stays unwrapped and is documented at its leaf as a deliberate exception.
 - Files fully wrapped in `#if defined(BT_CLIENT)` must only appear in the client vcxproj; same for `BT_SERVER`. See [VisualStudio2026/CLAUDE.md](Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/CLAUDE.md).
 - Collections with client-only fields use the `SharedMembers()`/`ClientMembers()` pattern — see [Collections/CLAUDE.md](Engine/Source/Frame/Collections/CLAUDE.md)
 
+## Agent Interaction Harness
+
+Drive both executables from an agent for verification. Launch args: `--agent-port N`, `--log-file path`, `--windowed WxH`. `AgentCli.exe` sends length-prefixed JSON to 127.0.0.1 (server 27100, client 27101 by convention). Command families:
+- lifecycle/logs: `ping`, `quit`, `get_logs`, `set_log_level`
+- server sim control: `status`, `pause`, `timescale`, `reset`
+- save/load/replay: `save`, `load`, `replay_record`, `replay_play`
+- server queries + StatusChange injection: `query_frame`, `query_players`, `query_collection`, `inject_status_changes`, `spawn_players`
+- client capture: `screenshot`, `dump_render_target`
+- UI drive: `describe_ui`, `click`, `hover`, `set_slider`, `key`, `mouse`
+- scene: `describe_scene`
+
+Full usage (JSON schemas, workflows, caveats) in the agent-harness skill.
+
 ## Key Patterns
-- **Log levels**: `kVerbose` — per-frame / high-frequency. `kDebug` — one-time (startup, connect). `kInfo` — state transitions, important one-shots (default threshold). `kWarning` — investigate (timeouts, desync); may spam. `kError` — failures; always logged
+- **Log levels**: `kVerbose` — per-frame / high-frequency. `kDebug` — one-time (startup, connect). `kInfo` — state transitions, important one-shots (default threshold). `kWarning` — investigate (timeouts, desync); may spam. `kError` — failures; always logged. Per-category thresholds are runtime-adjustable (default `kInfo`, via the agent `set_log_level` command) atop a per-project compile-time floor that eliminates below-floor calls; mechanics in [Common/CLAUDE.md](Common/CLAUDE.md) Logging.
 - **Managers**: Singletons via `gp*` globals (`gpGraphics`, `gpAudioManager`)
 - **Memory**: RAII everywhere, no manual memory management
 - **DirectX Math**: Prefer aligned versions (`Float4A` not `Float4`)
@@ -108,4 +121,5 @@ Rules:
 ## Diagnosis Discipline
 - **Verify root cause before editing**: state the suspected root cause, then confirm it — either close code inspection shows the bug unambiguously and deterministically, or logs directly evidence it. "I know what the bug is" is not verification.
 - **If uncertain, say so** and re-investigate — never fabricate justifications when challenged.
+- **Authority order when sources disagree** about intended behavior: explicit user statement > plan document (post-grill) > CLAUDE.md/docs/comments > current code behavior. Never silently make one side match another — surface the contradiction as a residual (footer line) naming both sides and which was trusted.
 - **Never remove working features as part of a 'fix'** without explicit confirmation.

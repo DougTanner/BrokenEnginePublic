@@ -43,6 +43,7 @@ public:
 	virtual float SunAngle() const { return mfSunAngle; }
 
 	XMVECTOR XM_CALLCONV ScreenToWorld(FXMVECTOR vecScreenPos, float fHeight);
+	XMVECTOR XM_CALLCONV WorldToScreen(FXMVECTOR vecWorldPos) const;
 
 	inline bool XM_CALLCONV InVisibleArea(XMFLOAT4 f4VisibleArea, XMFLOAT4 f4Position, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
 	{

@@ -181,6 +181,7 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 | 5 | Load/process/save | `Update()` in .cpp | If member participates in update logic |
 | 6 | Add to transfer data | `Transfer()` in .cpp | If collection supports cross-cell transfer |
 | 7 | ClientInit | `ClientInit()` in .cpp | Client-only owned object handles |
+| 8 | Consider agent query exposure | `Extract*` in `AgentCommandsServer.cpp` | Shared members on server-visible game collections an agent scenario would read (field set is deliberately minimum+cheap — skipping is fine, but decide, don't forget) |
 
 ## Important Notes
 

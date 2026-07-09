@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 #include "Ui/WrapperBase.h"
 
 namespace game
@@ -91,3 +93,5 @@ extern engine::Wrapper gHitFlashLightingIntensityOne;
 extern engine::Wrapper gHitFlashLightingIntensityTwo;
 
 } // namespace game
+
+#endif // defined(BT_CLIENT)

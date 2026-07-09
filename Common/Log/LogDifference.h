@@ -23,17 +23,29 @@ template <typename T>
 inline auto WrapLogDifferenceValue(const T& rValue)
 {
 	if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>)
+	{
 		return Wb(static_cast<float>(rValue), kiLogDifferencePrecision);
+	}
 	else if constexpr (std::is_same_v<T, XMFLOAT2>)
+	{
 		return WbV2(XMLoadFloat2(&rValue), kiLogDifferencePrecision);
+	}
 	else if constexpr (std::is_same_v<T, XMFLOAT3>)
+	{
 		return WbV3(XMLoadFloat3(&rValue), kiLogDifferencePrecision);
+	}
 	else if constexpr (std::is_same_v<T, XMFLOAT4>)
+	{
 		return WbV4(XMLoadFloat4(&rValue), kiLogDifferencePrecision);
+	}
 	else if constexpr (std::is_same_v<T, XMFLOAT4A>)
+	{
 		return WbV4(XMLoadFloat4A(&rValue), kiLogDifferencePrecision);
+	}
 	else
+	{
 		return rValue;
+	}
 }
 
 // Non-indexed version for scalar frame fields

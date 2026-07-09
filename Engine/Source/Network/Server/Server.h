@@ -56,6 +56,12 @@ struct ClientConnection
 	bool bFloorStalled = false;
 	int64_t iPeakConsecutiveStallAcks = 0;
 
+	// Client->server contract enforcement (see NetworkProtocol.h / Server::RecordContractViolation)
+	int64_t iContractViolations = 0;            // lifetime, never reset
+	int64_t iTickPacketCount = 0;               // reset per poll window (Server::Poll)
+	int64_t iTickByteCount = 0;                 // reset per poll window (Server::Poll)
+	uint16_t tickTypeCounts[256] {}; // per-type count this poll window, indexed by raw type byte; reset in Poll
+
 	// Helpers
 	int64_t FindSlotForCoord(GridCoord coord) const
 	{
@@ -190,6 +196,10 @@ public:
 	const ClientConnection* FindClient(int64_t iClientId) const;
 	void BroadcastLoadNotification();
 	void ClearBufferedFrames();
+
+	// Records a client->server contract violation; escalates to disconnect at kiContractViolationDisconnectCount.
+	// Callers MUST NOT touch their ClientConnection* afterward -- the client may have been removed.
+	void RecordContractViolation(int64_t iClientId, const char* pcReason, uint8_t uiPacketType, int64_t iSize);
 
 private:
 

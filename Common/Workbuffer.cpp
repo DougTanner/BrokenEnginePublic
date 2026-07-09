@@ -20,7 +20,9 @@ void Workbuffer::Append(std::wstring_view text)
 {
 	ASSERT(miDepth > 0);
 	if (text.empty())
+	{
 		return;
+	}
 
 	int iSize = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
 	int64_t iNeeded = miSize + iSize;

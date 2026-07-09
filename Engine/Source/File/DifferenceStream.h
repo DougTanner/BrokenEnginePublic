@@ -78,9 +78,13 @@ public:
 
 			rHeaderStream << mSavedStart;
 			if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
+			{
 				common::Write(rHeaderStream, mInitialDifference);
+			}
 			else
+			{
 				rHeaderStream << mInitialDifference;
+			}
 			common::Write(rHeaderStream, iDifferenceCount);
 			rHeaderStream << rSavedEnd;
 		});
@@ -122,11 +126,17 @@ public:
 		// Track the first sibling that failed so a torn set can be reported and cleaned up as a whole.
 		std::filesystem::path failedFilename;
 		if (!bHeaderWritten)
+		{
 			failedFilename = rFilename;
+		}
 		else if (!bFramesWritten)
+		{
 			failedFilename = framesFilename;
+		}
 		else if (!bChecksumsWritten)
+		{
 			failedFilename = checksumsFilename;
+		}
 
 		if constexpr (kbReplayFullFrames)
 		{
@@ -138,7 +148,9 @@ public:
 				rFullFramesStream << mFullFramesStream.str();
 			});
 			if (!bFullFramesWritten && failedFilename.empty())
+			{
 				failedFilename = fullFramesFilename;
+			}
 		}
 
 		// Any in-process write failure leaves a torn recording; delete the whole sibling set so a partial replay isn't loaded.
@@ -203,9 +215,13 @@ public:
 
 		headerStream >> rSavedStart;
 		if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
+		{
 			common::Read(headerStream, rInitialDifference);
+		}
 		else
+		{
 			headerStream >> rInitialDifference;
+		}
 		mCurrentDifference = rInitialDifference;
 		common::Read(headerStream, mDifferenceCount);
 		headerStream >> mSavedEnd;

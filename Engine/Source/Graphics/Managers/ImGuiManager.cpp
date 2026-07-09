@@ -95,6 +95,13 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImPlot::CreateContext();
+
+	// Enable the vendored imgui's test-engine ItemAdd/ItemInfo hooks so engine::AgentUiRegistry captures widget
+	// rects/labels each frame. Only worth the per-item hook cost when the agent layer is live; defaults false otherwise.
+	if (gpAgentCommandServer != nullptr)
+	{
+		ImGui::GetCurrentContext()->TestEngineHookItems = true;
+	}
 	ImGuiIO& rIo = ImGui::GetIO();
 	rIo.IniFilename = nullptr;
 	rIo.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -456,6 +463,12 @@ void ImGuiManager::Prepare(int64_t iFramebuffer)
 
 	ImGui::Render();
 	mpDrawData = ImGui::GetDrawData();
+
+	// Publish this completed frame's widget/window snapshot as the agent registry's read table (double-buffered).
+	if (gpAgentUiRegistry != nullptr)
+	{
+		gpAgentUiRegistry->Swap();
+	}
 
 	UpdateUiRectBuffers(iFramebuffer);
 }

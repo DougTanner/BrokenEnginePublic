@@ -16,7 +16,9 @@ inline std::string_view FormatVector(std::span<char> pcBuffer, std::initializer_
 	auto put = [&pWrite, pEnd](char c)
 	{
 		if (pWrite < pEnd)
+		{
 			*(pWrite++) = c;
+		}
 	};
 
 	put('{');
@@ -43,7 +45,9 @@ inline std::string_view FormatSuffixed(std::span<char> pcBuffer, int64_t iValue,
 	for (char c : suffix)
 	{
 		if (pWrite < pEnd)
+		{
 			*(pWrite++) = c;
+		}
 	}
 	return std::string_view(pcBuffer.data(), pWrite - pcBuffer.data());
 }
@@ -315,7 +319,9 @@ struct std::formatter<common::WbV2> : std::formatter<std::string_view>
 		auto put = [&pWrite, pEnd](char c)
 		{
 			if (pWrite < pEnd)
+			{
 				*(pWrite++) = c;
+			}
 		};
 		put('(');
 		pWrite = std::to_chars(pWrite, pEnd, DirectX::XMVectorGetX(rValue.vec), std::chars_format::fixed, rValue.iPrecision).ptr;
@@ -352,7 +358,9 @@ struct std::formatter<common::WbV3> : std::formatter<std::string_view>
 		auto put = [&pWrite, pEnd](char c)
 		{
 			if (pWrite < pEnd)
+			{
 				*(pWrite++) = c;
+			}
 		};
 		put('(');
 		pWrite = std::to_chars(pWrite, pEnd, DirectX::XMVectorGetX(rValue.vec), std::chars_format::fixed, rValue.iPrecision).ptr;
@@ -393,7 +401,9 @@ struct std::formatter<common::WbV4> : std::formatter<std::string_view>
 		auto put = [&pWrite, pEnd](char c)
 		{
 			if (pWrite < pEnd)
+			{
 				*(pWrite++) = c;
+			}
 		};
 		put('(');
 		pWrite = std::to_chars(pWrite, pEnd, DirectX::XMVectorGetX(rValue.vec), std::chars_format::fixed, rValue.iPrecision).ptr;

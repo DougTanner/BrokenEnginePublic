@@ -166,6 +166,7 @@ Evaluate the changes holistically:
 	- New enum value → grep every switch/dispatch/serialization table over that enum.
 	- Anything renamed → grep comments, CLAUDE.md, plans, and shared headers for the old name.
 - **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested.
+- **Workaround justification test** - A workaround that needs a paragraph-long comment to justify why it is OK is itself a required finding: the code is wrong — require fixing the underlying code, not accepting the justification.
 - **Function size**: Aim for 50-100 lines max per function. Soft guideline — some functions are legitimately large. If a modified function has grown past this, flag with "function does too much" and recommend a split only if a natural responsibility boundary exists.
 
 For micro-simplification opportunities (duplicated snippets, unnecessary intermediate variables, over-complicated expressions), recommend running `/simplify` on the changed files rather than listing them here — that skill owns surface-level simplification. For nesting-depth / style complaints, `/code-style-review` owns those.

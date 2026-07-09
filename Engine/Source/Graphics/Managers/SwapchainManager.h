@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -103,3 +105,5 @@ private:
 inline SwapchainManager* gpSwapchainManager = nullptr;
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

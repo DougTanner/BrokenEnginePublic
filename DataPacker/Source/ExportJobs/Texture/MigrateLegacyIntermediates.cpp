@@ -10,10 +10,22 @@
 static VkFormat IntermediateFormatFromExtension(const std::filesystem::path& rPath)
 {
 	const std::string sExtension = rPath.extension().string();
-	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_BC4_UNORM_BLOCK)) return VK_FORMAT_BC4_UNORM_BLOCK;
-	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_BC5_UNORM_BLOCK)) return VK_FORMAT_BC5_UNORM_BLOCK;
-	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_BC7_UNORM_BLOCK)) return VK_FORMAT_BC7_UNORM_BLOCK;
-	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_R16_UNORM)) return VK_FORMAT_R16_UNORM;
+	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_BC4_UNORM_BLOCK))
+	{
+		return VK_FORMAT_BC4_UNORM_BLOCK;
+	}
+	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_BC5_UNORM_BLOCK))
+	{
+		return VK_FORMAT_BC5_UNORM_BLOCK;
+	}
+	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_BC7_UNORM_BLOCK))
+	{
+		return VK_FORMAT_BC7_UNORM_BLOCK;
+	}
+	if (sExtension == TextureIntermediateSuffix(VK_FORMAT_R16_UNORM))
+	{
+		return VK_FORMAT_R16_UNORM;
+	}
 	return VK_FORMAT_UNDEFINED;
 }
 

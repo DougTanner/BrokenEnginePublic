@@ -62,15 +62,33 @@ void GraphicsMenuScreen::Render()
 	ImGui::Text("Presentation Mode");
 	int64_t iPresentMode = 0;
 	VkPresentModeKHR ePresentMode = engine::gPresentMode.Get<VkPresentModeKHR>();
-	if (ePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) iPresentMode = 0;
-	else if (ePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) iPresentMode = 1;
-	else if (ePresentMode == VK_PRESENT_MODE_FIFO_KHR) iPresentMode = 2;
+	if (ePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+	{
+		iPresentMode = 0;
+	}
+	else if (ePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+	{
+		iPresentMode = 1;
+	}
+	else if (ePresentMode == VK_PRESENT_MODE_FIFO_KHR)
+	{
+		iPresentMode = 2;
+	}
 
-	if (ImGui::RadioButton("Immediate", iPresentMode == 0)) engine::gPresentMode.Set<VkPresentModeKHR>(VK_PRESENT_MODE_IMMEDIATE_KHR);
+	if (ImGui::RadioButton("Immediate", iPresentMode == 0))
+	{
+		engine::gPresentMode.Set<VkPresentModeKHR>(VK_PRESENT_MODE_IMMEDIATE_KHR);
+	}
 	ImGui::SameLine();
-	if (ImGui::RadioButton("Mailbox", iPresentMode == 1)) engine::gPresentMode.Set<VkPresentModeKHR>(VK_PRESENT_MODE_MAILBOX_KHR);
+	if (ImGui::RadioButton("Mailbox", iPresentMode == 1))
+	{
+		engine::gPresentMode.Set<VkPresentModeKHR>(VK_PRESENT_MODE_MAILBOX_KHR);
+	}
 	ImGui::SameLine();
-	if (ImGui::RadioButton("FIFO", iPresentMode == 2)) engine::gPresentMode.Set<VkPresentModeKHR>(VK_PRESENT_MODE_FIFO_KHR);
+	if (ImGui::RadioButton("FIFO", iPresentMode == 2))
+	{
+		engine::gPresentMode.Set<VkPresentModeKHR>(VK_PRESENT_MODE_FIFO_KHR);
+	}
 
 	ImGui::Separator();
 
@@ -79,18 +97,42 @@ void GraphicsMenuScreen::Render()
 	{
 		int64_t iSampleCount = 0;
 		VkSampleCountFlagBits eSampleCount = engine::gSampleCount.Get<VkSampleCountFlagBits>();
-		if (eSampleCount == VK_SAMPLE_COUNT_2_BIT) iSampleCount = 0;
-		else if (eSampleCount == VK_SAMPLE_COUNT_4_BIT) iSampleCount = 1;
-		else if (eSampleCount == VK_SAMPLE_COUNT_8_BIT) iSampleCount = 2;
-		else if (eSampleCount == VK_SAMPLE_COUNT_16_BIT) iSampleCount = 3;
+		if (eSampleCount == VK_SAMPLE_COUNT_2_BIT)
+		{
+			iSampleCount = 0;
+		}
+		else if (eSampleCount == VK_SAMPLE_COUNT_4_BIT)
+		{
+			iSampleCount = 1;
+		}
+		else if (eSampleCount == VK_SAMPLE_COUNT_8_BIT)
+		{
+			iSampleCount = 2;
+		}
+		else if (eSampleCount == VK_SAMPLE_COUNT_16_BIT)
+		{
+			iSampleCount = 3;
+		}
 
-		if (ImGui::RadioButton("2x", iSampleCount == 0)) engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_2_BIT);
+		if (ImGui::RadioButton("2x", iSampleCount == 0))
+		{
+			engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_2_BIT);
+		}
 		ImGui::SameLine();
-		if (ImGui::RadioButton("4x", iSampleCount == 1)) engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_4_BIT);
+		if (ImGui::RadioButton("4x", iSampleCount == 1))
+		{
+			engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_4_BIT);
+		}
 		ImGui::SameLine();
-		if (ImGui::RadioButton("8x", iSampleCount == 2)) engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_8_BIT);
+		if (ImGui::RadioButton("8x", iSampleCount == 2))
+		{
+			engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_8_BIT);
+		}
 		ImGui::SameLine();
-		if (ImGui::RadioButton("16x", iSampleCount == 3)) engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_16_BIT);
+		if (ImGui::RadioButton("16x", iSampleCount == 3))
+		{
+			engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_16_BIT);
+		}
 	}
 
 	// Right column: Effects & Misc
@@ -116,12 +158,24 @@ void GraphicsMenuScreen::Render()
 	ImGui::Text("Water Shape Detail");
 	int64_t iWaterShapeDetail = 0;
 	float fWaterShapeDetail = engine::gWaterShapeDetail.Get();
-	if (fWaterShapeDetail == 0.25f) iWaterShapeDetail = 0;
-	else if (fWaterShapeDetail == 0.5f) iWaterShapeDetail = 1;
+	if (fWaterShapeDetail == 0.25f)
+	{
+		iWaterShapeDetail = 0;
+	}
+	else if (fWaterShapeDetail == 0.5f)
+	{
+		iWaterShapeDetail = 1;
+	}
 
-	if (ImGui::RadioButton("1/4", iWaterShapeDetail == 0)) engine::gWaterShapeDetail.Set(0.25f);
+	if (ImGui::RadioButton("1/4", iWaterShapeDetail == 0))
+	{
+		engine::gWaterShapeDetail.Set(0.25f);
+	}
 	ImGui::SameLine();
-	if (ImGui::RadioButton("1/2", iWaterShapeDetail == 1)) engine::gWaterShapeDetail.Set(0.5f);
+	if (ImGui::RadioButton("1/2", iWaterShapeDetail == 1))
+	{
+		engine::gWaterShapeDetail.Set(0.5f);
+	}
 
 	ImGui::Separator();
 

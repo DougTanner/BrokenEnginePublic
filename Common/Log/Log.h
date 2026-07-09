@@ -30,9 +30,48 @@ struct LogBuffer
 		if constexpr (!WRAP)
 		{
 			if (iPosition >= kiLineCount)
+			{
 				return nullptr;
+			}
 		}
 		return mLines[iPosition % kiLineCount];
+	}
+
+	// Fills ppLines (caller capacity iMaxLines) with pointers to the most recent buffered lines in chronological
+	// order (oldest returned line first, newest last); returns the number of pointers written. Reuses AcquireLine's
+	// wrap math. Lockless/racy — a line being written concurrently may be torn and empty slots are skipped (same
+	// tolerance as the crash-dump Dump path). Pass iMaxLines == kiLineCount to scan the whole buffer.
+	int64_t Tail(const char** ppLines, int64_t iMaxLines) const
+	{
+		int64_t iWritePos = miWritePosition.load(std::memory_order_relaxed);
+		int64_t iAvailable = std::min(iWritePos, kiLineCount);
+		int64_t iCount = std::min(iAvailable, iMaxLines);
+		int64_t iFilled = 0;
+		if constexpr (WRAP)
+		{
+			int64_t iFirst = iWritePos - iCount;
+			for (int64_t i = 0; i < iCount; ++i)
+			{
+				const char* pLine = mLines[(iFirst + i) % kiLineCount];
+				if (pLine[0] != '\0')
+				{
+					ppLines[iFilled++] = pLine;
+				}
+			}
+		}
+		else
+		{
+			int64_t iFirst = iAvailable - iCount;
+			for (int64_t i = 0; i < iCount; ++i)
+			{
+				const char* pLine = mLines[iFirst + i];
+				if (pLine[0] != '\0')
+				{
+					ppLines[iFilled++] = pLine;
+				}
+			}
+		}
+		return iFilled;
 	}
 
 	void Dump(std::ofstream& rOfstream) const
@@ -46,7 +85,9 @@ struct LogBuffer
 			{
 				const char* pLine = mLines[(iStart + i) % kiLineCount];
 				if (pLine[0] != '\0')
+				{
 					rOfstream << pLine;
+				}
 			}
 		}
 		else
@@ -55,7 +96,9 @@ struct LogBuffer
 			for (int64_t i = 0; i < iCount; ++i)
 			{
 				if (mLines[i][0] != '\0')
+				{
 					rOfstream << mLines[i];
+				}
 			}
 		}
 	}
@@ -63,12 +106,26 @@ struct LogBuffer
 
 inline constexpr int64_t kiRingBufferLineCount = 128;
 inline constexpr int64_t kiGlobalBufferLineCount = 1024;
+inline constexpr int64_t kiAgentBufferLineCount = 512; // Wrapping cross-category ring for the agent get_logs default. Half of the global buffer's line count so the added static footprint stays bounded (kiAgentBufferLineCount * kiLogBufferSize = 16 MiB).
 
 using LogRingBuffer = LogBuffer<kiRingBufferLineCount, true>;
 using LogGlobalBuffer = LogBuffer<kiGlobalBufferLineCount, false>;
+using LogAgentBuffer = LogBuffer<kiAgentBufferLineCount, true>;
 
 extern LogRingBuffer gLogRingBuffers[kiLogCategoryCount];
-extern LogGlobalBuffer gLogGlobalBuffer;
+extern LogGlobalBuffer gLogGlobalBuffer; // Non-wrapping; freezes after kiGlobalBufferLineCount lines — feeds the crash-dump path (do not repurpose).
+extern LogAgentBuffer gLogAgentBuffer; // Wrapping; always holds the most recent lines across all categories for the agent get_logs default.
+
+// Runtime per-category log threshold — checked by LOG() after compile-time filtering but before any argument
+// formatting, so a suppressed line costs one relaxed atomic load plus a branch. Default kInfo (the documented
+// out-of-box threshold); the agent lowers it live via set_log_level. Written from the main-thread agent Drain,
+// read from every logging thread.
+extern std::atomic<LogLevel> gLogRuntimeLevels[kiLogCategoryCount];
+void SetLogRuntimeLevel(LogCategory eCategory, LogLevel eLevel);
+
+// Whole-stream log-file sink — opened once from startup (--log-file). LogWrite tees each emitted line here under
+// gLogMutex. Distinct from the selective per-file DiagnosticLog (FILE_LOG); the two coexist.
+void EnableLogFile(const std::filesystem::path& rPath);
 
 void LogIndent(int64_t iIndent);
 char* LogPrefix(char* pLogBuffer, char* pEnd);
@@ -155,6 +212,9 @@ static_assert(std::size(keLogLevels) == common::kiLogCategoryCount, "keLogLevels
 do { \
 	if constexpr (kbLogging && (level) >= keLogLevels[static_cast<int64_t>(category)]) \
 	{ \
-		common::Log((category), format __VA_OPT__(,) __VA_ARGS__); \
+		if ((level) >= common::gLogRuntimeLevels[static_cast<int64_t>(category)].load(std::memory_order_relaxed)) \
+		{ \
+			common::Log((category), format __VA_OPT__(,) __VA_ARGS__); \
+		} \
 	} \
 } while (false)

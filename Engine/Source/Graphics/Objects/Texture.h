@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -36,6 +38,10 @@ enum class TextureLayout
 	kTransferDestination,
 	kTransferSource,
 };
+
+// Steady-state VkImageLayout a TextureLayout maps to (single-sources the kLayoutMappings table in Texture.cpp).
+// Used by CopyImageToHostMemory callers to supply a readback source's parked layout (e.g. agent dump_render_target).
+VkImageLayout ToVkImageLayout(TextureLayout eLayout);
 
 struct TextureInfo
 {
@@ -135,3 +141,5 @@ public:
 };
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

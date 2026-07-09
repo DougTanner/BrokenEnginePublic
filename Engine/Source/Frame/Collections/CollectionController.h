@@ -123,11 +123,15 @@ void DestroyExpiredControlled(TInterpolate& rInterpolate, TPostRender& rPostRend
 	{
 		uint8_t uiControllerTypeIndex = rInterpolate.puiControllerTypeIndices[i];
 		if (uiControllerTypeIndex == kuiInvalidControllerType)
+		{
 			continue;
+		}
 
 		const auto& rController = TInterpolate::GetControllerType(uiControllerTypeIndex);
 		if (!rController.bDestroysSelf)
+		{
 			continue;
+		}
 
 		float fElapsedTime = fCurrentTime - rInterpolate.pfStartTimes[i];
 		if (fElapsedTime > rController.pfTimes[rController.uiKeyframeCount - 1]) [[unlikely]]

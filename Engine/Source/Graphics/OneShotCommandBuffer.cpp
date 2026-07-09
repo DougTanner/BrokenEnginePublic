@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "OneShotCommandBuffer.h"
 
 namespace engine
@@ -65,3 +67,5 @@ void OneShotCommandBuffer::Execute()
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

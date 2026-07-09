@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "AnimationData.h"
 
 namespace engine
@@ -496,9 +498,11 @@ void LoadAnimationDataFromEagerChunks()
 				LOG(kLoading, kError, "Corrupt animation data for GLTF CRC {:#018x}: {}", rCrc, rException.what());
 				throw;
 			}
-			LOG(kLoading, kDebug, "Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rCrc, rAnimationData.mHeader.skeleton.uiNodeCount, rAnimationData.mHeader.skeleton.uiSkinJointCount, rAnimationData.mHeader.uiAnimationCount);
+			LOG(kLoading, kDebug, "Loaded animation data for GLTF CRC {}: {} nodes, {} skin joints, {} animations", rCrc, rAnimationData.mHeader.skeleton.uiNodeCount, rAnimationData.mHeader.skeleton.uiSkinJointCount, rAnimationData.mHeader.uiAnimationCount);
 		}
 	}
 }
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

@@ -114,7 +114,10 @@ int RunRdoSweepFull(const std::filesystem::path& rPath)
 		bool bDominated = false;
 		for (const RdoSweepResult& rOther : results)
 		{
-			if (&rOther == &r) continue;
+			if (&rOther == &r)
+			{
+				continue;
+			}
 			bool bOtherFaster = rOther.fEncodeSeconds < r.fEncodeSeconds;
 			bool bOtherSmaller = rOther.iDeflatedBytes < r.iDeflatedBytes;
 			bool bOtherFasterOrEqual = rOther.fEncodeSeconds <= r.fEncodeSeconds;

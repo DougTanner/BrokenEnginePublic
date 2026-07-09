@@ -186,7 +186,10 @@ void PlayersInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 
 void PlayersInterpolate::DebugRender(const FrameInterpolate& __restrict rFrameInterpolate, engine::GridCoord coord)
 {
-	if constexpr (!kbDebugRender) return;
+	if constexpr (!kbDebugRender)
+	{
+		return;
+	}
 
 	using enum PlayerFlags;
 
@@ -252,8 +255,14 @@ void PlayersInterpolate::DebugRender(const FrameInterpolate& __restrict rFrameIn
 		{
 			for (int64_t j = 0; j < iCount; ++j)
 			{
-				if (j == i) continue;
-				if (!(rPostRender.pFlags[j] & kIsFlagship)) continue;
+				if (j == i)
+				{
+					continue;
+				}
+				if (!(rPostRender.pFlags[j] & kIsFlagship))
+				{
+					continue;
+				}
 				vecFlagshipPosition = rPlayers.pVecPositions[j];
 				break;
 			}

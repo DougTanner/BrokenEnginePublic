@@ -7,7 +7,7 @@
 `ServerFleetManager::OnPlayerSpawned` caps `Fleet::members` at 16 (`ServerFleetManager.cpp:292`). But the mint and the cap live on opposite sides of the tick:
 
 - `ServerBroadcaster::BuildFrameInputs` (`ServerBroadcaster.cpp:32-50`) emits a `kSpawnPlayer` StatusChange per `mClientsWaitingForSpawn` entry into the **CRC'd origin frame**, calling `GenerateGlobalId()` — a real player entity is minted every tick.
-- After the tick, `ServerClientManager::FinalizeNewClients` (`ServerClientManager.cpp:205-234`) stamps the entity's `pClientGuids`, and pushes to `mClientOwnedPlayerIds` + `authorizedCoords` (`:225-227`), then calls `OnPlayerSpawned`.
+- After the tick, `ServerClientManager::FinalizeNewClients` (`ServerClientManager.cpp:179-240`) stamps the entity's `pClientGuids`, and pushes to `mClientOwnedPlayerIds` + `authorizedCoords` (`:226-227`), then calls `OnPlayerSpawned`.
 - `OnPlayerSpawned`'s cap check (`:292`) early-returns *after* the entity already exists and is recorded — leaving a GUID-stamped, owned, un-rostered "free agent."
 
 So at the member cap the fleet roster is bounded but per-client owned-player count and origin-frame player count are **not**: a spammer sending spawn-into-fleet requests against a capped fleet accumulates one free agent per tick (each tick's `FinalizeNewClients` clears the waiting queue, so the `{client, fleet, member}` spawn dedup permits one new-member spawn per tick).
@@ -26,8 +26,8 @@ For A/B, weigh: where the fleet-cap fact is authoritatively known, whether respa
 
 ## Critical files
 
-- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerBroadcaster.cpp` — `BuildFrameInputs` mint site (Option B). NOTE: `Network/DeadMachinerySweep.md` deletes the `mPendingPlayerDestroys` destroy loop here and `Network/AuditSweepQuickWins.md` renames `mSpawns`→`mBroadcastStatusChanges` in the same function — refresh cites if either lands first.
-- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerClientManager.cpp` — `mClientsWaitingForSpawn` enqueue / `QueueSpawnForClient` (Option A); `FinalizeNewClients` owned/authorized recording (`:225-227`).
+- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerBroadcaster.cpp` — `BuildFrameInputs` mint site (Option B; waiting-spawn loop still at `:32-50`, unaffected so far). NOTE: `Network/DeadMachinerySweep.md` has landed and removed the `mPendingPlayerDestroys` destroy loop from this function; `Agent/AgentHarness3_FrameQueriesAndInjection.md` has landed and added an agent-injection block at `:65-93`; `Network/AuditSweepQuickWins.md` renames `mSpawns`→`mBroadcastStatusChanges` in the same function and has not landed — re-verify all citations in this function against current source before executing.
+- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerClientManager.cpp` — `mClientsWaitingForSpawn` enqueue / `QueueSpawnForClient` (Option A); `FinalizeNewClients` owned/authorized recording (`:226-227`).
 - `Projects/BrokenEngineSandbox/Source/Network/Server/ServerFleetManager.cpp` — `OnPlayerSpawned` cap (`:292`, the existing roster bound); `LookupFleetWantedCoord` (fleet-state read for an enqueue-time gate).
 
 ## Invariant exposure
@@ -40,7 +40,7 @@ Decision plan (present options). Pre-stage for `/external-grill-plan`: (a) A vs 
 
 ## Out of scope
 
-- General inbound packet rate-limiting (broader DoS surface).
+- General inbound packet rate-limiting. Inbound packet/byte/per-type rate limiting exists at the two dispatch gates (`Server::Receive` / `ServerSession::ParseReceivedGamePackets`) via the per-poll `kiMaxClientPacketsPerTick` / `kiMaxClientInboundBytesPerTick` budgets and per-type caps (see `Documents/Architecture/Network.md` "Client → Server Contract"). The remaining gap this plan covers is narrower: bounding the CRC'd-frame player *mint* rate, which those packet-level budgets cannot reach (a legitimate request rate still mints a free agent per tick).
 - The per-fleet member cap and wire-path `fNavigationDelay` validation — already in place.
 - The `mClientOwnedPlayerIds`/`authorizedCoords` parallel-vector → registry refactor (`Network/Refactor_ServerClientPlayerRegistry.md`).
 - Reworking downstream free-agent cleanup (already graceful).

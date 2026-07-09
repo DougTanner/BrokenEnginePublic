@@ -6,7 +6,9 @@ namespace common
 std::string ToString(std::wstring_view wideChars)
 {
 	if (wideChars.empty())
+	{
 		return {};
+	}
 
 	int iSize = WideCharToMultiByte(CP_UTF8, 0, wideChars.data(), static_cast<int>(wideChars.size()), nullptr, 0, nullptr, nullptr);
 	std::string result(iSize, '\0');

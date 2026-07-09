@@ -38,6 +38,8 @@ public:
 	void SendAssignPlayer(int64_t iClientId, engine::global_id_t globalId, engine::GridCoord coord);
 	void SendPlayerState(int64_t iClientId, PlayerStateWireType eWireType, int64_t iGlobalPlayerId, engine::GridCoord coord);
 	void BroadcastTimespeedIfChanged();
+	void StepTimescale(bool bFaster); // step time scale one notch (faster/slower) and broadcast; shared by the packet handler and the agent command
+
 	void SendTimespeedToNewClient(ENetPeer* pPeer);
 	void SubscriptionUpdates();
 	void HandleResyncRequests();

@@ -39,6 +39,7 @@ These rules are mechanical and grep-able. For each, search the modified ranges a
 - **Rule 56** — no abbreviations in identifiers (`cmdBuf` → `rCommandBuffer`, `bufIt` → `bufferIt`); exceptions: `i`/`j`/`k` loop counters, `it` iterators.
 - **Rule 57** — no `Impl`/`Internal` suffixes on function names; use scope (private, anonymous namespace) to distinguish internal versions.
 - **Rule 58** — `#ifdef X` → `#if defined(X)`.
+- **Rule 61** — `if`/`else` bodies always use curly braces, even for a single statement.
 
 For any rule not in this list, defer to the style guide text.
 

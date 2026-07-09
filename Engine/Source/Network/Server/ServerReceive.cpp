@@ -13,32 +13,38 @@ namespace engine
 
 void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
 	ClientConnection* pClient = FindHandshakenClient(iClientId);
 	if (pClient == nullptr)
 	{
 		return;
 	}
 
-	// 1B type + 1B count must be present before the count byte is read
-	if (iSize < 2)
+	BoundedCursor cursor {pData + 1, pData + iSize}; // Skip packet type
+	const uint8_t*& pCursor = cursor.pCursor;
+
+	// 1B count byte must be present
+	if (!cursor.Has(1))
 	{
 		return;
 	}
-
-	// Read per-slot ACK state
 	uint8_t uiAckSlotCount = ReadUint8(pCursor);
 
-	// 1B type + 1B count + (27B per slot: 1B slot + 2B epoch + 8B floor + 8B bitfieldLow + 8B bitfieldHigh) + 8B timestamp
-	size_t iExpectedSize = 2 + static_cast<size_t>(uiAckSlotCount) * 27 + 8;
-	if (iSize < iExpectedSize)
+	// Exact-size check the dispatch table cannot express (the table only bounds min/max): 1B type + 1B count +
+	// count*27B per slot (1B slot + 2B epoch + 8B floor + 8B bitfieldLow + 8B bitfieldHigh) + 8B timestamp.
+	if (static_cast<int64_t>(iSize) != 2 + static_cast<int64_t>(uiAckSlotCount) * 27 + 8)
 	{
+		RecordContractViolation(iClientId, "ackstream size", pData[0], static_cast<int64_t>(iSize));
 		return;
 	}
+
 	int64_t iFloorAdvanceCount = 0;
 	for (uint8_t i = 0; i < uiAckSlotCount; ++i)
 	{
+		// 27B per slot guaranteed present by the exact-size check; Has() keeps the bounded contract explicit.
+		if (!cursor.Has(27))
+		{
+			break;
+		}
 		uint8_t uiSlotIndex = ReadUint8(pCursor);
 		uint16_t uiSlotEpoch = ReadUint16(pCursor);
 		int64_t iSlotAckFloor = ReadInt64(pCursor);
@@ -101,6 +107,11 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		}
 	}
 
+	// 8B timestamp guaranteed present by the exact-size check; Has() keeps the bounded contract explicit.
+	if (!cursor.Has(8))
+	{
+		return;
+	}
 	// Pipeline RTT: store client timestamp for echo in SendUpdate (monotonically increasing to guard against out-of-order packets)
 	int64_t iClientTimestampNs = ReadInt64(pCursor);
 	if (iClientTimestampNs > pClient->iClientTimestampNs)

@@ -7,12 +7,24 @@
 namespace engine
 {
 
-void Client::SendAck()
+bool Client::SendAck()
 {
 	if (!CanSend())
 	{
-		return;
+		return false;
 	}
+
+	// Tick-rate-locked cadence: skip if less than one sim-tick interval has elapsed since the last ack,
+	// so ack packet rate is decoupled from render framerate. Interval derived from kiTickRate (never a
+	// hardcoded Hz literal) so a future tick-rate change carries the ack cadence with it. Not gated on
+	// sim advancement -- a paused/stalled sim must still ack so server resends/RTT stay alive.
+	constexpr std::chrono::nanoseconds kAckInterval {1'000'000'000 / kiTickRate};
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	if (now - mLastAckSendTime < kAckInterval)
+	{
+		return false;
+	}
+	mLastAckSendTime = now;
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
@@ -47,6 +59,7 @@ void Client::SendAck()
 	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelUnreliable, rWorkbuffer, 0);
+	return true;
 }
 
 void Client::SendSpawnRequest(ClientRequestFlags_t flags)

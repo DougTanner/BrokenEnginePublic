@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_SERVER)
+
 namespace engine
 {
 
@@ -20,6 +22,8 @@ public:
 	bool Quickload(const game::MenuInput& rMenuInput);
 	void ServerSave();
 	bool ServerLoad();
+	void ServerSave(const std::filesystem::path& rFilename); // appdata-relative; caller validates the bare filename
+	bool ServerLoad(const std::filesystem::path& rFilename);
 	void ServerReset();
 	void Autosave();
 	void TickAutosave();
@@ -48,3 +52,5 @@ private:
 };
 
 } // namespace game
+
+#endif // defined(BT_SERVER)

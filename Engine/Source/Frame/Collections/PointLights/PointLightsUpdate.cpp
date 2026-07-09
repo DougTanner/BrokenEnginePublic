@@ -45,10 +45,22 @@ void PointLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __r
 			ControllerType scaled = rController;
 			for (int64_t j = 0; j < rController.uiKeyframeCount; ++j)
 			{
-				if (rController.ppVisibleAreaScales[j] != nullptr)       scaled.keyframes[j].fVisibleArea *= rController.ppVisibleAreaScales[j]->Get();
-				if (rController.ppVisibleIntensityScales[j] != nullptr)  scaled.keyframes[j].fVisibleIntensity *= rController.ppVisibleIntensityScales[j]->Get();
-				if (rController.ppLightingAreaScales[j] != nullptr)      scaled.keyframes[j].fLightingArea *= rController.ppLightingAreaScales[j]->Get();
-				if (rController.ppLightingIntensityScales[j] != nullptr) scaled.keyframes[j].fLightingIntensity *= rController.ppLightingIntensityScales[j]->Get();
+				if (rController.ppVisibleAreaScales[j] != nullptr)
+				{
+					scaled.keyframes[j].fVisibleArea *= rController.ppVisibleAreaScales[j]->Get();
+				}
+				if (rController.ppVisibleIntensityScales[j] != nullptr)
+				{
+					scaled.keyframes[j].fVisibleIntensity *= rController.ppVisibleIntensityScales[j]->Get();
+				}
+				if (rController.ppLightingAreaScales[j] != nullptr)
+				{
+					scaled.keyframes[j].fLightingArea *= rController.ppLightingAreaScales[j]->Get();
+				}
+				if (rController.ppLightingIntensityScales[j] != nullptr)
+				{
+					scaled.keyframes[j].fLightingIntensity *= rController.ppLightingIntensityScales[j]->Get();
+				}
 			}
 			ControllerKeyframe interpolated = InterpolateKeyframes(scaled, fElapsedTime);
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BT_CLIENT)
+
 namespace engine
 {
 
@@ -46,3 +48,5 @@ inline std::unordered_map<common::crc_t, AnimationData> gAnimationDataMap;
 void LoadAnimationDataFromEagerChunks();
 
 } // namespace engine
+
+#endif // defined(BT_CLIENT)

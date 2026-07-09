@@ -6,4 +6,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../../../ThirdParty/stb/stb_image_write.h"
 
+// STB_IMAGE_RESIZE_IMPLEMENTATION lives in DataPacker/stb.cpp — same ThirdParty.lib, defining it here too triggers
+// LNK4006. Screenshot.cpp includes stb_image_resize2.h (declaration only) to call stbir_resize_uint8_srgb.
+
 #pragma warning(pop)

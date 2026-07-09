@@ -21,6 +21,15 @@ XMVECTOR XM_CALLCONV CameraBase::ScreenToWorld(FXMVECTOR vecScreenPos, float fHe
 	return XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
 }
 
+XMVECTOR XM_CALLCONV CameraBase::WorldToScreen(FXMVECTOR vecWorldPos) const
+{
+	// Exact inverse of ScreenToWorld's unproject: identical viewport / matrix arguments so the Y-sign and
+	// viewport convention are resolved by construction. Returns screen pixels in X/Y, projected depth in Z.
+	float fViewportWidth = static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
+	float fViewportHeight = static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
+	return XMVector3Project(vecWorldPos, 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, mMatPerspective, mMatView, XMMatrixIdentity());
+}
+
 void CameraBase::CalculateMatricesAndVisibleArea()
 {
 	auto vecToEyeNormal = XMVector3Normalize(XMVectorSubtract(mVecEyePosition, mVecPosition));

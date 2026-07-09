@@ -260,10 +260,16 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unord
 	// dev-only toggle.
 	if constexpr (kbScreenshots)
 	{
-		if (gpCommandBufferManager->mbSaveScreenshot)
+		if (mScreenshotRequest)
 		{
-			gpCommandBufferManager->mbSaveScreenshot = false;
-			SaveScreenshot(iCommandBuffer);
+			SaveScreenshot(iCommandBuffer, *mScreenshotRequest);
+			mScreenshotRequest.reset();
+		}
+
+		if (mDumpRenderTargetRequest)
+		{
+			DumpRenderTarget(iCommandBuffer, *mDumpRenderTargetRequest);
+			mDumpRenderTargetRequest.reset();
 		}
 	}
 

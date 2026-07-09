@@ -44,16 +44,26 @@ void GameSaveLoad::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 
 void GameSaveLoad::ServerSave()
 {
+	ServerSave(mrGameBase.QuicksaveFile());
+}
+
+void GameSaveLoad::ServerSave(const std::filesystem::path& rFilename)
+{
 	ScopedSuppressAllocationTracking suppress;
-	WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, mrGameBase.QuicksaveFile(), game::gpGame->mClientGridCoord);
+	WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, rFilename, game::gpGame->mClientGridCoord);
 }
 
 bool GameSaveLoad::ServerLoad()
 {
+	return ServerLoad(mrGameBase.QuicksaveFile());
+}
+
+bool GameSaveLoad::ServerLoad(const std::filesystem::path& rFilename)
+{
 	ScopedSuppressAllocationTracking suppress;
 
 	engine::GridCoord loadedClientGridCoord {};
-	if (!ReadGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, mrGameBase.QuicksaveFile(), loadedClientGridCoord))
+	if (!ReadGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, rFilename, loadedClientGridCoord))
 	{
 		return false;
 	}

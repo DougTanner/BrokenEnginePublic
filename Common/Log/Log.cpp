@@ -1,5 +1,7 @@
 #include "Log.h"
 
+#include "AllocationTracking.h"
+
 namespace common
 {
 
@@ -8,6 +10,44 @@ std::mutex gLogMutex;
 
 LogRingBuffer gLogRingBuffers[kiLogCategoryCount];
 LogGlobalBuffer gLogGlobalBuffer;
+LogAgentBuffer gLogAgentBuffer;
+
+#if defined(BT_DATA_PACKER)
+constexpr LogLevel keLogRuntimeDefault = kVerbose; // Offline tool: no agent / set_log_level, keep full verbosity (unchanged behavior)
+#else
+constexpr LogLevel keLogRuntimeDefault = kInfo; // Documented out-of-box threshold; the agent lowers it live via set_log_level
+#endif
+std::atomic<LogLevel> gLogRuntimeLevels[kiLogCategoryCount]
+{
+	keLogRuntimeDefault, kVerbose, // [1] kTemp: transient agent/dev diagnostics — always emit (compile floor keLogLevelTemp = kVerbose)
+	keLogRuntimeDefault, keLogRuntimeDefault, keLogRuntimeDefault, keLogRuntimeDefault, keLogRuntimeDefault, keLogRuntimeDefault,
+};
+static_assert(std::size(gLogRuntimeLevels) == kiLogCategoryCount, "gLogRuntimeLevels out of sync with LogCategory");
+
+// Whole-stream file sink (Log.h EnableLogFile); teed by LogWrite under gLogMutex.
+static std::ofstream sLogFileStream;
+
+void SetLogRuntimeLevel(LogCategory eCategory, LogLevel eLevel)
+{
+	gLogRuntimeLevels[static_cast<int64_t>(eCategory)].store(eLevel, std::memory_order_relaxed);
+}
+
+void EnableLogFile(const std::filesystem::path& rPath)
+{
+	bool bOpened = false;
+	{
+		std::unique_lock lockGuard(gLogMutex);
+		sLogFileStream.open(rPath, std::ios::out | std::ios::trunc);
+		bOpened = sLogFileStream.is_open();
+	}
+
+	// LOG tees through LogWrite, which locks gLogMutex — must log only after the lock above releases (gLogMutex is
+	// non-recursive). Runs at startup before allocation tracking arms, so rPath.string() allocating is acceptable.
+	if (!bOpened)
+	{
+		LOG(kDefault, kWarning, "EnableLogFile failed to open log file: {}", rPath.string());
+	}
+}
 
 void LogIndent(int64_t iIndent)
 {
@@ -27,7 +67,9 @@ char* LogPrefix(char* pLogBuffer, char* pEnd)
 	auto put = [&pWrite, pEnd](char c)
 	{
 		if (pWrite < pEnd)
+		{
 			*(pWrite++) = c;
+		}
 	};
 
 	if (gpThreadLocal != nullptr) [[likely]]
@@ -83,6 +125,12 @@ void LogWrite(char* pLogBuffer)
 	{
 		std::printf("%s", pLogBuffer);
 	}
+	if (sLogFileStream.is_open())
+	{
+		ScopedSuppressAllocationTracking suppress; // Heap: ofstream write/flush may allocate post-open; off the tracked main-loop path
+		sLogFileStream << pLogBuffer;
+		sLogFileStream.flush();
+	}
 }
 
 void LogWriteRingBuffers(const char* pLogBuffer, int64_t iLength, LogCategory eCategory)
@@ -90,12 +138,15 @@ void LogWriteRingBuffers(const char* pLogBuffer, int64_t iLength, LogCategory eC
 	auto copyToLine = [pLogBuffer, iLength](char* pLine)
 	{
 		if (pLine == nullptr)
+		{
 			return;
+		}
 		std::memcpy(pLine, pLogBuffer, iLength);
 	};
 
 	copyToLine(gLogRingBuffers[static_cast<int64_t>(eCategory)].AcquireLine());
 	copyToLine(gLogGlobalBuffer.AcquireLine());
+	copyToLine(gLogAgentBuffer.AcquireLine());
 }
 
 void LogDumpBuffers(std::ofstream& rOfstream)

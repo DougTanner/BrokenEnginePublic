@@ -12,7 +12,10 @@ namespace engine
 
 static void DebugRenderFrameEdges(const std::vector<GridCoord>& rActiveCoords)
 {
-	if constexpr (!kbDebugRender) return;
+	if constexpr (!kbDebugRender)
+	{
+		return;
+	}
 
 	float fZ = gBaseHeight.Get();
 	constexpr XMFLOAT4A kf4EdgeColor = {0.0f, 1.0f, 1.0f, 1.0f};
@@ -20,7 +23,10 @@ static void DebugRenderFrameEdges(const std::vector<GridCoord>& rActiveCoords)
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
 		auto it = game::gpGame->mCoordFrames.find(rCoord);
-		if (it == game::gpGame->mCoordFrames.end()) continue;
+		if (it == game::gpGame->mCoordFrames.end())
+		{
+			continue;
+		}
 
 		// vecArea packing: x=minX, y=maxY, z=maxX, w=minY
 		XMVECTOR vecArea = it->second.staticData.vecArea;
@@ -43,7 +49,10 @@ static void DebugRenderFrameEdges(const std::vector<GridCoord>& rActiveCoords)
 
 static void DebugRenderIslandBoundaries(const std::vector<GridCoord>& rActiveCoords)
 {
-	if constexpr (!kbDebugRender) return;
+	if constexpr (!kbDebugRender)
+	{
+		return;
+	}
 
 	float fZ = gBaseHeight.Get();
 	constexpr XMFLOAT4A kf4BoundaryColor = {1.0f, 0.0f, 1.0f, 1.0f};
@@ -51,7 +60,10 @@ static void DebugRenderIslandBoundaries(const std::vector<GridCoord>& rActiveCoo
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
 		auto it = game::gpGame->mCoordFrames.find(rCoord);
-		if (it == game::gpGame->mCoordFrames.end()) continue;
+		if (it == game::gpGame->mCoordFrames.end())
+		{
+			continue;
+		}
 
 		for (const IslandPlacement& rPlacement : it->second.staticData.islands)
 		{
@@ -81,7 +93,10 @@ static void DebugRenderIslandBoundaries(const std::vector<GridCoord>& rActiveCoo
 
 static void DebugRenderIslandValidArea(const std::vector<GridCoord>& rActiveCoords)
 {
-	if constexpr (!kbDebugRender) return;
+	if constexpr (!kbDebugRender)
+	{
+		return;
+	}
 
 	// Drawn at the underwater mask threshold depth (the depth that defines the hull boundary), below
 	// the magenta boundary rectangle / cyan frame edges at gBaseHeight. Debug lines are an overlay
@@ -92,12 +107,18 @@ static void DebugRenderIslandValidArea(const std::vector<GridCoord>& rActiveCoor
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
 		auto it = game::gpGame->mCoordFrames.find(rCoord);
-		if (it == game::gpGame->mCoordFrames.end()) continue;
+		if (it == game::gpGame->mCoordFrames.end())
+		{
+			continue;
+		}
 
 		for (const IslandPlacement& rPlacement : it->second.staticData.islands)
 		{
 			const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
-			if (rTemplate.mpf2ValidAreaVertices == nullptr || rTemplate.miValidAreaVertexCount < 3) continue;
+			if (rTemplate.mpf2ValidAreaVertices == nullptr || rTemplate.miValidAreaVertexCount < 3)
+			{
+				continue;
+			}
 
 			float fCos = std::cos(rPlacement.fRotation);
 			float fSin = std::sin(rPlacement.fRotation);
@@ -120,7 +141,10 @@ static void DebugRenderIslandValidArea(const std::vector<GridCoord>& rActiveCoor
 
 static void DebugRenderNavData(const std::vector<GridCoord>& rActiveCoords)
 {
-	if constexpr (!kbDebugRender) return;
+	if constexpr (!kbDebugRender)
+	{
+		return;
+	}
 
 	float fZ = gBaseHeight.Get();
 	constexpr XMFLOAT4A kf4PolygonColor = {1.0f, 1.0f, 0.0f, 1.0f};
@@ -129,7 +153,10 @@ static void DebugRenderNavData(const std::vector<GridCoord>& rActiveCoords)
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
 		auto it = game::gpGame->mCoordFrames.find(rCoord);
-		if (it == game::gpGame->mCoordFrames.end()) continue;
+		if (it == game::gpGame->mCoordFrames.end())
+		{
+			continue;
+		}
 
 		const NavData& rNav = it->second.staticData.navData;
 
@@ -463,7 +490,10 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	auto renderFrame = [&](const GridCoord& rCoord)
 	{
 		auto it = rRenderInterpolates.find(rCoord);
-		if (it == rRenderInterpolates.end()) return;
+		if (it == rRenderInterpolates.end())
+		{
+			return;
+		}
 		const game::FrameInterpolate& rInterp = it->second;
 		uint16_t uiFrameId = game::gpGame->RenderFrame(rCoord).postRender.uiFrameId;
 		// Main collections via Render (no uiFrameId needed)
@@ -475,7 +505,10 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	renderFrame(cameraCoord);
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
-		if (rCoord == cameraCoord) continue;
+		if (rCoord == cameraCoord)
+		{
+			continue;
+		}
 		renderFrame(rCoord);
 	}
 

@@ -22,11 +22,18 @@ public:
 	void ProcessUpdatePlayerRequests();
 
 	void QueueUpdatePlayerRequest(const PendingUpdatePlayerRequest& rRequest);
+	void QueueAgentStatusChange(engine::GridCoord coord, const StatusChange& rChange);
 	void ClearPendingRequests();
 	void ClearSpawns();
 	void ResetState();
 
 	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mSpawns;
+
+	// Agent-injected StatusChanges accumulated at the command drain point; consumed in BuildFrameInputs before the
+	// mSpawns snapshot, per-coord, only when ticking (not paused/zero-tick), not during replay playback, no clients
+	// awaiting spawn, and the coord is active + frame-ready — else held for a later tick. Cross-update accumulator:
+	// cleared only in ResetState(), never in ClearPendingRequests() (which runs before the agent Drain). .cpp carries detail.
+	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mPendingAgentStatusChanges;
 
 private:
 
