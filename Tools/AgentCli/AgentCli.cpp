@@ -14,6 +14,7 @@
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <windows.h> // Explicit: GetModuleFileNameW / CreateFileW / SetFileTime for the lock touch (winsock2.h pulls windows.h transitively, but document the direct dependency).
 
 #include <cstdint>
 #include <cstdio>
@@ -149,6 +150,57 @@ namespace
 
 		return true;
 	}
+
+	// Best-effort refresh of the agent-harness advisory lock's last-write time so the harness
+	// steal protocol can read a stale mtime as a dead owner. MUST NOT create the file (a touch may
+	// never resurrect a stolen/released lock — hence OPEN_EXISTING) and MUST NOT alter AgentCli's
+	// stdout or exit code — every failure path silently no-ops.
+	void TouchHarnessLock()
+	{
+		wchar_t pModulePath[MAX_PATH] = {};
+		DWORD uiLength = ::GetModuleFileNameW(nullptr, pModulePath, MAX_PATH);
+		if (uiLength == 0 || uiLength >= MAX_PATH)
+		{
+			return;
+		}
+
+		// Exe path is <root>/Tools/AgentCli/Platforms/VisualStudio2026/Output/AgentCli*.exe — strip the filename
+		// plus the five parent directories (Output, VisualStudio2026, Platforms, AgentCli, Tools) to reach the repo root.
+		// Validate each stripped directory name against that expected sequence: an exe copied to some unrelated
+		// 6-deep path must not touch a same-named file there, and a UNC-shaped mis-derivation (\\Temp\...) would add
+		// a host-resolution stall to every command. On any mismatch, silently no-op.
+		static constexpr const wchar_t* kpExpectedComponents[] = { L"Output", L"VisualStudio2026", L"Platforms", L"AgentCli", L"Tools" };
+		std::wstring lockPath = pModulePath;
+		for (int i = 0; i < 6; ++i)
+		{
+			size_t uiSeparator = lockPath.find_last_of(L"\\/");
+			if (uiSeparator == std::wstring::npos)
+			{
+				return;
+			}
+
+			// i == 0 strips the exe filename (any name); i == 1..5 strip the parent directories, checked in order.
+			if (i > 0 && ::_wcsicmp(lockPath.c_str() + uiSeparator + 1, kpExpectedComponents[i - 1]) != 0)
+			{
+				return;
+			}
+
+			lockPath.resize(uiSeparator);
+		}
+
+		lockPath += L"\\Temp\\agent-harness.lock";
+
+		HANDLE hLock = ::CreateFileW(lockPath.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+		if (hLock == INVALID_HANDLE_VALUE)
+		{
+			return;
+		}
+
+		FILETIME nowFileTime = {};
+		::GetSystemTimeAsFileTime(&nowFileTime);
+		::SetFileTime(hLock, nullptr, nullptr, &nowFileTime);
+		::CloseHandle(hLock);
+	}
 }
 
 int main(int iArgumentCount, char* pArgumentValues[])
@@ -230,6 +282,9 @@ int main(int iArgumentCount, char* pArgumentValues[])
 		Fail("request exceeds 1 MiB (server request cap)");
 		return kiExitFailure;
 	}
+
+	// Arguments are valid: mark that this session issued a harness command so the lock's mtime stays fresh.
+	TouchHarnessLock();
 
 	WSADATA wsaData = {};
 	if (::WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)

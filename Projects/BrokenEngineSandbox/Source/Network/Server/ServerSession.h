@@ -31,6 +31,7 @@ public:
 	void PreTickNetwork();
 	void PrepareTick();
 	void BroadcastTick(int64_t iTick);
+	void ServicePausedNetwork(); // service persist-until-served subscription/resync queues on zero-tick (paused) updates so clients can connect to a paused server
 	void SendResends(int64_t iTick);
 	void WaitForTick(engine::TimeStep& rTimeStep);
 	void ComputeActiveSet();

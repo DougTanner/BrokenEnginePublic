@@ -90,6 +90,38 @@ void ServerSession::BroadcastTick(int64_t iTick)
 	engine::gpServer->Flush();
 }
 
+// Services the persist-until-served resync/new-subscription queues on a zero-tick update (paused, or an occasional
+// clock/timescale remainder) so a client can connect to a paused server and receive full state — BroadcastTick's
+// per-tick consumers never run at iFullTicks == 0.
+void ServerSession::ServicePausedNetwork()
+{
+	// Heap: BuildCellNavData, SendCoordStaticData/FullState, and resync sends allocate for serialization and compression (mirrors BroadcastTick)
+	ScopedSuppressAllocationTracking suppress;
+
+	// A coord first subscribed while paused was created by PrepareActiveSet with empty NavData (RunFrameTick builds it
+	// lazily, but never runs at iFullTicks == 0). SendNewSubscriptionFullStates below ships NavData in the static-data
+	// message — the only path clients receive it (resyncs re-send frames, not static data) — so build it here first,
+	// reusing RunFrameTick's exact server-only call and emptiness gate. NavData derives only from islands (not the
+	// elevation grid), so no ordering vs the other lazy caches is required; clients build their own elevation grid.
+	for (const engine::PendingNewSubscription& rSub : engine::gpServer->DrainPendingNewSubscriptions())
+	{
+		auto frameIt = gpGame->mCoordFrames.find(rSub.coord);
+		if (frameIt == gpGame->mCoordFrames.end())
+		{
+			continue;
+		}
+		engine::FrameStaticData& rStaticData = frameIt->second.staticData;
+		if (rStaticData.navData.vertices.empty() && !rStaticData.islands.empty())
+		{
+			engine::BuildCellNavData(rStaticData.navData, rStaticData.islands);
+		}
+	}
+
+	HandleResyncRequests();
+	SendNewSubscriptionFullStates();
+	engine::gpServer->Flush();
+}
+
 void ServerSession::SendResends(int64_t iTick)
 {
 	// Heap: ENet packet creation per resend in engine::Server::SendResends

@@ -31,6 +31,10 @@ static bool sbHasFocus = false;
 #if defined(BT_CLIENT)
 static LONG sWindowStyle = 0;
 static RECT sWindowRect {};
+
+// Agent-only runtime fullscreen override (SetAgentFullscreenOverride). std::nullopt = no override (launch behavior);
+// set = the agent fullscreen command forces this mode, consulted ahead of --windowed. Never mutates gFullscreen.
+static std::optional<bool> sAgentFullscreenOverride;
 #endif
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -39,16 +43,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 void FindMonitor(bool bUseCurrentRect);
 VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect);
 
-// Effective fullscreen: false when --windowed WxH is set (reproducible agent capture geometry), else the saved
-// gFullscreen preference. Override only at the read sites — never gFullscreen.Set() (it is persisted to
-// GraphicsSettings.bin, so mutating it would silently rewrite the user's saved fullscreen preference).
+// Effective fullscreen precedence: the agent fullscreen override (runtime, in-memory) wins first; else false when
+// --windowed WxH is set (reproducible agent capture geometry); else the saved gFullscreen preference. Override only
+// at the read sites — never gFullscreen.Set() (it is persisted to GraphicsSettings.bin, so mutating it would silently
+// rewrite the user's saved fullscreen preference).
 static bool WantedFullscreen()
 {
+	if (sAgentFullscreenOverride.has_value())
+	{
+		return *sAgentFullscreenOverride;
+	}
 	if (gLaunchOptions.windowedExtent.width != 0 && gLaunchOptions.windowedExtent.height != 0)
 	{
 		return false;
 	}
 	return gFullscreen.Get<bool>();
+}
+
+void SetAgentFullscreenOverride(std::optional<bool> fullscreen)
+{
+	sAgentFullscreenOverride = fullscreen;
 }
 #endif
 bool ProcessMessages();
@@ -281,7 +295,8 @@ void MainThread(HINSTANCE hinstance)
 	}
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
 
-	ShowWindow(sHwnd, SW_SHOWDEFAULT);
+	// Agent-mode launch must not steal focus from the user's active app
+	ShowWindow(sHwnd, gLaunchOptions.iAgentPort != 0 ? SW_SHOWNOACTIVATE : SW_SHOWDEFAULT);
 #else
 	// Server: create terrain collision data (no Graphics)
 	auto pIslandTerrain = std::make_unique<IslandTerrain>();
@@ -299,10 +314,21 @@ void MainThread(HINSTANCE hinstance)
 		ShowWindow(sHwnd, SW_HIDE);
 	});
 #if defined(BT_CLIENT)
-	SetForegroundWindow(sHwnd);
-	BringWindowToTop(sHwnd);
-#endif
+	// Agent-mode launch must not steal focus from the user's active app
+	if (gLaunchOptions.iAgentPort == 0)
+	{
+		SetForegroundWindow(sHwnd);
+		BringWindowToTop(sHwnd);
+		SetFocus(sHwnd);
+	}
+	else
+	{
+		// Agent-mode clients boot silent; focus gain resumes.
+		gpAudioManager->Suspend();
+	}
+#else
 	SetFocus(sHwnd);
+#endif
 	ProcessMessages();
 
 	gpProfileManager->BootLog();
@@ -530,7 +556,8 @@ bool ProcessMessages()
 	{
 		SetupWindow(bWantedFullscreen, sWindowStyle, sWindowRect);
 		SetWindowLongPtr(sHwnd, GWL_STYLE, sWindowStyle);
-		SetWindowPos(sHwnd, nullptr, sWindowRect.left, sWindowRect.top, sWindowRect.right - sWindowRect.left, sWindowRect.bottom - sWindowRect.top, 0);
+		// SWP_NOZORDER | SWP_NOACTIVATE: the agent fullscreen command reaches this path, and the harness must never steal foreground focus.
+		SetWindowPos(sHwnd, nullptr, sWindowRect.left, sWindowRect.top, sWindowRect.right - sWindowRect.left, sWindowRect.bottom - sWindowRect.top, SWP_NOZORDER | SWP_NOACTIVATE);
 	}
 #endif // BT_CLIENT
 
@@ -550,22 +577,39 @@ bool ProcessMessages()
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 #if defined(BT_CLIENT)
-	// Game handles cursor when ImGui doesn't want the mouse
-	if (message == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT && !ImGui::GetIO().WantCaptureMouse)
+	// Game handles cursor when ImGui doesn't want the mouse. Guard GetIO(): the ImGui context can be destroyed across a
+	// multi-frame deferred swapchain recreate (minimized client), and this fires on the restore frame over the client area.
+	if (message == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT && ImGui::GetCurrentContext() != nullptr && !ImGui::GetIO().WantCaptureMouse)
 	{
 		SetCursor(game::gpGame->ShouldUseCrosshair() ? sHcursorCrosshair : sHcursorArrow);
 		return TRUE;
 	}
 
-	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam) != 0)
+	const bool bInputSuppressed = PhysicalInputSuppressed();
+
+	// When suppressed, keep the ImGui Win32 backend running for lifecycle bookkeeping (focus, tracking) but starve it
+	// of physical input messages (mouse/keyboard/char/wheel ranges) so real human activity never becomes ImGui IO.
+	// Non-client mouse messages (WM_NCMOUSEMOVE etc.) are deliberately NOT added to the bypass ranges: the backend may
+	// queue a physical pos from them, but ImGuiManager::Prepare's re-pin/sentinel is always the last mouse-pos event
+	// before NewFrame, so gating them is unnecessary and is not done.
+	const bool bInputMessage = (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST)
+		|| (message >= WM_KEYFIRST && message <= WM_KEYLAST);
+	if (!(bInputSuppressed && bInputMessage))
 	{
-		return TRUE;
+		if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam) != 0)
+		{
+			return TRUE;
+		}
 	}
 
 	switch (message)
 	{
+		// WM_ACTIVATEAPP / WM_INPUT stay ungated even when suppressed — DirectXTK Mouse focus bookkeeping, not a physical input feed.
 		case WM_ACTIVATEAPP:
 		case WM_INPUT:
+			Mouse::ProcessMessage(message, wParam, lParam);
+			break;
+
 		case WM_MOUSEMOVE:
 		case WM_LBUTTONDOWN:
 		case WM_LBUTTONUP:
@@ -577,7 +621,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_XBUTTONDOWN:
 		case WM_XBUTTONUP:
 		case WM_MOUSEHOVER:
-			Mouse::ProcessMessage(message, wParam, lParam);
+			if (!bInputSuppressed)
+			{
+				Mouse::ProcessMessage(message, wParam, lParam);
+			}
 			break;
 
 		default:

@@ -261,8 +261,13 @@ void ServerClientManager::Disconnects()
 		gpServerSession->mClientOwnedPlayerIds.erase(rDisconnect.iClientId);
 	}
 
-	// Unpause and reset timespeed when no clients remain so the server resumes ticking at 1x for the next connection
-	if (engine::gpServer->GetClients().empty())
+	// Unpause and reset timespeed when the last client disconnects so the server resumes ticking at 1x for the next
+	// connection. State-tracked on the non-empty -> empty transition (not GetClients().empty() alone, which would
+	// clobber commanded state every update) so the edge is caught regardless of removal path — including ClientHello
+	// rejects that call Server::RemoveClient without minting a PendingDisconnect. An agent-paused server that was
+	// already empty keeps its commanded pause/timescale.
+	bool bHasClients = !engine::gpServer->GetClients().empty();
+	if (mbHadClients && !bHasClients)
 	{
 		gpGame->mGameFlags.Clear(engine::GameFlags::kPaused);
 		if (gpGame->mTimeStep.miTimeMultiply != 1 || gpGame->mTimeStep.miTimeDivide != 1)
@@ -270,6 +275,7 @@ void ServerClientManager::Disconnects()
 			gpGame->mTimeStep.SetTimeScale(1, 1);
 		}
 	}
+	mbHadClients = bHasClients;
 }
 
 void ServerClientManager::DetectPlayerDeaths()

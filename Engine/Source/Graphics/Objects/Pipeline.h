@@ -38,7 +38,7 @@ enum class DescriptorFlags : uint64_t
 	// data subsystem (e.g., IslandTerrain) rather than derivable from ppTextures[k]->mInfo.crc.
 	// PipelineDescriptorWriter routes flagged entries into TextureDescriptors::mBindlessArrayConsumers;
 	// IslandTerrain::AcquireTextureSlot iterates that registry at first-mint and registers under the
-	// correct islandCrc / chunk-CRC key. See Documents/Plans/Graphics/CoLocatePerSlotDescriptorRegistration.md.
+	// correct islandCrc / chunk-CRC key.
 	kBindlessArrayConsumer          = 0x40000,
 };
 using DescriptorFlags_t = common::Flags<DescriptorFlags>;

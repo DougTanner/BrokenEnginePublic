@@ -11,6 +11,54 @@
 namespace game
 {
 
+namespace
+{
+
+// Float-backed RadioButton row: optional header text, then one RadioButton per option on a single line. The
+// checked button is the option whose value equals the wrapper's current value; clicking one writes that value.
+// One place for the enum<->index mapping of present mode, sample count, water detail, and theme — every Wrapper
+// flavor is float-backed, so equality/Set on the raw float is exact for the discrete values used here.
+// RadioButton and header labels are the harness automation API — do not rename.
+void RadioRow(const char* pcHeader, engine::Wrapper* pWrapper, float fCurrent, std::initializer_list<std::pair<const char*, float>> aOptions)
+{
+	if (pcHeader != nullptr)
+	{
+		ImGui::TextUnformatted(pcHeader);
+	}
+
+	bool bFirst = true;
+	for (const std::pair<const char*, float>& rOption : aOptions)
+	{
+		if (!bFirst)
+		{
+			// Wrap to a new line when the next radio would clip at the column edge (long labels like "Midnight Mauve")
+			ImGui::SameLine();
+			float fOptionWidth = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(rOption.first).x;
+			if (ImGui::GetContentRegionAvail().x < fOptionWidth)
+			{
+				ImGui::NewLine();
+			}
+		}
+		bFirst = false;
+
+		if (ImGui::RadioButton(rOption.first, fCurrent == rOption.second))
+		{
+			pWrapper->Set(rOption.second);
+		}
+	}
+}
+
+// WrapperSlider whose bar is shortened to leave room for its trailing label inside the current table column, so a
+// label like "Minimum Ambient" is no longer clipped at the column edge. Negative item width means "fill the column
+// minus this many pixels from the right" (ImGui CalcItemWidth), floored at 1px by ImGui.
+void ColumnSlider(const char* pcLabel, engine::Wrapper* pWrapper)
+{
+	ImGui::SetNextItemWidth(-(ImGui::CalcTextSize(pcLabel).x + ImGui::GetStyle().ItemInnerSpacing.x));
+	WrapperSlider(pcLabel, pWrapper);
+}
+
+} // namespace
+
 void GraphicsMenuScreen::Render()
 {
 	if (gpGame->meUiState != UiState::kGraphicsSettings)
@@ -22,7 +70,10 @@ void GraphicsMenuScreen::Render()
 	ScopedMenuScale menuScale;
 
 	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.5f, rIo.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x * 0.6f, 0.0f));
+	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x * kfSettingsPanelWidthFraction, 0.0f));
+	// Window auto-resizes to its content (content can exceed a 4K screen); cap the height so the whole panel plus the
+	// Back button stays on screen.
+	ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(rIo.DisplaySize.x, rIo.DisplaySize.y * kfGraphicsMaxHeightFraction));
 
 	ScopedMenuFont menuFont;
 	ImGui::Begin("GraphicsMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
@@ -34,192 +85,96 @@ void GraphicsMenuScreen::Render()
 	ImVec2 vPanelSize = ImGui::GetWindowSize();
 	DrawPanelAccents(ImGui::GetWindowDrawList(), vPanelPos, ImVec2(vPanelPos.x + vPanelSize.x, vPanelPos.y + vPanelSize.y));
 
-	{
-		ScopedMenuFont headingFont(kfMenuUiScale * kfMenuHeadingScale);
-		ImGui::TextUnformatted(AppendUtf8(common::gpThreadLocal->mWorkbuffer, TranslatedString(kStringGraphics)));
-	}
+	MenuHeading(AppendUtf8(common::gpThreadLocal->mWorkbuffer, TranslatedString(kStringGraphics)));
 
 	// FPS display
 	ImGui::Text("FPS: %lld", engine::gpGraphics->mRendersInTheLastSecond.Get());
 
 	ImGui::Separator();
 
-	ImGui::Columns(2, "GraphicsColumns", false);
-
-	// Left column: Display & Quality
-	// Time of day (only in main menu)
-	if (gpGame->InMainMenu())
+	if (ImGui::BeginTable("GraphicsColumns", 2, ImGuiTableFlags_SizingStretchSame))
 	{
-		WrapperSlider("Time of Day", &engine::gSunAngleOverride);
-	}
+		// Left column: Display
+		ImGui::TableNextColumn();
 
-	WrapperSlider("Minimum Ambient", &engine::gSunMoonMinimumAmbient);
-
-	ImGui::Separator();
-
-	WrapperToggle("Fullscreen", &engine::gFullscreen);
-
-	ImGui::Text("Presentation Mode");
-	int64_t iPresentMode = 0;
-	VkPresentModeKHR ePresentMode = engine::gPresentMode.Get<VkPresentModeKHR>();
-	if (ePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR)
-	{
-		iPresentMode = 0;
-	}
-	else if (ePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
-	{
-		iPresentMode = 1;
-	}
-	else if (ePresentMode == VK_PRESENT_MODE_FIFO_KHR)
-	{
-		iPresentMode = 2;
-	}
-
-	if (ImGui::RadioButton("Immediate", iPresentMode == 0))
-	{
-		engine::gPresentMode.Set<VkPresentModeKHR>(VK_PRESENT_MODE_IMMEDIATE_KHR);
-	}
-	ImGui::SameLine();
-	if (ImGui::RadioButton("Mailbox", iPresentMode == 1))
-	{
-		engine::gPresentMode.Set<VkPresentModeKHR>(VK_PRESENT_MODE_MAILBOX_KHR);
-	}
-	ImGui::SameLine();
-	if (ImGui::RadioButton("FIFO", iPresentMode == 2))
-	{
-		engine::gPresentMode.Set<VkPresentModeKHR>(VK_PRESENT_MODE_FIFO_KHR);
-	}
-
-	ImGui::Separator();
-
-	WrapperToggle("Multisampling", &engine::gMultisampling);
-	if (engine::gMultisampling.Get<bool>())
-	{
-		int64_t iSampleCount = 0;
-		VkSampleCountFlagBits eSampleCount = engine::gSampleCount.Get<VkSampleCountFlagBits>();
-		if (eSampleCount == VK_SAMPLE_COUNT_2_BIT)
+		// Time of day (only in main menu)
+		if (gpGame->InMainMenu())
 		{
-			iSampleCount = 0;
-		}
-		else if (eSampleCount == VK_SAMPLE_COUNT_4_BIT)
-		{
-			iSampleCount = 1;
-		}
-		else if (eSampleCount == VK_SAMPLE_COUNT_8_BIT)
-		{
-			iSampleCount = 2;
-		}
-		else if (eSampleCount == VK_SAMPLE_COUNT_16_BIT)
-		{
-			iSampleCount = 3;
+			ColumnSlider("Time of Day", &engine::gSunAngleOverride);
 		}
 
-		if (ImGui::RadioButton("2x", iSampleCount == 0))
+		ColumnSlider("Minimum Ambient", &engine::gSunMoonMinimumAmbient);
+
+		ImGui::Separator();
+
+		WrapperToggle("Fullscreen", &engine::gFullscreen);
+
+		RadioRow("Presentation Mode", &engine::gPresentMode, engine::gPresentMode.Get(),
+			{{"Immediate", static_cast<float>(VK_PRESENT_MODE_IMMEDIATE_KHR)}, {"Mailbox", static_cast<float>(VK_PRESENT_MODE_MAILBOX_KHR)}, {"FIFO", static_cast<float>(VK_PRESENT_MODE_FIFO_KHR)}});
+
+		ImGui::Separator();
+
+		WrapperToggle("Multisampling", &engine::gMultisampling);
+		if (engine::gMultisampling.Get<bool>())
 		{
-			engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_2_BIT);
+			RadioRow(nullptr, &engine::gSampleCount, engine::gSampleCount.Get(),
+				{{"2x", static_cast<float>(VK_SAMPLE_COUNT_2_BIT)}, {"4x", static_cast<float>(VK_SAMPLE_COUNT_4_BIT)}, {"8x", static_cast<float>(VK_SAMPLE_COUNT_8_BIT)}, {"16x", static_cast<float>(VK_SAMPLE_COUNT_16_BIT)}});
 		}
-		ImGui::SameLine();
-		if (ImGui::RadioButton("4x", iSampleCount == 1))
+
+		ImGui::Separator();
+
+		RadioRow("Water Shape Detail", &engine::gWaterShapeDetail, engine::gWaterShapeDetail.Get(),
+			{{"1/4", 0.25f}, {"1/2", 0.5f}});
+
+		// Right column: Effects & UI
+		ImGui::TableNextColumn();
+
+		WrapperToggle("Anisotropy", &engine::gAnisotropy);
+		if (engine::gAnisotropy.Get<bool>())
 		{
-			engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_4_BIT);
+			ColumnSlider("Max Anisotropy", &engine::gMaxAnisotropy);
 		}
-		ImGui::SameLine();
-		if (ImGui::RadioButton("8x", iSampleCount == 2))
+		ColumnSlider("Mip Lod Bias", &engine::gMipLodBias);
+
+		ImGui::Separator();
+
+		WrapperToggle("Sample Shading", &engine::gSampleShading);
+		if (engine::gSampleShading.Get<bool>())
 		{
-			engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_8_BIT);
+			ColumnSlider("Min Sample Shading", &engine::gMinSampleShading);
 		}
-		ImGui::SameLine();
-		if (ImGui::RadioButton("16x", iSampleCount == 3))
+
+		ImGui::Separator();
+
+		WrapperToggle("Smoke", &engine::gSmokeEnabled);
+		if (engine::gSmokeEnabled.Get<bool>())
 		{
-			engine::gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_16_BIT);
+			ColumnSlider("Smoke Pixels", &engine::gSmokeSimulationPixels);
+			ColumnSlider("Smoke Area", &engine::gSmokeSimulationArea);
 		}
+
+		WrapperToggle("Wind", &engine::gWindEnabled);
+
+		ImGui::Separator();
+
+		WrapperToggle("Opaque UI", &engine::gOpaqueUi);
+		if (!engine::gOpaqueUi.Get<bool>())
+		{
+			ColumnSlider("UI Opacity", &engine::gUiOpacity);
+		}
+
+		WrapperPlusMinus("Font Size", &engine::gUiFontScale, 0.1f);
+
+		RadioRow("Theme", &engine::gUiTheme, static_cast<float>(engine::GetUiTheme()),
+			{{"Naval Steel", static_cast<float>(engine::UiTheme::kNavalSteel)}, {"Dark Amber", static_cast<float>(engine::UiTheme::kDarkAmber)}, {"Midnight Mauve", static_cast<float>(engine::UiTheme::kMidnightMauve)}});
+
+		ImGui::EndTable();
 	}
-
-	// Right column: Effects & Misc
-	ImGui::NextColumn();
-
-	WrapperToggle("Anisotropy", &engine::gAnisotropy);
-	if (engine::gAnisotropy.Get<bool>())
-	{
-		WrapperSlider("Max Anisotropy", &engine::gMaxAnisotropy);
-	}
-	WrapperSlider("Mip Lod Bias", &engine::gMipLodBias);
-
-	ImGui::Separator();
-
-	WrapperToggle("Sample Shading", &engine::gSampleShading);
-	if (engine::gSampleShading.Get<bool>())
-	{
-		WrapperSlider("Min Sample Shading", &engine::gMinSampleShading);
-	}
-
-	ImGui::Separator();
-
-	ImGui::Text("Water Shape Detail");
-	int64_t iWaterShapeDetail = 0;
-	float fWaterShapeDetail = engine::gWaterShapeDetail.Get();
-	if (fWaterShapeDetail == 0.25f)
-	{
-		iWaterShapeDetail = 0;
-	}
-	else if (fWaterShapeDetail == 0.5f)
-	{
-		iWaterShapeDetail = 1;
-	}
-
-	if (ImGui::RadioButton("1/4", iWaterShapeDetail == 0))
-	{
-		engine::gWaterShapeDetail.Set(0.25f);
-	}
-	ImGui::SameLine();
-	if (ImGui::RadioButton("1/2", iWaterShapeDetail == 1))
-	{
-		engine::gWaterShapeDetail.Set(0.5f);
-	}
-
-	ImGui::Separator();
-
-	WrapperToggle("Smoke", &engine::gSmokeEnabled);
-	if (engine::gSmokeEnabled.Get<bool>())
-	{
-		WrapperSlider("Smoke Pixels", &engine::gSmokeSimulationPixels);
-		WrapperSlider("Smoke Area", &engine::gSmokeSimulationArea);
-	}
-
-	WrapperToggle("Wind", &engine::gWindEnabled);
-
-	ImGui::Separator();
-
-	WrapperToggle("Opaque UI", &engine::gOpaqueUi);
-	if (!engine::gOpaqueUi.Get<bool>())
-	{
-		WrapperSlider("UI Opacity", &engine::gUiOpacity);
-	}
-
-	WrapperPlusMinus("Font Size", &engine::gUiFontScale, 0.1f);
-
-	ImGui::Text("Theme");
-	engine::UiTheme eTheme = engine::GetUiTheme();
-	if (ImGui::RadioButton("Naval Steel", eTheme == engine::UiTheme::kNavalSteel))
-	{
-		engine::gUiTheme.Set<engine::UiTheme>(engine::UiTheme::kNavalSteel);
-	}
-	ImGui::SameLine();
-	if (ImGui::RadioButton("Dark Amber", eTheme == engine::UiTheme::kDarkAmber))
-	{
-		engine::gUiTheme.Set<engine::UiTheme>(engine::UiTheme::kDarkAmber);
-	}
-	ImGui::SameLine();
-	if (ImGui::RadioButton("Midnight Mauve", eTheme == engine::UiTheme::kMidnightMauve))
-	{
-		engine::gUiTheme.Set<engine::UiTheme>(engine::UiTheme::kMidnightMauve);
-	}
-
-	ImGui::Columns(1);
 
 	// Back button
 	ImGui::Separator();
-	if (MenuButton("Back", ImVec2(0.0f, 0.0f), mfBackHoverAnim))
+	float fBackWidth = MenuButtonsWidth({U"Back"});
+	if (MenuButton("Back", ImVec2(fBackWidth, 0.0f), mfBackHoverAnim))
 	{
 		SaveGraphicsSettings();
 		gpGame->meUiState = UiState::kPause;

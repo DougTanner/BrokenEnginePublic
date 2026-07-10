@@ -62,10 +62,13 @@ bool AgentInput::BeginScript(const AgentScript& rScript)
 	mbResolvedDisabled = false;
 
 	// Clear held synthetic key/button/pos state so nothing leaks from a prior script; the scroll accumulator is a
-	// lifetime accumulator by design (consumers diff it), so it persists.
+	// lifetime accumulator by design (consumers diff it), so it persists. The ImGui-pos pin is cleared here (not in
+	// Finish) so it persists across a script's completion: describe_ui runs after Finish, so it must survive until the
+	// next script re-seeds or clears it.
 	std::fill(std::begin(mpbSyntheticKeys), std::end(mpbSyntheticKeys), false);
 	muiSyntheticMouseButtons = 0;
 	mbSyntheticMousePosValid = false;
+	mbImGuiMousePosPinned = false;
 	return true;
 }
 
@@ -80,6 +83,9 @@ void AgentInput::Finish(AgentScriptStatus eStatus)
 	// releases a bare `down` ~2 frames later, but the ImGui side stays logically held until a matching `up` event.
 	// `click` is the composing primitive that pairs down+up on both sinks; a bare `down` without a later `up` leaves
 	// ImGui's button state held.
+	// Pos-sink asymmetry: the overlay (game-world) synthetic mouse pos clears here, but the ImGui-pos pin does NOT — it
+	// deliberately persists until the next script (see BeginScript). Between scripts the game-world mouse reverts to the
+	// physical cursor while the UI mouse stays pinned; the accepted asymmetry.
 	std::fill(std::begin(mpbSyntheticKeys), std::end(mpbSyntheticKeys), false);
 	muiSyntheticMouseButtons = 0;
 	mbSyntheticMousePosValid = false;
@@ -87,9 +93,21 @@ void AgentInput::Finish(AgentScriptStatus eStatus)
 
 void AgentInput::IssueImGuiMousePos(float fX, float fY)
 {
+	// Remember the pos + pin it so ImGuiManager::Prepare can re-issue it after the Win32 backend (last-writer-wins).
+	mbImGuiMousePosPinned = true;
+	mf2ImGuiPinnedPixels[0] = fX;
+	mf2ImGuiPinnedPixels[1] = fY;
 	if (ImGui::GetCurrentContext() != nullptr)
 	{
 		ImGui::GetIO().AddMousePosEvent(fX, fY);
+	}
+}
+
+void AgentInput::ReissueImGuiMousePos()
+{
+	if (mbImGuiMousePosPinned && ImGui::GetCurrentContext() != nullptr)
+	{
+		ImGui::GetIO().AddMousePosEvent(mf2ImGuiPinnedPixels[0], mf2ImGuiPinnedPixels[1]);
 	}
 }
 

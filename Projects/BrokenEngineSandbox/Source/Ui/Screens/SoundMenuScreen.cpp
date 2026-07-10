@@ -20,7 +20,8 @@ void SoundMenuScreen::Render()
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.04f), ImGuiCond_Always);
+	// Centered via the pivot convention (UserInterfaceDesign.txt section 5), matching Pause/Graphics
+	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.5f, rIo.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
 	ScopedMenuFont menuFont;
 	ImGui::Begin("SoundMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
@@ -34,10 +35,7 @@ void SoundMenuScreen::Render()
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
-	{
-		ScopedMenuFont headingFont(kfMenuUiScale * kfMenuHeadingScale);
-		ImGui::TextUnformatted(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)));
-	}
+	MenuHeading(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)));
 
 	WrapperSlider("Master Volume", &engine::gMasterVolume);
 	WrapperSlider("Music Volume", &engine::gMusicVolume);
@@ -45,8 +43,11 @@ void SoundMenuScreen::Render()
 
 	ImGui::Separator();
 
+	// One themed width shared by both buttons (measured under the live menu font)
+	float fButtonWidth = MenuButtonsWidth({TranslatedString(kStringDefaults), U"Back"});
+
 	// Defaults button
-	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringDefaults)), ImVec2(0.0f, 0.0f), mfDefaultsHoverAnim))
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringDefaults)), ImVec2(fButtonWidth, 0.0f), mfDefaultsHoverAnim))
 	{
 		ResetSoundSettings();
 	}
@@ -54,7 +55,7 @@ void SoundMenuScreen::Render()
 	ImGui::SameLine();
 
 	// Back button
-	if (MenuButton("Back", ImVec2(0.0f, 0.0f), mfBackHoverAnim))
+	if (MenuButton("Back", ImVec2(fButtonWidth, 0.0f), mfBackHoverAnim))
 	{
 		gpGame->meUiState = UiState::kPause;
 	}

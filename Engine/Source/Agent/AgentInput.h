@@ -81,6 +81,10 @@ public:
 	bool BeginScript(const AgentScript& rScript);
 	bool IsScriptActive() const { return mbScriptActive; }
 
+	// True while a synthetic ImGui mouse pos is pinned (persists across a script's completion; cleared in BeginScript).
+	// Consulted by input-suppression so the no-mouse sentinel is issued only when no synthetic pin already owns io.MousePos.
+	bool ImGuiMousePosPinned() const { return mbImGuiMousePosPinned; }
+
 	// Client drain point (main thread, before ImGui NewFrame): advance the active script one step and queue this
 	// frame's ImGui IO events.
 	// The main loop runs ImGui + scripts even while the window is minimized (GameBase::Render / ImGuiManager::Prepare
@@ -92,6 +96,11 @@ public:
 	// snapshot so game edge-detection fires as with hardware. The scroll accumulator is NOT added here — it is a
 	// lifetime accumulator folded into iScrollWheelValue on every publish (see SyntheticScrollAccumulator()).
 	void Overlay(RawInput& rRawInput);
+
+	// Called by ImGuiManager::Prepare between the Win32 backend NewFrame and ImGui::NewFrame: if a synthetic ImGui mouse
+	// pos is pinned, re-issue it so it is the frame's last mouse-pos event (the physical cursor would otherwise win
+	// last-writer-wins in ImGui::NewFrame). Pin-valid gate lives inside the function.
+	void ReissueImGuiMousePos();
 
 	// Persistent synthetic scroll offset added into the published lifetime iScrollWheelValue on EVERY publish (script
 	// active or not) — consumers diff iScrollWheelValue, so the offset must never drop out of the published value.
@@ -130,6 +139,12 @@ private:
 	bool mbSyntheticMousePosValid = false;
 	float mf2SyntheticMousePixels[2] {};
 	int miSyntheticScrollAccumulator = 0;
+
+	// ImGui-IO mouse-pos pin (UI sink), separate from the overlay pos flag above (game-world sink): the last synthetic
+	// ImGui pos, re-issued after the Win32 backend in ImGuiManager::Prepare so it wins last-writer-wins. Cleared in
+	// BeginScript only (never Finish) so it persists across a script's completion until the next script re-seeds it.
+	bool mbImGuiMousePosPinned = false;
+	float mf2ImGuiPinnedPixels[2] {};
 };
 
 inline AgentInput* gpAgentInput = nullptr;

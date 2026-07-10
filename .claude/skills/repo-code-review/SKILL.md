@@ -165,11 +165,12 @@ Evaluate the changes holistically:
 	- Mirrored patterns half-applied: client edit without server counterpart, per-collection pattern applied to N−1 of N collections, C++ struct changed without its shared GLSL header (and vice versa), Spawn updated but Transfer/AllocateAndCopy/LogDifferences not.
 	- New enum value → grep every switch/dispatch/serialization table over that enum.
 	- Anything renamed → grep comments, CLAUDE.md, plans, and shared headers for the old name.
-- **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested.
+- **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested. Flag over-built code added this session: an abstraction (base class, template, callback, indirection layer) with exactly one implementation/user and no second on the horizon; a config value, parameter, or option that never varies at any call site; speculative "for later" scaffolding no current code path exercises; reimplementation of an existing `common::` or stdlib facility (§6 owns the `common::` catalog check).
+- **New duplication** - Flag (required) when the diff introduces a near-copy (~5+ lines, or a repeated multi-condition check) of logic that already exists in the repo — verify by grepping a distinctive fragment of each substantial new block; require calling or extracting a shared helper. Exception: deliberate mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel — do not recommend abstracting them.
 - **Workaround justification test** - A workaround that needs a paragraph-long comment to justify why it is OK is itself a required finding: the code is wrong — require fixing the underlying code, not accepting the justification.
 - **Function size**: Aim for 50-100 lines max per function. Soft guideline — some functions are legitimately large. If a modified function has grown past this, flag with "function does too much" and recommend a split only if a natural responsibility boundary exists.
 
-For micro-simplification opportunities (duplicated snippets, unnecessary intermediate variables, over-complicated expressions), recommend running `/simplify` on the changed files rather than listing them here — that skill owns surface-level simplification. For nesting-depth / style complaints, `/code-style-review` owns those.
+For micro-simplification opportunities (unnecessary intermediate variables, over-complicated expressions), recommend running `/simplify` on the changed files rather than listing them here — that skill owns surface-level simplification; duplication of existing repo logic is the §8 New-duplication check, not a `/simplify` punt. For nesting-depth / style complaints, `/code-style-review` owns those.
 
 ### 9. Severity Prefixes
 

@@ -45,7 +45,7 @@ Each subagent reports files changed + functions/regions touched (one line each),
 6. Use an Opus subagent to invoke the /update-claude-docs skill — and the /update-architecture-diagrams skill if its trigger applies
 7. A Sonnet subagent invokes the /update-vcxproj skill (verify mode, fixing FAILs in place via add mode) on all files changed this session — reports pass/fixed/NOTE per file. This step owns vcxproj membership/filter mechanics
 8. A Sonnet subagent invokes the /compile skill. On errors: Opus subagent fixes
-9. Whenever the change has an observable runtime surface, a Sonnet subagent invokes the /agent-harness skill to verify it live: run the plan's Verification section if present, else derive minimal launch/drive/query checks from the plan's acceptance criteria; report PASS/FAIL per criterion with evidence lines verbatim. Skip only when nothing is runtime-observable (docs/comment-only changes). FAILs: Opus subagent diagnoses per Diagnosis Discipline before any fix
+9. Whenever the change has an observable runtime surface, an Opus subagent invokes the /agent-harness skill to verify it live: run the plan's Verification section if present, else derive minimal launch/drive/query checks from the plan's acceptance criteria; report PASS/FAIL per criterion with evidence lines verbatim. Skip only when nothing is runtime-observable (docs/comment-only changes). FAILs: Opus subagent diagnoses per Diagnosis Discipline before any fix
 10. After all previous steps complete, per logical file group (per subsystem or per plan-step slice, code separate from docs) two concurrent subagents — one Fable, one Opus — each invoke the /session-audit skill on identical inputs. /session-audit reports findings only; main session dedupes both sets, then dispatches new Opus subagents to validate then fix accepted findings (structural issues → step 11). After fixes land: a Sonnet subagent runs the /compile selective build on fixed .cpp files, and one Opus subagent re-reviews only the fixed regions against the accepted findings — one pass, no second cycle; anything still open routes to step 11
 11. For problems and residuals from any step that weren't auto-fixed (architectural decisions, larger issues out-of-scope of the current plan), have an Opus subagent create plan files in `Documents/Plans/`
 
@@ -56,14 +56,14 @@ Each subagent reports files changed + functions/regions touched (one line each),
 - **Architectural decisions** (new system shape, public API, data layout, threading model): stop and ask the user. Concisely present: (a) the problem, (b) proposed solutions, (c) pros and cons of each.
 
 ## Directives
-- Follow KISS, YAGNI, DRY
+- Follow KISS, YAGNI, DRY — before writing logic that may already exist, grep; call or extract a shared helper, never paste a copy. Exception: mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel
 - You may run ONLY read-only Git commands
 - Claude Skills `.claude\skills` and CLAUDE.md files are used only by AI agents and must be kept CONCISE
 - **Error handling at trust boundaries only**: assume function parameters from within the codebase are valid — no defensive validation between our own functions. Do validate anything opaque to the current code unit: network input, file reads, OS/third-party API results.
 - **No useless ASSERTs**: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it; prefer making the condition impossible in calling code or recovering gracefully. Resolution ladder: repo-code-review skill §2c.
 - Do not add unit tests
 - **Don't touch unrelated code**: only modify files, functions, and lines directly tied to the current task. Do not refactor, rename, reformat, or restyle adjacent code. Surface incidental findings — mention trivial observations in chat; for bugs or other important issues, route through C++ Code Change Process step 11 (a follow-up plan in `Documents/Plans/`). Remove only imports/usings/variables that *your* edits made unused.
-- **Response style**: Stay concise — no pleasantries, hedging, or restating the request. But when the user (or output style) asks for explanation, provide the information fully. Concise ≠ omitting requested content. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
+- **Response style**: Stay concise — no pleasantries, hedging, or restating the request. Terse ≠ incomplete: cut the words around the facts, never the facts — when the user (or output style) asks for explanation, provide it fully. Never compress errors, irreversible-action confirmations, or order-sensitive step sequences. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [CLAUDE.md](Common/CLAUDE.md)
@@ -97,7 +97,7 @@ Drive both executables from an agent for verification. Launch args: `--agent-por
 - server sim control: `status`, `pause`, `timescale`, `reset`
 - save/load/replay: `save`, `load`, `replay_record`, `replay_play`
 - server queries + StatusChange injection: `query_frame`, `query_players`, `query_collection`, `inject_status_changes`, `spawn_players`
-- client capture: `screenshot`, `dump_render_target`
+- client capture + window: `screenshot`, `dump_render_target`, `resize`, `fullscreen`, `window_state`
 - UI drive: `describe_ui`, `click`, `hover`, `set_slider`, `key`, `mouse`
 - scene: `describe_scene`
 

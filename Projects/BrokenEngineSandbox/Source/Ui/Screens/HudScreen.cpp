@@ -3,9 +3,9 @@
 #if defined(BT_CLIENT)
 
 #include "Fleet.h"
-#include "Game.h"
 #include "Frame/Collections/Players/Players.h"
 #include "Frame/Collections/Spaceships/Spaceships.h"
+#include "Game.h"
 #include "MenuUtils.h"
 
 namespace
@@ -20,24 +20,19 @@ constexpr float kfForceOpenGracePeriodSeconds = 2.0f;
 namespace game
 {
 
-float HudScreen::ComputeMouseOpennessTarget(ImVec2 vLastSize, ImVec2 vAnchor, float fPivotX)
+float HudScreen::ComputeMouseOpennessTarget(ImVec2 vFixedExtent, ImVec2 vAnchor, float fPivotX)
 {
-	if (vLastSize.x <= 0.0f)
-	{
-		return 0.0f;
-	}
-
-	const float fRectMinX = vAnchor.x - fPivotX * vLastSize.x;
-	const float fRectMaxX = fRectMinX + vLastSize.x;
+	const float fRectMinX = vAnchor.x - fPivotX * vFixedExtent.x;
+	const float fRectMaxX = fRectMinX + vFixedExtent.x;
 	const float fRectMinY = vAnchor.y;
-	const float fRectMaxY = vAnchor.y + vLastSize.y;
+	const float fRectMaxY = vAnchor.y + vFixedExtent.y;
 
 	const ImVec2 vMouse = ImGui::GetIO().MousePos;
 	const float fDx = std::max({fRectMinX - vMouse.x, 0.0f, vMouse.x - fRectMaxX});
 	const float fDy = std::max({fRectMinY - vMouse.y, 0.0f, vMouse.y - fRectMaxY});
 	const float fDistance = std::sqrt(fDx * fDx + fDy * fDy);
 
-	return 1.0f - std::clamp(fDistance / kfActivationDistancePixels, 0.0f, 1.0f);
+	return 1.0f - std::clamp(fDistance / (kfActivationDistancePixels * engine::UiScale()), 0.0f, 1.0f);
 }
 
 float HudScreen::UpdateSlideAndGetEdgeX(SlidePanelState& rState, ImVec2 vAnchor, float fSidePivotSign, float fTarget)
@@ -48,7 +43,7 @@ float HudScreen::UpdateSlideAndGetEdgeX(SlidePanelState& rState, ImVec2 vAnchor,
 	//   right panel (fSidePivotSign > 0): pivot (0.0, 0) — returned x is the left edge
 	//   left  panel (fSidePivotSign < 0): pivot (1.0, 0) — returned x is the right edge
 	// At openness=0 the off-screen edge is fixed at exactly 1 pixel beyond the screen boundary,
-	// width-independent — ImGui auto-resize cannot pull the window back onscreen.
+	// width-independent — keeps the panel fully offscreen regardless of its measured width.
 	const float fOffscreenX = (fSidePivotSign > 0.0f) ? rIo.DisplaySize.x + 1.0f : -1.0f;
 
 	if (rState.vLastSize.x <= 0.0f)
@@ -82,7 +77,7 @@ void HudScreen::Render()
 	// where the player's snapshot has migrated to a neighbor before mClientGridCoord catches up.
 	bool bWantsForceOpen = false;
 	const char* pcWantReason = "fleet member present";
-	int iSubscribedFrameCount = 0;
+	int64_t iSubscribedFrameCount = 0;
 
 	if (!gpGame->ClientPlayerId().IsValid())
 	{
@@ -165,11 +160,20 @@ void HudScreen::Render()
 	const bool bRightHasContent = oPlayerIndex.has_value();
 
 	// Mouse proximity to either anchor opens both panels (strict sync for the mouse path).
-	// Y anchor centers a 75%-tall panel: top = (1 - 0.75) / 2 = 0.125.
-	const ImVec2 vLeftAnchor(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.125f);
-	const ImVec2 vRightAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.125f);
-	const float fMouseLeft = ComputeMouseOpennessTarget(mFleetSlide.vLastSize, vLeftAnchor, 0.0f);
-	const float fMouseRight = ComputeMouseOpennessTarget(mFocusedPlayerSlide.vLastSize, vRightAnchor, 1.0f);
+	const ImVec2 vLeftAnchor(rIo.DisplaySize.x * kfHudEdgeMarginFraction, rIo.DisplaySize.y * kfHudPanelTopFraction);
+	const ImVec2 vRightAnchor(rIo.DisplaySize.x * (1.0f - kfHudEdgeMarginFraction), rIo.DisplaySize.y * kfHudPanelTopFraction);
+
+	// Hover activation zone is a fixed-extent strip (PanelWidth x max-height fraction at the anchor), decoupled from the
+	// panels' content-driven live size so hover behavior is unchanged even as the panels visually shrink. Measure
+	// PanelWidth() under the same scale+font scopes the panels render with so the strip width matches them exactly.
+	ImVec2 vHoverExtent {};
+	{
+		ScopedMenuScale menuScale;
+		ScopedMenuFont menuFont;
+		vHoverExtent = ImVec2(PanelWidth(), rIo.DisplaySize.y * kfHudPanelMaxHeightFraction);
+	}
+	const float fMouseLeft = ComputeMouseOpennessTarget(vHoverExtent, vLeftAnchor, 0.0f);
+	const float fMouseRight = ComputeMouseOpennessTarget(vHoverExtent, vRightAnchor, 1.0f);
 	const float fMouseTarget = std::max(fMouseLeft, fMouseRight);
 
 	// Final shared targets. When right has content: both panels see max(force, mouse) — strict sync.
@@ -182,31 +186,45 @@ void HudScreen::Render()
 	RenderFocusedPlayerPanel(fRightTarget);
 }
 
+float HudScreen::PanelWidth()
+{
+	// Fixed worst-case templates measured under the pushed menu font (caller pushes ScopedMenuFont first). Fixed
+	// templates — not live content — keep the width stable as fleet members churn; measuring under the font auto-tracks
+	// gUiFontScale/UiScale() with no magnifying multiplier.
+	const ImGuiStyle& rStyle = ImGui::GetStyle();
+
+	// Member-row template: content-spanning Selectable rows.
+	const float fMemberRowWidth = ImGui::CalcTextSize("Ship 88 (-888,-888) #8888888888").x;
+
+	// Nav-row template: [<] 88/88 [>] [+] [-]. Padding-dominated — at low gUiFontScale text shrinks but the per-button
+	// FramePadding and per-joint ItemSpacing don't, so measure them explicitly: 4 buttons × 2 edges (8× FramePadding.x),
+	// 4 SameLine joints (4× ItemSpacing.x). Otherwise the row can exceed the text-only width and clip trailing buttons.
+	const float fNavTextWidth = ImGui::CalcTextSize("[<]88/88[>][+][-]").x;
+	const float fNavRowWidth = fNavTextWidth + 8.0f * rStyle.FramePadding.x + 4.0f * rStyle.ItemSpacing.x;
+
+	// ScrollbarSize added unconditionally (not gated on list length) so the width stays frame-to-frame stable when a
+	// vertical scrollbar appears on long fleet lists — otherwise it would clip the exact-fit member rows.
+	return std::max(fMemberRowWidth, fNavRowWidth) + rStyle.WindowPadding.x * 2.0f + rStyle.ScrollbarSize;
+}
+
 void HudScreen::RenderFleetPanel(float fTarget)
 {
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.05f, rIo.DisplaySize.y * 0.125f);
+	const ImVec2 vAnchor(rIo.DisplaySize.x * kfHudEdgeMarginFraction, rIo.DisplaySize.y * kfHudPanelTopFraction);
 	const float fEdgeX = UpdateSlideAndGetEdgeX(mFleetSlide, vAnchor, -1.0f, fTarget);
-	ImGuiWindowFlags eFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
-	if (mfFixedPanelWidth > 0.0f)
-	{
-		ImGui::SetNextWindowSize(ImVec2(mfFixedPanelWidth, rIo.DisplaySize.y * 0.75f), ImGuiCond_Always);
-	}
-	else
-	{
-		// First frame baseline capture: auto-size to natural content width.
-		eFlags |= ImGuiWindowFlags_AlwaysAutoResize;
-	}
-	ImGui::SetNextWindowPos(ImVec2(fEdgeX, vAnchor.y), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+	ImGuiWindowFlags eFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize;
 	ScopedMenuFont menuFont;
+	// Content-driven height: auto-resize to the fleet list, capped at kfHudPanelMaxHeightFraction (long lists scroll). Width
+	// pinned to PanelWidth() via the matching min/max constraint x.
+	const float fPanelWidth = PanelWidth();
+	const float fMaxHeight = rIo.DisplaySize.y * kfHudPanelMaxHeightFraction;
+	ImGui::SetNextWindowSize(ImVec2(fPanelWidth, 0.0f), ImGuiCond_Always);
+	ImGui::SetNextWindowSizeConstraints(ImVec2(fPanelWidth, 0.0f), ImVec2(fPanelWidth, fMaxHeight));
+	ImGui::SetNextWindowPos(ImVec2(fEdgeX, vAnchor.y), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
 	ImGui::Begin("FleetPanel", nullptr, eFlags);
 	mFleetSlide.vLastSize = ImGui::GetWindowSize();
-	if (mfFixedPanelWidth <= 0.0f && mFleetSlide.vLastSize.x > 0.0f)
-	{
-		mfFixedPanelWidth = mFleetSlide.vLastSize.x * 7.2f;
-	}
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
 
 	// Border + accent strip only — the opaque themed WindowBg must stay intact for RegisterOpaqueRect occlusion
@@ -352,6 +370,9 @@ void HudScreen::RenderFleetPanel(float fTarget)
 		ImGui::BeginDisabled(gpGame->mNavigationDelayControl.IsPending());
 		static float sfNavigationDelayEditValue = 0.0f;
 		float fSliderValue = pFleet->fNavigationDelay;
+		// Reserve the trailing label's width — AlwaysAutoResize windows default the item width to the full content
+		// width, which would push the label past the clip edge
+		ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("Nav Delay").x + ImGui::GetStyle().ItemInnerSpacing.x));
 		if (ImGui::SliderFloat("Nav Delay", &fSliderValue, 0.0f, 60.0f))
 		{
 			sfNavigationDelayEditValue = fSliderValue;
@@ -384,20 +405,15 @@ void HudScreen::RenderFocusedPlayerPanel(float fTarget)
 		}
 	}
 
-	const ImVec2 vAnchor(rIo.DisplaySize.x * 0.95f, rIo.DisplaySize.y * 0.125f);
+	const ImVec2 vAnchor(rIo.DisplaySize.x * (1.0f - kfHudEdgeMarginFraction), rIo.DisplaySize.y * kfHudPanelTopFraction);
 	const float fEdgeX = UpdateSlideAndGetEdgeX(mFocusedPlayerSlide, vAnchor, 1.0f, fTarget);
 	ImGuiWindowFlags eFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
-	if (mfFixedPanelWidth > 0.0f)
-	{
-		ImGui::SetNextWindowSize(ImVec2(mfFixedPanelWidth, rIo.DisplaySize.y * 0.75f), ImGuiCond_Always);
-	}
-	else
-	{
-		// Left panel hasn't captured baseline yet — fall back to auto-size for one frame.
-		eFlags |= ImGuiWindowFlags_AlwaysAutoResize;
-	}
-	ImGui::SetNextWindowPos(ImVec2(fEdgeX, vAnchor.y), ImGuiCond_Always, ImVec2(0.0f, 0.0f));
 	ScopedMenuFont menuFont;
+	// Match the left FleetPanel's size exactly (symmetry): same PanelWidth(), height forced to the left panel's live height
+	// captured earlier this frame (RenderFleetPanel runs first). First frame (vLastSize.y still zero): fall back to the cap.
+	const float fLeftHeight = (mFleetSlide.vLastSize.y > 0.0f) ? mFleetSlide.vLastSize.y : (rIo.DisplaySize.y * kfHudPanelMaxHeightFraction);
+	ImGui::SetNextWindowSize(ImVec2(PanelWidth(), fLeftHeight), ImGuiCond_Always);
+	ImGui::SetNextWindowPos(ImVec2(fEdgeX, vAnchor.y), ImGuiCond_Always, ImVec2(0.0f, 0.0f));
 	ImGui::Begin("FocusedPlayerPanel", nullptr, eFlags);
 	mFocusedPlayerSlide.vLastSize = ImGui::GetWindowSize();
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());

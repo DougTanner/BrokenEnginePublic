@@ -152,7 +152,14 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	// ImGui_ImplVulkan_Init unconditionally returns true (failures trip internal IM_ASSERTs), so its result is not worth checking.
 	ImGui_ImplVulkan_Init(&initInfo);
 
-	SetupThemeGeometry();
+	// Minimized/zero-height: keep the 1.0f default scale rather than collapsing style to 0
+	const float fHeight = static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
+	if (fHeight > 0.0f)
+	{
+		mfUiScale = fHeight / kfUiReferenceHeight;
+	}
+	SetupThemeGeometry(mfUiScale);
+	ImGui::GetStyle().FontScaleDpi = mfUiScale;
 	ApplyThemeColors(GetUiTheme());
 
 	// Do a dummy frame cycle to ensure ImGui is in a clean state
@@ -183,13 +190,26 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	mpHudScreen = std::make_unique<game::HudScreen>();
 }
 
-// Rounding/border/padding values are base (pre-scale); called once — ScaleAllSizes is cumulative and must never run in the re-applyable color path
-void ImGuiManager::SetupThemeGeometry()
+// Re-applyable: the whole style is reset to ImGui defaults (colors preserved) before the explicit overrides and
+// ScaleAllSizes below, so this may run repeatedly on resolution change without cumulative drift — no per-field
+// exhaustive-list maintenance needed. ScaleAllSizes touches ~35 fields (incl. internal _MainScale); resetting only
+// the ~14 fields set here would let the rest (IndentSpacing, CellPadding, WindowMinSize, ...) compound on re-run.
+void ImGuiManager::SetupThemeGeometry(float fUiScale)
 {
 	ImGuiStyle& rStyle = ImGui::GetStyle();
 
+	// Reset geometry to ImGui defaults while preserving colors (colors are owned by ApplyThemeColors / the opacity
+	// path, which touch only rStyle.Colors). Default ImGuiStyle ctor is heap-free, so the stack struct is safe in
+	// the allocation-tracked main loop. This resets FontScaleMain/FontScaleDpi to 1.0f, so callers re-set them after:
+	// FontScaleDpi after both call sites (ctor + Prepare); FontScaleMain only after the Prepare block, so the ctor
+	// leaves it at 1.0f and relies on the first Prepare to apply gUiFontScale.
+	// FontSizeBase resets to 0.0f and self-heals (re-derived from the default font's LegacySize on next font update).
+	ImGuiStyle defaultStyle;
+	std::copy(std::begin(rStyle.Colors), std::end(rStyle.Colors), std::begin(defaultStyle.Colors));
+	rStyle = defaultStyle;
+
 	// WindowRounding stays small: RegisterOpaqueRect occlusion rects are rectangular, so with gOpaqueUi on, large rounding
-	// would occlude the 3D scene behind the rounded-off corners (4.0f base -> 8px after the 2x scale below)
+	// would occlude the 3D scene behind the rounded-off corners (4.0f base -> 8px at 4K after the 2x scale below)
 	rStyle.WindowRounding = 4.0f;
 	rStyle.ChildRounding = 3.0f;
 	rStyle.FrameRounding = 3.0f;
@@ -205,8 +225,8 @@ void ImGuiManager::SetupThemeGeometry()
 	rStyle.ScrollbarSize = 14.0f;
 	rStyle.GrabMinSize = 12.0f;
 
-	// Scale UI element sizes to 2x
-	rStyle.ScaleAllSizes(2.0f);
+	// Scale UI element sizes to 2x at the 4K reference, times the resolution scale
+	rStyle.ScaleAllSizes(2.0f * fUiScale);
 }
 
 void ImGuiManager::ApplyThemeColors(UiTheme eTheme)
@@ -417,8 +437,6 @@ void ImGuiManager::CreateFramebuffers()
 
 void ImGuiManager::Prepare(int64_t iFramebuffer)
 {
-	ImGui::GetStyle().FontScaleMain = gUiFontScale.Get();
-
 	// Changed() advances the single-consumer change tracking; apply re-reads via GetUiTheme() for the trust-boundary clamp
 	if (std::get<2>(gUiTheme.Changed<UiTheme>()))
 	{
@@ -437,8 +455,59 @@ void ImGuiManager::Prepare(int64_t iFramebuffer)
 		rStyle.Colors[ImGuiCol_PopupBg].w = fAlpha;
 	}
 
+	// Recompute resolution scale before NewFrame (io.DisplaySize is stale until ImGui_ImplWin32_NewFrame below).
+	// SetupThemeGeometry is re-applyable, but only re-run it when the scale actually changed. The live resize path
+	// recreates ImGuiManager on a fresh ImGui context (an extent change escalates the kSwapchain destroy tier, which
+	// rebuilds this manager), so this per-frame guard is defense-in-depth for any future path that changes the
+	// extent without recreation.
+	const float fPreviousUiScale = mfUiScale;
+	// Minimized/zero-height: keep previous scale rather than collapsing style to 0
+	const float fHeight = static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
+	if (fHeight > 0.0f)
+	{
+		mfUiScale = fHeight / kfUiReferenceHeight;
+	}
+	if (mfUiScale != fPreviousUiScale)
+	{
+		SetupThemeGeometry(mfUiScale);
+	}
+	// Both font scale factors set unconditionally after the geometry block: SetupThemeGeometry's whole-style reset
+	// (rStyle = defaultStyle) clears FontScaleMain to 1.0f, so re-applying here restores the user's Font Size on a
+	// scale-change frame rather than dropping it for that frame.
+	ImGui::GetStyle().FontScaleMain = gUiFontScale.Get();
+	ImGui::GetStyle().FontScaleDpi = mfUiScale;
+
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplWin32_NewFrame();
+	// The Win32 backend re-queues the physical cursor pos in NewFrame above; re-issue the harness's synthetic pin after
+	// it so the injected pos wins last-writer-wins in ImGui::NewFrame (agent harness only; pin-valid gate lives inside).
+	if (gpAgentInput != nullptr)
+	{
+		gpAgentInput->ReissueImGuiMousePos();
+	}
+
+	// Suppressed harness client: neutralize the two NewFrame physical polls the Win32 backend just ran. This runs after
+	// the synthetic re-pin above so an active pin still wins last-writer-wins.
+	if (PhysicalInputSuppressed())
+	{
+		ImGuiIO& rIo = ImGui::GetIO();
+
+		// (d) Physical cursor poll: unless a synthetic pin owns io.MousePos, park it at ImGui's no-mouse sentinel.
+		// Suppression implies an --agent-port kbAgent client, where Main.cpp constructs gpAgentInput before the window, so
+		// it is always non-null here.
+		if (!gpAgentInput->ImGuiMousePosPinned())
+		{
+			rIo.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+		}
+
+		// (e) ImGui gamepad-nav poll (XInputGetState): clear the whole ImGuiKey_Gamepad* range. The harness injects no
+		// gamepad ImGui events, so there is no conflict.
+		for (int64_t iKey = ImGuiKey_GamepadStart; iKey <= ImGuiKey_GamepadRStickDown; ++iKey)
+		{
+			rIo.AddKeyEvent(static_cast<ImGuiKey>(iKey), false);
+		}
+	}
+
 	ImGui::NewFrame();
 
 	// Menu screens required to progress past the pre-game / rejection flows must render even

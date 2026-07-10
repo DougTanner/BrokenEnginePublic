@@ -55,8 +55,7 @@ constexpr int32_t kiSplitVersion = 5;
 // whose Z-range overlaps the beach band gets recursively split (1->4 midpoint) until its longest XY
 // edge falls below the target. Out-of-band neighbors that inherit a midpoint via a shared edge get
 // the minimal absorption split (1->2 for 1 midpoint, 1->3 for 2, true 1->4 for 3) -- introducing no
-// new midpoints, so the cascade dies at one ring around the band. See plan
-// `Documents/Plans/Graphics/BeachMeshSubdivide.md`.
+// new midpoints, so the cascade dies at one ring around the band.
 // Band straddles beach (engine-Z = 0): triangles whose Z-range overlaps
 // [kfBeachSubdivisionMinMeters, kfBeachSubdivisionMaxMeters] in absolute engine-meters densify,
 // so both shallow water and just-above-beach terrain are covered. Independent of elevationMeters;

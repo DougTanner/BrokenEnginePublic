@@ -106,6 +106,10 @@ public:
 	void Refresh();
 	bool Destroy();
 	void RecreateResources();
+	// True once the live framebuffer extent matches the wanted extent AND no swapchain recreate is deferred — i.e.
+	// a live swapchain actually backs the wanted extent. Extent equality alone is a false positive while deferred
+	// (Refresh copies the wanted extent at trigger time before the defer gate returns early).
+	bool ExtentSettled() const;
 
 	HINSTANCE mHinstance = nullptr;
 	HWND mHwnd = nullptr;
@@ -116,6 +120,8 @@ public:
 	DestroyType meDestroyType = DestroyType::kNone;
 	DestroyFlags_t mDestroyFlags;
 	VkSwapchainKHR mOldVkSwapchainKHR = VK_NULL_HANDLE;
+	// Latch so a swapchain recreate deferred while the window is off-screen/minimized logs once per transition, not per frame.
+	bool mbSwapchainRecreateDeferred = false;
 
 	std::unique_ptr<InstanceManager> mpInstanceManager;
 	std::unique_ptr<DeviceManager> mpDeviceManager;
@@ -143,6 +149,11 @@ public:
 	std::unordered_set<std::string> mDebugNames;
 
 private:
+
+	// Queries surface caps into rVkSurfaceCapabilitiesKHR and returns true when the swapchain recreate must defer: a
+	// zero-area defined currentExtent (window off-screen/minimized) with the tier still below kSurface. Not const —
+	// the CHECK_VK inside can escalate meDestroyType to kSurface (surface-lost), which the < kSurface term then excludes.
+	bool SurfaceExtentZeroArea(VkSurfaceCapabilitiesKHR& rVkSurfaceCapabilitiesKHR);
 
 	template <typename T>
 	void PollSetting(Wrapper& rWrapper, const char* pcLabel, DestroyType eTier, std::optional<DestroyFlags> oeFlag = std::nullopt, bool bGate = true);

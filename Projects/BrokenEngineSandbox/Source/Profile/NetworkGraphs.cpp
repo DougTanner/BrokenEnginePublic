@@ -23,7 +23,7 @@ static ImPlotPoint SmoothedGetter(int iIndex, void* pData)
 
 static void PlotSmoothed(const char* pLabel, common::Smoothed<int64_t>& rSmoothed)
 {
-	if (ImPlot::BeginPlot(pLabel, ImVec2(-1, 120)))
+	if (ImPlot::BeginPlot(pLabel, ImVec2(-1.0f, 120.0f * engine::UiScale())))
 	{
 		ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit);
 		ImPlot::PlotLineG(pLabel, SmoothedGetter, &rSmoothed, static_cast<int>(rSmoothed.miCount));
@@ -43,8 +43,9 @@ void ProfileManager::RenderImPlotGraphs()
 		return;
 	}
 
-	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, 10.0f), ImGuiCond_Always);
-	ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x * 0.48f, ImGui::GetIO().DisplaySize.y - 20.0f), ImGuiCond_Always);
+	const float fUiScale = engine::UiScale();
+	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, 10.0f * fUiScale), ImGuiCond_Always);
+	ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x * 0.48f, ImGui::GetIO().DisplaySize.y - 20.0f * fUiScale), ImGuiCond_Always);
 
 	if (ImGui::Begin("Network Graphs", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse))
 	{

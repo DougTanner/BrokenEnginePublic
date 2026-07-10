@@ -507,6 +507,9 @@
     <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\HudScreen.h">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Screens\MenuUtils.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>

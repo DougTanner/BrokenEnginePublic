@@ -176,6 +176,13 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	{
 		game::gpServerSession->SendResends(miTickCounter);
 	}
+	else
+	{
+		// Zero-tick update (paused, or an occasional clock/timescale remainder): service the persist-until-served
+		// subscription/resync queues so a client can connect to a paused server and receive full state (the per-tick
+		// BroadcastTick consumers never run here).
+		game::gpServerSession->ServicePausedNetwork();
+	}
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, CpuStopFlags::kSmoothNow);
 
 	if constexpr (kbProfiling)
@@ -480,6 +487,29 @@ void GameBase::Render()
 				game::gpGame->mVecVisualErrorOffset = {};
 			}
 		}
+	}
+
+	// A swapchain recreate is deferred (window minimized / off-screen; mbSwapchainRecreateDeferred), OR the previous
+	// frame's tail acquire/present failed OUT_OF_DATE and only escalated meDestroyType (>= kSwapchain) without deferring:
+	// in both cases the swapchain is retired (or already torn down by a post-Destroy defer), miFramebufferIndex is stale,
+	// and the rotated acquire semaphore is unsignaled, so rendering/submitting/presenting that stale index against it
+	// wedges on the next fence-wait timeout. At frame head meDestroyType >= kSwapchain is only ever true after such a
+	// failed tail (settings escalations are consumed by the same tail's Create()), so it precisely flags the poisoned
+	// frame. Skip the whole render/present block, but keep retrying the recreate each frame (mirrors
+	// RenderMainPresentAcquire's frame tail) so rendering resumes cleanly on restore. No mPresent.Wait() here: the last
+	// rendered frame's RenderMainPresentAcquire tail already waited its present before the first deferred Create(), and
+	// skipped frames enqueue no new present.
+	if (gpGraphics->mbSwapchainRecreateDeferred || gpGraphics->meDestroyType >= DestroyType::kSwapchain) [[unlikely]]
+	{
+		gpGraphics->Create();
+		// Acquire only if the recreate actually proceeded. A proceeded Create() clears the flag AND zeroes meDestroyType
+		// (via Destroy()); every defer path (pre- or post-Destroy) instead sets the flag, so !mbSwapchainRecreateDeferred
+		// is the correct proceeded test — a still-deferred post-Destroy state has a torn-down swapchain manager to acquire.
+		if (!gpGraphics->mbSwapchainRecreateDeferred)
+		{
+			gpSwapchainManager->AcquireNextImage();
+		}
+		return;
 	}
 
 	gpGraphics->RenderGlobal(fCurrentTime);

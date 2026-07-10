@@ -34,6 +34,8 @@ std::string PathToString(const std::filesystem::path& rPath)
 	return std::string(reinterpret_cast<const char*>(u8.c_str()), u8.size());
 }
 
+bool IsBgra(VkFormat vkFormat);
+
 } // namespace
 
 uint64_t ResetCaptureResult()
@@ -95,13 +97,15 @@ void SaveScreenshot(int64_t iFramebufferIndex, const ScreenshotRequest& rRequest
 	{
 		sSaveScreenshot.get();
 	}
-	sSaveScreenshot = std::async(std::launch::async, [data = std::move(data), vkExtent3D, iScreenshot, rRequest]() mutable
+	const bool bSwapRedBlue = IsBgra(gpInstanceManager->mFramebufferVkFormat);
+	sSaveScreenshot = std::async(std::launch::async, [data = std::move(data), vkExtent3D, iScreenshot, rRequest, bSwapRedBlue]() mutable
 	{
 		common::ThreadLocal threadLocal(0, common::kThreadScreenshot);
 
 		try
 		{
-			// Convert pixel format from ARGB to RGBA by swapping red and blue channels
+			// Swap red/blue only for BGRA swapchains (the negotiated format can be RGBA or BGRA — InstanceManager
+			// accepts either); alpha is forced opaque either way
 			const uint32_t* puiArgb = reinterpret_cast<const uint32_t*>(data.data());
 			std::vector<uint32_t> rgba(vkExtent3D.width * vkExtent3D.height);
 			uint32_t* puiAbgr = rgba.data();
@@ -110,7 +114,9 @@ void SaveScreenshot(int64_t iFramebufferIndex, const ScreenshotRequest& rRequest
 				for (uint32_t x = 0; x < vkExtent3D.width; ++x)
 				{
 					uint32_t argb = puiArgb[y * vkExtent3D.width + x];
-					puiAbgr[y * vkExtent3D.width + x] = ((argb & 0x00FF0000) >> 16) | ((argb & 0x0000FF00) >> 0) | ((argb & 0x000000FF) << 16) | 0xFF000000;
+					puiAbgr[y * vkExtent3D.width + x] = bSwapRedBlue
+						? ((argb & 0x00FF0000) >> 16) | ((argb & 0x0000FF00) >> 0) | ((argb & 0x000000FF) << 16) | 0xFF000000
+						: (argb & 0x00FFFFFF) | 0xFF000000;
 				}
 			}
 

@@ -51,10 +51,11 @@ TweaksScreenBase::TweaksScreenBase()
 	// Initialize staggered window positions (Y set to 0, will use mfToggleBarBottom at runtime)
 	constexpr float kfStartX = 10.0f;
 	constexpr float kfOffsetX = 30.0f;
+	const float fUiScale = UiScale();
 
 	for (size_t i = 0; i < static_cast<size_t>(TweakSection::kCount); ++i)
 	{
-		mWindowPositions[i] = ImVec2(kfStartX + i * kfOffsetX, 0.0f);
+		mWindowPositions[i] = ImVec2((kfStartX + i * kfOffsetX) * fUiScale, 0.0f);
 	}
 }
 
@@ -245,7 +246,7 @@ void TweaksScreenBase::RenderToggleBar()
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 
 	// Full-width window at top of screen
-	ImGui::SetNextWindowPos(ImVec2(0.0f, 10.0f), ImGuiCond_Always);
+	ImGui::SetNextWindowPos(ImVec2(0.0f, 10.0f * UiScale()), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x, 0.0f));
 	ImGui::Begin("Tweaks", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
 	ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * kfUiScale);
@@ -350,7 +351,7 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 	}
 
 	constexpr float kfStartX = 10.0f;
-	ImVec2 f2InitialPosition = (mWindowPositions[iSection].y > 0.0f) ? mWindowPositions[iSection] : ImVec2 {kfStartX, mfToggleBarBottom};
+	ImVec2 f2InitialPosition = (mWindowPositions[iSection].y > 0.0f) ? mWindowPositions[iSection] : ImVec2 {kfStartX * UiScale(), mfToggleBarBottom};
 	ImGui::SetNextWindowPos(f2InitialPosition, ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowCollapsed(mSectionCollapsed & SectionFlag(iSection), ImGuiCond_FirstUseEver);
 	bool bSectionVisible = (mSectionVisible & SectionFlag(iSection)); // ImGui::Begin writes the close-button [x] state back through this bool*

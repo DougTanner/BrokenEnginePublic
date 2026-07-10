@@ -1,7 +1,6 @@
 #include "MenuUtils.h"
 
 #include "Ui/GraphicsSettingsWrappersBase.h"
-
 #include "Ui/Localization.h"
 
 namespace game
@@ -182,6 +181,28 @@ ScopedMenuFont::~ScopedMenuFont()
 	ImGui::PopFont();
 }
 
+float MenuButtonsWidth(std::initializer_list<std::u32string_view> aLabels)
+{
+	// Measure each label under the live pushed font and take the max, then add FramePadding.x * 4. Each AppendUtf8
+	// handle owns its Workbuffer frame only through the CalcTextSize full-expression, which is all the measurement needs.
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	float fWidth = 0.0f;
+	for (std::u32string_view u32Label : aLabels)
+	{
+		fWidth = std::max(fWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, u32Label)).x);
+	}
+	return fWidth + ImGui::GetStyle().FramePadding.x * 4.0f;
+}
+
+void MenuHeading(const char* pcLabel)
+{
+	{
+		ScopedMenuFont headingFont(kfMenuUiScale * kfMenuHeadingScale);
+		ImGui::TextUnformatted(pcLabel);
+	}
+	ImGui::Dummy(ImVec2(0.0f, kfHeadingGapPixels * engine::UiScale()));
+}
+
 void DrawFullScreenDim()
 {
 	ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0.0f, 0.0f), ImGui::GetIO().DisplaySize, ChromeColor(GetMenuChrome().f4BackdropDim));
@@ -191,15 +212,20 @@ void DrawPanelBackground(ImDrawList* pDrawList, const ImVec2& vMin, const ImVec2
 {
 	const MenuChrome& rChrome = GetMenuChrome();
 
+	const float fUiScale = engine::UiScale();
+	const float fPanelRounding = kfPanelRounding * fUiScale;
+	const float fPanelBorderThickness = kfPanelBorderThickness * fUiScale;
+	const float fAccentStripThickness = kfAccentStripThickness * fUiScale;
+
 	// User opacity comes from the wrappers, not Colors[ImGuiCol_WindowBg].w — callers push a fully transparent
 	// WindowBg before Begin() and PushStyleColor writes the live style, so the style read would always be 0.0
 	float fWindowAlpha = engine::gOpaqueUi.Get<bool>() ? 1.0f : engine::gUiOpacity.Get();
 
-	pDrawList->AddRectFilled(vMin, vMax, ChromeColor(rChrome.f4PanelFillBottom, fWindowAlpha), kfPanelRounding);
+	pDrawList->AddRectFilled(vMin, vMax, ChromeColor(rChrome.f4PanelFillBottom, fWindowAlpha), fPanelRounding);
 
 	// AddRectFilledMultiColor cannot round corners — inset the gradient past the radius
-	ImVec2 vInsetMin(vMin.x + kfPanelRounding, vMin.y + kfPanelRounding);
-	ImVec2 vInsetMax(vMax.x - kfPanelRounding, vMax.y - kfPanelRounding);
+	ImVec2 vInsetMin(vMin.x + fPanelRounding, vMin.y + fPanelRounding);
+	ImVec2 vInsetMax(vMax.x - fPanelRounding, vMax.y - fPanelRounding);
 	if (vInsetMin.x < vInsetMax.x && vInsetMin.y < vInsetMax.y)
 	{
 		ImU32 uiTop = ChromeColor(rChrome.f4PanelFillTop, fWindowAlpha);
@@ -207,19 +233,25 @@ void DrawPanelBackground(ImDrawList* pDrawList, const ImVec2& vMin, const ImVec2
 		pDrawList->AddRectFilledMultiColor(vInsetMin, vInsetMax, uiTop, uiTop, uiBottom, uiBottom);
 	}
 
-	pDrawList->AddRect(vMin, vMax, ChromeColor(rChrome.f4PanelBorder, fWindowAlpha), kfPanelRounding, 0, kfPanelBorderThickness);
-	pDrawList->AddRectFilled(ImVec2(vMin.x + kfPanelRounding, vMin.y), ImVec2(vMax.x - kfPanelRounding, vMin.y + kfAccentStripThickness), ChromeColor(rChrome.f4Accent, fWindowAlpha));
+	pDrawList->AddRect(vMin, vMax, ChromeColor(rChrome.f4PanelBorder, fWindowAlpha), fPanelRounding, 0, fPanelBorderThickness);
+	pDrawList->AddRectFilled(ImVec2(vMin.x + fPanelRounding, vMin.y), ImVec2(vMax.x - fPanelRounding, vMin.y + fAccentStripThickness), ChromeColor(rChrome.f4Accent, fWindowAlpha));
 }
 
 void DrawPanelAccents(ImDrawList* pDrawList, const ImVec2& vMin, const ImVec2& vMax)
 {
 	const MenuChrome& rChrome = GetMenuChrome();
-	pDrawList->AddRect(vMin, vMax, ChromeColor(rChrome.f4PanelBorder), kfPanelRounding, 0, kfPanelBorderThickness);
-	pDrawList->AddRectFilled(ImVec2(vMin.x + kfPanelRounding, vMin.y), ImVec2(vMax.x - kfPanelRounding, vMin.y + kfAccentStripThickness), ChromeColor(rChrome.f4Accent));
+	const float fUiScale = engine::UiScale();
+	const float fPanelRounding = kfPanelRounding * fUiScale;
+	pDrawList->AddRect(vMin, vMax, ChromeColor(rChrome.f4PanelBorder), fPanelRounding, 0, kfPanelBorderThickness * fUiScale);
+	pDrawList->AddRectFilled(ImVec2(vMin.x + fPanelRounding, vMin.y), ImVec2(vMax.x - fPanelRounding, vMin.y + kfAccentStripThickness * fUiScale), ChromeColor(rChrome.f4Accent));
 }
 
 bool MenuButton(const char* pcLabel, const ImVec2& vSize, float& rfHoverAnim, bool bSelected)
 {
+	const float fUiScale = engine::UiScale();
+	const float fButtonRounding = kfButtonRounding * fUiScale;
+	const float fButtonAccentBarWidth = kfButtonAccentBarWidth * fUiScale;
+
 	ImVec2 vTextSize = ImGui::CalcTextSize(pcLabel);
 	const ImGuiStyle& rStyle = ImGui::GetStyle();
 	ImVec2 vButtonSize(vSize.x > 0.0f ? vSize.x : vTextSize.x + rStyle.FramePadding.x * 2.0f, vSize.y > 0.0f ? vSize.y : vTextSize.y + rStyle.FramePadding.y * 2.0f);
@@ -239,16 +271,16 @@ bool MenuButton(const char* pcLabel, const ImVec2& vSize, float& rfHoverAnim, bo
 	{
 		f4Fill = rChrome.f4ButtonActive;
 	}
-	pDrawList->AddRectFilled(vMin, vMax, ChromeColor(f4Fill), kfButtonRounding);
-	pDrawList->AddRect(vMin, vMax, ChromeColor(LerpColor(rChrome.f4PanelBorder, rChrome.f4Accent, bSelected ? 1.0f : rfHoverAnim)), kfButtonRounding);
+	pDrawList->AddRectFilled(vMin, vMax, ChromeColor(f4Fill), fButtonRounding);
+	pDrawList->AddRect(vMin, vMax, ChromeColor(LerpColor(rChrome.f4PanelBorder, rChrome.f4Accent, bSelected ? 1.0f : rfHoverAnim)), fButtonRounding);
 
 	// Left accent bar grows from the vertical center with hover/selection
 	float fBarIntensity = bSelected ? 1.0f : rfHoverAnim;
 	if (fBarIntensity > 0.01f)
 	{
 		float fCenterY = (vMin.y + vMax.y) * 0.5f;
-		float fHalfHeight = ((vMax.y - vMin.y) * 0.5f - kfButtonRounding * 0.5f) * fBarIntensity;
-		pDrawList->AddRectFilled(ImVec2(vMin.x, fCenterY - fHalfHeight), ImVec2(vMin.x + kfButtonAccentBarWidth, fCenterY + fHalfHeight), ChromeColor(rChrome.f4Accent, fBarIntensity));
+		float fHalfHeight = ((vMax.y - vMin.y) * 0.5f - fButtonRounding * 0.5f) * fBarIntensity;
+		pDrawList->AddRectFilled(ImVec2(vMin.x, fCenterY - fHalfHeight), ImVec2(vMin.x + fButtonAccentBarWidth, fCenterY + fHalfHeight), ChromeColor(rChrome.f4Accent, fBarIntensity));
 	}
 
 	ImVec2 vTextPos((vMin.x + vMax.x - vTextSize.x) * 0.5f, (vMin.y + vMax.y - vTextSize.y) * 0.5f);

@@ -6,6 +6,7 @@ Holds design-time documentation and two parallel planning trees. No build artifa
 
 - `C++StyleGuide.txt` — numbered style rules (Hungarian notation, Allman braces, `auto` restrictions, DirectXMath conventions). Source of truth for the `code-style-review` skill.
 - `FloatingPointDeterminism.txt` — the rollback-and-replay determinism contract: `/fp:strict`, FMA3 disabled, per-thread MXCSR, fixed 32 Hz timestep, deterministic RNG, single shared CRC. Read before touching simulation math.
+- `UserInterfaceDesign.txt` — the ImGui layout contract for player-facing screens: one scale factor (`engine::UiScale()`), the three sizing rules, shared layout constants, pivot centering, size-to-content, themed buttons, and vertical rhythm. Layout counterpart to `FloatingPointDeterminism.txt`; source of truth for `Ui/Screens/` geometry. Read before touching menu/HUD layout.
 - `azure-game-server-guide.docx` — server-hosting deployment notes.
 - `Architecture/` — per-subsystem source of truth: Mermaid diagrams (`FrameUpdatePipeline.md`, `GameReconciliation.md`) and a prose protocol spec with exact constant values (`Network.md`). The `update-architecture-diagrams` skill keeps these current; CLAUDE.md docs link to them rather than duplicating their content.
 

@@ -82,7 +82,8 @@ bool CurveWidget(std::string_view label, CurveData& rCurve)
 		// right-click delete so a click aimed at a point never spawns a stray one, mirroring the old ~24px feel.
 		ImVec2 mousePixels = ImGui::GetMousePos();
 		int iNearestPoint = -1;
-		float fNearestDistSq = kfGrabTolerance * kfGrabTolerance;
+		const float fGrabTolerance = kfGrabTolerance * UiScale();
+		float fNearestDistSq = fGrabTolerance * fGrabTolerance;
 		for (int i = 0; i < rCurve.GetPointCount(); ++i)
 		{
 			const ImVec2& rPoint = rCurve.GetPoint(i);
@@ -125,7 +126,7 @@ bool CurveWidget(std::string_view label, CurveData& rCurve)
 			double fX = rPoint.x;
 			double fY = rPoint.y;
 			bool bHeld = false;
-			if (ImPlot::DragPoint(i, &fX, &fY, kGoldColor, kfPointRadius, ImPlotDragToolFlags_Delayed, nullptr, nullptr, &bHeld))
+			if (ImPlot::DragPoint(i, &fX, &fY, kGoldColor, kfPointRadius * UiScale(), ImPlotDragToolFlags_Delayed, nullptr, nullptr, &bHeld))
 			{
 				rCurve.MovePoint(i, ImVec2(static_cast<float>(fX), static_cast<float>(fY)));
 				bInteracting = true;

@@ -292,8 +292,37 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unord
 
 	Create();
 
-	gpSwapchainManager->AcquireNextImage();
+	// Acquire only if the recreate proceeded. A deferred Create() (window off-screen/minimized) leaves the swapchain
+	// retired, and a post-Destroy defer (TOCTOU zero-area re-check below) leaves the swapchain manager torn down —
+	// acquiring in either case is at best a wasted OUT_OF_DATE and at worst a null deref. The next frame's render
+	// skip (GameBase::Render) retries the recreate and re-acquires once it lands.
+	if (!mbSwapchainRecreateDeferred)
+	{
+		gpSwapchainManager->AcquireNextImage();
+	}
 	gpProfileManager->CpuStart(kCpuTimerAcquireToGlobal);
+}
+
+bool Graphics::ExtentSettled() const
+{
+	// Settled = extents equal, no deferred recreate, no pending swapchain-tier teardown. The last term catches the state
+	// after a failed tail acquire/present (tier escalated, mbSwapchainRecreateDeferred still false) — a retired swapchain
+	// that has not yet been recreated, which extent equality alone would falsely report as settled.
+	return mFramebufferExtent2D.width == gWantedFramebufferExtent2D.width
+		&& mFramebufferExtent2D.height == gWantedFramebufferExtent2D.height
+		&& !mbSwapchainRecreateDeferred
+		&& meDestroyType < DestroyType::kSwapchain;
+}
+
+bool Graphics::SurfaceExtentZeroArea(VkSurfaceCapabilitiesKHR& rVkSurfaceCapabilitiesKHR)
+{
+	rVkSurfaceCapabilitiesKHR = {};
+	CHECK_VK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &rVkSurfaceCapabilitiesKHR));
+	// Re-check the tier: CHECK_VK above can escalate meDestroyType to kSurface (VK_ERROR_SURFACE_LOST_KHR), and a
+	// surface-loss teardown must never be deferred (the zeroed caps struct would read as a zero-area extent).
+	return rVkSurfaceCapabilitiesKHR.currentExtent.width != 0xFFFFFFFF
+		&& (rVkSurfaceCapabilitiesKHR.currentExtent.width == 0 || rVkSurfaceCapabilitiesKHR.currentExtent.height == 0)
+		&& meDestroyType < DestroyType::kSurface;
 }
 
 void Graphics::Create()
@@ -303,7 +332,63 @@ void Graphics::Create()
 	ScopedSuppressAllocationTracking suppress;
 
 	Refresh();
+
+	// Skip-and-defer: a swapchain-tier recreate is pending, but Destroy() below has already torn down the old
+	// swapchain by the time CreateSwapchain reads the (now degenerate) surface caps. Pre-query the caps here: if
+	// the window reports a zero-area defined extent (minimized / dragged mostly off-screen), leave meDestroyType
+	// pending so a later frame retries once the window is valid again — mirrors Refresh()'s wanted-extent zero guard.
+	// kSurface is excluded: surface caps on a lost surface are meaningless (zeroed), and surface-loss recovery must
+	// always proceed to full teardown+recreate — deferring it here would wedge recovery.
+	// Accepted residual: a zero-area extent concurrent with surface-loss (kSurface) or device-loss recovery (which
+	// reconstructs Graphics fresh, so the gate sees kNone) still reaches CreateSwapchain, where the min/maxImageExtent
+	// clamp is a no-op when minImageExtent is also zero. That compound failure (minimize racing a surface/device loss)
+	// is rare, and guarding it here would need new recovery-retry semantics — left unhandled by design.
+	if (gpInstanceManager != nullptr && meDestroyType >= DestroyType::kSwapchain && meDestroyType < DestroyType::kSurface)
+	{
+		VkSurfaceCapabilitiesKHR vkSurfaceCapabilitiesKHR {};
+		if (SurfaceExtentZeroArea(vkSurfaceCapabilitiesKHR))
+		{
+			if (!mbSwapchainRecreateDeferred)
+			{
+				LOG(kGraphics, kInfo, "Swapchain recreate deferred: surface extent {} x {} (window off-screen/minimized)", vkSurfaceCapabilitiesKHR.currentExtent.width, vkSurfaceCapabilitiesKHR.currentExtent.height);
+				mbSwapchainRecreateDeferred = true;
+			}
+			return;
+		}
+	}
+
+	// Any recreate that reaches here proceeds (including the kSurface tier the gate skips), so clear the once-per-
+	// transition latch: the next genuine defer must re-log and re-arm.
+	mbSwapchainRecreateDeferred = false;
+
+	// Capture the deferrable-tier flag before Destroy() zeroes meDestroyType — the post-Destroy zero-area re-check
+	// below only applies to a swapchain-tier recreate (kSurface/device-loss are deliberately unguarded; see the gate).
+	bool bSwapchainTierRecreate = gpInstanceManager != nullptr && meDestroyType >= DestroyType::kSwapchain && meDestroyType < DestroyType::kSurface;
+
 	Destroy();
+
+	// TOCTOU zero-area race: Destroy()'s multi-ms vkDeviceWaitIdle gives an externally-driven minimize a window to
+	// zero the surface extent between the pre-Destroy gate's caps query and CreateSwapchain's re-query. Re-query here;
+	// on a zero-area defined extent, re-arm the swapchain tier and defer rather than feed a degenerate extent to
+	// CreateSwapchain (spec-invalid — .imageExtent must be non-zero). The swapchain manager is now torn down, so the
+	// next frame's render skip (GameBase::Render) guards rendering; its Create() retry re-enters the pre-Destroy gate,
+	// which defers again (no double-Destroy) until the extent is valid, then proceeds. A second Destroy() on that
+	// restore frame is re-run-safe (every teardown null-guards its handles). CHECK_VK can escalate to kSurface here
+	// (VK_ERROR_SURFACE_LOST_KHR); the < kSurface guard then lets a surface-loss teardown proceed instead of deferring.
+	if (bSwapchainTierRecreate)
+	{
+		VkSurfaceCapabilitiesKHR vkSurfaceCapabilitiesKHR {};
+		if (SurfaceExtentZeroArea(vkSurfaceCapabilitiesKHR))
+		{
+			if (!mbSwapchainRecreateDeferred)
+			{
+				LOG(kGraphics, kInfo, "Swapchain recreate deferred post-Destroy: surface extent {} x {} (window off-screen/minimized)", vkSurfaceCapabilitiesKHR.currentExtent.width, vkSurfaceCapabilitiesKHR.currentExtent.height);
+				mbSwapchainRecreateDeferred = true;
+			}
+			meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
+			return;
+		}
+	}
 
 	if (mpInstanceManager == nullptr)
 	{
@@ -433,11 +518,13 @@ void Graphics::Refresh()
 
 	if (gWantedFramebufferExtent2D.width != mFramebufferExtent2D.width || gWantedFramebufferExtent2D.height != mFramebufferExtent2D.height) [[unlikely]]
 	{
-		LOG(kGraphics, kDebug, "{} x {} -> {} x {}", mFramebufferExtent2D.width, mFramebufferExtent2D.height, gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
+		// Zero-dimension early-return before the LOG: while minimized Create() re-enters every deferred frame with a
+		// 0x0 wanted extent, so logging here would spam per frame (the defer gate's own once-per-transition log covers it).
 		if (gWantedFramebufferExtent2D.width == 0 || gWantedFramebufferExtent2D.height == 0)
 		{
 			return;
 		}
+		LOG(kGraphics, kDebug, "{} x {} -> {} x {}", mFramebufferExtent2D.width, mFramebufferExtent2D.height, gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
 		mFramebufferExtent2D = gWantedFramebufferExtent2D;
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
@@ -658,7 +745,9 @@ bool Graphics::Destroy()
 		mpSwapchainManager.reset();
 		if constexpr (kbDebugInput)
 		{
-			if (game::gpGame != nullptr)
+			// gpImGuiManager guard: SaveTweaksSettings derefs gpImGuiManager->mpTweaksScreen, and a post-Destroy re-defer
+			// runs a second Destroy() after mpImGuiManager.reset() below already nulled the global on the first pass.
+			if (game::gpGame != nullptr && gpImGuiManager != nullptr)
 			{
 				game::SaveTweaksSettings();
 			}

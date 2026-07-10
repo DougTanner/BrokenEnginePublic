@@ -264,6 +264,10 @@ void SwapchainManager::CreateSwapchain(VkSwapchainKHR oldSwapchain)
 	gPresentMode.Reset(eVkPresentModeKHR);
 
 	// The swap extent is the resolution of the swap chain images and it's almost always exactly equal to the resolution of the window that we're drawing to
+	RECT clientRect {};
+	GetClientRect(gpGraphics->mHwnd, &clientRect);
+	LOG(kGraphics, kDebug, "Swapchain extent resolution: currentExtent {} x {}, minImageExtent {} x {}, maxImageExtent {} x {}, client rect {} x {}", vkSurfaceCapabilitiesKHR.currentExtent.width, vkSurfaceCapabilitiesKHR.currentExtent.height, vkSurfaceCapabilitiesKHR.minImageExtent.width, vkSurfaceCapabilitiesKHR.minImageExtent.height, vkSurfaceCapabilitiesKHR.maxImageExtent.width, vkSurfaceCapabilitiesKHR.maxImageExtent.height, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top);
+
 	if (vkSurfaceCapabilitiesKHR.currentExtent.width == 0xFFFFFFFF)
 	{
 		// If the surface size is undefined, the size is set to the size of the images requested
@@ -289,9 +293,29 @@ void SwapchainManager::CreateSwapchain(VkSwapchainKHR oldSwapchain)
 	}
 	else
 	{
-		// If the surface size is defined, the swapchain size must match
-		gpGraphics->mFramebufferExtent2D = vkSurfaceCapabilitiesKHR.currentExtent;
-		gWantedFramebufferExtent2D = vkSurfaceCapabilitiesKHR.currentExtent;
+		// If the surface size is defined, the swapchain size must match. Clamp to [minImageExtent, maxImageExtent]
+		// symmetrically with the undefined branch — a degenerate currentExtent must never reach .imageExtent or any attachment.
+		gpGraphics->mFramebufferExtent2D.width = vkSurfaceCapabilitiesKHR.currentExtent.width;
+		if (gpGraphics->mFramebufferExtent2D.width < vkSurfaceCapabilitiesKHR.minImageExtent.width)
+		{
+			gpGraphics->mFramebufferExtent2D.width = vkSurfaceCapabilitiesKHR.minImageExtent.width;
+		}
+		else if (gpGraphics->mFramebufferExtent2D.width > vkSurfaceCapabilitiesKHR.maxImageExtent.width)
+		{
+			gpGraphics->mFramebufferExtent2D.width = vkSurfaceCapabilitiesKHR.maxImageExtent.width;
+		}
+
+		gpGraphics->mFramebufferExtent2D.height = vkSurfaceCapabilitiesKHR.currentExtent.height;
+		if (gpGraphics->mFramebufferExtent2D.height < vkSurfaceCapabilitiesKHR.minImageExtent.height)
+		{
+			gpGraphics->mFramebufferExtent2D.height = vkSurfaceCapabilitiesKHR.minImageExtent.height;
+		}
+		else if (gpGraphics->mFramebufferExtent2D.height > vkSurfaceCapabilitiesKHR.maxImageExtent.height)
+		{
+			gpGraphics->mFramebufferExtent2D.height = vkSurfaceCapabilitiesKHR.maxImageExtent.height;
+		}
+
+		gWantedFramebufferExtent2D = gpGraphics->mFramebufferExtent2D;
 	}
 
 	mfAspectRatio = static_cast<float>(gpGraphics->mFramebufferExtent2D.width) / static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
@@ -586,7 +610,8 @@ void SwapchainManager::AcquireNextImage()
 	else if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
 	{
 		mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
-		gpGraphics->meDestroyType = DestroyType::kSwapchain;
+		// std::max, not plain assign: a same-frame kSurface escalation must never downgrade to kSwapchain.
+		gpGraphics->meDestroyType = std::max(DestroyType::kSwapchain, gpGraphics->meDestroyType);
 	}
 	else
 	{
@@ -626,7 +651,8 @@ void SwapchainManager::PresentToQueue(int64_t iFramebufferIndex)
 		//   vkQueuePresentKHR on the shared queue. Preserve that Wait when refactoring the frame tail. Same "plain member
 		//   published across a PersistentWorker Wake/Wait edge" family as CommandBufferManager's mbParticleSemaphoreSignaled
 		//   and CommandBuffers.h (mFlags/mVkFence).
-		gpGraphics->meDestroyType = DestroyType::kSwapchain;
+		// std::max, not plain assign: a same-frame kSurface escalation must never downgrade to kSwapchain.
+		gpGraphics->meDestroyType = std::max(DestroyType::kSwapchain, gpGraphics->meDestroyType);
 		return;
 	}
 	CHECK_VK(vkResult);

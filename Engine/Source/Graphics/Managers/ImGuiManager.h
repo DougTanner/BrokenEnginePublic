@@ -32,6 +32,8 @@ public:
 
 	static constexpr int64_t kiMaxUiRects = 32;
 
+	float mfUiScale = 1.0f;
+
 	ImFont* mpChineseFont = nullptr;
 	std::unique_ptr<game::TweaksScreen> mpTweaksScreen;
 
@@ -43,7 +45,7 @@ private:
 	void CreateFramebuffers();
 	void CreateUiPrepassIndirectBuffer();
 	void UpdateUiRectBuffers(int64_t iFramebuffer);
-	void SetupThemeGeometry();
+	void SetupThemeGeometry(float fUiScale);
 	void ApplyThemeColors(UiTheme eTheme);
 
 	VkRenderPass mImGuiRenderPass = VK_NULL_HANDLE;
@@ -65,6 +67,14 @@ private:
 };
 
 inline ImGuiManager* gpImGuiManager = nullptr;
+
+inline constexpr float kfUiReferenceHeight = 2160.0f;
+
+// Resolution scale relative to the 2160-high reference monitor; multiply raw pixel constants by this
+inline float UiScale()
+{
+	return gpImGuiManager != nullptr ? gpImGuiManager->mfUiScale : 1.0f;
+}
 
 } // namespace engine
 

@@ -137,12 +137,16 @@ flowchart TD
             frame_swap --> broadcast_tick
         end
 
-        resends["ServerSession::SendResends()<br/>(skipped when iFullTicks == 0)"]:::network
+        tick_branch{"iFullTicks > 0?"}:::physics
+        resends["ServerSession::SendResends()"]:::network
+        service_paused["ServerSession::ServicePausedNetwork()<br/>(build navData + drain<br/>resync/new-subscription queues)"]:::network
         autosave["GameSaveLoad::TickAutosave()<br/>+ Quicksave()"]:::server
 
         pre_tick --> agent_drain --> quickload
         quickload -->|No| save_load_replay --> wait_tick --> ts --> prepare_active --> physics_loop
-        physics_loop --> resends --> autosave
+        physics_loop --> tick_branch
+        tick_branch -->|Yes| resends --> autosave
+        tick_branch -->|"No (paused / zero-tick)"| service_paused --> autosave
     end
 
     display["ServerUpdateDisplayStats()"]:::server

@@ -31,6 +31,10 @@ public:
 	std::unordered_set<int64_t> mProcessedClientIds;
 	std::vector<player_t> mPreSpawnPlayerIds;
 
+	// Tracks whether the engine client set was non-empty as of the previous Disconnects() call so the
+	// unpause/timescale-reset fires on the non-empty -> empty transition (see Disconnects()).
+	bool mbHadClients = false;
+
 private:
 
 	// NewClients helpers

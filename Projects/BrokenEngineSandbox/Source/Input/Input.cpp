@@ -84,8 +84,9 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 	// Update state tracking for toggle detection
 	mPreviousRawInputMenu = rRawInput;
 
-	// Populate ImGui gamepad inputs when menus are visible
-	if (gpGame->meUiState != UiState::kNone)
+	// Populate ImGui gamepad inputs when menus are visible. Guard GetIO(): the ImGui context can be destroyed across a
+	// multi-frame deferred swapchain recreate (minimized client), and this fires every deferred frame if a menu was open.
+	if (gpGame->meUiState != UiState::kNone && ImGui::GetCurrentContext() != nullptr)
 	{
 		ImGuiIO& rIo = ImGui::GetIO();
 		rIo.BackendFlags |= ImGuiBackendFlags_HasGamepad;

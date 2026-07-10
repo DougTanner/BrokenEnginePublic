@@ -9,6 +9,35 @@ inline constexpr float kfMenuUiScale = 2.0f;
 // Heading scale multiplier on top of kfMenuUiScale for menu/panel titles
 inline constexpr float kfMenuHeadingScale = 1.6f;
 
+// MainMenu title ("BROKEN ENGINE") heading scale — reduced below kfMenuHeadingScale so the floating title reads
+// proportionate over the live 3D scene (other screens keep the default)
+inline constexpr float kfMainMenuTitleScale = 1.35f;
+
+// MainMenu language-row font scale (on top of kfMenuUiScale) — keeps the language list a subordinate footer cluster
+inline constexpr float kfLanguageFontScale = 0.5f;
+
+// Shared menu-layout constants (source of truth: Documents/UserInterfaceDesign.txt). No inline magic layout
+// literal belongs in a screen .cpp — every anchor/gap/min-width lives here. Two kinds per the sizing standard
+// (Ui/Screens/CLAUDE.md rule 2): DisplaySize fractions (content-independent anchors/extents) and 4K-authored
+// pixel constants multiplied by engine::UiScale() at each use site.
+//
+// Anchors / extents as DisplaySize fractions:
+inline constexpr float kfMainMenuAnchorFractionX = 0.11f;      // MainMenu left-anchored column X
+inline constexpr float kfMainMenuAnchorFractionY = 0.35f;      // MainMenu column top Y
+inline constexpr float kfHudEdgeMarginFraction = 0.05f;        // HUD panel inset from the screen edge
+inline constexpr float kfHudPanelTopFraction = 0.125f;         // HUD panel top edge
+inline constexpr float kfHudPanelMaxHeightFraction = 0.75f;    // HUD panel height cap + fixed hover-zone extent
+inline constexpr float kfGraphicsMaxHeightFraction = 0.9f;     // Graphics settings-panel height cap
+inline constexpr float kfModalWidthFraction = 0.35f;           // Modal TextWrapped wrap width
+inline constexpr float kfModalAnchorFractionY = 0.4f;          // Modal center Y, seated slightly above screen center
+inline constexpr float kfSettingsPanelWidthFraction = 0.6f;    // Graphics settings-panel width (Sound auto-resizes)
+// 4K-authored pixels (multiply by engine::UiScale() at use):
+inline constexpr float kfHeadingGapPixels = 22.0f;             // Gap below a MenuHeading
+inline constexpr float kfSectionGapPixels = 65.0f;             // Gap between major sections
+inline constexpr float kfScreenBottomMarginPixels = 44.0f;     // Margin above a screen's bottom edge
+inline constexpr float kfPrimaryButtonMinWidthPixels = 760.0f; // Menu primary-button minimum width
+inline constexpr float kfModalButtonMinWidthPixels = 380.0f;   // Modal button minimum width
+
 // RAII helper for scaling UI elements
 class ScopedMenuScale
 {
@@ -49,6 +78,16 @@ public:
 	explicit ScopedMenuFont(float fScale = kfMenuUiScale);
 	~ScopedMenuFont();
 };
+
+// Shared text-driven button width for a screen: max CalcTextSize over the given labels (measured under the live
+// pushed font — localization-proof) plus FramePadding.x * 4. Labels are UTF-32 views (pass TranslatedString(...)
+// results); each is UTF-8 encoded through the Workbuffer for measurement. Screens clamp the result up to a
+// k*MinWidthPixels * UiScale() floor at the call site. Must be called inside the window with the menu font pushed.
+float MenuButtonsWidth(std::initializer_list<std::u32string_view> aLabels);
+
+// One menu/panel heading: pushes the heading font (kfMenuUiScale * kfMenuHeadingScale), emits pcLabel, then a
+// standard kfHeadingGapPixels * UiScale() gap below it — the single source of a menu/panel title's font and rhythm.
+void MenuHeading(const char* pcLabel);
 
 // Full-screen dim behind pause-style overlays (background draw list, behind all windows)
 void DrawFullScreenDim();

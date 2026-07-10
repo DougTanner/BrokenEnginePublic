@@ -131,7 +131,8 @@ void RawInputManager::Update(bool bLostFocus)
 	}
 	else
 	{
-		TrapCursor(game::gpGame->ShouldTrapCursor());
+		// Suppressed harness client forces the trap off regardless of game setting so a physical cursor is never clipped to the window.
+		TrapCursor(PhysicalInputSuppressed() ? false : game::gpGame->ShouldTrapCursor());
 	}
 
 	// A running agent input script relaxes the unfocused early-out so it can publish + overlay while the window is
@@ -180,8 +181,8 @@ void RawInputManager::Update(bool bLostFocus)
 		mRawInput.iScrollWheelValue += gpAgentInput->SyntheticScrollAccumulator();
 	}
 
-	// Game pad (only first game pad supported)
-	if (mpGamePad != nullptr)
+	// Game pad (only first game pad supported). Suppressed harness client skips the poll — the snapshot stays zero-initialized.
+	if (mpGamePad != nullptr && !PhysicalInputSuppressed())
 	{
 		GamePad::State gamepadState = mpGamePad->GetState(0);
 		if (gamepadState.IsConnected())
@@ -253,7 +254,7 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 		return;
 	}
 
-	if (rawinput.header.dwType == RIM_TYPEKEYBOARD)
+	if (rawinput.header.dwType == RIM_TYPEKEYBOARD && !PhysicalInputSuppressed())
 	{
 		USHORT uiKey = rawinput.data.keyboard.VKey;
 		if (uiKey < kiKeyboardKeyCount)

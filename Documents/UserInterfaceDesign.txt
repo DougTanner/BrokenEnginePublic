@@ -1,0 +1,229 @@
+User Interface Design
+=====================
+
+All player-facing UI in Broken Engine is Dear ImGui. This document is the
+layout contract: how screens are scaled, sized, placed, and composed so the
+UI stays visually consistent as screens are added or localized. It is the
+layout counterpart to Documents/FloatingPointDeterminism.txt — a numbered
+engineering contract, not a style guide. Colors and chrome are out of scope
+here; they are owned by the theme tables in ImGuiManager (engine
+ThemePalettes) and MenuUtils (kMenuChromes). This contract covers only
+layout: scale, sizing, placement, rhythm, and primitives.
+
+Scope: the player-facing screens — MainMenu + LanguageMenu, Pause, Graphics,
+Sound, Modal, and the HUD. TweaksScreen is a developer tool and a sanctioned
+exception, called out where it diverges.
+
+
+1. Purpose & Scope
+-------------------
+Every pixel the player sees is drawn by ImGui through the game screens under
+Ui/Screens/, rendered by the engine ImGuiManager. This document governs their
+layout. Text color, panel fills, borders, and button chrome are not layout —
+they live in the per-theme tables and are deliberately excluded so a theme
+edit never touches a screen's geometry.
+
+Files:
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/          (all player screens)
+  Engine/Source/Graphics/Managers/ImGuiManager.cpp         (ThemePalettes — colors)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp  (kMenuChromes — colors)
+
+
+2. One Scale System
+--------------------
+There is exactly one resolution scale factor: engine::UiScale(). It is the
+framebuffer height divided by a fixed 2160-high reference monitor, so a screen
+authored against 4K renders proportionally at any resolution. No screen may
+invent a second scale factor.
+
+Scale is applied in three stacked, non-overlapping layers:
+  - Style geometry (padding, spacing, rounding, ~35 fields) is pre-scaled once
+    per resolution change by SetupThemeGeometry via ScaleAllSizes(2.0f * fUiScale).
+  - Menu text is scaled by pushing a dynamic font sized off FontSizeBase, via
+    ScopedMenuFont / kfMenuUiScale (2.0). Raw pixel constants multiply UiScale()
+    at their use site.
+  - The user's Font Size preference (gUiFontScale) stacks on top exactly once.
+
+Documented exception: TweaksScreen is a denser debug tool and deliberately
+uses its own kfUiScale = 1.5, pushing the font directly rather than through
+ScopedMenuFont. It is not a player screen and is not bound by this contract.
+
+Documented exception: the MainMenu language row renders its labels at a reduced
+font scale (kfMenuUiScale * 0.75f) — a deliberate visual-hierarchy choice that
+keeps the language list subordinate to the menu buttons above it. It is the one
+sanctioned font-scale multiplier outside ScopedMenuFont's default and MenuHeading.
+
+Files:
+  Engine/Source/Graphics/Managers/ImGuiManager.h:71     inline constexpr float kfUiReferenceHeight = 2160.0f;
+  Engine/Source/Graphics/Managers/ImGuiManager.h:74     inline float UiScale()
+  Engine/Source/Graphics/Managers/ImGuiManager.cpp:229  rStyle.ScaleAllSizes(2.0f * fUiScale);
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:7   inline constexpr float kfMenuUiScale = 2.0f;
+  Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenBase.cpp:47  static constexpr float kfUiScale = 1.5f;  (sanctioned exception)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MainMenuScreen.cpp:138  ScopedMenuFont languageFont(kfMenuUiScale * 0.75f);  (sanctioned exception)
+
+
+3. Sizing Rules
+---------------
+Every dimension is derived one of three ways, never by eyeballing a fraction:
+
+  (a) Global scale — the UiScale() factor of section 2, applied everywhere.
+  (b) Content-independent dimensions — named DisplaySize fractions (anchors,
+      panel extents) or 4K-authored pixel constants multiplied by UiScale()
+      at the use site (gaps, radii, min widths).
+  (c) Text-driven dimensions — widths that exist to fit text are measured with
+      ImGui::CalcTextSize under the pushed font and used ~1:1 plus additive
+      style padding.
+
+Hard rule: never multiply a measured (CalcTextSize) size by a magnifying
+constant. Integer-pixel rounding in the measurement gets amplified into
+visible cross-resolution inconsistency.
+
+Files:
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/CLAUDE.md:11-14  (the three-rule standard)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:184  float MenuButtonsWidth(...)  (text-driven width precedent)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:189  float HudScreen::PanelWidth()
+
+
+4. Shared Layout Constants
+--------------------------
+No inline magic layout literal belongs in a screen .cpp. Every anchor, gap,
+and minimum width is a named k* constant in the MenuUtils.h layout block, so a
+value is tuned in one place and the screens read as intent, not arithmetic.
+The block separates DisplaySize fractions (content-independent extents) from
+4K-authored pixel constants (multiplied by UiScale() at use).
+
+Files:
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:12-32
+    kfMainMenuAnchorFractionX = 0.11f, kfMainMenuAnchorFractionY = 0.35f
+    kfHudEdgeMarginFraction = 0.05f, kfHudPanelTopFraction = 0.125f, kfHudPanelMaxHeightFraction = 0.75f
+    kfGraphicsMaxHeightFraction = 0.9f
+    kfModalWidthFraction = 0.35f, kfModalAnchorFractionY = 0.4f, kfSettingsPanelWidthFraction = 0.6f
+    kfHeadingGapPixels = 22, kfSectionGapPixels = 65, kfScreenBottomMarginPixels = 44
+    kfPrimaryButtonMinWidthPixels = 760, kfModalButtonMinWidthPixels = 380
+
+
+5. Window Placement
+-------------------
+Settings, pause, and modal menus center themselves by asking ImGui to pivot,
+never by hand-computing (DisplaySize - width) / 2. Pass the screen center as
+SetNextWindowPos with pivot (0.5, 0.5). The one exception is MainMenu, a
+deliberately left-anchored column (its title composes over the live 3D scene),
+which anchors at (kfMainMenuAnchorFractionX, kfMainMenuAnchorFractionY). HUD
+panels edge-anchor via the named margin fractions.
+
+Modal and Sound both center via the pivot convention. Modal seats its pivot
+slightly above screen center at kfModalAnchorFractionY rather than 0.5.
+
+Files:
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/PauseMenuScreen.cpp:30  (pivot centering — the model)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/GraphicsMenuScreen.cpp:72 (pivot centering)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/ModalScreen.cpp:23   (pivot centering at kfModalAnchorFractionY)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/SoundMenuScreen.cpp:24 (pivot centering)
+
+
+6. Size to Content
+-------------------
+A window larger than its content is a bug. Menus that grow with their content
+use AlwaysAutoResize (or an auto axis) and let the window hug its widgets. When
+an auto-sized window needs a ceiling, cap it with SetNextWindowSizeConstraints
+rather than a fixed fraction. Fixed fractions are permitted only where content
+churn would otherwise jitter the layout frame-to-frame — the HUD panels, whose
+templated width is intentionally fixed — or as a text-wrap width (Modal).
+
+The HUD panels are the canonical "hug content" example: their height auto-sizes
+to the fleet member list, capped at kfHudPanelMaxHeightFraction of the screen
+(long lists scroll). The right FocusedPlayer panel then matches the left panel's
+live height for symmetry rather than hugging its own smaller content.
+
+Files:
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/PauseMenuScreen.cpp:33  ImGuiWindowFlags_AlwaysAutoResize
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:223,224  (content-driven height, capped via SetNextWindowSizeConstraints)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:22  kfHudPanelMaxHeightFraction (height cap)
+
+
+7. Layout Primitives
+--------------------
+Legacy ImGui::Columns is forbidden — use BeginTable with SizingStretchSame.
+Table columns must be balanced in row count; a two-column settings panel with
+one column twice as tall as the other is a layout defect, not a sizing accident.
+GraphicsMenuScreen is the reference: a BeginTable("GraphicsColumns", 2,
+SizingStretchSame) with Display settings left, Effects & UI right.
+
+Files:
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/GraphicsMenuScreen.cpp:95  BeginTable("GraphicsColumns", 2, ImGuiTableFlags_SizingStretchSame)
+
+
+8. Every Menu Button Is Themed
+------------------------------
+Menu buttons go through MenuButton (custom chrome: animated fill, border, left
+accent bar). Stock ImGui::Button is reserved for dense HUD micro-buttons,
+TweaksScreen, and the WrapperPlusMinus -/+ step buttons on settings rows
+(MenuUtils.cpp — inline value-adjust controls, not menu actions). All buttons
+on one screen share one text-driven width — the max
+CalcTextSize over that screen's labels, measured under the live font so the
+width is localization-proof — floored, where a floor constant exists, to a
+per-screen minimum. That max-plus-padding measurement is the MenuButtonsWidth
+helper; the minimum floors are the k*ButtonMinWidthPixels constants
+(kfPrimaryButtonMinWidthPixels, kfModalButtonMinWidthPixels).
+
+Files:
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:249  bool MenuButton(...)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:184  float MenuButtonsWidth(std::initializer_list<std::u32string_view>)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:31-32  kfPrimaryButtonMinWidthPixels, kfModalButtonMinWidthPixels
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/ModalScreen.cpp:43  MenuButton("OK", ...)  (themed button)
+
+
+9. Vertical Rhythm
+------------------
+One heading helper owns menu/panel titles: MenuHeading pushes the heading font
+(kfMenuUiScale * kfMenuHeadingScale), emits the label, and follows it with a
+standard kfHeadingGapPixels gap — the single source of a title's font and the
+rhythm below it, shared by MainMenu, Pause, Graphics, and Sound. All gaps are
+named 4K-pixel constants times UiScale(); no screen emits
+Dummy(DisplaySize.y * <magic fraction>).
+
+Files:
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:197  void MenuHeading(const char* pcLabel)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:10  kfMenuHeadingScale = 1.6f
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:28-29  kfHeadingGapPixels, kfSectionGapPixels
+
+
+10. Harness Addressability
+--------------------------
+Widget labels are an automation API. The agent harness clicks, hovers, and
+queries widgets by their visible label (describe_ui / click). A layout change
+must never silently rename a label: the before/after describe_ui label set is
+expected to be identical across a pure-layout pass. Renaming a label is a
+deliberate API change, made on purpose and verified, never as a side effect of
+moving a button.
+
+Files:
+  Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsClient.cpp  (describe_ui / click / hover by label)
+  Engine/Source/Agent/                                               (AgentUiRegistry label snapshot)
+
+
+11. Verification
+----------------
+Layout changes are validated visually, not by assertion. Capture before/after
+agent-harness screenshots per screen — borderless fullscreen at native
+resolution, identical launch config on both sides, so fixed-pixel fonts show
+true proportions — and inspect the images directly. A change passes when no
+window is visibly larger than its content, settings columns are balanced, every
+menu button is themed and uniform-width, and the describe_ui label set is
+unchanged.
+
+Screen-specific commitments this contract makes, each verified visually:
+  - HUD: left and right panels are symmetric — the right FocusedPlayer panel
+    matches the left Fleet panel's live size rather than hugging its own
+    (smaller) content; symmetry beats content-hugging on the right.
+  - HUD: the mouse-proximity activation zone is a fixed-extent strip
+    (kfHudPanelMaxHeightFraction of the screen at the anchor), decoupled from
+    the live panel size, so hover behavior is unchanged as panels shrink.
+  - Sound: centered via the pivot convention (section 5), not the top-left
+    corner anchor.
+  - Graphics: the two-column split is semantic — Display settings left,
+    Effects & UI settings right — balanced by row count, not arbitrary.
+
+Files:
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:23,166  ComputeMouseOpennessTarget (fixed-extent hover zone)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/CLAUDE.md  (per-screen layout notes)

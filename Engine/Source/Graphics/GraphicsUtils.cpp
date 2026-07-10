@@ -21,7 +21,8 @@ void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_l
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
 	{
-		gpGraphics->meDestroyType = DestroyType::kSwapchain;
+		// std::max, not plain assign: a same-frame kSurface escalation must never downgrade to kSwapchain.
+		gpGraphics->meDestroyType = std::max(DestroyType::kSwapchain, gpGraphics->meDestroyType);
 		return;
 	}
 

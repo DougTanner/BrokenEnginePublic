@@ -76,9 +76,10 @@ void Server::Poll()
 	mPendingSpawnRequests.clear();
 	mPendingDisconnects.clear();
 	// mPendingNewSubscriptions / mPendingResyncClientIds are intentionally NOT cleared here. Their consumers
-	// (ServerSessionBase::SendNewSubscriptionFullStates / game ServerSession::HandleResyncRequests) run only
-	// post-tick, so a per-poll clear would drop a subscribe/resync accepted while the server is paused
-	// (iFullTicks == 0) before any full state is sent. They persist until those consumers service and clear them.
+	// (ServerSessionBase::SendNewSubscriptionFullStates / game ServerSession::HandleResyncRequests) run post-tick,
+	// so a per-poll clear would drop a subscribe/resync accepted between servicings. They persist until those
+	// consumers service and clear them. While paused (iFullTicks == 0) BroadcastTick doesn't run, so game
+	// ServerSession::ServicePausedNetwork services them each update instead — a client can join a paused server.
 	mReceivedGamePackets.clear();
 
 	// Reset the per-poll (~ per-tick window) contract budgets before draining this poll's packets.

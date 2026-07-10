@@ -411,6 +411,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\Source\Pch.h" />
     <ClInclude Include="..\..\Source\Ui\Localization.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\HudScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\MenuUtils.h" />
     <ClInclude Include="..\..\Source\Ui\ParticleWrappers.h" />
     <ClInclude Include="..\..\Source\Ui\WindDepositsWrappers.h" />

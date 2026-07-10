@@ -20,15 +20,15 @@ All paths below use `$ROOT` for the absolute repo root (the cwd from the environ
 
 ### 2. Build the Project
 
-**IMPORTANT: Build duration** — Builds can run a long time. DataPacker's Island export, and any BrokenEngineSandbox build that triggers the DataPacker pre-build, can exceed the Bash tool's 10-minute hard timeout cap. If MSBuild is killed mid-build it leaves an `unsuccessfulbuild` marker in the tlog directory, which forces a full rebuild next time — creating a cycle of never-completing builds.
+**IMPORTANT: Build duration & foreground default** — Typical builds (incremental, selective, even ThirdParty rebuilds) finish in seconds to a few minutes. **Run builds in the FOREGROUND with the default 2-minute timeout** — blocking is reliable in every context (subagents especially: turn-ends and background notifications are flaky). The ONE exception that far exceeds it (upwards of an hour) is a build that triggers the full DataPacker data re-export — re-exporting all islands (slow Gaea export) and all textures (slow texture compression); use `run_in_background: true` only when that re-export is expected (data/texture-source changes, or a wiped/invalidated pack). If a foreground build is killed at the cap it leaves an `unsuccessfulbuild` marker in the tlog directory (forces a full rebuild next time) — recover by re-running that build in background, not foreground.
 
-**Always run these builds with `run_in_background: true`** (no time cap, harness notifies on completion). Do not poll, do not sleep, do not chain shorter timeouts — just wait for the completion notification. Treat the build as taking effectively infinite time.
+**When a background build runs inside a subagent** — a subagent's turn-end returns its last text to the caller as a final result, so never end a turn with an interim "build started/waiting" status line; that reads as your report. End the turn with nothing but `AWAITING BUILD`; when a completion notification re-invokes you, continue in that same turn (check results, start the next sequential build, or emit the full final report). **Caller side**: a compile-subagent result that says `AWAITING BUILD` (or lacks per-project status) means the build is still in flight — the completion re-invocation is unreliable, so verify build state directly (msbuild processes, obj/exe timestamps) and resume the agent with a "continue and report" message rather than re-dispatching or treating it as done.
 
 **IMPORTANT: clang-tidy disable** — every build command below passes `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`. The bundled VS2026 `clang-tidy.exe` crashes reproducibly with `0xC0000005` (access violation) on this codebase, blocking the actual C++ compile. Do not strip these flags.
 
-**ThirdParty** (only rebuild if a link error references a missing ThirdParty `.lib` or the user explicitly asks — normal workflow skips this; a full ThirdParty rebuild across three configurations can exceed 30 minutes):
+**ThirdParty** (only rebuild if a link error references a missing ThirdParty `.lib` or the user explicitly asks — normal workflow skips this):
 ```bash
-# run_in_background: true for each invocation
+# foreground, timeout 120000 (background only per the duration rule above)
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Profile /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Release /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
@@ -36,7 +36,7 @@ bash "$ROOT/.claude/msbuild.sh" "$ROOT/ThirdParty/Prebuilts/Platforms/VisualStud
 
 **DataPacker** (Release only):
 ```bash
-# run_in_background: true
+# foreground, timeout 120000 (background only per the duration rule above)
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/DataPacker/Platforms/VisualStudio2026/DataPacker.sln" /p:Configuration=Release /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
@@ -44,19 +44,19 @@ bash "$ROOT/.claude/msbuild.sh" "$ROOT/DataPacker/Platforms/VisualStudio2026/Dat
 
 Client:
 ```bash
-# run_in_background: true
+# foreground, timeout 120000 (background only per the duration rule above)
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.sln" /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
 Server:
 ```bash
-# run_in_background: true
+# foreground, timeout 120000 (background only per the duration rule above)
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandboxServer.sln" /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
 **AgentCli** (standalone harness driver — config-suffixed output: `AgentCli.Debug.exe` / `AgentCli.exe` (Release); rebuild only when its sources change). Debug default. Separate solution, so no DataPacker pre-build:
 ```bash
-# run_in_background: true
+# foreground, timeout 120000 (background only per the duration rule above)
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/Tools/AgentCli/Platforms/VisualStudio2026/AgentCli.sln" /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
@@ -65,7 +65,7 @@ bash "$ROOT/.claude/msbuild.sh" "$ROOT/Tools/AgentCli/Platforms/VisualStudio2026
 For fast-iteration on a small set of files, `msbuild.sh` supports a `--files` mode that deletes the targeted `.obj` files before invoking MSBuild, forcing just those files to recompile:
 
 ```bash
-# run_in_background: true. Configuration is required with --files.
+# foreground, timeout 120000. Configuration is required with --files.
 bash "$ROOT/.claude/msbuild.sh" --files <path1.cpp> <path2.cpp> -- \
   "$ROOT/Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj" \
   /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal

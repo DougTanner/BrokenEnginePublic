@@ -39,6 +39,7 @@ Walk each dimension; skip ones irrelevant to the change:
 5. **Plan divergence & scope drift** — compare the changed-file/function list against the plan document. Your own Edit/Write history is the source of truth for what this session changed — the working tree is routinely dirty, so git cannot distinguish this session's edits from pre-existing modifications; use the allowed read-only git commands only to inspect content of files you know you touched. Every divergence must already be announced or surfaced now; flag files outside the plan's scope.
 6. **Partial sweeps** — for any repeated pattern change (rename, signature change, new collection member wired through AllocateAndCopy/LogDifferences/Spawn/Transfer), confirm exhaustiveness by Grep, not recall.
 7. **Premortem** — what is the smallest thing that could still be wrong and cause a crash or desync in-game? One targeted answer, then check it.
+8. **Pasted logic** — did any new block duplicate existing repo code instead of calling/extracting a shared helper? Grep a distinctive line from each substantial new block. Deliberate mirrored patterns (client/server pairs, per-collection boilerplate) are exempt.
 
 ## Report and Handoff
 

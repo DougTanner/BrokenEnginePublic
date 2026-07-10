@@ -31,6 +31,14 @@ void CommandScreenshot(const nlohmann::json& rParams, [[maybe_unused]] nlohmann:
 		throw std::runtime_error("screenshot capture is compiled out (kbScreenshots is false)");
 	}
 
+	// The capture mailbox is consumed only inside RenderMainPresentAcquire, which the render skip (GameBase::Render)
+	// bypasses while the window is iconic or a recreate is deferred — the request would spin to the drain timeout.
+	// Fail fast with a clear error instead (mirrors CommandResize's minimized rejection).
+	if (IsIconic(engine::gpGraphics->mHwnd) || engine::gpGraphics->mbSwapchainRecreateDeferred)
+	{
+		throw std::runtime_error("window is minimized or swapchain recreate is deferred");
+	}
+
 	engine::ScreenshotRequest request;
 	request.bPublishResult = true;
 	if (rParams.contains("path"))
@@ -78,6 +86,241 @@ void CommandScreenshot(const nlohmann::json& rParams, [[maybe_unused]] nlohmann:
 	});
 }
 
+// resize: change the live client window/framebuffer size mid-session by driving the real HWND resize
+// (SetWindowPos -> synchronous WM_SIZE -> gWantedFramebufferExtent2D -> swapchain recreate). Client dims are a
+// trust boundary: validated to [320x180, 16384x16384] then rounded up to a multiple of 8 (mirrors SetupWindow).
+// The swapchain additionally clamps to surface caps, so the applied extent may differ from the requested one.
+// Completes synchronously if already at the requested extent, else via the deferred-response mechanism once the
+// swapchain has recreated. Never mutates the persisted gFullscreen setting. Schema: {"width","height"}.
+void CommandResize(const nlohmann::json& rParams, nlohmann::json& rResult)
+{
+	if (!rParams.contains("width") || !rParams.at("width").is_number() || !rParams.contains("height") || !rParams.at("height").is_number())
+	{
+		throw std::runtime_error("resize requires numeric 'width' and 'height'");
+	}
+
+	int64_t iWidth = rParams.at("width").get<int64_t>();
+	int64_t iHeight = rParams.at("height").get<int64_t>();
+	if (iWidth < 320 || iWidth > 16384 || iHeight < 180 || iHeight > 16384)
+	{
+		throw std::runtime_error("resize 'width'/'height' out of bounds [320x180, 16384x16384]");
+	}
+
+	// Multiple-of-8 rounding for reproducible geometry (matches SetupWindow's client-size rounding).
+	LONG iClientWidth = common::RoundUp<LONG, 8>(static_cast<LONG>(iWidth));
+	LONG iClientHeight = common::RoundUp<LONG, 8>(static_cast<LONG>(iHeight));
+
+	// Reject while minimized: WM_SIZE never fires for a minimized window, so the deferred poll can't converge.
+	if (IsIconic(engine::gpGraphics->mHwnd))
+	{
+		throw std::runtime_error("window is minimized");
+	}
+
+	// Style-aware client -> outer conversion: WS_OVERLAPPEDWINDOW grows the client rect by the frame via
+	// AdjustWindowRect; WS_POPUP (borderless windowed-fullscreen) has no frame, so client size is the outer size.
+	HWND hwnd = engine::gpGraphics->mHwnd;
+	LONG_PTR iStyle = GetWindowLongPtr(hwnd, GWL_STYLE);
+	RECT outerRect {.left = 0, .top = 0, .right = iClientWidth, .bottom = iClientHeight};
+	if ((iStyle & WS_OVERLAPPEDWINDOW) != 0)
+	{
+		AdjustWindowRect(&outerRect, static_cast<DWORD>(iStyle), FALSE);
+	}
+	LONG iOuterWidth = outerRect.right - outerRect.left;
+	LONG iOuterHeight = outerRect.bottom - outerRect.top;
+
+	// On-screen clamping: a fixed top-left with a growing size can push the bottom/right edges off screen. Query
+	// the window's current monitor (mirrors SetupWindow) and keep the outer rect fully within rcMonitor.
+	RECT currentRect {};
+	GetWindowRect(hwnd, &currentRect);
+	LONG iPosX = currentRect.left;
+	LONG iPosY = currentRect.top;
+
+	MONITORINFO monitorInfo = {};
+	monitorInfo.cbSize = sizeof(monitorInfo);
+	GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitorInfo);
+	const RECT& rMonitor = monitorInfo.rcMonitor;
+
+	if (iClientWidth == rMonitor.right - rMonitor.left && iClientHeight == rMonitor.bottom - rMonitor.top)
+	{
+		// Rounded client size exactly the monitor's pixel size: land at the monitor origin (pixel-accurate).
+		iPosX = rMonitor.left;
+		iPosY = rMonitor.top;
+	}
+	else
+	{
+		// Otherwise keep the current position but shift left/up so the outer rect stays fully on the monitor;
+		// if the window is larger than the monitor in a dimension, pin that axis to the monitor origin.
+		if (iPosX + iOuterWidth > rMonitor.right)
+		{
+			iPosX = rMonitor.right - iOuterWidth;
+		}
+		if (iPosX < rMonitor.left)
+		{
+			iPosX = rMonitor.left;
+		}
+		if (iPosY + iOuterHeight > rMonitor.bottom)
+		{
+			iPosY = rMonitor.bottom - iOuterHeight;
+		}
+		if (iPosY < rMonitor.top)
+		{
+			iPosY = rMonitor.top;
+		}
+	}
+
+	// Drain() runs on the WndProc thread, so this SetWindowPos's WM_SIZE fires synchronously and writes
+	// gWantedFramebufferExtent2D exactly as a human drag does. No z-order / activation change.
+	SetWindowPos(hwnd, nullptr, iPosX, iPosY, iOuterWidth, iOuterHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+
+	// Fast path: if the swapchain already sits at the requested (rounded) extent, answer synchronously.
+	if (engine::gpGraphics->mFramebufferExtent2D.width == static_cast<uint32_t>(iClientWidth) && engine::gpGraphics->mFramebufferExtent2D.height == static_cast<uint32_t>(iClientHeight))
+	{
+		rResult["width"] = engine::gpGraphics->mFramebufferExtent2D.width;
+		rResult["height"] = engine::gpGraphics->mFramebufferExtent2D.height;
+		return;
+	}
+
+	engine::gpAgentCommandServer->DeferResponse([]() -> std::optional<nlohmann::json>
+	{
+		// Graphics::Refresh copies gWantedFramebufferExtent2D into mFramebufferExtent2D when it triggers the recreate
+		// (Graphics.cpp), and CreateSwapchain's defined branch may then clamp gWantedFramebufferExtent2D down to the
+		// surface-cap currentExtent (SwapchainManager.cpp), so the two converge only once the applied extent settles.
+		// ExtentSettled() also requires no recreate be deferred — extent equality alone is satisfied the moment Refresh
+		// copies the wanted extent, before the defer gate returns, which would report a false success no live swapchain
+		// backs. Poll until settled, then report the applied extent (may differ from the requested one after clamping).
+		if (!engine::gpGraphics->ExtentSettled())
+		{
+			return std::nullopt;
+		}
+		nlohmann::json result;
+		result["width"] = engine::gpGraphics->mFramebufferExtent2D.width;
+		result["height"] = engine::gpGraphics->mFramebufferExtent2D.height;
+		return result;
+	});
+}
+
+// fullscreen: toggle the live client between borderless windowed-fullscreen (WS_POPUP) and windowed
+// (WS_OVERLAPPEDWINDOW) mid-session by driving the engine's WantedFullscreen() -> ProcessMessages() style-switch path
+// via an agent override. 'on' is a trust boundary: validated to a bool. Idempotent — an already-in-state request
+// answers synchronously. Never mutates the persisted gFullscreen setting; windowed restore returns to the launch
+// extent (a mid-run resize is not preserved). Schema: {"on"}; result: {"fullscreen","width","height"}.
+void CommandFullscreen(const nlohmann::json& rParams, nlohmann::json& rResult)
+{
+	if (!rParams.contains("on") || !rParams.at("on").is_boolean())
+	{
+		throw std::runtime_error("fullscreen requires boolean 'on'");
+	}
+
+	bool bOn = rParams.at("on").get<bool>();
+
+	// Reject while minimized: the style toggle drives a swapchain recreate that can't converge off-screen, so the
+	// deferred poll would never settle (mirrors resize).
+	if (IsIconic(engine::gpGraphics->mHwnd))
+	{
+		throw std::runtime_error("window is minimized");
+	}
+
+	// Live style read: WS_POPUP set == borderless windowed-fullscreen; WS_OVERLAPPEDWINDOW == windowed.
+	HWND hwnd = engine::gpGraphics->mHwnd;
+	bool bIsFullscreen = (GetWindowLongPtr(hwnd, GWL_STYLE) & WS_POPUP) != 0;
+
+	// Fast path: already in the requested mode — report the current extent synchronously (idempotence).
+	if (bIsFullscreen == bOn)
+	{
+		rResult["fullscreen"] = bIsFullscreen;
+		rResult["width"] = engine::gpGraphics->mFramebufferExtent2D.width;
+		rResult["height"] = engine::gpGraphics->mFramebufferExtent2D.height;
+		return;
+	}
+
+	// Install the override; the per-frame ProcessMessages() reconciliation picks it up and performs the style swap +
+	// SetupWindow + swapchain recreate. The command completes via the deferred-response mechanism once it lands.
+	engine::SetAgentFullscreenOverride(bOn);
+
+	engine::gpAgentCommandServer->DeferResponse([bOn]() -> std::optional<nlohmann::json>
+	{
+		// Poll until BOTH the live WS_POPUP bit matches the request AND the extent has settled. ExtentSettled() folds
+		// extent equality with !mbSwapchainRecreateDeferred, so it can't report a false success while a recreate is
+		// still deferred (the style flips a frame before the swapchain finishes). Then report the applied state.
+		bool bNowFullscreen = (GetWindowLongPtr(engine::gpGraphics->mHwnd, GWL_STYLE) & WS_POPUP) != 0;
+		if (bNowFullscreen != bOn || !engine::gpGraphics->ExtentSettled())
+		{
+			return std::nullopt;
+		}
+		nlohmann::json result;
+		result["fullscreen"] = bNowFullscreen;
+		result["width"] = engine::gpGraphics->mFramebufferExtent2D.width;
+		result["height"] = engine::gpGraphics->mFramebufferExtent2D.height;
+		return result;
+	});
+}
+
+// window_state: minimize the live client window or restore it mid-session by driving ShowWindow on the real HWND.
+// 'minimized' is a trust boundary: validated to a bool. Idempotent — an already-in-state request answers synchronously.
+// Minimize uses SW_MINIMIZE; restore uses SW_SHOWNOACTIVATE (a no-activate restore — never steal foreground focus, per
+// the agent-mode convention in Main.cpp). Never mutates the persisted gFullscreen setting or any .bin. This command
+// produces the minimized/recreate-deferred state that resize/fullscreen/screenshot reject; restore clears it. Completes
+// synchronously if already in state, else via the deferred-response mechanism once the window state settles. Schema:
+// {"minimized"}; result: {"minimized"}, plus {"width","height"} of the settled extent on restore.
+void CommandWindowState(const nlohmann::json& rParams, nlohmann::json& rResult)
+{
+	if (!rParams.contains("minimized") || !rParams.at("minimized").is_boolean())
+	{
+		throw std::runtime_error("window_state requires boolean 'minimized'");
+	}
+
+	bool bMinimized = rParams.at("minimized").get<bool>();
+
+	HWND hwnd = engine::gpGraphics->mHwnd;
+
+	// Fast path: already in the requested state — report it synchronously (idempotence), including the current extent
+	// on restore (matches resize/fullscreen).
+	if ((IsIconic(hwnd) != FALSE) == bMinimized)
+	{
+		rResult["minimized"] = bMinimized;
+		if (!bMinimized)
+		{
+			rResult["width"] = engine::gpGraphics->mFramebufferExtent2D.width;
+			rResult["height"] = engine::gpGraphics->mFramebufferExtent2D.height;
+		}
+		return;
+	}
+
+	if (bMinimized)
+	{
+		// Minimize, then poll until the window reports iconic.
+		ShowWindow(hwnd, SW_MINIMIZE);
+		engine::gpAgentCommandServer->DeferResponse([]() -> std::optional<nlohmann::json>
+		{
+			if (IsIconic(engine::gpGraphics->mHwnd) == FALSE)
+			{
+				return std::nullopt;
+			}
+			nlohmann::json result;
+			result["minimized"] = true;
+			return result;
+		});
+		return;
+	}
+
+	// No-activate restore (never steal foreground focus, per Main.cpp's agent-mode convention). Poll until the window
+	// is no longer iconic AND the extent has settled — a bare !IsIconic restore would report success before the deferred
+	// swapchain recreate lands, the false-success class the sibling polls already guard against.
+	ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+	engine::gpAgentCommandServer->DeferResponse([]() -> std::optional<nlohmann::json>
+	{
+		if (IsIconic(engine::gpGraphics->mHwnd) != FALSE || !engine::gpGraphics->ExtentSettled())
+		{
+			return std::nullopt;
+		}
+		nlohmann::json result;
+		result["minimized"] = false;
+		result["width"] = engine::gpGraphics->mFramebufferExtent2D.width;
+		result["height"] = engine::gpGraphics->mFramebufferExtent2D.height;
+		return result;
+	});
+}
+
 // dump_render_target: read back an offscreen render target and encode it (normalized grayscale PNG for
 // single-channel, direct PNG for 4x8-bit, optional raw .bin). Schema: {"name","index"?:0,"channel"?:0,"path"?,"raw"?:false}.
 void CommandDumpRenderTarget(const nlohmann::json& rParams, [[maybe_unused]] nlohmann::json& rResult)
@@ -86,6 +329,13 @@ void CommandDumpRenderTarget(const nlohmann::json& rParams, [[maybe_unused]] nlo
 	if constexpr (!kbScreenshots)
 	{
 		throw std::runtime_error("dump_render_target is compiled out (kbScreenshots is false)");
+	}
+
+	// As CommandScreenshot: the readback mailbox is consumed only inside RenderMainPresentAcquire, which the render
+	// skip bypasses while iconic / deferred — fail fast instead of spinning to the drain timeout.
+	if (IsIconic(engine::gpGraphics->mHwnd) || engine::gpGraphics->mbSwapchainRecreateDeferred)
+	{
+		throw std::runtime_error("window is minimized or swapchain recreate is deferred");
 	}
 
 	if (!rParams.contains("name") || !rParams.at("name").is_string())
@@ -414,6 +664,7 @@ void CommandKey(const nlohmann::json& rParams, [[maybe_unused]] nlohmann::json& 
 
 // mouse {x, y, action:"move|down|up|click|wheel", button?="left", notches?}: raw pixel coords feeding both the ImGui
 // IO sink and the RawInput overlay (normalized) for world clicks / unlabeled targets and camera-zoom wheel.
+// (x/y optional for wheel — both or neither)
 void CommandMouse(const nlohmann::json& rParams, [[maybe_unused]] nlohmann::json& rResult)
 {
 	engine::AgentScript script;
@@ -448,6 +699,20 @@ void CommandMouse(const nlohmann::json& rParams, [[maybe_unused]] nlohmann::json
 	if (script.eMouseAction == engine::AgentMouseAction::kWheel)
 	{
 		script.iWheelNotches = rParams.contains("notches") ? static_cast<int32_t>(rParams.at("notches").get<int64_t>()) : 1;
+
+		// Optional target coords: both present routes the ImGui wheel to the window under (x,y); neither preserves camera-zoom-sink behavior.
+		bool bHasX = rParams.contains("x");
+		bool bHasY = rParams.contains("y");
+		if (bHasX != bHasY)
+		{
+			throw std::runtime_error("mouse wheel requires both 'x' and 'y' or neither");
+		}
+		if (bHasX)
+		{
+			script.f2CoordPixels[0] = static_cast<float>(rParams.at("x").get<double>());
+			script.f2CoordPixels[1] = static_cast<float>(rParams.at("y").get<double>());
+			script.bHasCoord = true;
+		}
 	}
 	else
 	{
@@ -491,6 +756,21 @@ bool ExecuteAgentCommandClient(std::string_view cmd, const nlohmann::json& rPara
 	if (cmd == "screenshot")
 	{
 		CommandScreenshot(rParams, rResult);
+		return true;
+	}
+	if (cmd == "resize")
+	{
+		CommandResize(rParams, rResult);
+		return true;
+	}
+	if (cmd == "fullscreen")
+	{
+		CommandFullscreen(rParams, rResult);
+		return true;
+	}
+	if (cmd == "window_state")
+	{
+		CommandWindowState(rParams, rResult);
 		return true;
 	}
 	if (cmd == "dump_render_target")

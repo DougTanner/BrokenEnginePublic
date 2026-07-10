@@ -87,9 +87,10 @@ void ServerSessionBase::SendNewSubscriptionFullStates()
 		}
 	}
 
-	// Persist-until-served: Server::Poll leaves this queue intact, so clear it here once serviced. A
-	// subscribe accepted while the server is paused (iFullTicks == 0) stays queued across polls until this
-	// post-tick consumer runs and sends its full state.
+	// Persist-until-served: Server::Poll leaves this queue intact, so clear it here once serviced. A subscribe
+	// accepted while the server is paused (iFullTicks == 0) stays queued across polls until it is serviced —
+	// either by the next tick's BroadcastTick or, while still paused, by game ServerSession::ServicePausedNetwork
+	// (called from GameBase::ServerUpdate on zero-tick updates) — and its full state is sent.
 	rNewSubs.clear();
 }
 
