@@ -231,9 +231,18 @@ void ImGuiTestEngineHook_ItemAdd(ImGuiContext* ctx, ImGuiID id, const ImRect& bb
 	engine::gpAgentUiRegistry->HookItemAdd(id, XMFLOAT4(bb.Min.x, bb.Min.y, bb.Max.x, bb.Max.y), pcWindow, bDisabled);
 }
 
-void ImGuiTestEngineHook_ItemInfo([[maybe_unused]] ImGuiContext* ctx, ImGuiID id, const char* label, ImGuiItemStatusFlags flags)
+void ImGuiTestEngineHook_ItemInfo(ImGuiContext* ctx, ImGuiID id, const char* label, ImGuiItemStatusFlags flags)
 {
 	if (engine::gpAgentUiRegistry == nullptr)
+	{
+		return;
+	}
+	// Begin() self-registers each window (ITEM_ADD + ITEM_INFO with the window name, imgui.cpp:7764-7765) with flags that
+	// never include ImGuiItemStatusFlags_Visible (only widget ItemAdd sets it) — recording that label would make on-screen
+	// windows read visible:false in describe_ui and window-name clicks fail kClipped; window names stay queryable via the
+	// windows snapshot. The window pseudo-item keeps an empty label, so it is filtered from describe_ui items and unresolvable
+	// by label (kNotFound) — intended.
+	if (ctx->CurrentWindow != nullptr && id == ctx->CurrentWindow->ID)
 	{
 		return;
 	}

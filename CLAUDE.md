@@ -20,33 +20,34 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 
 Fable is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down.
 
-- Code/Web search: Haiku — must never summarize; return direct quotes, file:line references, or links for the main context to analyze
-- Builds: Haiku — invoke `/compile`; return status + error/warning lines verbatim
-- Large-file/log filtering: Haiku — return matching lines verbatim
+- Code/Web search: Sonnet — must never summarize; return direct quotes, file:line references, or links for the main context to analyze
+- Builds: Sonnet — invoke `/compile`; return status + error/warning lines verbatim
+- Large-file/log filtering: Sonnet — return matching lines verbatim
 - Planning: Fable
 - New Code: Opus
 - Code edits: Sonnet
 - Style review: Sonnet
 - Documentation: Opus
-- Code/session review: paired Fable + Opus (step 4: /repo-code-review + /adversarial-review; step 9: two /session-audit); step-9 fix re-review: Opus
+- Code/session review: paired Fable + Opus (step 4: /repo-code-review + /adversarial-review; step 10: two /session-audit); step-10 fix re-review: Opus
 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 
 Exception for one-line changes: Make the edit yourself, then do step 3
-Each subagent reports files changed + functions/regions touched (one line each), ending with residuals — incomplete items, skipped fixes, findings not acted on — or "none"; main session accumulates and passes to all later steps (subagents can't see other subagents' session), and re-dispatches residuals or routes them to step 10, never drops them silently. The residuals footer is appended after any skill-defined output format and takes precedence over a skill's "output only the template" phrasing.
+Each subagent reports files changed + functions/regions touched (one line each), ending with residuals — incomplete items, skipped fixes, findings not acted on — or "none"; main session accumulates and passes to all later steps (subagents can't see other subagents' session), and re-dispatches residuals or routes them to step 11, never drops them silently. The residuals footer is appended after any skill-defined output format and takes precedence over a skill's "output only the template" phrasing.
 
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 	- Plans MAY include a Verification section of agent-harness steps (launch, drive, query, screenshot — see the agent-harness skill); optional, so trivial refactors don't gold-plate
 1. Invoke /external-grill-plan to interview the user about the plan. **When the user has responded to the grill, DO NOT stop or summarize — immediately continue to step 2 in the same turn.**
-2. Have Opus subagents make the code changes from the planning document, for large plans split across multiple Opus subagents with disjoint file sets. If mid-implementation the plan contradicts actual code (wrong structural assumption, step can't work as written), stop that item and report it as a residual — subagents never improvise past the contradiction. After the code is written the subagent's session then invokes /external-self-audit; main session passes its handed-off items to the step 4 and step 9 reviewers as focus areas; sweep-exhaustiveness items also go to step 3
+2. Have Opus subagents make the code changes from the planning document, for large plans split across multiple Opus subagents with disjoint file sets. If mid-implementation the plan contradicts actual code (wrong structural assumption, step can't work as written), stop that item and report it as a residual — subagents never improvise past the contradiction. After the code is written the subagent's session then invokes /external-self-audit; main session passes its handed-off items to the step 4 and step 10 reviewers as focus areas; sweep-exhaustiveness items also go to step 3
 3. Use a Sonnet subagent to invoke the /update-affected-code skill — pass the changed-file list, touched functions/regions, the plan document (or intent summary), and the step 2 sweep-exhaustiveness handoffs
-4. Two concurrent reviewers on the same inputs (changed files, touched regions, plan, accumulated residuals/focus areas): a Fable subagent invokes the /repo-code-review skill; an Opus subagent invokes the /adversarial-review skill — independent contexts are the point. Main session merges and dedupes both finding sets (agreement is strong signal; disagreements judged on evidence, never on which model reported it), resolves API-verification requests via Haiku WebFetch subagents, evaluates validity, queries the user if unsure, then dispatches accepted fixes to an Opus subagent. If review flags any files for `/reduce-file`, route them through step 10. If shader files changed this session, another Opus subagent invokes the /glsl-review skill concurrently; its findings route identically
+4. Two concurrent reviewers on the same inputs (changed files, touched regions, plan, accumulated residuals/focus areas): a Fable subagent invokes the /repo-code-review skill; an Opus subagent invokes the /adversarial-review skill — independent contexts are the point. Main session merges and dedupes both finding sets (agreement is strong signal; disagreements judged on evidence, never on which model reported it), resolves API-verification requests via Sonnet WebFetch subagents, evaluates validity, queries the user if unsure, then dispatches accepted fixes to an Opus subagent. If review flags any files for `/reduce-file`, route them through step 11. If shader files changed this session, another Opus subagent invokes the /glsl-review skill concurrently; its findings route identically
 5. Use a Sonnet subagent to invoke the /code-style-review skill
 6. Use an Opus subagent to invoke the /update-claude-docs skill — and the /update-architecture-diagrams skill if its trigger applies
 7. A Sonnet subagent invokes the /update-vcxproj skill (verify mode, fixing FAILs in place via add mode) on all files changed this session — reports pass/fixed/NOTE per file. This step owns vcxproj membership/filter mechanics
-8. A Haiku subagent invokes the /compile skill. On errors: Opus subagent fixes
-9. After all previous steps complete, per logical file group (per subsystem or per plan-step slice, code separate from docs) two concurrent subagents — one Fable, one Opus — each invoke the /session-audit skill on identical inputs. /session-audit reports findings only; main session dedupes both sets, then dispatches new Opus subagents to validate then fix accepted findings (structural issues → step 10). After fixes land: a Haiku subagent runs the /compile selective build on fixed .cpp files, and one Opus subagent re-reviews only the fixed regions against the accepted findings — one pass, no second cycle; anything still open routes to step 10
-10. For problems and residuals from any step that weren't auto-fixed (architectural decisions, larger issues out-of-scope of the current plan), have an Opus subagent create plan files in `Documents/Plans/`
+8. A Sonnet subagent invokes the /compile skill. On errors: Opus subagent fixes
+9. Whenever the change has an observable runtime surface, a Sonnet subagent invokes the /agent-harness skill to verify it live: run the plan's Verification section if present, else derive minimal launch/drive/query checks from the plan's acceptance criteria; report PASS/FAIL per criterion with evidence lines verbatim. Skip only when nothing is runtime-observable (docs/comment-only changes). FAILs: Opus subagent diagnoses per Diagnosis Discipline before any fix
+10. After all previous steps complete, per logical file group (per subsystem or per plan-step slice, code separate from docs) two concurrent subagents — one Fable, one Opus — each invoke the /session-audit skill on identical inputs. /session-audit reports findings only; main session dedupes both sets, then dispatches new Opus subagents to validate then fix accepted findings (structural issues → step 11). After fixes land: a Sonnet subagent runs the /compile selective build on fixed .cpp files, and one Opus subagent re-reviews only the fixed regions against the accepted findings — one pass, no second cycle; anything still open routes to step 11
+11. For problems and residuals from any step that weren't auto-fixed (architectural decisions, larger issues out-of-scope of the current plan), have an Opus subagent create plan files in `Documents/Plans/`
 
 ## Resolving Ambiguity
 
@@ -61,7 +62,7 @@ Each subagent reports files changed + functions/regions touched (one line each),
 - **Error handling at trust boundaries only**: assume function parameters from within the codebase are valid — no defensive validation between our own functions. Do validate anything opaque to the current code unit: network input, file reads, OS/third-party API results.
 - **No useless ASSERTs**: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it; prefer making the condition impossible in calling code or recovering gracefully. Resolution ladder: repo-code-review skill §2c.
 - Do not add unit tests
-- **Don't touch unrelated code**: only modify files, functions, and lines directly tied to the current task. Do not refactor, rename, reformat, or restyle adjacent code. Surface incidental findings — mention trivial observations in chat; for bugs or other important issues, route through C++ Code Change Process step 10 (a follow-up plan in `Documents/Plans/`). Remove only imports/usings/variables that *your* edits made unused.
+- **Don't touch unrelated code**: only modify files, functions, and lines directly tied to the current task. Do not refactor, rename, reformat, or restyle adjacent code. Surface incidental findings — mention trivial observations in chat; for bugs or other important issues, route through C++ Code Change Process step 11 (a follow-up plan in `Documents/Plans/`). Remove only imports/usings/variables that *your* edits made unused.
 - **Response style**: Stay concise — no pleasantries, hedging, or restating the request. But when the user (or output style) asks for explanation, provide the information fully. Concise ≠ omitting requested content. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
 
 ## Directory Structure

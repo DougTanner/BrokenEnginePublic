@@ -54,7 +54,7 @@ Server:
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandboxServer.sln" /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
-**AgentCli** (standalone harness driver — `AgentCli.exe`; rebuild only when its sources change). Debug default; Release available. Separate solution, so no DataPacker pre-build:
+**AgentCli** (standalone harness driver — config-suffixed output: `AgentCli.Debug.exe` / `AgentCli.exe` (Release); rebuild only when its sources change). Debug default. Separate solution, so no DataPacker pre-build:
 ```bash
 # run_in_background: true
 bash "$ROOT/.claude/msbuild.sh" "$ROOT/Tools/AgentCli/Platforms/VisualStudio2026/AgentCli.sln" /p:Configuration=Debug /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal

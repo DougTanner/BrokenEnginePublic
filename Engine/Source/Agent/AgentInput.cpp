@@ -140,6 +140,17 @@ bool AgentInput::StabilizeTarget()
 	{
 		mbResolvedDisabled = rItem.bDisabled;
 		miResolvedStatusFlags = rItem.iStatusFlags;
+		// ImGuiItemStatusFlags_Visible is set only inside ItemAdd when the rect overlaps the clip rect (imgui.cpp:11292).
+		// Checkbox/menu-item-class widgets emit ITEM_INFO on their clipped early-return too (e.g. Checkbox imgui_widgets.cpp:1247)
+		// with StatusFlags lacking Visible — that is how a clipped item is label-resolvable yet reads not-visible. Widgets that
+		// emit no clipped-path ITEM_INFO (sliders/drags/buttons/InvisibleButton) never gain a registry label when clipped and
+		// resolve as kNotFound instead — except a nav-focused/active clipped widget, which bypasses ItemAdd's clip early-return
+		// (imgui.cpp:11251) and still lands here without the Visible bit. This one site covers kClick, kHover, kSetSlider.
+		if ((miResolvedStatusFlags & ImGuiItemStatusFlags_Visible) == 0)
+		{
+			Finish(AgentScriptStatus::kClipped);
+			return false;
+		}
 		return true;
 	}
 	return false;
@@ -253,6 +264,8 @@ void AgentInput::AdvanceFrame()
 				if (pIo != nullptr)
 				{
 					pIo->AddMouseButtonEvent(0, false);
+					// Release Ctrl with the mouse-up: held into phase 3 it trips InputText's ignore_char_inputs, dropping typed chars.
+					pIo->AddKeyEvent(ImGuiMod_Ctrl, false);
 				}
 				miPhase = 3;
 				return;
@@ -283,7 +296,6 @@ void AgentInput::AdvanceFrame()
 				if (pIo != nullptr)
 				{
 					pIo->AddKeyEvent(ImGuiKey_Enter, false);
-					pIo->AddKeyEvent(ImGuiMod_Ctrl, false);
 				}
 				miPhase = 6;
 				miPhaseFrame = 0;

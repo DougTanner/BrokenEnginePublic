@@ -169,6 +169,7 @@ nlohmann::json BuildDescribeUi()
 				{"checked", (rItem.iStatusFlags & ImGuiItemStatusFlags_Checked) != 0},
 				{"inputable", (rItem.iStatusFlags & ImGuiItemStatusFlags_Inputable) != 0},
 				{"hovered", (rItem.iStatusFlags & ImGuiItemStatusFlags_HoveredRect) != 0},
+				{"visible", (rItem.iStatusFlags & ImGuiItemStatusFlags_Visible) != 0},
 			});
 		}
 	}
@@ -325,6 +326,10 @@ void BeginScriptAndDefer(const engine::AgentScript& rScript, bool bDescribeUiAft
 		if (eStatus == engine::AgentScriptStatus::kNotInputable)
 		{
 			throw std::runtime_error("target is not inputable");
+		}
+		if (eStatus == engine::AgentScriptStatus::kClipped)
+		{
+			throw std::runtime_error("target not visible (scrolled out of view)");
 		}
 
 		nlohmann::json result;

@@ -9,6 +9,8 @@ static std::mutex sMutex;
 
 std::recursive_mutex gDbgHelpMutex;
 
+thread_local int64_t giExpectedThrowDepth = 0;
+
 void ConfigureThreadFloatingPoint()
 {
 	// Flush denormals for deterministic FP math across all threads
@@ -117,6 +119,12 @@ void SetupExceptionHandling()
 				case STATUS_HEAP_CORRUPTION:
 				case 0xE06D7363: // Microsoft C++ SEH Exception
 				{
+					// Expected-throw region: a designed error path (e.g. agent command validation) throws to reach its catch — skip crash diagnostics for the C++ throw only.
+					if (uiExceptionCode == 0xE06D7363 && giExpectedThrowDepth > 0)
+					{
+						return EXCEPTION_CONTINUE_SEARCH;
+					}
+
 					char pcHex[20] {};
 					LOG(kDefault, kError, "Vectored exception: {}", ToHex(std::span(pcHex), uiExceptionCode));
 

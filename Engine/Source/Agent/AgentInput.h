@@ -37,6 +37,7 @@ enum class AgentScriptStatus : uint8_t
 	kNotFound,
 	kAmbiguous,
 	kNotInputable, // set_slider target resolved but lacks ImGuiItemStatusFlags_Inputable (e.g. a Button)
+	kClipped, // target resolved but lacks ImGuiItemStatusFlags_Visible (scroll-clipped out of view)
 };
 
 // Immutable configuration a command hands to BeginScript(). Fixed-size (no heap); string params are bounded buffers.

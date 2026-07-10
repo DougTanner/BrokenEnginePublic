@@ -2,7 +2,7 @@
 name: session-audit
 description: >-
   Final fresh-eyes audit of a logical group of files changed this session (C++
-  Code Change Process step 9) — whole-file coherence, cross-file integration,
+  Code Change Process step 10) — whole-file coherence, cross-file integration,
   and the concrete failure modes earlier steps structurally miss
   (fix-introduced desync, half-applied mirrored edits, doc/code drift from late
   renames, edits no reviewer ever saw). Invoke after all fix/review/build steps
@@ -39,7 +39,7 @@ Earlier steps each see a slice; these surface only when reading the finished who
 
 ## Output
 
-Per finding: `path:line`, failure-mode number, one-line description, fix size (**small** — dispatchable now | **structural** — route to a step 10 plan).
+Per finding: `path:line`, failure-mode number, one-line description, fix size (**small** — dispatchable now | **structural** — route to a step 11 plan).
 
 Example:
 > `Projects/BrokenEngineSandbox/Source/Frame/Blasters.cpp:212` — mode 2 — `Spawn()` initializes the new `mChargeTime` member but `Transfer()` does not copy it, so cross-cell transfer leaves it stale — **small**

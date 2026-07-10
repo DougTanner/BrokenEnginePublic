@@ -70,7 +70,7 @@ Skip the gate for: bug fixes, refactors, tuning passes, content-only changes, en
 
 Steps:
 1. Form a one-sentence statement of the capability being built (e.g., "polygon offsetting", "navmesh generation from triangle soup", "Reed-Solomon erasure coding").
-2. Identify 1–3 candidate libraries that already implement this with a commercial-friendly license (MIT, BSD, Zlib, Apache-2.0, Boost, MPL-2.0). Reject GPL / AGPL / LGPL-static / "non-commercial" / "source-available". Delegate the WebSearch legwork to Haiku subagents returning links and quoted facts (license, last release, platform support) — never summaries.
+2. Identify 1–3 candidate libraries that already implement this with a commercial-friendly license (MIT, BSD, Zlib, Apache-2.0, Boost, MPL-2.0). Reject GPL / AGPL / LGPL-static / "non-commercial" / "source-available". Delegate the WebSearch legwork to Sonnet subagents returning links and quoted facts (license, last release, platform support) — never summaries.
 3. For each candidate, note in one line: license, maturity (last release / active commits), C++ compatibility (header-only? C++23 clean? Windows MSVC builds?), and integration cost vs. the plan's hand-rolled scope.
 4. Check `ThirdParty/` and `ThirdParty/Prebuilts/` — we may already vendor a library that covers this.
 5. **Present the candidates to the user with a recommendation** before grilling implementation details:

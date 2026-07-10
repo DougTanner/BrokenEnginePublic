@@ -232,6 +232,7 @@ void AgentCommandServer::Drain()
 
 		try
 		{
+			common::ScopedExpectedThrows scopedExpectedThrows; // validation throws here are a designed error path — keep them off the VEH crash-diagnostic walk
 			std::optional<nlohmann::json> result = mDeferredPoll();
 			if (!result.has_value())
 			{
@@ -287,6 +288,7 @@ void AgentCommandServer::Drain()
 		mbResponseDeferred = false;
 		try
 		{
+			common::ScopedExpectedThrows scopedExpectedThrows; // validation throws here are a designed error path — keep them off the VEH crash-diagnostic walk
 			nlohmann::json result;
 			game::ExecuteAgentCommand(cmd, rParams, result);
 			if (mbResponseDeferred)

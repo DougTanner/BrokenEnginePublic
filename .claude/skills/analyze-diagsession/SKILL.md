@@ -13,9 +13,8 @@ Deliverable: a hotspot report (per-process shares, interpreted) and plan files i
 Deterministic work goes to scripts/tools, judgment goes to models — per root CLAUDE.md model roles:
 
 - **Deterministic scripts (no subagent)**: extraction, xperf invocations, share computation (`scripts/profile_shares.py`), PDB GUID checks, grepping profile text. Never ask a subagent to parse or summarize what a script parses exactly.
-- **Haiku subagents**: code searches to gather context for hotspot functions — must return verbatim quotes + file:line, never summarize; fan out one agent per hotspot cluster in a single message. Also any build verification via `/compile`.
+- **Sonnet subagents**: code searches to gather context for hotspot functions — must return verbatim quotes + file:line, never summarize; fan out one agent per hotspot cluster in a single message. Also any build verification via `/compile`.
 - **Opus subagent**: writes the plan files + `Order.md` rows (step 6) — new-content authoring role.
-- **Sonnet**: not normally needed here (no code edits in this skill's scope).
 - **Main session (Opus)**: interprets the numbers against §5's rubric, decides which hotspots become plans, writes the user-facing report.
 
 ## 1. Extract
@@ -79,7 +78,7 @@ Judge by share of the process's own total (§4), after clustering sibling leaves
 
 ## 6. Gather code context
 
-For each top hotspot cluster (skip OS/driver/CRT), fan out Haiku search agents in one message: full function bodies, call sites with enclosing loop headers, container/comparator types behind `std::` template hits. Verbatim quotes + file:line only.
+For each top hotspot cluster (skip OS/driver/CRT), fan out Sonnet search agents in one message: full function bodies, call sites with enclosing loop headers, container/comparator types behind `std::` template hits. Verbatim quotes + file:line only.
 
 ## 7. Report, then plans
 

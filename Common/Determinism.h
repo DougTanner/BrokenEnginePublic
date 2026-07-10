@@ -45,4 +45,30 @@ void SetupExceptionHandling();
 // inside DbgHelp during a walk re-enters instead of deadlocking.
 extern std::recursive_mutex gDbgHelpMutex;
 
+// Expected-throw region depth for this thread. While nonzero, the vectored exception handler treats C++ throws
+// (0xE06D7363) as an expected, designed error path — it skips the stack walk / DEBUG_BREAK() and lets the throw
+// propagate to its catch. Other exception codes (access violation, heap corruption, etc.) are unaffected: they
+// still get the full callstack even inside such a region. Increment/decrement only via ScopedExpectedThrows.
+extern thread_local int64_t giExpectedThrowDepth;
+
+// RAII guard entering an expected-throw region on the current thread — ctor increments giExpectedThrowDepth, dtor
+// decrements. Non-copyable/non-movable (scope-bound; a moved-out copy would double-decrement).
+struct ScopedExpectedThrows
+{
+	ScopedExpectedThrows()
+	{
+		++giExpectedThrowDepth;
+	}
+
+	~ScopedExpectedThrows()
+	{
+		--giExpectedThrowDepth;
+	}
+
+	ScopedExpectedThrows(const ScopedExpectedThrows&) = delete;
+	ScopedExpectedThrows& operator=(const ScopedExpectedThrows&) = delete;
+	ScopedExpectedThrows(ScopedExpectedThrows&&) = delete;
+	ScopedExpectedThrows& operator=(ScopedExpectedThrows&&) = delete;
+};
+
 } // namespace common
