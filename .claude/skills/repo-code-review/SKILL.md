@@ -130,7 +130,7 @@ If `common::ValidateVector<IS_POSITION>()` was added, removed, or moved, verify 
 
 ### 4. Flag Guard-Affinity Changes
 
-vcxproj membership/filter mechanics belong to the `update-vcxproj` skill (process step 7) — never grep the project XML here. This review owns affinity only:
+vcxproj membership/filter mechanics belong to the `update-vcxproj` skill (process step 8) — never grep the project XML here. This review owns affinity only:
 
 - Flag the required affinity (client-only / server-only) of any file created this session that is fully wrapped in `#if defined(BT_CLIENT)` / `BT_SERVER`, and any existing file that gained or lost a file-wide guard (its membership must change).
 - Exception: guardless engine files may be client-only by design via client-vcxproj membership + the `Engine.h` BT_CLIENT aggregation span (root `AGENTS.md` → Client/Server Targets) — check before flagging.

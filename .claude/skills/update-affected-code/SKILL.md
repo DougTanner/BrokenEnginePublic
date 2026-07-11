@@ -4,7 +4,7 @@ description: >-
   Propagates this session's C++ changes to every affected location the
   implementation didn't touch — call sites of changed signatures or semantics,
   mirrored client/server or per-collection patterns that must stay in sync, and
-  stale references in comments or shared C++/GLSL headers. Step 3 of the
+  stale references in comments or shared C++/GLSL headers. Step 4 of the
   AGENTS.md C++ Code Change Process; invoke after implementation and its
   self-audit, passing the changed-file list, touched functions/regions, and any
   sweep-exhaustiveness handoffs. Search-and-update only — no refactoring, no
@@ -26,7 +26,7 @@ Propagate the session's changes outward: find every location whose correctness d
 
 For each changed symbol or behavior, Grep the repo (excluding `ThirdParty/`):
 
-1. **Signature/identity changes** — renamed or re-parameterized functions, changed enum values, struct layout changes: find every user. The step 8 build catches most, but fix them now, and catch what the compiler can't — LOG/format strings, string-matched names, data tables keyed by name.
+1. **Signature/identity changes** — renamed or re-parameterized functions, changed enum values, struct layout changes: find every user. The step 9 build catches most, but fix them now, and catch what the compiler can't — LOG/format strings, string-matched names, data tables keyed by name.
 2. **Semantic changes** — changed units, ranges, coordinate conventions, defaults: callers that still compile but embed the old assumption.
 3. **Mirrored patterns** — client/server sibling functions, per-collection boilerplate (AllocateAndCopy / LogDifferences / Spawn / Transfer), parallel switch statements or tables enumerating the same set: if the change touched one instance of a mirror, verify each counterpart and update it where the plan's intent clearly requires the same edit.
 4. **Stale references** — comments, LOG text, and dual-language shader/C++ headers naming a changed symbol or describing changed behavior.

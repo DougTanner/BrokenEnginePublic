@@ -15,20 +15,12 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 
 - Main session is manager: delegate aggressively to keep the context small, except trivial edits
 - Subagent instructions: CONCISE but COMPLETE — objective, scope, file paths, output format. Provide them only with the instructions and context they need.
-- One top-level agent session owns one worktree for its full plan lifecycle. Every subagent works in that same checkout; subagents never create nested or sibling worktrees.
-
-### Session worktree lifecycle
-
-- If the top-level session already runs in an orchestrator-managed worktree, adopt it and record its resolved path, branch, and session-start commit; do not create another. Otherwise create one unique session branch/worktree from the branch and HEAD currently checked out by the primary non-worktree checkout. Never hard-code `main` or a release branch. The recorded session-start commit is the fixed changed-file baseline.
-- Agents may commit only their session changes, merge newer primary-branch commits into their own branch, resolve conflicts, reverify affected work, and land the verified commit. They never push, force-update, destructively reset, or mutate another session's branch/worktree.
-- Final landing is serialized by an atomically-created, PC-global lock at `%LOCALAPPDATA%\BrokenEngineLandingLocks\<repository-id>.lock`. Derive `<repository-id>` identically in every worktree: resolve `git rev-parse --git-common-dir` to a canonical absolute Windows path, convert `/` to `\`, remove trailing separators unless the path is a filesystem root, lowercase with invariant rules, hash its UTF-8 bytes with SHA-256, and use the 64-character lowercase hex digest. If the lock exists, read its owner metadata. Age is warning-only and never permits recovery; takeover requires explicit user approval, a re-read proving the owner token is unchanged, and an atomic owner replacement. While holding the lock: verify owner metadata and a clean primary checkout, merge any newer primary commits into the session branch, reconcile and reverify overlaps, then fast-forward the primary branch and verify the landed commit. The later lander owns reconciliation; release the lock only after verifying ownership.
-- Delete only the current session's clean worktree and merged branch after verifying their resolved identities and successful landing. Never force removal to bypass a failed check.
 
 ### When to use each model
 
 Note: If you are ChatGPT Codex, Fable -> Sol, Opus -> Terra, Sonnet -> Luna
 
-Fable is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down. IMPORTANT: If Fable is not available or Fable limit has been reached, use Opus instead.
+Fable is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down. IMPORTANT: If Fable is unavailable or its limit has been reached, Claude Code uses /codex-review for delegated reviewer/auditor roles, then Opus if Codex is also unavailable; other Fable roles fall back directly to Opus. Codex uses Opus (Terra).
 
 - Code/Web search: Sonnet — must never summarize; return direct quotes, file:line references, or links for the main context to analyze
 - Builds: Sonnet — invoke `/compile`; return status + error/warning lines verbatim
@@ -38,26 +30,28 @@ Fable is the top tier for judgment roles (manager/planner/reviewer); don't move 
 - Code edits: Sonnet
 - Style review: Sonnet
 - Documentation: Opus
-- Code/session review: paired Fable + Opus (step 4: /repo-code-review + /adversarial-review; step 10: two /session-audit); step-10 fix re-review: Opus
+- Code/session review: paired Fable + Opus (step 5: /repo-code-review + /adversarial-review; step 11: two /session-audit); step-11 fix re-review: Opus
 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 
-Exception for one-line changes: Make the edit yourself, then do step 3
-Each subagent reports files changed + functions/regions touched (one line each), ending with residuals — incomplete items, skipped fixes, findings not acted on — or "none"; main session accumulates and passes to all later steps (subagents can't see other subagents' session), and re-dispatches residuals or routes them to step 11, never drops them silently. The residuals footer is appended after any skill-defined output format and takes precedence over a skill's "output only the template" phrasing.
+Exception for one-line changes: Make the edit yourself, then do step 4
+Each subagent reports files changed + functions/regions touched (one line each), ending with residuals — incomplete items, skipped fixes, findings not acted on — or "none"; main session accumulates and passes to all later steps (subagents can't see other subagents' session), and re-dispatches residuals or routes them to step 12, never drops them silently. The residuals footer is appended after any skill-defined output format and takes precedence over a skill's "output only the template" phrasing.
 
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 	- Plans MAY include a Verification section of agent-harness steps (launch, drive, query, screenshot — see the agent-harness skill); optional, so trivial refactors don't gold-plate
-1. Invoke /external-grill-plan to interview the user about the plan. **When the user has responded to the grill, DO NOT stop or summarize — immediately continue to step 2 in the same turn.**
-2. Have Opus subagents make the code changes from the planning document, for large plans split across multiple Opus subagents with disjoint file sets. If mid-implementation the plan contradicts actual code (wrong structural assumption, step can't work as written), stop that item and report it as a residual — subagents never improvise past the contradiction. After the code is written the subagent's session then invokes /external-self-audit; main session passes its handed-off items to the step 4 and step 10 reviewers as focus areas; sweep-exhaustiveness items also go to step 3
-3. Use a Sonnet subagent to invoke the /update-affected-code skill — pass the changed-file list, touched functions/regions, the plan document (or intent summary), and the step 2 sweep-exhaustiveness handoffs
-4. Two concurrent reviewers on the same inputs (changed files, touched regions, plan, accumulated residuals/focus areas): a Fable subagent invokes the /repo-code-review skill; an Opus subagent invokes the /adversarial-review skill — independent contexts are the point. Main session merges and dedupes both finding sets (agreement is strong signal; disagreements judged on evidence, never on which model reported it), resolves API-verification requests via Sonnet WebFetch subagents, evaluates validity, queries the user if unsure, then dispatches accepted fixes to an Opus subagent. If review flags any files for `/reduce-file`, route them through step 11. If shader files changed this session, another Opus subagent invokes the /glsl-review skill concurrently; its findings route identically
-5. Use a Sonnet subagent to invoke the /code-style-review skill
-6. Use an Opus subagent to invoke the /update-claude-docs skill — and the /update-architecture-diagrams skill if its trigger applies
-7. A Sonnet subagent invokes the /update-vcxproj skill (verify mode, fixing FAILs in place via add mode) on all files changed this session — reports pass/fixed/NOTE per file. This step owns vcxproj membership/filter mechanics
-8. A Sonnet subagent invokes the /compile skill. On errors: Opus subagent fixes
-9. Whenever the change has an observable runtime surface, an Opus subagent invokes the /agent-harness skill to verify it live: run the plan's Verification section if present, else derive minimal launch/drive/query checks from the plan's acceptance criteria; report PASS/FAIL per criterion with evidence lines verbatim. Skip only when nothing is runtime-observable (docs/comment-only changes). FAILs: Opus subagent diagnoses per Diagnosis Discipline before any fix
-10. After all previous steps complete, per logical file group (per subsystem or per plan-step slice, code separate from docs) two concurrent subagents — one Fable, one Opus — each invoke the /session-audit skill on identical inputs. /session-audit reports findings only; main session dedupes both sets, then dispatches new Opus subagents to validate then fix accepted findings (structural issues → step 11). After fixes land: a Sonnet subagent runs the /compile selective build on fixed .cpp files, and one Opus subagent re-reviews only the fixed regions against the accepted findings — one pass, no second cycle; anything still open routes to step 11
-11. For problems and residuals from any step that weren't auto-fixed (architectural decisions, larger issues out-of-scope of the current plan), have an Opus subagent create plan files in `Documents/Plans/`
+1. Have one Fable subagent invoke /plan-audit on the plan file. The audit is findings-only; the main session validates its findings and carries accepted flaws and improvements into step 2.
+2. Invoke /external-grill-plan to interview the user about the plan and the accepted audit findings. **When the user has responded to the grill, DO NOT stop or summarize — immediately continue to step 3 in the same turn.**
+3. Have Opus subagents make the code changes from the planning document, for large plans split across multiple Opus subagents with disjoint file sets. If mid-implementation the plan contradicts actual code (wrong structural assumption, step can't work as written), stop that item and report it as a residual — subagents never improvise past the contradiction. After the code is written the subagent's session then invokes /external-self-audit; main session passes its handed-off items to the step 5 and step 11 reviewers as focus areas; sweep-exhaustiveness items also go to step 4
+4. Use a Sonnet subagent to invoke the /update-affected-code skill — pass the changed-file list, touched functions/regions, the plan document (or intent summary), and the step 3 sweep-exhaustiveness handoffs
+5. Two concurrent reviewers on the same inputs (changed files, touched regions, plan, accumulated residuals/focus areas): a Fable subagent invokes the /repo-code-review skill; an Opus subagent invokes the /adversarial-review skill — independent contexts are the point. Main session merges and dedupes both finding sets (agreement is strong signal; disagreements judged on evidence, never on which model reported it), resolves API-verification requests via Sonnet WebFetch subagents, evaluates validity, queries the user if unsure, then dispatches accepted fixes to an Opus subagent. If review flags any files for `/reduce-file`, route them through step 12. If shader files changed this session, another Opus subagent invokes the /glsl-review skill concurrently; its findings route identically
+6. Use a Sonnet subagent to invoke the /code-style-review skill
+7. Use an Opus subagent to invoke the /update-claude-docs skill — and the /update-architecture-diagrams skill if its trigger applies
+8. A Sonnet subagent invokes the /update-vcxproj skill (verify mode, fixing FAILs in place via add mode) on all files changed this session — reports pass/fixed/NOTE per file. This step owns vcxproj membership/filter mechanics
+9. A Sonnet subagent invokes the /compile skill. On errors: Opus subagent fixes
+10. Whenever the change has an observable runtime surface, an Opus subagent invokes the /agent-harness skill to verify it live: run the plan's Verification section if present, else derive minimal launch/drive/query checks from the plan's acceptance criteria; report PASS/FAIL per criterion with evidence lines verbatim. Skip only when nothing is runtime-observable (docs/comment-only changes). FAILs: Opus subagent diagnoses per Diagnosis Discipline before any fix
+11. After all previous steps complete, per logical file group (per subsystem or per plan-step slice, code separate from docs) two concurrent subagents — one Fable, one Opus — each invoke the /session-audit skill on identical inputs. /session-audit reports findings only; main session dedupes both sets, then dispatches new Opus subagents to validate then fix accepted findings (structural issues → step 12). After fixes land: a Sonnet subagent runs the /compile selective build on fixed .cpp files, and one Opus subagent re-reviews only the fixed regions against the accepted findings — one pass, no second cycle; anything still open routes to step 12
+12. For problems and residuals from any step that weren't auto-fixed (architectural decisions, larger issues out-of-scope of the current plan), have an Opus subagent create plan files in `Documents/Plans/`
+13. Invoke /finalize-changes.
 
 ## Resolving Ambiguity
 
@@ -67,13 +61,13 @@ Each subagent reports files changed + functions/regions touched (one line each),
 
 ## Directives
 - Follow KISS, YAGNI, DRY — before writing logic that may already exist, grep; call or extract a shared helper, never paste a copy. Exception: mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel
-- Outside the session worktree lifecycle above, use only read-only Git commands. Never push.
+- Before step 13, use only read-only Git commands outside an existing session worktree. Never push.
 - Claude Skills `.claude\skills` and AGENTS.md files are used only by AI agents and must be kept CONCISE
 - Each directory's agent memory lives in `AGENTS.md`; its sibling `CLAUDE.md` is a one-line `@AGENTS.md` import stub for Claude Code loading — edit `AGENTS.md`, never the stub
 - **Error handling at trust boundaries only**: assume function parameters from within the codebase are valid — no defensive validation between our own functions. Do validate anything opaque to the current code unit: network input, file reads, OS/third-party API results.
 - **No useless ASSERTs**: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it; prefer making the condition impossible in calling code or recovering gracefully. Resolution ladder: repo-code-review skill §2c.
 - Do not add unit tests
-- **Don't touch unrelated code**: only modify files, functions, and lines directly tied to the current task. Do not refactor, rename, reformat, or restyle adjacent code. Surface incidental findings — mention trivial observations in chat; for bugs or other important issues, route through C++ Code Change Process step 11 (a follow-up plan in `Documents/Plans/`). Remove only imports/usings/variables that *your* edits made unused.
+- **Don't touch unrelated code**: only modify files, functions, and lines directly tied to the current task. Do not refactor, rename, reformat, or restyle adjacent code. Surface incidental findings — mention trivial observations in chat; for bugs or other important issues, route through C++ Code Change Process step 12 (a follow-up plan in `Documents/Plans/`). Remove only imports/usings/variables that *your* edits made unused.
 - **Response style**: Stay concise — no pleasantries, hedging, or restating the request. Terse ≠ incomplete: cut the words around the facts, never the facts — when the user (or output style) asks for explanation, provide it fully. Never compress errors, irreversible-action confirmations, or order-sensitive step sequences. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
 
 ## Directory Structure

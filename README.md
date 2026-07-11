@@ -61,6 +61,7 @@ The suggested launch commands below bypass permission prompts and other safeguar
 	codex-worktree
 	```
 - `codex-worktree` creates branch `codex/<uuid>`, stores the worktree under `~/.codex/worktrees/<repository>/<uuid>`, and launches Codex with `--dangerously-bypass-approvals-and-sandbox`.
+- **Fable-unavailable fallback (Claude Code → Codex/Sol):** per the global model-fallback rule in `AGENTS.md`, when Fable is unavailable or over limit Claude Code runs delegated reviewer/auditor roles on Codex/Sol headless via `codex exec` — helper `.codex/codex-review.ps1`, driven by the `/codex-review` skill — instead of Fable, falling back to Opus if Codex is also unavailable. Codex bills the ChatGPT subscription, not metered API credits. Claude Code only: under the Fable→Sol mapping Codex is already Sol, so Codex never calls this.
 
 ## Compile
 
