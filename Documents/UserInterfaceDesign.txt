@@ -44,22 +44,29 @@ Scale is applied in three stacked, non-overlapping layers:
     at their use site.
   - The user's Font Size preference (gUiFontScale) stacks on top exactly once.
 
+Noto Sans SC Light is the single default ImGui font. Its Latin and CJK glyphs
+therefore share one weight, measurement path, and dynamic-size stack across
+every language.
+
 Documented exception: TweaksScreen is a denser debug tool and deliberately
 uses its own kfUiScale = 1.5, pushing the font directly rather than through
 ScopedMenuFont. It is not a player screen and is not bound by this contract.
 
-Documented exception: the MainMenu language row renders its labels at a reduced
-font scale (kfMenuUiScale * 0.75f) — a deliberate visual-hierarchy choice that
-keeps the language list subordinate to the menu buttons above it. It is the one
-sanctioned font-scale multiplier outside ScopedMenuFont's default and MenuHeading.
+Documented exceptions: MainMenu uses kfMainMenuHeadingScale rather than the
+larger shared settings/pause heading scale, so its title leads without
+overwhelming the actions. Its language row uses kfLanguageMenuFontScale and
+kfLanguageMenuGeometryScale to keep both text and padding subordinate to the
+primary action tier. These are the sanctioned player-menu scale exceptions.
 
 Files:
-  Engine/Source/Graphics/Managers/ImGuiManager.h:71     inline constexpr float kfUiReferenceHeight = 2160.0f;
-  Engine/Source/Graphics/Managers/ImGuiManager.h:74     inline float UiScale()
-  Engine/Source/Graphics/Managers/ImGuiManager.cpp:229  rStyle.ScaleAllSizes(2.0f * fUiScale);
+  Engine/Source/Graphics/Managers/ImGuiManager.cpp         Noto Sans SC Light default font load
+  Engine/Source/Graphics/Managers/ImGuiManager.h:70     inline constexpr float kfUiReferenceHeight = 2160.0f;
+  Engine/Source/Graphics/Managers/ImGuiManager.h:73     inline float UiScale()
+  Engine/Source/Graphics/Managers/ImGuiManager.cpp:221  rStyle.ScaleAllSizes(2.0f * fUiScale);
   Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:7   inline constexpr float kfMenuUiScale = 2.0f;
   Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenBase.cpp:47  static constexpr float kfUiScale = 1.5f;  (sanctioned exception)
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/MainMenuScreen.cpp:138  ScopedMenuFont languageFont(kfMenuUiScale * 0.75f);  (sanctioned exception)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h
+    kfMainMenuHeadingScale, kfLanguageMenuFontScale, kfLanguageMenuGeometryScale
 
 
 3. Sizing Rules
@@ -80,7 +87,7 @@ visible cross-resolution inconsistency.
 
 Files:
   Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md:11-14  (the three-rule standard)
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:184  float MenuButtonsWidth(...)  (text-driven width precedent)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:182  float MenuButtonsWidth(...)  (text-driven width precedent)
   Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:189  float HudScreen::PanelWidth()
 
 
@@ -93,23 +100,27 @@ The block separates DisplaySize fractions (content-independent extents) from
 4K-authored pixel constants (multiplied by UiScale() at use).
 
 Files:
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:12-32
-    kfMainMenuAnchorFractionX = 0.11f, kfMainMenuAnchorFractionY = 0.35f
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:10-37
+    kfMainMenuCenterFractionX = 1/3, kfMainMenuCenterFractionY = 0.5
     kfHudEdgeMarginFraction = 0.05f, kfHudPanelTopFraction = 0.125f, kfHudPanelMaxHeightFraction = 0.75f
     kfGraphicsMaxHeightFraction = 0.9f
     kfModalWidthFraction = 0.35f, kfModalAnchorFractionY = 0.4f, kfSettingsPanelWidthFraction = 0.6f
     kfHeadingGapPixels = 22, kfSectionGapPixels = 65, kfScreenBottomMarginPixels = 44
     kfPrimaryButtonMinWidthPixels = 760, kfModalButtonMinWidthPixels = 380
+    kfMainMenuHeadingScale = 1.3, kfLanguageMenuFontScale = 1.0
+    kfLanguageMenuGeometryScale = 0.5
 
 
 5. Window Placement
 -------------------
-Settings, pause, and modal menus center themselves by asking ImGui to pivot,
+Main, settings, pause, and modal menus center themselves by asking ImGui to pivot,
 never by hand-computing (DisplaySize - width) / 2. Pass the screen center as
-SetNextWindowPos with pivot (0.5, 0.5). The one exception is MainMenu, a
-deliberately left-anchored column (its title composes over the live 3D scene),
-which anchors at (kfMainMenuAnchorFractionX, kfMainMenuAnchorFractionY). HUD
-panels edge-anchor via the named margin fractions.
+SetNextWindowPos with pivot (0.5, 0.5). MainMenu places the center of its
+auto-sized title/action group at (kfMainMenuCenterFractionX,
+kfMainMenuCenterFractionY): the first vertical-third x-line and the screen's
+vertical center. Its title and every action also share one measured content
+keyline. HUD panels
+edge-anchor via the named margin fractions.
 
 Modal and Sound both center via the pivot convention. Modal seats its pivot
 slightly above screen center at kfModalAnchorFractionY rather than 0.5.
@@ -128,7 +139,9 @@ use AlwaysAutoResize (or an auto axis) and let the window hug its widgets. When
 an auto-sized window needs a ceiling, cap it with SetNextWindowSizeConstraints
 rather than a fixed fraction. Fixed fractions are permitted only where content
 churn would otherwise jitter the layout frame-to-frame — the HUD panels, whose
-templated width is intentionally fixed — or as a text-wrap width (Modal).
+templated width is intentionally fixed, and the GraphicsMenuScreen two-column
+panel, whose stable width uses kfSettingsPanelWidthFraction — or as a text-wrap
+width (Modal).
 
 The HUD panels are the canonical "hug content" example: their height auto-sizes
 to the fleet member list, capped at kfHudPanelMaxHeightFraction of the screen
@@ -138,7 +151,7 @@ live height for symmetry rather than hugging its own smaller content.
 Files:
   Projects/BrokenEngineSandbox/Source/Ui/Screens/PauseMenuScreen.cpp:33  ImGuiWindowFlags_AlwaysAutoResize
   Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:223,224  (content-driven height, capped via SetNextWindowSizeConstraints)
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:22  kfHudPanelMaxHeightFraction (height cap)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:27  kfHudPanelMaxHeightFraction (height cap)
 
 
 7. Layout Primitives
@@ -167,25 +180,25 @@ helper; the minimum floors are the k*ButtonMinWidthPixels constants
 (kfPrimaryButtonMinWidthPixels, kfModalButtonMinWidthPixels).
 
 Files:
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:249  bool MenuButton(...)
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:184  float MenuButtonsWidth(std::initializer_list<std::u32string_view>)
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:31-32  kfPrimaryButtonMinWidthPixels, kfModalButtonMinWidthPixels
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:247  bool MenuButton(...)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:182  float MenuButtonsWidth(std::initializer_list<std::u32string_view>)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:36-37  kfPrimaryButtonMinWidthPixels, kfModalButtonMinWidthPixels
   Projects/BrokenEngineSandbox/Source/Ui/Screens/ModalScreen.cpp:43  MenuButton("OK", ...)  (themed button)
 
 
 9. Vertical Rhythm
 ------------------
-One heading helper owns menu/panel titles: MenuHeading pushes the heading font
-(kfMenuUiScale * kfMenuHeadingScale), emits the label, and follows it with a
-standard kfHeadingGapPixels gap — the single source of a title's font and the
-rhythm below it, shared by MainMenu, Pause, Graphics, and Sound. All gaps are
-named 4K-pixel constants times UiScale(); no screen emits
-Dummy(DisplaySize.y * <magic fraction>).
+One heading helper owns menu/panel titles: MenuHeading pushes the heading font,
+emits the label, and follows it with a standard kfHeadingGapPixels gap. Its
+default kfMenuHeadingScale preserves the shared Pause, Graphics, and Sound
+heading scale; MainMenu passes kfMainMenuHeadingScale to reduce title dominance
+without changing the other screens. All gaps are named 4K-pixel constants times
+UiScale(); no screen emits Dummy(DisplaySize.y * <magic fraction>).
 
 Files:
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:197  void MenuHeading(const char* pcLabel)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:195  void MenuHeading(const char* pcLabel, float fHeadingScale)
   Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:10  kfMenuHeadingScale = 1.6f
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:28-29  kfHeadingGapPixels, kfSectionGapPixels
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:33-34  kfHeadingGapPixels, kfSectionGapPixels
 
 
 10. Harness Addressability
@@ -212,6 +225,11 @@ window is visibly larger than its content, settings columns are balanced, every
 menu button is themed and uniform-width, and the describe_ui label set is
 unchanged.
 
+Judge each result against the standard of a coherent shipped screen, not only
+against whether it improved on the baseline. Explicitly inspect hierarchy,
+alignment, scale ratios, whitespace, and whether every visible element earns
+its space.
+
 Screen-specific commitments this contract makes, each verified visually:
   - HUD: left and right panels are symmetric — the right FocusedPlayer panel
     matches the left Fleet panel's live size rather than hugging its own
@@ -225,5 +243,24 @@ Screen-specific commitments this contract makes, each verified visually:
     Effects & UI settings right — balanced by row count, not arbitrary.
 
 Files:
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:23,166  ComputeMouseOpennessTarget (fixed-extent hover zone)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:23,175-176  ComputeMouseOpennessTarget (fixed-extent hover zone)
   Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md  (per-screen layout notes)
+
+
+12. Aesthetic Composition
+-------------------------
+Whitespace and proximity group related controls without requiring a container
+or divider around every group. The primary interaction tier receives the
+greatest scale and space; utility tiers are smaller and separated. Consistent
+keylines and a repeatable spacing rhythm make titles and controls read as one
+coherent block.
+
+Menus composed over a live scene float directly over it unless behavior or
+legibility demonstrates that a surface is necessary. Decorative chrome alone
+is not justification for a panel.
+
+These principles are informed by Microsoft Fluent Layout and Material Design's
+structure, metrics, and keyline guidance:
+  https://fluent2.microsoft.design/layout
+  https://m1.material.io/layout/structure.html
+  https://m1.material.io/layout/metrics-keylines.html

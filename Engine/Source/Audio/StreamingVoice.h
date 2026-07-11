@@ -55,7 +55,12 @@ public:
 	StreamingVoice& operator=(StreamingVoice&&) = delete;
 
 	float GetRemainingTime() const;
+	bool ShouldTransition() const;
 	void FillSlot(int64_t iSlot);
+	void FillReadyBuffers();
+	void DrainConsumedAndSubmitReady();
+	void BeginFadeOut();
+	void DetachXAudio2Voice();
 	bool UpdateVolume(float fDeltaTime);
 
 	// IVoiceNotify
@@ -68,6 +73,8 @@ public:
 	void GatherStatistics([[maybe_unused]] AudioStatistics& rStats) const override {}
 	void OnDestroyParent() noexcept override {}
 
+private:
+
 	StreamingVoiceFlags_t mFlags = StreamingVoiceFlags::kFadingIn;
 	const LazyChunk* mpLazyChunk = nullptr;
 	int64_t miCurrentPosition = 0;
@@ -75,7 +82,7 @@ public:
 	int64_t miNextSubmit = 0;
 	int64_t miNextConsume = 0;
 	bool mbStarted = false;
-	std::atomic<bool> mbFillFailed = false;
+	std::atomic<bool> mbFillDone = false;
 	std::atomic<int64_t> miBuffersConsumed = 0;
 	std::atomic<uint8_t> mSlotStates[kiBufferCount] {};
 	int64_t mSlotBytesRead[kiBufferCount] {};

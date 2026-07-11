@@ -32,8 +32,6 @@ public:
 
 	void SkipNextStaticVoiceInvalidation() { mStaticVoices.SkipNextInvalidation(); }
 
-	void ClearVoices();
-
 	void Suspend();
 	void Resume();
 
@@ -47,18 +45,22 @@ public:
 	void GatherStatistics([[maybe_unused]] AudioStatistics& rStats) const override {}
 	void OnDestroyParent() noexcept override;
 
+private:
+
+	std::wstring GetEndpointId(IMMDevice* pDevice);
+	void CreateAudioEngineForEndpoint(const std::wstring& rEndpointId);
+	std::wstring InitializeAudioEndpoint();
+	void InitializeAudioSubsystems(const std::wstring& rSelectedDeviceId);
+	void CacheMasteringVoiceChannels();
+	void ClearVoices(bool bNullVoicesBeforeDestroy);
+
 	common::Timer mRealTime;
-
 	std::unique_ptr<AudioEngine> mpAudioEngine;
-
 	StaticVoices mStaticVoices;
 	StreamingVoices mStreamingVoices;
 
-private:
-
 	std::atomic<bool> mbSuspended = false;
 	std::atomic<bool> mbClearVoicesRequested = false;
-	std::atomic<bool> mbClearStreamingVoicesRequested = false;
 	int64_t miMasteringVoiceChannels = 0;
 
 	// Mastering voice pinned to this format (native channels, kiMasteringSampleRate). Reused by the

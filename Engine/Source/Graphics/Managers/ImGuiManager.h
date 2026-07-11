@@ -34,7 +34,6 @@ public:
 
 	float mfUiScale = 1.0f;
 
-	ImFont* mpChineseFont = nullptr;
 	std::unique_ptr<game::TweaksScreen> mpTweaksScreen;
 
 	VkBuffer mUiPrepassIndirectVkBuffer = VK_NULL_HANDLE;

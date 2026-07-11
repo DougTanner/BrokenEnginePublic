@@ -2,7 +2,7 @@
 
 **Global**: `gpImGuiManager`
 
-Integrates Dear ImGui for menu and debug UI rendering with dedicated Vulkan render pass and framebuffers. Renders after main pass with `VK_ATTACHMENT_LOAD_OP_LOAD` to preserve frame content. Dual font support (EFIGS and Chinese). Signals the per-framebuffer fence as the final GPU submission in the frame.
+Integrates Dear ImGui for menu and debug UI rendering with dedicated Vulkan render pass and framebuffers. Renders after main pass with `VK_ATTACHMENT_LOAD_OP_LOAD` to preserve frame content. Noto Sans SC Light is the single default font for both Latin and CJK text. Signals the per-framebuffer fence as the final GPU submission in the frame.
 
 ## Screen Delegation
 

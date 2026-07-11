@@ -32,7 +32,6 @@ public:
 
 private:
 
-	void DrainConsumedAndSubmitReady(StreamingVoice& rStream);
 	void FillReadyBuffers();
 	void CreateStream(common::crc_t uiAudioCrc);
 	void TransitionCurrentToPrevious();

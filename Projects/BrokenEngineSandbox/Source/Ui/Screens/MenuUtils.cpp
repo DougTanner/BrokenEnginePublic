@@ -1,7 +1,6 @@
 #include "MenuUtils.h"
 
 #include "Ui/GraphicsSettingsWrappersBase.h"
-#include "Ui/Localization.h"
 
 namespace game
 {
@@ -172,8 +171,7 @@ ImU32 ChromeColor(const ImVec4& rf4Color, float fAlphaScale = 1.0f)
 
 ScopedMenuFont::ScopedMenuFont(float fScale)
 {
-	ImFont* pFont = geLanguage == kChinese ? engine::gpImGuiManager->mpChineseFont : nullptr;
-	ImGui::PushFont(pFont, ImGui::GetStyle().FontSizeBase * fScale);
+	ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * fScale);
 }
 
 ScopedMenuFont::~ScopedMenuFont()
@@ -194,10 +192,10 @@ float MenuButtonsWidth(std::initializer_list<std::u32string_view> aLabels)
 	return fWidth + ImGui::GetStyle().FramePadding.x * 4.0f;
 }
 
-void MenuHeading(const char* pcLabel)
+void MenuHeading(const char* pcLabel, float fHeadingScale)
 {
 	{
-		ScopedMenuFont headingFont(kfMenuUiScale * kfMenuHeadingScale);
+		ScopedMenuFont headingFont(kfMenuUiScale * fHeadingScale);
 		ImGui::TextUnformatted(pcLabel);
 	}
 	ImGui::Dummy(ImVec2(0.0f, kfHeadingGapPixels * engine::UiScale()));

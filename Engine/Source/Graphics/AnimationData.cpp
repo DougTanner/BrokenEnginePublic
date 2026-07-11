@@ -495,7 +495,8 @@ void LoadAnimationDataFromEagerChunks()
 			}
 			catch (const common::CorruptStreamException& rException)
 			{
-				LOG(kLoading, kError, "Corrupt animation data for GLTF CRC {:#018x}: {}", rCrc, rException.what());
+				char pcHex[20] {};
+				LOG(kLoading, kError, "Corrupt animation data for GLTF CRC {}: {}", common::ToHex(std::span(pcHex), rCrc), rException.what());
 				throw;
 			}
 			LOG(kLoading, kDebug, "Loaded animation data for GLTF CRC {}: {} nodes, {} skin joints, {} animations", rCrc, rAnimationData.mHeader.skeleton.uiNodeCount, rAnimationData.mHeader.skeleton.uiSkinJointCount, rAnimationData.mHeader.uiAnimationCount);

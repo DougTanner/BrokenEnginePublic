@@ -47,7 +47,8 @@ ModelPipeline* DynamicPipelines::CreateModelPipeline(const ModelPipelineSpec& rM
 	}
 	catch (const common::CorruptStreamException& rException)
 	{
-		LOG(kLoading, kError, "Corrupt scene chunk for {}model pipeline \"{}\" (scene CRC {:#018x}): {}", rModelPipelineSpec.bIsPipelineShadow ? "shadow " : "", rModelPipelineSpec.pipelineInfo.name, rModelPipelineSpec.sceneCrc, rException.what());
+		char pcHex[20] {};
+		LOG(kLoading, kError, "Corrupt scene chunk for {}model pipeline \"{}\" (scene CRC {}): {}", rModelPipelineSpec.bIsPipelineShadow ? "shadow " : "", rModelPipelineSpec.pipelineInfo.name, common::ToHex(std::span(pcHex), rModelPipelineSpec.sceneCrc), rException.what());
 		throw;
 	}
 

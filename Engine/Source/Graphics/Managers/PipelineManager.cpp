@@ -49,7 +49,8 @@ PipelineManager::PipelineManager()
 			|| rShaderHeader.iVertexInputAttributeDescriptions < 0
 			|| rShaderHeader.iVertexInputAttributeDescriptions > common::ShaderHeader::kiMaxVertexInputAttributeDescriptions)
 		{
-			LOG(kLoading, kError, "Corrupt shader chunk {:#018x}: implausible binding/attribute counts {} / {}", rCrc, rShaderHeader.iDescriptorSetLayoutBindings, rShaderHeader.iVertexInputAttributeDescriptions);
+			char pcHex[20] {};
+			LOG(kLoading, kError, "Corrupt shader chunk {}: implausible binding/attribute counts {} / {}", common::ToHex(std::span(pcHex), rCrc), rShaderHeader.iDescriptorSetLayoutBindings, rShaderHeader.iVertexInputAttributeDescriptions);
 			throw common::CorruptStreamException("PipelineManager shader");
 		}
 
@@ -61,7 +62,8 @@ PipelineManager::PipelineManager()
 		// Shader ctor reads) must fit the chunk's actual bytes, else the alias walks / iSpirvSize run off the buffer.
 		if (iSpirvOffset + static_cast<int64_t>(sizeof(uint32_t)) > rChunk.pHeader->iSize)
 		{
-			LOG(kLoading, kError, "Corrupt shader chunk {:#018x}: section extent exceeds chunk bytes", rCrc);
+			char pcHex[20] {};
+			LOG(kLoading, kError, "Corrupt shader chunk {}: section extent exceeds chunk bytes", common::ToHex(std::span(pcHex), rCrc));
 			throw common::CorruptStreamException("PipelineManager shader");
 		}
 

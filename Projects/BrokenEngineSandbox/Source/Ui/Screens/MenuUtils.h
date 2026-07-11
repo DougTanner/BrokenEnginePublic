@@ -8,6 +8,11 @@ inline constexpr float kfMenuUiScale = 2.0f;
 
 // Heading scale multiplier on top of kfMenuUiScale for menu/panel titles
 inline constexpr float kfMenuHeadingScale = 1.6f;
+inline constexpr float kfMainMenuHeadingScale = 1.3f;
+
+// Main-menu utility footer scale: absolute font scale plus a multiplier on the already menu-scaled geometry
+inline constexpr float kfLanguageMenuFontScale = 1.0f;
+inline constexpr float kfLanguageMenuGeometryScale = 0.5f;
 
 // Shared menu-layout constants (source of truth: Documents/UserInterfaceDesign.txt). No inline magic layout
 // literal belongs in a screen .cpp — every anchor/gap/min-width lives here. Two kinds per the sizing standard:
@@ -15,8 +20,8 @@ inline constexpr float kfMenuHeadingScale = 1.6f;
 // pixel constants multiplied by engine::UiScale() at each use site.
 //
 // Anchors / extents as DisplaySize fractions:
-inline constexpr float kfMainMenuAnchorFractionX = 0.11f;      // MainMenu left-anchored column X
-inline constexpr float kfMainMenuAnchorFractionY = 0.35f;      // MainMenu column top Y
+inline constexpr float kfMainMenuCenterFractionX = 1.0f / 3.0f; // MainMenu group center on first vertical third
+inline constexpr float kfMainMenuCenterFractionY = 0.5f;        // MainMenu group center on screen center Y
 inline constexpr float kfHudEdgeMarginFraction = 0.05f;        // HUD panel inset from the screen edge
 inline constexpr float kfHudPanelTopFraction = 0.125f;         // HUD panel top edge
 inline constexpr float kfHudPanelMaxHeightFraction = 0.75f;    // HUD panel height cap + fixed hover-zone extent
@@ -60,8 +65,8 @@ bool WrapperPlusMinus(std::string_view label, engine::Wrapper* pWrapper, float f
 
 #if defined(BT_CLIENT)
 
-// RAII font push for menu text: selects the CJK font when the language needs it and sizes via the dynamic-font
-// API (SetWindowFontScale is obsolete). fScale multiplies the pre-global-scale base size, so the user's
+// RAII font push for menu text: sizes the default Latin/CJK font via the dynamic-font API
+// (SetWindowFontScale is obsolete). fScale multiplies the pre-global-scale base size, so the user's
 // gUiFontScale still applies exactly once on top. Construct either before Begin() (destructs after End()) or
 // fully inside the window (destructs before End()) — a font pushed after Begin() and still on the stack at
 // End() trips ImGui's per-window error recovery ("Missing PopFont()" force-pop, then the dtor double-pops).
@@ -78,9 +83,9 @@ public:
 // k*MinWidthPixels * UiScale() floor at the call site. Must be called inside the window with the menu font pushed.
 float MenuButtonsWidth(std::initializer_list<std::u32string_view> aLabels);
 
-// One menu/panel heading: pushes the heading font (kfMenuUiScale * kfMenuHeadingScale), emits pcLabel, then a
-// standard kfHeadingGapPixels * UiScale() gap below it — the single source of a menu/panel title's font and rhythm.
-void MenuHeading(const char* pcLabel);
+// One menu/panel heading: pushes the heading font (kfMenuUiScale * fHeadingScale), emits pcLabel, then a
+// standard kfHeadingGapPixels * UiScale() gap below it. The default preserves settings/pause heading scale.
+void MenuHeading(const char* pcLabel, float fHeadingScale = kfMenuHeadingScale);
 
 // Full-screen dim behind pause-style overlays (background draw list, behind all windows)
 void DrawFullScreenDim();

@@ -107,26 +107,18 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	rIo.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 	rIo.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 
-	// Load EFIGS font (default) with oversampling for crisp rendering
-	const EagerChunk& rEfigsFontChunk = gpFileManager->GetEagerChunkMap().at(data::kRawRobotoMediumttfCrc);
+	// Load one default font for Latin and CJK text, with oversampling for crisp rendering
+	const EagerChunk& rFontChunk = gpFileManager->GetEagerChunkMap().at(data::kRawNotoSansSCLightotfCrc);
 	ImFontConfig fontConfig;
 	fontConfig.OversampleH = 2;
 	fontConfig.OversampleV = 1;
 	fontConfig.FontDataOwnedByAtlas = false;
 	// Trust boundary: on-disk ChunkHeader::iSize drives the TTF byte length ImGui reads from pData; bound it to the eager chunk's true extent before the copy (reject non-positive too — a negative int64 passes the upper bound and reaches stb_truetype as a negative int).
-	if (rEfigsFontChunk.pHeader->iSize <= 0 || rEfigsFontChunk.pHeader->iSize > rEfigsFontChunk.iDataSize)
+	if (rFontChunk.pHeader->iSize <= 0 || rFontChunk.pHeader->iSize > rFontChunk.iDataSize)
 	{
 		throw common::CorruptStreamException("ImGuiManager font");
 	}
-	ImGui::GetIO().Fonts->AddFontFromMemoryTTF(rEfigsFontChunk.pData, static_cast<int>(rEfigsFontChunk.pHeader->iSize), 26.0f, &fontConfig);
-
-	// Load Chinese font for CJK text support
-	const EagerChunk& rChineseFontChunk = gpFileManager->GetEagerChunkMap().at(data::kRawNotoSansSCLightotfCrc);
-	if (rChineseFontChunk.pHeader->iSize <= 0 || rChineseFontChunk.pHeader->iSize > rChineseFontChunk.iDataSize)
-	{
-		throw common::CorruptStreamException("ImGuiManager font");
-	}
-	mpChineseFont = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(rChineseFontChunk.pData, static_cast<int>(rChineseFontChunk.pHeader->iSize), 26.0f, &fontConfig);
+	ImGui::GetIO().Fonts->AddFontFromMemoryTTF(rFontChunk.pData, static_cast<int>(rFontChunk.pHeader->iSize), 26.0f, &fontConfig);
 
 	bool bWin32Init = ImGui_ImplWin32_Init(hwnd);
 	ASSERT(bWin32Init);

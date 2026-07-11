@@ -63,7 +63,7 @@ StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, float fVolume,
 , mId(id)
 , mfVolume(fVolume)
 , mfPitch(fPitch)
-, mfFadeOutVolume(1.0f)
+, mfFadeVolume(1.0f)
 , mfFadeOutTime(fFadeOutTime)
 , mVecPosition(vecPosition)
 , mVecVelocity(vecVelocity)
@@ -96,7 +96,7 @@ StaticVoice& StaticVoice::operator=(StaticVoice&& rToMove) noexcept
 		mId = rToMove.mId;
 		mfVolume = rToMove.mfVolume;
 		mfPitch = rToMove.mfPitch;
-		mfFadeOutVolume = rToMove.mfFadeOutVolume;
+		mfFadeVolume = rToMove.mfFadeVolume;
 		mfFadeOutTime = rToMove.mfFadeOutTime;
 		mVecPosition = rToMove.mVecPosition;
 		mVecVelocity = rToMove.mVecVelocity;

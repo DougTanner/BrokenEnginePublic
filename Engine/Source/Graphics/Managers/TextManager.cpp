@@ -32,7 +32,8 @@ TextManager::TextManager()
 			|| common::FontHeader::CharactersOffset(iCharacters)
 				+ iCharacters * static_cast<int64_t>(sizeof(common::Character)) > rChunk.pHeader->iSize)
 		{
-			LOG(kLoading, kError, "Corrupt font chunk {:#018x}: implausible character count {}", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);
+			char pcHex[20] {};
+			LOG(kLoading, kError, "Corrupt font chunk {}: implausible character count {}", common::ToHex(std::span(pcHex), data::kFontsNotoSansNotoSansRegularfntCrc), iCharacters);
 			throw common::CorruptStreamException("TextManager font");
 		}
 

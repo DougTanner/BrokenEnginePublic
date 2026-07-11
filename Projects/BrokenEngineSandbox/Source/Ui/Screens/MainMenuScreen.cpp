@@ -11,6 +11,16 @@
 namespace game
 {
 
+namespace
+{
+
+void CenterMenuItem(float fContentStartX, float fContentWidth, float fItemWidth)
+{
+	ImGui::SetCursorPosX(fContentStartX + (fContentWidth - fItemWidth) * 0.5f);
+}
+
+} // namespace
+
 void MainMenuScreen::Render()
 {
 	if (gpGame->meUiState != UiState::kPause || !gpGame->InMainMenu())
@@ -21,32 +31,33 @@ void MainMenuScreen::Render()
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	// Invisible window for main menu (panel chrome is custom-drawn below)
+	// Invisible windows let the menu compose directly over the live scene
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 
-	// MainMenu is the one deliberately left-anchored column (its title composes over the live 3D scene)
-	float fLeftPos = rIo.DisplaySize.x * kfMainMenuAnchorFractionX;
-	float fTopPos = rIo.DisplaySize.y * kfMainMenuAnchorFractionY;
-	ImGui::SetNextWindowPos(ImVec2(fLeftPos, fTopPos), ImGuiCond_Always);
+	// Center the title/action group vertically and place it on the screen's first vertical third.
+	ImVec2 vMenuCenter(rIo.DisplaySize.x * kfMainMenuCenterFractionX, rIo.DisplaySize.y * kfMainMenuCenterFractionY);
+	ImGui::SetNextWindowPos(vMenuCenter, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
 	ScopedMenuFont menuFont;
 	ImGui::Begin("MainMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
-
-	// AlwaysAutoResize yields last-frame size — accepted one-frame lag
-	ImVec2 vWindowPos = ImGui::GetWindowPos();
-	ImVec2 vWindowSize = ImGui::GetWindowSize();
-	DrawPanelBackground(ImGui::GetWindowDrawList(), vWindowPos, ImVec2(vWindowPos.x + vWindowSize.x, vWindowPos.y + vWindowSize.y));
-
-	// Top breathing room above the title, symmetric with MenuHeading's gap below it
-	ImGui::Dummy(ImVec2(0.0f, kfHeadingGapPixels * engine::UiScale()));
-	MenuHeading("BROKEN ENGINE");
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
 	// Shared text-driven width over every button label (including the SCANNING... discovery state), floored to the
 	// primary-button minimum. Height auto-sizes per button (0.0f).
 	float fButtonWidth = std::max(MenuButtonsWidth({TranslatedString(kStringLocalServer), TranslatedString(kStringRemoteServer), TranslatedString(kStringGraphics), TranslatedString(kStringSound), TranslatedString(kStringQuit), U"SCANNING..."}), kfPrimaryButtonMinWidthPixels * engine::UiScale());
+	float fHeadingWidth = 0.0f;
+	{
+		ScopedMenuFont headingFont(kfMenuUiScale * kfMainMenuHeadingScale);
+		fHeadingWidth = ImGui::CalcTextSize("BROKEN ENGINE").x;
+	}
+
+	// Title and actions share one measured content width and center line, while the block remains scene-anchored.
+	float fContentStartX = ImGui::GetCursorPosX();
+	float fContentWidth = std::max(fHeadingWidth, fButtonWidth);
+	CenterMenuItem(fContentStartX, fContentWidth, fHeadingWidth);
+	MenuHeading("BROKEN ENGINE", kfMainMenuHeadingScale);
 
 	// Auto-start discovery when main menu is shown
 	if (gpClientSession->mpDiscoveryScanner == nullptr && !(gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered))
@@ -93,6 +104,7 @@ void MainMenuScreen::Render()
 	// Local Server button (discovers localhost + LAN)
 	if (gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered)
 	{
+		CenterMenuItem(fContentStartX, fContentWidth, fButtonWidth);
 		if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[0]))
 		{
 			gpClientSession->ConnectToDiscoveredServer();
@@ -101,16 +113,19 @@ void MainMenuScreen::Render()
 	else
 	{
 		ImGui::BeginDisabled();
+		CenterMenuItem(fContentStartX, fContentWidth, fButtonWidth);
 		MenuButton("SCANNING...", ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[0]);
 		ImGui::EndDisabled();
 	}
 
 	// Remote Server button (placeholder for future Internet servers)
 	ImGui::BeginDisabled();
+	CenterMenuItem(fContentStartX, fContentWidth, fButtonWidth);
 	MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringRemoteServer)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[1]);
 	ImGui::EndDisabled();
 
 	// Graphics button
+	CenterMenuItem(fContentStartX, fContentWidth, fButtonWidth);
 	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[2]))
 	{
 		gpGame->meUiState = UiState::kGraphicsSettings;
@@ -118,12 +133,14 @@ void MainMenuScreen::Render()
 	}
 
 	// Sound button
+	CenterMenuItem(fContentStartX, fContentWidth, fButtonWidth);
 	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[3]))
 	{
 		gpGame->meUiState = UiState::kSound;
 	}
 
 	// Quit button
+	CenterMenuItem(fContentStartX, fContentWidth, fButtonWidth);
 	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[4]))
 	{
 		gpGame->mGameFlags.Set(engine::GameFlags::kQuit);
@@ -135,27 +152,23 @@ void MainMenuScreen::Render()
 	ImVec2 vLanguageAnchor(rIo.DisplaySize.x * 0.5f, rIo.DisplaySize.y - kfScreenBottomMarginPixels * engine::UiScale());
 	ImGui::SetNextWindowPos(vLanguageAnchor, ImGuiCond_Always, ImVec2(0.5f, 1.0f));
 
-	ScopedMenuFont languageFont(kfMenuUiScale * 0.75f);
+	const ImGuiStyle& rStyle = ImGui::GetStyle();
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(rStyle.FramePadding.x * kfLanguageMenuGeometryScale, rStyle.FramePadding.y * kfLanguageMenuGeometryScale));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(rStyle.ItemSpacing.x * kfLanguageMenuGeometryScale, rStyle.ItemSpacing.y * kfLanguageMenuGeometryScale));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(rStyle.WindowPadding.x * kfLanguageMenuGeometryScale, rStyle.WindowPadding.y * kfLanguageMenuGeometryScale));
+
+	ScopedMenuFont languageFont(kfLanguageMenuFontScale);
 	ImGui::Begin("LanguageMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_AlwaysAutoResize);
 
 	static constexpr const char* kpcLanguageNames[] = {"ENGLISH", "中文", "ESPANOL", "PORTUGUES", "FRANCAIS", "DEUTSCH"};
 	static_assert(std::size(kpcLanguageNames) == static_cast<size_t>(kLanguageCount)); // One label per Language enumerator, in order.
 
-	// Uniform text-driven width = max CalcTextSize over the 6 labels (中文 measured under the CJK font so it fits),
+	// Uniform text-driven width = max CalcTextSize over the 6 labels under the shared Latin/CJK font,
 	// plus frame padding to match the button chrome. Buttons then sit one-per-row via SameLine (default spacing).
 	float fLangButtonWidth = 0.0f;
 	for (int64_t i = 0; i < kLanguageCount; ++i)
 	{
-		bool bChineseLabel = (i == kChinese) && (geLanguage != kChinese);
-		if (bChineseLabel)
-		{
-			ImGui::PushFont(engine::gpImGuiManager->mpChineseFont, 0.0f);
-		}
 		fLangButtonWidth = std::max(fLangButtonWidth, ImGui::CalcTextSize(kpcLanguageNames[i]).x);
-		if (bChineseLabel)
-		{
-			ImGui::PopFont();
-		}
 	}
 	fLangButtonWidth += ImGui::GetStyle().FramePadding.x * 4.0f;
 
@@ -168,25 +181,14 @@ void MainMenuScreen::Render()
 
 		bool bSelected = (geLanguage == static_cast<Language>(i));
 
-		// Use Chinese font for the Chinese button when in EFIGS mode (0.0f keeps the current size)
-		bool bChineseButton = (i == kChinese) && (geLanguage != kChinese);
-		if (bChineseButton)
-		{
-			ImGui::PushFont(engine::gpImGuiManager->mpChineseFont, 0.0f);
-		}
-
 		if (MenuButton(kpcLanguageNames[i], ImVec2(fLangButtonWidth, 0.0f), mfLanguageHoverAnims[i], bSelected))
 		{
 			geLanguage = static_cast<Language>(i);
 		}
-
-		if (bChineseButton)
-		{
-			ImGui::PopFont();
-		}
 	}
 
 	ImGui::End();
+	ImGui::PopStyleVar(3);
 
 	ImGui::PopStyleColor(2);
 }

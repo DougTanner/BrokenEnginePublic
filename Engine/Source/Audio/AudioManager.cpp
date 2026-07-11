@@ -14,6 +14,172 @@ constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter
 // SRC. Windows shared-mode does any final device-rate conversion once at the mastering output.
 constexpr int kiMasteringSampleRate = 48000;
 
+std::wstring AudioManager::GetEndpointId(IMMDevice* pDevice)
+{
+	LPWSTR pcDeviceId = nullptr;
+	CHECK_HRESULT(pDevice->GetId(&pcDeviceId));
+	common::ScopedLambda freeDeviceId([=]()
+	{
+		CoTaskMemFree(pcDeviceId);
+	});
+	return pcDeviceId != nullptr ? std::wstring(pcDeviceId) : std::wstring();
+}
+
+void AudioManager::CreateAudioEngineForEndpoint(const std::wstring& rEndpointId)
+{
+	mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, rEndpointId.c_str(), AudioCategory_GameEffects);
+}
+
+std::wstring AudioManager::InitializeAudioEndpoint()
+{
+	Microsoft::WRL::ComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
+	CHECK_HRESULT(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(pMMDeviceEnumerator.GetAddressOf())));
+	LOG(kAudio, kInfo, "  Got MMDeviceEnumerator");
+
+	Microsoft::WRL::ComPtr<IMMDevice> pDefaultAudioEndpoint;
+	std::wstring defaultAudioEndpointId;
+	if (pMMDeviceEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &pDefaultAudioEndpoint) == S_OK)
+	{
+		LOG(kAudio, kInfo, "  Got DefaultAudioEndpoint");
+		defaultAudioEndpointId = GetEndpointId(pDefaultAudioEndpoint.Get());
+		if (!defaultAudioEndpointId.empty())
+		{
+			LOG(kAudio, kInfo, "    pcDeviceId: \"{}\"", defaultAudioEndpointId);
+		}
+		else
+		{
+			LOG(kAudio, kWarning, "  GetId returned nullptr; falling back to first active device");
+		}
+	}
+	else
+	{
+		LOG(kAudio, kWarning, "  GetDefaultAudioEndpoint failed; falling back to first active device");
+	}
+
+	Microsoft::WRL::ComPtr<IMMDeviceCollection> pMMDeviceCollection;
+	CHECK_HRESULT(pMMDeviceEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pMMDeviceCollection));
+	if (pMMDeviceCollection == nullptr)
+	{
+		LOG(kAudio, kWarning, "  EnumAudioEndpoints returned nullptr; constructed without an audio device");
+		return {};
+	}
+
+	UINT uiCount = 0;
+	CHECK_HRESULT(pMMDeviceCollection->GetCount(&uiCount));
+	LOG(kAudio, kInfo, "  uiCount: {}", uiCount);
+
+	std::wstring selectedDeviceId;
+	if (!defaultAudioEndpointId.empty())
+	{
+		LOG(kAudio, kInfo, "  Searching for default audio endpoint: {}", defaultAudioEndpointId);
+		for (UINT i = 0; i < uiCount; ++i)
+		{
+			Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
+			CHECK_HRESULT(pMMDeviceCollection->Item(i, pMMDevice.GetAddressOf()));
+			std::wstring audioEndpointId = GetEndpointId(pMMDevice.Get());
+			if (audioEndpointId.empty())
+			{
+				LOG(kAudio, kWarning, "  GetId returned nullptr; skipping device");
+				continue;
+			}
+			if (audioEndpointId.find(defaultAudioEndpointId) == std::wstring::npos)
+			{
+				continue;
+			}
+
+			CreateAudioEngineForEndpoint(audioEndpointId);
+			selectedDeviceId = audioEndpointId;
+			LOG(kAudio, kInfo, "    Found: {}", audioEndpointId);
+			break;
+		}
+	}
+
+	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent())
+	{
+		LOG(kAudio, kDebug, "  mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()");
+		if (uiCount > 0)
+		{
+			Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
+			CHECK_HRESULT(pMMDeviceCollection->Item(0, pMMDevice.GetAddressOf()));
+			std::wstring audioEndpointId = GetEndpointId(pMMDevice.Get());
+			if (!audioEndpointId.empty())
+			{
+				LOG(kAudio, kInfo, "    Using first in the list: {}", audioEndpointId);
+				CreateAudioEngineForEndpoint(audioEndpointId);
+				selectedDeviceId = audioEndpointId;
+			}
+			else
+			{
+				LOG(kAudio, kWarning, "  GetId returned nullptr; no first-active device available");
+			}
+		}
+	}
+	return selectedDeviceId;
+}
+
+void AudioManager::CacheMasteringVoiceChannels()
+{
+	IXAudio2MasteringVoice* pMasterVoice = mpAudioEngine->GetMasterVoice();
+	if (pMasterVoice == nullptr)
+	{
+		return;
+	}
+	XAUDIO2_VOICE_DETAILS voiceDetails {};
+	pMasterVoice->GetVoiceDetails(&voiceDetails);
+	WAVEFORMATEXTENSIBLE waveFormat = mpAudioEngine->GetOutputFormat();
+	miMasteringVoiceChannels = std::min(static_cast<int64_t>(voiceDetails.InputChannels), static_cast<int64_t>(waveFormat.Format.nChannels));
+}
+
+void AudioManager::InitializeAudioSubsystems(const std::wstring& rSelectedDeviceId)
+{
+	mPinnedOutputFormat.wFormatTag = WAVE_FORMAT_PCM;
+	mPinnedOutputFormat.nChannels = static_cast<WORD>(mpAudioEngine->GetOutputChannels());
+	mPinnedOutputFormat.nSamplesPerSec = static_cast<DWORD>(kiMasteringSampleRate);
+	mPinnedOutputFormat.wBitsPerSample = 16;
+	mPinnedOutputFormat.nBlockAlign = static_cast<WORD>(mPinnedOutputFormat.nChannels * (mPinnedOutputFormat.wBitsPerSample / 8));
+	mPinnedOutputFormat.nAvgBytesPerSec = mPinnedOutputFormat.nSamplesPerSec * mPinnedOutputFormat.nBlockAlign;
+	mPinnedOutputFormat.cbSize = 0;
+	if (mpAudioEngine->GetOutputSampleRate() != kiMasteringSampleRate)
+	{
+		LOG(kAudio, kInfo, "  Pinning mastering voice to {} Hz (device native {} Hz)", kiMasteringSampleRate, mpAudioEngine->GetOutputSampleRate());
+		if (!mpAudioEngine->Reset(&mPinnedOutputFormat, rSelectedDeviceId.empty() ? nullptr : rSelectedDeviceId.c_str()))
+		{
+			LOG(kAudio, kWarning, "  Mastering-rate pin failed; continuing at device rate");
+		}
+	}
+
+	IXAudio2* pIXAudio2 = mpAudioEngine->GetInterface();
+	XAUDIO2_DEBUG_CONFIGURATION debugConfiguration
+	{
+		.TraceMask = XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS,
+		.BreakMask = XAUDIO2_LOG_ERRORS,
+		.LogThreadID = TRUE,
+		.LogFileline = TRUE,
+		.LogFunctionName = TRUE,
+		.LogTiming = FALSE,
+	};
+	pIXAudio2->SetDebugConfiguration(&debugConfiguration);
+	mpAudioEngine->RegisterNotify(this, false);
+
+	IXAudio2MasteringVoice* pMasteringVoice = mpAudioEngine->GetMasterVoice();
+	if (pMasteringVoice != nullptr)
+	{
+		XAUDIO2_VOICE_DETAILS voiceDetails {};
+		pMasteringVoice->GetVoiceDetails(&voiceDetails);
+		DWORD uiChannelMask = 0;
+		CHECK_HRESULT(pMasteringVoice->GetChannelMask(&uiChannelMask));
+
+		char pcHex[20] {};
+		LOG(kAudio, kInfo, "    Audio engine: channels {} channel mask {} rate {}", mpAudioEngine->GetOutputChannels(), common::ToHex(std::span(pcHex), mpAudioEngine->GetChannelMask()), mpAudioEngine->GetOutputSampleRate());
+		LOG(kAudio, kInfo, "    Output format: channels {} channel mask {} format {}", mpAudioEngine->GetOutputFormat().Format.nChannels, common::ToHex(std::span(pcHex), mpAudioEngine->GetOutputFormat().dwChannelMask), mpAudioEngine->GetOutputFormat().Format.wFormatTag);
+		LOG(kAudio, kInfo, "    MasteringVoice: channels {} channel mask {} sample rate {}", voiceDetails.InputChannels, common::ToHex(std::span(pcHex), uiChannelMask), voiceDetails.InputSampleRate);
+	}
+
+	CacheMasteringVoiceChannels();
+	mStaticVoices.Init(mpAudioEngine.get(), &miMasteringVoiceChannels);
+	mStreamingVoices.Init(mpAudioEngine.get());
+}
+
 AudioManager::AudioManager()
 {
 	ASSERT(gpAudioManager == nullptr);
@@ -25,167 +191,11 @@ AudioManager::AudioManager()
 	try
 	{
 		// Find the id of the default audio endpoint
-		Microsoft::WRL::ComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
-		CHECK_HRESULT(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(pMMDeviceEnumerator.GetAddressOf())));
-		LOG(kAudio, kInfo, "  Got MMDeviceEnumerator");
-
-		// Best-effort: look up the OS default endpoint id, but never abandon construction on failure — the
-		// first-active-device fallback below covers a missing/failed default so a machine with active devices still gets audio
-		Microsoft::WRL::ComPtr<IMMDevice> pDefaultAudioEndpoint;
-		std::wstring defaultAudioEndpointId;
-		if (pMMDeviceEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &pDefaultAudioEndpoint) == S_OK)
-		{
-			LOG(kAudio, kInfo, "  Got DefaultAudioEndpoint");
-
-			LPWSTR pcDefaultDeviceId = nullptr;
-			CHECK_HRESULT(pDefaultAudioEndpoint->GetId(&pcDefaultDeviceId));
-			common::ScopedLambda freeDefaultDeviceId([=]()
-			{
-				CoTaskMemFree(pcDefaultDeviceId);
-			});
-			if (pcDefaultDeviceId != nullptr)
-			{
-				defaultAudioEndpointId = pcDefaultDeviceId;
-				LOG(kAudio, kInfo, "    pcDeviceId: \"{}\"", defaultAudioEndpointId);
-			}
-			else
-			{
-				LOG(kAudio, kWarning, "  GetId returned nullptr; falling back to first active device");
-			}
-		}
-		else
-		{
-			LOG(kAudio, kWarning, "  GetDefaultAudioEndpoint failed; falling back to first active device");
-		}
-
-		Microsoft::WRL::ComPtr<IMMDeviceCollection> pMMDeviceCollection;
-		CHECK_HRESULT(pMMDeviceEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pMMDeviceCollection));
-		if (pMMDeviceCollection == nullptr)
-		{
-			LOG(kAudio, kWarning, "  EnumAudioEndpoints returned nullptr; constructed without an audio device");
-			return;
-		}
-
-		UINT uiCount = 0;
-		CHECK_HRESULT(pMMDeviceCollection->GetCount(&uiCount));
-		LOG(kAudio, kInfo, "  uiCount: {}", uiCount);
-
-		// Endpoint the engine bound; reused for the mastering-rate migration Reset below so it stays on this device.
-		std::wstring selectedDeviceId;
-
-		// Match the OS default endpoint when its id is known; otherwise drop straight through to the first-active fallback
-		if (!defaultAudioEndpointId.empty())
-		{
-			LOG(kAudio, kInfo, "  Searching for default audio endpoint: {}", defaultAudioEndpointId);
-			for (UINT i = 0; i < uiCount; ++i)
-			{
-				Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
-				CHECK_HRESULT(pMMDeviceCollection->Item(i, pMMDevice.GetAddressOf()));
-				LPWSTR pcDeviceId = nullptr;
-				CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
-				common::ScopedLambda freeDeviceId([=]()
-				{
-					CoTaskMemFree(pcDeviceId);
-				});
-				if (pcDeviceId == nullptr)
-				{
-					LOG(kAudio, kWarning, "  GetId returned nullptr; skipping device");
-					continue;
-				}
-				std::wstring audioEndpointId(pcDeviceId);
-
-				if (audioEndpointId.find(defaultAudioEndpointId) == std::wstring::npos)
-				{
-					continue;
-				}
-
-				mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
-				selectedDeviceId = audioEndpointId;
-				LOG(kAudio, kInfo, "    Found: {}", audioEndpointId);
-				break;
-			}
-		}
-
-		if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent())
-		{
-			LOG(kAudio, kDebug, "  mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()");
-
-			if (uiCount > 0)
-			{
-				Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
-				CHECK_HRESULT(pMMDeviceCollection->Item(0, pMMDevice.GetAddressOf()));
-				LPWSTR pcDeviceId = nullptr;
-				CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
-				common::ScopedLambda freeDeviceId([=]()
-				{
-					CoTaskMemFree(pcDeviceId);
-				});
-				if (pcDeviceId != nullptr)
-				{
-					std::wstring audioEndpointId(pcDeviceId);
-					LOG(kAudio, kInfo, "    Using first in the list: {}", audioEndpointId);
-					mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
-					selectedDeviceId = audioEndpointId;
-				}
-				else
-				{
-					LOG(kAudio, kWarning, "  GetId returned nullptr; no first-active device available");
-				}
-			}
-		}
+		std::wstring selectedDeviceId = InitializeAudioEndpoint();
 
 		if (mpAudioEngine != nullptr)
 		{
-			// Pin the mastering voice to kiMasteringSampleRate so the pack-time-resampled 48 kHz sources
-			// hit the XAudio2 SRC bypass on any device. DirectXTK's ctor takes native (device-rate)
-			// channels/rate; keep the native channel count and only override the rate. Cache the format
-			// so the device-reset path (Update) can re-apply it — DirectXTK does not remember the ctor wfx.
-			mPinnedOutputFormat.wFormatTag = WAVE_FORMAT_PCM;
-			mPinnedOutputFormat.nChannels = static_cast<WORD>(mpAudioEngine->GetOutputChannels());
-			mPinnedOutputFormat.nSamplesPerSec = static_cast<DWORD>(kiMasteringSampleRate);
-			mPinnedOutputFormat.wBitsPerSample = 16;
-			mPinnedOutputFormat.nBlockAlign = static_cast<WORD>(mPinnedOutputFormat.nChannels * (mPinnedOutputFormat.wBitsPerSample / 8));
-			mPinnedOutputFormat.nAvgBytesPerSec = mPinnedOutputFormat.nSamplesPerSec * mPinnedOutputFormat.nBlockAlign;
-			mPinnedOutputFormat.cbSize = 0;
-			if (mpAudioEngine->GetOutputSampleRate() != kiMasteringSampleRate)
-			{
-				LOG(kAudio, kInfo, "  Pinning mastering voice to {} Hz (device native {} Hz)", kiMasteringSampleRate, mpAudioEngine->GetOutputSampleRate());
-				if (!mpAudioEngine->Reset(&mPinnedOutputFormat, selectedDeviceId.empty() ? nullptr : selectedDeviceId.c_str()))
-				{
-					LOG(kAudio, kWarning, "  Mastering-rate pin failed; continuing at device rate");
-				}
-			}
-
-			IXAudio2* pIXAudio2 = mpAudioEngine->GetInterface();
-			XAUDIO2_DEBUG_CONFIGURATION debugConfiguration
-			{
-				.TraceMask = XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS,
-				.BreakMask = XAUDIO2_LOG_ERRORS,
-				.LogThreadID = TRUE,
-				.LogFileline = TRUE,
-				.LogFunctionName = TRUE,
-				.LogTiming = FALSE,
-			};
-			pIXAudio2->SetDebugConfiguration(&debugConfiguration);
-
-			mpAudioEngine->RegisterNotify(this, false);
-
-			IXAudio2MasteringVoice* pIXAudio2MasteringVoice = mpAudioEngine->GetMasterVoice();
-			XAUDIO2_VOICE_DETAILS voiceDetails {};
-			pIXAudio2MasteringVoice->GetVoiceDetails(&voiceDetails);
-			DWORD uiChannelMask = 0;
-			CHECK_HRESULT(pIXAudio2MasteringVoice->GetChannelMask(&uiChannelMask));
-
-			char pcHex[20] {};
-			LOG(kAudio, kInfo, "    Audio engine: channels {} channel mask {} rate {}", mpAudioEngine->GetOutputChannels(), common::ToHex(std::span(pcHex), mpAudioEngine->GetChannelMask()), mpAudioEngine->GetOutputSampleRate());
-			LOG(kAudio, kInfo, "    Output format: channels {} channel mask {} format {}", mpAudioEngine->GetOutputFormat().Format.nChannels, common::ToHex(std::span(pcHex), mpAudioEngine->GetOutputFormat().dwChannelMask), mpAudioEngine->GetOutputFormat().Format.wFormatTag);
-			LOG(kAudio, kInfo, "    MasteringVoice: channels {} channel mask {} sample rate {}", voiceDetails.InputChannels, common::ToHex(std::span(pcHex), uiChannelMask), voiceDetails.InputSampleRate);
-
-			WAVEFORMATEXTENSIBLE waveFormatExtensible = mpAudioEngine->GetOutputFormat();
-			miMasteringVoiceChannels = std::min(static_cast<int64_t>(voiceDetails.InputChannels), static_cast<int64_t>(waveFormatExtensible.Format.nChannels));
-
-			mStaticVoices.Init(mpAudioEngine.get(), &miMasteringVoiceChannels);
-			mStreamingVoices.Init(mpAudioEngine.get());
+			InitializeAudioSubsystems(selectedDeviceId);
 		}
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
@@ -207,8 +217,7 @@ AudioManager::~AudioManager()
 		mpAudioEngine->UnregisterNotify(this, false, false);
 	}
 
-	mStaticVoices.Clear(false);
-	mStreamingVoices.Clear(false);
+	ClearVoices(false);
 
 	if (mpAudioEngine != nullptr)
 	{
@@ -226,10 +235,10 @@ void AudioManager::SetNextMusicTrackCallback(std::function<common::crc_t()> call
 	mStreamingVoices.SetNextTrackCallback(std::move(callback));
 }
 
-void AudioManager::ClearVoices()
+void AudioManager::ClearVoices(bool bNullVoicesBeforeDestroy)
 {
-	mStaticVoices.Clear(true);
-	mStreamingVoices.Clear(true);
+	mStaticVoices.Clear(bNullVoicesBeforeDestroy);
+	mStreamingVoices.Clear(bNullVoicesBeforeDestroy);
 }
 
 void AudioManager::Suspend()
@@ -240,14 +249,12 @@ void AudioManager::Suspend()
 	}
 
 	mbSuspended.store(true, std::memory_order_release);
-	mStaticVoices.SetSuspended(true);
 
 	mpAudioEngine->Suspend();
 
 	// Processing thread is now stopped — DestroyVoice returns instantly
 	LOG(kAudio, kInfo, "Suspend: destroying {} static voices, {} streams", mStaticVoices.GetVoiceCount(), mStreamingVoices.GetStreamCount());
-	mStaticVoices.Clear(false);
-	mStreamingVoices.Clear(false);
+	ClearVoices(false);
 }
 
 void AudioManager::Resume()
@@ -258,23 +265,34 @@ void AudioManager::Resume()
 	}
 
 	mbSuspended.store(false, std::memory_order_release);
-	mStaticVoices.SetSuspended(false);
 	mpAudioEngine->Resume();
 	LOG(kAudio, kInfo, "Resume");
 }
 
 void AudioManager::PlayMusic(common::crc_t uiAudioCrc)
 {
+	if (mbSuspended.load(std::memory_order_acquire))
+	{
+		return;
+	}
 	mStreamingVoices.Play(uiAudioCrc);
 }
 
 void AudioManager::PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch, float fPitchRange)
 {
+	if (mbSuspended.load(std::memory_order_acquire))
+	{
+		return;
+	}
 	mStaticVoices.PlayOneShot(rFrame, uiAudioCrc, b3d, fVolume, fPitch, fPitchRange);
 }
 
 void XM_CALLCONV AudioManager::PlayOneShot3d(const game::Frame& rFrame, common::crc_t uiAudioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch, float fPitchRange)
 {
+	if (mbSuspended.load(std::memory_order_acquire))
+	{
+		return;
+	}
 	mStaticVoices.PlayOneShot3d(rFrame, uiAudioCrc, vecPosition, fVolume, fPitch, fPitchRange);
 }
 
@@ -293,12 +311,7 @@ void AudioManager::Update(const game::Frame* pFrame)
 
 	if (mbClearVoicesRequested.exchange(false, std::memory_order_acquire))
 	{
-		mStaticVoices.Clear(true);
-	}
-
-	if (mbClearStreamingVoicesRequested.exchange(false, std::memory_order_acquire))
-	{
-		mStreamingVoices.Clear(true);
+		ClearVoices(true);
 	}
 
 	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
@@ -335,20 +348,15 @@ void AudioManager::Update(const game::Frame* pFrame)
 			}
 		}
 
-		// Re-cache mastering voice channels after device reset
-		{
-			IXAudio2MasteringVoice* pMasterVoice = mpAudioEngine->GetMasterVoice();
-			if (pMasterVoice != nullptr)
-			{
-				XAUDIO2_VOICE_DETAILS voiceDetails {};
-				pMasterVoice->GetVoiceDetails(&voiceDetails);
-				WAVEFORMATEXTENSIBLE waveFormat = mpAudioEngine->GetOutputFormat();
-				miMasteringVoiceChannels = std::min(static_cast<int64_t>(voiceDetails.InputChannels), static_cast<int64_t>(waveFormat.Format.nChannels));
-			}
-		}
+		// A successful DirectXTK Reset synchronously calls OnReset. This explicit clear owns that
+		// reset; consume its deferred request so it cannot clear a newly restarted track next frame.
+		// A genuinely later callback store after this exchange remains armed for the next Update.
+		mbClearVoicesRequested.exchange(false, std::memory_order_acquire);
+
+		CacheMasteringVoiceChannels();
 
 		// After Reset() is called, all XAudio2SourceVoices are destroyed internally to AudioEngine and their pointers must be set to nullptr
-		ClearVoices();
+		ClearVoices(true);
 	}
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
@@ -365,7 +373,7 @@ void AudioManager::Update(const game::Frame* pFrame)
 	{
 		// Listener position must update first — UpdateLifecycle's priority/cull pass
 		// reads mVecListenerPosition and mfEffectiveFadeEnd computed here.
-		mStaticVoices.UpdateListenerPosition(*pFrame);
+		mStaticVoices.UpdateListenerPosition();
 		mStaticVoices.UpdateLifecycle(*pFrame, fDeltaTime);
 	}
 
@@ -382,22 +390,19 @@ void AudioManager::OnCriticalError()
 	LOG(kDefault, kError, "AudioManager::OnCriticalError()");
 
 	// Destroy voices immediately — XAudio2 callback thread is no longer running
-	mStaticVoices.Clear(false);
-	mStreamingVoices.Clear(false);
+	ClearVoices(false);
 }
 
 void AudioManager::OnReset()
 {
 	LOG(kAudio, kDebug, "AudioManager::OnReset()");
 	mbClearVoicesRequested.store(true, std::memory_order_release);
-	mbClearStreamingVoicesRequested.store(true, std::memory_order_release);
 }
 
 void AudioManager::OnDestroyEngine() noexcept
 {
 	LOG(kAudio, kDebug, "AudioManager::OnDestroyEngine()");
 	mbClearVoicesRequested.store(true, std::memory_order_release);
-	mbClearStreamingVoicesRequested.store(true, std::memory_order_release);
 }
 
 void AudioManager::OnTrim()

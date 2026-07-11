@@ -43,7 +43,7 @@ public:
 	sound_t mId;
 	float mfVolume = 0.0f;
 	float mfPitch = 1.0f;
-	float mfFadeOutVolume = 1.0f;
+	float mfFadeVolume = 1.0f;
 	float mfFadeOutTime = 0.0f;
 	XMVECTOR mVecPosition {};
 	XMVECTOR mVecVelocity {};

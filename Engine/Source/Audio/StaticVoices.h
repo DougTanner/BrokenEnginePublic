@@ -44,14 +44,12 @@ public:
 	void XM_CALLCONV PlayOneShot3d(const game::Frame& rFrame, common::crc_t uiAudioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
 
 	void UpdateLifecycle(const game::Frame& rFrame, float fDeltaTime);
-	void UpdateListenerPosition(const game::Frame& rFrame);
+	void UpdateListenerPosition();
 	void UpdateVolumes();
 
 	void Clear(bool bNullVoicesBeforeDestroy);
 
 	int64_t GetVoiceCount() const { return static_cast<int64_t>(mVoices.size()); }
-
-	void SetSuspended(bool bSuspended) { mbSuspended.store(bSuspended, std::memory_order_release); }
 
 	void SkipNextInvalidation() { mbSkipNextInvalidation = true; }
 
@@ -78,17 +76,26 @@ private:
 		common::crc_t mAudioCrc;
 		IXAudio2SourceVoice* mpVoice;
 	};
+	struct AcquiredVoice
+	{
+		IXAudio2SourceVoice* pVoice = nullptr;
+		bool bFromPool = false;
+	};
 
 	void ReturnVoiceToPool(common::crc_t audioCrc, IXAudio2SourceVoice* pVoice);
 	IXAudio2SourceVoice* AcquireVoiceFromPool(common::crc_t audioCrc);
+	AcquiredVoice AcquireOrLoadVoice(common::crc_t uiAudioCrc);
 	void ClearPool();
+	void BeginFadeOut(StaticVoice& rVoice);
+	void EndFadeOut(StaticVoice& rVoice);
+	void ActivateVoice(StaticVoice& rVoice, IXAudio2SourceVoice* pVoice);
+	void RetireVoice(StaticVoice& rVoice);
 
 	AudioEngine* mpAudioEngine = nullptr;
 	const int64_t* mpiMasteringVoiceChannels = nullptr;
 
 	std::mutex mOneShotMutex; // 3D path locks once and calls the unlocked PlayOneShotLocked helper (no re-entry)
 	common::RandomEngine mRandomEngine;
-	std::atomic<bool> mbSuspended = false;
 
 	bool mbSkipNextInvalidation = false;
 	std::vector<StaticVoice> mVoices;

@@ -26,11 +26,6 @@ void StaticVoices::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, commo
 		return;
 	}
 
-	if (mbSuspended.load(std::memory_order_acquire))
-	{
-		return;
-	}
-
 	// Silent one-shots cull at the door so they never burn a 128-cap voice slot,
 	// load a buffer, or take the lock.
 	if (fVolume <= 0.0f)
@@ -83,11 +78,6 @@ void XM_CALLCONV StaticVoices::PlayOneShot3d([[maybe_unused]] const game::Frame&
 	// Hoisted above the RNG advance and the lock so replay ticks never mutate audio state
 	// (the documented replay invariant) and a suspended client does no extra work.
 	if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
-	{
-		return;
-	}
-
-	if (mbSuspended.load(std::memory_order_acquire))
 	{
 		return;
 	}
@@ -145,6 +135,42 @@ IXAudio2SourceVoice* StaticVoices::AcquireVoiceFromPool(common::crc_t audioCrc)
 		}
 	}
 	return nullptr;
+}
+
+StaticVoices::AcquiredVoice StaticVoices::AcquireOrLoadVoice(common::crc_t uiAudioCrc)
+{
+	IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiAudioCrc);
+	bool bFromPool = pVoice != nullptr;
+	if (!bFromPool && !StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiAudioCrc, LoadVoiceFlags::k3d))
+	{
+		return {};
+	}
+	return { .pVoice = pVoice, .bFromPool = bFromPool, };
+}
+
+void StaticVoices::BeginFadeOut(StaticVoice& rVoice)
+{
+	rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
+	++miFadeOutCount;
+}
+
+void StaticVoices::EndFadeOut(StaticVoice& rVoice)
+{
+	rVoice.mFlags.Clear(StaticVoiceFlags::kFadingOut);
+	--miFadeOutCount;
+}
+
+void StaticVoices::ActivateVoice(StaticVoice& rVoice, IXAudio2SourceVoice* pVoice)
+{
+	rVoice.mpVoice = pVoice;
+	rVoice.mFlags.Clear(StaticVoiceFlags::kInactive);
+}
+
+void StaticVoices::RetireVoice(StaticVoice& rVoice)
+{
+	ReturnVoiceToPool(rVoice.mAudioCrc, rVoice.mpVoice);
+	rVoice.mpVoice = nullptr;
+	rVoice.mFlags.Set(StaticVoiceFlags::kInactive);
 }
 
 void StaticVoices::ClearPool()
@@ -231,10 +257,9 @@ void StaticVoices::InvalidationPass(const SoundsInterpolate& rSoundsInterpolate)
 		}
 		else
 		{
-			// Fade starts from the current mfFadeOutVolume — a voice still mid-fade-in would step UP
+			// Fade starts from the current mfFadeVolume — a voice still mid-fade-in would step UP
 			// to full volume for a frame if this reset to 1.0, popping. AdvanceFadeOut ramps down from here.
-			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
-			++miFadeOutCount;
+			BeginFadeOut(rVoice);
 		}
 
 		if (bDestroy)
@@ -329,19 +354,15 @@ void StaticVoices::PriorityPass(const SoundsInterpolate& rSoundsInterpolate, con
 			if ((pExistingVoice->mFlags & StaticVoiceFlags::kInactive) && fAttenuated >= kfCullVolume)
 			{
 				// Reactivate: re-acquire from the per-crc pool, restart the source voice,
-				// and ramp volume in via mfFadeOutVolume to mask the click.
-				common::crc_t uiCrc = pExistingVoice->mAudioCrc;
-				IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
+				// and ramp volume in via mfFadeVolume to mask the click.
+				AcquiredVoice acquiredVoice = AcquireOrLoadVoice(pExistingVoice->mAudioCrc);
+				IXAudio2SourceVoice* pVoice = acquiredVoice.pVoice;
 				if (pVoice == nullptr)
 				{
-					if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, LoadVoiceFlags::k3d))
-					{
-						continue;
-					}
+					continue;
 				}
-				pExistingVoice->mpVoice = pVoice;
-				pExistingVoice->mfFadeOutVolume = 0.0f;
-				pExistingVoice->mFlags.Clear(StaticVoiceFlags::kInactive);
+				ActivateVoice(*pExistingVoice, pVoice);
+				pExistingVoice->mfFadeVolume = 0.0f;
 				// SetVolume(0) before Start() prevents an audible click — pooled voices
 				// retain whatever volume Apply3dVolume last set on them, which may be
 				// loud. Apply3dVolume in the next UpdateVolumes will re-establish the
@@ -353,11 +374,10 @@ void StaticVoices::PriorityPass(const SoundsInterpolate& rSoundsInterpolate, con
 			else if ((pExistingVoice->mFlags & StaticVoiceFlags::kFadingOut) && fAttenuated >= kfCullVolume)
 			{
 				// Cancel fade-out: voice is still playing. Clearing the flag lets the
-				// fade-in ramp pick mfFadeOutVolume up from wherever it had reached
+				// fade-in ramp pick mfFadeVolume up from wherever it had reached
 				// and ramp it back to 1.0. No Start() / SetVolume(0) / click.
-				pExistingVoice->mFlags.Clear(StaticVoiceFlags::kFadingOut);
-				--miFadeOutCount;
-				LOG(kAudio, kDebug, "voice FADE CANCELLED id={} fadeVol={}", id, common::Wb(pExistingVoice->mfFadeOutVolume, 2));
+				EndFadeOut(*pExistingVoice);
+				LOG(kAudio, kDebug, "voice FADE CANCELLED id={} fadeVol={}", id, common::Wb(pExistingVoice->mfFadeVolume, 2));
 			}
 
 			// Mark as activated only when the voice is genuinely audible this frame.
@@ -386,29 +406,26 @@ void StaticVoices::PriorityPass(const SoundsInterpolate& rSoundsInterpolate, con
 		}
 
 		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
-		IXAudio2SourceVoice* pVoice = AcquireVoiceFromPool(uiCrc);
-		bool bFromPool = pVoice != nullptr;
-		if (!bFromPool)
+		AcquiredVoice acquiredVoice = AcquireOrLoadVoice(uiCrc);
+		IXAudio2SourceVoice* pVoice = acquiredVoice.pVoice;
+		if (pVoice == nullptr)
 		{
-			if (!StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine, pVoice, uiCrc, LoadVoiceFlags::k3d))
-			{
-				continue;
-			}
+			continue;
 		}
 		float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
 		mVoices.push_back(StaticVoice(pVoice, id, fSoundVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity, uiCrc));
 		StaticVoice& rNewVoice = mVoices.back();
-		if (bFromPool)
+		if (acquiredVoice.bFromPool)
 		{
 			// Pooled voices are never flushed, so Start() resumes mid-buffer at a random loop phase —
 			// ramp in from silence (AdvanceFadeIn) to mask the discontinuity, matching the reactivation path.
-			rNewVoice.mfFadeOutVolume = 0.0f;
+			rNewVoice.mfFadeVolume = 0.0f;
 		}
 		// Establish the attenuated 3D mix this same pass — the ctor starts the voice silent
 		// (SetVolume(0)), so without this the first quantum of a fresh voice would be inaudible
-		// until the next UpdateVolumes. Scaled by mfFadeOutVolume so a pooled voice stays silent
+		// until the next UpdateVolumes. Scaled by mfFadeVolume so a pooled voice stays silent
 		// for its first quantum and enters the fade-in ramp instead.
-		Apply3dVolume(pVoice, vecPosition, vecVelocity, rNewVoice.mfFadeOutVolume * fSoundVolume, fPitch);
+		Apply3dVolume(pVoice, vecPosition, vecVelocity, rNewVoice.mfFadeVolume * fSoundVolume, fPitch);
 		rNewVoice.mFlags.Set(StaticVoiceFlags::kActivatedThisFrame);
 	}
 }
@@ -416,7 +433,7 @@ void StaticVoices::PriorityPass(const SoundsInterpolate& rSoundsInterpolate, con
 void StaticVoices::DeactivationPass()
 {
 	// Any active voice not given a slot this frame (past cap or below the activate
-	// threshold) enters fade-out. The XAudio2 voice keeps playing while mfFadeOutVolume
+	// threshold) enters fade-out. The XAudio2 voice keeps playing while mfFadeVolume
 	// ramps to zero (AdvanceFadeOut advances and finalizes), so the cut is graceful
 	// instead of a mid-sample Stop() click. Runs unconditionally so iSoundCount==0 also
 	// drains stale active voices.
@@ -446,9 +463,8 @@ void StaticVoices::DeactivationPass()
 				DEBUG_BREAK();
 				continue;
 			}
-			// Fade starts from the current mfFadeOutVolume (see InvalidationPass) — no reset to 1.0
-			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
-			++miFadeOutCount;
+			// Fade starts from the current mfFadeVolume (see InvalidationPass) — no reset to 1.0
+			BeginFadeOut(rVoice);
 			LOG(kAudio, kDebug, "voice FADING id={} dist={}", rVoice.mId, common::Wb(common::Distance(rVoice.mVecPosition, mVecListenerPosition), 2));
 		}
 	}
@@ -456,7 +472,7 @@ void StaticVoices::DeactivationPass()
 
 void StaticVoices::AdvanceFadeOut(float fDeltaTime)
 {
-	// Advance kFadingOut entries' mfFadeOutVolume, clamped at zero. Retirement is deferred until
+	// Advance kFadingOut entries' mfFadeVolume, clamped at zero. Retirement is deferred until
 	// the frame AFTER the ramp reaches zero: UpdateVolumes has then already applied silence to the
 	// XAudio2 voice, so the Stop() in ReturnVoiceToPool never cuts an audible waveform mid-sample.
 	// On retirement the voice returns to the per-crc pool and the entry transitions to kInactive —
@@ -468,25 +484,19 @@ void StaticVoices::AdvanceFadeOut(float fDeltaTime)
 		{
 			continue;
 		}
-		if (rVoice.mfFadeOutVolume <= 0.0f)
+		if (rVoice.mfFadeVolume <= 0.0f)
 		{
-			if (rVoice.mpVoice != nullptr)
-			{
-				ReturnVoiceToPool(rVoice.mAudioCrc, rVoice.mpVoice);
-				rVoice.mpVoice = nullptr;
-			}
-			rVoice.mFlags.Clear(StaticVoiceFlags::kFadingOut);
-			rVoice.mFlags.Set(StaticVoiceFlags::kInactive);
-			--miFadeOutCount;
+			RetireVoice(rVoice);
+			EndFadeOut(rVoice);
 			continue;
 		}
-		rVoice.mfFadeOutVolume = std::max(0.0f, rVoice.mfFadeOutVolume - fDeltaTime / rVoice.mfFadeOutTime);
+		rVoice.mfFadeVolume = std::max(0.0f, rVoice.mfFadeVolume - fDeltaTime / rVoice.mfFadeOutTime);
 	}
 }
 
 void StaticVoices::AdvanceFadeIn(float fDeltaTime)
 {
-	// Fade-in ramp for voices whose mfFadeOutVolume is below 1.0 — used after
+	// Fade-in ramp for voices whose mfFadeVolume is below 1.0 — used after
 	// reactivation to mask the Start() click. 150ms full ramp.
 	static constexpr float kfFadeInTime = 0.15f;
 	for (StaticVoice& rVoice : mVoices)
@@ -499,14 +509,14 @@ void StaticVoices::AdvanceFadeIn(float fDeltaTime)
 		{
 			continue;
 		}
-		if (rVoice.mfFadeOutVolume < 1.0f)
+		if (rVoice.mfFadeVolume < 1.0f)
 		{
-			rVoice.mfFadeOutVolume = std::min(1.0f, rVoice.mfFadeOutVolume + fDeltaTime / kfFadeInTime);
+			rVoice.mfFadeVolume = std::min(1.0f, rVoice.mfFadeVolume + fDeltaTime / kfFadeInTime);
 		}
 	}
 }
 
-void StaticVoices::UpdateListenerPosition([[maybe_unused]] const game::Frame& rFrame)
+void StaticVoices::UpdateListenerPosition()
 {
 	// Two listener points, decoupled by purpose:
 	//   * mVecListenerPosition (camera eye, full XYZ) — drives the manual fade distance so
@@ -547,7 +557,7 @@ void StaticVoices::UpdateVolumes()
 		{
 			continue; // No XAudio2 voice attached — skip mix.
 		}
-		Apply3dVolume(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mfFadeOutVolume * rVoice.mfVolume, rVoice.mfPitch);
+		Apply3dVolume(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mfFadeVolume * rVoice.mfVolume, rVoice.mfPitch);
 	}
 }
 
