@@ -15,6 +15,14 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 
 - Main session is manager: delegate aggressively to keep the context small, except trivial edits
 - Subagent instructions: CONCISE but COMPLETE — objective, scope, file paths, output format. Provide them only with the instructions and context they need.
+- One top-level Codex session owns one worktree for its full plan lifecycle. Every subagent works in that same checkout; subagents never create nested or sibling worktrees.
+
+### Session worktree lifecycle
+
+- If the top-level session already runs in an orchestrator-managed worktree, adopt it and record its resolved path, branch, and session-start commit; do not create another. Otherwise create one unique session branch/worktree from the branch and HEAD currently checked out by the primary non-worktree checkout. Never hard-code `main` or a release branch. The recorded session-start commit is the fixed changed-file baseline.
+- Agents may commit only their session changes, merge newer primary-branch commits into their own branch, resolve conflicts, reverify affected work, and land the verified commit. They never push, force-update, destructively reset, or mutate another session's branch/worktree.
+- Final landing is serialized by an atomically-created, PC-global lock at `%LOCALAPPDATA%\BrokenEngineLandingLocks\<repository-id>.lock`. Derive `<repository-id>` identically in every worktree: resolve `git rev-parse --git-common-dir` to a canonical absolute Windows path, convert `/` to `\`, remove trailing separators unless the path is a filesystem root, lowercase with invariant rules, hash its UTF-8 bytes with SHA-256, and use the 64-character lowercase hex digest. If the lock exists, read its owner metadata. Age is warning-only and never permits recovery; takeover requires explicit user approval, a re-read proving the owner token is unchanged, and an atomic owner replacement. While holding the lock: verify owner metadata and a clean primary checkout, merge any newer primary commits into the session branch, reconcile and reverify overlaps, then fast-forward the primary branch and verify the landed commit. The later lander owns reconciliation; release the lock only after verifying ownership.
+- Delete only the current session's clean worktree and merged branch after verifying their resolved identities and successful landing. Never force removal to bypass a failed check.
 
 ### When to use each model
 
@@ -59,7 +67,7 @@ Each subagent reports files changed + functions/regions touched (one line each),
 
 ## Directives
 - Follow KISS, YAGNI, DRY — before writing logic that may already exist, grep; call or extract a shared helper, never paste a copy. Exception: mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel
-- You may run ONLY read-only Git commands
+- Outside the session worktree lifecycle above, use only read-only Git commands. Never push.
 - Claude Skills `.claude\skills` and AGENTS.md files are used only by AI agents and must be kept CONCISE
 - Each directory's agent memory lives in `AGENTS.md`; its sibling `CLAUDE.md` is a one-line `@AGENTS.md` import stub for Claude Code loading — edit `AGENTS.md`, never the stub
 - **Error handling at trust boundaries only**: assume function parameters from within the codebase are valid — no defensive validation between our own functions. Do validate anything opaque to the current code unit: network input, file reads, OS/third-party API results.

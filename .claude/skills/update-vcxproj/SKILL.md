@@ -35,6 +35,7 @@ Read `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md` first â
 2. Find the insertion/verification anchor by Grep-ing the vcxproj and .filters for an existing entry of the same element type from the same directory; if none exists (new directory), anchor on the nearest ancestor-directory entry of the same type and extend its relative path. Do not Read whole project files â€” they are thousands of lines.
 3. Add mode: Edit each missing entry next to its anchor (`ClCompile` for `.cpp`, `ClInclude` for `.h` including shader headers, `None` for shader stage sources), matching the sibling entries' form; add the mirrored filter entry, creating missing `<Filter Include>` GUIDs.
 4. Verify mode: confirm presence in the correct project(s), absence from the wrong one, and that the filter path mirrors the directory.
+5. After integrating newer primary-branch commits into a session branch, rerun Add mode for the session's affected files, then Verify mode for every affected project and filter. Do not hand-merge vcxproj membership or filter mechanics; if both changes assign conflicting affinity or membership semantics, stop for user resolution.
 
 ## Report
 

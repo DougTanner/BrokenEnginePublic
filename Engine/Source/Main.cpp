@@ -295,8 +295,8 @@ void MainThread(HINSTANCE hinstance)
 	}
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
 
-	// Agent-mode launch must not steal focus from the user's active app
-	ShowWindow(sHwnd, gLaunchOptions.iAgentPort != 0 ? SW_SHOWNOACTIVATE : SW_SHOWDEFAULT);
+	// Agent-mode launch stays minimized and must not steal focus from the user's active app
+	ShowWindow(sHwnd, gLaunchOptions.iAgentPort != 0 ? SW_SHOWMINNOACTIVE : SW_SHOWDEFAULT);
 #else
 	// Server: create terrain collision data (no Graphics)
 	auto pIslandTerrain = std::make_unique<IslandTerrain>();
@@ -306,7 +306,7 @@ void MainThread(HINSTANCE hinstance)
 
 	auto pServerNetwork = std::make_unique<Server>(kuiDefaultPort);
 
-	ShowWindow(sHwnd, SW_SHOWNOACTIVATE);
+	ShowWindow(sHwnd, gLaunchOptions.iAgentPort != 0 ? SW_SHOWMINNOACTIVE : SW_SHOWNOACTIVATE);
 #endif // BT_CLIENT
 	common::ScopedLambda hideWindow([]()
 	{
@@ -327,7 +327,10 @@ void MainThread(HINSTANCE hinstance)
 		gpAudioManager->Suspend();
 	}
 #else
-	SetFocus(sHwnd);
+	if (gLaunchOptions.iAgentPort == 0)
+	{
+		SetFocus(sHwnd);
+	}
 #endif
 	ProcessMessages();
 
@@ -350,6 +353,19 @@ void MainThread(HINSTANCE hinstance)
 		}
 
 #if defined(BT_CLIENT)
+		// Reconcile a pending fullscreen toggle here, in the main loop only — never from the teardown / boot
+		// ProcessMessages() calls, so a mid-shutdown mismatch can't SetWindowPos a dying window. Read through
+		// WantedFullscreen() so the --windowed / agent overrides fold in and gFullscreen is never mutated.
+		bool bWantedFullscreen = WantedFullscreen();
+		bool bIsFullscreen = (sWindowStyle & WS_POPUP) != 0;
+		if (bIsFullscreen != bWantedFullscreen)
+		{
+			SetupWindow(bWantedFullscreen, sWindowStyle, sWindowRect);
+			SetWindowLongPtr(sHwnd, GWL_STYLE, sWindowStyle);
+			// SWP_NOZORDER | SWP_NOACTIVATE: the agent fullscreen command reaches this path, and the harness must never steal foreground focus.
+			SetWindowPos(sHwnd, nullptr, sWindowRect.left, sWindowRect.top, sWindowRect.right - sWindowRect.left, sWindowRect.bottom - sWindowRect.top, SWP_NOZORDER | SWP_NOACTIVATE);
+		}
+
 		// Drain agent commands before input so injected input scripts (later harness plans) act on the same frame.
 		// The server drains in GameBase::ServerUpdate instead, matching the debug-control packet ordering.
 		if (gpAgentCommandServer != nullptr) [[unlikely]]
@@ -548,19 +564,6 @@ VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
 
 bool ProcessMessages()
 {
-#if defined(BT_CLIENT)
-	// Handle fullscreen toggle
-	bool bWantedFullscreen = WantedFullscreen();
-	bool bIsFullscreen = (sWindowStyle & WS_POPUP) != 0;
-	if (bIsFullscreen != bWantedFullscreen)
-	{
-		SetupWindow(bWantedFullscreen, sWindowStyle, sWindowRect);
-		SetWindowLongPtr(sHwnd, GWL_STYLE, sWindowStyle);
-		// SWP_NOZORDER | SWP_NOACTIVATE: the agent fullscreen command reaches this path, and the harness must never steal foreground focus.
-		SetWindowPos(sHwnd, nullptr, sWindowRect.left, sWindowRect.top, sWindowRect.right - sWindowRect.left, sWindowRect.bottom - sWindowRect.top, SWP_NOZORDER | SWP_NOACTIVATE);
-	}
-#endif // BT_CLIENT
-
 	// Process messages with PeekMessage() which doesn't block
 	MSG msg {};
 	bool bHasMessage = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE) == TRUE;
@@ -604,9 +607,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	switch (message)
 	{
-		// WM_ACTIVATEAPP / WM_INPUT stay ungated even when suppressed — DirectXTK Mouse focus bookkeeping, not a physical input feed.
+		// WM_ACTIVATEAPP stays ungated even when suppressed — DirectXTK Mouse focus bookkeeping, not a physical input feed.
 		case WM_ACTIVATEAPP:
-		case WM_INPUT:
 			Mouse::ProcessMessage(message, wParam, lParam);
 			break;
 
@@ -740,9 +742,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 
 		case WM_CLOSE:
-		case WM_QUIT:
 		{
-			LOG(kDefault, kDebug, "WM_CLOSE or WM_QUIT");
+			LOG(kDefault, kDebug, "WM_CLOSE");
 			sbQuit = true;
 			return 0;
 		}

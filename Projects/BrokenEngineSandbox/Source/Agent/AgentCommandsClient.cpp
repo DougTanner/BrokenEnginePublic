@@ -20,6 +20,113 @@ std::filesystem::path PathFromParam(const nlohmann::json& rValue)
 	return std::filesystem::path(reinterpret_cast<const char8_t*>(utf8.c_str()));
 }
 
+enum class CaptureCommandPhase : uint8_t
+{
+	kAwaitRestore,
+	kAwaitResult,
+	kAwaitMinimize,
+	kDone,
+};
+
+struct CaptureCommandState
+{
+	~CaptureCommandState()
+	{
+		// Deferred-response timeout/discard does not poll again. Restore the original minimized state when the
+		// state object is released so every failure path cleans up before AgentCommandServer publishes or exits.
+		if (bRestoreMinimized && ePhase != CaptureCommandPhase::kDone && IsWindow(hwnd) != FALSE && IsIconic(hwnd) == FALSE)
+		{
+			ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
+		}
+	}
+
+	HWND hwnd = nullptr;
+	CaptureCommandPhase ePhase = CaptureCommandPhase::kAwaitResult;
+	bool bRestoreMinimized = false;
+	uint64_t uiCaptureToken = 0;
+	std::optional<nlohmann::json> result;
+};
+
+template <typename QueueCaptureT>
+void BeginCaptureAndDefer(QueueCaptureT queueCapture)
+{
+	HWND hwnd = engine::gpGraphics->mHwnd;
+	bool bRestoreMinimized = IsIconic(hwnd) != FALSE;
+	if (!bRestoreMinimized && engine::gpGraphics->mbSwapchainRecreateDeferred)
+	{
+		// Preserve the existing fast failure when a non-minimized window has no live capture target.
+		throw std::runtime_error("window is minimized or swapchain recreate is deferred");
+	}
+
+	std::shared_ptr<CaptureCommandState> pState = std::make_shared<CaptureCommandState>();
+	pState->hwnd = hwnd;
+	pState->bRestoreMinimized = bRestoreMinimized;
+	if (bRestoreMinimized)
+	{
+		pState->ePhase = CaptureCommandPhase::kAwaitRestore;
+		ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+	}
+	else
+	{
+		pState->uiCaptureToken = engine::ResetCaptureResult();
+		queueCapture(pState->uiCaptureToken);
+	}
+
+	engine::gpAgentCommandServer->DeferResponse([pState, queueCapture = std::move(queueCapture)]() mutable -> std::optional<nlohmann::json>
+	{
+		if (pState->ePhase == CaptureCommandPhase::kAwaitRestore)
+		{
+			if (IsIconic(pState->hwnd) == FALSE && engine::gpGraphics->ExtentSettled())
+			{
+				pState->uiCaptureToken = engine::ResetCaptureResult();
+				queueCapture(pState->uiCaptureToken);
+				pState->ePhase = CaptureCommandPhase::kAwaitResult;
+			}
+		}
+
+		if (pState->ePhase == CaptureCommandPhase::kAwaitResult)
+		{
+			pState->result = engine::TakeCaptureResult(pState->uiCaptureToken);
+			if (pState->result.has_value())
+			{
+				if (!pState->bRestoreMinimized)
+				{
+					pState->ePhase = CaptureCommandPhase::kDone;
+				}
+				else
+				{
+					ShowWindow(pState->hwnd, SW_SHOWMINNOACTIVE);
+					pState->ePhase = CaptureCommandPhase::kAwaitMinimize;
+				}
+			}
+		}
+
+		if (pState->ePhase == CaptureCommandPhase::kAwaitMinimize)
+		{
+			if (IsIconic(pState->hwnd) == FALSE)
+			{
+				return std::nullopt;
+			}
+			pState->ePhase = CaptureCommandPhase::kDone;
+		}
+
+		if (pState->ePhase != CaptureCommandPhase::kDone)
+		{
+			return std::nullopt;
+		}
+
+		nlohmann::json result = std::move(*pState->result);
+		pState->result.reset();
+		// A failed async save publishes an {"error":...} result; rethrow it so Drain's poll-exception path emits a
+		// proper {"ok":false,"error"} envelope instead of wrapping the error JSON as ok:true.
+		if (result.contains("error"))
+		{
+			throw std::runtime_error(result.at("error").get<std::string>());
+		}
+		return result;
+	});
+}
+
 // screenshot: capture the live window to a downscaled JPG/PNG. Completes via the deferred-response mechanism once
 // the async save records its result. Schema: {"path"?,"maxWidth"?:1568,"format"?:"jpg|png","quality"?:80}.
 void CommandScreenshot(const nlohmann::json& rParams, [[maybe_unused]] nlohmann::json& rResult)
@@ -31,14 +138,8 @@ void CommandScreenshot(const nlohmann::json& rParams, [[maybe_unused]] nlohmann:
 		throw std::runtime_error("screenshot capture is compiled out (kbScreenshots is false)");
 	}
 
-	// The capture mailbox is consumed only inside RenderMainPresentAcquire, which the render skip (GameBase::Render)
-	// bypasses while the window is iconic or a recreate is deferred — the request would spin to the drain timeout.
-	// Fail fast with a clear error instead (mirrors CommandResize's minimized rejection).
-	if (IsIconic(engine::gpGraphics->mHwnd) || engine::gpGraphics->mbSwapchainRecreateDeferred)
-	{
-		throw std::runtime_error("window is minimized or swapchain recreate is deferred");
-	}
-
+	// BeginCaptureAndDefer temporarily restores an iconic window without activation, waits for its live swapchain,
+	// then returns it to the minimized state after the capture result arrives.
 	engine::ScreenshotRequest request;
 	request.bPublishResult = true;
 	if (rParams.contains("path"))
@@ -70,19 +171,10 @@ void CommandScreenshot(const nlohmann::json& rParams, [[maybe_unused]] nlohmann:
 		request.iQuality = std::clamp<int64_t>(rParams.at("quality").get<int64_t>(), 1, 100);
 	}
 
-	uint64_t uiCaptureToken = engine::ResetCaptureResult();
-	request.uiCaptureToken = uiCaptureToken;
-	engine::gpGraphics->mScreenshotRequest = std::move(request);
-	engine::gpAgentCommandServer->DeferResponse([uiCaptureToken]()
+	BeginCaptureAndDefer([request = std::move(request)](uint64_t uiCaptureToken) mutable
 	{
-		std::optional<nlohmann::json> result = engine::TakeCaptureResult(uiCaptureToken);
-		// A failed async save publishes an {"error":...} result; rethrow it so Drain's poll-exception path emits a
-		// proper {"ok":false,"error"} envelope instead of wrapping the error JSON as ok:true.
-		if (result.has_value() && result->contains("error"))
-		{
-			throw std::runtime_error(result->at("error").get<std::string>());
-		}
-		return result;
+		request.uiCaptureToken = uiCaptureToken;
+		engine::gpGraphics->mScreenshotRequest = std::move(request);
 	});
 }
 
@@ -200,7 +292,7 @@ void CommandResize(const nlohmann::json& rParams, nlohmann::json& rResult)
 }
 
 // fullscreen: toggle the live client between borderless windowed-fullscreen (WS_POPUP) and windowed
-// (WS_OVERLAPPEDWINDOW) mid-session by driving the engine's WantedFullscreen() -> ProcessMessages() style-switch path
+// (WS_OVERLAPPEDWINDOW) mid-session by driving the engine's WantedFullscreen() -> main-loop reconciliation style-switch path
 // via an agent override. 'on' is a trust boundary: validated to a bool. Idempotent — an already-in-state request
 // answers synchronously. Never mutates the persisted gFullscreen setting; windowed restore returns to the launch
 // extent (a mid-run resize is not preserved). Schema: {"on"}; result: {"fullscreen","width","height"}.
@@ -233,8 +325,8 @@ void CommandFullscreen(const nlohmann::json& rParams, nlohmann::json& rResult)
 		return;
 	}
 
-	// Install the override; the per-frame ProcessMessages() reconciliation picks it up and performs the style swap +
-	// SetupWindow + swapchain recreate. The command completes via the deferred-response mechanism once it lands.
+	// Install the override; the per-frame main-loop reconciliation (in MainThread, just after ProcessMessages()) picks it
+	// up and performs the style swap + SetupWindow + swapchain recreate. The command completes via the deferred-response mechanism once it lands.
 	engine::SetAgentFullscreenOverride(bOn);
 
 	engine::gpAgentCommandServer->DeferResponse([bOn]() -> std::optional<nlohmann::json>
@@ -259,7 +351,7 @@ void CommandFullscreen(const nlohmann::json& rParams, nlohmann::json& rResult)
 // 'minimized' is a trust boundary: validated to a bool. Idempotent — an already-in-state request answers synchronously.
 // Minimize uses SW_MINIMIZE; restore uses SW_SHOWNOACTIVATE (a no-activate restore — never steal foreground focus, per
 // the agent-mode convention in Main.cpp). Never mutates the persisted gFullscreen setting or any .bin. This command
-// produces the minimized/recreate-deferred state that resize/fullscreen/screenshot reject; restore clears it. Completes
+// produces the minimized/recreate-deferred state that resize/fullscreen reject; captures temporarily restore it. Completes
 // synchronously if already in state, else via the deferred-response mechanism once the window state settles. Schema:
 // {"minimized"}; result: {"minimized"}, plus {"width","height"} of the settled extent on restore.
 void CommandWindowState(const nlohmann::json& rParams, nlohmann::json& rResult)
@@ -331,13 +423,7 @@ void CommandDumpRenderTarget(const nlohmann::json& rParams, [[maybe_unused]] nlo
 		throw std::runtime_error("dump_render_target is compiled out (kbScreenshots is false)");
 	}
 
-	// As CommandScreenshot: the readback mailbox is consumed only inside RenderMainPresentAcquire, which the render
-	// skip bypasses while iconic / deferred — fail fast instead of spinning to the drain timeout.
-	if (IsIconic(engine::gpGraphics->mHwnd) || engine::gpGraphics->mbSwapchainRecreateDeferred)
-	{
-		throw std::runtime_error("window is minimized or swapchain recreate is deferred");
-	}
-
+	// As CommandScreenshot: BeginCaptureAndDefer temporarily restores an iconic window for the live readback.
 	if (!rParams.contains("name") || !rParams.at("name").is_string())
 	{
 		throw std::runtime_error("dump_render_target requires string 'name'");
@@ -366,19 +452,10 @@ void CommandDumpRenderTarget(const nlohmann::json& rParams, [[maybe_unused]] nlo
 	// Trust-boundary validation now (unknown name / bad index / non-encodable format) so errors report synchronously.
 	engine::ValidateDumpRenderTargetRequest(request);
 
-	uint64_t uiCaptureToken = engine::ResetCaptureResult();
-	request.uiCaptureToken = uiCaptureToken;
-	engine::gpGraphics->mDumpRenderTargetRequest = std::move(request);
-	engine::gpAgentCommandServer->DeferResponse([uiCaptureToken]()
+	BeginCaptureAndDefer([request = std::move(request)](uint64_t uiCaptureToken) mutable
 	{
-		std::optional<nlohmann::json> result = engine::TakeCaptureResult(uiCaptureToken);
-		// A failed async encode publishes an {"error":...} result; rethrow it so Drain's poll-exception path emits a
-		// proper {"ok":false,"error"} envelope instead of wrapping the error JSON as ok:true.
-		if (result.has_value() && result->contains("error"))
-		{
-			throw std::runtime_error(result->at("error").get<std::string>());
-		}
-		return result;
+		request.uiCaptureToken = uiCaptureToken;
+		engine::gpGraphics->mDumpRenderTargetRequest = std::move(request);
 	});
 }
 

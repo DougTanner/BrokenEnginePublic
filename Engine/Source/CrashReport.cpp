@@ -41,7 +41,8 @@ void HandleException(std::optional<const std::exception*> pException)
 		wcscat_s(spcPath, std::size(spcPath), L"\\");
 		wcscat_s(spcPath, std::size(spcPath), pcGameName);
 
-		std::filesystem::create_directories(spcPath);
+		// Allocator-free single-level create (parent guaranteed present above): the SIGABRT-reachable crash path must not re-enter the heap, which std::filesystem::create_directories would. Ignore the result — ERROR_ALREADY_EXISTS is fine, mirroring create_directories' no-op on an existing dir.
+		CreateDirectoryW(spcPath, nullptr);
 	}
 
 	wchar_t pcCrashReportFile[128] {};
@@ -80,11 +81,6 @@ void HandleException(std::optional<const std::exception*> pException)
 
 void ReadDxDiag()
 {
-	if (IsDebuggerPresent() != 0)
-	{
-		return;
-	}
-
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 
 	common::ThreadLocal threadLocal(1024, common::kThreadDxDiag);
@@ -121,6 +117,9 @@ void ReadDxDiag()
 			Microsoft::WRL::ComPtr<IDxDiagContainer> pChild;
 			CHECK_HRESULT(pDisplayDevices->GetChildContainer(pcChildName, &pChild));
 
+			// Best-effort per-prop reads (GetNumberOfProps / EnumPropNames / GetProp / VariantClear): results deliberately
+			// unchecked. Each output is zero-initialized and used only under the VT_BSTR guard, so a failed read skips the
+			// prop safely; CHECK_HRESULT here would throw and abort the whole remaining best-effort DxDiag capture.
 			DWORD uiPropCount = 0;
 			pChild->GetNumberOfProps(&uiPropCount);
 			LOG(kDefault, kDebug, "    {} props", uiPropCount);

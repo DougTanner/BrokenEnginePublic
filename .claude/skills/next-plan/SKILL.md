@@ -1,6 +1,6 @@
 ---
 name: next-plan
-description: First reconciles any orphaned plan files on disk that aren't referenced in `Documents/Plans/Order.md` by dispatching an Opus subagent to score them and inserting their rows. Then pulls the highest-priority plan, follows any unfinished prerequisites, validates it against the current codebase, refreshes stale details, scans the codebase for similar changes the plan may have missed, grills the plan up front to resolve open decisions, and presents a ready-to-execute plan for approval. Claims the selected plan by marking its Order.md row `[CLAIMED]`; the row and plan file are removed only after the plan is fully executed, and rejection unclaims the row. Use when the user invokes `/next-plan`.
+description: First reconciles any orphaned plan files on disk that aren't referenced in `Documents/Plans/Order.md` by dispatching an Opus subagent to score them and inserting their rows. Then pulls the highest-priority plan, follows any unfinished prerequisites, validates it against the current codebase, refreshes stale details, scans the codebase for similar changes the plan may have missed, grills the plan up front to resolve open decisions, and presents a ready-to-execute plan for approval. Claims the selected plan with a PC-global atomic lock and mirrors it as `[CLAIMED <date>]` in Order.md; the row and plan file are removed only after the plan is fully executed, and rejection lands the refreshed queued plan before releasing the claim. Use when the user invokes `/next-plan`.
 disable-model-invocation: true
 argument-hint: "[plan-file-path]"
 allowed-tools: [Read, Write, Grep, Glob, Agent, Edit, Bash, AskUserQuestion]
@@ -12,26 +12,25 @@ Reconciles orphaned plan files on disk into `Documents/Plans/Order.md`, then wal
 
 ## Preconditions
 
-- The skill assumes **bypass-permissions** mode and mutates without further confirmation: it inserts `Order.md` rows for orphaned plan files (Step 0), marks the target row `[CLAIMED]` as soon as the candidate is selected (Step 2), and overwrites the plan file with the synthesized plan (Step 7). Row removal and plan-file deletion happen only when the plan is fully executed — after the C++ Code Change Process completes, or immediately when Step 3 finds the plan Obsolete (Step 8's completion contract). Rejection at Step 9 unclaims the row and keeps the file. User approval is requested only on the final synthesized plan, not on the mutations.
+- The skill assumes **bypass-permissions** mode and mutates without further confirmation: it inserts orphan rows (Step 0), atomically creates the target's PC-global claim and mirrors `[CLAIMED <date>]` locally (Step 2), and overwrites the plan file with the synthesis (Step 7). Row/file cleanup and owner-checked claim release happen only through Step 8. User approval is requested only on the final synthesized plan.
 - `Documents/Plans/Order.md` must exist. If it does not, report the missing file and stop.
 - The skill does **not** require — and does not use — plan mode. It mimics plan mode's "review-before-implement" UX by grilling the plan (`/external-grill-plan`) up front to resolve decisions, then printing the final refined plan as a standalone turn-ending text message (readable and scrollable in the session window), then asking for approval via `AskUserQuestion`. Because the grill runs **before** approval, an `Approve` (or "execute") jumps straight into implementation (C++ Code Change Process step 2) with no further interview. See Step 9 for the exact grill-then-present-then-approve contract.
-- **Order.md is shared mutable state — expect concurrent writers.** The user routinely runs several agent sessions at once, each executing plans, so `Order.md` rows and plan files appear and vanish **while this skill is running**. Consequences:
-  - Re-read the relevant `Order.md` region immediately before *every* edit (Step 0f inserts, Step 2 claim, completion cleanup, any annotation); a snapshot from earlier in the run is already stale. If an `Edit` fails with "file modified since read", that is the expected concurrency signal — re-read and re-apply, don't escalate.
-  - Key every row edit on the **plan path text**, never on a remembered line number — parallel inserts/removals shift lines constantly.
-  - After any insert/remove, verify the table structure is still intact (header/separator present, every data row well-formed) before moving on.
-  - A row marked `[CLAIMED]`, or a row/plan file that disappears mid-run, is another session legitimately executing or completing that plan — not corruption. Never "restore" or unclaim it; see the edge cases below.
+- **Each top-level session runs in one isolated worktree.** All its subagents share that checkout and the fixed session-start commit is the changed-file baseline. Sessions coordinate through PC-global claim/landing locks, not checkout-local queue edits.
+- Re-read the relevant `Order.md` region before every edit, key edits on plan-path text, and verify the table structure afterwards. At landing, reconcile the latest primary-branch version semantically; do not overwrite another session's queue changes.
+- The authoritative per-plan claim is an atomically-created file beneath `%LOCALAPPDATA%\BrokenEnginePlanClaims\`, preserving the normalized Order.md-relative plan path and adding `.lock`. Record session, date, worktree, and owner metadata. `[CLAIMED <date>]` in local `Order.md` is informational only. Migration exception: a pre-protocol bare `[CLAIMED]` marker with no lock may represent an active legacy session, so it blocks automatic selection and requires explicit user confirmation to reclaim; it never expires automatically.
+- Claim age is warning-only. Never auto-steal a paused claim; takeover requires explicit user approval. Release or replace a claim only after verifying its owner metadata.
 
 ## Order.md structure reference
 
-Order.md has a single `## Plans` table. Columns are: `Plan | Tier | Effort | Impact | Risks | Score | Notes`. Rows are sorted by Score ascending (lowest = highest priority) — position in the table conveys priority; there is no ordinal column. Every row in the table is executable; rows are deleted from the table when the plan is done. Plan cells should be markdown links (`[path](path)`) for clickable navigation. A Notes cell beginning with `[CLAIMED]` marks a plan another session is actively executing — the priority walk skips such rows.
+Order.md has a single `## Plans` table. Columns are: `Plan | Tier | Effort | Impact | Risks | Score | Notes`. Rows are sorted by Score ascending (lowest = highest priority) — position in the table conveys priority; there is no ordinal column. Every row in the table is executable; rows are deleted from the table when the plan is done. Plan cells should be markdown links (`[path](path)`) for clickable navigation. A Notes cell beginning with `[CLAIMED <date>]` mirrors a protocol claim for readers, but only the PC-global lock determines protocol ownership. A bare `[CLAIMED]` is a temporary legacy compatibility guard and remains blocking until the user explicitly approves reclaim.
 
 - **`### Reference / Index Documents` subsection**: a separate table below the main one, listing meta/overview docs that are never executed as plans. **Ignore this subsection entirely.**
 - **`## Dependencies` section**: prose bullets expressing ordering constraints between plans. May contain a `### Cross-directory dependencies` subsection whose bullets cite plans under `Documents/Features/` — those live in a separate queue (`Documents/Features/Order.md`) and never appear in this table; see Step 1e for how to resolve them.
-- **`## File Groups` section**: plans that touch the same files and should land in one session. Coordination info only — never a prerequisite edge; treat like the Step 1d coordination notes.
+- **`## File Groups` section**: plans that touch the same files. This is warning and landing-order information only — never a prerequisite edge.
 
 ## Workflow
 
-Execute these steps in order. Mutation points (bypass-permissions assumed): Step 0 inserts rows for orphaned plan files, Step 2 marks the target's Order.md row `[CLAIMED]` the moment it is selected, Step 7 overwrites the plan file with the synthesized plan, and Step 8 defines the completion contract — the row is removed and the file deleted only once the plan is fully executed. Everything else is read-only research and synthesis; the plan grill and user approval both happen at Step 9 (grill first, then approval).
+Execute these steps in order. Mutation points (bypass-permissions assumed): Step 0 inserts rows for orphaned plan files, Step 2 atomically claims the target and mirrors `[CLAIMED <date>]` in its row, Step 7 overwrites the plan file with the synthesized plan, and Step 8 defines completion and claim release. Everything else is read-only research and synthesis; the plan grill and user approval both happen at Step 9 (grill first, then approval).
 
 ### Step 0. Reconcile orphaned plan files into `Order.md`
 
@@ -69,7 +68,7 @@ Ensure every plan file on disk is represented in the `## Plans` table — orphan
 ### Step 1. Resolve dependencies
 
   a. Read `Documents/Plans/Order.md`.
-  b. If the user passed an argument (`$1` / `$ARGUMENTS` non-empty), normalize it to the Order.md-relative plan-file form (e.g., `Audio/GateVoiceLifecycleDuringReplay.txt` — strip any leading `./` or `Documents/Plans/`, trim backticks) and use that as the **candidate**; if its row is marked `[CLAIMED]`, another session may be executing it — ask the user whether to reclaim it before proceeding. Otherwise, walk the `## Plans` table top-down and take the first row whose Notes cell does not begin with `[CLAIMED]`. Extract the plan-file path from its Plan cell (handles both `[path](path)` link form and bare-path form, for backwards compatibility during the normalization rollout).
+  b. If the user passed an argument (`$1` / `$ARGUMENTS` non-empty), normalize it to the Order.md-relative plan-file form (e.g., `Audio/GateVoiceLifecycleDuringReplay.txt` — strip any leading `./` or `Documents/Plans/`, trim backticks) and use that as the **candidate**. Otherwise, walk the `## Plans` table top-down and take the first candidate without an authoritative PC-global claim or a bare legacy `[CLAIMED]` guard. For every candidate, derive `%LOCALAPPDATA%\BrokenEnginePlanClaims\<normalized-plan-path>.lock`; a matching lock means another session owns it, regardless of the local Notes marker. A dated `[CLAIMED <date>]` marker without a lock is informationally stale and produces a warning, not a block. A bare `[CLAIMED]` marker without a lock blocks automatic selection; an explicit request must report the legacy state and obtain user confirmation before reclaiming it. Legacy markers have no automatic expiry. Extract plan paths from either link or bare-path form.
   c. Reject ineligible candidates up front. A plan is ineligible if the `## Dependencies` section marks it as `is subsumed` or `is an index/meta document, not an executable plan`. If the user passed such a path, stop and tell them it isn't executable; if it turned up as the top row, skip it and continue walking down.
   d. Scan the `## Dependencies` section. Each bullet expresses a directional constraint between one or more plans. Normalize every relevant bullet to the canonical form "X depends on Y" (X cannot run until Y is done) using these patterns:
 
@@ -79,34 +78,42 @@ Ensure every plan file on disk is represented in the `## Plans` table — orphan
        - `X should run AFTER Y` → X depends on Y
        - `Y must precede X` → X depends on Y
        - `Y should precede X` → X depends on Y
+       - `resolve Y first` / `resolve Y before X` → X depends on Y when X is the other named plan or set in that entry
+       - `land X after Y` → X depends on Y
+       - `land Y before X` → X depends on Y
+       - `land X first` → every other plan explicitly named in that entry depends on X
+       - `X is a prerequisite for Y` → Y depends on X
+       - `X last` / `X runs last` → X depends on every other plan explicitly named in that entry
        - `X1, X2, ..., Xn all depend on Y` (including brace-set forms like `ocean-phase-{2,3,4,5,6,7}`) → expand the set, then each Xi depends on Y
-       - `X and Y ... do them in the same session` / `coordinate in one session` / `de-dupe at execution time` → **not** a prerequisite; record as a coordination note but do not recurse
+       - `X and Y ... do them in the same session` / `coordinate in one session` / `de-dupe at execution time` / `co-schedule` / shared-file or refresh-citation overlap → **not** a prerequisite; record the intersecting files and expected landing order as a warning, but do not recurse
+       - `never interleave`, `conflicts`, `resolve jointly before landing either`, `executes alone`, `runs alone`, or protocol-version, CRC/replay, `.pack`, or `kiVersion` batching → **not** a prerequisite unless the entry also gives directional prerequisite language; record it as a mandatory landing constraint that the later lander must preserve, reconcile, and reverify, not as an ordinary warning
        - Bullets that name only a single plan (e.g., "edits `WindSpreadCommon.h` — that header is included by both ...") are informational; no dependency edge
 
      Before matching, normalize every path token on **both** sides (Dependencies bullets and the Plans table) the same way Step 1b normalizes `$ARGUMENTS`: strip surrounding backticks, strip any leading `./` or `Documents/Plans/` prefix. Authors sometimes wrap paths in backticks or include the `Documents/Plans/` prefix inside bullets; without symmetric normalization, string matches silently miss.
 
-     Direction matters: in "Y must precede X", the candidate being checked is the prerequisite (Y) in half the bullets and the dependent (X) in the other half. Match on the candidate's plan-file path appearing on either side, then use the verb to decide which side points at the prerequisite.
+     Direction matters: in "Y must precede X", the candidate being checked is the prerequisite (Y) in half the bullets and the dependent (X) in the other half. Match on the candidate's plan-file path appearing on either side, then use the verb to decide which side points at the prerequisite. Do not infer an edge from ordinary `refresh citations`, `refresh after`, `co-schedule`, or shared-file wording unless the same entry also uses one of the explicit directional forms above.
 
   e. Collect the prerequisite set for the current candidate (the Ys where the candidate is X in the normalized form). For each prerequisite:
-       - If the prerequisite is still a row in the `## Plans` table → unfinished. If that row is marked `[CLAIMED]`, another session is executing it — the candidate is blocked; fall through to the next candidate (or stop and report, if the user passed the blocked plan as the argument). Otherwise recurse from Step 1 with the prerequisite as the new candidate. (Exception: if the row is present but its plan file is missing from disk, that's a bookkeeping anomaly — see the "plan file missing from disk" edge case; report it rather than recursing.)
+       - If the prerequisite is still a row in the `## Plans` table → unfinished. If its PC-global lock exists or its Notes begin with bare legacy `[CLAIMED]`, do not recurse: the original top-level candidate is blocked. During the automatic walk, return to the caller and continue with the next top-level eligible row; for an explicitly requested candidate, report the blocker and stop. Include lock owner metadata when present and never treat marker/lock age as release authority. Otherwise recurse from Step 1 with the prerequisite as the new candidate. (Exception: if the row is present but its plan file is missing from disk, report the bookkeeping anomaly rather than recursing.)
        - If the prerequisite path lives under `Documents/Features/` → it is tracked in `Documents/Features/Order.md`, outside this skill's queue. If it still has a row there, it is unfinished — do not recurse into it (this skill never executes Features plans); surface the blocker to the user and fall through to the next candidate (or stop and report, if the user passed the blocked plan as the argument). If it has no row there, treat as satisfied.
        - If the prerequisite is not present in the table → treat as satisfied; it was either already executed or hand-cleaned. Whether the file itself remains on disk doesn't matter at this point.
 
-  f. When a candidate has no unmet prerequisites, it is the **target plan**. Record its path, all row fields (Tier / Effort / Impact / Risks / Score / Notes), and the row's line number in `Order.md`.
+  f. When a candidate has no unmet prerequisites, it is the **target plan**. Record its path and row fields (Tier / Effort / Impact / Risks / Score / Notes). Also collect ordinary warning-only overlaps from `## Dependencies` and `## File Groups`; report the other plan/session, intersecting files, and likely landing order. Separately report every `never interleave`, conflict/joint-resolution, alone-execution, and protocol/version/CRC/replay/`.pack`/`kiVersion` landing constraint so it survives synthesis and landing. Ordinary overlap and nondirectional landing constraints do not change selection; explicit prerequisites do.
 
 > Cycle guard: maintain a stack of candidates currently being resolved (ancestors on the active dependency path, not a global visited set). If recursion would push a plan already on that stack, stop and ask the user which to run first — this is a back-edge in the Dependencies section and indicates an authoring bug. A plan appearing in two unrelated sibling branches is fine and does not trigger the guard.
 
-### Step 2. Claim the target row in `Order.md` immediately
+### Step 2. Atomically claim the target plan
 
-As soon as Step 1 has settled on a target plan (no unmet prerequisites, no unresolved cycle/ambiguity), use `Edit` to prefix that plan's Notes cell with `[CLAIMED] ` (keep the rest of the cell intact) in the `## Plans` table. Do **not** ask the user — bypass-permissions mode is assumed and this is the commit point that reserves the plan for this session.
+As soon as Step 1 settles on a target, atomically create `%LOCALAPPDATA%\BrokenEnginePlanClaims\<normalized-plan-path>.lock` with exclusive-create semantics. Preserve the normalized plan path beneath the root so same-named plans in different directories cannot collide. Write session, local date, resolved worktree path, and owner identity metadata. This successful atomic create — not an `Order.md` edit — reserves the plan.
 
 Important sequencing rules:
 
-- Step 1 must be fully resolved before this edit. Any cycle/ambiguity prompts to the user happen inside Step 1; Step 2 only runs once a single target has been selected.
-- Re-read the row immediately before editing and match on the plan path — a parallel session may have added or removed rows since Step 1 read the table (see Preconditions). The marker is the concurrency claim: parallel `/next-plan` runs skip `[CLAIMED]` rows, so once it lands the plan belongs to this session.
-- If the fresh read shows the row already `[CLAIMED]`, or the row and plan file are both gone, a parallel session beat this run to the same target — go back to Step 1 and select the next candidate from a fresh read of the table.
+- Step 1 must be fully resolved before claiming. Any cycle/ambiguity prompts happen inside Step 1.
+- If atomic creation reports that the lock exists, read its metadata. For automatic selection, return to Step 1 and choose the next candidate. For an explicitly requested plan, report the owner and ask whether the user approves takeover. Age only triggers a warning; it never authorizes takeover. On approval, re-read and verify the same owner token, perform an atomic owner replacement, and abort/retry selection if ownership changed.
+- If an explicitly requested plan has a bare legacy `[CLAIMED]` marker but no lock, require explicit user confirmation before acquiring a new lock. On approval, re-read the row, verify the same bare marker is still present, then replace it with this session's dated mirror after the atomic claim succeeds. Do not infer abandonment from age.
+- After acquiring the lock, re-read the row and prefix its Notes with `[CLAIMED <local-date>] `, keeping the rest intact. Replace an orphaned dated marker, or a user-approved bare legacy marker, rather than stacking markers. This marker is an informational mirror; a mirror-edit failure does not transfer ownership. Report and repair it without deleting another owner's lock.
+- In an isolated session worktree, another checkout cannot make the local row/file disappear. If either vanishes before the mirror edit, inspect local edits and action history first. Only if this is post-reconciliation and the newly merged primary commit proves another session completed the plan may this session owner-check and release its redundant lock, then restart Step 1; otherwise stop and report the unexplained local mutation.
 - Do **not** remove the row or delete the plan file in this step. Both survive until the Step 8 completion contract fires; the file is needed for Steps 3–7 (relevance / validity / refresh / similar-pattern search / synthesis) and through implementation.
-- If the claim edit fails for any other reason (e.g., the row text is not unique), stop and report the failure.
 - After the edit, verify the table structure is still intact before continuing.
 
 ### Step 3. Relevance check — does the code still exist?
@@ -124,7 +131,7 @@ Classify the plan into one of four buckets:
 - **Fully relevant** — every reference resolves; plan proceeds as-is.
 - **Partially relevant** — some references moved, got renamed, or shifted by a few lines; plan proceeds with refreshed references (Step 5).
 - **Obsolete** — the bug is already fixed, the file was deleted, or the code was rewritten in a way that invalidates the plan's premise. Obsolescence is a terminal state: run the Step 8 completion cleanup now (remove the claimed row, delete the plan file), report the obsolescence to the user, and stop. The user can re-invoke `/next-plan` to pick the next candidate.
-- **Ambiguous** — the original intent is unclear given current code. Ask the user before proceeding. If the user decides to abandon the plan, ask whether to clean it up (Step 8 cleanup: remove the row, delete the file) or return it to the queue (unclaim: strip the `[CLAIMED] ` prefix, keep the file), then stop.
+- **Ambiguous** — the original intent is unclear given current code. Ask the user before proceeding. If the user decides to abandon the plan, ask whether to clean it up or return it to the queue; both routes use Step 8's owner-checked mirror/claim release, and only cleanup removes the row/file.
 
 ### Step 4. Validity check — is it still worth doing?
 
@@ -134,7 +141,8 @@ Relevance is necessary but not sufficient. A plan can still describe real code y
 
 - Does the plan address a real problem (correctness bug, determinism hazard, measurable perf, debt blocking other work) or a cosmetic preference that may no longer matter?
 - Has the surrounding subsystem been refactored in a way that made the concern moot (e.g., the hot path the plan optimizes is no longer hot)?
-- Is the Effort / Impact / Risks scoring in the Order.md row still reasonable given current code? If the plan has grown significantly (e.g., a refactor that touched 5 files now touches 15), the score is stale — flag this to the user and ask whether to proceed, re-score, or skip.
+
+Treat the Order.md Tier / Effort / Impact / Risks / Score fields as fixed estimates used only to order the queue. Do not reassess or re-score them while selecting or executing a plan.
 
 **"Worth doing" rubric** — the plan clears the bar if ANY of:
 
@@ -143,9 +151,9 @@ Relevance is necessary but not sufficient. A plan can still describe real code y
 - it unblocks a named queued plan or feature (a `## Dependencies`/`## File Groups` edge, or explicit in the plan body);
 - it deletes a real abstraction or ≥ ~100 lines.
 
-It fails the bar if ALL of: current Impact would score ≤ 2 (cosmetic/modest), Effort has grown past the row's score, and no queued plan depends on it. It also fails when another queued plan supersedes or will rewrite the same code — surface that plan instead.
+It fails the bar when the concern is now merely cosmetic or modest, no queued plan depends on it, and the work has materially expanded; it also fails when another queued plan supersedes or will rewrite the same code — surface that plan instead.
 
-If the plan no longer clears the bar, stop and ask the user. The choice is between "abandon" (run the Step 8 cleanup: remove the claimed row, delete the plan file, then stop) or "return it to the queue" (unclaim the row — strip the `[CLAIMED] ` prefix — and keep the file; the user can re-score it later). Surface both options.
+If the plan no longer clears the bar, stop and ask the user. The choice is between "abandon" (Step 8 removes row/file and releases the owner-verified claim) or "return it to the queue" (remove this session's dated mirror, release its owner-verified claim, and keep the file). Surface both options.
 
 For Architectural-tier plans, dispatch an Opus subagent via the `Agent` tool to audit the plan independently against the current code — it gives a second opinion uncoloured by the plan's own framing. Inline the research for all other tiers.
 
@@ -221,10 +229,12 @@ Examples:
 
 ## Context
 - Source: <relative path to the plan file> (claimed; removed with its Order.md row after execution completes)
-- Order.md row: Tier <T> / Effort <E> / Impact <I> / Risks <R> / Score <S> (marked `[CLAIMED]` in Step 2)
+- Order.md row: Tier <T> / Effort <E> / Impact <I> / Risks <R> / Score <S> (mirrored as `[CLAIMED <date>]` in Step 2)
 - Notes: <the row's Notes cell, verbatim>
 - Relevance: <Fully | Partially> — <one-line justification>
 - Dependency resolution: <"none" or "switched from <original top> because <prereq> was unmet">
+- Coordination warnings: <"none" or each warning-only overlap with other plan/session, intersecting files, and likely landing order>
+- Mandatory landing constraints: <"none" or every `never interleave`, conflict/joint-resolution, alone-execution, protocol/version, CRC/replay, `.pack`, and `kiVersion` constraint that implementation and landing must preserve and reverify>
 - Changes since the plan was written: <bullet list of drift found in Step 5, or "none">
 
 ## Execution steps
@@ -237,16 +247,16 @@ Examples:
 
 Authoring the **Summary** section is mandatory and must come from synthesis, not boilerplate. Source the **What** from the plan's body (its goal statement, top-level description, or the union of its execution steps if no narrative exists) and the **Why** from a combination of the plan file's stated rationale and the Order.md row's `Impact` / `Notes` cells. If the plan file contains no rationale at all, infer the Why from the code drift uncovered during Steps 3-5 and prefix the sentence with "Inferred:" so the user knows it isn't author-supplied. Never write a generic Why like "improves quality" or "cleans up the codebase" — if you cannot name a concrete benefit, surface that gap to the user in Step 9 instead of papering over it.
 
-Keep the execution steps in the order the plan originally specified, with citations pointing at current code. Do not add **Related** or uncertain scope the plan did not originally include — that lives in `## Additional candidate locations`, not `## Execution steps`. The one exception is the **auto-folded Identical siblings** from Step 6 (same mechanical change, different location, high-confidence, exposure-free): append those to `## Execution steps` tagged `[auto-folded sibling]`. Order.md row removal and plan file deletion are not in the execution list — they belong to the Step 8 completion contract, which fires after execution.
+Keep the execution steps in the order the plan originally specified, with citations pointing at current code. Append every Step 6 candidate whose extension-review verdict is **Fold** to `## Execution steps` tagged `[auto-folded sibling]`, regardless of Identical/Related or confidence. Keep every **Surface** candidate out of execution pending Step 9. Preserve the Context coordination warnings and mandatory landing constraints through implementation and landing; the later lander reruns every affected review, build, and verification step. Order.md row removal and plan-file deletion belong to Step 8, not the execution list.
 
-### Step 8. Completion contract — cleanup fires only when the plan is fully executed
+### Step 8. Completion contract — cleanup and owner-checked release
 
-Nothing is deleted at selection time. The claimed row and the plan file are removed together at exactly one of these points:
+Nothing is deleted at selection time. The claimed row and plan file are removed together at exactly one of these points:
 
-- **After execution completes**: the user approved in Step 9, the C++ Code Change Process ran to the end (final step done, residuals routed), and the session is wrapping the plan up. The main session then deletes the plan's row from the `## Plans` table (re-read the region first and match on the plan path — concurrent sessions) and deletes the plan file (`rm -f "<path>"`), verifying the table structure afterwards.
-- **Terminal abandonment**: Step 3 classified the plan Obsolete, or the user chose "abandon and clean up" in Step 3/4 — same two deletions, immediately.
+- **After execution completes**: the user approved in Step 9, the C++ Code Change Process ran to the end (final step done, residuals routed), and the session is wrapping the plan up. Remove the plan's row and file in the session worktree, include those deletions in the reviewed session commit, and land under the root `AGENTS.md` landing protocol. Release the global plan claim only after verifying both the landed primary commit and matching claim-owner metadata.
+- **Terminal abandonment**: Step 3 classified the plan Obsolete, or the user chose "abandon and clean up" in Step 3/4 — remove row/file, commit and land that cleanup under the root protocol, then release only this session's lock after verifying the landed commit and owner metadata.
 
-If the run ends any other way — rejection in Step 9, an error, or the user stopping mid-execution — do **not** delete anything. On rejection, unclaim instead: strip the `[CLAIMED] ` prefix from the Notes cell so the plan returns to the queue; the plan file (now holding the Step 7 refreshed version) stays on disk. If execution is simply abandoned mid-way, leave the claim in place and tell the user the plan's state so they can decide whether to unclaim it.
+If the run ends any other way, do **not** delete the row or plan file. On rejection in Step 9, remove this session's `[CLAIMED <date>] ` mirror, keep the refreshed plan file, commit those queued-state changes, and land them under the root `AGENTS.md` landing protocol. Release the lock only after verifying both the landed primary commit and matching claim-owner metadata; if landing fails, retain the claim and report it. On an error or user stop mid-execution, retain both claim and mirror so a paused session is never auto-stolen, and report the claim metadata to the user.
 
 ### Step 9. Grill the plan, present it, and request approval
 
@@ -276,13 +286,13 @@ If the user's reply to 9b already contains an unambiguous decision ("approved", 
 The `AskUserQuestion` is a single question along the lines of:
 
 - **question**: "Approve this plan and proceed with implementation?"
-- **options**: `Approve` (proceed to implementation), `Reject` (the row is unclaimed and the refreshed plan file kept — the plan returns to the queue)
+- **options**: `Approve` (proceed to implementation), `Reject` (the refreshed plan and mirror removal are committed and landed, then the owner-verified claim is released — the plan returns to the queue)
 
 If the `## Additional candidate locations` section contains any **Surfaced** entries (only those the Step 6 extension-review gate flagged as carrying new invariant exposure, needing a design decision, or unconfirmable — everything else was auto-folded), ask the user whether to fold them into the execution scope, defer them to a follow-up plan, or ignore them. Use a separate `AskUserQuestion` call (or a multi-select question) so the approval decision and the scope-expansion decision are tracked independently. Do **not** ask about auto-folded candidates — those are already in `## Execution steps` by design; just mention them in the presentation so the user can veto if they disagree, but don't gate on it. Because the review gate now clears the routine cases automatically, the Surface set is usually empty — when it is (or when every candidate was auto-folded), skip the scope-expansion question entirely.
 
 If the user picks `Approve`, follow the standard C++ Code Change Process defined in the top-level `AGENTS.md`, **starting from step 2 (implementation)** — step 1 (the grill) already ran in 9a. Carry the user's decisions on additional candidates into the process so the implementation reflects the agreed scope, and proceed straight into the edit in the same turn — do not re-summarise or wait. When the process completes, execute the Step 8 completion cleanup (remove the claimed row, delete the plan file).
 
-If the user picks `Reject`, unclaim the row (strip the `[CLAIMED] ` prefix from its Notes cell) and stop. The plan file — now containing the Step 7 refreshed plan plus any grill refinements — stays on disk and the row stays queued for a future run.
+If the user picks `Reject`, strip this session's `[CLAIMED <date>] ` mirror, keep the refined plan file and row queued, commit the refreshed plan plus mirror removal, and land that commit under the root `AGENTS.md` protocol. Release the PC-global lock only after verifying the landed primary commit and matching owner metadata; if landing fails, retain the claim and report it.
 
 ## Edge cases
 
@@ -293,17 +303,17 @@ If the user picks `Reject`, unclaim the row (strip the `[CLAIMED] ` prefix from 
 - **Empty table** (`## Plans` table has no rows): report "Order.md has no plans" and stop. No mutations.
 - **Top row is marked subsumed or index/meta in Dependencies**: Step 1c filters it; fall through to the next row. No claim happens for filtered rows — Step 2 only fires on the eventual selected target.
 - **Plan file missing from disk** but row still in `## Plans`: the row and file are removed together at completion, so this state means the file was likely hand-deleted without cleaning up Order.md. Report the bookkeeping anomaly, ask the user whether to remove the stale row, and fall through to the next candidate. Do not claim a candidate whose plan file is missing — Step 3 would have nothing to read.
-- **Target row already `[CLAIMED]` on a fresh read**: another session claimed it between this run's table read and its Step 2 edit. Fall through to the next unclaimed candidate.
-- **Stale claim** (a `[CLAIMED]` row the user says no session is executing — e.g. a crashed run): only the user can distinguish stale from in-flight. If they confirm it's stale, unclaim it (or pass the plan as the argument and confirm the reclaim prompt) and proceed normally.
-- **Row and plan file disappear mid-run (concurrent execution)**: another session completed that plan and ran its completion cleanup — not corruption. Never restore the row or recreate the file. If it was this run's candidate, restart from Step 1 on a fresh read; if it was an unrelated row, just re-verify the table structure is intact and continue. Mention the observation in the final report so the user can correlate sessions.
+- **Atomic claim already exists**: another session owns the plan. Automatic selection skips it. An explicit request reports the metadata and requires user-approved takeover; age is warning-only.
+- **Marker/lock mismatch**: a dated `[CLAIMED <date>]` marker without a lock is stale informational state and does not block selection; a lock without a marker still blocks. A pre-protocol bare `[CLAIMED]` marker without a lock remains a blocking legacy guard and requires explicit user confirmation to reclaim, with no age-based expiry. Repair only the current session's mirror or an explicitly user-approved takeover/reclaim.
+- **Row or plan file disappears mid-run**: isolated worktrees do not receive remote checkout mutations. Treat this as a local mutation and inspect local edits/action history. If it appears only after reconciliation, verify the merged primary commit actually completed the plan before restarting selection; otherwise stop and report rather than attributing it to another session.
 - **User provided a plan name as an argument**: Step 1b handles this — normalize and use as the candidate; the dependency walk still runs from it downward.
 - **Prerequisite missing from both the table and disk**: Step 1e already treats this as satisfied. No extra handling needed.
-- **User rejects in Step 9 approval**: unclaim the row and keep the plan file (which now holds the refreshed plan) — the plan returns to the queue intact.
+- **User rejects in Step 9 approval**: remove this session's mirror, keep the refreshed plan file and row, commit and land those queued-state changes under the root protocol, then owner-check and release the lock only after verifying the landed primary commit. Retain the claim if landing fails.
 - **Step 6 sweep finds an obviously-superseding plan**: if the codebase sweep finds that the plan is one instance of a much larger pattern that has its own existing plan in `Order.md`, surface that to the user in Step 9 so they can decide whether to abandon the current plan in favor of the broader one.
 
 ## What this skill does not do
 
 - Does not execute the plan — that happens after Step 9 approval. Step 9 grills the plan first (Step 9a — C++ Code Change Process step 1, pulled ahead of approval), so an approval proceeds into the process at step 2 (implementation).
-- Does not re-prioritize the `## Plans` table. Changing priorities is a separate concern — if Step 4 surfaces that the score is stale, surface it to the user rather than silently re-ranking.
-- Does not remove the Order.md row or delete the plan file at selection time. Selection only claims the row (Step 2); cleanup fires exclusively through the Step 8 completion contract — after full execution or terminal abandonment — and rejection unclaims the row instead.
+- Does not reassess or re-prioritize the `## Plans` table. Its scoring fields are estimates used only to order the queue.
+- Does not remove the Order.md row or delete the plan file at selection time. Selection creates the authoritative global claim and an informational row mirror; cleanup and owner-checked release follow Step 8.
 - Does not blindly expand scope, but **does auto-fold aggressively**: every Step 6 candidate that the dedicated extension-review subagent clears (confirmed same transformation, mechanical, no new undeclared invariant exposure) is folded into `## Execution steps` with no user ask, tagged `[auto-folded sibling]` and listed **Folded** under `## Additional candidate locations` so it stays visible and vetoable. This includes **Related** and lower-confidence siblings — the thorough review gate, not a reflexive user prompt, is what vets them. Only candidates the review gate flags (new invariant exposure, a needed design decision, or unconfirmable sameness) are surfaced for an explicit Step 9 decision.

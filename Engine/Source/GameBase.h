@@ -155,6 +155,7 @@ public:
 #if defined(BT_CLIENT)
 	void ClientUpdate();
 	void Render();
+	float AdvanceRenderClock(double dT, bool bPaused, bool bHaveInterpolationWindow, double dSimDeltaSeconds);
 	game::Frame& RenderFrame(GridCoord coord) const;
 	void ResetRenderClock();
 #endif // BT_CLIENT
@@ -217,7 +218,7 @@ protected:
 #if defined(BT_SERVER)
 	void SwapFrames();
 	void BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveCoords);
-	void FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords);
+	void FinalizeFrameTick();
 #endif // BT_SERVER
 
 	int64_t miTickCounter = 0;

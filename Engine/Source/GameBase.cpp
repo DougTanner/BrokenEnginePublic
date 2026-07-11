@@ -176,7 +176,7 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 		}
 
 		BuildAndDispatchFrameTicks(rActiveCoords);
-		FinalizeFrameTick(rActiveCoords);
+		FinalizeFrameTick();
 	}
 	if (iFullTicks > 0)
 	{
@@ -251,7 +251,7 @@ void GameBase::BuildAndDispatchFrameTicks(const std::vector<GridCoord>& rActiveC
 	gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate);
 }
 
-void GameBase::FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords)
+void GameBase::FinalizeFrameTick()
 {
 	// Transfer entities that crossed frame boundaries into destination frames
 	if (!game::gpGame->mGameSaveLoad.IsReplaying())
@@ -260,18 +260,6 @@ void GameBase::FinalizeFrameTick(const std::vector<GridCoord>& rActiveCoords)
 	}
 
 	SwapFrames();
-
-	for (const GridCoord& rCoord : rActiveCoords)
-	{
-		auto it = mCoordFrames.find(rCoord);
-		if (it == mCoordFrames.end() || it->second.pCurrent == nullptr || it->second.pNext == nullptr)
-		{
-			LOG(kDefault, kWarning, "PostSwap NullFrame Coord: ({},{}) Exists: {} pCurrent: {} pNext: {}",
-				rCoord.x, rCoord.y, it != mCoordFrames.end(),
-				it != mCoordFrames.end() && it->second.pCurrent != nullptr,
-				it != mCoordFrames.end() && it->second.pNext != nullptr);
-		}
-	}
 
 	game::gpServerSession->BroadcastTick(miTickCounter);
 
@@ -305,6 +293,97 @@ void GameBase::ResetRenderClock()
 	mfRenderTime = 0.0;
 	mbRenderClockSeeded = false;
 	mRenderTimer.Reset();
+}
+
+// Render-side sim clock advance. Integrates mfRenderTime (sim seconds) and returns fDeltaTime in [0, kfDt], the
+// sub-tick interpolation offset from the window start dT. dT is the source frame's fCurrentTime; bPaused freezes the
+// clock; bHaveInterpolationWindow gates the seeded steady-state path; dSimDeltaSeconds is this frame's sim delta
+// (wall x current time ratio). Clamped to [dT, dT + kfDt] so rendering only ever interpolates between two committed
+// ticks, never extrapolates. Preserve exact float ops — client-render-clock invariants.
+float GameBase::AdvanceRenderClock(double dT, bool bPaused, bool bHaveInterpolationWindow, double dSimDeltaSeconds)
+{
+	float fDeltaTime = 0.0f;
+	if (bPaused)
+	{
+		// Freeze. Don't advance mfRenderTime; rendered scene stays static until unpause.
+		fDeltaTime = static_cast<float>(std::clamp(mfRenderTime - dT, 0.0, static_cast<double>(game::kfDeltaTime)));
+	}
+	else if (!bHaveInterpolationWindow)
+	{
+		// Cold start / under-populated coord (fewer than kiRenderBehindTicks + 1 snapshots): no
+		// interpolation window yet. Force fDt=0 so rendering stays pinned to the oldest available
+		// frame — never extrapolating past committed ticks. Reset the seed flag so the next
+		// steady-state entry re-seeds at midpoint.
+		mfRenderTime = dT;
+		mbRenderClockSeeded = false;
+		fDeltaTime = 0.0f;
+	}
+	else
+	{
+		// One-shot seed at window midpoint so jitter has symmetric headroom before hitting
+		// either clamp. After seeding, wall-rate integration preserves phase.
+		if (!mbRenderClockSeeded)
+		{
+			mbRenderClockSeeded = true;
+			mfRenderTime = dT + 0.5 * game::kfDeltaTime;
+		}
+
+		// Rebase only on multi-tick T regression (reconcile snap, full-state seed). Tolerance
+		// widens to [T - kfDt, T + 2*kfDt] so a single-tick commit — which leaves mfRenderTime
+		// anywhere from slightly below new T to slightly below new T+kfDt — never triggers a
+		// rebase. Rebasing on every commit was the 32 Hz vibration signature.
+		if (mfRenderTime < dT - game::kfDeltaTime || mfRenderTime > dT + 2.0 * game::kfDeltaTime)
+		{
+			// A rebase is a discontinuous visual time jump — should be rare outside loss bursts
+			LOG(kNetwork, kVerbose, "Render clock rebase JumpTicks: {} RenderTime: {} WindowStart: {}", common::Wb(static_cast<float>((dT - mfRenderTime) / game::kfDeltaTime), 2), common::Wb(static_cast<float>(mfRenderTime), 4), common::Wb(static_cast<float>(dT), 4));
+			mfRenderTime = dT + 0.5 * game::kfDeltaTime;
+		}
+
+		mfRenderTime += dSimDeltaSeconds;
+		double dUnclampedRenderTime = mfRenderTime;
+		mfRenderTime = std::clamp(mfRenderTime, dT, dT + static_cast<double>(game::kfDeltaTime));
+		fDeltaTime = static_cast<float>(mfRenderTime - dT);
+
+		// Top-clamp = renderer starved of committed ticks (scene freezes); bottom-clamp = commits
+		// outpaced the render clock (scene skips ahead). Both should be brief and rare outside
+		// loss bursts. Streaks are logged at the transition; streaks losing < 1/4 tick are
+		// dropped as noise.
+		{
+			static int64_t siStarvedFrames = 0;
+			static double sdStarvedSeconds = 0.0;
+			static int64_t siSkippedFrames = 0;
+			static double sdSkippedSeconds = 0.0;
+			if (dUnclampedRenderTime > mfRenderTime)
+			{
+				++siStarvedFrames;
+				sdStarvedSeconds += dUnclampedRenderTime - mfRenderTime;
+			}
+			else if (siStarvedFrames > 0)
+			{
+				if (sdStarvedSeconds > 0.25 * game::kfDeltaTime)
+				{
+					LOG(kNetwork, kVerbose, "Render clock starved Frames: {} LostTicks: {}", siStarvedFrames, common::Wb(static_cast<float>(sdStarvedSeconds / game::kfDeltaTime), 2));
+				}
+				siStarvedFrames = 0;
+				sdStarvedSeconds = 0.0;
+			}
+			if (dUnclampedRenderTime < mfRenderTime)
+			{
+				++siSkippedFrames;
+				sdSkippedSeconds += mfRenderTime - dUnclampedRenderTime;
+			}
+			else if (siSkippedFrames > 0)
+			{
+				if (sdSkippedSeconds > 0.25 * game::kfDeltaTime)
+				{
+					LOG(kNetwork, kVerbose, "Render clock skipped Frames: {} SkippedTicks: {}", siSkippedFrames, common::Wb(static_cast<float>(sdSkippedSeconds / game::kfDeltaTime), 2));
+				}
+				siSkippedFrames = 0;
+				sdSkippedSeconds = 0.0;
+			}
+		}
+	}
+	return fDeltaTime;
 }
 
 void GameBase::Render()
@@ -381,86 +460,7 @@ void GameBase::Render()
 
 			bool bPaused = mGameFlags & GameFlags::kPaused;
 
-			if (bPaused)
-			{
-				// Freeze. Don't advance mfRenderTime; rendered scene stays static until unpause.
-				fDeltaTime = static_cast<float>(std::clamp(mfRenderTime - dT, 0.0, static_cast<double>(game::kfDeltaTime)));
-			}
-			else if (!bHaveInterpolationWindow)
-			{
-				// Cold start / under-populated coord (fewer than kiRenderBehindTicks + 1 snapshots): no
-				// interpolation window yet. Force fDt=0 so rendering stays pinned to the oldest available
-				// frame — never extrapolating past committed ticks. Reset the seed flag so the next
-				// steady-state entry re-seeds at midpoint.
-				mfRenderTime = dT;
-				mbRenderClockSeeded = false;
-				fDeltaTime = 0.0f;
-			}
-			else
-			{
-				// One-shot seed at window midpoint so jitter has symmetric headroom before hitting
-				// either clamp. After seeding, wall-rate integration preserves phase.
-				if (!mbRenderClockSeeded)
-				{
-					mbRenderClockSeeded = true;
-					mfRenderTime = dT + 0.5 * game::kfDeltaTime;
-				}
-
-				// Rebase only on multi-tick T regression (reconcile snap, full-state seed). Tolerance
-				// widens to [T - kfDt, T + 2*kfDt] so a single-tick commit — which leaves mfRenderTime
-				// anywhere from slightly below new T to slightly below new T+kfDt — never triggers a
-				// rebase. Rebasing on every commit was the 32 Hz vibration signature.
-				if (mfRenderTime < dT - game::kfDeltaTime || mfRenderTime > dT + 2.0 * game::kfDeltaTime)
-				{
-					// A rebase is a discontinuous visual time jump — should be rare outside loss bursts
-					LOG(kNetwork, kVerbose, "Render clock rebase JumpTicks: {} RenderTime: {} WindowStart: {}", common::Wb(static_cast<float>((dT - mfRenderTime) / game::kfDeltaTime), 2), common::Wb(static_cast<float>(mfRenderTime), 4), common::Wb(static_cast<float>(dT), 4));
-					mfRenderTime = dT + 0.5 * game::kfDeltaTime;
-				}
-
-				mfRenderTime += dSimDeltaSeconds;
-				double dUnclampedRenderTime = mfRenderTime;
-				mfRenderTime = std::clamp(mfRenderTime, dT, dT + static_cast<double>(game::kfDeltaTime));
-				fDeltaTime = static_cast<float>(mfRenderTime - dT);
-
-				// Top-clamp = renderer starved of committed ticks (scene freezes); bottom-clamp = commits
-				// outpaced the render clock (scene skips ahead). Both should be brief and rare outside
-				// loss bursts. Streaks are logged at the transition; streaks losing < 1/4 tick are
-				// dropped as noise.
-				{
-					static int64_t siStarvedFrames = 0;
-					static double sdStarvedSeconds = 0.0;
-					static int64_t siSkippedFrames = 0;
-					static double sdSkippedSeconds = 0.0;
-					if (dUnclampedRenderTime > mfRenderTime)
-					{
-						++siStarvedFrames;
-						sdStarvedSeconds += dUnclampedRenderTime - mfRenderTime;
-					}
-					else if (siStarvedFrames > 0)
-					{
-						if (sdStarvedSeconds > 0.25 * game::kfDeltaTime)
-						{
-							LOG(kNetwork, kVerbose, "Render clock starved Frames: {} LostTicks: {}", siStarvedFrames, common::Wb(static_cast<float>(sdStarvedSeconds / game::kfDeltaTime), 2));
-						}
-						siStarvedFrames = 0;
-						sdStarvedSeconds = 0.0;
-					}
-					if (dUnclampedRenderTime < mfRenderTime)
-					{
-						++siSkippedFrames;
-						sdSkippedSeconds += mfRenderTime - dUnclampedRenderTime;
-					}
-					else if (siSkippedFrames > 0)
-					{
-						if (sdSkippedSeconds > 0.25 * game::kfDeltaTime)
-						{
-							LOG(kNetwork, kVerbose, "Render clock skipped Frames: {} SkippedTicks: {}", siSkippedFrames, common::Wb(static_cast<float>(sdSkippedSeconds / game::kfDeltaTime), 2));
-						}
-						siSkippedFrames = 0;
-						sdSkippedSeconds = 0.0;
-					}
-				}
-			}
+			fDeltaTime = AdvanceRenderClock(dT, bPaused, bHaveInterpolationWindow, dSimDeltaSeconds);
 		}
 		{
 			ScopedSuppressAllocationTracking suppress;
@@ -530,9 +530,11 @@ void GameBase::Render()
 			game::gpCamera->Update(mRenderInterpolates.at(cameraCoord));
 		}
 
-		// Decay visual error offset for smooth reconciliation corrections
+		// Decay visual error offset for smooth reconciliation corrections. Drive off the wall-clock render
+		// delta (like the camera / player interpolation) rather than a fixed 1/refreshRate, so a vsync miss
+		// decays it in step with the interpolated player instead of lagging and stuttering at high zoom.
 		{
-			float fDisplayDeltaTime = 1.0f / static_cast<float>(gpGraphics->miMonitorRefreshRate);
+			float fDisplayDeltaTime = static_cast<float>(mfLastRenderFrameSeconds);
 			float fDecay = std::exp(-game::Game::kfVisualErrorDecayRate * fDisplayDeltaTime);
 			game::gpGame->mVecVisualErrorOffset = XMVectorScale(game::gpGame->mVecVisualErrorOffset, fDecay);
 			if (XMVectorGetX(XMVector3Length(game::gpGame->mVecVisualErrorOffset)) < game::Game::kfVisualErrorMinDistance)

@@ -7,7 +7,7 @@ Server side of engine networking: the listening ENet host, per-client `ClientCon
 ## Key Classes
 
 - **Server** (`gpServer`) - ENet host owning connection lifecycle and two ring buffers: a per-coord LZ4-compressed delta ring for unreliable update/resend, and an uncompressed full-frame ring serving reliable debug-frame requests (compressed lazily at request time). One persistent compression scratch buffer is reused across all frames/clients — safe because everything here runs on the server main thread. One class split across `Server.cpp` / `ServerReceive.cpp` / `ServerSend.cpp` by concern; `ServerTypes.h` holds the PODs game headers also need.
-- **ServerSessionBase** - Fixed-rate tick timing: high-resolution waitable timer sleeps until ~2ms before target, then spins to precision (overshoot tracked, logged only under `kbProfilingFrameSpike`). Owns `NetworkDiscoveryResponder`; `PollNetworkBase` services both host and responder.
+- **ServerSessionBase** - Fixed-rate tick timing: high-resolution waitable timer sleeps until ~0.5 ms before target, then spins to precision (overshoot tracked, logged only under `kbProfilingFrameSpike`). Owns `NetworkDiscoveryResponder`; `PollNetworkBase` services both host and responder.
 
 ## Build Configs
 

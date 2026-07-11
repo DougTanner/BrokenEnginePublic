@@ -7,12 +7,14 @@ Implementation plans for brand-new additions — work that gives the engine a ca
 `Order.md` — all feature plans, sorted by score (lowest first). Plans live in area subdirectories: `Audio/`, `Engine/`, `Frame/`, `Graphics/`, `Network/`. Besides the scored table, `Order.md` has three sections plan authors must keep current:
 
 - **Reference / Index Documents** — unscored reference/index docs; exempt from the scoring requirement and never independently scheduled.
-- **Dependencies** — intra-queue ordering, plus cross-directory dependencies on `Documents/Plans/` plans touching the same files.
-- **File Groups** — plans sharing files; execute together in one session.
+- **Dependencies** — explicit prerequisites and mandatory invariant landing constraints, including cross-queue dependencies on `Documents/Plans/`. Unfinished prerequisites block execution; nondirectional constraints do not block selection but remain mandatory at landing.
+- **File Groups** — shared-file overlap warnings. Record the intersecting files and expected landing order; overlap alone does not block or require one session.
 
 ## Rules
 
 Queue lifecycle and the `Order.md` row format are identical to [`../Plans/AGENTS.md`](../Plans/AGENTS.md): a new plan gets its fully scored row in the same edit session, inserted score-sorted; an executed plan has its row removed and its file deleted. Features-specific:
+
+The PC-global per-plan claim is authoritative across worktrees; the local `[CLAIMED <date>]` marker is informational. Duplicate claims block. Different plans with ordinary file overlap may proceed independently; the later lander reconciles the newer primary commit and reruns every affected review, build, and verification step before landing. Mandatory invariant constraints remain binding regardless of landing order.
 
 - A plan that turns out to be a refactor/bugfix in disguise (no new capability) moves to `Documents/Plans/`, updating both `Order.md` files.
 - Designs deferred on YAGNI grounds are scored normally but carry explicit "Revisit When" trigger conditions in the plan body — the `Frame/Future_*.txt` files are the pattern.

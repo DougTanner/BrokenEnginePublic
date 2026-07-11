@@ -18,6 +18,14 @@ If given a changed-file list and any file is shared code (under `Common/`, `Engi
 
 All paths below use `$ROOT` for the absolute repo root (the cwd from the environment block, or `pwd`).
 
+### Worktree Isolation
+
+This skill does not create or remove worktrees. The caller follows root `AGENTS.md` and verifies `$ROOT` is the adopted or session-owned worktree recorded from the primary checkout's branch and HEAD baseline; never build in the primary checkout. Cleanup remains the caller's responsibility after the root lifecycle's landed, clean, and identity checks pass.
+
+Each top-level session builds in its own worktree. `Build/`, `Output/`, and `.claude/build-locks/` remain local to that checkout; do not share or seed mutable C++ build outputs between worktrees. Accept the first cold C++/PCH build in a new worktree.
+
+DataPacker already coordinates across worktrees: it serializes through the PC-global `"BrokenEngineDataPacker"` mutex and reuses `%TEMP%\DataPacker\<Project>`. Do not add another DataPacker lock or checkout-local cache copy. Gaea `Engine/Data/Islands/**/Intermediates/` remain worktree-local; their rare regeneration is an accepted cold-worktree cost.
+
 ### 2. Build the Project
 
 **IMPORTANT: Build duration & foreground default** — Typical builds (incremental, selective, even ThirdParty rebuilds) finish in seconds to a few minutes. **Run builds in the FOREGROUND with the default 2-minute timeout** — blocking is reliable in every context (subagents especially: turn-ends and background notifications are flaky). The ONE exception that far exceeds it (upwards of an hour) is a build that triggers the full DataPacker data re-export — re-exporting all islands (slow Gaea export) and all textures (slow texture compression); use `run_in_background: true` only when that re-export is expected (data/texture-source changes, or a wiped/invalidated pack). If a foreground build is killed at the cap it leaves an `unsuccessfulbuild` marker in the tlog directory (forces a full rebuild next time) — recover by re-running that build in background, not foreground.

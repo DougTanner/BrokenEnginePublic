@@ -45,11 +45,10 @@ None currently.
 
 ## Dependencies
 
-- `Graphics/HeatDistortionAndShockwave.txt` and `Graphics/WaterRefraction.md` both need a scene-color-copy texture in `RenderTargetTextures` — whichever lands first creates it, the other reuses it (verify the two copy points can share one texture). HDR resolve has landed: source scene copies from `gpSwapchainManager->mHdrTexture` (F16, pre-resolve), not the post-tonemap swapchain; HeatDistortion's `GetResolveImage` assumption is stale.
-- `Frame/FrameRelativePositions.md` bumps the `Frame::kiVersion` base constant; `Documents/Plans/Frame/CrcVersionGateBump.md` bumps the same constant (115→116). Either order works, but land them as separate bumps — FrameRelativePositions takes whatever base it finds +1.
+- **Mandatory nondirectional landing constraint — `RenderTargetTextures` scene-color copy**: `Graphics/HeatDistortionAndShockwave.txt` and `Graphics/WaterRefraction.md` may be selected in either order. Whichever lands first creates the shared texture; the later plan must reuse it and verify that both copy points can share it. Source scene copies from `gpSwapchainManager->mHdrTexture` (F16, pre-resolve), not the post-tonemap swapchain.
 
 ## File Groups
 
-Plans that touch the same files and should be done in a single session:
+Shared-file overlap is warning-only: plans may run in separate worktrees. Whichever lands later reconciles the newer primary commit, preserves both changes, and reruns every affected review, build, and verification step before landing.
 
-- **`Engine/Data/Shaders/Water/Water.frag` + `ShaderLayoutsBase.h` + `WaterWrappersBase.{h,cpp}` + `TweaksScreenWater.cpp` + `GlobalUniforms.cpp`**: `Graphics/WaterFoam.md`, `Graphics/WaterSunGlitter.md`, `Graphics/WaterCaustics.md`, `Graphics/WaterSSS.md`, `Graphics/WaterRefraction.md` — each adds 2-8 `GlobalLayout` floats and a slider block; align ordering to minimize diff churn. All five are independent add-ons to the current water renderer (no shared foundation, any order).
+- **`Engine/Data/Shaders/Water/Water.frag` + `ShaderLayoutsBase.h` + `WaterWrappersBase.{h,cpp}` + `TweaksScreenWater.cpp` + `GlobalUniforms.cpp`**: `Graphics/WaterFoam.md`, `Graphics/WaterSunGlitter.md`, `Graphics/WaterCaustics.md`, `Graphics/WaterSSS.md`, `Graphics/WaterRefraction.md` — independent add-ons; any landing order, with the later lander responsible for semantic reconciliation and shader/client verification.

@@ -7,12 +7,14 @@ Refactor/bugfix plan queue — debt reduction that doesn't add a new engine capa
 Priority index — single table of all live plans sorted by score, lowest first (Score = Effort − Impact + Risks). It reflects only the CURRENT set of live plans; **it is not a changelog.** Do not record landed/dropped plans, "this run / this session" retrospectives, "has landed and been removed" annotations, or review-sweep narratives here — every row and reference must correspond to a plan file that exists on disk right now. It also carries:
 
 - `### Reference / Index Documents` — second table for meta/overview docs that are never executed as plans (e.g. `Graphics/ShaderReview/00_Overview.md`); excluded from the priority walk and orphan scans.
-- `## Dependencies` — ordering constraints between live plans (shared files, decision prerequisites).
-- `## File Groups` — live plans touching the same files, to co-schedule in one session so line citations don't go stale between them.
+- `## Dependencies` — explicit prerequisite and landing constraints between live plans. Only directional dependency language blocks selection; ordinary overlap is warning-only, while `never interleave`, conflicts/joint resolution, alone execution, and invariant batches remain mandatory landing constraints.
+- `## File Groups` — live plans touching the same files. These entries warn about intersecting files and likely landing order; they never block selection by themselves.
 
 Debt-score / review-sweep retrospectives do **not** belong in `Order.md` — capture that context (if wanted) in the individual plan files' `## Context`, not in the priority index.
 
-A Notes cell prefixed `[CLAIMED]` marks a plan a session is actively executing — `/next-plan` claims the row on selection and removes row + file only on completion (rejection unclaims). Other sessions skip claimed rows; only the user may unclaim a stale one.
+The authoritative protocol claim is an atomically-created lock at `%LOCALAPPDATA%\BrokenEnginePlanClaims\<normalized-plan-path>.lock`, where the normalized Order.md-relative path is preserved beneath the root. It records session, date, worktree, and owner metadata. A Notes cell prefixed `[CLAIMED <date>]` is only that claim's informational mirror in the session worktree. Migration exception: a pre-protocol bare `[CLAIMED]` marker without a lock remains a blocking legacy guard until the user explicitly confirms reclaim; it never expires automatically. Claim age is warning-only; never steal a paused claim. Takeover requires explicit user approval, a re-read proving the owner token is unchanged, and atomic owner replacement; release requires matching owner metadata.
+
+Concurrent plans may overlap files. Ordinary `co-schedule`, shared-file, and refresh-citation overlap warns with the active plan/session, intersecting files, and expected landing order, then proceeds in isolated worktrees. The later lander incorporates the earlier primary-branch commit, reconciles the overlap, and reruns every affected review, build, and verification step. Explicit prerequisites still block selection. `Never interleave`, conflicts/joint resolution, alone execution, and protocol/version/CRC/replay/`.pack`/`kiVersion` batching are mandatory landing constraints that must be preserved, reconciled, and reverified rather than downgraded to warnings.
 
 ## Subdirectories
 

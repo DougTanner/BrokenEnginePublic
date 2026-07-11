@@ -87,9 +87,9 @@ public:
 
 	// Client drain point (main thread, before ImGui NewFrame): advance the active script one step and queue this
 	// frame's ImGui IO events.
-	// The main loop runs ImGui + scripts even while the window is minimized (GameBase::Render / ImGuiManager::Prepare
-	// are unconditional; only swapchain recreation defers at a 0x0 extent), so no minimized fast-fail is needed —
-	// verified 2026-07-09.
+	// Called unconditionally at the drain point above GameBase::Render (Main.cpp), so the script still advances even
+	// when the window is minimized and Render takes its swapchain-deferred skip (which also skips ImGuiManager::Prepare)
+	// — no minimized fast-fail is needed. Verified 2026-07-11.
 	void AdvanceFrame();
 
 	// End of RawInputManager::Update: OR the synthetic key / mouse-button / mouse-pos state onto the just-published

@@ -40,16 +40,20 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 	mStateFlags.Set(RawInputStateFlags::kHasFocus, bHasFocus);
 	mHwnd = hwnd;
 
-	RAWINPUTDEVICE pRawinputdevices[1] {};
+	// Keyboard HID (usage page 0x01, usage 0x06). Register and unregister share the same device struct and
+	// differ only in dwFlags: RIDEV_NOLEGACY adds the HID keyboard and ignores legacy keyboard messages;
+	// RIDEV_REMOVE unregisters it.
+	RAWINPUTDEVICE rawinputdevice
+	{
+		.usUsagePage = 0x01,
+		.usUsage = 0x06,
+		.dwFlags = static_cast<DWORD>(bHasFocus ? RIDEV_NOLEGACY : RIDEV_REMOVE),
+		.hwndTarget = nullptr,
+	};
 	if (bHasFocus)
 	{
-		pRawinputdevices[0].usUsagePage = 0x01;
-		pRawinputdevices[0].usUsage = 0x06;
-		pRawinputdevices[0].dwFlags = RIDEV_NOLEGACY; // adds HID keyboard and also ignores legacy keyboard messages
-		pRawinputdevices[0].hwndTarget = nullptr;
-
 		LOG(kInput, kInfo, "RegisterRawInputDevices");
-		if (RegisterRawInputDevices(pRawinputdevices, 1, sizeof(RAWINPUTDEVICE)) == FALSE)
+		if (RegisterRawInputDevices(&rawinputdevice, 1, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
 			// Heap: common::LastErrorString() returns a std::string by value (exceeds SSO), and this LOG sits in the allocation-tracked main loop
 			ScopedSuppressAllocationTracking suppress;
@@ -67,13 +71,8 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 	{
 		TrapCursor(false);
 
-		pRawinputdevices[0].usUsagePage = 0x01;
-		pRawinputdevices[0].usUsage = 0x06;
-		pRawinputdevices[0].dwFlags = RIDEV_REMOVE;
-		pRawinputdevices[0].hwndTarget = nullptr;
-
 		LOG(kInput, kInfo, "UnregisterRawInputDevices");
-		if (RegisterRawInputDevices(pRawinputdevices, 1, sizeof(RAWINPUTDEVICE)) == FALSE)
+		if (RegisterRawInputDevices(&rawinputdevice, 1, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
 			// Heap: common::LastErrorString() returns a std::string by value (exceeds SSO), and this LOG sits in the allocation-tracked main loop
 			ScopedSuppressAllocationTracking suppress;

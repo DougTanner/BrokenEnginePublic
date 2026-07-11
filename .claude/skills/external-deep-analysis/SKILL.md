@@ -138,7 +138,8 @@ After scoring, add every surviving plan file to `Documents/Plans/Order.md` — i
 
 - Insert each row at its score-correct position (lowest first). Preserve existing rows.
 - Do **not** add the Debt Score or any other run retrospective to `Order.md` — it lives in the Phase 6 summary only.
-- New plans that must execute in a fixed order (shared files, stale line numbers) get a bullet in the `## Dependencies` section (`PlanA` → `PlanB` — reason); plans touching the same files get an entry in `## File Groups` (**shared files**: `PlanA`, `PlanB`) so they land in one session.
+- Add `## Dependencies` entries only for genuine prerequisites or invariant ordering constraints (`PlanA` → `PlanB` — reason); unfinished prerequisites block execution.
+- Record ordinary shared-file overlap in `## File Groups` as a warning with the intersecting files and expected landing order. Overlap does not require one session or block either plan. The later lander reconciles the newer primary commit and reruns every affected review, build, and verification step before landing.
 
 ### 6. Phase 6: Summary
 
