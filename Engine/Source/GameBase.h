@@ -240,6 +240,14 @@ protected:
 	double mfRenderTime = 0.0;
 	bool mbRenderClockSeeded = false;
 	common::Timer mRenderTimer;
+
+	// Minimized-render-loop throttle (Render()'s swapchain-recreate-deferred skip branch). While the
+	// recreate stays deferred the branch early-returns past vkQueuePresentKHR — the client loop's only
+	// vsync throttle — so a high-resolution waitable timer paces the skip loop to one sim tick's cadence.
+	// Lazily created on first use, closed in ~GameBase. mMinimizedThrottleLast is the previous skip-branch
+	// timestamp (empty = first iteration after normal rendering resumed → wait skipped).
+	HANDLE mMinimizedThrottleTimer = nullptr;
+	std::optional<std::chrono::steady_clock::time_point> mMinimizedThrottleLast;
 #endif // BT_CLIENT
 };
 

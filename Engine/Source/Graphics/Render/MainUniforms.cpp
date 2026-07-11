@@ -441,16 +441,41 @@ static void PopulateHexShield(shaders::MainLayout& rMainLayout)
 void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord)
 {
 	// Never-empty invariant: client mActiveCoords always contains mClientGridCoord (Game::ComputeActiveSet
-	// gameplay and main-menu branches, Game::Reset re-seed) and the boot prerender passes {kOriginCoord},
-	// so this return is unreachable. It exists only to keep rRenderInterpolates.at(cameraCoord) below from
-	// throwing. If the invariant ever breaks, this skips every per-frame indirect-count write
-	// (FrameInterpolate::BeginRender/EndRender, DebugRender::BeginRender/EndRender, water LOD
-	// WriteIndirectBuffer + WaterDisplacement WriteIndirectComputeBuffer) while the record-once Main CB still submits unconditionally
-	// (Graphics::RenderMainPresentAcquire) — each skipped frame re-submits its command buffer's last-written
-	// instance counts (framebuffer-count frames stale) as ghost draws, for as long as the skip persists.
-	// An empty path added here must flush those counters before returning.
+	// gameplay and main-menu branches, Game::Reset re-seed) and the boot prerender passes {kOriginCoord}, so
+	// this return is unreachable. It exists only to keep rRenderInterpolates.at(cameraCoord) below from throwing
+	// if the invariant ever breaks. If it does, this skips every per-frame indirect-count write while the
+	// record-once Main CB still submits unconditionally (Graphics::RenderMainPresentAcquire), re-submitting each
+	// command buffer's last-written counts (framebuffer-count frames stale) for as long as the skip persists.
+	// Only the per-entity/effect + debug instance counts ghost-draw when stale (a leftover nonzero count draws
+	// phantom entities) — those are what an empty path added here must flush before returning. The water LOD
+	// WriteIndirectBuffer / WaterDisplacement WriteIndirectComputeBuffer params are deliberately left at their
+	// last-written per-framebuffer values: water is an always-draw fixed reference mesh (instanceCount = 1,
+	// never reallocated), so its stale-but-self-consistent params keep the frozen-camera ocean rendering and
+	// need no flush (nor does lighting / RenderLightingMain). See the reachable cameraCoord-not-found flush
+	// immediately below (all-rings-empty frame, e.g. a failed reconnect), which zeroes exactly the entity/effect
+	// + debug counts via FrameInterpolate::BeginRender/EndRender + DebugRender::BeginRender/EndRender.
 	if (rActiveCoords.empty())
 	{
+		return;
+	}
+
+	if (rRenderInterpolates.find(cameraCoord) == rRenderInterpolates.end())
+	{
+		// All-rings-empty frame (rActiveCoords non-empty but no active coord is renderable — e.g. a failed
+		// reconnect to a dead local server). GameBase::Render leaves mRenderInterpolates renderable-only, so a
+		// missing cameraCoord entry means the whole map is empty. Flush the record-once Main CB's indirect counts
+		// to zero (the SAME Begin/EndRender the normal path calls, but with no per-coord Render between them, so
+		// every collection's counter — reset at the top of BeginRender — is written as 0 by EndRender) so nothing
+		// ghost-draws, then bail before touching cameraCoord's absent interpolate. Both BeginRender and EndRender
+		// tolerate the empty map: every collection BeginRender iterates rActiveCoords with an rRenderInterpolates
+		// find-guard (or is a no-op), never .at().
+		game::FrameInterpolate::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords);
+		game::FrameInterpolate::EndRender(iCommandBuffer);
+		if constexpr (kbDebugRender)
+		{
+			DebugRender::BeginRender(iCommandBuffer);
+			DebugRender::EndRender(iCommandBuffer);
+		}
 		return;
 	}
 

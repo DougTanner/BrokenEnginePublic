@@ -9,13 +9,6 @@ inline constexpr float kfMenuUiScale = 2.0f;
 // Heading scale multiplier on top of kfMenuUiScale for menu/panel titles
 inline constexpr float kfMenuHeadingScale = 1.6f;
 
-// MainMenu title ("BROKEN ENGINE") heading scale — reduced below kfMenuHeadingScale so the floating title reads
-// proportionate over the live 3D scene (other screens keep the default)
-inline constexpr float kfMainMenuTitleScale = 1.35f;
-
-// MainMenu language-row font scale (on top of kfMenuUiScale) — keeps the language list a subordinate footer cluster
-inline constexpr float kfLanguageFontScale = 0.5f;
-
 // Shared menu-layout constants (source of truth: Documents/UserInterfaceDesign.txt). No inline magic layout
 // literal belongs in a screen .cpp — every anchor/gap/min-width lives here. Two kinds per the sizing standard
 // (Ui/Screens/CLAUDE.md rule 2): DisplaySize fractions (content-independent anchors/extents) and 4K-authored

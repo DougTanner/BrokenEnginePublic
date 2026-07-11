@@ -21,6 +21,12 @@ GameBase::GameBase()
 
 GameBase::~GameBase()
 {
+#if defined(BT_CLIENT)
+	if (mMinimizedThrottleTimer != nullptr)
+	{
+		CloseHandle(mMinimizedThrottleTimer);
+	}
+#endif // BT_CLIENT
 }
 
 void GameBase::ProcessInput([[maybe_unused]] bool bLostFocus, game::MenuInput& rMenuInput)
@@ -308,13 +314,36 @@ void GameBase::Render()
 	// Interpolate elapsed time with the sub-step remainder for smooth rendering
 	float fCurrentTime = mfCurrentTime + std::max(0.0f, common::NanosecondsToFloatSeconds<float>(mTimeStep.mTickRemainderNs));
 
-	// Camera coord fallback: use client coord if available, else first active coord
-	GridCoord cameraCoord = game::gpGame->mClientGridCoord;
+	// A coord is renderable only when its snapshot ring is populated (iSnapshotCount > 0). This two-condition
+	// check is the render-side invariant's definition — single-sourced here, used at every site below.
+	auto coordRenderable = [&](const GridCoord& rCoord)
 	{
-		auto it = mCoordFrames.find(cameraCoord);
-		if ((it == mCoordFrames.end() || it->second.iSnapshotCount == 0) && !rActiveCoords.empty())
+		auto it = mCoordFrames.find(rCoord);
+		return it != mCoordFrames.end() && it->second.iSnapshotCount > 0;
+	};
+
+	// Camera coord fallback: use client coord if its ring is populated, else the first active coord with
+	// a populated (iSnapshotCount > 0) ring. bHaveRenderableCamera == false is the failed-reconnect case
+	// where every active coord (including mClientGridCoord) has an empty ring — no coord is renderable
+	// this frame, so the camera-anchored render-clock / interpolate / RenderFrame work below is skipped.
+	GridCoord cameraCoord = game::gpGame->mClientGridCoord;
+	bool bHaveRenderableCamera = false;
+	{
+		if (coordRenderable(cameraCoord))
 		{
-			cameraCoord = rActiveCoords.front();
+			bHaveRenderableCamera = true;
+		}
+		else
+		{
+			for (const GridCoord& rCoord : rActiveCoords)
+			{
+				if (coordRenderable(rCoord))
+				{
+					cameraCoord = rCoord;
+					bHaveRenderableCamera = true;
+					break;
+				}
+			}
 		}
 	}
 
@@ -334,95 +363,102 @@ void GameBase::Render()
 		// invariant makes the handoff pixel-identical.
 		double dSimDeltaSeconds = common::NanosecondsToFloatSeconds<double>(mTimeStep.WallToSim(mRenderTimer.GetDeltaNs(true)));
 		mfLastRenderFrameSeconds = dSimDeltaSeconds;
-		const CoordFrames& rCameraFrames = mCoordFrames.at(cameraCoord);
-		bool bHaveInterpolationWindow = (rCameraFrames.iSnapshotCount >= kiRenderBehindTicks + 1);
-		// RenderFrame returns the frame kiRenderBehindTicks behind tail once populated, else the oldest
-		// available. Either way, its fCurrentTime is the START of the current render window. Promoted to double so mfRenderTime - dT keeps
-		// nanosecond precision even after hours of accumulated game time (float ULP at ~16384s is 2ms,
-		// which would otherwise quantize the alpha and visibly stutter at high zoom).
-		const game::Frame& rSourceFrame = RenderFrame(cameraCoord);
-		double dT = rSourceFrame.interpolate.fCurrentTime;
-
+		// Only advance the render clock and sample the source frame when a renderable camera coord exists.
+		// On the failed-reconnect all-empty-rings frame (bHaveRenderableCamera == false) fDeltaTime stays 0
+		// and none of mCoordFrames.at(cameraCoord) / RenderFrame(cameraCoord) / the clock math runs; the
+		// prune and per-coord interpolate below still run so mRenderInterpolates ends renderable-only.
 		float fDeltaTime = 0.0f;
-		bool bPaused = mGameFlags & GameFlags::kPaused;
+		if (bHaveRenderableCamera)
+		{
+			const CoordFrames& rCameraFrames = mCoordFrames.at(cameraCoord);
+			bool bHaveInterpolationWindow = (rCameraFrames.iSnapshotCount >= kiRenderBehindTicks + 1);
+			// RenderFrame returns the frame kiRenderBehindTicks behind tail once populated, else the oldest
+			// available. Either way, its fCurrentTime is the START of the current render window. Promoted to double so mfRenderTime - dT keeps
+			// nanosecond precision even after hours of accumulated game time (float ULP at ~16384s is 2ms,
+			// which would otherwise quantize the alpha and visibly stutter at high zoom).
+			const game::Frame& rSourceFrame = RenderFrame(cameraCoord);
+			double dT = rSourceFrame.interpolate.fCurrentTime;
 
-		if (bPaused)
-		{
-			// Freeze. Don't advance mfRenderTime; rendered scene stays static until unpause.
-			fDeltaTime = static_cast<float>(std::clamp(mfRenderTime - dT, 0.0, static_cast<double>(game::kfDeltaTime)));
-		}
-		else if (!bHaveInterpolationWindow)
-		{
-			// Cold start / under-populated coord (fewer than kiRenderBehindTicks + 1 snapshots): no
-			// interpolation window yet. Force fDt=0 so rendering stays pinned to the oldest available
-			// frame — never extrapolating past committed ticks. Reset the seed flag so the next
-			// steady-state entry re-seeds at midpoint.
-			mfRenderTime = dT;
-			mbRenderClockSeeded = false;
-			fDeltaTime = 0.0f;
-		}
-		else
-		{
-			// One-shot seed at window midpoint so jitter has symmetric headroom before hitting
-			// either clamp. After seeding, wall-rate integration preserves phase.
-			if (!mbRenderClockSeeded)
+			bool bPaused = mGameFlags & GameFlags::kPaused;
+
+			if (bPaused)
 			{
-				mbRenderClockSeeded = true;
-				mfRenderTime = dT + 0.5 * game::kfDeltaTime;
+				// Freeze. Don't advance mfRenderTime; rendered scene stays static until unpause.
+				fDeltaTime = static_cast<float>(std::clamp(mfRenderTime - dT, 0.0, static_cast<double>(game::kfDeltaTime)));
 			}
-
-			// Rebase only on multi-tick T regression (reconcile snap, full-state seed). Tolerance
-			// widens to [T - kfDt, T + 2*kfDt] so a single-tick commit — which leaves mfRenderTime
-			// anywhere from slightly below new T to slightly below new T+kfDt — never triggers a
-			// rebase. Rebasing on every commit was the 32 Hz vibration signature.
-			if (mfRenderTime < dT - game::kfDeltaTime || mfRenderTime > dT + 2.0 * game::kfDeltaTime)
+			else if (!bHaveInterpolationWindow)
 			{
-				// A rebase is a discontinuous visual time jump — should be rare outside loss bursts
-				LOG(kNetwork, kVerbose, "Render clock rebase JumpTicks: {} RenderTime: {} WindowStart: {}", common::Wb(static_cast<float>((dT - mfRenderTime) / game::kfDeltaTime), 2), common::Wb(static_cast<float>(mfRenderTime), 4), common::Wb(static_cast<float>(dT), 4));
-				mfRenderTime = dT + 0.5 * game::kfDeltaTime;
+				// Cold start / under-populated coord (fewer than kiRenderBehindTicks + 1 snapshots): no
+				// interpolation window yet. Force fDt=0 so rendering stays pinned to the oldest available
+				// frame — never extrapolating past committed ticks. Reset the seed flag so the next
+				// steady-state entry re-seeds at midpoint.
+				mfRenderTime = dT;
+				mbRenderClockSeeded = false;
+				fDeltaTime = 0.0f;
 			}
-
-			mfRenderTime += dSimDeltaSeconds;
-			double dUnclampedRenderTime = mfRenderTime;
-			mfRenderTime = std::clamp(mfRenderTime, dT, dT + static_cast<double>(game::kfDeltaTime));
-			fDeltaTime = static_cast<float>(mfRenderTime - dT);
-
-			// Top-clamp = renderer starved of committed ticks (scene freezes); bottom-clamp = commits
-			// outpaced the render clock (scene skips ahead). Both should be brief and rare outside
-			// loss bursts. Streaks are logged at the transition; streaks losing < 1/4 tick are
-			// dropped as noise.
+			else
 			{
-				static int64_t siStarvedFrames = 0;
-				static double sdStarvedSeconds = 0.0;
-				static int64_t siSkippedFrames = 0;
-				static double sdSkippedSeconds = 0.0;
-				if (dUnclampedRenderTime > mfRenderTime)
+				// One-shot seed at window midpoint so jitter has symmetric headroom before hitting
+				// either clamp. After seeding, wall-rate integration preserves phase.
+				if (!mbRenderClockSeeded)
 				{
-					++siStarvedFrames;
-					sdStarvedSeconds += dUnclampedRenderTime - mfRenderTime;
+					mbRenderClockSeeded = true;
+					mfRenderTime = dT + 0.5 * game::kfDeltaTime;
 				}
-				else if (siStarvedFrames > 0)
+
+				// Rebase only on multi-tick T regression (reconcile snap, full-state seed). Tolerance
+				// widens to [T - kfDt, T + 2*kfDt] so a single-tick commit — which leaves mfRenderTime
+				// anywhere from slightly below new T to slightly below new T+kfDt — never triggers a
+				// rebase. Rebasing on every commit was the 32 Hz vibration signature.
+				if (mfRenderTime < dT - game::kfDeltaTime || mfRenderTime > dT + 2.0 * game::kfDeltaTime)
 				{
-					if (sdStarvedSeconds > 0.25 * game::kfDeltaTime)
+					// A rebase is a discontinuous visual time jump — should be rare outside loss bursts
+					LOG(kNetwork, kVerbose, "Render clock rebase JumpTicks: {} RenderTime: {} WindowStart: {}", common::Wb(static_cast<float>((dT - mfRenderTime) / game::kfDeltaTime), 2), common::Wb(static_cast<float>(mfRenderTime), 4), common::Wb(static_cast<float>(dT), 4));
+					mfRenderTime = dT + 0.5 * game::kfDeltaTime;
+				}
+
+				mfRenderTime += dSimDeltaSeconds;
+				double dUnclampedRenderTime = mfRenderTime;
+				mfRenderTime = std::clamp(mfRenderTime, dT, dT + static_cast<double>(game::kfDeltaTime));
+				fDeltaTime = static_cast<float>(mfRenderTime - dT);
+
+				// Top-clamp = renderer starved of committed ticks (scene freezes); bottom-clamp = commits
+				// outpaced the render clock (scene skips ahead). Both should be brief and rare outside
+				// loss bursts. Streaks are logged at the transition; streaks losing < 1/4 tick are
+				// dropped as noise.
+				{
+					static int64_t siStarvedFrames = 0;
+					static double sdStarvedSeconds = 0.0;
+					static int64_t siSkippedFrames = 0;
+					static double sdSkippedSeconds = 0.0;
+					if (dUnclampedRenderTime > mfRenderTime)
 					{
-						LOG(kNetwork, kVerbose, "Render clock starved Frames: {} LostTicks: {}", siStarvedFrames, common::Wb(static_cast<float>(sdStarvedSeconds / game::kfDeltaTime), 2));
+						++siStarvedFrames;
+						sdStarvedSeconds += dUnclampedRenderTime - mfRenderTime;
 					}
-					siStarvedFrames = 0;
-					sdStarvedSeconds = 0.0;
-				}
-				if (dUnclampedRenderTime < mfRenderTime)
-				{
-					++siSkippedFrames;
-					sdSkippedSeconds += mfRenderTime - dUnclampedRenderTime;
-				}
-				else if (siSkippedFrames > 0)
-				{
-					if (sdSkippedSeconds > 0.25 * game::kfDeltaTime)
+					else if (siStarvedFrames > 0)
 					{
-						LOG(kNetwork, kVerbose, "Render clock skipped Frames: {} SkippedTicks: {}", siSkippedFrames, common::Wb(static_cast<float>(sdSkippedSeconds / game::kfDeltaTime), 2));
+						if (sdStarvedSeconds > 0.25 * game::kfDeltaTime)
+						{
+							LOG(kNetwork, kVerbose, "Render clock starved Frames: {} LostTicks: {}", siStarvedFrames, common::Wb(static_cast<float>(sdStarvedSeconds / game::kfDeltaTime), 2));
+						}
+						siStarvedFrames = 0;
+						sdStarvedSeconds = 0.0;
 					}
-					siSkippedFrames = 0;
-					sdSkippedSeconds = 0.0;
+					if (dUnclampedRenderTime < mfRenderTime)
+					{
+						++siSkippedFrames;
+						sdSkippedSeconds += mfRenderTime - dUnclampedRenderTime;
+					}
+					else if (siSkippedFrames > 0)
+					{
+						if (sdSkippedSeconds > 0.25 * game::kfDeltaTime)
+						{
+							LOG(kNetwork, kVerbose, "Render clock skipped Frames: {} SkippedTicks: {}", siSkippedFrames, common::Wb(static_cast<float>(sdSkippedSeconds / game::kfDeltaTime), 2));
+						}
+						siSkippedFrames = 0;
+						sdSkippedSeconds = 0.0;
+					}
 				}
 			}
 		}
@@ -430,10 +466,13 @@ void GameBase::Render()
 			ScopedSuppressAllocationTracking suppress;
 
 			// Heap: std::erase_if may rehash, operator[] may insert — must stay wrapped for allocation-tracker compliance
-			// Remove render interpolates for deactivated coords
+			// Remove render interpolates for deactivated coords AND coords whose snapshot ring is empty, so
+			// mRenderInterpolates holds entries for exactly the renderable (iSnapshotCount > 0) active coords.
+			// This must run even when bHaveRenderableCamera is false so no stale empty-ring entry survives
+			// into RenderFrameMain (whose RenderFrame(coord) asserts iSnapshotCount > 0).
 			std::erase_if(mRenderInterpolates, [&](const std::pair<const GridCoord, game::FrameInterpolate>& rPair)
 			{
-				return !std::ranges::contains(rActiveCoords, rPair.first);
+				return !std::ranges::contains(rActiveCoords, rPair.first) || !coordRenderable(rPair.first);
 			});
 
 			// AllocateAndCopy + Update each active frame's render interpolate (camera frame first).
@@ -457,13 +496,23 @@ void GameBase::Render()
 				game::FrameInterpolate::AllocateAndCopy(mRenderInterpolates.try_emplace(rCoord).first->second, rFrame.interpolate);
 				game::FrameInterpolate::Update(mRenderInterpolates.at(rCoord), rFrame, fCoordDeltaTime);
 			};
-			interpolateFrame(cameraCoord);
+			if (bHaveRenderableCamera)
+			{
+				interpolateFrame(cameraCoord);
+			}
 			for (const GridCoord& rCoord : rActiveCoords)
 			{
-				if (rCoord != cameraCoord)
+				if (rCoord == cameraCoord)
 				{
-					interpolateFrame(rCoord);
+					continue;
 				}
+				// Skip empty-ring coords: RenderFrame(rCoord) inside interpolateFrame asserts iSnapshotCount > 0
+				// (mirrors Islands::UpdateActiveIslands' empty-ring skip).
+				if (!coordRenderable(rCoord))
+				{
+					continue;
+				}
+				interpolateFrame(rCoord);
 			}
 		}
 		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate);
@@ -474,8 +523,12 @@ void GameBase::Render()
 			gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 		}
 
-		// Update camera before RenderGlobal
-		game::gpCamera->Update(mRenderInterpolates.at(cameraCoord));
+		// Update camera before RenderGlobal. Skip when no coord is renderable (failed reconnect): the camera
+		// holds its last state and mRenderInterpolates.at(cameraCoord) would throw on the absent entry.
+		if (bHaveRenderableCamera)
+		{
+			game::gpCamera->Update(mRenderInterpolates.at(cameraCoord));
+		}
 
 		// Decay visual error offset for smooth reconciliation corrections
 		{
@@ -508,6 +561,45 @@ void GameBase::Render()
 		if (!gpGraphics->mbSwapchainRecreateDeferred)
 		{
 			gpSwapchainManager->AcquireNextImage();
+			mMinimizedThrottleLast.reset(); // Recreate resumed: drop the throttle timestamp so a fresh minimize starts clean.
+		}
+		else
+		{
+			// Still deferred (minimized / off-screen): this branch loops every frame with no vkQueuePresentKHR to
+			// throttle it, so pace it to the sim tick's remaining time (game::kTickNs minus this iteration's elapsed
+			// wall time) — the minimized loop holds ~32 Hz instead of busy-spinning a core and re-issuing a
+			// vkGetPhysicalDeviceSurfaceCapabilitiesKHR per spin. Tick-matched, not below: staying AT tick rate keeps
+			// client acks pacing server broadcasts, avoiding the below-tick-rate jitter-estimator inflation
+			// (Network/JitterMeasurementLowFpsSkew.md). Mirrors ServerSessionBase::WaitForTick's high-resolution
+			// waitable timer minus its precision spin (nothing minimized needs sub-ms accuracy).
+			if (mMinimizedThrottleTimer == nullptr)
+			{
+				mMinimizedThrottleTimer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+			}
+
+			if (mMinimizedThrottleLast.has_value())
+			{
+				std::chrono::nanoseconds elapsedNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - *mMinimizedThrottleLast);
+				std::chrono::nanoseconds remainingNs = game::kTickNs - elapsedNs;
+				static constexpr std::chrono::nanoseconds kMinThrottleNs = 1'000'000ns; // ~1 ms floor: skip sub-ms / non-positive remainders.
+				if (remainingNs >= kMinThrottleNs)
+				{
+					LARGE_INTEGER dueTime {.QuadPart = -(remainingNs.count() / 100),}; // Negative = relative, 100ns units.
+					if (mMinimizedThrottleTimer != nullptr && SetWaitableTimerEx(mMinimizedThrottleTimer, &dueTime, 0, nullptr, nullptr, nullptr, 0) != 0)
+					{
+						WaitForSingleObject(mMinimizedThrottleTimer, INFINITE);
+					}
+					else
+					{
+						// Timer create or arm failed (OS API results are a trust boundary — waiting on an unarmed
+						// auto-reset timer would block forever): fall back to Sleep at ambient granularity.
+						Sleep(static_cast<DWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(remainingNs).count()));
+					}
+				}
+			}
+
+			// Timestamp AFTER the wait so the next iteration's remainder measures one full loop.
+			mMinimizedThrottleLast = std::chrono::steady_clock::now();
 		}
 		return;
 	}

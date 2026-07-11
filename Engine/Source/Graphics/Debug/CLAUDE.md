@@ -13,7 +13,7 @@ Wireframe primitive rendering (boxes, spheres, circles, lines) for development v
 
 ## Per-Frame Flush
 
-Submission helpers may be called any time during the frame; `BeginRender`/`EndRender` then run back-to-back in `RenderFrameMain` after all debug submissions (further MainLayout population follows them) — the host-visible flush that keeps debug draws legal under the parent's CB re-record ban, not a bracket around recording:
+Submission helpers may be called any time during the frame; `BeginRender`/`EndRender` then run back-to-back in `RenderFrameMain` after all debug submissions (further MainLayout population follows them) — the host-visible flush that keeps debug draws legal under the parent's CB re-record ban, not a bracket around recording. (`RenderFrameMain`'s all-rings-empty skip path also runs the pair back-to-back — with no submissions, so it writes zero counts — then returns before any further population.)
 - `BeginRender` skips types with zero submissions; otherwise grows the CRC-keyed dynamic storage buffer if needed and copies queued layouts in. The pipeline's storage-buffer descriptor is rebound only on the resize path (legal via update-after-bind), so steady-state frames touch only mapped memory.
 - `EndRender` writes the indirect instance count for all four types unconditionally — the zero write is load-bearing, clearing the prior frame's count in the record-once command buffer — then resets the counters. Counters reset here only, never in `BeginRender`.
 

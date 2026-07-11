@@ -35,6 +35,7 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 - Server dual-buffer: `SwapFrames()` per tick; post-swap `pNext` holds stale data reused by the next `EnsureNextFrames()`.
 - ID minting is server-authoritative (frame IDs wrap uint16, global IDs monotonic int64). Clients receive both via serialization — never mint locally.
 - Client render-side sim clock (`mfRenderTime`) integrates sim seconds and is clamped to the closed one-tick window starting `kiRenderBehindTicks` behind the ring tail (newer committed ticks are held as starvation cushion), so every rendered frame interpolates between two simulated ticks — never extrapolates past committed state. Seeded once at the window midpoint; rebases only on a multi-tick discontinuity (window regression or burst advance), never per commit.
+- Client render consumes only renderable coords: `mRenderInterpolates` holds an entry for exactly the active coords whose snapshot ring is populated (`iSnapshotCount > 0`), rebuilt each render frame by the prune/interpolate pass (which runs even when nothing is renderable). `RenderFrameMain`'s per-coord `RenderFrame` asserts a populated ring, so a renderable-only map means that assert never sees an empty-ring entry; when every ring is empty (failed reconnect) the map is empty and the main pass takes its count-flush skip path (see [Graphics/Render/CLAUDE.md](Graphics/Render/CLAUDE.md)).
 
 ## Tick Flow
 

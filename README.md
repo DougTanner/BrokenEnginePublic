@@ -24,8 +24,9 @@ The game Kinetic Storm runs on Broken Engine and is currently available on Steam
 
 ## Git
 
-- Repository should be cloned with --recurse-submodules
-    - Or use "git submodule init" & "git submodule update" after cloning
+- Repository should be cloned with `--recurse-submodules` and symlink support enabled so Codex and Claude Code share the same skills:
+	- Enable Windows Developer Mode, then clone with `git -c core.symlinks=true clone --recurse-submodules <repository-url>`
+	- Or use "git submodule init" & "git submodule update" after cloning
 - Consider setting "git config --global core.safecrlf false" to supress warnings about automatic endline conversions
 	- "LF will be replaced by CRLF the next time Git touches it"
 

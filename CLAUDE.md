@@ -18,7 +18,9 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 
 ### When to use each model
 
-Fable is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down.
+Note: If you are ChatGPT Codex, Fable -> Sol, Opus -> Terra, Sonnet -> Luna
+
+Fable is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down. IMPORTANT: If Fable is not available or Fable limit has been reached, use Opus instead.
 
 - Code/Web search: Sonnet — must never summarize; return direct quotes, file:line references, or links for the main context to analyze
 - Builds: Sonnet — invoke `/compile`; return status + error/warning lines verbatim
