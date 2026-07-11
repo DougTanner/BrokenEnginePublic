@@ -54,7 +54,7 @@ Each subagent reports files changed + functions/regions touched (one line each),
 9. Whenever the change has an observable runtime surface, an Opus subagent invokes the /agent-harness skill to verify it live: run the plan's Verification section if present, else derive minimal launch/drive/query checks from the plan's acceptance criteria; report PASS/FAIL per criterion with evidence lines verbatim. Skip only when nothing is runtime-observable (docs/comment-only changes). FAILs: Opus subagent diagnoses per Diagnosis Discipline before any fix
 10. After all previous steps complete, per logical file group (per subsystem or per plan-step slice, code separate from docs) two concurrent subagents — one Fable, one Opus — each invoke the /session-audit skill on identical inputs. /session-audit reports findings only; main session dedupes both sets, then dispatches new Opus subagents to validate then fix accepted findings (structural issues → step 11). After fixes land: a Sonnet subagent runs the /compile selective build on fixed .cpp files, and one Opus subagent re-reviews only the fixed regions against the accepted findings — one pass, no second cycle; anything still open routes to step 11
 11. For problems and residuals from any step that weren't auto-fixed (architectural decisions, larger issues out-of-scope of the current plan), have an Opus subagent create plan files in `Documents/Plans/`
-12. Invoke /finalize-changes for every repository mutation, including documentation, plans, skills, configuration, and other non-C++ changes.
+12. When working in a session worktree, invoke /finalize-changes for every repository mutation, including documentation, plans, skills, configuration, and other non-C++ changes.
 
 ## Resolving Ambiguity
 
