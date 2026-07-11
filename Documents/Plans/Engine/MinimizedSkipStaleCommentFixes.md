@@ -14,11 +14,11 @@ The **conclusion is correct** — `AdvanceFrame` runs unconditionally at the cli
 Fix: correct the parenthetical so it rests on the true invariant — `AdvanceFrame` runs at the drain point above `Render`, independent of whether the minimized skip fires — and stop claiming `ImGuiManager::Prepare` runs while minimized. Keep it one concise sentence; do not enumerate line numbers that will drift.
 
 ### Item 2 — server tick-wait spin margin doc/code drift (rider)
-`Engine/Source/Network/Server/CLAUDE.md:10` (ServerSessionBase key-class line) says the waitable timer *"sleeps until ~2ms before target, then spins to precision"*. The code uses `kSpinMarginNs = 500'000ns` (~0.5 ms), not ~2 ms (`ServerSessionBase.cpp:29`). Fix the doc figure to ~0.5 ms (or "sub-millisecond"). The `WaitForTick` inline comment at `ServerSessionBase.cpp:28` ("waitable timer for the bulk, then spin-wait for precision") is accurate and needs no change.
+`Engine/Source/Network/Server/AGENTS.md:10` (ServerSessionBase key-class line) says the waitable timer *"sleeps until ~2ms before target, then spins to precision"*. The code uses `kSpinMarginNs = 500'000ns` (~0.5 ms), not ~2 ms (`ServerSessionBase.cpp:29`). Fix the doc figure to ~0.5 ms (or "sub-millisecond"). The `WaitForTick` inline comment at `ServerSessionBase.cpp:28` ("waitable timer for the bulk, then spin-wait for precision") is accurate and needs no change.
 
 ## Critical files
 - `Engine/Source/Agent/AgentInput.h` — the `AdvanceFrame` declaration comment (`:88-93`). Read-only cross-check: `GameBase.cpp` `Render` skip-branch `return`, `Graphics.cpp:250` (`ImGuiManager::Prepare` call site), `Main.cpp` drain point.
-- `Engine/Source/Network/Server/CLAUDE.md` — the ServerSessionBase key-class bullet (`:10`). Read-only cross-check: `ServerSessionBase.cpp:29` (`kSpinMarginNs`).
+- `Engine/Source/Network/Server/AGENTS.md` — the ServerSessionBase key-class bullet (`:10`). Read-only cross-check: `ServerSessionBase.cpp:29` (`kSpinMarginNs`).
 
 ## Out of scope
 - No code-behavior change to `AgentInput`, `GameBase::Render`, or `ServerSessionBase` — comments/docs only.
@@ -27,7 +27,7 @@ Fix: correct the parenthetical so it rests on the true invariant — `AdvanceFra
 
 ## Acceptance criteria
 - `AgentInput.h`'s `AdvanceFrame` comment no longer claims `ImGuiManager::Prepare` runs while minimized; the retained justification is the unconditional drain-point call above `Render`.
-- `Network/Server/CLAUDE.md` states the spin margin as ~0.5 ms (matching `kSpinMarginNs`), not ~2 ms.
+- `Network/Server/AGENTS.md` states the spin margin as ~0.5 ms (matching `kSpinMarginNs`), not ~2 ms.
 
 ## Notes
 - **Invariant exposure: none** — comment/doc text only, two single-line edits in two files, no compile impact.

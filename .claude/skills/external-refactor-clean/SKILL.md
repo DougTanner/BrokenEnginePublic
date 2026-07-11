@@ -22,8 +22,8 @@ The user provides a target path (file or directory) to analyze. If no path is gi
 ### 0. Read Authorities
 
 Before scanning, read:
-- Repo root `CLAUDE.md` (KISS/YAGNI/DRY, key patterns)
-- Nearest nested `CLAUDE.md` for the target path
+- Repo root `AGENTS.md` (KISS/YAGNI/DRY, key patterns)
+- Nearest nested `AGENTS.md` for the target path
 - `Documents/C++StyleGuide.txt`
 
 Cite these documents in findings; the checklists below are detection heuristics, not the authority.
@@ -54,7 +54,7 @@ Flag:
 
 Flag:
 - **Heap allocation in per-frame code** — local `std::vector`/`std::string`/`new` where `gpThreadLocal->mWorkbuffer` should be used instead
-- **Unavoidable heap without `ScopedSuppressAllocationTracking`** + `// Heap:` comment (see `Engine/Source/Memory/CLAUDE.md`)
+- **Unavoidable heap without `ScopedSuppressAllocationTracking`** + `// Heap:` comment (see `Engine/Source/Memory/AGENTS.md`)
 - **Float format specs in `LOG(...)`** — allocation-tracked code only (Game and Engine; not the offline DataPacker): `{:.Nf}`/`{:e}` heap-allocate and trip the allocation tracker; wrap with `common::Wb`/`WbV2/V3/V4` (repo-code-review skill §2b)
 
 ### 6. Engine Micro-Patterns
@@ -65,13 +65,13 @@ Flag:
 - **DirectX Math operators** — `vec + vec`, `f * vec`, `-vec` instead of function forms (`XMVectorAdd`/`Scale`/`Negate`)
 - **Over-wide `#ifdef BT_CLIENT`/`BT_SERVER`** — guards wider than the code that actually differs. Move the guard inward.
 - **Standard-header placement** — new `#include <header>` in a source file; should be in `Common/ExternalHeaders.h`. Exception: the single-TU `*_IMPLEMENTATION` includes in the `ThirdParty/Prebuilts/Source/` unity `.cpp`s stay local by necessity — do not flag them
-- **`*Base` references** — engine code naming `GameBase`/`CameraBase`/other `*Base` types outside the base file itself; use the game-derived versions via `game::gpGame`/`game::gp*`. Do not flag engine *reading* `game::gp*` globals — that is by design, not a layer violation (see `Engine/Source/CLAUDE.md`)
+- **`*Base` references** — engine code naming `GameBase`/`CameraBase`/other `*Base` types outside the base file itself; use the game-derived versions via `game::gpGame`/`game::gp*`. Do not flag engine *reading* `game::gp*` globals — that is by design, not a layer violation (see `Engine/Source/AGENTS.md`)
 
 ### 7. AI-Generation Anti-Patterns (in-function)
 
 Iterative AI-generation leaves characteristic in-function residue. Hunt for structural evidence, not surface compliance — and stay non-security (structural/correctness only):
 
-- **Phantom guards / over-specified edge cases** — checks for conditions that cannot occur given the callers (null-checks on parameters passed from within the codebase, branches for impossible enum values, redundant re-validation). They clutter core logic and give false safety. The repo already forbids them: *Error handling at trust boundaries only* (no defensive validation between our own functions) and *No useless ASSERTs* (root `CLAUDE.md`). Flag the guard; the preferred fix is making the condition impossible in the caller.
+- **Phantom guards / over-specified edge cases** — checks for conditions that cannot occur given the callers (null-checks on parameters passed from within the codebase, branches for impossible enum values, redundant re-validation). They clutter core logic and give false safety. The repo already forbids them: *Error handling at trust boundaries only* (no defensive validation between our own functions) and *No useless ASSERTs* (root `AGENTS.md`). Flag the guard; the preferred fix is making the condition impossible in the caller.
 - **Swallowed / cosmetic error handling** — `try`/`catch` or result checks that log-and-continue with no recovery, rethrow, or signal to the caller; every failure collapsing to the same generic message. The code looks handled while the caller has no indication anything failed. Contrast with the trust-boundary rule: opaque results (file reads, OS / third-party / network) *must* be checked and propagated meaningfully.
 - **Return-value inconsistency** — a function returning a real value on the success path and a silent default / empty / `false` on the error path without the signature (or an out-param / status) letting the caller tell them apart. Trace every return: do all paths agree on type and meaning?
 - **Boundary-condition gaps** — for code processing a collection or count, trace the empty, single-element, and zero-value cases. AI-generated loops systematically assume "at least one, probably many"; flag missing empty / `nullptr` / count-of-one handling. Only flag where the case can actually occur at existing call sites — a check for a case no caller can produce is a phantom guard (above), not a gap.

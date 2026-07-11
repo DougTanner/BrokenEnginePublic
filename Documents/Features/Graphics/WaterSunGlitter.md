@@ -20,7 +20,7 @@ f3SkyboxSpecular += fGlitter * f3SunOrMoon;
 ```
 
 - Adding into `f3SkyboxSpecular` means glitter inherits `fHeightDarkenLighting`, the full `fEffectiveShadow` (shadow kills sparkle, correct), and the sun/moon `max`-combine (`f3SunOrMoon`) so moon glitter appears at night.
-- Noise fetch reuses `noiseTextureSampler` (binding 7) at high-frequency UV; MUST follow the precision-safe sampling pact (`fract()`-wrapped UV + `textureGrad`, CPU-reduced origin — see Water/CLAUDE.md). World-anchored UV makes sparkles ride the surface and twinkle as waves move.
+- Noise fetch reuses `noiseTextureSampler` (binding 7) at high-frequency UV; MUST follow the precision-safe sampling pact (`fract()`-wrapped UV + `textureGrad`, CPU-reduced origin — see Water/AGENTS.md). World-anchored UV makes sparkles ride the surface and twinkle as waves move.
 - `fGlitter = 0` when intensity slider is 0 — no separate enable toggle needed.
 
 ### New uniforms / sliders

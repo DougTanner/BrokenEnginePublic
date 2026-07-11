@@ -77,7 +77,7 @@ std::string_view Workbuffer::View() const
 
 void Workbuffer::Grow(int64_t iNeededCapacity)
 {
-	// The buffer is sized up front (see Common/CLAUDE.md): a grow means it was under-sized. DEBUG_BREAK alerts in
+	// The buffer is sized up front: a grow means it was under-sized. DEBUG_BREAK alerts in
 	// debug; the resize still runs so gameplay never fails. Any View/Span/PushBuffer handle taken before this grow is
 	// invalidated by the reallocation of the ThreadLocal-owned backing vector — size the buffer correctly up front.
 	DEBUG_BREAK();

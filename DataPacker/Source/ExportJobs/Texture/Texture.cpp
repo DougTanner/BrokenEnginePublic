@@ -380,7 +380,7 @@ void Texture::EncodeWithRdo(std::byte* puiOut, const std::vector<float>& rIn, in
 	// Cross-machine note: bc7enc_rdo's ERT partitions the block stream into m_rdo_max_threads contiguous
 	// per-thread ranges and matches cannot cross partition boundaries, so encoded BCn bytes vary with core
 	// count (stable per host, different across hosts). Acceptable under the single-canonical-bake-machine
-	// assumption (see Cross-Machine Reproducibility in DataPacker/Source/CLAUDE.md); pin this to a fixed
+	// assumption; pin this to a fixed
 	// constant if CI / multi-machine bakes are introduced.
 	params.m_rdo_max_threads = static_cast<int>(std::max<int64_t>(1, common::HardwareCoreCount() - 2));
 	params.m_status_output = false;

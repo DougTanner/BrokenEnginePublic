@@ -12,7 +12,7 @@ Each item is independent and local.
 
 2. **A7 [LOW] — stale `// Heap:` comments name the wrong call.** `Collection.h:531-532`, `:549-550`, `:568-569` (the `AddIndexableElement` / `AddVisualIndexableElement` / `AddIndexableElementWithId` heap notes) say `unordered_map::operator[]` but the code uses `insert_or_assign`. Policy-mandated Heap comments must name the actual allocating call. Rider: the identical stale `operator[]` note at `OptionalIdToIndex::Read` (`:228`) has the same defect — fix it too.
 
-3. **D2 [MED] — fold vestigial `AllocateCore` into `Allocate`.** `CollectionMemory.h:181-231`: `AllocateCore`'s `bool` return has no consumer (documented dead in the Collections hub CLAUDE.md), and `Allocate` (:228-231) is its sole caller. Merge the body into `Allocate` (drop the unused `bool`); keep the `AllocateAndCopyIds` entry point unchanged. Update the "returning false when previous-frame data was null — a signal available to callers, with no current consumer" line in `Engine/Source/Frame/Collections/CLAUDE.md`. (Do NOT touch the CRC-mandated `AllocateCore`-vs-`AllocateAndAssign` capacity-reuse distinction — that is a separate contract, see `Architecture_CollectionCopyContract.md`.)
+3. **D2 [MED] — fold vestigial `AllocateCore` into `Allocate`.** `CollectionMemory.h:181-231`: `AllocateCore`'s `bool` return has no consumer (documented dead in the Collections hub AGENTS.md), and `Allocate` (:228-231) is its sole caller. Merge the body into `Allocate` (drop the unused `bool`); keep the `AllocateAndCopyIds` entry point unchanged. Update the "returning false when previous-frame data was null — a signal available to callers, with no current consumer" line in `Engine/Source/Frame/Collections/AGENTS.md`. (Do NOT touch the CRC-mandated `AllocateCore`-vs-`AllocateAndAssign` capacity-reuse distinction — that is a separate contract, see `Architecture_CollectionCopyContract.md`.)
 
 4. **D3 [MED] — share one invalid-type-index sentinel.** `TypeRegistry::RegisterType` (`Collection.h:156-157`) hard-codes `0xFF` in its `ASSERT(ruiIndex == 0xFF)` / `ASSERT(sTypes.size() < 0xFF)`, while `ControllerTypeRegistry` (`CollectionController.h:105-106`) uses the named `kuiInvalidControllerType` (= 0xFF). Introduce one shared named sentinel (e.g. `kuiInvalidTypeIndex`) used by both registries' ASSERTs.
 
@@ -33,7 +33,7 @@ Each item is independent and local.
 - `Engine/Source/Frame/Collections/CollectionController.h` — items 1, 4
 - `Engine/Source/Frame/Collections/CollectionId.h` — item 8
 - `Engine/Source/Engine.h` — item 8 (formatter comment)
-- `Engine/Source/Frame/Collections/CLAUDE.md` — item 3 (AllocateCore dead-signal line)
+- `Engine/Source/Frame/Collections/AGENTS.md` — item 3 (AllocateCore dead-signal line)
 
 ## Out of scope
 

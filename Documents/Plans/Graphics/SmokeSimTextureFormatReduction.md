@@ -24,7 +24,7 @@ multiplicatively and hard-zeroed below a threshold each frame; 16-bit float (10-
 Halving bytes halves every bandwidth term above — *if* the conversion cost that sank the prior attempt can be avoided
 (see Design step 0). Bonus: `R16_SFLOAT`'s `SAMPLED_IMAGE_FILTER_LINEAR` support is
 spec-mandatory, so the existing smoke-sampler NEAREST downgrade for devices without linear-filterable `R32_SFLOAT`
-(documented in `Managers/CLAUDE.md`, built in `TextureManager` sampler creation) becomes dead — devices currently
+(documented in `Managers/AGENTS.md`, built in `TextureManager` sampler creation) becomes dead — devices currently
 falling to NEAREST get *better* smoke filtering.
 
 This composes with (is independent of) `Graphics/SmokeSpreadFullTextureClearElimination.md`: executed standalone it
@@ -97,7 +97,7 @@ content-proportional bandwidth and half its memory footprint (302 MB → 151 MB 
 - `Engine/Source/Graphics/Managers/InstanceManager.cpp` — the blended-special-format-RTT boot guard (extend to
   `R16_SFLOAT` per its documented "new blended prepass on a novel format must extend that guard" rule).
 - `Engine/Source/Graphics/Managers/TextureManager.cpp` — smoke-sampler NEAREST-downgrade path (delete or document).
-- `Engine/Source/Graphics/Managers/TextureManager.CLAUDE.md` / `Managers/CLAUDE.md` — the R32_SFLOAT smoke-sampler note
+- `Engine/Source/Graphics/Managers/TextureManager.AGENTS.md` / `Managers/AGENTS.md` — the R32_SFLOAT smoke-sampler note
   goes stale.
 
 ## Out of scope

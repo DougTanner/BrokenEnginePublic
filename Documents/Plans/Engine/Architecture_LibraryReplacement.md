@@ -10,13 +10,13 @@ Source: /external-architecture-review on Engine/Source (recursive). The library-
 ### Candidate: delete the TextManager overlay-text stack, render via imgui draw lists
 - **Module/cluster**: `Engine/Source/Graphics/Managers/TextManager.h` (151 lines) + `TextManager.cpp` (120 lines); plus the text-pass glue: `kPipelineProfileText` (`PipelineManager.h:23`) / `mTextStorageBuffers` (`BufferManager.h:60`), the `kGpuTimerText` record block (`CommandBufferRecordMain.cpp:309-311`), the `Ui/ProfileText.*` shaders under `Engine/Data/Shaders`, and downstream the DataPacker font-bake path (`ExportFont.{h,cpp}`) and the eager `Font` chunk type in `FileManager`
 - **Lines removable**: ~250 in Engine/Source directly; realistically 400-600 repo-wide once shaders + DataPacker font baking + `common::Character` go
-- **Proposed library**: **imgui** (MIT — on the ThirdParty/CLAUDE.md allow list; **already imported**, so this is coverage extension, not a new import). Its background/foreground draw-list text is the standard for debug/profile overlays; `ImGuiManager` already exists and re-records its CB per frame
+- **Proposed library**: **imgui** (MIT — on the ThirdParty/AGENTS.md allow list; **already imported**, so this is coverage extension, not a new import). Its background/foreground draw-list text is the standard for debug/profile overlays; `ImGuiManager` already exists and re-records its CB per frame
 - **Fit**: every `TextAreas` consumer is debug/profile (`kTextDebug`, `kTextGraphics`, `kTextProfile*` — `TextManager.h:8-21`); no gameplay text exists. A bespoke Vulkan pipeline + bitmap-font atlas + pack-file font chunk is maintained solely to draw overlay text imgui can draw
 - **Risks**: (a) text moves out of the record-once Main pass into the ImGui submission — GPU-cost attribution changes and the `kGpuTimerText` row dies; (b) visual change (imgui font vs baked EFIGS atlas); (c) `ProfileScreens.cpp` screen-fraction `fX/fY` positioning ports to draw-list coordinates; (d) overlay volume (4096 chars/area) is trivially within the ImGui CB budget. No determinism exposure (client-only, presentation-only)
 - **Confidence**: MEDIUM. If taken: also skip the `WriteQuads` de-template item in `Graphics/Refactor_TextureManagersQuickWins.md` (moot) [~1-2 days]
 
 ### Rider: drop the unused tinyobjloader import
-- `ThirdParty/CLAUDE.md:35` notes tinyobjloader is compiled with **zero call sites** — inverse cleanup; remove from the ThirdParty build + docs [~15m]
+- `ThirdParty/AGENTS.md:35` notes tinyobjloader is compiled with **zero call sites** — inverse cleanup; remove from the ThirdParty build + docs [~15m]
 
 ### Evaluated and rejected (recorded so future sweeps don't re-litigate)
 - **Recast/Detour** (zlib) for the nav cluster (~1,450 LOC): REJECTED — nav runs on the shared client/server sim path with bit-reproducible CRC requirements; current design was built around Clipper2's int64 determinism; Recast is float-based with no cross-machine guarantee

@@ -2,7 +2,7 @@
 
 ## Context
 
-Six pre-existing `LOG(...)` calls on `kError`/`kWarning` paths use allocating `std::format` specs (`{:#018x}`, `0x{:08X}`). Under the allocation-tracked Game/Engine builds these trip the allocation tracker (`DEBUG_BREAK()`) — and they fire exactly when a real corrupt-asset or audio error needs logging, so the diagnostic path breaks precisely when it is most needed. The root-CLAUDE.md LOG-formatting rule requires the placeholder stay `{}` and hex/float wrapping go through allocation-free helpers.
+Six pre-existing `LOG(...)` calls on `kError`/`kWarning` paths use allocating `std::format` specs (`{:#018x}`, `0x{:08X}`). Under the allocation-tracked Game/Engine builds these trip the allocation tracker (`DEBUG_BREAK()`) — and they fire exactly when a real corrupt-asset or audio error needs logging, so the diagnostic path breaks precisely when it is most needed. The root-AGENTS.md LOG-formatting rule requires the placeholder stay `{}` and hex/float wrapping go through allocation-free helpers.
 
 The six sites (verified 2026-07-09):
 

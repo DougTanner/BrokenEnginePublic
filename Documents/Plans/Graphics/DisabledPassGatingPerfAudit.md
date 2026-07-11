@@ -4,7 +4,7 @@
 
 Several record-once command-buffer passes run **every frame regardless of whether their feature is enabled or its
 amplitude is at the disabled value**, because the engine bans CB re-record outside the swapchain / settings / device-loss
-recreate paths (see `Engine/Source/Graphics/CLAUDE.md`, "CB re-record is BANNED"). When a feature is "off," the only
+recreate paths (see `Engine/Source/Graphics/AGENTS.md`, "CB re-record is BANNED"). When a feature is "off," the only
 cheap levers available are (1) writing `0` into an indirect-dispatch/draw count (the existing
 `Pipeline::WriteIndirectBuffer(iCommandBuffer, 0)` idiom) and (2) in-shader early-outs. Recorded `vkCmdClearColorImage`,
 `vkCmdFillBuffer`, `vkCmdUpdateBuffer`, layout transitions, and copies **cannot** be cheaply indirect-gated — skipping

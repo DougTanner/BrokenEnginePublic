@@ -271,7 +271,7 @@ void WriteCombinedSamplers(const DescriptorInfo& rDescriptorInfo, VkWriteDescrip
 // cleared ONLY by ClearTextureBindings() at whole-PipelineManager rebuild (PipelineManager.cpp) —
 // Pipeline::Destroy does not unregister. This is why pipelines may only be (re)created during a full
 // PipelineManager reconstruction: any out-of-rebuild create would duplicate registrations / leave
-// dangling ones. See Objects/CLAUDE.md (rebuild-only lifecycle).
+// dangling ones.
 void RegisterCombinedSamplerBindings(Pipeline& rPipeline, const DescriptorInfo& rDescriptorInfo, uint32_t uiBinding, int64_t iRegisterBinding)
 {
 	if (rDescriptorInfo.textureCrc != 0)

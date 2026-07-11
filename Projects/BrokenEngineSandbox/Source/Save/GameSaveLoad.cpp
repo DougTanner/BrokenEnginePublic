@@ -430,7 +430,7 @@ void GameSaveLoad::WriteGrid(const engine::FileFlags_t& rFlags, const std::files
 		{
 			engine::GridCoord coord = engine::GridCoord::FromKey(uiKey);
 			coord.Write(fileStream);
-			// NavData is rebuilt lazily on first RunFrameTick — don't persist it (see Frame/CLAUDE.md).
+			// NavData is rebuilt lazily on first RunFrameTick — don't persist it.
 			mrGameBase.mCoordFrames.at(coord).staticData.Write(fileStream, /*bIncludeNavData=*/false);
 			fileStream << *mrGameBase.mCoordFrames.at(coord).pCurrent;
 		}

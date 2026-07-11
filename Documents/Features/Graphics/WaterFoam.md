@@ -28,7 +28,7 @@ Pass the fetched displacement W through as a new varying (`layout (location = 4)
 ### Fragment composition (`Water.frag`)
 
 1. **Shore foam**: `fShoreFoam = smoothstep` window on `-fTerrainElevation` — full near the beach, zero past `fWaterFoamShoreDepth`. Combined factor = `max(fInFoamFactor, fShoreFoam)`.
-2. **Noise breakup**: sample `noiseTextureSampler` (binding 7, already bound) at a foam scale/speed. MUST follow the precision-safe sampling pact (Water/CLAUDE.md): `fract()`-wrapped UV + `textureGrad` with derivatives of the camera-relative position, CPU-reduced origin/time supplied like the color-noise path in `GlobalUniforms.cpp` — plain world-space UVs jitter far from origin.
+2. **Noise breakup**: sample `noiseTextureSampler` (binding 7, already bound) at a foam scale/speed. MUST follow the precision-safe sampling pact (Water/AGENTS.md): `fract()`-wrapped UV + `textureGrad` with derivatives of the camera-relative position, CPU-reduced origin/time supplied like the color-noise path in `GlobalUniforms.cpp` — plain world-space UVs jitter far from origin.
 3. **Blend**: foam is diffuse — mix the base color toward the foam albedo *before* the shadow-apply site (i.e. into `f3LightingColor` ahead of the `f3BaseDarkened` computation) so height darken, the sun/ambient shadow split, and `fSunScalar`/`fAmbientScalar` all apply naturally. Scale `f3SkyboxSpecular` down by the foam amount — foam is not specular.
 
 ### New uniforms / sliders

@@ -2,7 +2,7 @@
 
 ## Context
 
-Four overlapping client-side reset paths each hand-maintain their own field checklist over the same session/game state. This is the audit's clearest accretion symptom and a known bug farm — `Engine/Source/Frame/CoordFrames` CLAUDE.md already warns "any new per-coord counter must reset there or state leaks across sessions," and the same hazard applies to every clock/identity/subscription field these paths touch. Because each path resets a slightly *different* subset, adding a field means remembering up to four edit sites, and the paths already disagree.
+Four overlapping client-side reset paths each hand-maintain their own field checklist over the same session/game state. This is the audit's clearest accretion symptom and a known bug farm — `Engine/Source/Frame/CoordFrames` AGENTS.md already warns "any new per-coord counter must reset there or state leaks across sessions," and the same hazard applies to every clock/identity/subscription field these paths touch. Because each path resets a slightly *different* subset, adding a field means remembering up to four edit sites, and the paths already disagree.
 
 The four paths (verified current source):
 

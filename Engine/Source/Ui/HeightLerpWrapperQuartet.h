@@ -7,7 +7,7 @@ namespace engine
 
 // Four Wrappers (StartHeight, EndHeight, Low, High) grouped as a single eye-height-lerped scalar.
 // Resolve() returns std::lerp(Low, High, t) with t clamped from the (StartHeight, EndHeight) band
-// at the supplied eye height. See Engine/Source/Graphics/Render/CLAUDE.md "Camera-Height-Conditional Uniforms".
+// at the supplied eye height.
 struct HeightLerpWrapperQuartet
 {
 	Wrapper StartHeight;

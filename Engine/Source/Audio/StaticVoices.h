@@ -66,7 +66,7 @@ private:
 
 	float ComputeAttenuatedVolume(float fDistance, float fSoundVolume) const;
 
-	// UpdateLifecycle passes, run in fixed order each frame (see Audio/CLAUDE.md "Voice Prioritization").
+	// UpdateLifecycle passes, run in fixed order each frame.
 	void InvalidationPass(const SoundsInterpolate& rSoundsInterpolate);
 	void PriorityPass(const SoundsInterpolate& rSoundsInterpolate, const SoundsPostRender& rSoundsPostRender);
 	void DeactivationPass();

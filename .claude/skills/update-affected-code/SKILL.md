@@ -5,7 +5,7 @@ description: >-
   implementation didn't touch — call sites of changed signatures or semantics,
   mirrored client/server or per-collection patterns that must stay in sync, and
   stale references in comments or shared C++/GLSL headers. Step 3 of the
-  CLAUDE.md C++ Code Change Process; invoke after implementation and its
+  AGENTS.md C++ Code Change Process; invoke after implementation and its
   self-audit, passing the changed-file list, touched functions/regions, and any
   sweep-exhaustiveness handoffs. Search-and-update only — no refactoring, no
   style fixes, no scope expansion.
@@ -36,7 +36,7 @@ Confirm exhaustiveness by Grep, not recall: for every rename or repeated-pattern
 ## Non-Scope
 
 - Sibling *features* or scope expansion — a counterpart site needing a design decision is a residual, not an edit
-- Style, naming, formatting (code-style-review); CLAUDE.md docs (update-claude-docs); vcxproj membership (update-vcxproj); architecture diagrams (update-architecture-diagrams)
+- Style, naming, formatting (code-style-review); AGENTS.md docs (update-claude-docs); vcxproj membership (update-vcxproj); architecture diagrams (update-architecture-diagrams)
 - Refactoring or cleanup the change doesn't force
 
 ## Build

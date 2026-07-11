@@ -265,6 +265,6 @@ If no issues in any category: "PASS — no issues found." plus the Files Reviewe
 ## See Also
 
 - `references/shader-footguns.md` — exhaustive catalog with rationale per item, sourced from Khronos GLSL spec, NVIDIA/AMD best-practice guides, and Arm Mali docs.
-- `Engine/Data/Shaders/CLAUDE.md` — repo-level shader architecture (scalar layout, bindless, descriptor sets, NVIDIA bug).
+- `Engine/Data/Shaders/AGENTS.md` — repo-level shader architecture (scalar layout, bindless, descriptor sets, NVIDIA bug).
 - `Engine/Data/Shaders/ShaderFunctions.h` — shared utilities you should reach for before reimplementing.
 - `/repo-code-review` — sibling skill for C++ changes.

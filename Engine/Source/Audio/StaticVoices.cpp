@@ -527,7 +527,7 @@ void StaticVoices::UpdateListenerPosition([[maybe_unused]] const game::Frame& rF
 	mX3dAudioListener.Velocity = {0.0f, 0.0f, 0.0f};
 
 	// Fade band + X3DAudio curve are camera-height-lerped per the canonical "Camera-Height-
-	// Conditional Uniforms" pattern (see Engine/Source/Graphics/Render/CLAUDE.md). Each
+	// Conditional Uniforms" pattern. Each
 	// quantity owns four wrappers (StartHeight, EndHeight, Low, High) in SoundSettingsWrappersBase
 	// and is exposed in the Sound > Tweaks sub-tab. Distances on the consumer side
 	// (Apply3dVolume / ComputeAttenuatedVolume) are 3D against mVecListenerPosition (camera

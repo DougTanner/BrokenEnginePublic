@@ -79,8 +79,8 @@ void ServerSession::BroadcastTick(int64_t iTick)
 	mpClientManager->DetectPlayerDeaths();
 	mpFleetManager->DetectDisconnectedPlayerDeaths();
 	{
-		// BroadcastStatusChanges migrated its per-tick scratch to the workbuffer and is armed by design
-		// (Server/CLAUDE.md "Allocation suppression"): re-arm the tracker across it so a stray heap
+		// BroadcastStatusChanges migrated its per-tick scratch to the workbuffer and is armed by design:
+		// re-arm the tracker across it so a stray heap
 		// allocation introduced there still trips, despite this function's blanket suppress.
 		ScopedResumeAllocationTracking resume;
 		mpBroadcaster->BroadcastStatusChanges(iTick);

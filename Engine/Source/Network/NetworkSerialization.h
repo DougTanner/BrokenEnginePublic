@@ -13,7 +13,7 @@ namespace engine
 
 // Upper bound on a single serialized StatusChange of any type. A game wire fact, but shared here (the codec is
 // declared engine::) so the game SerializeGroup per-item ASSERT and the engine Server's compression-scratch sizing
-// reference one source. Bump when any StatusChange payload grows past it (see the game Network/CLAUDE.md checklist).
+// reference one source. Bump when any StatusChange payload grows past it.
 inline constexpr int64_t kiMaxStatusChangeBytesPerItem = 120;
 
 // Worst-case serialized bytes for a full kiMaxStatusChangesPerCell batch: every item at its max size plus a

@@ -8,7 +8,7 @@
 
 At gameplay heights (kilometers up) the detail-normal octaves are analytically near-no-ops: their world-space tilings (`fTerrainRockNormalsSize*`, `fTerrainBeachNormalsSize*`) put the fetches deep in the BC5 mip chain, where averaged RG → 0.5 decodes to a normal ≈ (0,0,1), whose blend contribution ≈ 0 — six texture fetches per fragment that buy nothing on screen. The *color* mixes (`rockSampler`/`sandSampler`) are different: their mip-averaged flat color still tints the island and its removal would be visible — they stay.
 
-The engine has a canonical shape for exactly this: **`HeightLerpWrapperQuartet`** (`Engine/Source/Ui/CLAUDE.md` — "Canonical shape for camera-height-conditional uniforms"), resolved CPU-side per frame, so the shader sees a single pre-faded uniform.
+The engine has a canonical shape for exactly this: **`HeightLerpWrapperQuartet`** (`Engine/Source/Ui/AGENTS.md` — "Canonical shape for camera-height-conditional uniforms"), resolved CPU-side per frame, so the shader sees a single pre-faded uniform.
 
 ## Design
 
@@ -24,7 +24,7 @@ The engine has a canonical shape for exactly this: **`HeightLerpWrapperQuartet`*
 ## Critical files
 
 - `Engine/Data/Shaders/Terrain/Terrain.frag` — rock/beach branch restructure (octave skip vs color mix split).
-- `Engine/Source/Ui/TerrainWrappersBase.{h,cpp}` — fade wrappers (quartet or start/end pair) replacing/augmenting `gTerrainRockNormalsBlend` / `gTerrainBeachNormalsBlend`; Terrain Tweaks section slider registration (`TweaksSliderMap`, declaration order = slider order per `Ui/CLAUDE.md`).
+- `Engine/Source/Ui/TerrainWrappersBase.{h,cpp}` — fade wrappers (quartet or start/end pair) replacing/augmenting `gTerrainRockNormalsBlend` / `gTerrainBeachNormalsBlend`; Terrain Tweaks section slider registration (`TweaksSliderMap`, declaration order = slider order per `Ui/AGENTS.md`).
 - `Engine/Source/Graphics/Render/GlobalUniforms.cpp` — height-resolved uniform population (`fTerrainRockNormalsBlend` / `fTerrainBeachNormalsBlend` writes).
 - `Engine/Data/Shaders/ShaderLayoutsBase.h` — no layout change expected (same two floats); cited because the uniforms live in `GlobalLayout`.
 

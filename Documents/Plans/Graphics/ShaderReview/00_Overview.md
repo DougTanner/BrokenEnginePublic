@@ -36,7 +36,7 @@ The per-subsystem files below do not exist separately; findings are consolidated
 6. **`ParticlesUpdate.comp` non-atomic RMW on allocation bitmap** — 32 neighboring particles share a word; concurrent deallocations race. Fix: `atomicAnd(puiAllocated[i/32], ~(1u << (i%32)))`.
 7. **`ParticlesSpawn.comp` dual-language type mismatch** — header declares `uint16_t pbAllocated[]`, shader writes `uint8_t`. Latent scalar-layout bug (path currently dead behind `ENABLE_32_BIT_BOOL`).
 8. **Shadow blur workgroup = 512** exceeds the 32-256 range; review against `ObjectShadowsBlur` siblings which use 64.
-9. **Descriptor-set discipline audit** — several compute shaders omit `set = N` and default to set 0, which per `Shaders/CLAUDE.md` is reserved for global. Most smoke/wind/blur compute shaders share this deviation. Decide subsystem-wide: either add explicit `set = 1` or document the convention.
+9. **Descriptor-set discipline audit** — several compute shaders omit `set = N` and default to set 0, which per `Shaders/AGENTS.md` is reserved for global. Most smoke/wind/blur compute shaders share this deviation. Decide subsystem-wide: either add explicit `set = 1` or document the convention.
 
 ## Recurring project conventions worth codifying
 

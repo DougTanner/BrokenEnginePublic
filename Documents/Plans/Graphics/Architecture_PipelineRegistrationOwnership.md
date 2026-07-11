@@ -74,7 +74,7 @@ owner, and `ModelPipeline` configures inner pipelines by poking public members b
 
 ## Out of scope
 - Deleting the dead `Recreate`/`ReCreate` APIs (the dead APIs and their snapshot members are gone; the
-  rebuild-only lifecycle invariant is documented in `Objects/CLAUDE.md` + the `PipelineDescriptorWriter.cpp`
+  rebuild-only lifecycle invariant is documented in `Objects/AGENTS.md` + the `PipelineDescriptorWriter.cpp`
   registration block; this plan makes that documented invariant structurally enforced).
 - `WriteModelDescriptor`'s copy-paste decomposition — `Graphics/Refactor_WriteDescriptorDecomposition.md`.
 - The set-index resolution quadruplication — `Graphics/Architecture_DescriptorSetIndexDedup.md`.
@@ -112,7 +112,7 @@ owner, and `ModelPipeline` configures inner pipelines by poking public members b
 - Cross-queue sequencing: `Graphics/Managers/Architecture_BindlessSlotLifecycle.md` (Large) consolidates
   the same `TextureDescriptors.{h,cpp}` registration surface — sequence the two plans, never run them
   concurrently; whichever lands second re-targets the reshaped registry API.
-- Line cites refreshed against source on 2026-07-03 (same pass as the Decision note). `Objects/CLAUDE.md`
+- Line cites refreshed against source on 2026-07-03 (same pass as the Decision note). `Objects/AGENTS.md`
   carries a "Rebuild-only pipeline lifecycle" section stating this plan's target invariant; update that
   section when `UnregisterPipeline` lands (the "`Pipeline::Destroy` does **not** unregister" sentence
   becomes false).

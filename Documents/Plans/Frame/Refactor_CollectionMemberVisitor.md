@@ -19,7 +19,7 @@ Compile-time restructuring only: identical member visitation ORDER and identical
 
 - `Engine/Source/Frame/Collections/CollectionMemory.h` — new `ForEachMemberPointer`; rewrite `CalculateBufferSize`, `AssignAligned`, `AssignAndCopyAligned`, `ResetDataToNull`, `SwapElement`
 - `Engine/Source/Frame/Collections/Collection.h` — rewrite `MultiCrc`, `MultiWrite`, `MultiRead`
-- `Engine/Source/Frame/Collections/CLAUDE.md` — the "every helper (sizing, alignment, CRC, serialize, swap) handles both forms" line can point at the single visitor
+- `Engine/Source/Frame/Collections/AGENTS.md` — the "every helper (sizing, alignment, CRC, serialize, swap) handles both forms" line can point at the single visitor
 
 ## Out of scope
 

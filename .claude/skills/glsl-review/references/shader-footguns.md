@@ -115,7 +115,7 @@ GLSL `reflect(I, N) = I - 2*dot(N, I)*N` returns a unit vector when both `I` and
 
 **Also flag** *removal* of `normalize()` around `reflect(I, N)` when either input cannot be proven unit at the call site (sampled normals before renormalize, interpolated-then-not-renormalized varyings, sums of unit vectors that were never renormalized).
 
-See `Engine/Data/Shaders/CLAUDE.md` `## Architecture Notes` for the convention bullet (*Unit-preserving identities*); family-specific call sites are documented in the child CLAUDE.md files (Water, Model, Objects).
+See `Engine/Data/Shaders/AGENTS.md` `## Architecture Notes` for the convention bullet (*Unit-preserving identities*); family-specific call sites are documented in the child AGENTS.md files (Water, Model, Objects).
 
 ### Matrix multiplication order
 GLSL matrices are column-major by default. Post-multiply vectors: `vec4 clip = projectionMatrix * viewMatrix * worldPos;`. Swapping the order (`worldPos * matrix`) silently transposes the multiply and produces wrong results. `layout(row_major) mat4 M` flips the convention — use consistently across sharing sides.

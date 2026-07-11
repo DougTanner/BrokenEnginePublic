@@ -32,7 +32,7 @@ Prompt the agent to:
 - Flag transitive includes that should be made direct
 - Detect circular or near-circular include chains
 - Report include-graph shape: which headers are hubs (pulled in by many files), which files pull in the largest transitive closures?
-- **Layer integrity** — `Projects/` reaching into `Engine/` internals; `Common/` depending on `Engine/` or `Projects/`; `Engine/` *types* naming game concepts (e.g. an `engine::` enumerator only the game uses). Engine code *reading* `game::` types, globals, or compile-time symbols is by design, not a violation (root `CLAUDE.md` §Key Patterns)
+- **Layer integrity** — `Projects/` reaching into `Engine/` internals; `Common/` depending on `Engine/` or `Projects/`; `Engine/` *types* naming game concepts (e.g. an `engine::` enumerator only the game uses). Engine code *reading* `game::` types, globals, or compile-time symbols is by design, not a violation (root `AGENTS.md` §Key Patterns)
 
 #### Agent B: Simulation & Threading Invariants (subagent_type: general-purpose)
 
@@ -63,12 +63,12 @@ Prompt the agent to evaluate:
 
 Goal: identify cohesive in-house code that could be deleted in favor of a permissively-licensed library dropped into `/ThirdParty/` — benefits are codebase shrinkage and access to a battle-tested implementation.
 
-Instruct the agent to first read `ThirdParty/CLAUDE.md` for the **License Policy** and list current `/ThirdParty/` subdirectories (skip suggesting anything already imported; do suggest extending coverage of an already-imported library when the in-house code overlaps it).
+Instruct the agent to first read `ThirdParty/AGENTS.md` for the **License Policy** and list current `/ThirdParty/` subdirectories (skip suggesting anything already imported; do suggest extending coverage of an already-imported library when the in-house code overlaps it).
 
 Prompt the agent to:
 - Find cohesive code clusters (single file, file group, or small subsystem) that implement a well-known reusable problem with no engine-specific reason to be in-house. Typical candidates: data structures, parsers/serializers, compression, math primitives, container utilities, string/path helpers, hashing/CRC, file-format readers, image/audio decoding, geometry/mesh utilities.
 - Skip code that is engine-specific by design (frame pipeline, collections, manager singletons, gameplay logic, Vulkan/shader integration glue).
-- For each candidate, propose a **specific** replacement library and verify its license against the **License Policy** in `ThirdParty/CLAUDE.md` (read above) — that file is the sole authority; do not filter against a remembered license list. Reject anything not on its allow list.
+- For each candidate, propose a **specific** replacement library and verify its license against the **License Policy** in `ThirdParty/AGENTS.md` (read above) — that file is the sole authority; do not filter against a remembered license list. Reject anything not on its allow list.
 - Prefer libraries that are widely adopted in the C++ game-engine / graphics / systems space and actively maintained.
 - Be conservative: do NOT propose libraries that would require heavy build-system changes, drag in large transitive dependencies, or replace ≲50 lines of trivial code.
 

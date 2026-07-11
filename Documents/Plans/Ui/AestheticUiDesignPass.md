@@ -173,7 +173,7 @@ Each screen gets its own before/after native-res screenshots.
 Any new dimensional value (a reduced title scale, a footer padding, a centering
 offset) becomes a **named `k*` constant in `MenuUtils.h`** per the contract's §4
 — no inline magic literal in a screen `.cpp`. Update the `UserInterfaceDesign.txt`
-constants list (§4) and the CLAUDE.md notes where a documented value changes.
+constants list (§4) and the AGENTS.md notes where a documented value changes.
 
 ## Critical files
 
@@ -193,7 +193,7 @@ constants list (§4) and the CLAUDE.md notes where a documented value changes.
   if that scale changes), §4 (constants list), §5 (MainMenu box removal), §9
   (heading scale if changed); add new numbered aesthetic sections if the research
   step yields durable principles.
-- `Projects/BrokenEngineSandbox/Source/Ui/Screens/CLAUDE.md` — sync any per-screen
+- `Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md` — sync any per-screen
   note that a change invalidates.
 
 ## Out of scope
@@ -241,7 +241,7 @@ Subjective by design:
 - **`UserInterfaceDesign.txt` is the source of truth** and must be updated where a
   rule/constant/exception changes (§2 language-row 0.75f multiplier if the scale
   moves, §4 constants, §5 if the MainMenu box is removed, §9 heading scale).
-- **C++ Code Change Process applies at execution** (CLAUDE.md). This plan carries
+- **C++ Code Change Process applies at execution** (AGENTS.md). This plan carries
   a **Verification** dimension inherently — every change is screenshot-verified
   live via the agent-harness skill (native-res borderless fullscreen), which is
   both the design loop and the step-9 runtime check.

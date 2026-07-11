@@ -10,7 +10,7 @@ Deliverable: a hotspot report (per-process shares, interpreted) and plan files i
 
 ## Scripts vs subagents (who does what)
 
-Deterministic work goes to scripts/tools, judgment goes to models — per root CLAUDE.md model roles:
+Deterministic work goes to scripts/tools, judgment goes to models — per root AGENTS.md model roles:
 
 - **Deterministic scripts (no subagent)**: extraction, xperf invocations, share computation (`scripts/profile_shares.py`), PDB GUID checks, grepping profile text. Never ask a subagent to parse or summarize what a script parses exactly.
 - **Sonnet subagents**: code searches to gather context for hotspot functions — must return verbatim quotes + file:line, never summarize; fan out one agent per hotspot cluster in a single message. Also any build verification via `/compile`.
@@ -84,4 +84,4 @@ For each top hotspot cluster (skip OS/driver/CRT), fan out Sonnet search agents 
 
 Report to the user first: per-process table of top shares, config-overhead vs algorithmic split, expected gain per item.
 
-Then dispatch one Opus subagent to write the plan files: it must read `Documents/Plans/CLAUDE.md` (file shape, required `## Out of scope`) and the canonical scoring anchors it links in `Documents/CLAUDE.md`, re-verify every code citation against current source, state invariant exposure per plan (determinism/CRC/`kiVersion` — sim-path optimizations must be **bit-identical**: same float ops, same order, `/fp:strict`), pre-stage grill decisions in `## Notes`, and insert scored `Order.md` rows at sort-correct positions (plus `## File Groups`/`## Dependencies` entries when plans share files). No 'Verification' sections.
+Then dispatch one Opus subagent to write the plan files: it must read `Documents/Plans/AGENTS.md` (file shape, required `## Out of scope`) and the canonical scoring anchors it links in `Documents/AGENTS.md`, re-verify every code citation against current source, state invariant exposure per plan (determinism/CRC/`kiVersion` — sim-path optimizations must be **bit-identical**: same float ops, same order, `/fp:strict`), pre-stage grill decisions in `## Notes`, and insert scored `Order.md` rows at sort-correct positions (plus `## File Groups`/`## Dependencies` entries when plans share files). No 'Verification' sections.

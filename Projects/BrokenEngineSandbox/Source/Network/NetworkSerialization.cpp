@@ -143,7 +143,7 @@ static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferDat
 // Receive-side mirror of the per-case write widths in SerializeGroup (and the Serialize* helpers) below —
 // DeserializeStatusChangeBatch bounds-checks each item against this before reading, then rejects the whole batch on
 // any shortfall. Any StatusChangeType payload change must update this alongside the two switches, DefaultDataForType,
-// and kiMaxStatusChangeBytesPerItem (see the game Network/CLAUDE.md "Adding a StatusChangeType" checklist).
+// and kiMaxStatusChangeBytesPerItem.
 static int64_t StatusChangeItemWireSize(game::StatusChangeType eType)
 {
 	static constexpr int64_t kiU8 = sizeof(uint8_t);

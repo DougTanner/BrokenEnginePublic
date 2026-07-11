@@ -23,7 +23,7 @@ The user provides a target path (file or directory) to analyze. If no path is gi
 
 ### 0. Determine Output Path
 
-Derive a plan output directory under `Documents/Plans/`, matching the existing area subfolders there (`Documents/Plans/CLAUDE.md` lists them). For `Engine/` and `Projects/` sources, use the relative portion after `/Source/`; for top-level trees (`Common/`, `DataPacker/`), use the top-level directory name.
+Derive a plan output directory under `Documents/Plans/`, matching the existing area subfolders there (`Documents/Plans/AGENTS.md` lists them). For `Engine/` and `Projects/` sources, use the relative portion after `/Source/`; for top-level trees (`Common/`, `DataPacker/`), use the top-level directory name.
 
 - Input: `Engine/Source/Frame` → Output: `Documents/Plans/Frame/`
 - Input: `Projects/BrokenEngineSandbox/Source/Frame/Collections` → Output: `Documents/Plans/Frame/Collections/`
@@ -47,7 +47,7 @@ When the report completes, split findings into two groups:
 
 #### Writing Plan Files
 
-Follow the plan-authoring rules in `Documents/Plans/CLAUDE.md` (read it before writing the first plan — it owns the required shape and the Order.md bookkeeping). Format:
+Follow the plan-authoring rules in `Documents/Plans/AGENTS.md` (read it before writing the first plan — it owns the required shape and the Order.md bookkeeping). Format:
 
 ```
 # Architecture: <Group Name>
@@ -97,10 +97,10 @@ The verification agent reads every plan file created during this run and checks:
 2. **Benefit**: Would each change actually improve the codebase? Filter out changes that are:
    - Cosmetic-only with no functional benefit
    - Risk-introducing (could break existing behavior)
-   - Contradicting engine patterns documented in CLAUDE.md files
+   - Contradicting engine patterns documented in AGENTS.md files
    - Duplicating work already covered by another plan file — including pre-existing live plans from earlier runs
 3. **Completeness**: Are the change descriptions specific enough to act on without ambiguity?
-4. **Library-replacement claims** (`Architecture_LibraryReplacement.md` only): re-verify each proposed license against the allow list in `ThirdParty/CLAUDE.md` and confirm the library is not already in `/ThirdParty/`.
+4. **Library-replacement claims** (`Architecture_LibraryReplacement.md` only): re-verify each proposed license against the allow list in `ThirdParty/AGENTS.md` and confirm the library is not already in `/ThirdParty/`.
 
 For any plan file that fails verification:
 - If partially valid: rewrite it with only the valid items
@@ -109,7 +109,7 @@ For any plan file that fails verification:
 
 ### 4. Phase 4: Scoring, Tiering & Debt Summary
 
-Score each surviving plan file (post-verification content) using the canonical anchors in `Documents/CLAUDE.md` §Scoring Anchors — read that section before scoring:
+Score each surviving plan file (post-verification content) using the canonical anchors in `Documents/AGENTS.md` §Scoring Anchors — read that section before scoring:
 
 - **Effort** 1–5, **Impact** 1–5, **Risks** 0–4
 - **Priority Score** = Effort − Impact + Risks (lower = higher priority)
@@ -124,11 +124,11 @@ Calibrate against neighbouring rows in the existing `Documents/Plans/Order.md` r
 - **HIGH** — multiple Large, or any Architectural
 - **CRITICAL** — several Architectural, or any finding threatening a core invariant (determinism / CRC, network protocol, save/pack compatibility)
 
-The Debt Score is reported in the Phase 6 summary only — never recorded in `Order.md` (per `Documents/Plans/CLAUDE.md`, run retrospectives don't belong in the priority index).
+The Debt Score is reported in the Phase 6 summary only — never recorded in `Order.md` (per `Documents/Plans/AGENTS.md`, run retrospectives don't belong in the priority index).
 
 ### 5. Phase 5: Update `Order.md`
 
-After scoring, add every surviving plan file to `Documents/Plans/Order.md` — in the same session that created the plan files. `Documents/Plans/CLAUDE.md` owns the row format and bookkeeping rules; all plans across all target paths intermingle in the single score-sorted `## Plans` table:
+After scoring, add every surviving plan file to `Documents/Plans/Order.md` — in the same session that created the plan files. `Documents/Plans/AGENTS.md` owns the row format and bookkeeping rules; all plans across all target paths intermingle in the single score-sorted `## Plans` table:
 
 ```markdown
 | Plan | Tier | Effort | Impact | Risks | Score | Notes |

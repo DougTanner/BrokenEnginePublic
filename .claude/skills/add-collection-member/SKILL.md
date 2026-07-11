@@ -191,7 +191,7 @@ void BlastersInterpolate::ClientInit(Frame& rFrame, int64_t iIndex)
 
 ## See Also
 
-- Engine collections: [/Engine/Source/Frame/Collections/CLAUDE.md](/Engine/Source/Frame/Collections/CLAUDE.md)
-- Game collections: [/Projects/BrokenEngineSandbox/Source/Frame/Collections/CLAUDE.md](/Projects/BrokenEngineSandbox/Source/Frame/Collections/CLAUDE.md)
+- Engine collections: [/Engine/Source/Frame/Collections/AGENTS.md](/Engine/Source/Frame/Collections/AGENTS.md)
+- Game collections: [/Projects/BrokenEngineSandbox/Source/Frame/Collections/AGENTS.md](/Projects/BrokenEngineSandbox/Source/Frame/Collections/AGENTS.md)
 - CollectionMemory.h: [/Engine/Source/Frame/Collections/CollectionMemory.h](/Engine/Source/Frame/Collections/CollectionMemory.h) — SOA allocation/grow/swap/destroy templates
 - Collection.h: [/Engine/Source/Frame/Collections/Collection.h](/Engine/Source/Frame/Collections/Collection.h) — CRC, serialization, base class

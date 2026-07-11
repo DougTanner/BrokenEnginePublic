@@ -161,8 +161,8 @@ Additional updates (not counted as separate changes):
       kCpuCounterFlipbooksRendered, kGpuTimerFlipbooks
     - Add new .cpp files to the vcxproj filter for both client and server
       projects
-    - Engine/Source/Frame/Collections/Flipbooks/CLAUDE.md: standard
-      collection CLAUDE.md
+    - Engine/Source/Frame/Collections/Flipbooks/AGENTS.md: standard
+      collection AGENTS.md
 
 Notes
 -----

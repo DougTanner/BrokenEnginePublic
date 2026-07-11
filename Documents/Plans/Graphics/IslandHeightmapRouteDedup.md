@@ -141,7 +141,7 @@ refcount the shared chunk — out of scope here.
   `ExportIsland::GetVersion` (a version triple-bump), plus the both-builds heightmap aliasing in
   `WaitForElevationMaps`. It does **not** change any sampled value, so no CRC/replay divergence. The
   emit-once identity must be content-derived and deterministic under the single-canonical-bake-machine
-  assumption already documented in `DataPacker/Source/CLAUDE.md` (Cross-Machine Reproducibility);
+  assumption already documented in `DataPacker/Source/AGENTS.md` (Cross-Machine Reproducibility);
   Gaea's own GPU-dependent output is the upstream variance, unchanged by this plan.
 - **Single open decision for `/external-grill-plan` (only if Step 0 shows redundancy):** shared-chunk
   representation — (a) a dedicated new "shared heightmap" chunk type referenced by `heightmapCrc`, vs

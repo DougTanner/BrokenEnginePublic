@@ -72,7 +72,7 @@ enum EngineCpuCounters : int64_t
 
 // One entry per EngineCpuCounters enumerator, in order. The static_assert catches a dropped/extra name — a missing
 // initializer would otherwise silently misalign every later overlay row (member arrays can't deduce extent, so the
-// names live here as a deduced-extent table; see Profile/CLAUDE.md).
+// names live here as a deduced-extent table).
 inline constexpr std::string_view kEngineCpuCounterNames[]
 {
 	"Billboards",

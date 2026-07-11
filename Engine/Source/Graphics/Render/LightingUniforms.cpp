@@ -188,8 +188,8 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.uiWaterNormalIndexOne = static_cast<uint32_t>(gWaterNormalIndexOne.Get<int64_t>());
 	rMainLayout.uiWaterNormalIndexTwo = static_cast<uint32_t>(gWaterNormalIndexTwo.Get<int64_t>());
 	rMainLayout.uiWaterNormalIndexThree = static_cast<uint32_t>(gWaterNormalIndexThree.Get<int64_t>());
-	// Resolve the 3 normal-weight samples CPU-side by camera eye height and upload one float each (Render/CLAUDE.md
-	// Camera-Height-Conditional Uniforms rule). Hard-coded fade band (default..2x default eye height) with no author
+	// Resolve the 3 normal-weight samples CPU-side by camera eye height and upload one float each
+	// Hard-coded fade band (default..2x default eye height) with no author
 	// control over the band -> free LerpAtHeight, not a HeightLerpWrapperQuartet; fade endpoint single-sourced on game::Camera.
 	rMainLayout.fWaterNormalWeightOne = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightOneMin.Get(), gLightingSampledNormalsWeightOneMax.Get());
 	rMainLayout.fWaterNormalWeightTwo = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightTwoMin.Get(), gLightingSampledNormalsWeightTwoMax.Get());

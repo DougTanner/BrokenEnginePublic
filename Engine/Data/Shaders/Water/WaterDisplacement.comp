@@ -57,7 +57,7 @@ void main()
 	}
 
 	vec3 f3Displacement = vec3(0.0f);
-	// Jacobian accumulators (cross-product form — preserves N into high-steepness regime; see Water/CLAUDE.md).
+	// Jacobian accumulators (cross-product form — preserves N into high-steepness regime).
 	float fA = 0.0f;
 	float fB = 0.0f;
 	float fD = 0.0f;

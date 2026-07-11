@@ -7,7 +7,7 @@ slot lifecycle invariant — "a recycled slot must never sample a destroyed view
 owner. Understanding (or safely changing) it requires five places: `TextureDescriptors`' patch/unregister
 functions, `IslandTerrain`'s mint/evict/restore sweeps, `TextureManager`'s slot-0 placeholder arrays +
 pointer-stability rule, the RenderGlobal fence-drain window, and a deliberate carve-out in the descriptor
-staleness verifier. The eviction-symmetry invariant (`Engine/Source/Graphics/Managers/CLAUDE.md:29`) is
+staleness verifier. The eviction-symmetry invariant (`Engine/Source/Graphics/Managers/AGENTS.md:29`) is
 enforced nowhere — `VerifyAllDescriptorGenerations` explicitly *exempts* the array elements where this bug
 class lives (`PipelineManager.cpp:856-862`). This was the architecture review's single most impactful
 recommendation: it targets the directory's only documented GPU use-after-free bug class and removes the one
@@ -31,7 +31,7 @@ place the staleness verifier must look away.
   RenderGlobal churn gating. Derive predicate and sweep from one shared qualification helper inside the
   registry. [~30m]
 - Enforce eviction symmetry inside the registry (one code path mints/evicts *all* channels of a slot
-  together), turning the `Managers/CLAUDE.md:29` doc invariant into code. [~30m]
+  together), turning the `Managers/AGENTS.md:29` doc invariant into code. [~30m]
 - Narrow or remove the `VerifyAllDescriptorGenerations` carve-out (`PipelineManager.cpp:856-862`): with a
   single owner stamping generations, the verifier can cover bindless array elements instead of exempting them.
   [~30m]
@@ -45,13 +45,13 @@ place the staleness verifier must look away.
 - `Engine/Source/Frame/IslandTerrain.h`, `IslandTerrain.cpp`, `IslandTerrainResidency.cpp` (sweeps + gating predicates)
 - `Engine/Source/Graphics/Managers/PipelineManager.cpp` (verifier carve-out)
 - `Engine/Source/Graphics/Graphics.cpp` (read-only context: RenderGlobal window)
-- `Engine/Source/Graphics/Managers/CLAUDE.md` (invariant doc moves from prose to enforced)
+- `Engine/Source/Graphics/Managers/AGENTS.md` (invariant doc moves from prose to enforced)
 
 ## Out of scope
 - Changing the slot allocation policy, slot counts, or eviction heuristics — the *who-patches-what* moves;
   the *when-and-which-slot* decisions stay in `IslandTerrain`.
 - The lighting-blur slot path (`CrcToBlurredIndex` fallback) beyond what the registry move touches — its
-  synchronization contract (bindless-index phase exclusion) is documented in `Managers/CLAUDE.md` and stays.
+  synchronization contract (bindless-index phase exclusion) is documented in `Managers/AGENTS.md` and stays.
 - The RenderGlobal phase ordering itself (fence drain → sweeps → adoption → restoration) — unchanged.
 
 ## Acceptance criteria
@@ -68,7 +68,7 @@ place the staleness verifier must look away.
   visual corruption or device loss. Execute alone, not co-scheduled.
 - Pre-staged grill decisions: (a) registry as inner class of `TextureDescriptors` vs sibling manager;
   (b) whether `RestoreSlot` keeps the per-channel granularity the restoration sweep currently uses.
-- The `CrcToIndex` phase-exclusion contract is settled (documented in `Managers/CLAUDE.md`); the registry
+- The `CrcToIndex` phase-exclusion contract is settled (documented in `Managers/AGENTS.md`); the registry
   inherits it unchanged.
 - `RegisterTextureBinding` now takes a designated-initializer struct — refresh call-signature citations at
   execution. The small `WriteArrayElementFromLive` null-view-fallback fix in

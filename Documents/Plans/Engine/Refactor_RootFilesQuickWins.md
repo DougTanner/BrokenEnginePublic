@@ -34,7 +34,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical and sm
 - Audio/Profile findings (`Audio/Architecture_AudioVoiceSeams.md`, `Profile/Architecture_ProfileVirtualRouting.md`)
 
 ## Notes
-- Invariant exposure: LOW — no CRC/wire/save change. The `AdvanceRenderClock` extraction is client-render-clock code motion (must preserve exact float ops — render-only, but the CoordFrames-adjacent invariants are documented in Engine/Source/CLAUDE.md); the decay fix is deliberately behavior-changing (visual-only, matches documented intent)
+- Invariant exposure: LOW — no CRC/wire/save change. The `AdvanceRenderClock` extraction is client-render-clock code motion (must preserve exact float ops — render-only, but the CoordFrames-adjacent invariants are documented in Engine/Source/AGENTS.md); the decay fix is deliberately behavior-changing (visual-only, matches documented intent)
 - Grill decision: `CreateDirectoryW` swap vs comment-scope-down in `HandleException` (recommend the swap — the AppData parent already exists, so the single-level Win32 call suffices)
 
 ## Verification Notes

@@ -1,23 +1,23 @@
 # Architecture: Collection Copy/Zero-Init Contract
 
 ## Context
-Source: /external-architecture-review on Engine/Source (recursive). The highest-drift-cost finding in Frame/Collections: per-collection `AllocateAndCopy` memcpy lists hand-restate the `Members()` tuple, the selective-copy persistence contract lives only in CLAUDE.md warnings ("a new persistent member must join the copy list or it silently resets"), and `Add()`'s zero-init-all-Interpolate-fields CRC invariant is enforced by checklist, not structure. A missed member in any of these is a silent persistence or CRC-desync bug.
+Source: /external-architecture-review on Engine/Source (recursive). The highest-drift-cost finding in Frame/Collections: per-collection `AllocateAndCopy` memcpy lists hand-restate the `Members()` tuple, the selective-copy persistence contract lives only in AGENTS.md warnings ("a new persistent member must join the copy list or it silently resets"), and `Add()`'s zero-init-all-Interpolate-fields CRC invariant is enforced by checklist, not structure. A missed member in any of these is a silent persistence or CRC-desync bug.
 
 ## Design
 
 ### Engine/Source/Frame/Collections/CollectionMemory.h
 - Add a `Members()`-fold full-copy helper (sibling to `AllocateAndCopyIds`, CollectionMemory.h:235-244) that copies every member in the tuple (handling both single-pointer and C-array-of-pointer tuple entries, like the existing sizing/swap folds); migrate the four collections whose memcpy list equals their full `Members()` tuple: `WindTrails.cpp:15-26`, `Sounds.cpp:15-28`, `SmokeTrails.cpp:15-27`, `AreaLights.cpp:15-28` [~1h]
-- Add a declarative `PersistentMembers()` sub-tuple convention for selective-copy collections so the persistence contract is code, not a CLAUDE.md warning; migrate the four selective-copy collections: `PointLights.cpp:15-26`, `Puffs.cpp:15-25`, `WindRadials.cpp:15-26`, `HexShields.cpp:15-27` (HexShields copies 5 of its 10 `Members()` — the transforms and directional-intensity arrays deliberately carry forward via the Interpolate `Update` instead; see the "asymmetric propagation" note in `HexShields/CLAUDE.md`) [~1h]
+- Add a declarative `PersistentMembers()` sub-tuple convention for selective-copy collections so the persistence contract is code, not an AGENTS.md warning; migrate the four selective-copy collections: `PointLights.cpp:15-26`, `Puffs.cpp:15-25`, `WindRadials.cpp:15-26`, `HexShields.cpp:15-27` (HexShields copies 5 of its 10 `Members()` — the transforms and directional-intensity arrays deliberately carry forward via the Interpolate `Update` instead; see the "asymmetric propagation" note in `HexShields/AGENTS.md`) [~1h]
 
 ### Engine/Source/Frame/Collections/Collection.h
-- Parameterize the ID stream in the `Add*IndexableElement` family (Collection.h:520-566 — the three variants differ only in ID source); `SoundsPostRender::Add` (`SoundsUpdate.cpp:33-54`) currently re-inlines `AddVisualIndexableElement`'s body solely because it mints from the dedicated `GenerateSoundUuid()` stream (documented in `Sounds/CLAUDE.md`) — the helper must take an ID-generation callable so that stream stays distinct; migrate it [~30m]
+- Parameterize the ID stream in the `Add*IndexableElement` family (Collection.h:520-566 — the three variants differ only in ID source); `SoundsPostRender::Add` (`SoundsUpdate.cpp:33-54`) currently re-inlines `AddVisualIndexableElement`'s body solely because it mints from the dedicated `GenerateSoundUuid()` stream (documented in `Sounds/AGENTS.md`) — the helper must take an ID-generation callable so that stream stays distinct; migrate it [~30m]
 - Add a generic paired-`Remove` helper (the identical 10-line ASSERT → fetch pair → `RemoveIndexableElement` → `rId = {}` body is copied in `WindTrailsUpdate.cpp:48-58`, `AreaLightsUpdate.cpp:53-63`, `BillboardsUpdate.cpp:52-62`, `PointLightsUpdate.cpp:120-130`, `HexShieldsUpdate.cpp:94-104`, `SmokeTrails.cpp:124-134`, `SoundsUpdate.cpp:56-66`) [~30m]
 - Add a `Members()`-fold zero-init helper applied at the spawn index in `Add`, making the documented "Add() must zero-initialize all Interpolate fields (stale pre-first-Sync memory causes CRC desync)" invariant structural; migrate the seven hand-written zero-init blocks (WindTrails, Sounds, SmokeTrails, AreaLights, HexShields, PointLights, Billboards). Non-zero defaults (type index, W=1 positions, `pfIntensityMultipliers = 1.0f` in AreaLights, spawn-time `pfStartTimes`, `kuiInvalidControllerType` = 0xFF sentinels) are written by the collection after the fold — net result must be byte-identical per site [~30m]
 
 ## Critical files
 - `Engine/Source/Frame/Collections/CollectionMemory.h`, `Collection.h`
 - The collection core/Update TUs listed above
-- `Engine/Source/Frame/Collections/CLAUDE.md` and per-collection CLAUDE.md files (update the copy-list warnings to name the new helpers)
+- `Engine/Source/Frame/Collections/AGENTS.md` and per-collection AGENTS.md files (update the copy-list warnings to name the new helpers)
 
 ## Out of scope
 - The `ForEach*` opt-in-hook redesign (`Frame/Architecture_PhaseHookOptIn.md`)

@@ -11,7 +11,7 @@ Source: /external-architecture-review on `Engine/Source/Network` (recursive). Ev
 - Dedupe the two near-verbatim `SendSimplePacket` templates (`Client.h:80-97`, `Server.h:129-141`) into one shared helper (e.g. on `NetworkManager`), and give "simple" packets a read-side counterpart so even they are symmetric in mechanism. [~30m]
 
 ### Engine/Source/Network/NetworkSimulation.h
-- `NetworkSimulation.h:142-146` parses the tick from coord-update packets at a magic byte offset 4 (log-only; acknowledged in `Network/CLAUDE.md:23`). Replace with the shared layout accessor once the coord-update message is converted. [~10m]
+- `NetworkSimulation.h:142-146` parses the tick from coord-update packets at a magic byte offset 4 (log-only; acknowledged in `Network/AGENTS.md:23`). Replace with the shared layout accessor once the coord-update message is converted. [~10m]
 
 ## Critical files
 

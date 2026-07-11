@@ -16,7 +16,7 @@ void IslandTerrain::CreateClientMeshBuffers()
 	//
 	// Eager (not lazy) because the terrain command buffer is record-once and binds every
 	// template's mesh at record time; lazy create would force a runtime CB re-record on
-	// first visit, which violates the record-once invariant (see Graphics/CLAUDE.md).
+	// first visit, which violates the record-once invariant.
 	for (auto& [rCrc, rTemplate] : mIslands)
 	{
 		ASSERT(rTemplate.mpfMeshPositions != nullptr);

@@ -10,10 +10,10 @@ Updates a specific Mermaid diagram in `Documents/Architecture/` to reflect code 
 
 ## Instructions
 
-1. **Resolve the target diagram.** If the caller passed a specific diagram path, use it. Otherwise check the nearest CLAUDE.md above the modified source files for a "See also" link into `Documents/Architecture/` — that link is how `/generate-architecture-diagram` registers a diagram's subsystem. If no link, Glob `Documents/Architecture/**/*.md` and match the modified files against each diagram's scope (the `> Auto-generated ... from <path>` header line names its source directories). If no diagram matches, report "no diagram affected" and stop.
+1. **Resolve the target diagram.** If the caller passed a specific diagram path, use it. Otherwise check the nearest AGENTS.md above the modified source files for a "See also" link into `Documents/Architecture/` — that link is how `/generate-architecture-diagram` registers a diagram's subsystem. If no link, Glob `Documents/Architecture/**/*.md` and match the modified files against each diagram's scope (the `> Auto-generated ... from <path>` header line names its source directories). If no diagram matches, report "no diagram affected" and stop.
 
 2. **Check if the diagram needs updating.** Read the diagram and the modified source files, then compare. Most code changes (adding a field, tweaking logic) don't affect diagrams — only structural changes do (renamed classes, new phases, changed init order, new dependencies). If nothing structural changed, report "no update needed" and stop.
 
 3. **Update only what changed.** Use Edit to fix specific inaccuracies. Preserve existing Mermaid styling conventions (classDef colors, node naming, subgraph structure). Keep changes minimal — don't rewrite for cosmetic reasons.
 
-4. **Drift check.** If node names or structural labels changed, Grep the nearest subsystem CLAUDE.md for references to the old names. If the prose there has drifted, flag it to the user (do not silently rewrite CLAUDE.md — that's `/update-claude-docs`' job).
+4. **Drift check.** If node names or structural labels changed, Grep the nearest subsystem AGENTS.md for references to the old names. If the prose there has drifted, flag it to the user (do not silently rewrite AGENTS.md — that's `/update-claude-docs`' job).

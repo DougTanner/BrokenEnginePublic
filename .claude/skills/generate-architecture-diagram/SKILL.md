@@ -1,6 +1,6 @@
 ---
 name: generate-architecture-diagram
-description: Creates a new Mermaid architecture diagram in Documents/Architecture/ for a target file or directory, then links it from the nearest subsystem CLAUDE.md. Gates hard before drawing — only cross-system relationships spanning 3+ files that CLAUDE.md prose cannot capture (state machines, synchronization chains, multi-phase pipelines) qualify; most subsystems don't, and the skill refuses and suggests CLAUDE.md prose instead. To update an existing diagram after code changes, use /update-architecture-diagrams.
+description: Creates a new Mermaid architecture diagram in Documents/Architecture/ for a target file or directory, then links it from the nearest subsystem AGENTS.md. Gates hard before drawing — only cross-system relationships spanning 3+ files that AGENTS.md prose cannot capture (state machines, synchronization chains, multi-phase pipelines) qualify; most subsystems don't, and the skill refuses and suggests AGENTS.md prose instead. To update an existing diagram after code changes, use /update-architecture-diagrams.
 disable-model-invocation: true
 argument-hint: [target file or directory]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Agent]
@@ -18,11 +18,11 @@ Before doing any work, answer these questions. If the answer to ANY is "no", **t
 
 1. Does the target involve **3+ source files** with non-obvious relationships between them?
 2. Would an AI agent need **more than 2 grep/read operations** to understand the relationships?
-3. Is this information **not already captured** in the nearest CLAUDE.md file?
+3. Is this information **not already captured** in the nearest AGENTS.md file?
 4. Does the diagram show a **complex state machine, synchronization chain, or multi-phase pipeline** — not just "A owns B, B owns C"?
 5. Is this a **cross-system** relationship (spanning multiple directories/namespaces), not single-subsystem internals?
 
-If the relationships can be described in 2-3 sentences of prose, **add them to the subsystem's CLAUDE.md instead**. Prefer enriching CLAUDE.md over creating a new diagram — CLAUDE.md files are always read by agents, diagrams are not.
+If the relationships can be described in 2-3 sentences of prose, **add them to the subsystem's AGENTS.md instead**. Prefer enriching AGENTS.md over creating a new diagram — AGENTS.md files are always read by agents, diagrams are not.
 
 **The bar is high.** The existing diagrams in `Documents/Architecture/` set it — e.g., `GameReconciliation.md` (reconciliation state machine), `FrameUpdatePipeline.md` (frame phase ordering), `Network.md` (network protocol). A new diagram must be as valuable as these. Most subsystems do NOT need a diagram.
 
@@ -39,14 +39,14 @@ Useful diagrams show things that are **hard to derive from reading code**:
 
 ## What Does NOT Belong in a Diagram
 
-- **Single-subsystem internals** — if it's all in one directory, it doesn't need a diagram. Put it in the CLAUDE.md
-- **Anything the subsystem's CLAUDE.md already describes** — read the nearest CLAUDE.md FIRST and check for redundancy
+- **Single-subsystem internals** — if it's all in one directory, it doesn't need a diagram. Put it in the AGENTS.md
+- **Anything the subsystem's AGENTS.md already describes** — read the nearest AGENTS.md FIRST and check for redundancy
 - **Simple ownership/dependency trees** — "A owns B, B uses C" is prose, not a diagram. Diagrams are for relationships too complex for prose
 - **Field listings, enum values, struct members, parameter lists** — these restate code
 - **Code-restating flowcharts** — walking through a function's implementation line-by-line
 - **Caller/callee lists** without data flow context
 - **`classDiagram` type** — encourages field/method listings
-- **Manager init order lists** — unless the ordering involves complex dependencies with conditional branches (a simple linear sequence is better as a bullet list in CLAUDE.md)
+- **Manager init order lists** — unless the ordering involves complex dependencies with conditional branches (a simple linear sequence is better as a bullet list in AGENTS.md)
 
 ## Diagram Types
 
@@ -95,7 +95,7 @@ Before writing, check each diagram:
 1. Does every diagram show relationships spanning **3+ source files**?
 2. Are there any field listings, enum catalogs, or parameter lists? **Remove them.**
 3. Could any two diagrams be merged? **Merge them.**
-4. Would 2-3 sentences in a CLAUDE.md replace this diagram? **Don't create it.**
+4. Would 2-3 sentences in a AGENTS.md replace this diagram? **Don't create it.**
 
 ### 4. Write Output and Link
 
@@ -115,7 +115,7 @@ Write to `Documents/Architecture/<Name>.md` — flat, no subdirectories. `/updat
 ```
 ````
 
-Then add a "See also" link to the diagram from the **nearest CLAUDE.md** to the source code (not the root CLAUDE.md). This is critical for discoverability — an AI agent will find the diagram by reading the subsystem's CLAUDE.md, not by browsing `Documents/Architecture/`.
+Then add a "See also" link to the diagram from the **nearest AGENTS.md** to the source code (not the root AGENTS.md). This is critical for discoverability — an AI agent will find the diagram by reading the subsystem's AGENTS.md, not by browsing `Documents/Architecture/`.
 
 This link is also how `/update-architecture-diagrams` discovers which diagrams belong to which subsystem when future code changes land. Skipping the link leaves the diagram orphaned.
 
@@ -123,4 +123,4 @@ This link is also how `/update-architecture-diagrams` discovers which diagrams b
 
 - Which diagrams were generated and why they meet the 3+ file cross-system threshold
 - The output file path
-- Which CLAUDE.md was updated with the link
+- Which AGENTS.md was updated with the link

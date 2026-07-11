@@ -40,7 +40,7 @@ Ensure every plan file on disk is represented in the `## Plans` table — orphan
   a. **Enumerate plan files on disk.** Use `Glob` against `Documents/Plans/**/*.md` and `Documents/Plans/**/*.txt`. Normalize every hit to the Order.md-relative form (`<area>/<File>.<ext>`).
 
   b. **Build the exclusion set.** Skip:
-       - `Documents/Plans/Order.md` itself and any `CLAUDE.md` under `Documents/Plans/`.
+       - `Documents/Plans/Order.md` itself and any `AGENTS.md` or `CLAUDE.md` under `Documents/Plans/`.
        - Every path listed under the `### Reference / Index Documents` subsection of `Order.md` (meta/overview docs that are never executed).
        - Every path referenced in the `## Plans` table's Plan cells (already in the queue). Extract paths from both link form (`[path](path)`) and bare-path form. Apply the same normalization as Step 1b.
 
@@ -48,8 +48,8 @@ Ensure every plan file on disk is represented in the `## Plans` table — orphan
 
   d. **Dispatch a single Opus subagent via the `Agent` tool** to evaluate all orphans in one call. Brief it with:
        - The full list of orphan paths.
-       - The scoring anchors from `Documents/CLAUDE.md` (Effort 1-5, Impact 1-5, Risks 0-4, Score = Effort − Impact + Risks; lower = higher priority).
-       - The required row format from `Documents/Plans/CLAUDE.md`:
+       - The scoring anchors from `Documents/AGENTS.md` (Effort 1-5, Impact 1-5, Risks 0-4, Score = Effort − Impact + Risks; lower = higher priority).
+       - The required row format from `Documents/Plans/AGENTS.md`:
          `| [<area>/<File>.<ext>](<area>/<File>.<ext>) | <Tier> | <Effort> | <Impact> | <Risks> | <Score> | <one-line Notes> |`
        - The current `## Plans` table contents so it can pick a score-correct insertion position and write Notes consistent with neighbouring rows.
        - An instruction to read each orphan in full and spot-check the cited files/symbols in the codebase before scoring — a plan whose premise no longer exists should be flagged as "stale; recommend deletion" instead of getting a row.
@@ -169,7 +169,7 @@ Brief the subagent with:
 
 - The full text of the target plan (refreshed in Step 5).
 - The transformation pattern the plan implements, extracted from its execution steps: what it changes, where, and why. State this explicitly — "find every other place that does X" — rather than handing the subagent the raw plan and hoping it infers the pattern.
-- Pointers into the codebase: the relevant subsystem `CLAUDE.md` files (`Engine/Source/CLAUDE.md`, `Common/CLAUDE.md`, `Projects/BrokenEngineSandbox/Source/CLAUDE.md`, etc.), the `Documents/Architecture/` Mermaid diagrams when the plan touches a diagrammed subsystem, and the aggregation headers (`Common/Common.h`, `Engine/Source/Engine.h`) for the affected namespace.
+- Pointers into the codebase: the relevant subsystem `AGENTS.md` files (`Engine/Source/AGENTS.md`, `Common/AGENTS.md`, `Projects/BrokenEngineSandbox/Source/AGENTS.md`, etc.), the `Documents/Architecture/` Mermaid diagrams when the plan touches a diagrammed subsystem, and the aggregation headers (`Common/Common.h`, `Engine/Source/Engine.h`) for the affected namespace.
 - An instruction to search BOTH directions: (a) **oversights** — code that already existed when the plan was written but was missed, and (b) **drift** — code added since the plan was written that exhibits the same pattern. The plan's age (commit history of the plan file or Order.md row) is useful context for distinguishing the two.
 
 Ask the subagent to return:
@@ -280,7 +280,7 @@ The `AskUserQuestion` is a single question along the lines of:
 
 If the `## Additional candidate locations` section contains any **Surfaced** entries (only those the Step 6 extension-review gate flagged as carrying new invariant exposure, needing a design decision, or unconfirmable — everything else was auto-folded), ask the user whether to fold them into the execution scope, defer them to a follow-up plan, or ignore them. Use a separate `AskUserQuestion` call (or a multi-select question) so the approval decision and the scope-expansion decision are tracked independently. Do **not** ask about auto-folded candidates — those are already in `## Execution steps` by design; just mention them in the presentation so the user can veto if they disagree, but don't gate on it. Because the review gate now clears the routine cases automatically, the Surface set is usually empty — when it is (or when every candidate was auto-folded), skip the scope-expansion question entirely.
 
-If the user picks `Approve`, follow the standard C++ Code Change Process defined in the top-level `CLAUDE.md`, **starting from step 2 (implementation)** — step 1 (the grill) already ran in 9a. Carry the user's decisions on additional candidates into the process so the implementation reflects the agreed scope, and proceed straight into the edit in the same turn — do not re-summarise or wait. When the process completes, execute the Step 8 completion cleanup (remove the claimed row, delete the plan file).
+If the user picks `Approve`, follow the standard C++ Code Change Process defined in the top-level `AGENTS.md`, **starting from step 2 (implementation)** — step 1 (the grill) already ran in 9a. Carry the user's decisions on additional candidates into the process so the implementation reflects the agreed scope, and proceed straight into the edit in the same turn — do not re-summarise or wait. When the process completes, execute the Step 8 completion cleanup (remove the claimed row, delete the plan file).
 
 If the user picks `Reject`, unclaim the row (strip the `[CLAIMED] ` prefix from its Notes cell) and stop. The plan file — now containing the Step 7 refreshed plan plus any grill refinements — stays on disk and the row stays queued for a future run.
 

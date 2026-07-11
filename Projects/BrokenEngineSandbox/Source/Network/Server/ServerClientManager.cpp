@@ -21,7 +21,7 @@ void ServerClientManager::QueueSpawnForClient(int64_t iClientId, engine::GridCoo
 	mProcessedClientIds.erase(iClientId);
 
 	// Dedup only the queue push on the full spawn identity so a client spamming spawn-into/respawn queues at most one spawn
-	// per (fleet, member). Skip duplicates without reordering — preserves the order-sensitive spawn-assignment invariant (Server/CLAUDE.md).
+	// per (fleet, member). Skip duplicates without reordering — preserves the order-sensitive spawn-assignment invariant.
 	bool bAlreadyQueued = std::ranges::any_of(mClientsWaitingForSpawn, [&](const ClientSpawnInfo& rInfo)
 	{
 		return rInfo.iClientId == iClientId && rInfo.iFleetIndex == iFleetIndex && rInfo.iMemberIndex == iMemberIndex;

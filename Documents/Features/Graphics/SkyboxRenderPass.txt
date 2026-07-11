@@ -88,7 +88,7 @@ Changes (11 files)
      }
 
    NOTE: Do NOT use GLSL inverse() on the GPU -- the NVIDIA driver
-   bug documented in Shaders/CLAUDE.md causes pipeline creation hangs.
+   bug documented in Shaders/AGENTS.md causes pipeline creation hangs.
    Instead, the mat4 passed via f4x4InverseViewProjectionRotation is
    pre-inverted on the CPU (see change 3 below).  The shader code
    above should therefore be simplified to just use the matrix

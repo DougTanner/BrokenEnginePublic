@@ -162,7 +162,7 @@ inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 
 // NaN/Inf bit tests. Free functions (not macros) for single-evaluation and no strict-aliasing UB: std::bit_cast
 // (constexpr, <bit>) replaces the type-punning reinterpret_cast. Named XmIsNan/XmIsInf to avoid colliding with
-// DirectXMath's own XMISNAN/XMISINF macros. Owned by ExternalHeaders.h by design (see Common/CLAUDE.md).
+// DirectXMath's own XMISNAN/XMISINF macros. Owned by ExternalHeaders.h by design.
 inline constexpr bool XmIsNan(float fValue)
 {
 	const uint32_t uiBits = std::bit_cast<uint32_t>(fValue);
@@ -292,7 +292,6 @@ inline constexpr bool XmIsInf(float fValue)
 // BT_DATA_PACKER, so the consumption includes live in one place rather than scattered across the DataPacker
 // .cpp/.h files. The library *implementation* units stay in the Prebuilts/Source/DataPacker unity .cpp's by
 // necessity. Config defines/pragmas not covered by the global warning span above travel with their header.
-// See ThirdParty/CLAUDE.md.
 #if defined(BT_DATA_PACKER)
 	// bc7enc_rdo - BCn encode/decode (consumption only; RGBCX/implementation defined in the Prebuilts unity .cpp)
 	#include "bc7enc_rdo/bc7decomp.h"

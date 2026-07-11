@@ -298,8 +298,8 @@ void GeneratePreFilteredCubemaps()
 	// Cross-machine note: radiance convolution runs on whatever OpenCL GPU is present (below), so the
 	// pre-filtered half-float output is GPU/driver-dependent; the CPU fallback (kuiCpuThreads above) is
 	// thread-count-dependent. Either way the .R16G16B16A16_SFLOAT radiance intermediates are reproducible
-	// only per bake host. Acceptable under the single-canonical-bake-machine assumption (see Cross-Machine
-	// Reproducibility in DataPacker/Source/CLAUDE.md); force a pinned-thread CPU path if CI / multi-machine
+	// only per bake host. Acceptable under the single-canonical-bake-machine assumption;
+	// force a pinned-thread CPU path if CI / multi-machine
 	// bakes are introduced.
 	cmft::ClContext* pClContext = nullptr;
 	if (cmft::clLoad() != 0)

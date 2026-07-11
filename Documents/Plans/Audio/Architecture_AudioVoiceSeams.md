@@ -1,7 +1,7 @@
 # Architecture: Audio Voice Ownership & Seam Cleanup
 
 ## Context
-Source: /external-architecture-review + /external-refactor-clean on Engine/Source (recursive). The Audio subsystem is healthy overall (closely matches its CLAUDE.md contracts), but carries one real behavior gap (music never resumes after any voice clear), a split suspend-state representation, shallow-struct/feature-envy seams between the singular/plural voice classes, and several small duplications.
+Source: /external-architecture-review + /external-refactor-clean on Engine/Source (recursive). The Audio subsystem is healthy overall (closely matches its AGENTS.md contracts), but carries one real behavior gap (music never resumes after any voice clear), a split suspend-state representation, shallow-struct/feature-envy seams between the singular/plural voice classes, and several small duplications.
 
 ## Design
 
@@ -27,7 +27,7 @@ Source: /external-architecture-review + /external-refactor-clean on Engine/Sourc
 
 ## Critical files
 - `Engine/Source/Audio/AudioManager.{h,cpp}`, `StaticVoices.{h,cpp}`, `StaticVoice.{h,cpp}`, `StreamingVoices.{h,cpp}`, `StreamingVoice.{h,cpp}`
-- `Engine/Source/Audio/CLAUDE.md` (suspend/resume + voice-ownership contract updates)
+- `Engine/Source/Audio/AGENTS.md` (suspend/resume + voice-ownership contract updates)
 
 ## Out of scope
 - `PriorityPass` full decomposition (~150 lines — coherent and heavily commented; optional, not filed)

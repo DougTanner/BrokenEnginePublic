@@ -55,7 +55,7 @@ The bias is user-tunable and defaults to a sharpen that users generally want; a 
 - **`Engine/Data/Shaders/Model/Model.frag`** — new `samplerRepeatData` declaration; switch the normal fetch (`:184`) and metallic-roughness fetch (`:231`) to it (leave albedo/occlusion/emissive on `samplerRepeat`).
 - **`Engine/Data/Shaders/Terrain/Terrain.frag`** — no source change under Option A for terrain (the sampler swap is entirely in `PipelineManager.cpp` binding flags); listed only as the consumer reference for the affected fetches (`:69`, `:88`, `:97`, `:81`, `:136`).
 - **(If a slider bias is chosen)** the `PbrWrappersBase.*` / a mip-bias wrapper + `TweaksScreen*` slider + `LightingUniforms.cpp` `MainLayout` copy — same wiring shape as `gWaterNormalMipBias`. Prefer fixed 0 to avoid this unless the grill wants tunability.
-- **`Engine/Data/Shaders/Model/CLAUDE.md`** and **`Engine/Data/Shaders/Terrain/CLAUDE.md`** — a one-line note on the data-vs-color sampler split (whichever sites land), mirroring the Water CLAUDE.md `kSamplerMirroredRepeatWater` bullet.
+- **`Engine/Data/Shaders/Model/AGENTS.md`** and **`Engine/Data/Shaders/Terrain/AGENTS.md`** — a one-line note on the data-vs-color sampler split (whichever sites land), mirroring the Water AGENTS.md `kSamplerMirroredRepeatWater` bullet.
 
 ## Out of scope
 

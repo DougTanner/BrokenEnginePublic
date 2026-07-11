@@ -28,8 +28,8 @@ The project assumes parameters from within the codebase are valid — do not fla
 
 The main loop runs under an allocation tracker that `DEBUG_BREAK()`s on heap allocations. Flag:
 
-- **Local `std::vector` / `std::string` in hot paths** — must use `gpThreadLocal->mWorkbuffer` instead (see `Common/CLAUDE.md`).
-- **Heap allocation in main loop without `ScopedSuppressAllocationTracking`** — any unavoidable heap use needs the guard plus a `// Heap:` comment justifying it (see `Engine/Source/Memory/CLAUDE.md`).
+- **Local `std::vector` / `std::string` in hot paths** — must use `gpThreadLocal->mWorkbuffer` instead (see `Common/AGENTS.md`).
+- **Heap allocation in main loop without `ScopedSuppressAllocationTracking`** — any unavoidable heap use needs the guard plus a `// Heap:` comment justifying it (see `Engine/Source/Memory/AGENTS.md`).
 - **Allocating `LOG` format specs** — in allocation-tracked code only (Game and Engine; the offline DataPacker has no allocation tracker — do not flag it), flag any `LOG(...)` containing a float format spec such as `{:.Nf}`, `{:e}`, `{:g}`, width/precision like `{:>10}`, `{:#x}` (integer specs follow the same scope), or `std::format`/`std::format_to`/`std::to_string`/`std::ostringstream`. These go through heap-allocating `std::format` paths and trip the allocation tracker. Correct forms:
 	- Wrap each float arg with `common::Wb(value, precision)` and each `XMVECTOR` arg with `common::WbV2`/`WbV3`/`WbV4` (logs 2/3/4 lanes — pick by needed fidelity); the placeholder stays `{}`.
 	- For loop/lambda-driven content, pre-build via `common::ScopedWorkbufferArena builder = rWorkbuffer.Push(); builder.Append(...)`/`AppendFloat(...)` and emit as `LOG(cat, lvl, "{}", builder)` — the arena has its own `std::formatter` (emits `View()`), so no call-site `.View()` is needed.
@@ -65,7 +65,7 @@ Not a finding: a comment stating a current invariant, gotcha, or still-relevant 
 
 Reword, don't just delete, when the comment carries a real reason — keep the rationale, drop the history: "eliminates the duplicate sum the two passes used to evaluate via the now-removed GerstnerLow/Medium helpers" → "eliminates the duplicate sum the two passes would otherwise each evaluate".
 
-The same no-changelog rule applies to any CLAUDE.md, plan, or other doc this session touched — flag stray "we did this" narration wherever this session introduced it.
+The same no-changelog rule applies to any AGENTS.md, plan, or other doc this session touched — flag stray "we did this" narration wherever this session introduced it.
 
 ### 3. Verify Broken Engine Patterns
 
@@ -89,7 +89,7 @@ If modifying or adding managers:
 
 #### Engine → Game Layering
 
-Engine→game access is sanctioned by design — do **not** flag engine code reading `game::gp*` globals, calling `game::` static functions, or referencing game types/constants/compile-time symbols (see `Engine/Source/CLAUDE.md` → Hub Conventions). The real violation is the reverse direction: engine *types* naming game concepts — e.g. an `engine::PacketType` enumerator only the game uses, or an engine class `friend`-ed to a game class. Flag only those. When engine code uses a Base-class global where a game-derived one exists (`GameBase` vs `game::gpGame`, `CameraBase` vs `Camera`), flag it — prefer the game version.
+Engine→game access is sanctioned by design — do **not** flag engine code reading `game::gp*` globals, calling `game::` static functions, or referencing game types/constants/compile-time symbols (see `Engine/Source/AGENTS.md` → Hub Conventions). The real violation is the reverse direction: engine *types* naming game concepts — e.g. an `engine::PacketType` enumerator only the game uses, or an engine class `friend`-ed to a game class. Flag only those. When engine code uses a Base-class global where a game-derived one exists (`GameBase` vs `game::gpGame`, `CameraBase` vs `Camera`), flag it — prefer the game version.
 
 #### Client/Server Guard Scope
 
@@ -98,7 +98,7 @@ Engine→game access is sanctioned by design — do **not** flag engine code rea
 
 #### Flags over Multiple Booleans
 
-If a struct or function grew to 2+ `bool` members/parameters in this change, flag it — use `common::Flags<EnumType>` instead (see `Common/CLAUDE.md`). This is a hard flag, not a suggestion.
+If a struct or function grew to 2+ `bool` members/parameters in this change, flag it — use `common::Flags<EnumType>` instead (see `Common/AGENTS.md`). This is a hard flag, not a suggestion.
 
 #### Frame Phase Separation
 
@@ -110,7 +110,7 @@ If modifying frame update code:
 
 #### XMVECTOR W Invariant
 
-Every constructed or returned `XMVECTOR` must carry the right W lane for its role (core rule in root `CLAUDE.md` → Key Patterns → "XMVECTOR W invariant"). Failure is silent: `XMVector3Normalize` divides all four lanes by the 3D length, `XMVectorMultiplyAdd` propagates all four lanes, `XMVectorSetZ` leaves W untouched — a stray W survives every "3D" op and accumulates across ticks. Flag these as **bugs**, not style:
+Every constructed or returned `XMVECTOR` must carry the right W lane for its role (core rule in root `AGENTS.md` → Key Patterns → "XMVECTOR W invariant"). Failure is silent: `XMVector3Normalize` divides all four lanes by the 3D length, `XMVectorMultiplyAdd` propagates all four lanes, `XMVectorSetZ` leaves W untouched — a stray W survives every "3D" op and accumulates across ticks. Flag these as **bugs**, not style:
 
 - **`XMVectorSet(x, y, z, W)` with wrong W for the value's role.** Position → `1.0f`. Direction / velocity / normal / axis / offset-added-to-position / color-alpha-meant-to-be-transparent → `0.0f`. Opaque color alpha → `1.0f`.
 - **Function return or out-param with wrong W.** Inspect every `XMVECTOR`-returning function and every `XMVECTOR*` out-param added/modified: does *every* code path (including early returns, A*-miss, empty-input) write a correct-W value? Out-params should be initialized at function entry with a valid-W default so no path leaks an uninitialized or wrong-W value.
@@ -133,7 +133,7 @@ If `common::ValidateVector<IS_POSITION>()` was added, removed, or moved, verify 
 vcxproj membership/filter mechanics belong to the `update-vcxproj` skill (process step 7) — never grep the project XML here. This review owns affinity only:
 
 - Flag the required affinity (client-only / server-only) of any file created this session that is fully wrapped in `#if defined(BT_CLIENT)` / `BT_SERVER`, and any existing file that gained or lost a file-wide guard (its membership must change).
-- Exception: guardless engine files may be client-only by design via client-vcxproj membership + the `Engine.h` BT_CLIENT aggregation span (root `CLAUDE.md` → Client/Server Targets) — check before flagging.
+- Exception: guardless engine files may be client-only by design via client-vcxproj membership + the `Engine.h` BT_CLIENT aggregation span (root `AGENTS.md` → Client/Server Targets) — check before flagging.
 
 ### 5. Verify Determinism (Replay-Sensitive Code)
 
@@ -147,7 +147,7 @@ If the code affects game state that participates in replay:
 
 ### 6. Check Common Library Usage
 
-Verify existing `common::` utilities are used instead of reimplementing. `Common/CLAUDE.md` is the authoritative, current catalog — Read it and check the changed code against it. High-frequency offenders: hashing (`common::Crc` family, `CrcConsteval` where compile-time evaluation must be guaranteed), aligned SIMD memory (`AlignedUniquePtr`/`MakeAligned`), binary stream I/O (`common::Read`/`Write`), math helpers (`Distance`, `DirectionTo`, `RoundUp`), packed-color conversion/lerp (`ColorToVector`, `ColorLerp`), and `common::Flags<ENUM>` over raw bools/bitfields.
+Verify existing `common::` utilities are used instead of reimplementing. `Common/AGENTS.md` is the authoritative, current catalog — Read it and check the changed code against it. High-frequency offenders: hashing (`common::Crc` family, `CrcConsteval` where compile-time evaluation must be guaranteed), aligned SIMD memory (`AlignedUniquePtr`/`MakeAligned`), binary stream I/O (`common::Read`/`Write`), math helpers (`Distance`, `DirectionTo`, `RoundUp`), packed-color conversion/lerp (`ColorToVector`, `ColorLerp`), and `common::Flags<ENUM>` over raw bools/bitfields.
 
 ### 7. File Size Check
 
@@ -164,7 +164,7 @@ Evaluate the changes holistically:
 	- Changed function semantics (units, W convention, frame phase, ownership, a default) → grep every caller; the diff shows only the call sites the implementer remembered.
 	- Mirrored patterns half-applied: client edit without server counterpart, per-collection pattern applied to N−1 of N collections, C++ struct changed without its shared GLSL header (and vice versa), Spawn updated but Transfer/AllocateAndCopy/LogDifferences not.
 	- New enum value → grep every switch/dispatch/serialization table over that enum.
-	- Anything renamed → grep comments, CLAUDE.md, plans, and shared headers for the old name.
+	- Anything renamed → grep comments, AGENTS.md, plans, and shared headers for the old name.
 - **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested. Flag over-built code added this session: an abstraction (base class, template, callback, indirection layer) with exactly one implementation/user and no second on the horizon; a config value, parameter, or option that never varies at any call site; speculative "for later" scaffolding no current code path exercises; reimplementation of an existing `common::` or stdlib facility (§6 owns the `common::` catalog check).
 - **New duplication** - Flag (required) when the diff introduces a near-copy (~5+ lines, or a repeated multi-condition check) of logic that already exists in the repo — verify by grepping a distinctive fragment of each substantial new block; require calling or extracting a shared helper. Exception: deliberate mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel — do not recommend abstracting them.
 - **Workaround justification test** - A workaround that needs a paragraph-long comment to justify why it is OK is itself a required finding: the code is wrong — require fixing the underlying code, not accepting the justification.

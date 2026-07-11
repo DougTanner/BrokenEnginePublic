@@ -22,7 +22,7 @@ Profile the resident texture-CPU-pool bytes and the cycling churn cost before co
 ## Critical files
 - `Engine/Source/Graphics/Managers/TextureManager.cpp` — adopt helper null point (`:591-592`); `ProcessPendingTextures`.
 - `Engine/Source/File/FileManager.{h,cpp}` — the shared decommit/recommit API (from the mesh plan); `ResetTextureChunkStates` + `LoadChunk` recommit (`MEM_COMMIT` before disk re-read).
-- `Engine/Source/Graphics/Managers/CLAUDE.md` — eviction-symmetry / drained descriptor-patch-window invariants (must not be disturbed).
+- `Engine/Source/Graphics/Managers/AGENTS.md` — eviction-symmetry / drained descriptor-patch-window invariants (must not be disturbed).
 
 ## Out of scope
 - The island mesh CPU slice (`IslandMeshCpuSliceReclaim.md`) and the other island residency buckets.

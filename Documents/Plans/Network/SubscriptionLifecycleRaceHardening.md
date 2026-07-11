@@ -17,7 +17,7 @@ if (rSlot.eState == CoordSubscriptionState::kUnsubscribed)
 
 with no requirement that a `kSubscribing` placeholder for that coord exists. Race: subscribe → accept → quick unsubscribe → `kServerUnsubscribeAck` (channel 0) overtakes an in-flight full state (slot channel) → slot goes `kUnsubscribed` → the late full state arrives → the slot reactivates `kActive` for a coord the server has already freed. If that coord is still desired, `BuildSubscriptionQueue` sees it "active" and never re-subscribes → permanently frozen cell, no timeout.
 
-The comment "Full state arrived before SubscribeAccept" describes the *legitimate* use of this branch (per `Network/Client/CLAUDE.md` out-of-order full state), but the branch cannot distinguish it from the ghost case.
+The comment "Full state arrived before SubscribeAccept" describes the *legitimate* use of this branch (per `Network/Client/AGENTS.md` out-of-order full state), but the branch cannot distinguish it from the ghost case.
 
 ### (b) Unsubscribe handshake gaps
 

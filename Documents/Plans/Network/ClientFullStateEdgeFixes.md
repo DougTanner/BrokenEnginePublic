@@ -2,7 +2,7 @@
 
 ## Context
 
-Two game-client full-state-handling edge bugs. Both violate the documented same-frame activation/adoption invariant (engine `Network/Client/CLAUDE.md`: a full state activates its slot at receive time; because `Poll()` clears receive buffers at entry, the game layer must adopt the frame in the same frame or lose it while keeping the activated slot).
+Two game-client full-state-handling edge bugs. Both violate the documented same-frame activation/adoption invariant (engine `Network/Client/AGENTS.md`: a full state activates its slot at receive time; because `Poll()` clears receive buffers at entry, the game layer must adopt the frame in the same frame or lose it while keeping the activated slot).
 
 ### (a) Stall-path adoption loss
 

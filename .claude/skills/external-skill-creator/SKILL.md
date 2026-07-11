@@ -13,7 +13,7 @@ Help the user create or improve a skill: understand what it should do, then draf
 
 Sibling skills in this repo follow these conventions — match them when creating a new skill:
 
-- **`external-` prefix** marks explicit-invocation skills (e.g., `external-grill-plan`, `external-design-interface`, `external-deep-analysis`). Most set `disable-model-invocation: true`, but the flag removes the skill from Claude's reach entirely (no auto-trigger, no Skill tool) — set it only when nothing, neither a documented workflow step nor Claude itself, needs programmatic invocation. Three intentional exceptions: `external-grill-plan` and `external-self-audit` (the main agent invokes them as steps 1 and 2b of the CLAUDE.md C++ Code Change Process) and `external-design-interface` (proactively suggests itself, which requires staying in the listing). User-only skills without the prefix (e.g., `gaea2-load`, `next-plan`) follow the same rule. Unprefixed proactive skills (e.g., `add-collection`, `repo-code-review`, `compile`) auto-trigger on matching contexts.
+- **`external-` prefix** marks explicit-invocation skills (e.g., `external-grill-plan`, `external-design-interface`, `external-deep-analysis`). Most set `disable-model-invocation: true`, but the flag removes the skill from Claude's reach entirely (no auto-trigger, no Skill tool) — set it only when nothing, neither a documented workflow step nor Claude itself, needs programmatic invocation. Three intentional exceptions: `external-grill-plan` and `external-self-audit` (the main agent invokes them as steps 1 and 2b of the AGENTS.md C++ Code Change Process) and `external-design-interface` (proactively suggests itself, which requires staying in the listing). User-only skills without the prefix (e.g., `gaea2-load`, `next-plan`) follow the same rule. Unprefixed proactive skills (e.g., `add-collection`, `repo-code-review`, `compile`) auto-trigger on matching contexts.
 - **Directory layout**: each skill lives at `.claude/skills/<name>/SKILL.md` with optional `references/`, `scripts/`, `assets/` sidecars.
 - **Frontmatter style**: `allowed-tools:` uses YAML array syntax `[Read, Edit, Write]` in this repo (the skill schema also accepts space- or comma-separated strings, but the repo is consistent on arrays).
 
@@ -225,7 +225,7 @@ When the user asks to review, audit, or evaluate an existing skill, walk this ch
 
 **Project fit**
 - Matches conventions of sibling skills in the same repo (naming prefix, subagent model, tool usage)
-- Aligns with any repo-level CLAUDE.md directives that constrain skill behavior
+- Aligns with any repo-level AGENTS.md directives that constrain skill behavior
 - Does not duplicate an existing skill's trigger surface
 
 **Report format**

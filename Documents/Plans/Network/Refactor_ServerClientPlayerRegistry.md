@@ -5,7 +5,7 @@
 Server per-client state lives in three homes kept in lockstep by hand — the game-server constellation's principal structural weakness:
 
 1. **Engine `ClientConnection`** (`Engine/Source/Network/Server/Server.h`): `authorizedCoords`, plus four parallel per-slot vectors (`coordSubscriptions`, `coordAckStates`, `prevResendCounts`, `resendLogCooldowns`), all `resize(kiMaxEnetCoordSlots)` at `Server::Connect` (`Server.cpp:129-132`).
-2. **Game `ServerSession::mClientOwnedPlayerIds`** (`ServerSession.h:48`, `std::unordered_map<int64_t, std::vector<global_id_t>>`) — index-aligned with `authorizedCoords` (the documented "parallel-vector invariant", `Network/Server/CLAUDE.md`). Mutated from four TUs (see Critical files).
+2. **Game `ServerSession::mClientOwnedPlayerIds`** (`ServerSession.h:48`, `std::unordered_map<int64_t, std::vector<global_id_t>>`) — index-aligned with `authorizedCoords` (the documented "parallel-vector invariant", `Network/Server/AGENTS.md`). Mutated from four TUs (see Critical files).
 3. **`ServerFleetManager`'s three GUID maps** (`ServerFleetManager.h`): `mFleets`, `mPlayerToGuid`, `mGuidToClientId`.
 
 Two near-verbatim relink routines rebuild the game-side pair: `ServerClientManager::TryRelinkNewClient` (`ServerClientManager.cpp:122-166`) and `ServerSession::TryRelinkClientForLoad` (`ServerSession.cpp:542-586`) — identical local `RelinkEntry` struct, identical GUID-match scan over `mCoordFrames`, identical global-id sort lambda, identical reserve/push/`SendAssignPlayer`/`SendPlayerState` loop; they differ only in log text (`kNetwork`/`kVerbose` vs `kDefault`/`kDebug`) and self-vs-`gpServerSession` qualification.

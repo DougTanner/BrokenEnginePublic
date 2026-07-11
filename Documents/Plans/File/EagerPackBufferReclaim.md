@@ -15,7 +15,7 @@ Because each per-type pack is one buffer aliased by every chunk of that type, re
 
 Per-type, opt-in reclaim of the eager pack vector after all boot consumers have finished, with a device-loss/settings-recreation reload that re-reads the pack from disk and rebuilds the `mEagerChunkMap` aliases for that type. Because the whole vector is freed, this is only safe for types with **no runtime aliasing readers**.
 
-**Hard safety constraint — kScene must NEVER be reclaimed:** `AnimationData` (`Graphics/AnimationData.cpp`) indexes the kScene eager pack **zero-copy and reads it every frame for skinning**; its map outlives Graphics (documented in `Graphics/CLAUDE.md` AnimationData §). Any reclaim must be gated per data type with kScene excluded.
+**Hard safety constraint — kScene must NEVER be reclaimed:** `AnimationData` (`Graphics/AnimationData.cpp`) indexes the kScene eager pack **zero-copy and reads it every frame for skinning**; its map outlives Graphics (documented in `Graphics/AGENTS.md` AnimationData §). Any reclaim must be gated per data type with kScene excluded.
 
 Steps (per reclaimable type — likely kModel/kShader/font types only, after profiling proves the win):
 - Add a per-type "eager consumers complete" signal (boot upload / pipeline-create / atlas-build done), coordinated with the existing async eager-load / `mbEagerLoadComplete` gating.
@@ -26,7 +26,7 @@ Steps (per reclaimable type — likely kModel/kShader/font types only, after pro
 - `Engine/Source/File/FileManager.{h,cpp}` — `mPackFileData` (`:162`), eager load (`:427-452`), `mEagerChunkMap` alias build (`~:443`), `GetEagerChunkMap`.
 - `Engine/Source/Graphics/Managers/BufferManager.cpp` — kModel upload (`:42-64`).
 - `Engine/Source/Graphics/AnimationData.cpp` — kScene zero-copy runtime reader (**the exclusion**).
-- `Engine/Source/File/CLAUDE.md` — eager/lazy storage docs.
+- `Engine/Source/File/AGENTS.md` — eager/lazy storage docs.
 
 ## Out of scope
 - kScene reclaim — forbidden (runtime zero-copy aliasing).

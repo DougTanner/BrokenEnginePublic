@@ -1,7 +1,7 @@
 # PCH-Provided Header Re-include Sweep
 
 ## Context
-Follow-up from the `Architecture_UnusedIncludes` execution. The user set a governing rule (now documented in `Projects/BrokenEngineSandbox/Source/CLAUDE.md`): headers directly force-included by the game `Pch.h` — `ExternalHeaders.h`, `Log/LogTypes.h`, `Common.h`, `Shaders/ShaderLayouts.h`, `Ui/HexShieldWrappers.h`, `Ui/WindDepositsWrappers.h`, `Frame/Frame.h`, `Engine.h` — are visible in every client/server TU and must not be re-`#include`d elsewhere. The parent plan applied this to the two clear/zero-risk `.cpp` cases (`TweaksScreenHexShield.cpp` / `TweaksScreenWindDeposits.cpp` re-including the injected wrapper headers). This plan handles the remaining, higher-nuance cases the sweep found — deferred because they touch **headers** (self-containment) and interact with **DataPacker's separate, leaner PCH**.
+Follow-up from the `Architecture_UnusedIncludes` execution. The user set a governing rule (now documented in `Projects/BrokenEngineSandbox/Source/AGENTS.md`): headers directly force-included by the game `Pch.h` — `ExternalHeaders.h`, `Log/LogTypes.h`, `Common.h`, `Shaders/ShaderLayouts.h`, `Ui/HexShieldWrappers.h`, `Ui/WindDepositsWrappers.h`, `Frame/Frame.h`, `Engine.h` — are visible in every client/server TU and must not be re-`#include`d elsewhere. The parent plan applied this to the two clear/zero-risk `.cpp` cases (`TweaksScreenHexShield.cpp` / `TweaksScreenWindDeposits.cpp` re-including the injected wrapper headers). This plan handles the remaining, higher-nuance cases the sweep found — deferred because they touch **headers** (self-containment) and interact with **DataPacker's separate, leaner PCH**.
 
 Known re-include sites of `Frame/Frame.h` (grep, current source):
 - Headers: `Engine/Source/GameBase.h:6`, `Projects/BrokenEngineSandbox/Source/Frame/FrameCollections.h:3`
@@ -15,7 +15,7 @@ Broader (transitive) question: `Ui/WrapperBase.h` (and everything the eight Pch 
 
 - **Option A — enforce the rule everywhere:** strip every re-include of a directly-Pch-provided header, in both `.cpp`s and headers. Maximal consistency with the documented rule. Risk: non-self-contained headers, and must first confirm no stripped site is (or becomes) DataPacker-compiled.
 - **Option B — `.cpp`-only enforcement (recommended default):** strip the redundant re-includes only from `.cpp` TUs (the five `Frame/Frame.h` `.cpp` sites), and leave headers self-contained (headers keep `Frame/Frame.h`). Honors the rule where it's unambiguous, preserves header self-containment. Decide separately whether to also fold the transitive `WrapperBase.h` `.cpp` cases.
-- **Option C — accept + refine the doc:** keep current includes; narrow the CLAUDE.md rule to "don't add NEW re-includes of Pch-provided headers" rather than mandating removal of existing self-contained-header includes.
+- **Option C — accept + refine the doc:** keep current includes; narrow the AGENTS.md rule to "don't add NEW re-includes of Pch-provided headers" rather than mandating removal of existing self-contained-header includes.
 
 For each candidate site, verify it is NOT compiled in DataPacker (DataPacker's PCH omits `Frame.h`/`Engine.h`/wrappers, so a DataPacker-compiled TU genuinely needs the explicit include) before removing anything. Compile-check both client and server after.
 

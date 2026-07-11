@@ -45,7 +45,7 @@ extern Wrapper gSpreadOutputCompress;
 extern Wrapper gSpreadTextureMultiplierEnd;
 extern Wrapper gSpreadDirectionalityEnd;
 extern Wrapper gSpreadDirectionCountEnd;
-extern HeightLerpWrapperQuartet gSpreadDistanceEnd;  // camera-height-lerped fSpreadDistanceEnd (Render/CLAUDE.md)
+extern HeightLerpWrapperQuartet gSpreadDistanceEnd;  // camera-height-lerped fSpreadDistanceEnd
 extern Wrapper gSpreadRingCountEnd;
 extern Wrapper gSpreadJitterEnd;
 extern Wrapper gSpreadSampleJitterRangeEnd;

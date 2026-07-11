@@ -352,6 +352,6 @@ Collections with client-only owned objects (area lights, wind trails, sounds) pr
 ## See Also
 
 - Adding members to existing collections: [../add-collection-member/SKILL.md](../add-collection-member/SKILL.md)
-- Engine collections: [/Engine/Source/Frame/Collections/CLAUDE.md](/Engine/Source/Frame/Collections/CLAUDE.md)
-- Game collections: [/Projects/BrokenEngineSandbox/Source/Frame/Collections/CLAUDE.md](/Projects/BrokenEngineSandbox/Source/Frame/Collections/CLAUDE.md)
-- Frame system: [/Engine/Source/Frame/CLAUDE.md](/Engine/Source/Frame/CLAUDE.md)
+- Engine collections: [/Engine/Source/Frame/Collections/AGENTS.md](/Engine/Source/Frame/Collections/AGENTS.md)
+- Game collections: [/Projects/BrokenEngineSandbox/Source/Frame/Collections/AGENTS.md](/Projects/BrokenEngineSandbox/Source/Frame/Collections/AGENTS.md)
+- Frame system: [/Engine/Source/Frame/AGENTS.md](/Engine/Source/Frame/AGENTS.md)

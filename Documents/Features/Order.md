@@ -6,7 +6,7 @@ Score = Effort − Impact + Risks (lower = higher priority)
 
 `Tier` is an informal size/risk descriptor (**Quick Win** / **Small** / **Medium** / **Large** / **Architectural**); it does not affect score or ordering.
 
-Counterpart: `Documents/Plans/Order.md` holds refactor/bugfix plans. See `Documents/CLAUDE.md` for the distinction. Scores are not comparable across the two files — they were originally derived from a single sort and then split.
+Counterpart: `Documents/Plans/Order.md` holds refactor/bugfix plans. See `Documents/AGENTS.md` for the distinction. Scores are not comparable across the two files — they were originally derived from a single sort and then split.
 
 ## Plans
 

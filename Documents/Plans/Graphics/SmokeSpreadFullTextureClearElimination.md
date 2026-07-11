@@ -22,7 +22,7 @@ paths). 1081 µs / 75.5 Mtexel ≈ **14.3 µs per megatexel cleared**.
 
 Wind proves the clear is not structurally required: `CreateWindTextures` hard-clears once at creation/recreate, and the
 wind field's exact-zero convergence self-extinguishes the active-tile set — there is **no per-frame wind texture clear**
-(`Engine/Data/Shaders/Wind/CLAUDE.md`, "Exact-zero convergence"). Smoke already has the matching exact-zero mechanism
+(`Engine/Data/Shaders/Wind/AGENTS.md`, "Exact-zero convergence"). Smoke already has the matching exact-zero mechanism
 (`SmokeSpreadTwo.comp` constant subtraction + `kfSmokeZeroThreshold` zeroing, documented as load-bearing for the
 hierarchical culling). The only gap the clear currently papers over is **stale texels**: a texel written nonzero in an
 earlier frame whose tile is *not* in the current active set keeps its old value at a UV that (after camera pan/zoom
@@ -121,7 +121,7 @@ case ≪).
   (copy the `CreateWindTextures` block).
 - `Engine/Source/Graphics/Render/SmokeUniforms.cpp` — `RenderSmokeGlobal` (no code change expected; the `gbSmokeClear`
   latch and `kPipelineSmokeClearA/B` gating are load-bearing context).
-- `Engine/Data/Shaders/Smoke/CLAUDE.md`, `Engine/Source/Graphics/Render/CLAUDE.md` — update the "smoke clears every
+- `Engine/Data/Shaders/Smoke/AGENTS.md`, `Engine/Source/Graphics/Render/AGENTS.md` — update the "smoke clears every
   frame / wind clears once" contrast once it inverts.
 
 ## Out of scope

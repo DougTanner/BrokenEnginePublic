@@ -205,7 +205,7 @@ int64_t PlayerUuidFromParam(const nlohmann::json& rChange)
 	return rChange.at("playerUuid").get<int64_t>();
 }
 
-// Mirrors the wire clamp (Server/CLAUDE.md): non-finite → 60, then clamp to [0,60].
+// Mirrors the wire clamp: non-finite → 60, then clamp to [0,60].
 float NavigationDelayFromParam(const nlohmann::json& rChange)
 {
 	float fDelay = rChange.contains("navigationDelay") ? rChange.at("navigationDelay").get<float>() : 60.0f;

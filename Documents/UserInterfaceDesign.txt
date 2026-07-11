@@ -79,7 +79,7 @@ constant. Integer-pixel rounding in the measurement gets amplified into
 visible cross-resolution inconsistency.
 
 Files:
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/CLAUDE.md:11-14  (the three-rule standard)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md:11-14  (the three-rule standard)
   Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:184  float MenuButtonsWidth(...)  (text-driven width precedent)
   Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:189  float HudScreen::PanelWidth()
 
@@ -226,4 +226,4 @@ Screen-specific commitments this contract makes, each verified visually:
 
 Files:
   Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:23,166  ComputeMouseOpennessTarget (fixed-extent hover zone)
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/CLAUDE.md  (per-screen layout notes)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md  (per-screen layout notes)

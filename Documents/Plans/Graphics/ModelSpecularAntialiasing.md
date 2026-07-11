@@ -93,7 +93,7 @@ The drop is a one-line flag removal; keep it as the final, separately-confirmed 
 - **`Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenPbr.cpp`** — expose the sliders.
 - **`Engine/Source/Graphics/Render/LightingUniforms.cpp`** — copy wrapper values into `MainLayout` (the `rMainLayout.fPbr*` block).
 - **`Engine/Source/Graphics/Managers/DynamicPipelines.cpp`** — (optional, final step, user-gated) remove `kSampleShading` from `CreateModelPipeline`'s flags list at `:73`.
-- **`Engine/Data/Shaders/Model/CLAUDE.md`** — add a "Specular antialiasing" architecture note mirroring the Water CLAUDE.md bullet (analytic NDF-derivative AA, compile-time mode, replaces sample-shading masking).
+- **`Engine/Data/Shaders/Model/AGENTS.md`** — add a "Specular antialiasing" architecture note mirroring the Water AGENTS.md bullet (analytic NDF-derivative AA, compile-time mode, replaces sample-shading masking).
 
 ## Out of scope
 

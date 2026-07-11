@@ -7,7 +7,7 @@ namespace game
 // "result" object to populate. Throws (std::runtime_error / nlohmann type/parse errors) on any failure —
 // unknown command, missing/mistyped params, unknown category or level, invalid regex — which the engine
 // AgentCommandServer::Drain() catches and formats into the failure envelope. Engine calling game:: is the
-// sanctioned direction (see root CLAUDE.md). nlohmann::json arrives via the game Pch (ExternalHeaders BT_ENGINE gate).
+// sanctioned direction. nlohmann::json arrives via the game Pch (ExternalHeaders BT_ENGINE gate).
 void ExecuteAgentCommand(std::string_view cmd, const nlohmann::json& rParams, nlohmann::json& rResult);
 
 #if defined(BT_CLIENT)
