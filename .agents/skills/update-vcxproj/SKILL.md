@@ -20,6 +20,8 @@ Add new files to, or verify existing files against, the MSBuild project files. T
 - **Add** — wire the given files into the correct project(s) and filters.
 - **Verify** — check each given file's membership and filter path; report pass/fail without editing unless asked to fix.
 
+For C++ Code Change Process step 7, verify every file changed during the session, fix each `FAIL` through Add mode, then reverify it. This skill owns project membership and filter mechanics; callers do not hand-edit project XML.
+
 ## Rules
 
 Read `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md` first — the authoritative rule source (inclusion rules, filter-path mirroring, affinity naming conventions, shader handling). Orientation summary:

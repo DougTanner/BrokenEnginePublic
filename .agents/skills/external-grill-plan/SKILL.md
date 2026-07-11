@@ -7,12 +7,18 @@ description: >-
   each decision branch with engine-specific questions (determinism,
   client/server, memory, threading, frame phases), recommending an answer for
   each from codebase exploration.
-allowed-tools: [Read, Grep, Glob, Edit, Agent, AskUserQuestion, WebSearch]
+allowed-tools: [Read, Grep, Glob, Edit, Agent, AskUserQuestion]
 ---
 
 # Grill Plan
 
 Interview the user about every aspect of this plan until reaching shared understanding.
+
+## Inputs
+
+- Plan file and explicit user intent
+- Accepted `/plan-audit` findings and repository evidence, or none for direct invocation
+- Applicable repository instructions and known constraints
 
 ## Rules
 - For each question, provide your recommended answer based on codebase exploration
@@ -23,8 +29,8 @@ Interview the user about every aspect of this plan until reaching shared underst
 - Stop when all branches of the decision tree are resolved
 
 ## Workflow
-1. Read the plan file from the current conversation context
-2. Identify all decision points, ambiguities, and unstated assumptions — scan against the Decision-Point Taxonomy below; plans routinely leave these classes implicit
+1. Read the plan file and any accepted audit findings from the current conversation context
+2. Validate and incorporate supplied findings, then identify all remaining decision points, ambiguities, and unstated assumptions — scan against the Decision-Point Taxonomy below; plans routinely leave these classes implicit
 3. Walk each branch of the decision tree, resolving dependencies one-by-one
 4. Ask the Closing Question (below) as the final interview question
 5. When all branches are resolved, silently update the plan file with the resolved details, then immediately return control to the calling context to begin implementation — no summary, no "ready to proceed?" prompt, no stop.
@@ -70,7 +76,7 @@ Skip the gate for: bug fixes, refactors, tuning passes, content-only changes, en
 
 Steps:
 1. Form a one-sentence statement of the capability being built (e.g., "polygon offsetting", "navmesh generation from triangle soup", "Reed-Solomon erasure coding").
-2. Identify 1–3 candidate libraries that already implement this with a commercial-friendly license (MIT, BSD, Zlib, Apache-2.0, Boost, MPL-2.0). Reject GPL / AGPL / LGPL-static / "non-commercial" / "source-available". Delegate the WebSearch legwork to Sonnet subagents returning links and quoted facts (license, last release, platform support) — never summaries.
+2. Identify 1–3 candidate libraries that already implement this with a commercial-friendly license (MIT, BSD, Zlib, Apache-2.0, Boost, MPL-2.0). Reject GPL / AGPL / LGPL-static / "non-commercial" / "source-available". Delegate each library claim to a Sonnet `/verify-external-claims` subagent for official links and decisive evidence (license, last release, platform support).
 3. For each candidate, note in one line: license, maturity (last release / active commits), C++ compatibility (header-only? C++23 clean? Windows MSVC builds?), and integration cost vs. the plan's hand-rolled scope.
 4. Check `ThirdParty/` and `ThirdParty/Prebuilts/` — we may already vendor a library that covers this.
 5. **Present the candidates to the user with a recommendation** before grilling implementation details:

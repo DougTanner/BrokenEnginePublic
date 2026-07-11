@@ -18,6 +18,7 @@ allowed-tools: [Read, Grep, Glob]
 Fresh-eyes lens, not a re-run of the step 4–9 checklists: read each assigned file whole, then check the group's cross-file story against the plan's intent. Findings only; the caller dispatches fixes. A second independent instance of this skill audits the same group in another context — behave identically, don't assume you are the only auditor; the caller dedupes.
 
 ## Inputs (from caller)
+- One logical file group partitioned by subsystem or plan-step slice; keep code and documentation in separate groups
 - File group (paths) + functions/regions touched this session, attributed per step (at minimum: the step 2–3 set vs later-fix regions); if attribution is missing, treat every touched region as potentially post-review
 - Accumulated residuals and self-audit focus areas from earlier steps
 - The plan document or intent summary

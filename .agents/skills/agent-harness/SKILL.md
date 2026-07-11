@@ -241,6 +241,10 @@ Only the focused fleet exposes a `members` list; spaceship units carry no id (`g
 4. **Verify:** `describe_scene` (world state, unit screen positions), `screenshot` (pixels), `describe_ui` (widgets), `get_logs` (events, warnings). Client `describe_scene` counts should match the sum of server `query_frame` counts over the subscribed coords (equality per coord only when a single coord is subscribed; allow a few ticks of drift — churning collections like blasters can differ by dozens over a multi-second query gap, stable ones like players should match exactly).
 5. **Determinism check:** `replay_record {start:true}` → let it run → `replay_record {start:false}`, then `replay_play`; the resim validates a per-tick CRC — watch `get_logs` for desync/checksum warnings (silence = pass). Playback loops until cancelled with a second `replay_play`.
 
+## Process verification report
+
+For C++ Code Change Process step 9, run the plan's Verification section when present; otherwise derive the smallest live checks that cover its acceptance criteria. Report each criterion as `PASS` or `FAIL` with the exact query, scene, UI, screenshot, or log evidence. Report setup limitations as residuals rather than weakening a criterion. Do not diagnose or edit a failure in this role; return it to `/resolve-findings` with the reproducing commands and evidence.
+
 ## Caveats
 
 - **Don't drive client weapon-mode / fleet-nav update requests while the server is paused.** Those request queues are wiped by `BuildFrameInputs` before an unpaused tick can consume them (tracked by `Documents/Plans/Network/ServerPauseAndResetSemantics.md`, not yet landed) — silently lost. Spawn requests survive a pause (separate persist-until-served queue). Pause is fine for server-side inspection/injection.
