@@ -44,6 +44,7 @@
     <ClCompile Include="..\..\Source\ExportJobs\Island\BakeRoute.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\Island\ProcessBakedRegion.cpp" />
     <ClCompile Include="..\..\Source\FileManager.cpp" />
+    <ClCompile Include="..\..\Source\InputFingerprint.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\Island\GaeaArchetype.cpp" />
     <ClCompile Include="..\..\Source\Main.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\Texture\MigrateLegacyIntermediates.cpp" />
@@ -78,6 +79,7 @@
     <ClInclude Include="..\..\..\Common\Crc.h" />
     <ClInclude Include="..\..\..\Common\Determinism.h" />
     <ClInclude Include="..\..\..\Common\FileUtils.h" />
+    <ClInclude Include="..\..\Source\InputFingerprint.h" />
     <ClInclude Include="..\..\..\Common\Serialization.h" />
     <ClInclude Include="..\..\..\Common\StringUtils.h" />
     <ClInclude Include="..\..\..\Common\TextureFormat.h" />

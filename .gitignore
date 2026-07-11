@@ -3,6 +3,8 @@
 *.local.json
 tmpclaude*
 Log.txt
+# Legacy Gaea cache locations retained so older checkouts and first-run migration stay clean.
+# Current DataPacker writes Gaea intermediates and diagnostics under %TEMP%/DataPacker.
 Engine/Data/Islands/**/*.jpg
 Engine/Data/Islands/**/Intermediates/
 *.terrain.lock

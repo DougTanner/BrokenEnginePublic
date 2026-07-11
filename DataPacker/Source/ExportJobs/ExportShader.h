@@ -10,22 +10,7 @@ public:
 
 	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 
-	ExportShader(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
-	: ExportJob(rChunkFlags, rFile)
-	{
-		if (rFile.extension() == ".comp")
-		{
-			mChunkFlags.Set(common::ChunkFlags::kCompute);
-		}
-		else if (rFile.extension() == ".frag")
-		{
-			mChunkFlags.Set(common::ChunkFlags::kFragment);
-		}
-		else if (rFile.extension() == ".vert")
-		{
-			mChunkFlags.Set(common::ChunkFlags::kVertex);
-		}
-	}
+	ExportShader(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile);
 
 	virtual ~ExportShader() = default;
 
@@ -37,15 +22,29 @@ protected:
 
 	void Export() override;
 	void CleanupOnFailure() override;
+	bool AreCachedInputsStable() const override;
+	void UpdateCacheMetadata() override;
 
 	std::vector<std::filesystem::path> mIntermediateFiles;
 
 private:
+	struct DependencyFingerprint
+	{
+		int64_t iInputRoot = 0;
+		std::filesystem::path relativePath;
+		std::string fingerprint;
+	};
 
 	std::filesystem::path RunVulkanTool(const std::filesystem::path& rExecutable, std::wstring& rParameters, const std::filesystem::path& rOutputFile, bool bThrowOnAnyOutput);
+	void CaptureDependencies();
 
 	std::filesystem::path PreprocessShader();
 	std::filesystem::path CompileShader(const std::filesystem::path& rPreProcessedFile);
 	std::filesystem::path OptimizeShader(const std::filesystem::path& rSpirvFile);
 	void ReflectAndWriteShader(const std::filesystem::path& rSpirvFile);
+
+	std::filesystem::path mDependencyFile;
+	std::filesystem::path mDependencyMetadataFile;
+	std::vector<DependencyFingerprint> mCheckedDependencyFingerprints;
+	std::vector<DependencyFingerprint> mDependencyFingerprints;
 };

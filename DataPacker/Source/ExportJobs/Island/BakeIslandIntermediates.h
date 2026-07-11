@@ -3,7 +3,7 @@
 // Pre-pass invoked from Main.cpp between ExportScene and ExportIsland.
 // Drives Gaea 2 (Gaea.Swarm.exe) to bake per-island heightmap / color / AO / normal intermediates
 // from `Island.json` + a resolved `.terrain` archetype, writing .r32 (elevation) / .r16 (AO) /
-// .png (sRGB color) / .exr (normals) files that ExportIsland then consumes and block-compresses.
+// .png (sRGB color) / .exr (normals) files to the shared Gaea cache that ExportIsland consumes.
 // Throws on any failure (caught by main()'s try/catch).
 // Gaea-2-version-specific logic (executable resolution, archetype patching, Sea-level read) is
 // isolated in GaeaArchetype.{h,cpp} for eventual Gaea 3 migration; this TU keeps the version-agnostic
@@ -21,9 +21,8 @@ struct WorldDimensions
 // `iCropX/Y/Width/Height` describe the sub-rect of the original `iFullTexturePixels`-square
 // Gaea bake that this chunk kept (for a 2x1 route, the left/right half's crop). Used by
 // ExportIsland to size AO / Elevation Texture ctors and to crop in-memory the PNG-loaded Color
-// and EXR-loaded Normals before BC encoding. `textureSourceDir` is the leaf-relative path to the
-// route's Intermediates folder holding the shared full-res Color / Normals / mask sources (the
-// chunks of one route share them, cropped per-chunk via the rect above).
+// and EXR-loaded Normals before BC encoding. The route's shared full-resolution texture sources
+// are derived from the leaf's location in the Gaea cache.
 struct BakedDimensions
 {
 	float fWidthMeters = 0.0f;
@@ -34,7 +33,6 @@ struct BakedDimensions
 	int64_t iCropWidth = 0;
 	int64_t iCropHeight = 0;
 	int64_t iFullTexturePixels = 0;
-	std::string textureSourceDir;
 };
 
 inline constexpr char kpcBakedDimensionsFile[] = "BakedDimensions.json";
@@ -43,3 +41,10 @@ inline constexpr char kpcBakedDimensionsFile[] = "BakedDimensions.json";
 // malformed; the route-level bake-version sentinel is stamped only after every leaf's JSON is
 // written so a clean route dirty-check implies the JSON exists.
 BakedDimensions ReadBakedDimensions(const std::filesystem::path& rLeafFolder);
+
+// Maps a source-tree island path (`.../Islands/<island>/...`) into the single mutable Gaea cache.
+// The source path remains the canonical chunk identity; only bake intermediates live in the cache.
+std::filesystem::path GetIslandCachePath(const std::filesystem::path& rSourcePath);
+
+// Maps a source-tree island path into the parallel diagnostics tree used for JPEG sidecars.
+std::filesystem::path GetIslandDiagnosticsPath(const std::filesystem::path& rSourcePath);

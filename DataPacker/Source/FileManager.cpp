@@ -50,8 +50,17 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	mTempDirectory /= mProjectName;
 	std::filesystem::create_directories(mTempDirectory);
 	LOG(kDefault, kDebug, "Temp directory: \"{}\"", mTempDirectory.string());
+	mGaeaCacheDirectory = mTempDirectory / "Gaea";
+	std::filesystem::create_directories(mGaeaCacheDirectory);
+
+	mpInputFingerprintCache = std::make_unique<InputFingerprintCache>(mpInputDirectories[0].parent_path().parent_path());
 
 	LOG(kDefault, kDebug, "Output directory: \"{}\"", mOutputDirectory.string());
+}
+
+std::string FileManager::GetFingerprint(const std::filesystem::path& rPath)
+{
+	return mpInputFingerprintCache->Get(rPath);
 }
 
 FileManager::~FileManager()

@@ -31,9 +31,8 @@ public:
 
 	virtual int64_t GetVersion() const override { return Version(29); }
 
-	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
-
 protected:
 
+	virtual std::string GetInputFingerprint() const override;
 	virtual void Export() override;
 };

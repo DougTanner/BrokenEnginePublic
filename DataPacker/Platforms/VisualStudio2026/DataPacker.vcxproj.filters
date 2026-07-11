@@ -36,6 +36,9 @@
     <ClCompile Include="..\..\Source\FileManager.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\InputFingerprint.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Attribution.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>
@@ -152,6 +155,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Source\InputFingerprint.h">
+      <Filter>DataPacker</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Attribution.h">
       <Filter>DataPacker</Filter>
     </ClInclude>

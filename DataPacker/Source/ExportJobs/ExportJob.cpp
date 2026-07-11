@@ -4,6 +4,46 @@
 
 static int64_t siNextJobId = 0;
 
+namespace
+{
+
+constexpr int64_t kiFingerprintMetadataMagic = 0x465052494E544D31;
+constexpr int64_t kiFingerprintMetadataVersion = 1;
+std::optional<std::string> ReadFingerprintMetadata(const std::filesystem::path& rPath)
+{
+	std::fstream stream(rPath, std::ios::in | std::ios::binary);
+	int64_t iMagic = 0;
+	int64_t iVersion = 0;
+	int64_t iFingerprintCharacters = 0;
+	stream.read(reinterpret_cast<char*>(&iMagic), sizeof(iMagic));
+	stream.read(reinterpret_cast<char*>(&iVersion), sizeof(iVersion));
+	stream.read(reinterpret_cast<char*>(&iFingerprintCharacters), sizeof(iFingerprintCharacters));
+	if (!stream || iMagic != kiFingerprintMetadataMagic || iVersion != kiFingerprintMetadataVersion || iFingerprintCharacters <= 0 || iFingerprintCharacters > 1024 * 1024)
+	{
+		return std::nullopt;
+	}
+	std::string fingerprint(static_cast<size_t>(iFingerprintCharacters), '\0');
+	stream.read(fingerprint.data(), fingerprint.size());
+	return stream ? std::optional(std::move(fingerprint)) : std::nullopt;
+}
+
+void WriteFingerprintMetadata(const std::filesystem::path& rPath, std::string_view fingerprint)
+{
+	std::filesystem::path temporaryPath = rPath;
+	temporaryPath += ".tmp";
+	std::fstream stream(temporaryPath, std::ios::out | std::ios::binary);
+	int64_t iFingerprintCharacters = static_cast<int64_t>(fingerprint.size());
+	stream.write(reinterpret_cast<const char*>(&kiFingerprintMetadataMagic), sizeof(kiFingerprintMetadataMagic));
+	stream.write(reinterpret_cast<const char*>(&kiFingerprintMetadataVersion), sizeof(kiFingerprintMetadataVersion));
+	stream.write(reinterpret_cast<const char*>(&iFingerprintCharacters), sizeof(iFingerprintCharacters));
+	stream.write(fingerprint.data(), fingerprint.size());
+	stream.close();
+	VERIFY_SUCCESS(stream.good());
+	VERIFY_SUCCESS(MoveFileExW(temporaryPath.native().c_str(), rPath.native().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH));
+}
+
+}
+
 ExportJob::ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
 : miId(siNextJobId++)
 , mChunkFlags(rChunkFlags)
@@ -24,6 +64,11 @@ ExportJob::ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::pa
 	std::filesystem::create_directories(mChunkFile);
 	mChunkFile /= mInputPath.filename();
 	mChunkFile += ".chunk";
+
+	mCacheMetadataFile = gpFileManager->mTempDirectory;
+	mCacheMetadataFile /= mRelativeDirectory;
+	mCacheMetadataFile /= mInputPath.filename();
+	mCacheMetadataFile += ".meta";
 
 	mLastModifiedTimeFile = gpFileManager->mTempDirectory;
 	mLastModifiedTimeFile /= mRelativeDirectory;
@@ -47,27 +92,11 @@ std::tuple<common::ChunkHeader*, std::span<std::byte>> ExportJob::AllocateHeader
 
 bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 {
+	(void)rPackFile;
+
 	// Clean export?
 	if (gpFileManager->mbCleanExport)
 	{
-		mbDirty = true;
-		return mbDirty;
-	}
-
-	// Does the pack file exist?
-	if (!std::filesystem::exists(rPackFile))
-	{
-		mbDirty = true;
-		return mbDirty;
-	}
-
-	// Has the input file been modified more recently than the pack file?
-	std::filesystem::file_time_type inputFileLastModifiedTime = std::filesystem::last_write_time(mInputPath);
-	std::filesystem::file_time_type packFileLastWriteTime = std::filesystem::last_write_time(rPackFile);
-	if (inputFileLastModifiedTime > packFileLastWriteTime)
-	{
-		auto [date, time] = common::FileTimeString(inputFileLastModifiedTime);
-		LOG(kDefault, kDebug, "Input file \"{}\" is out of date: {} {}", mInputPath.string(), date, time);
 		mbDirty = true;
 		return mbDirty;
 	}
@@ -81,6 +110,12 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	}
 
 	// Verify chunk file magic and version
+	if (std::filesystem::file_size(mChunkFile) < sizeof(kiMagic) + sizeof(int64_t) + common::kiChunkDataOffset)
+	{
+		LOG(kDefault, kWarning, "Chunk file \"{}\" is truncated", mChunkFile.string());
+		mbDirty = true;
+		return mbDirty;
+	}
 	std::fstream chunkFileStream(mChunkFile, std::ios::in | std::ios::binary);
 
 	int64_t piMagicAndVersion[2] = {};
@@ -94,32 +129,26 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 		return mbDirty;
 	}
 
-	// Does the last modified time file exist?
-	if (!std::filesystem::exists(mLastModifiedTimeFile))
+	mCheckedInputFingerprint = GetInputFingerprint();
+	std::optional<std::string> cachedFingerprint = ReadFingerprintMetadata(mCacheMetadataFile);
+	if (!cachedFingerprint.has_value() && std::filesystem::exists(mLastModifiedTimeFile))
 	{
-		LOG(kDefault, kDebug, "Last modified time file \"{}\" does not exist", mLastModifiedTimeFile.string());
-		mbDirty = true;
-		return mbDirty;
+		int64_t iLegacyLastModifiedTime = 0;
+		std::fstream legacyStream(mLastModifiedTimeFile, std::ios::in | std::ios::binary);
+		legacyStream.read(reinterpret_cast<char*>(&iLegacyLastModifiedTime), sizeof(iLegacyLastModifiedTime));
+		int64_t iCurrentLastModifiedTime = std::filesystem::last_write_time(mInputPath).time_since_epoch().count();
+		if (legacyStream && iLegacyLastModifiedTime == iCurrentLastModifiedTime)
+		{
+			WriteFingerprintMetadata(mCacheMetadataFile, mCheckedInputFingerprint);
+			std::filesystem::remove(mLastModifiedTimeFile);
+			cachedFingerprint = mCheckedInputFingerprint;
+			LOG(kDefault, kDebug, "Upgraded legacy cache metadata \"{}\"", mCacheMetadataFile.string());
+		}
 	}
 
-	// Compare last modified time
-	int64_t iLastModifiedTime = inputFileLastModifiedTime.time_since_epoch().count();
-	int64_t iLoadedLastModifiedTime = 0;
-	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::in | std::ios::binary);
-	lastModifiedTimeFileStream.read(reinterpret_cast<char*>(&iLoadedLastModifiedTime), sizeof(iLoadedLastModifiedTime));
-	if (!lastModifiedTimeFileStream || iLastModifiedTime != iLoadedLastModifiedTime)
+	if (!cachedFingerprint.has_value() || cachedFingerprint.value() != mCheckedInputFingerprint)
 	{
-		LOG(kDefault, kDebug, "Last modified time does not match {} != {}", iLastModifiedTime, iLoadedLastModifiedTime);
-		mbDirty = true;
-		return mbDirty;
-	}
-
-	// Has the input file been modified more recently than the chunk file?
-	std::filesystem::file_time_type chunkFileLastWriteTime = std::filesystem::last_write_time(mChunkFile);
-	if (inputFileLastModifiedTime > chunkFileLastWriteTime)
-	{
-		auto [date, time] = common::FileTimeString(chunkFileLastWriteTime);
-		LOG(kDefault, kDebug, "Chunk file \"{}\" is out of date: {} {}", mChunkFile.string(), date, time);
+		LOG(kDefault, kDebug, "Input fingerprint changed for \"{}\"", mInputPath.string());
 		mbDirty = true;
 		return mbDirty;
 	}
@@ -133,6 +162,12 @@ std::vector<std::byte>& ExportJob::RunExport()
 	common::ThreadLocal threadLocal(4 * 1024, miId, false);
 	ScopedLogIndent scopedLogIndentOuter;
 	ScopedLogIndent scopedLogIndentInner;
+	std::string inputFingerprintBeforeExport = GetInputFingerprint();
+	if (!mbDirty && (inputFingerprintBeforeExport != mCheckedInputFingerprint || !AreCachedInputsStable()))
+	{
+		LOG(kDefault, kDebug, "Input or dependency changed after dirty checking \"{}\"; re-exporting", mInputPath.string());
+		mbDirty = true;
+	}
 
 	// Load cached chunk file
 	if (!mbDirty)
@@ -150,11 +185,21 @@ std::vector<std::byte>& ExportJob::RunExport()
 		// discard the cache and fall through to a full dirty re-export rather than shipping the zeroed bytes.
 		if (fileStream.good() && fileStream.gcount() == static_cast<std::streamsize>(mHeaderAndData.size()))
 		{
-			return mHeaderAndData;
-		}
+			std::string inputFingerprintAfterRead = GetInputFingerprint();
+			if (inputFingerprintAfterRead == inputFingerprintBeforeExport && AreCachedInputsStable())
+			{
+				return mHeaderAndData;
+			}
 
-		LOG(kDefault, kWarning, "Cached chunk file \"{}\" is truncated ({} of {} bytes read); re-exporting", mChunkFile.string(), fileStream.gcount(), mHeaderAndData.size());
-		mbDirty = true;
+			LOG(kDefault, kDebug, "Input changed while reading cached chunk for \"{}\"; re-exporting", mInputPath.string());
+			inputFingerprintBeforeExport = std::move(inputFingerprintAfterRead);
+			mbDirty = true;
+		}
+		else
+		{
+			LOG(kDefault, kWarning, "Cached chunk file \"{}\" is truncated ({} of {} bytes read); re-exporting", mChunkFile.string(), fileStream.gcount(), mHeaderAndData.size());
+			mbDirty = true;
+		}
 	}
 
 	try
@@ -165,6 +210,11 @@ std::vector<std::byte>& ExportJob::RunExport()
 	{
 		CleanupOnFailure();
 		throw;
+	}
+	if (GetInputFingerprint() != inputFingerprintBeforeExport)
+	{
+		CleanupOnFailure();
+		throw std::runtime_error(std::format("Input changed while exporting \"{}\"", mInputPath.string()));
 	}
 
 	std::filesystem::path relativeFile = mRelativeDirectory;
@@ -179,6 +229,11 @@ std::vector<std::byte>& ExportJob::RunExport()
 	ASSERT(relativeFileString.length() < MAX_PATH);
 	std::memcpy(pChunkHeader->pcPath, relativeFileString.c_str(), sizeof(*relativeFileString.c_str()) * relativeFileString.length());
 
+	// The primary fingerprint is the cache completion marker. Remove it (and the legacy fallback) before
+	// mutating the chunk so any write or derived-metadata failure leaves the job unambiguously dirty.
+	std::filesystem::remove(mCacheMetadataFile);
+	std::filesystem::remove(mLastModifiedTimeFile);
+
 	// Write chunk file with magic and version
 	std::fstream fileStream(mChunkFile, std::ios::out | std::ios::binary);
 	int64_t piMagicAndVersion[2] = { kiMagic, GetVersion() };
@@ -187,11 +242,13 @@ std::vector<std::byte>& ExportJob::RunExport()
 	fileStream.close();
 	VERIFY_SUCCESS(fileStream.good());
 
-	int64_t iLastModifiedTime = std::filesystem::last_write_time(mInputPath).time_since_epoch().count();
-	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::out | std::ios::binary);
-	lastModifiedTimeFileStream.write(reinterpret_cast<char*>(&iLastModifiedTime), sizeof(iLastModifiedTime));
-	lastModifiedTimeFileStream.close();
-	VERIFY_SUCCESS(lastModifiedTimeFileStream.good());
+	UpdateCacheMetadata();
+	WriteFingerprintMetadata(mCacheMetadataFile, inputFingerprintBeforeExport);
 
 	return mHeaderAndData;
+}
+
+std::string ExportJob::GetInputFingerprint() const
+{
+	return gpFileManager->GetFingerprint(mInputPath);
 }

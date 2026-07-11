@@ -4,12 +4,12 @@ Asset-specific processors that convert raw files into cached binary chunks. One 
 
 ## ExportJob Pipeline
 
-Abstract base owns dirty-checking and cache I/O; derived classes only implement `Export()` (and sometimes `CheckDirty()` / `CleanupOnFailure()`).
+Abstract base owns dirty-checking and cache I/O; derived classes implement `Export()` and optionally override `CheckDirty()` / `CleanupOnFailure()`, `GetInputFingerprint()` for composite inputs, `AreCachedInputsStable()` for clean-read validation, or `UpdateCacheMetadata()` for job-specific metadata committed with a successful export.
 
-- **Cache layout**: `.chunk` = magic + version + `ChunkHeader` + aligned data. A sibling `.txt` stores the input's `last_write_time` so `CheckDirty` survives restores that preserve filesystem timestamps.
+- **Cache layout**: `%TEMP%/DataPacker/<project>` stores `.chunk` files (magic + version + `ChunkHeader` + aligned data) beside versioned `.meta` input fingerprints. The primary fingerprint is removed before mutating a chunk and rewritten only after derived metadata commits, so any interrupted write remains dirty. Legacy timestamp `.txt` metadata is upgraded only when its timestamp still matches the current input; otherwise the job exports normally.
 - **Version convention**: `GetVersion()` returns `ExportJob::Version(N)` (folds in `sizeof(common::ChunkHeader)`) so header-layout changes auto-invalidate caches. Scene/Model/Font also fold in the `sizeof` of each `common::` payload struct they serialize, so payload size changes auto-dirty caches; same-size reorders still need the raw `N` bumped by hand (the `DataFile.h` static_assert beside each struct names the owning job). `ExportShader` passes `Version(15 + VK_HEADER_VERSION)` to force re-export on SDK upgrades.
 - **Allocation contract**: each `Export()` calls `AllocateHeaderAndData` exactly once; the base populates magic/crc/flags/path afterward. One exception: the scene animation section is appended by growing `mHeaderAndData` after the allocate, so the scene chunk's `iSize` excludes it and the returned header pointer must not be dereferenced after the resize (it can reallocate).
-- **Clean path**: `RunExport()` skips `Export()` and streams cached bytes back when not dirty.
+- **Clean path**: `RunExport()` skips `Export()` and streams cached bytes back when not dirty. Missing checkout-local packs/manifests are assembled from these shared chunks without re-exporting their inputs.
 - **Per-job workbuffer**: `RunExport()` constructs a `common::ThreadLocal` — jobs run on worker threads with isolated `gpThreadLocal->mWorkbuffer`.
 - **Intermediate cleanup**: jobs that produce sidecar files track them and override `CleanupOnFailure()` to unlink on throw.
 
@@ -19,14 +19,14 @@ The flags `Handles()` returns tag the chunk (cubemap bit for `[C]` textures, `kR
 
 ## Island Chunk Ingest
 
-The Gaea bake, archetype patching, crop/downsample, and route split all live in the `Island/` bake TUs — orchestration documented in [../AGENTS.md](../AGENTS.md). The two-stage `BakeVersion.txt` / `SplitVersion.txt` dirty sentinels gate bake/split re-runs per route; leaf-level completion proof and rejection are covered below. `ExportIsland` only ingests each baked chunk leaf (`<Islands>/<island>/<route>/<index>/`) into one independent `kIsland` chunk. `Handles()` claims a directory carrying `Intermediates/BakedDimensions.json` under an `Islands` ancestor — that file is written last per leaf, so its presence proves the bake completed (sparse indices are normal; too-low leaves are deleted at split time, and leaves with index >= the route's current leaf count — orphaned by a `kRouteSubdivisions` shrink — are pruned unconditionally in `BakeRoute` before the dirty early-return, else they ingest as stale `kIsland` chunks). `BakedDimensions.json` drives every downstream size: anisotropic post-crop world dimensions, the source crop rect, and a leaf-relative `textureSourceDir` pointing at the route's shared full-res Gaea sources.
+The Gaea bake, archetype patching, crop/downsample, and route split all live in the `Island/` bake TUs — orchestration documented in [../AGENTS.md](../AGENTS.md). One mutable cache at `%TEMP%/DataPacker/<project>/Gaea/Islands/...` holds route-level raw Gaea outputs and leaf-level geometry; `BakeVersion.meta` fingerprints `Island.json`, the resolved `.terrain`, route identity, and bake version, while `SplitVersion.meta` fingerprints split shape and version. A split-only mismatch reuses the raw route bake. `BakedDimensions.json` is written last per cached leaf and proves completion; `ExportIsland::Handles()` maps source leaf paths into the cache and ingests each complete leaf as one `kIsland` chunk. The source tree retains chunk identity and tracked BC outputs only. Legacy route/leaf `Intermediates/` directories migrate into the shared cache when contents can be moved or validated safely; conflicts leave the legacy data untouched and invalidate the route for a rebuild.
 
 Per leaf, `Export()` emits four BC texture intermediates — each later chunked independently via ExportTexture's raw path and referenced from the `kIsland` chunk by CRC — plus the `kIsland` chunk itself:
 - **Color** (sRGB) → BC7, **Normals** (EXR) → BC5, **AmbientOcclusion** (`.r16`) → BC4, and a packed **material mask** BC7 RGBA (R=rock, G=sand, B=snow, A=flow) built from four grayscale PNGs, 4×-downsized to match the heightmap footprint.
 - **Underwater flattening**: `Texture::MaskByHeightmap` runs *before* `MakeMipmaps`, overwriting texels below `common::kfUnderwaterMaskThresholdMeters` with per-format flat values (color RGB 0 with alpha pinned 255 so BC7 keeps no-alpha mode; normals → tangent (0,0,1); AO/masks → 0). Flattening pre-mip lets the constant runs propagate down every mip, maximizing RDO + zlib compression while preserving camera-visible shallow water for clean beaches.
 - **`kIsland` payload**: `[heightmap halfs][mesh XY pairs][mesh indices][valid-area hull]`. The downsampled `R32_SFLOAT` meter heightmap is read once and reused for the masks and the payload (no separate elevation chunk); the masks and hull consume the full-precision float in-memory, while the payload heightmap is quantized to R16 IEEE halfs before writing. The mesh is stripped to float2 XY — `Terrain.vert` re-derives Z from the elevation sampler. `BuildValidAreaHull` produces the CCW convex hull (Andrew's monotone chain, O(H) via per-row extremes) of above-threshold pixels in island-local meters; producer-side asserts verify CCW + convexity since the runtime SAT (`common::ConvexHullsOverlap`) requires both. Consumed by `IslandChainPlacement` hull-overlap packing on both client and server, plus client-only debug render (see [Engine/Source/Frame/AGENTS.md](../../../Engine/Source/Frame/AGENTS.md)).
 
-`CheckDirty` extends the base mtime check: a leaf directory's mtime doesn't propagate from edits to files inside it or to the route's shared textures, so it also re-exports when any file in the leaf's own `Intermediates/` or the route's `Intermediates/` (one level up) is newer than the chunk.
+Island chunk dirtiness fingerprints the cached leaf geometry plus the route's shared Color, Normals, and material-mask sources. JPEG diagnostics use the parallel `%TEMP%/DataPacker/<project>/Gaea/Diagnostics/Islands/...` tree; legacy source-tree sidecars migrate there and new exports never write diagnostic JPEGs into Git worktrees.
 
 ## Scene Two-Phase
 
@@ -34,7 +34,7 @@ A `.PreExport` marker stamped with the job's version forces re-running `PreExpor
 
 ## IBL Cubemaps
 
-`GenerateIrradianceCubemaps` / `GeneratePreFilteredCubemaps` are free functions (not `ExportJob`s) run as a pre-pass over `[C]`-tagged `.ktx` files and `[C]` face-image directories, doing their own timestamp-vs-source dirty checks via cmft. Pre-filtered radiance is written **face-major / mip-minor** to match `TextureUploadManager`'s iteration order. The `.R16G16B16A16_SFLOAT` outputs are later picked up by ExportTexture's raw path.
+`GenerateIrradianceCubemaps` / `GeneratePreFilteredCubemaps` are free functions (not `ExportJob`s) run as a pre-pass over `[C]`-tagged `.ktx` files and `[C]` face-image directories. Their `%TEMP%` metadata fingerprints the source KTX or all six face inputs; dirty markers prevent interrupted writes from appearing clean, and current legacy outputs can acquire metadata without regeneration. Pre-filtered radiance is written **face-major / mip-minor** to match `TextureUploadManager`'s iteration order. The `.R16G16B16A16_SFLOAT` outputs are later picked up by ExportTexture's raw path.
 
 ## Texture Routing
 
@@ -48,7 +48,7 @@ All four paths set `kLz4Compressed` and emit LZ4HC (`LZ4HC_CLEVEL_MAX`, via the 
 
 ## Shader Dirty Tracking
 
-`ExportShader::CheckDirty` parses Makefile-style `.d` depfiles from `glslc -MD` and re-exports when any transitively `#include`'d header is newer than the cached chunk.
+`ExportShader` parses Makefile-style `.d` depfiles from `glslc -MD`, then stores each transitive dependency as an engine/project input-root index, root-relative path, and content fingerprint. Dirty checks resolve those paths in the current worktree and recompile when a dependency is missing or its fingerprint changes; absolute paths from the compiling worktree are not retained in reusable metadata.
 
 ## Audio Repair
 

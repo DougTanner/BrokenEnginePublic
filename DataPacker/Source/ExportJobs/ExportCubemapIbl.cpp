@@ -6,11 +6,106 @@
 namespace
 {
 
+constexpr int64_t kiCubemapIblFingerprintVersion = 1;
+
 struct KtxCubemapData
 {
 	std::vector<float> floatData;
 	uint32_t uiFaceSize = 0;
 };
+
+std::filesystem::path GetFingerprintMetadataPath(const std::filesystem::path& rOutputPath, int64_t iInputRoot)
+{
+	std::filesystem::path metadataPath = gpFileManager->mTempDirectory / "CubemapIbl" / std::to_string(iInputRoot);
+	metadataPath /= std::filesystem::relative(rOutputPath, gpFileManager->mpInputDirectories[iInputRoot]);
+	metadataPath += ".meta";
+	std::filesystem::create_directories(metadataPath.parent_path());
+	return metadataPath;
+}
+
+std::filesystem::path GetDirtyMarkerPath(const std::filesystem::path& rMetadataPath)
+{
+	std::filesystem::path dirtyMarkerPath = rMetadataPath;
+	dirtyMarkerPath += ".dirty";
+	return dirtyMarkerPath;
+}
+
+std::string GetCubemapFingerprint(std::string_view operation, const std::filesystem::path& rSourcePath)
+{
+	nlohmann::json metadata;
+	metadata["version"] = kiCubemapIblFingerprintVersion;
+	metadata["operation"] = operation;
+	metadata["source"] = gpFileManager->GetFingerprint(rSourcePath);
+	return metadata.dump();
+}
+
+std::string GetFaceCubemapFingerprint(std::string_view operation, const std::filesystem::path& rSourceDirectory, const char* const* ppFaceNames)
+{
+	nlohmann::json metadata;
+	metadata["version"] = kiCubemapIblFingerprintVersion;
+	metadata["operation"] = operation;
+	for (int64_t iFace = 0; iFace < 6; ++iFace)
+	{
+		metadata["faces"][ppFaceNames[iFace]] = gpFileManager->GetFingerprint(rSourceDirectory / ppFaceNames[iFace]);
+	}
+	return metadata.dump();
+}
+
+void WriteFingerprintMetadata(const std::filesystem::path& rMetadataPath, std::string_view fingerprint)
+{
+	std::filesystem::path temporaryPath = rMetadataPath;
+	temporaryPath += ".tmp";
+	std::ofstream stream(temporaryPath, std::ios::binary | std::ios::trunc);
+	stream.write(fingerprint.data(), static_cast<std::streamsize>(fingerprint.size()));
+	stream.close();
+	VERIFY_SUCCESS(stream.good());
+	VERIFY_SUCCESS(MoveFileExW(temporaryPath.native().c_str(), rMetadataPath.native().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH));
+}
+
+bool IsOutputCurrent(const std::filesystem::path& rOutputPath, const std::filesystem::path& rMetadataPath, std::string_view fingerprint, const std::filesystem::path* pLegacyInputs, size_t uiLegacyInputCount)
+{
+	if (std::filesystem::exists(GetDirtyMarkerPath(rMetadataPath)))
+	{
+		return false;
+	}
+
+	if (!std::filesystem::exists(rOutputPath))
+	{
+		return false;
+	}
+
+	if (std::filesystem::exists(rMetadataPath))
+	{
+		std::ifstream stream(rMetadataPath, std::ios::binary);
+		std::string cachedFingerprint {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+		return !stream.bad() && cachedFingerprint == fingerprint;
+	}
+
+	std::filesystem::file_time_type outputTime = std::filesystem::last_write_time(rOutputPath);
+	for (size_t i = 0; i < uiLegacyInputCount; ++i)
+	{
+		if (std::filesystem::last_write_time(pLegacyInputs[i]) > outputTime)
+		{
+			return false;
+		}
+	}
+	WriteFingerprintMetadata(rMetadataPath, fingerprint);
+	return true;
+}
+
+void BeginOutputUpdate(const std::filesystem::path& rMetadataPath)
+{
+	std::ofstream stream(GetDirtyMarkerPath(rMetadataPath), std::ios::binary | std::ios::trunc);
+	stream.close();
+	VERIFY_SUCCESS(stream.good());
+	std::filesystem::remove(rMetadataPath);
+}
+
+void CompleteOutputUpdate(const std::filesystem::path& rMetadataPath, std::string_view fingerprint)
+{
+	WriteFingerprintMetadata(rMetadataPath, fingerprint);
+	VERIFY_SUCCESS(std::filesystem::remove(GetDirtyMarkerPath(rMetadataPath)));
+}
 
 } // namespace
 
@@ -35,8 +130,9 @@ static KtxCubemapData LoadKtxCubemapAsFloat(const std::filesystem::path& rPath)
 
 void GenerateIrradianceCubemaps()
 {
-	for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
+	for (int64_t iInputRoot = 0; iInputRoot < static_cast<int64_t>(std::size(gpFileManager->mpInputDirectories)); ++iInputRoot)
 	{
+		const std::filesystem::path& rBaseDirectory = gpFileManager->mpInputDirectories[iInputRoot];
 		for (const std::filesystem::directory_entry& rDirectoryEntry : std::filesystem::recursive_directory_iterator(rBaseDirectory))
 		{
 			if (rDirectoryEntry.path().extension() != ".ktx")
@@ -54,11 +150,14 @@ void GenerateIrradianceCubemaps()
 			outputPath += "_Irradiance";
 			outputPath += TextureIntermediateSuffix(VK_FORMAT_R16G16B16A16_SFLOAT);
 
-			// Skip if intermediate output already exists and is newer than the source
-			if (std::filesystem::exists(outputPath) && std::filesystem::last_write_time(outputPath) >= std::filesystem::last_write_time(rDirectoryEntry.path()))
+			std::string fingerprint = GetCubemapFingerprint("irradiance", rDirectoryEntry.path());
+			std::filesystem::path metadataPath = GetFingerprintMetadataPath(outputPath, iInputRoot);
+			std::filesystem::path legacyInput = rDirectoryEntry.path();
+			if (IsOutputCurrent(outputPath, metadataPath, fingerprint, &legacyInput, 1))
 			{
 				continue;
 			}
+			BeginOutputUpdate(metadataPath);
 
 			LOG(kDefault, kDebug, "Generating irradiance cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
 
@@ -101,6 +200,7 @@ void GenerateIrradianceCubemaps()
 			fileStream.flush();
 			fileStream.close();
 			VERIFY_SUCCESS(fileStream.good());
+			CompleteOutputUpdate(metadataPath, fingerprint);
 
 			// Clean up CMFT images
 			cmft::imageUnload(srcImage);
@@ -164,8 +264,9 @@ static void WriteFilteredCubemap(cmft::Image& rDstImage, const std::filesystem::
 // intermediate beside the source.
 static void ProcessKtxCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClContext)
 {
-	for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
+	for (int64_t iInputRoot = 0; iInputRoot < static_cast<int64_t>(std::size(gpFileManager->mpInputDirectories)); ++iInputRoot)
 	{
+		const std::filesystem::path& rBaseDirectory = gpFileManager->mpInputDirectories[iInputRoot];
 		for (const std::filesystem::directory_entry& rDirectoryEntry : std::filesystem::recursive_directory_iterator(rBaseDirectory))
 		{
 			if (rDirectoryEntry.path().extension() != ".ktx")
@@ -182,10 +283,14 @@ static void ProcessKtxCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClContext
 			outputPath += "_Prefiltered";
 			outputPath += TextureIntermediateSuffix(VK_FORMAT_R16G16B16A16_SFLOAT);
 
-			if (std::filesystem::exists(outputPath) && std::filesystem::last_write_time(outputPath) >= std::filesystem::last_write_time(rDirectoryEntry.path()))
+			std::string fingerprint = GetCubemapFingerprint("prefiltered", rDirectoryEntry.path());
+			std::filesystem::path metadataPath = GetFingerprintMetadataPath(outputPath, iInputRoot);
+			std::filesystem::path legacyInput = rDirectoryEntry.path();
+			if (IsOutputCurrent(outputPath, metadataPath, fingerprint, &legacyInput, 1))
 			{
 				continue;
 			}
+			BeginOutputUpdate(metadataPath);
 
 			LOG(kDefault, kDebug, "Generating pre-filtered cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
 
@@ -202,6 +307,7 @@ static void ProcessKtxCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClContext
 			cmft::imageRadianceFilter(dstImage, kuiPreFilteredFaceSize, cmft::LightingModel::BlinnBrdf, false, kuiPreFilteredMipCount, 14, 4, srcImage, cmft::EdgeFixup::None, uiCpuThreads, pClContext);
 
 			WriteFilteredCubemap(dstImage, outputPath);
+			CompleteOutputUpdate(metadataPath, fingerprint);
 
 			cmft::imageUnload(srcImage);
 			cmft::imageUnload(dstImage);
@@ -213,8 +319,9 @@ static void ProcessKtxCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClContext
 // that is out of date and writes the pre-filtered intermediate beside the directory.
 static void ProcessFaceImageCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClContext)
 {
-	for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
+	for (int64_t iInputRoot = 0; iInputRoot < static_cast<int64_t>(std::size(gpFileManager->mpInputDirectories)); ++iInputRoot)
 	{
+		const std::filesystem::path& rBaseDirectory = gpFileManager->mpInputDirectories[iInputRoot];
 		for (const std::filesystem::directory_entry& rDirectoryEntry : std::filesystem::recursive_directory_iterator(rBaseDirectory))
 		{
 			if (!rDirectoryEntry.is_directory())
@@ -240,28 +347,37 @@ static void ProcessFaceImageCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClC
 			outputPath += "_Prefiltered";
 			outputPath += TextureIntermediateSuffix(VK_FORMAT_R16G16B16A16_SFLOAT);
 
-			// Timestamp dirty check against all 6 face files
-			static constexpr const char* kpcJpgFaceNames[6] = {"posx.jpg", "negx.jpg", "posy.jpg", "negy.jpg", "posz.jpg", "negz.jpg"};
-			static constexpr const char* kpcPngFaceNames[6] = {"px.png", "nx.png", "py.png", "ny.png", "pz.png", "nz.png"};
-			const char* const* pFaceNames = bHasJpgFaces ? kpcJpgFaceNames : kpcPngFaceNames;
-
-			if (std::filesystem::exists(outputPath))
+			static constexpr const char* kpcJpgFaceNames[6] =
 			{
-				std::filesystem::file_time_type outputTime = std::filesystem::last_write_time(outputPath);
-				bool bDirty = false;
-				for (int64_t iFace = 0; iFace < 6; ++iFace)
-				{
-					if (std::filesystem::last_write_time(rDirectoryEntry.path() / pFaceNames[iFace]) > outputTime)
-					{
-						bDirty = true;
-						break;
-					}
-				}
-				if (!bDirty)
-				{
-					continue;
-				}
+				"posx.jpg",
+				"negx.jpg",
+				"posy.jpg",
+				"negy.jpg",
+				"posz.jpg",
+				"negz.jpg",
+			};
+			static constexpr const char* kpcPngFaceNames[6] =
+			{
+				"px.png",
+				"nx.png",
+				"py.png",
+				"ny.png",
+				"pz.png",
+				"nz.png",
+			};
+			const char* const* pFaceNames = bHasJpgFaces ? kpcJpgFaceNames : kpcPngFaceNames;
+			std::filesystem::path legacyInputs[6];
+			for (int64_t iFace = 0; iFace < 6; ++iFace)
+			{
+				legacyInputs[iFace] = rDirectoryEntry.path() / pFaceNames[iFace];
 			}
+			std::string fingerprint = GetFaceCubemapFingerprint("prefiltered", rDirectoryEntry.path(), pFaceNames);
+			std::filesystem::path metadataPath = GetFingerprintMetadataPath(outputPath, iInputRoot);
+			if (IsOutputCurrent(outputPath, metadataPath, fingerprint, legacyInputs, std::size(legacyInputs)))
+			{
+				continue;
+			}
+			BeginOutputUpdate(metadataPath);
 
 			LOG(kDefault, kDebug, "Generating pre-filtered cubemap for \"{}\"", rDirectoryEntry.path().filename().string());
 
@@ -280,6 +396,7 @@ static void ProcessFaceImageCubemaps(uint8_t uiCpuThreads, cmft::ClContext* pClC
 			cmft::imageRadianceFilter(dstImage, kuiPreFilteredFaceSize, cmft::LightingModel::BlinnBrdf, false, kuiPreFilteredMipCount, 14, 4, srcImage, cmft::EdgeFixup::None, uiCpuThreads, pClContext);
 
 			WriteFilteredCubemap(dstImage, outputPath);
+			CompleteOutputUpdate(metadataPath, fingerprint);
 
 			for (int64_t i = 0; i < 6; ++i)
 			{

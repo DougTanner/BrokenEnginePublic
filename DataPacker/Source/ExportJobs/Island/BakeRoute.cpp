@@ -7,11 +7,11 @@
 namespace
 {
 
-// One Intermediates folder per route (folder name kpcIslandIntermediatesDir, see ExportIsland.h).
-// One Gaea bake per route produces all six files below at texturePixels resolution; the raw
+// One shared cache folder per route under FileManager::mGaeaCacheDirectory.
+// One Gaea bake per route produces all files below at texturePixels resolution; the raw
 // Elevation.r32 stays as the bake source (it is NOT rewritten in place) — ProcessBakedRegion reads
 // it and writes the per-chunk downsampled (texturePixels / kiElevationDivisor) elevation into each
-// leaf's own Intermediates/. Elevation.r32 is headerless IEEE-754 float (Gaea's FloatRaw32 format),
+// cache leaf. Elevation.r32 is headerless IEEE-754 float (Gaea's FloatRaw32 format),
 // normalized [0,1] at bake time — DataPacker reads the Sea node Level from the archetype (fallback
 // kfGaeaSeaLevelDefault when absent), then scales to meters by elevationMeters and subtracts
 // `Level × elevationMeters` so beach = 0 in engine space and the sea floor sits at
@@ -20,32 +20,36 @@ namespace
 // EXR's float precision was wasted and its color-space convention conflicts with Gaea writing
 // sRGB-encoded values into the EXR container). Normals stay multi-channel EXR. Files written by
 // Gaea directly. Used for both the post-Gaea existence verification and the IsGaeaRawDirty
-// existence check. These raw outputs live in each route's <route>/Intermediates/ folder.
+// existence check. These raw outputs live in each route's shared Gaea cache folder.
 constexpr const char* kpcIntermediateFiles[] =
 {
 	"AmbientOcclusion.r16",
 	"Color.png",
 	"Elevation.r32",
 	"Normals.exr",
+	"Flow.png",
+	"Rock.png",
+	"Sand.png",
+	"Snow.png",
 	"Mesh.gltf",  // Gaea Mesher output: glTF JSON manifest (separate-format)
 	"Mesh.bin",   // Gaea Mesher output: binary buffer referenced by Mesh.gltf
 };
 
 // MeshProcessed.bin (positions + indices in island-local meters, XY-centered, sea-level Z=0) is
-// derived per chunk leaf, not in the route's raw Intermediates — the per-leaf dirty check in
+// derived per chunk leaf, not in the route's raw cache root — the per-leaf dirty check in
 // AreLeavesDirty verifies it (and Elevation.r32 / AmbientOcclusion.r16 / BakedDimensions.json)
 // exists in each chunk folder.
 
-// Two-stage version sentinels, both route-level in <route>/Intermediates/. The bake separates the
+// Two-stage fingerprint metadata files, both route-level in the Gaea cache. The bake separates the
 // SLOW Gaea raw export from the FAST post-Gaea split so a split-only change (a kRouteSubdivisions
 // columns/rows edit, or ProcessBakedRegion crop logic) re-splits from the existing Gaea output
 // WITHOUT re-running Gaea.Swarm.
 //
-// kiBakeVersion (BakeVersion.txt): the Gaea RAW output. Bump only when something that changes the
+// kiBakeVersion (BakeVersion.meta): the Gaea RAW output. Bump only when something that changes the
 // raw bake changes — the archetype patch (dims / seed / Route Choice / Mesher resolution) or the
 // Gaea invocation. IsGaeaRawDirty re-runs Gaea on mismatch.
 //
-// kiSplitVersion (SplitVersion.txt): the post-Gaea split. Bump when ProcessBakedRegion or the chunk
+// kiSplitVersion (SplitVersion.meta): the post-Gaea split. Bump when ProcessBakedRegion or the chunk
 // split (incl. kRouteSubdivisions columns/rows) changes. AreLeavesDirty re-splits from the existing
 // raw on mismatch — no Gaea re-export.
 constexpr int32_t kiBakeVersion = 28;
@@ -65,74 +69,153 @@ constexpr float kfBeachSubdivisionMaxMeters = 0.5f;
 constexpr float kfBeachSubdivisionMaxEdgeMeters = 1.0f;
 constexpr int32_t kiBeachSubdivisionMaxDepth = 12;
 
-constexpr const char* kpcBakeVersionFile = "BakeVersion.txt";    // Gaea-raw stage sentinel (kiBakeVersion)
-constexpr const char* kpcSplitVersionFile = "SplitVersion.txt";  // post-Gaea split stage sentinel (kiSplitVersion)
+constexpr const char* kpcBakeVersionFile = "BakeVersion.meta";
+constexpr const char* kpcSplitVersionFile = "SplitVersion.meta";
 constexpr const char* kpcPatchedArchetypeFile = "PatchedArchetype.terrain";
+constexpr const char* kpcGaeaStagingDirectory = "GaeaStaging";
 
-// True if the route's RAW Gaea outputs are missing or stale — forces a (slow) Gaea.Swarm re-export.
-// Checks only Gaea-output concerns: the raw intermediate files + the patched archetype (needed for
-// the split's sea-level read) are present, the Gaea-bake-version sentinel matches, and the raw
-// files are no older than Island.json / the archetype. The post-Gaea split is checked separately
-// by AreLeavesDirty so a split-only change never trips this.
-bool IsGaeaRawDirty(const std::filesystem::path& rIntermediatesDir, const std::filesystem::path& rIslandJsonFile, const std::filesystem::path& rArchetypeFile)
+std::string ReadTextFile(const std::filesystem::path& rFile)
+{
+	std::ifstream stream(rFile, std::ios::binary);
+	return std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+}
+
+void WriteTextFile(const std::filesystem::path& rFile, const std::string& rText)
+{
+	std::ofstream stream(rFile, std::ios::binary | std::ios::trunc);
+	stream.write(rText.data(), static_cast<std::streamsize>(rText.size()));
+	stream.close();
+	VERIFY_SUCCESS(stream.good());
+}
+
+std::string BakeFingerprint(const IslandBakeContext& rContext, const RouteSubdivision& rRoute)
+{
+	nlohmann::json metadata;
+	metadata["version"] = kiBakeVersion;
+	metadata["island"] = gpFileManager->GetFingerprint(rContext.rIslandJsonFile);
+	metadata["archetype"] = gpFileManager->GetFingerprint(rContext.rArchetypeFile);
+	metadata["route"] = rRoute.pcLabel;
+	metadata["choice"] = rRoute.iGaeaChoice;
+	return metadata.dump();
+}
+
+std::string SplitFingerprint(const RouteSubdivision& rRoute)
+{
+	nlohmann::json metadata;
+	metadata["version"] = kiSplitVersion;
+	metadata["route"] = rRoute.pcLabel;
+	metadata["columns"] = rRoute.iColumns;
+	metadata["rows"] = rRoute.iRows;
+	return metadata.dump();
+}
+
+bool AreLegacyRawOutputsCurrent(const std::filesystem::path& rIntermediatesDirectory, const std::filesystem::path& rIslandJsonFile, const std::filesystem::path& rArchetypeFile)
 {
 	for (const char* pcFile : kpcIntermediateFiles)
 	{
-		if (!std::filesystem::exists(rIntermediatesDir / pcFile))
+		if (!std::filesystem::exists(rIntermediatesDirectory / pcFile))
 		{
-			return true;
+			return false;
 		}
 	}
-	if (!std::filesystem::exists(rIntermediatesDir / kpcPatchedArchetypeFile))
+	if (!std::filesystem::exists(rIntermediatesDirectory / kpcPatchedArchetypeFile))
 	{
-		return true;
-	}
-
-	std::filesystem::path versionFile = rIntermediatesDir / kpcBakeVersionFile;
-	if (!std::filesystem::exists(versionFile))
-	{
-		return true;
-	}
-	{
-		std::ifstream versionStream(versionFile);
-		int32_t iFileVersion = 0;
-		versionStream >> iFileVersion;
-		if (!versionStream || iFileVersion != kiBakeVersion)
-		{
-			return true;
-		}
+		return false;
 	}
 
 	std::filesystem::file_time_type inputNewest = std::max(std::filesystem::last_write_time(rIslandJsonFile), std::filesystem::last_write_time(rArchetypeFile));
 	for (const char* pcFile : kpcIntermediateFiles)
 	{
-		if (std::filesystem::last_write_time(rIntermediatesDir / pcFile) < inputNewest)
+		if (std::filesystem::last_write_time(rIntermediatesDirectory / pcFile) < inputNewest)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+void UpgradeLegacyMetadata(const std::filesystem::path& rIntermediatesDirectory, const std::filesystem::path& rIslandJsonFile, const std::filesystem::path& rArchetypeFile, const std::string& rBakeFingerprint, const std::string& rSplitFingerprint)
+{
+	// Legacy sentinels only encoded code versions; preserve the old IsGaeaRawDirty timestamp gate
+	// before promoting them to content fingerprints. Otherwise a fresh worktree could bless raw
+	// outputs older than Island.json or the archetype and permanently skip the required re-bake.
+	bool bRawOutputsCurrent = AreLegacyRawOutputsCurrent(rIntermediatesDirectory, rIslandJsonFile, rArchetypeFile);
+	std::filesystem::path legacyBakeFile = rIntermediatesDirectory / "BakeVersion.txt";
+	if (bRawOutputsCurrent && !std::filesystem::exists(rIntermediatesDirectory / kpcBakeVersionFile) && std::filesystem::exists(legacyBakeFile))
+	{
+		bool bUpgradeMetadata = false;
+		{
+			std::ifstream stream(legacyBakeFile);
+			int32_t iVersion = 0;
+			stream >> iVersion;
+			bUpgradeMetadata = stream && iVersion == kiBakeVersion;
+		}
+		if (bUpgradeMetadata)
+		{
+			WriteTextFile(rIntermediatesDirectory / kpcBakeVersionFile, rBakeFingerprint);
+			std::filesystem::remove(legacyBakeFile);
+		}
+	}
+
+	std::filesystem::path legacySplitFile = rIntermediatesDirectory / "SplitVersion.txt";
+	if (bRawOutputsCurrent && !std::filesystem::exists(rIntermediatesDirectory / kpcSplitVersionFile) && std::filesystem::exists(legacySplitFile))
+	{
+		bool bUpgradeMetadata = false;
+		{
+			std::ifstream stream(legacySplitFile);
+			int32_t iVersion = 0;
+			stream >> iVersion;
+			bUpgradeMetadata = stream && iVersion == kiSplitVersion;
+		}
+		if (bUpgradeMetadata)
+		{
+			WriteTextFile(rIntermediatesDirectory / kpcSplitVersionFile, rSplitFingerprint);
+			std::filesystem::remove(legacySplitFile);
+		}
+	}
+}
+
+// True if the route's RAW Gaea outputs are missing or stale — forces a (slow) Gaea.Swarm re-export.
+// Checks only Gaea-output concerns: the raw intermediate files + the patched archetype (needed for
+// the split's sea-level read) are present, the Gaea-bake-version sentinel matches, and the raw
+// metadata matches the content fingerprints of Island.json / the archetype and the route identity.
+// The post-Gaea split is checked separately
+// by AreLeavesDirty so a split-only change never trips this.
+bool IsGaeaRawDirty(const std::filesystem::path& rIntermediatesDirectory, const std::string& rExpectedFingerprint)
+{
+	for (const char* pcFile : kpcIntermediateFiles)
+	{
+		if (!std::filesystem::exists(rIntermediatesDirectory / pcFile))
 		{
 			return true;
 		}
 	}
+	if (!std::filesystem::exists(rIntermediatesDirectory / kpcPatchedArchetypeFile))
+	{
+		return true;
+	}
 
-	return false;
+	std::filesystem::path versionFile = rIntermediatesDirectory / kpcBakeVersionFile;
+	if (!std::filesystem::exists(versionFile))
+	{
+		return true;
+	}
+	return ReadTextFile(versionFile) != rExpectedFingerprint;
 }
 
 // True if any chunk leaf's derived split outputs are missing or stale — forces a re-split from the
 // (assumed fresh) raw Gaea output, NOT a Gaea re-export. Checks the split-version sentinel (catches
 // a kRouteSubdivisions columns/rows or ProcessBakedRegion change) and every leaf's per-region files.
-bool AreLeavesDirty(const std::filesystem::path& rRouteDir, int64_t iLeafCount)
+bool AreLeavesDirty(const std::filesystem::path& rRouteDirectory, const std::filesystem::path& rCacheRouteDirectory, int64_t iLeafCount, const std::string& rExpectedFingerprint)
 {
-	std::filesystem::path splitVersionFile = rRouteDir / kpcIslandIntermediatesDir / kpcSplitVersionFile;
+	std::filesystem::path splitVersionFile = rCacheRouteDirectory / kpcSplitVersionFile;
 	if (!std::filesystem::exists(splitVersionFile))
 	{
 		return true;
 	}
+	if (ReadTextFile(splitVersionFile) != rExpectedFingerprint)
 	{
-		std::ifstream versionStream(splitVersionFile);
-		int32_t iFileVersion = 0;
-		versionStream >> iFileVersion;
-		if (!versionStream || iFileVersion != kiSplitVersion)
-		{
-			return true;
-		}
+		return true;
 	}
 
 	for (int64_t iLeaf = 0; iLeaf < iLeafCount; ++iLeaf)
@@ -140,19 +223,20 @@ bool AreLeavesDirty(const std::filesystem::path& rRouteDir, int64_t iLeafCount)
 		// An absent leaf folder is an intentionally-rejected (too-low) leaf, not a dirty one -- skip it.
 		// ProcessBakedRegion deletes rejected leaves, and the SplitVersion sentinel (checked above,
 		// stamped last) keeps a crash mid-split from looking clean. Existing folders must be complete.
-		std::filesystem::path leafDir = rRouteDir / std::to_string(iLeaf);
-		if (!std::filesystem::exists(leafDir))
+		std::filesystem::path sourceLeafDirectory = rRouteDirectory / std::to_string(iLeaf);
+		std::filesystem::path cacheLeafDirectory = rCacheRouteDirectory / std::to_string(iLeaf);
+		if (!std::filesystem::exists(sourceLeafDirectory) && !std::filesystem::exists(cacheLeafDirectory))
 		{
 			continue;
 		}
-		std::filesystem::path leafIntermediatesDir = leafDir / kpcIslandIntermediatesDir;
-		if (!std::filesystem::exists(leafIntermediatesDir / kpcBakedDimensionsFile)
-			|| !std::filesystem::exists(leafIntermediatesDir / "MeshProcessed.bin")
-			|| !std::filesystem::exists(leafIntermediatesDir / "Elevation.r32")
-			|| !std::filesystem::exists(leafIntermediatesDir / "AmbientOcclusion.r16"))
+		if (!std::filesystem::exists(cacheLeafDirectory / kpcBakedDimensionsFile)
+			|| !std::filesystem::exists(cacheLeafDirectory / "MeshProcessed.bin")
+			|| !std::filesystem::exists(cacheLeafDirectory / "Elevation.r32")
+			|| !std::filesystem::exists(cacheLeafDirectory / "AmbientOcclusion.r16"))
 		{
 			return true;
 		}
+		std::filesystem::create_directories(sourceLeafDirectory);
 	}
 
 	return false;
@@ -160,13 +244,13 @@ bool AreLeavesDirty(const std::filesystem::path& rRouteDir, int64_t iLeafCount)
 
 // Delete numeric leaf folders left over from a previous, larger split. The split loop and AreLeavesDirty
 // only ever visit indices 0 .. iLeafCount-1, so when a route's kRouteSubdivisions columns/rows shrink the
-// higher-index folders are never revisited: they persist carrying Intermediates/BakedDimensions.json and
+// higher-index folders are never revisited: they persist carrying cached BakedDimensions.json and
 // ExportIsland::Handles ingests them as stale kIsland chunks (a kiSplitVersion bump does not help — the
 // re-split only rewrites the lower-count leaves). Mirror BakeOne's whole-route prune one level up: collect
 // first, then remove_all (mutating the directory mid-iteration is unspecified for directory_iterator). Runs
 // unconditionally before the dirty early-return, so the leaf-set invariant holds regardless of whether the
-// developer bumped kiSplitVersion. The route's Intermediates/ folder is non-numeric, so the all-digits test
-// leaves it untouched; kept leaves (index < iLeafCount) are never removed.
+// developer bumped kiSplitVersion. Non-numeric route metadata is untouched; kept leaves
+// (index < iLeafCount) are never removed.
 void RemoveOrphanedLeafFolders(const std::filesystem::path& rRouteDir, int64_t iLeafCount)
 {
 	if (!std::filesystem::exists(rRouteDir))
@@ -207,11 +291,12 @@ void RemoveOrphanedLeafFolders(const std::filesystem::path& rRouteDir, int64_t i
 }
 
 // STAGE 1 — Gaea raw export (slow). Strips DataPacker-owned keys to vars, copies + patches the
-// archetype, runs Gaea.Swarm once at full texturePixels into the route's Intermediates/, verifies the
-// raw outputs exist, then stamps the Gaea-raw sentinel. Called only when IsGaeaRawDirty.
-void RunGaeaExport(const IslandBakeContext& rContext, const RouteSubdivision& rRoute, const std::filesystem::path& rRouteDir, const std::filesystem::path& rIntermediatesDir, const std::filesystem::path& rPatchedArchetypeFile)
+// archetype, runs Gaea.Swarm once at full texturePixels into a staging directory, then verifies the
+// staged raw outputs exist. The caller publishes them and stamps the sentinel. Called only when
+// IsGaeaRawDirty.
+void RunGaeaExport(const IslandBakeContext& rContext, const RouteSubdivision& rRoute, const std::filesystem::path& rRouteDirectory, const std::filesystem::path& rStagingDirectory, const std::filesystem::path& rPatchedArchetypeFile)
 {
-	LOG(kDefault, kDebug, "Baking island route \"{}\" (Gaea export; archetype: \"{}\", seed: {}, texturePixels: {}, Route Choice: {})", rRouteDir.string(), rContext.rArchetypeFile.string(), rContext.iSeed, rContext.iTexturePixels, rRoute.iGaeaChoice);
+	LOG(kDefault, kDebug, "Baking island route \"{}\" (Gaea export; archetype: \"{}\", seed: {}, texturePixels: {}, Route Choice: {})", rRouteDirectory.string(), rContext.rArchetypeFile.string(), rContext.iSeed, rContext.iTexturePixels, rRoute.iGaeaChoice);
 
 	// Strip DataPacker-owned keys; remaining keys become Gaea graph variables. routes /
 	// widthMeters / elevationMeters / seed / texturePixels are DataPacker-consumed: Gaea's
@@ -244,7 +329,7 @@ void RunGaeaExport(const IslandBakeContext& rContext, const RouteSubdivision& rR
 		VERIFY_SUCCESS(varsStream.good());
 	}
 
-	// Copy the source archetype into this route's Intermediates/ and patch the copy — the on-disk
+	// Copy the source archetype into this route's cache and patch the copy — the on-disk
 	// source .terrain is never mutated. PatchArchetype sets this route's Route Choice along with
 	// dims / seeds / Mesher resolution. PatchedArchetype.terrain doubles as a debug artifact (open
 	// in Gaea to inspect exactly what was baked, including the patched Route Choice).
@@ -253,12 +338,12 @@ void RunGaeaExport(const IslandBakeContext& rContext, const RouteSubdivision& rR
 
 	// Gaea.Swarm.exe requires a real console for stdin/stdout/stderr — invoke via the new-console
 	// helper. argv[0] is the executable's own path. --seed is dropped (per-node seeds were patched
-	// into the archetype). Gaea bakes the patched copy in this route's Intermediates/.
+	// into the archetype). Gaea bakes the patched copy in this route's staging directory.
 	std::wstring commandLine;
 	commandLine += L"\"" + rContext.rGaeaExecutable.native() + L"\"";
 	commandLine += L" --silent";
 	commandLine += L" --Filename \"" + rPatchedArchetypeFile.native() + L"\"";
-	commandLine += L" --buildpath \"" + rIntermediatesDir.native() + L"\"";
+	commandLine += L" --buildpath \"" + rStagingDirectory.native() + L"\"";
 	commandLine += std::format(L" --resolution {}", rContext.iTexturePixels);
 	if (bHasVars)
 	{
@@ -271,23 +356,17 @@ void RunGaeaExport(const IslandBakeContext& rContext, const RouteSubdivision& rR
 
 	if (result.miExitCode != 0)
 	{
-		throw std::runtime_error(std::format("Gaea.Swarm.exe exited with code {} for \"{}\". Use /gaea2-diagnose to examine the log file for failures.", result.miExitCode, rRouteDir.string()));
+		throw std::runtime_error(std::format("Gaea.Swarm.exe exited with code {} for \"{}\". Use /gaea2-diagnose to examine the log file for failures.", result.miExitCode, rRouteDirectory.string()));
 	}
 
 	for (const char* pcFile : kpcIntermediateFiles)
 	{
-		if (!std::filesystem::exists(rIntermediatesDir / pcFile))
+		if (!std::filesystem::exists(rStagingDirectory / pcFile))
 		{
-			throw std::runtime_error(std::format("Gaea bake for \"{}\" did not produce \"{}\". Verify the archetype graph has an Export node named \"{}\" writing to Build Folder, and that the Elevation Export node uses FloatRaw32, AmbientOcclusion uses UshortRaw16, Color uses PNG8, and Normals uses Exr.", rRouteDir.string(), pcFile, std::filesystem::path(pcFile).stem().string()));
+			throw std::runtime_error(std::format("Gaea bake for \"{}\" did not produce \"{}\". Verify the archetype graph has an Export node named \"{}\" writing to Build Folder, and that the Elevation Export node uses FloatRaw32, AmbientOcclusion uses UshortRaw16, Color uses PNG8, and Normals uses Exr.", rRouteDirectory.string(), pcFile, std::filesystem::path(pcFile).stem().string()));
 		}
 	}
 
-	// Stamp the Gaea-raw sentinel now the raw outputs are verified, so a later split-only re-run
-	// (stale leaves / kiSplitVersion bump) reuses them without re-running Gaea.
-	std::ofstream gaeaVersionStream(rIntermediatesDir / kpcBakeVersionFile);
-	gaeaVersionStream << kiBakeVersion;
-	gaeaVersionStream.close();
-	VERIFY_SUCCESS(gaeaVersionStream.good());
 }
 
 // Read raw elevation and convert to engine-meters: pixel_m = (pixel_normalized -
@@ -462,40 +541,67 @@ void LoadMesherMesh(const std::filesystem::path& rIntermediatesDir, float fBeach
 
 // Bakes one route of one island in two stages. STAGE 1 (Gaea raw, slow — only when IsGaeaRawDirty):
 // patch the route's Route Choice into a per-route archetype copy and run Gaea once at full
-// texturePixels into the route's Intermediates/. STAGE 2 (split, fast — when IsGaeaRawDirty OR
+// texturePixels into the route cache. STAGE 2 (split, fast — when IsGaeaRawDirty OR
 // AreLeavesDirty): split the raw bake into UP TO iColumns × iRows chunk leaves via ProcessBakedRegion
 // (up to 1 for 1x1, 2 for 2x1, 4 for 2x2 — chunks peaking below kfMinIslandMaxHeightMeters are rejected
 // and produce no leaf, so indices can be sparse). A split-only change re-runs Stage 2 against the
 // existing Stage-1 output — no Gaea re-export. Returns early when both stages are clean.
 void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute)
 {
-	std::filesystem::path routeDir = rContext.rIslandFolder / rRoute.pcLabel;
-	std::filesystem::path intermediatesDir = routeDir / kpcIslandIntermediatesDir;
+	std::filesystem::path routeDirectory = rContext.rIslandFolder / rRoute.pcLabel;
+	std::filesystem::path intermediatesDirectory = rContext.rCacheIslandFolder / rRoute.pcLabel;
 	int64_t iLeafCount = rRoute.iColumns * rRoute.iRows;
+	std::string bakeFingerprint = BakeFingerprint(rContext, rRoute);
+	std::string splitFingerprint = SplitFingerprint(rRoute);
+	UpgradeLegacyMetadata(intermediatesDirectory, rContext.rIslandJsonFile, rContext.rArchetypeFile, bakeFingerprint, splitFingerprint);
 
 	// Sweep leaf folders orphaned by a route leaf-count shrink before anything else: this must run even
 	// on the otherwise-clean early-return path, since a kRouteSubdivisions edit need not bump kiSplitVersion.
-	RemoveOrphanedLeafFolders(routeDir, iLeafCount);
+	RemoveOrphanedLeafFolders(routeDirectory, iLeafCount);
+	RemoveOrphanedLeafFolders(intermediatesDirectory, iLeafCount);
+	RemoveOrphanedLeafFolders(GetIslandDiagnosticsPath(routeDirectory), iLeafCount);
 
-	bool bGaeaDirty = IsGaeaRawDirty(intermediatesDir, rContext.rIslandJsonFile, rContext.rArchetypeFile);
-	bool bLeavesDirty = AreLeavesDirty(routeDir, iLeafCount);
+	bool bGaeaDirty = IsGaeaRawDirty(intermediatesDirectory, bakeFingerprint);
+	bool bLeavesDirty = AreLeavesDirty(routeDirectory, intermediatesDirectory, iLeafCount, splitFingerprint);
 	if (!bGaeaDirty && !bLeavesDirty)
 	{
 		return;
 	}
 
-	std::filesystem::create_directories(intermediatesDir);
-	std::filesystem::path patchedArchetypeFile = intermediatesDir / kpcPatchedArchetypeFile;
+	std::filesystem::create_directories(intermediatesDirectory);
+	// Invalidate split completion before either stage mutates its inputs. A crash after a raw re-bake
+	// or midway through overwriting existing leaves must force the split to run again next launch.
+	std::filesystem::remove(intermediatesDirectory / kpcSplitVersionFile);
+	std::filesystem::path patchedArchetypeFile = intermediatesDirectory / kpcPatchedArchetypeFile;
 
 	// STAGE 1 — Gaea raw export (slow). Skipped when the raw outputs are already present and fresh,
 	// so a split-only change re-splits the existing bake without re-running Gaea.
 	if (bGaeaDirty)
 	{
-		RunGaeaExport(rContext, rRoute, routeDir, intermediatesDir, patchedArchetypeFile);
+		// Keep the last complete raw bake available while Gaea runs. Only after every staged output
+		// exists do we invalidate completion and publish the new set. A failed Gaea invocation leaves
+		// GaeaStaging for diagnosis; the next attempt replaces it before running.
+		std::filesystem::path stagingDirectory = intermediatesDirectory / kpcGaeaStagingDirectory;
+		std::filesystem::remove_all(stagingDirectory);
+		std::filesystem::create_directories(stagingDirectory);
+		std::filesystem::path stagingPatchedArchetypeFile = stagingDirectory / kpcPatchedArchetypeFile;
+		RunGaeaExport(rContext, rRoute, routeDirectory, stagingDirectory, stagingPatchedArchetypeFile);
+
+		std::filesystem::remove(intermediatesDirectory / kpcBakeVersionFile);
+		std::filesystem::remove(intermediatesDirectory / kpcSplitVersionFile);
+		for (const char* pcFile : kpcIntermediateFiles)
+		{
+			std::filesystem::path source = stagingDirectory / pcFile;
+			std::filesystem::path destination = intermediatesDirectory / pcFile;
+			VERIFY_SUCCESS(MoveFileExW(source.native().c_str(), destination.native().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH));
+		}
+		VERIFY_SUCCESS(MoveFileExW(stagingPatchedArchetypeFile.native().c_str(), patchedArchetypeFile.native().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH));
+		std::filesystem::remove_all(stagingDirectory);
+		WriteTextFile(intermediatesDirectory / kpcBakeVersionFile, bakeFingerprint);
 	}
 	else
 	{
-		LOG(kDefault, kDebug, "Reusing Gaea bake for route \"{}\"; re-splitting only (no Gaea export)", routeDir.string());
+		LOG(kDefault, kDebug, "Reusing Gaea bake for route \"{}\"; re-splitting only (no Gaea export)", routeDirectory.string());
 	}
 
 	// STAGE 2 — split (fast). Raw outputs are present here (just baked, or reused fresh).
@@ -519,21 +625,18 @@ void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute
 	// (Engine/Source/Graphics/Managers/RenderTargetTextures.cpp) blends seamlessly with edge texels.
 	ASSERT(std::abs(-fBeachOffsetMeters - common::kfSeaBottomMeters) < 0.01f);
 
-	std::vector<float> fullElevationMeters = LoadElevationMeters(intermediatesDir, rContext.iTexturePixels, fSeaLevelNormalized, rContext.rDimensions.fElevationMeters, fBeachOffsetMeters);
+	std::vector<float> fullElevationMeters = LoadElevationMeters(intermediatesDirectory, rContext.iTexturePixels, fSeaLevelNormalized, rContext.rDimensions.fElevationMeters, fBeachOffsetMeters);
 
-	std::vector<uint16_t> fullAmbientOcclusion = LoadAmbientOcclusion(intermediatesDir, rContext.iTexturePixels);
+	std::vector<uint16_t> fullAmbientOcclusion = LoadAmbientOcclusion(intermediatesDirectory, rContext.iTexturePixels);
 
 	std::vector<float> meshPositions;
 	std::vector<uint32_t> meshIndices;
-	LoadMesherMesh(intermediatesDir, fBeachOffsetMeters, routeDir, meshPositions, meshIndices);
+	LoadMesherMesh(intermediatesDirectory, fBeachOffsetMeters, routeDirectory, meshPositions, meshIndices);
 
 	// Split into chunks (up to 1 for 1x1, iColumns × iRows otherwise) and write each leaf that clears
 	// the minimum-height threshold (ProcessBakedRegion rejects too-low / underwater chunks). The X / Y
 	// region boundaries partition the full texture (uneven when columns/rows don't divide it evenly);
 	// ProcessBakedRegion auto-crops within each, borrowing neighbour pixels across a seam for alignment.
-	// textureSourceDir is leaf-relative ("../Intermediates") so ExportIsland reads the shared
-	// full-res Color / Normals / mask sources from this route's Intermediates dir.
-	std::string textureSourceDirRelative = std::format("../{}", kpcIslandIntermediatesDir);
 	BakeOutput bakeOutput {.rFullElevationMeters = fullElevationMeters, .rFullAmbientOcclusion = fullAmbientOcclusion, .fBeachOffsetMeters = fBeachOffsetMeters};
 	int64_t iWrittenLeaves = 0;
 	for (int64_t iColumn = 0; iColumn < rRoute.iColumns; ++iColumn)
@@ -548,8 +651,9 @@ void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute
 				.iStartY = iRow * rContext.iTexturePixels / rRoute.iRows,
 				.iEndY = (iRow + 1) * rContext.iTexturePixels / rRoute.iRows,
 			};
-			std::filesystem::path leafDir = routeDir / std::to_string(iChunkIndex);
-			LeafTarget leaf {.rLeafDir = leafDir, .rTextureSourceDirRelative = textureSourceDirRelative};
+			std::filesystem::path sourceLeafDirectory = routeDirectory / std::to_string(iChunkIndex);
+			std::filesystem::path cacheLeafDirectory = intermediatesDirectory / std::to_string(iChunkIndex);
+			LeafTarget leaf {.rSourceLeafDirectory = sourceLeafDirectory, .rCacheLeafDirectory = cacheLeafDirectory};
 			if (ProcessBakedRegion(rContext, bakeOutput, region, meshPositions, meshIndices, leaf))
 			{
 				++iWrittenLeaves;
@@ -559,18 +663,15 @@ void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute
 
 	if (iWrittenLeaves == 0)
 	{
-		throw std::runtime_error(std::format("Island route \"{}\": every one of {} chunk(s) was rejected as too low (peak < {:.2f} m). Raise Island.json's elevationMeters, lower kfMinIslandMaxHeightMeters, or remove this route from Island.json.", routeDir.string(), iLeafCount, kfMinIslandMaxHeightMeters));
+		throw std::runtime_error(std::format("Island route \"{}\": every one of {} chunk(s) was rejected as too low (peak < {:.2f} m). Raise Island.json's elevationMeters, lower kfMinIslandMaxHeightMeters, or remove this route from Island.json.", routeDirectory.string(), iLeafCount, kfMinIslandMaxHeightMeters));
 	}
 
 	// Stamp the split sentinel last, after every leaf is written. A crash mid-split leaves it absent
 	// (or stale), so AreLeavesDirty re-splits next run — without re-running Gaea (BakeVersion is
 	// already stamped above, so IsGaeaRawDirty stays clean).
 	{
-		std::ofstream splitVersionStream(intermediatesDir / kpcSplitVersionFile);
-		splitVersionStream << kiSplitVersion;
-		splitVersionStream.close();
-		VERIFY_SUCCESS(splitVersionStream.good());
+		WriteTextFile(intermediatesDirectory / kpcSplitVersionFile, splitFingerprint);
 	}
 
-	LOG(kDefault, kDebug, "Island route \"{}\" ready ({} of {} chunk(s) written, {} rejected as too low{})", routeDir.string(), iWrittenLeaves, iLeafCount, iLeafCount - iWrittenLeaves, bGaeaDirty ? ", Gaea re-baked" : ", split-only reuse");
+	LOG(kDefault, kDebug, "Island route \"{}\" ready ({} of {} chunk(s) written, {} rejected as too low{})", routeDirectory.string(), iWrittenLeaves, iLeafCount, iLeafCount - iWrittenLeaves, bGaeaDirty ? ", Gaea re-baked" : ", split-only reuse");
 }

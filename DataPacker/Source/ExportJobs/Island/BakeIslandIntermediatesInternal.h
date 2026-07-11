@@ -59,6 +59,7 @@ struct IslandBakeContext
 {
 	const std::filesystem::path& rGaeaExecutable;
 	const std::filesystem::path& rIslandFolder;
+	const std::filesystem::path& rCacheIslandFolder;
 	const std::filesystem::path& rArchetypeFile;
 	const std::filesystem::path& rIslandJsonFile;
 	const nlohmann::json& rIslandJson;
@@ -77,12 +78,12 @@ struct RegionBounds
 	int64_t iEndY;
 };
 
-// Per-region output target. rLeafDir is the chunk leaf folder; rTextureSourceDirRelative is
-// the leaf-relative path to the route's shared full-res texture sources (Color / Normals / masks).
+// Per-region output target. The source leaf preserves the authored BC intermediates and provides
+// ExportIsland's chunk identity; the cache leaf owns all derived bake data.
 struct LeafTarget
 {
-	const std::filesystem::path& rLeafDir;
-	const std::string& rTextureSourceDirRelative;
+	const std::filesystem::path& rSourceLeafDirectory;
+	const std::filesystem::path& rCacheLeafDirectory;
 };
 
 // Per-route bake outputs produced once after Gaea runs, then consumed by every per-region call.
@@ -95,7 +96,7 @@ struct BakeOutput
 };
 
 // Crops one chunk region out of the full Gaea bake and writes the chunk's per-region geometry into
-// the leaf's Intermediates/ folder; returns false if the chunk is rejected as too low. Defined in
+// the leaf's Gaea cache folder; returns false if the chunk is rejected as too low. Defined in
 // ProcessBakedRegion.cpp; full contract documented at that definition.
 bool ProcessBakedRegion(const IslandBakeContext& rContext, const BakeOutput& rBakeOutput, const RegionBounds& rRegion, std::vector<float> meshPositions, std::vector<uint32_t> meshIndices, const LeafTarget& rLeaf);
 

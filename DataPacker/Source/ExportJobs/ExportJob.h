@@ -33,6 +33,7 @@ public:
 	std::filesystem::path mRelativeDirectory;
 	std::string mRelativeFile;
 	std::filesystem::path mChunkFile;
+	std::filesystem::path mCacheMetadataFile;
 	std::filesystem::path mLastModifiedTimeFile;
 
 	std::future<std::vector<std::byte>&> mFuture;
@@ -43,10 +44,14 @@ protected:
 
 	virtual void Export() = 0;
 	virtual void CleanupOnFailure() {}
+	virtual std::string GetInputFingerprint() const;
+	virtual bool AreCachedInputsStable() const { return true; }
+	virtual void UpdateCacheMetadata() {}
 
 	std::tuple<common::ChunkHeader*, std::span<std::byte>> AllocateHeaderAndData(int64_t iDataSize);
 
 	std::vector<std::byte> mHeaderAndData;
+	std::string mCheckedInputFingerprint;
 };
 
 template <typename T>

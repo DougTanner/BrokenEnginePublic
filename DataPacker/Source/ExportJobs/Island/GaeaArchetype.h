@@ -24,6 +24,6 @@ float ReadArchetypeSeaLevel(const std::filesystem::path& rTerrainFile);
 // preview without DataPacker overwriting them), and (optionally) Mesher.VerticesPerSide. The Sea node's
 // Level is intentionally NOT patched — it is read separately by ReadArchetypeSeaLevel and consumed by
 // the post-bake elevation math so the Gaea editor preview and the in-game terrain agree on the water
-// surface position. Each route works on its own Intermediates/PatchedArchetype.terrain copy, so the
+// surface position. Each route works on its own cached PatchedArchetype.terrain copy, so the
 // on-disk source archetype is never mutated.
 void PatchArchetype(const std::filesystem::path& rTerrainFile, const WorldDimensions& rDimensions, int32_t iSeed, std::optional<int64_t> oiMeshResolution, int32_t iGaeaRouteChoice);

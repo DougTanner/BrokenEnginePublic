@@ -2,12 +2,10 @@
 
 // Crops one chunk region [xStart,xEnd) x [yStart,yEnd) out of the full Gaea bake and writes the
 // chunk's per-region geometry (Elevation.r32, AmbientOcclusion.r16, MeshProcessed.bin,
-// BakedDimensions.json) into the leaf's own Intermediates/ folder (rLeafDir/Intermediates) — kept
-// under "Intermediates" so the same .gitignore rule that ignores the raw route bake ignores these
-// derived per-chunk files too; the committed BC outputs land at the leaf root later (ExportIsland).
-// The shared full-res Color/Normals/mask PNGs are NOT copied — rTextureSourceDirRelative
-// (leaf-relative, "../Intermediates") points ExportIsland at the route's Intermediates folder, and
-// the crop rect recorded in BakedDimensions lets it crop them in-memory. A 1x1 route passes the
+// BakedDimensions.json) into the leaf's Gaea cache folder. The source leaf remains the home of the
+// tracked BC outputs and provides ExportIsland's stable chunk path. Shared full-res
+// Color/Normals/mask PNGs remain in the route cache, and the crop rect recorded in BakedDimensions
+// lets ExportIsland crop them in-memory. A 1x1 route passes the
 // whole texture as the region; a 2x1 route calls this once per Y-half, a 2x2 route once per quadrant
 // (both axes split at the midpoints), so the existing auto-crop runs (and, in ExportIsland, the
 // underwater re-coloring) once per chunk.
@@ -142,7 +140,7 @@ void WriteElevation(const std::filesystem::path& rLeafIntermediatesDir, const st
 }
 
 // Crop AmbientOcclusion to the same bbox and write the leaf AmbientOcclusion.r16. Color.png and
-// Normals.exr stay full-res in the route Intermediates (no writer in Texture.cpp for either
+// Normals.exr stay full-res in the route cache (no writer in Texture.cpp for either
 // format); ExportIsland crops their pixel data in-memory via this leaf's crop rect.
 void CropAndWriteAmbientOcclusion(const std::filesystem::path& rLeafIntermediatesDir, const std::vector<uint16_t>& rFullAmbientOcclusion, int64_t iTexturePixels, const CropRect& rCrop)
 {
@@ -248,8 +246,8 @@ void WriteMeshProcessed(const std::filesystem::path& rLeafIntermediatesDir, cons
 // BakedDimensions.json, written LAST in the leaf — its presence is the leaf-complete marker
 // ExportIsland::Handles keys on. Anisotropic post-crop world dims (meters-per-pixel is global,
 // so the formula is unchanged from the single-island case), the crop rect into the full bake,
-// and the leaf-relative path to the shared texture sources.
-void WriteBakedDimensions(const std::filesystem::path& rLeafIntermediatesDir, const WorldDimensions& rDimensions, int64_t iTexturePixels, const CropRect& rCrop, const std::string& rTextureSourceDirRelative)
+// into the full bake. The shared texture source path is derived from the cache layout.
+void WriteBakedDimensions(const std::filesystem::path& rLeafIntermediatesDirectory, const WorldDimensions& rDimensions, int64_t iTexturePixels, const CropRect& rCrop)
 {
 	nlohmann::json bakedJson;
 	bakedJson["widthMeters"] = rDimensions.fFootprintMeters * static_cast<float>(rCrop.iWidth) / static_cast<float>(iTexturePixels);
@@ -260,8 +258,7 @@ void WriteBakedDimensions(const std::filesystem::path& rLeafIntermediatesDir, co
 	bakedJson["cropWidth"] = rCrop.iWidth;
 	bakedJson["cropHeight"] = rCrop.iHeight;
 	bakedJson["fullTexturePixels"] = iTexturePixels;
-	bakedJson["textureSourceDir"] = rTextureSourceDirRelative;
-	std::ofstream bakedStream(rLeafIntermediatesDir / kpcBakedDimensionsFile);
+	std::ofstream bakedStream(rLeafIntermediatesDirectory / kpcBakedDimensionsFile);
 	bakedStream << bakedJson.dump(4);
 	bakedStream.close();
 	VERIFY_SUCCESS(bakedStream.good());
@@ -271,7 +268,8 @@ void WriteBakedDimensions(const std::filesystem::path& rLeafIntermediatesDir, co
 
 bool ProcessBakedRegion(const IslandBakeContext& rContext, const BakeOutput& rBakeOutput, const RegionBounds& rRegion, std::vector<float> meshPositions, std::vector<uint32_t> meshIndices, const LeafTarget& rLeaf)
 {
-	std::filesystem::path leafIntermediatesDir = rLeaf.rLeafDir / kpcIslandIntermediatesDir;
+	const std::filesystem::path& rSourceLeafDirectory = rLeaf.rSourceLeafDirectory;
+	const std::filesystem::path& rCacheLeafDirectory = rLeaf.rCacheLeafDirectory;
 
 	// Auto-crop bbox of pixels above the sea-floor cut line, confined to this region. An empty bbox
 	// is a configuration error: the route produced no terrain in this chunk.
@@ -279,12 +277,12 @@ bool ProcessBakedRegion(const IslandBakeContext& rContext, const BakeOutput& rBa
 	if (bbox.iMaxX < 0)
 	{
 		float fCropCutLineMeters = -rBakeOutput.fBeachOffsetMeters + kfCropEpsilonAboveSeaFloorMeters;
-		throw std::runtime_error(std::format("Island chunk \"{}\" region [{}..{}, {}..{}] has no pixels above the sea-floor cut line ({:.2f} m): the Route subdivision produced no terrain in this chunk. Check the archetype's Route shape or raise Island.json's elevationMeters.", rLeaf.rLeafDir.string(), rRegion.iStartX, rRegion.iEndX - 1, rRegion.iStartY, rRegion.iEndY - 1, fCropCutLineMeters));
+		throw std::runtime_error(std::format("Island chunk \"{}\" region [{}..{}, {}..{}] has no pixels above the sea-floor cut line ({:.2f} m): the Route subdivision produced no terrain in this chunk. Check the archetype's Route shape or raise Island.json's elevationMeters.", rSourceLeafDirectory.string(), rRegion.iStartX, rRegion.iEndX - 1, rRegion.iStartY, rRegion.iEndY - 1, fCropCutLineMeters));
 	}
 
 	// Align and expand the bbox to the crop rect (multiple of kiCropAlignment per axis).
 	CropRect crop = ComputeCropRect(bbox, rContext.iTexturePixels);
-	LOG(kDefault, kDebug, "Cropping island chunk \"{}\": bbox ({}..{},{}..{}) -> ({}+{},{}+{}) [aligned to {}]", rLeaf.rLeafDir.string(), bbox.iMinX, bbox.iMaxX, bbox.iMinY, bbox.iMaxY, crop.iX, crop.iWidth, crop.iY, crop.iHeight, kiCropAlignment);
+	LOG(kDefault, kDebug, "Cropping island chunk \"{}\": bbox ({}..{},{}..{}) -> ({}+{},{}+{}) [aligned to {}]", rSourceLeafDirectory.string(), bbox.iMinX, bbox.iMaxX, bbox.iMinY, bbox.iMaxY, crop.iX, crop.iWidth, crop.iY, crop.iHeight, kiCropAlignment);
 
 	// Crop + box-filter downsample elevation, then reject very low / underwater leaves: the
 	// downsampled peak is the exact shipped data ExportIsland reports as fMaxHeightMeters. Below the
@@ -296,19 +294,22 @@ bool ProcessBakedRegion(const IslandBakeContext& rContext, const BakeOutput& rBa
 	float fMaxHeightMeters = *std::ranges::max_element(downsampledPixels);
 	if (fMaxHeightMeters < kfMinIslandMaxHeightMeters)
 	{
-		std::filesystem::remove_all(rLeaf.rLeafDir);
-		LOG(kDefault, kDebug, "Rejected island leaf \"{}\": max height {}m below minimum {}m", rLeaf.rLeafDir.string(), common::Wb(fMaxHeightMeters, 2), common::Wb(kfMinIslandMaxHeightMeters, 2));
+		std::filesystem::remove_all(rSourceLeafDirectory);
+		std::filesystem::remove_all(rCacheLeafDirectory);
+		std::filesystem::remove_all(GetIslandDiagnosticsPath(rSourceLeafDirectory));
+		LOG(kDefault, kDebug, "Rejected island leaf \"{}\": max height {}m below minimum {}m", rSourceLeafDirectory.string(), common::Wb(fMaxHeightMeters, 2), common::Wb(kfMinIslandMaxHeightMeters, 2));
 		return false;
 	}
 
-	std::filesystem::create_directories(leafIntermediatesDir);
-	WriteElevation(leafIntermediatesDir, downsampledPixels);
-	CropAndWriteAmbientOcclusion(leafIntermediatesDir, rBakeOutput.rFullAmbientOcclusion, rContext.iTexturePixels, crop);
+	std::filesystem::create_directories(rSourceLeafDirectory);
+	std::filesystem::create_directories(rCacheLeafDirectory);
+	WriteElevation(rCacheLeafDirectory, downsampledPixels);
+	CropAndWriteAmbientOcclusion(rCacheLeafDirectory, rBakeOutput.rFullAmbientOcclusion, rContext.iTexturePixels, crop);
 
-	CropAndRepackMesh(meshPositions, meshIndices, rContext.rDimensions, rContext.iTexturePixels, crop, rRegion, rLeaf.rLeafDir);
-	WriteMeshProcessed(leafIntermediatesDir, meshPositions, meshIndices);
+	CropAndRepackMesh(meshPositions, meshIndices, rContext.rDimensions, rContext.iTexturePixels, crop, rRegion, rSourceLeafDirectory);
+	WriteMeshProcessed(rCacheLeafDirectory, meshPositions, meshIndices);
 
-	WriteBakedDimensions(leafIntermediatesDir, rContext.rDimensions, rContext.iTexturePixels, crop, rLeaf.rTextureSourceDirRelative);
+	WriteBakedDimensions(rCacheLeafDirectory, rContext.rDimensions, rContext.iTexturePixels, crop);
 
 	return true;
 }

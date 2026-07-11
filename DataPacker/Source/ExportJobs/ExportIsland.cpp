@@ -1,5 +1,6 @@
 #include "ExportIsland.h"
 
+#include "FileManager.h"
 #include "Island/BakeIslandIntermediates.h"
 #include "Texture/Texture.h"
 
@@ -179,7 +180,7 @@ static void MaskMipSaveTexture(Texture& rTexture, const std::vector<float>& rHei
 // Loads the four grayscale material-mask PNGs (Rock/Sand/Snow/Flow), packs them into one BC7 RGBA texture
 // cropped + 4x downsampled to match the heightmap footprint, and saves it. Serialized behind
 // Texture::sEncodeMutex like the other island textures.
-static void EncodeMaterialMasks(const std::filesystem::path& rInputPath, const std::filesystem::path& rTextureSourceDir, const BakedDimensions& rBaked, const std::vector<float>& rHeightmapData, int64_t iElevationWidth, int64_t iElevationHeight, int iJpegSidecarQuality)
+static void EncodeMaterialMasks(const std::filesystem::path& rInputPath, const std::filesystem::path& rTextureSourceDirectory, const std::filesystem::path& rDiagnosticsDirectory, const BakedDimensions& rBaked, const std::vector<float>& rHeightmapData, int64_t iElevationWidth, int64_t iElevationHeight, int iJpegSidecarQuality)
 {
 	std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 
@@ -203,7 +204,7 @@ static void EncodeMaterialMasks(const std::filesystem::path& rInputPath, const s
 		int iWidth = 0;
 		int iHeight = 0;
 		int iChannelsInFile = 0;
-		ppMaskPixels[i] = stbi_load(reinterpret_cast<const char*>((rTextureSourceDir / pcMaskNames[i]).u8string().c_str()), &iWidth, &iHeight, &iChannelsInFile, STBI_grey);
+		ppMaskPixels[i] = stbi_load(reinterpret_cast<const char*>((rTextureSourceDirectory / pcMaskNames[i]).u8string().c_str()), &iWidth, &iHeight, &iChannelsInFile, STBI_grey);
 		ASSERT(ppMaskPixels[i] != nullptr);
 		if (i == 0)
 		{
@@ -235,7 +236,7 @@ static void EncodeMaterialMasks(const std::filesystem::path& rInputPath, const s
 	// mask channels go to zero underwater (no rock/sand/snow/flow override below the cut line).
 	const float pfFlatMasks[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	// kVerifyNoAlpha omitted: A channel carries real data (Flow mask).
-	MaskMipSaveTexture(texture, rHeightmapData, iElevationWidth, iElevationHeight, 1, pfFlatMasks, VK_FORMAT_BC7_UNORM_BLOCK, rInputPath / kpcIslandMasks, {}, rInputPath / "Masks.jpg", iJpegSidecarQuality, {});
+	MaskMipSaveTexture(texture, rHeightmapData, iElevationWidth, iElevationHeight, 1, pfFlatMasks, VK_FORMAT_BC7_UNORM_BLOCK, rInputPath / kpcIslandMasks, {}, rDiagnosticsDirectory / "Masks.jpg", iJpegSidecarQuality, {});
 }
 
 // Reads MeshProcessed.bin ([int32 vertexCount, int32 indexCount, float3 positions, uint32 indices]) into
@@ -262,15 +263,16 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 {
 	// rInputPath is the chunk leaf folder (<island>/<route>/<index>). Per-chunk cropped geometry
 	// (Elevation.r32, AmbientOcclusion.r16, MeshProcessed.bin, BakedDimensions.json) lives in the
-	// leaf's own Intermediates/ folder; the route's chunks SHARE the full-res Color (PNG8 sRGB) /
-	// Normals (EXR) / mask PNG sources in textureSourceDir (the route Intermediates dir, resolved
-	// from baked.textureSourceDir = "../Intermediates"), cropped in-memory below via this leaf's crop
-	// rect so each chunk's outputs and JPG sidecars land at its own crop dims. BakedDimensions.json
+	// leaf's Gaea cache folder; the route's chunks SHARE the full-res Color (PNG8 sRGB) /
+	// Normals (EXR) / mask PNG sources in the parent route cache, cropped in-memory below via this
+	// leaf's crop rect so each chunk's outputs and diagnostic JPEGs use its own crop dims. BakedDimensions.json
 	// drives every downstream size; it is written last per leaf, so its presence is guaranteed if the
 	// bake succeeded. The committed BC outputs are saved to the leaf root (not Intermediates).
 	BakedDimensions baked = ReadBakedDimensions(rInputPath);
-	std::filesystem::path intermediatesDir = rInputPath / kpcIslandIntermediatesDir;
-	std::filesystem::path textureSourceDir = rInputPath / baked.textureSourceDir;
+	std::filesystem::path intermediatesDirectory = GetIslandCachePath(rInputPath);
+	std::filesystem::path textureSourceDirectory = intermediatesDirectory.parent_path();
+	std::filesystem::path diagnosticsDirectory = GetIslandDiagnosticsPath(rInputPath);
+	std::filesystem::create_directories(diagnosticsDirectory);
 	rOut.fWorldFootprintXMeters = baked.fWidthMeters;
 	rOut.fWorldFootprintYMeters = baked.fHeightMeters;
 	rOut.fWorldElevationMeters = baked.fElevationMeters;
@@ -281,7 +283,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	// underwater mask (below) and the chunk payload heightmap (further down). Same buffer, single
 	// read.
 	rOut.cpuHeightmapData.resize(static_cast<size_t>(iElevationWidth) * static_cast<size_t>(iElevationHeight));
-	std::fstream rawStream(intermediatesDir / "Elevation.r32", std::ios::in | std::ios::binary);
+	std::fstream rawStream(intermediatesDirectory / "Elevation.r32", std::ios::in | std::ios::binary);
 	rawStream.read(reinterpret_cast<char*>(rOut.cpuHeightmapData.data()), rOut.cpuHeightmapData.size() * sizeof(float));
 	rawStream.close();
 	rOut.iHeightmapWidth = static_cast<int32_t>(iElevationWidth);
@@ -309,35 +311,35 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	static constexpr int kiJpegSidecarQuality = 90;
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(intermediatesDir / "AmbientOcclusion.r16", FileType::kUint16Raw, baked.iCropWidth, baked.iCropHeight);
+		Texture texture(intermediatesDirectory / "AmbientOcclusion.r16", FileType::kUint16Raw, baked.iCropWidth, baked.iCropHeight);
 		const float pfFlatAmbientOcclusion[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-		MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatAmbientOcclusion, VK_FORMAT_BC4_UNORM_BLOCK, rInputPath / kpcIslandAmbientOcclusion, {}, rInputPath / "AmbientOcclusion.jpg", kiJpegSidecarQuality, TextureOptions::kGrayscale);
+		MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatAmbientOcclusion, VK_FORMAT_BC4_UNORM_BLOCK, rInputPath / kpcIslandAmbientOcclusion, {}, diagnosticsDirectory / "AmbientOcclusion.jpg", kiJpegSidecarQuality, TextureOptions::kGrayscale);
 	}
 
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(textureSourceDir / "Color.png", FileType::kImage);
+		Texture texture(textureSourceDirectory / "Color.png", FileType::kImage);
 		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		// Flat alpha stays 255 so BC7 keeps its alpha-free mode and the kVerifyNoAlpha assert
 		// at Save still passes — RGB carries the underwater zero, alpha is invariant.
 		const float pfFlatColor[4] = {0.0f, 0.0f, 0.0f, 255.0f};
-		MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatColor, VK_FORMAT_BC7_UNORM_BLOCK, rInputPath / kpcIslandColor, TextureOptions::kVerifyNoAlpha, rInputPath / "Color.jpg", kiJpegSidecarQuality, {});
+		MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatColor, VK_FORMAT_BC7_UNORM_BLOCK, rInputPath / kpcIslandColor, TextureOptions::kVerifyNoAlpha, diagnosticsDirectory / "Color.jpg", kiJpegSidecarQuality, {});
 	}
 
 	{
 		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(textureSourceDir / "Normals.exr", FileType::kExr);
+		Texture texture(textureSourceDirectory / "Normals.exr", FileType::kExr);
 		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
 		// Flat (127.5, 127.5) → shader 2x-1 → (0, 0) → reconstructed Z=1 → flat tangent normal (0,0,1).
 		const float pfFlatNormals[4] = {127.5f, 127.5f, 0.0f, 0.0f};
-		MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatNormals, VK_FORMAT_BC5_UNORM_BLOCK, rInputPath / kpcIslandNormals, {}, rInputPath / "Normals.jpg", kiJpegSidecarQuality, {});
+		MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatNormals, VK_FORMAT_BC5_UNORM_BLOCK, rInputPath / kpcIslandNormals, {}, diagnosticsDirectory / "Normals.jpg", kiJpegSidecarQuality, {});
 	}
 
 	// Material masks: pack Rock / Sand / Snow / Flow PNGs into a single BC7 RGBA texture cropped to
 	// match Color / Normals UVs, then 4x downsampled for ~25% of Color's footprint. R=Rock, G=Sand,
 	// B=Snow, A=Flow (Flow channel reserved; Terrain.frag ignores it today). Source PNGs are 8-bit
 	// palette grayscale at the same dimensions as Color.png (stb decodes the palette to luminance).
-	EncodeMaterialMasks(rInputPath, textureSourceDir, baked, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiJpegSidecarQuality);
+	EncodeMaterialMasks(rInputPath, textureSourceDirectory, diagnosticsDirectory, baked, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiJpegSidecarQuality);
 
 	// cpuHeightmapData / iHeightmapWidth / iHeightmapHeight were populated at the top of this
 	// function so the underwater mask could share the buffer; nothing more to do for the heightmap
@@ -347,7 +349,7 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	// int32 indexCount, float3 positions, uint32 indices]. Strip Z here — Terrain.vert re-derives
 	// it from the elevation sampler — and pack float2 XY pairs into the chunk payload after the
 	// heightmap halfs (see Export() and IslandHeader in DataFile.h).
-	ReadProcessedMesh(intermediatesDir, rOut);
+	ReadProcessedMesh(intermediatesDirectory, rOut);
 }
 
 // ---------------------------------------------------------------------------
@@ -356,12 +358,12 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 
 std::optional<common::ChunkFlags_t> ExportIsland::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 {
-	// A chunk leaf is <Islands>/<island>/<route>/<index>: it carries Intermediates/BakedDimensions.json
-	// (written last per leaf by the bake). The route folder's own Intermediates/ holds the raw Gaea
-	// bake but NO BakedDimensions.json, so gating on that file claims exactly the leaves (one kIsland
+	// A chunk leaf is <Islands>/<island>/<route>/<index>: its cache carries BakedDimensions.json
+	// (written last per leaf by the bake). The route cache holds the raw Gaea bake but no dimensions,
+	// so gating on that file claims exactly the leaves (one kIsland
 	// chunk each). The "Islands" ancestor guard keeps a stray match elsewhere from being mistaken for
 	// a chunk.
-	if (!rDirectoryEntry.is_directory() || !std::filesystem::exists(rDirectoryEntry.path() / kpcIslandIntermediatesDir / kpcBakedDimensionsFile))
+	if (!rDirectoryEntry.is_directory())
 	{
 		return std::nullopt;
 	}
@@ -376,42 +378,29 @@ std::optional<common::ChunkFlags_t> ExportIsland::Handles(const std::filesystem:
 			break;
 		}
 	}
-	return bUnderIslands ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kIsland) : std::nullopt;
+	if (!bUnderIslands || !std::filesystem::exists(GetIslandCachePath(rDirectoryEntry.path()) / kpcBakedDimensionsFile))
+	{
+		return std::nullopt;
+	}
+	return std::optional<common::ChunkFlags_t>(common::ChunkFlags::kIsland);
 }
 
-bool ExportIsland::CheckDirty(const std::filesystem::path& rPackFile)
+std::string ExportIsland::GetInputFingerprint() const
 {
-	if (ExportJob::CheckDirty(rPackFile))
+	std::filesystem::path cacheLeafDirectory = GetIslandCachePath(mInputPath);
+	std::filesystem::path cacheRouteDirectory = cacheLeafDirectory.parent_path();
+	constexpr const char* kpcLeafInputs[] = {"AmbientOcclusion.r16", "BakedDimensions.json", "Elevation.r32", "MeshProcessed.bin"};
+	constexpr const char* kpcRouteInputs[] = {"Color.png", "Flow.png", "Normals.exr", "Rock.png", "Sand.png", "Snow.png"};
+	nlohmann::json fingerprint;
+	for (const char* pcFile : kpcLeafInputs)
 	{
-		return true;
+		fingerprint["leaf"][pcFile] = gpFileManager->GetFingerprint(cacheLeafDirectory / pcFile);
 	}
-
-	// Base CheckDirty compares against the leaf directory's mtime, which does NOT propagate from
-	// edits to the files inside it or to the shared route-level textures. Re-run the export whenever
-	// any file in the leaf's own Intermediates/ (per-chunk geometry) OR the route's Intermediates/
-	// dir (shared Color / Normals / mask sources, one level up) is newer than the chunk file, so a
-	// fresh bake actually reaches the .pack / .jpg sidecars.
-	std::filesystem::file_time_type chunkFileLastWriteTime = std::filesystem::last_write_time(mChunkFile);
-	std::filesystem::path searchDirs[] = {mInputPath / kpcIslandIntermediatesDir, mInputPath.parent_path() / kpcIslandIntermediatesDir};
-	for (const std::filesystem::path& rSearchDir : searchDirs)
+	for (const char* pcFile : kpcRouteInputs)
 	{
-		if (!std::filesystem::exists(rSearchDir))
-		{
-			continue;
-		}
-		for (const std::filesystem::directory_entry& rEntry : std::filesystem::directory_iterator(rSearchDir))
-		{
-			if (rEntry.is_regular_file() && std::filesystem::last_write_time(rEntry.path()) > chunkFileLastWriteTime)
-			{
-				auto [date, time] = common::FileTimeString(std::filesystem::last_write_time(rEntry.path()));
-				LOG(kDefault, kDebug, "Intermediate \"{}\" is newer than chunk \"{}\": {} {}", rEntry.path().string(), mChunkFile.string(), date, time);
-				mbDirty = true;
-				return mbDirty;
-			}
-		}
+		fingerprint["route"][pcFile] = gpFileManager->GetFingerprint(cacheRouteDirectory / pcFile);
 	}
-
-	return false;
+	return fingerprint.dump();
 }
 
 void ExportIsland::Export()
