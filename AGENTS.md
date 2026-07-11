@@ -15,7 +15,7 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 
 - Main session is manager: delegate aggressively to keep the context small, except trivial edits
 - Subagent instructions: CONCISE but COMPLETE — objective, scope, file paths, output format. Provide them only with the instructions and context they need.
-- One top-level Codex session owns one worktree for its full plan lifecycle. Every subagent works in that same checkout; subagents never create nested or sibling worktrees.
+- One top-level agent session owns one worktree for its full plan lifecycle. Every subagent works in that same checkout; subagents never create nested or sibling worktrees.
 
 ### Session worktree lifecycle
 

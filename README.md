@@ -32,6 +32,36 @@ The game Kinetic Storm runs on Broken Engine and is currently available on Steam
 - Consider setting "git config --global core.safecrlf false" to supress warnings about automatic endline conversions
 	- "LF will be replaced by CRLF the next time Git touches it"
 
+## AI Coding CLIs
+
+The suggested launch commands below bypass permission prompts and other safeguards. Use them only in a repository and environment where that level of access is intentional.
+
+### Claude Code
+
+- Install [Claude Code](https://code.claude.com/docs/en/installation) from PowerShell:
+	```powershell
+	irm https://claude.ai/install.ps1 | iex
+	```
+- Close and reopen the terminal, then verify the installation with `claude --version`.
+- Git for Windows is recommended on native Windows. From a Git Bash tab inside Windows Terminal, opened at the repository root, launch Claude Code in an isolated, automatically named worktree:
+	```bash
+	claude --dangerously-skip-permissions --worktree
+	```
+
+### Codex CLI
+
+- Install [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) from PowerShell:
+	```powershell
+	powershell -ExecutionPolicy Bypass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
+	```
+- Close and reopen the terminal, then verify the installation with `codex --version`.
+- From a PowerShell 7 tab inside Windows Terminal, opened at the repository root, load the repository helper and launch Codex in a UUID-named worktree:
+	```powershell
+	. .\.codex\codex-worktree.ps1
+	codex-worktree
+	```
+- `codex-worktree` creates branch `codex/<uuid>`, stores the worktree under `~/.codex/worktrees/<repository>/<uuid>`, and launches Codex with `--dangerously-bypass-approvals-and-sandbox`.
+
 ## Compile
 
 - You can verify that everything is set up correctly by opening BrokenEnginePublic/DataPacker/Platforms/VisualStudio2026/DataPacker.sln
