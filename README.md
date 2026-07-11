@@ -24,9 +24,11 @@ The game Kinetic Storm runs on Broken Engine and is currently available on Steam
 
 ## Git
 
+- **Enable Windows Developer Mode _before_ cloning** (Settings -> System -> For developers -> Developer Mode -> On). This grants the privilege Git needs to create symlinks. Without it, symlinked files check out as plain text files containing the link target instead of working links — notably `.agents/skills`, which points Codex at Claude Code's shared `.claude/skills`, so the shared skills fail to load.
 - Repository should be cloned with `--recurse-submodules` and symlink support enabled so Codex and Claude Code share the same skills:
-	- Enable Windows Developer Mode, then clone with `git -c core.symlinks=true clone --recurse-submodules <repository-url>`
+	- With Developer Mode on, clone with `git -c core.symlinks=true clone --recurse-submodules <repository-url>`
 	- Or use "git submodule init" & "git submodule update" after cloning
+	- If you already cloned without Developer Mode, enable it, open a new terminal (so the new privilege takes effect), then re-create the links with `git checkout -- .agents/skills`
 - Consider setting "git config --global core.safecrlf false" to supress warnings about automatic endline conversions
 	- "LF will be replaced by CRLF the next time Git touches it"
 

@@ -21,7 +21,7 @@ inline constexpr float kfLanguageMenuGeometryScale = 0.5f;
 //
 // Anchors / extents as DisplaySize fractions:
 inline constexpr float kfMainMenuCenterFractionX = 1.0f / 3.0f; // MainMenu group center on first vertical third
-inline constexpr float kfMainMenuCenterFractionY = 0.5f;        // MainMenu group center on screen center Y
+inline constexpr float kfMainMenuCenterFractionY = 0.5f;        // MainMenu group anchored at semantic screen center
 inline constexpr float kfHudEdgeMarginFraction = 0.05f;        // HUD panel inset from the screen edge
 inline constexpr float kfHudPanelTopFraction = 0.125f;         // HUD panel top edge
 inline constexpr float kfHudPanelMaxHeightFraction = 0.75f;    // HUD panel height cap + fixed hover-zone extent
@@ -31,6 +31,7 @@ inline constexpr float kfModalAnchorFractionY = 0.4f;          // Modal center Y
 inline constexpr float kfSettingsPanelWidthFraction = 0.6f;    // Graphics settings-panel width (Sound auto-resizes)
 // 4K-authored pixels (multiply by engine::UiScale() at use):
 inline constexpr float kfHeadingGapPixels = 22.0f;             // Gap below a MenuHeading
+inline constexpr float kfMainMenuOpticalOffsetYPixels = 20.0f; // Screenshot-derived upward correction for visible title/action composition
 inline constexpr float kfSectionGapPixels = 65.0f;             // Gap between major sections
 inline constexpr float kfScreenBottomMarginPixels = 44.0f;     // Margin above a screen's bottom edge
 inline constexpr float kfPrimaryButtonMinWidthPixels = 760.0f; // Menu primary-button minimum width

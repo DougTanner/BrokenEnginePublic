@@ -37,6 +37,7 @@ void MainMenuScreen::Render()
 
 	// Center the title/action group vertically and place it on the screen's first vertical third.
 	ImVec2 vMenuCenter(rIo.DisplaySize.x * kfMainMenuCenterFractionX, rIo.DisplaySize.y * kfMainMenuCenterFractionY);
+	vMenuCenter.y -= kfMainMenuOpticalOffsetYPixels * engine::UiScale() * ImGui::GetStyle().FontScaleMain;
 	ImGui::SetNextWindowPos(vMenuCenter, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
 	ScopedMenuFont menuFont;

@@ -14,7 +14,7 @@
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <windows.h> // Explicit: GetModuleFileNameW / CreateFileW / SetFileTime for the lock touch (winsock2.h pulls windows.h transitively, but document the direct dependency).
+#include <windows.h> // Explicit: GetEnvironmentVariableW / CreateFileW / SetFileTime for the lock touch (winsock2.h pulls windows.h transitively, but document the direct dependency).
 
 #include <cstdint>
 #include <cstdio>
@@ -155,40 +155,33 @@ namespace
 	// steal protocol can read a stale mtime as a dead owner. MUST NOT create the file (a touch may
 	// never resurrect a stolen/released lock — hence OPEN_EXISTING) and MUST NOT alter AgentCli's
 	// stdout or exit code — every failure path silently no-ops.
+	//
+	// Lock-path literal (%LOCALAPPDATA%\BrokenEngineHarness\agent-harness.lock) is duplicated in
+	// .claude/skills/agent-harness/SKILL.md ("Claiming the harness"); the two MUST stay identical or the
+	// advisory lock splits across worktrees.
 	void TouchHarnessLock()
 	{
-		wchar_t pModulePath[MAX_PATH] = {};
-		DWORD uiLength = ::GetModuleFileNameW(nullptr, pModulePath, MAX_PATH);
-		if (uiLength == 0 || uiLength >= MAX_PATH)
+		// Fixed user-global path so every git worktree claims the SAME lock: %LOCALAPPDATA% is per-user and
+		// worktree-independent. Read the env var (not SHGetKnownFolderPath) so C++ and Git Bash resolve the
+		// identical base string and to avoid a Shell32/Ole32 link dependency. Two-call sizing: the first call
+		// returns the required length INCLUDING the null terminator.
+		DWORD uiRequired = ::GetEnvironmentVariableW(L"LOCALAPPDATA", nullptr, 0);
+		if (uiRequired == 0)
 		{
-			return;
+			return; // Unset or errored — best-effort, so silently no-op.
 		}
 
-		// Exe path is <root>/Tools/AgentCli/Platforms/VisualStudio2026/Output/AgentCli*.exe — strip the filename
-		// plus the five parent directories (Output, VisualStudio2026, Platforms, AgentCli, Tools) to reach the repo root.
-		// Validate each stripped directory name against that expected sequence: an exe copied to some unrelated
-		// 6-deep path must not touch a same-named file there, and a UNC-shaped mis-derivation (\\Temp\...) would add
-		// a host-resolution stall to every command. On any mismatch, silently no-op.
-		static constexpr const wchar_t* kpExpectedComponents[] = { L"Output", L"VisualStudio2026", L"Platforms", L"AgentCli", L"Tools" };
-		std::wstring lockPath = pModulePath;
-		for (int i = 0; i < 6; ++i)
+		std::wstring lockPath(uiRequired, L'\0');
+		DWORD uiWritten = ::GetEnvironmentVariableW(L"LOCALAPPDATA", lockPath.data(), uiRequired);
+		if (uiWritten == 0 || uiWritten >= uiRequired)
 		{
-			size_t uiSeparator = lockPath.find_last_of(L"\\/");
-			if (uiSeparator == std::wstring::npos)
-			{
-				return;
-			}
-
-			// i == 0 strips the exe filename (any name); i == 1..5 strip the parent directories, checked in order.
-			if (i > 0 && ::_wcsicmp(lockPath.c_str() + uiSeparator + 1, kpExpectedComponents[i - 1]) != 0)
-			{
-				return;
-			}
-
-			lockPath.resize(uiSeparator);
+			return; // Failed, or the value grew between calls — no-op.
 		}
 
-		lockPath += L"\\Temp\\agent-harness.lock";
+		lockPath.resize(uiWritten); // Trim the reserved null terminator to the returned (no-null) length.
+
+		// %LOCALAPPDATA% never carries a trailing separator — concatenate the known-good suffix directly.
+		lockPath += L"\\BrokenEngineHarness\\agent-harness.lock";
 
 		HANDLE hLock = ::CreateFileW(lockPath.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 		if (hLock == INVALID_HANDLE_VALUE)

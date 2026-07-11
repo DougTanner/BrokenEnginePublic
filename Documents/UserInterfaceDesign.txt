@@ -85,6 +85,11 @@ Hard rule: never multiply a measured (CalcTextSize) size by a magnifying
 constant. Integer-pixel rounding in the measurement gets amplified into
 visible cross-resolution inconsistency.
 
+These measurements are implementation inputs, not evidence that a composition
+looks correct. Invisible ImGui window bounds, item rectangles, cursor extents,
+and text line boxes may include padding or font bearings the player never sees.
+They can diagnose a layout, but only the rendered result can validate it.
+
 Files:
   Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md:11-14  (the three-rule standard)
   Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.cpp:182  float MenuButtonsWidth(...)  (text-driven width precedent)
@@ -100,8 +105,9 @@ The block separates DisplaySize fractions (content-independent extents) from
 4K-authored pixel constants (multiplied by UiScale() at use).
 
 Files:
-  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:10-37
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:10-38
     kfMainMenuCenterFractionX = 1/3, kfMainMenuCenterFractionY = 0.5
+    kfMainMenuOpticalOffsetYPixels = 20
     kfHudEdgeMarginFraction = 0.05f, kfHudPanelTopFraction = 0.125f, kfHudPanelMaxHeightFraction = 0.75f
     kfGraphicsMaxHeightFraction = 0.9f
     kfModalWidthFraction = 0.35f, kfModalAnchorFractionY = 0.4f, kfSettingsPanelWidthFraction = 0.6f
@@ -113,13 +119,20 @@ Files:
 
 5. Window Placement
 -------------------
-Main, settings, pause, and modal menus center themselves by asking ImGui to pivot,
-never by hand-computing (DisplaySize - width) / 2. Pass the screen center as
-SetNextWindowPos with pivot (0.5, 0.5). MainMenu places the center of its
-auto-sized title/action group at (kfMainMenuCenterFractionX,
-kfMainMenuCenterFractionY): the first vertical-third x-line and the screen's
-vertical center. Its title and every action also share one measured content
-keyline. HUD panels
+Main, settings, pause, and modal menus use ImGui pivots as their initial
+placement mechanism, never hand-computed (DisplaySize - width) / 2 arithmetic.
+A centered transparent ImGui window does not prove that its visible content is
+centered: window padding, text line boxes, and glyph bearings may be invisible.
+The rendered composition is the authority, and placement is optically corrected
+when its visible extents or perceived weight do not balance around the intended
+anchor.
+
+MainMenu anchors its transparent window at the semantic screen position
+(kfMainMenuCenterFractionX, kfMainMenuCenterFractionY): the first vertical-third
+x-line and vertical midpoint. A screenshot-derived upward optical offset then
+centers the visible title/action composition; the offset scales with both
+UiScale() and FontScaleMain so it tracks resolution and the Font Size setting.
+Its title and every action also share one visible content keyline. HUD panels
 edge-anchor via the named margin fractions.
 
 Modal and Sound both center via the pivot convention. Modal seats its pivot
@@ -224,6 +237,13 @@ true proportions — and inspect the images directly. A change passes when no
 window is visibly larger than its content, settings columns are balanced, every
 menu button is themed and uniform-width, and the describe_ui label set is
 unchanged.
+
+Hard rule: what the player sees is the source of truth for every UI decision.
+Judge visible pixels and perceived composition in screenshots at the target
+resolutions: optical centering, whitespace above and below a group, proximity,
+contrast, hierarchy, and visual weight. ImGui window rectangles, widget bounds,
+cursor positions, calculated centers, and other abstract measurements are
+diagnostic evidence only; none can override a visibly incorrect result.
 
 Judge each result against the standard of a coherent shipped screen, not only
 against whether it improved on the baseline. Explicitly inspect hierarchy,

@@ -1,43 +1,52 @@
-# Aesthetic UI Design Pass
+# Aesthetic UI Design Pass — Remaining Screens
 
 ## Summary
 
-**What this plan does:** Recompose the existing player-facing ImGui screens through a native-resolution screenshot, critique, edit, and recapture loop. It starts with four mandatory Main Menu corrections—remove the decorative panel, center the action block, reduce the title, and turn the language selector into a subordinate footer—then applies the same subtractive hierarchy, proportion, alignment, density, and whitespace review to Pause, Graphics, Sound, Modal, and HUD without changing widget labels or mechanical invariants.
+Apply the approved Main Menu visual language to the remaining player-facing ImGui surfaces: Pause, Graphics, Sound, Modal, and HUD. The Main Menu is complete and is the fixed style anchor for hierarchy, optical balance, restrained chrome, type weight, spacing, and subordinate actions; it is not part of this plan's implementation scope.
 
-**Why it's good for the codebase:** The current true-color 4K Main Menu capture still reads as mechanically arranged rather than intentionally designed: the title and footer dominate, the button block lacks a coherent center line, and a large panel competes with the live scene. This pass creates a coherent visual hierarchy across every shipped player-facing screen, records durable layout principles and named dimensions for later work, and does so entirely in client-only ImGui geometry with no CRC, wire, save, replay, or asset-layout exposure.
+Rendered pixels are authoritative. Every design decision must be judged from native-resolution screenshots of what the player sees. ImGui windows, item bounds, calculated centers, and other layout metrics are diagnostic aids only and cannot establish visual correctness.
 
-## Context
+## Scope and source locations
 
-- Source: `Ui/AestheticUiDesignPass.md` (claimed; removed with its Order.md row after execution completes)
-- Order.md row: Tier Medium / Effort 3 / Impact 3 / Risks 1 / Score 1 (marked `[CLAIMED]` in Step 2)
-- Notes: [CLAIMED] Subjective/aesthetic design pass over the player-facing UI (follow-up to the landed mechanical layout pass): iterate screenshot→critique→adjust at native-res borderless fullscreen against an absolute "would a designer ship this?" bar (no before/after anchoring), subtractive per-screen critique. Four mandatory main-menu seed items (`MainMenuScreen.cpp`): shrink the oversized language row to a subordinate footer, center the menu buttons under the header, size down the "BROKEN ENGINE" title (`kfMenuHeadingScale`), delete the pointless panel box (`DrawPanelBackground` `:39`); then same critique on Pause/Graphics/Sound/Modal/HUD. Optional web-research first step distilled into `UserInterfaceDesign.txt`. New values → named `MenuUtils.h` constants; labels stay harness-API-stable; contract doc updated where rules change. Acceptance is user approval of the screenshots. Client-only ImGui geometry, no CRC/wire/`kiVersion`/save exposure. Grill: research depth; whether to codify aesthetics into `UserInterfaceDesign.txt`
-- Relevance: Partially — every screen, helper, documented contract, and visible Main Menu problem remains current; only the old Modal reconnect-crash blocker is stale.
-- Dependency resolution: none
-- Grill decisions: run a light design survey; codify durable aesthetic principles in new numbered `Documents/UserInterfaceDesign.txt` sections; complete and obtain user approval for Main Menu/Language before propagating that visual language to the remaining screens.
-- Changes since the plan was written:
-  - `Documents/Plans/Engine/Bugfix_RenderFrameEmptySnapshotRingOnReconnect.md` was completed and deleted. `engine::GameBase::Render` now skips empty snapshot rings at `Engine/Source/GameBase.cpp:317-530`, so the crash no longer prevents Modal rendering.
-  - `Network/ClientDisconnectModalFeedback.md` remains a separate live plan for the plain mid-session disconnect message. Existing connect-time rejection, connect-time failure, and desync paths already drive `ModalScreen`; use one of those for this plan's live Modal capture, or coordinate with that plan if it lands first.
-  - Current true-color baseline `Temp/ui_colorfix_mainmenu.png` and layout-only `Temp/ui_after_*.png` captures exist. Capture fresh true-color before images for every screen rather than relying on the older channel-swapped set.
-  - No player-screen source was added after the plan was authored. The future RmlUi feature is Revisit-When gated and explicitly ports rather than re-authors the existing visual design, so it does not supersede this pass.
+- Pause: panel/dim treatment and heading/action balance in `Projects/BrokenEngineSandbox/Source/Ui/Screens/PauseMenuScreen.cpp`.
+- Graphics: density, two-column balance, heading, controls, and Back action in `Projects/BrokenEngineSandbox/Source/Ui/Screens/GraphicsMenuScreen.cpp`. Cover both the normal screen and the denser Main Menu Time-of-Day variant.
+- Sound: whitespace, hierarchy, control widths, and action proportion in `Projects/BrokenEngineSandbox/Source/Ui/Screens/SoundMenuScreen.cpp`.
+- Modal: message wrap width, vertical rhythm, and centered OK action in `Projects/BrokenEngineSandbox/Source/Ui/Screens/ModalScreen.cpp`.
+- HUD: chrome and information density in `Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp`, while preserving fixed hover extent and left/right symmetry.
+- Shared dimensions and helpers: `Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h` and `MenuUtils.cpp`. Add or change shared values only when more than one remaining screen genuinely shares the rule; keep screen-specific values local and named.
+- Layout contract: `Documents/UserInterfaceDesign.txt`.
+- Leaf documentation: `Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md` only where implementation makes its current descriptions false.
 
-## Execution steps
+Out of scope: further Main Menu changes, color-theme redesign, textured chrome, new widgets or screens, TweaksScreen, profiling overlays, DeathMenu composition, and replacement of ImGui.
 
-1. Run a light survey of current game title-screen, RTS-menu, hierarchy, modular-scale, and whitespace guidance. Keep the research bounded to practical composition principles that can guide this session; do not turn it into a deep-research project.
-2. Distill concrete, reusable findings that fit Broken Engine's live-scene ImGui composition into concise new numbered aesthetic sections in `Documents/UserInterfaceDesign.txt`. Keep screen-specific taste in the implementation and do not expand into colors, themes, textured chrome, new widgets, or a toolkit replacement.
-3. Establish a fresh baseline with the agent harness: launch the Debug client in persisted native-resolution borderless fullscreen (no `--windowed`), capture true-color screenshots and `describe_ui` label sets for Main Menu/Language, Pause, Graphics (including the denser main-menu Time-of-Day variant), Sound, Modal, and HUD. The rendered-screen inventory at `Engine/Source/Graphics/Managers/ImGuiManager.cpp:516-531` is exhaustive; `DeathMenuScreen::Render` is empty at `Projects/BrokenEngineSandbox/Source/Ui/Screens/DeathMenuScreen.cpp:12-14` and is not a visual surface to invent in this pass.
-4. Recompose `MainMenuScreen::Render` at `Projects/BrokenEngineSandbox/Source/Ui/Screens/MainMenuScreen.cpp:24-49` and `:134-187`: remove `DrawPanelBackground` and its now-unused window rectangle, center the title and action buttons as one block, reduce title dominance, shrink language text and additive padding into a subordinate footer, and visually retune the 760-pixel primary-button floor if the capture shows it is too wide. Preserve the CJK measurement/font path and every widget label byte-for-byte. Put every new dimension or scale in the shared layout block at `Projects/BrokenEngineSandbox/Source/Ui/Screens/MenuUtils.h:6-32`; adjust `MenuHeading` at `MenuUtils.cpp:197-205` only if the grill/captures support a shared heading change rather than a Main-Menu-specific title scale.
-5. Iterate Main Menu and Language captures at native resolution against an absolute shipped-game bar: explicitly record primary/subordinate hierarchy, alignment, scale ratios, whitespace, and the contribution of every remaining element. Do not accept "better than before." Present the finished capture to the user and obtain explicit approval before touching Pause, Graphics, Sound, Modal, or HUD; the approved Main Menu becomes the style anchor for those screens.
-6. Apply the same fresh, subtractive critique to each remaining existing player-facing surface, preserving its mechanical commitments: Pause panel/dim and heading/action balance at `PauseMenuScreen.cpp:22-45`; Graphics density, two-column balance, heading, and Back action at `GraphicsMenuScreen.cpp:72-95` and `:174-177`; Sound whitespace and action proportion at `SoundMenuScreen.cpp:23-58`; Modal wrap width, vertical gap, and centered OK action at `ModalScreen.cpp:21-43`; HUD chrome/density while retaining fixed hover extent and left/right symmetry at `HudScreen.cpp:166-233` and `:412-424`. Capture and re-critique each screen after every material adjustment.
-7. Synchronize the layout contract and leaf documentation. Update the reduced-language exception at `Documents/UserInterfaceDesign.txt:32-56`, named constants at `:87-102`, Main Menu placement/composition at `:105-119`, heading rhythm at `:176-188`, and verification rules at `:205-226` wherever implementation changed them; add the approved concise numbered aesthetic principles. Update `Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md` only where its current screen/helper descriptions become false.
-8. Complete the standard C++ Code Change Process, including compile/style/review/project-membership checks and live agent-harness verification. Compare before/after `describe_ui` label sets byte-for-byte, verify every screen at native resolution, preserve HUD activation/symmetry and Graphics column invariants, and present final screenshots for the plan's required user approval. No numeric metric substitutes for that visual acceptance gate.
+## Execution
 
-## Additional candidate locations
+1. Launch the Debug client through the agent harness in persisted native-resolution borderless fullscreen. For each in-scope surface, capture a true-color screenshot and `describe_ui` label set before editing. Use an existing reachable Modal path; do not expand this plan into network-disconnect behavior.
+2. Critique each screenshot against the approved Main Menu anchor and an absolute shipped-game standard. Judge visible hierarchy, optical alignment, perceived weight, scale ratios, whitespace, density, and whether every visible element earns its space. Do not use before/after improvement or centered ImGui bounds as acceptance evidence.
+3. Recompose one screen at a time with the smallest client-only ImGui geometry changes that resolve the visible problems. After every material adjustment, recapture at native resolution and repeat the pixel-level critique before moving on.
+4. Graphics must remain usable across the supported Font Size range. Fix the known Font Size `3.0` overflow: `Back` is currently off-screen and the minus control is partly clipped. At minimum, capture and inspect Graphics at Font Size `0.5`, `1.0`, and `3.0`; at `3.0`, every control and label must remain fully visible, reachable, and compositionally coherent without breaking the two-column relationship or the Time-of-Day variant.
+5. Preserve all mechanical invariants while tuning presentation: Pause dim/input behavior; Graphics control semantics and column relationships; Sound control behavior; Modal wrapping/action behavior; HUD activation, fixed hover extent, and left/right symmetry.
+6. Keep every widget label byte-identical. Compare each screen's final `describe_ui` label set with its baseline because labels are part of the agent-harness automation API.
+7. Synchronize `Documents/UserInterfaceDesign.txt` with any changed layout rules, named dimensions, exceptions, and verification guidance. Update the screen leaf `AGENTS.md` only when needed for accuracy.
+8. Run the complete repository C++ Code Change Process: implementation self-audit; affected-code sweep; independent correctness and adversarial reviews; style review; documentation and architecture checks; vcxproj verification; client/server compile; agent-harness runtime verification; and paired session audits. Route non-trivial residuals to separate plan files rather than expanding this pass.
+9. Present the final native-resolution screenshots to the user. Completion requires explicit user approval of Pause, Graphics, Sound, Modal, and HUD as a coherent family anchored by the approved Main Menu.
 
-No additional candidates found. Two independent sweeps confirmed that `ImGuiManager.cpp:516-531` already enumerates every UI producer: all non-debug player-facing surfaces with existing composition are in scope; `DeathMenuScreen` is empty; Tweaks and profile graphs are developer-only; no player-screen source drifted in after plan creation; and no live plan supersedes this pass.
+## Acceptance criteria
+
+- Native-resolution screenshots, not abstract geometry, demonstrate that each remaining screen is visually balanced and consistent with the approved Main Menu.
+- Pause, Graphics, Sound, Modal, and HUD each pass a fresh subtractive critique with no unjustified chrome or spacing.
+- Graphics at Font Size `3.0` keeps `Back`, the minus control, and every other control fully on-screen and usable; Font Size `0.5` and `1.0` remain visually sound.
+- Graphics normal and Main Menu Time-of-Day variants retain clear, balanced columns.
+- HUD preserves activation behavior, fixed hover extent, and left/right symmetry.
+- Pause, Sound, and Modal preserve their existing interaction behavior.
+- Widget labels match their baseline byte-for-byte.
+- Client and server builds pass, harness logs show no new errors, and the full C++ review process is complete.
+- `Documents/UserInterfaceDesign.txt` and affected leaf documentation accurately describe the landed rules.
+- The user explicitly approves the final screenshot set.
 
 ## Constraints and invariant exposure
 
-- Scope is layout, composition, hierarchy, proportion, density, whitespace, and removal of unjustified chrome. Theme palettes, `kMenuChromes` color changes, TweaksScreen, profiling overlays, new screens/widgets, and ImGui replacement are out of scope.
-- Widget labels are a harness automation API (`Documents/UserInterfaceDesign.txt:191-203`) and remain byte-identical unless the user explicitly approves a separate harness-API change.
-- Client-only ImGui geometry only: no deterministic PostRender/CRC state, `kiVersion`, `.pack`/manifest layout, replay/save format, protocol/wire surface, client/server guard-scope change, or new allocation-tracked-path behavior.
-- Final acceptance is user approval of the native-resolution screenshots after all four Main Menu seed findings and every remaining player-facing screen have been reviewed.
+- Changes are client-only ImGui layout and composition. Do not alter deterministic PostRender/CRC state, `kiVersion`, `.pack` or manifest layout, replay/save format, protocol/wire behavior, client/server guard scope, or allocation-tracked runtime behavior.
+- The approved Main Menu is the visual authority for this pass. Do not reopen it unless the user explicitly requests a separate correction.
+- Do not rename labels, invent missing surfaces, or remove working behavior to simplify layout.
+- Native-resolution screenshots must be captured after restoring representative language and Font Size settings; record the tested settings with the acceptance evidence.
