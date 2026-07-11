@@ -49,6 +49,6 @@ None currently.
 
 ## File Groups
 
-Shared-file overlap is warning-only: plans may run in separate worktrees. Whichever lands later reconciles the newer primary commit, preserves both changes, and reruns every affected review, build, and verification step before landing.
+Shared-file overlap is warning-only: plans may run in separate worktrees. Under root C++ Code Change Process step 12, whichever lands later reconciles the newer target-branch commit, preserves both changes, and reruns every affected review, build, and verification step before landing.
 
 - **`Engine/Data/Shaders/Water/Water.frag` + `ShaderLayoutsBase.h` + `WaterWrappersBase.{h,cpp}` + `TweaksScreenWater.cpp` + `GlobalUniforms.cpp`**: `Graphics/WaterFoam.md`, `Graphics/WaterSunGlitter.md`, `Graphics/WaterCaustics.md`, `Graphics/WaterSSS.md`, `Graphics/WaterRefraction.md` — independent add-ons; any landing order, with the later lander responsible for semantic reconciliation and shader/client verification.

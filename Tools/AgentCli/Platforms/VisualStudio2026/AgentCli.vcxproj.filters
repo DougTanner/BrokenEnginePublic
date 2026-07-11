@@ -9,5 +9,31 @@
     <ClCompile Include="..\..\AgentCli.cpp">
       <Filter>AgentCli</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\AgentCliCommon.cpp">
+      <Filter>AgentCli</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BuildCommand.cpp">
+      <Filter>AgentCli</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\InstallCommand.cpp">
+      <Filter>AgentCli</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\LockCommands.cpp">
+      <Filter>AgentCli</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\AgentCliCommon.h">
+      <Filter>AgentCli</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BuildCommand.h">
+      <Filter>AgentCli</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\InstallCommand.h">
+      <Filter>AgentCli</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\LockCommands.h">
+      <Filter>AgentCli</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

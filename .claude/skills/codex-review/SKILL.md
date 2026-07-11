@@ -18,7 +18,7 @@ Run a delegated reviewer/auditor role on **Codex/Sol** headless when Fable can't
 ## Inputs (from caller)
 - `targetSkill` — the role's skill (e.g. `plan-audit`, `repo-code-review`, `session-audit`)
 - That role's normal inputs: changed-file list, touched regions, plan/intent, residuals/focus areas
-- Worktree path and changed-file baseline commit (derive if absent: worktree = current repo root; baseline = `HEAD`, because process reviews precede the step 13 commit)
+- Worktree path and changed-file baseline commit (derive if absent: worktree = current repo root; baseline = `HEAD`, because process reviews precede the step 12 commit)
 
 ## Method
 1. Assemble the review target into a scratch file (session scratchpad): for a code review, start with `git -C <worktree> diff <baseline> -- <changed files>`, then use `git -C <worktree> ls-files --others --exclude-standard -- <changed files>` and append each returned path plus its full contents. Never omit new files. For a plan/doc audit, include the file(s) the caller names.

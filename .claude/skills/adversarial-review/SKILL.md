@@ -4,7 +4,7 @@ description: >-
   Pure adversarial review of C++ changes made this session — assume the change
   is broken and hunt for concrete, provable reasons it does not work. No rubric,
   no checklist: reason from the change itself. Runs as the second reviewer in
-  C++ Code Change Process step 5 (Opus subagent), concurrent with and
+  C++ Code Change Process step 4 (Opus subagent), concurrent with and
   independent of /repo-code-review. ALSO use when the user asks to "attack this
   change", "assume it's broken", "find reasons this fails", or wants an
   adversarial second opinion on a diff. Findings only — never edits. Logic and

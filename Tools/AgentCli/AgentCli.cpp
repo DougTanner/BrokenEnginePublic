@@ -1,24 +1,17 @@
-// AgentCli — standalone loopback bridge to the in-process engine::AgentCommandServer.
-//
-// Sends one JSON request frame (4-byte little-endian uint32 payload length + UTF-8 JSON)
-// to 127.0.0.1:<port>, reads one response frame, prints the raw JSON response to stdout.
-//
-// Usage: AgentCli.exe --port <N> [--timeout-ms 15000] -           (request JSON on stdin — primary)
-//        AgentCli.exe --port <N> [--timeout-ms 15000] "<json>"    (request JSON as last argument)
-//
-// Exit codes: 0 = response parsed and "ok":true; 2 = response parsed and "ok":false;
-//             1 = transport/usage failure (message to stderr).
-//
-// No PCH, no engine/Common dependency. Plain Winsock (ws2_32.lib) + tinygltf/json.hpp
-// (used only to read the response's "ok" field; the request passes through verbatim).
+// AgentCli — standalone engine command client and local workflow coordinator.
+// Socket mode preserves the existing length-prefixed loopback protocol.
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <windows.h> // Explicit: GetEnvironmentVariableW / CreateFileW / SetFileTime for the lock touch (winsock2.h pulls windows.h transitively, but document the direct dependency).
+
+#include "AgentCliCommon.h"
+#include "BuildCommand.h"
+#include "InstallCommand.h"
+#include "LockCommands.h"
 
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -27,357 +20,306 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-namespace
+namespace agentcli
 {
-	constexpr uint32_t kuiMaxRequestBytes = 1u * 1024u * 1024u;   // 1 MiB — matches AgentCommandServer's request cap; larger requests are rejected server-side.
-	constexpr uint32_t kuiMaxResponseBytes = 16u * 1024u * 1024u; // 16 MiB sanity cap.
-	constexpr int64_t kiConnectTimeoutMs = 2000;
-	constexpr int64_t kiDefaultResponseTimeoutMs = 15000;
-
-	// Exit codes.
-	constexpr int kiExitOk = 0;      // Response parsed, "ok":true.
-	constexpr int kiExitOkFalse = 2; // Response parsed, "ok":false.
-	constexpr int kiExitFailure = 1; // Transport / usage failure.
-
-	void Fail(std::string_view message)
+	namespace
 	{
-		std::cerr << "AgentCli: " << message << '\n';
-	}
+		constexpr uint32_t kuiMaxRequestBytes = 1u * 1024u * 1024u;
+		constexpr uint32_t kuiMaxResponseBytes = 16u * 1024u * 1024u;
+		constexpr int64_t kiConnectTimeoutMilliseconds = 2000;
+		constexpr int64_t kiDefaultResponseTimeoutMilliseconds = 15000;
 
-	void PrintUsage()
-	{
-		std::cerr << "Usage: AgentCli.exe --port <N> [--timeout-ms 15000] -            (request JSON on stdin)\n";
-		std::cerr << "       AgentCli.exe --port <N> [--timeout-ms 15000] \"<json>\"    (request JSON as last argument)\n";
-	}
-
-	std::string ReadAllStdin()
-	{
-		std::string input;
-		char pBuffer[4096] = {};
-		size_t uiRead = 0;
-		while ((uiRead = std::fread(pBuffer, 1, sizeof(pBuffer), stdin)) > 0)
+		void PrintUsage()
 		{
-			input.append(pBuffer, uiRead);
+			std::cerr << "Usage: AgentCli.exe [--owner TOKEN] --port N [--timeout-ms 15000] -\n";
+			std::cerr << "       AgentCli.exe [--owner TOKEN] --port N [--timeout-ms 15000] \"<json>\"\n";
+			std::cerr << "       AgentCli.exe lock <token|claim|status|release|steal> ...\n";
+			std::cerr << "       AgentCli.exe build [--files <cpp...> --] <project-or-solution> <MSBuild args...>\n";
+			std::cerr << "       AgentCli.exe install\n";
+			std::cerr << "       AgentCli.exe --version\n";
 		}
 
-		return input;
-	}
-
-	// Blocking send of the whole buffer (SO_SNDTIMEO bounds each call).
-	bool SendAll(SOCKET socket, const char* pData, size_t uiLength)
-	{
-		size_t uiSent = 0;
-		while (uiSent < uiLength)
+		std::string ReadAllStandardInput()
 		{
-			int iChunk = ::send(socket, pData + uiSent, static_cast<int>(uiLength - uiSent), 0);
-			if (iChunk <= 0)
+			std::string input;
+			char pBuffer[4096] {};
+			size_t uiRead = 0;
+			while ((uiRead = std::fread(pBuffer, 1, sizeof(pBuffer), stdin)) > 0)
+			{
+				input.append(pBuffer, uiRead);
+			}
+			return input;
+		}
+
+		bool SendAll(SOCKET socket, const char* pData, size_t uiLength)
+		{
+			size_t uiSent = 0;
+			while (uiSent < uiLength)
+			{
+				int iChunk = ::send(socket, pData + uiSent, static_cast<int>(uiLength - uiSent), 0);
+				if (iChunk <= 0)
+				{
+					return false;
+				}
+				uiSent += static_cast<size_t>(iChunk);
+			}
+			return true;
+		}
+
+		bool ReceiveAll(SOCKET socket, char* pData, size_t uiLength)
+		{
+			size_t uiReceived = 0;
+			while (uiReceived < uiLength)
+			{
+				int iChunk = ::recv(socket, pData + uiReceived, static_cast<int>(uiLength - uiReceived), 0);
+				if (iChunk <= 0)
+				{
+					return false;
+				}
+				uiReceived += static_cast<size_t>(iChunk);
+			}
+			return true;
+		}
+
+		bool ConnectWithTimeout(SOCKET socket, const sockaddr_in& rAddress, int64_t iTimeoutMilliseconds)
+		{
+			u_long uiNonBlocking = 1;
+			if (::ioctlsocket(socket, FIONBIO, &uiNonBlocking) != 0)
 			{
 				return false;
 			}
 
-			uiSent += static_cast<size_t>(iChunk);
-		}
-
-		return true;
-	}
-
-	// Blocking receive of exactly uiLength bytes (SO_RCVTIMEO bounds each call).
-	bool RecvAll(SOCKET socket, char* pData, size_t uiLength)
-	{
-		size_t uiReceived = 0;
-		while (uiReceived < uiLength)
-		{
-			int iChunk = ::recv(socket, pData + uiReceived, static_cast<int>(uiLength - uiReceived), 0);
-			if (iChunk <= 0)
+			int iResult = ::connect(socket, reinterpret_cast<const sockaddr*>(&rAddress), sizeof(rAddress));
+			if (iResult != 0)
 			{
-				return false;
+				if (::WSAGetLastError() != WSAEWOULDBLOCK)
+				{
+					return false;
+				}
+				fd_set writeSet;
+				FD_ZERO(&writeSet);
+				FD_SET(socket, &writeSet);
+				fd_set errorSet;
+				FD_ZERO(&errorSet);
+				FD_SET(socket, &errorSet);
+				timeval timeout {};
+				timeout.tv_sec = static_cast<long>(iTimeoutMilliseconds / 1000);
+				timeout.tv_usec = static_cast<long>((iTimeoutMilliseconds % 1000) * 1000);
+				int iReady = ::select(0, nullptr, &writeSet, &errorSet, &timeout);
+				if (iReady <= 0 || FD_ISSET(socket, &errorSet))
+				{
+					return false;
+				}
+				int iSocketError = 0;
+				int iOptionLength = sizeof(iSocketError);
+				if (::getsockopt(socket, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&iSocketError), &iOptionLength) != 0 || iSocketError != 0)
+				{
+					return false;
+				}
 			}
 
-			uiReceived += static_cast<size_t>(iChunk);
+			u_long uiBlocking = 0;
+			return ::ioctlsocket(socket, FIONBIO, &uiBlocking) == 0;
 		}
 
-		return true;
-	}
-
-	// Non-blocking connect with a select() timeout, then switch back to blocking mode.
-	bool ConnectWithTimeout(SOCKET socket, const sockaddr_in& rAddress, int64_t iTimeoutMs)
-	{
-		u_long uiNonBlocking = 1;
-		if (::ioctlsocket(socket, FIONBIO, &uiNonBlocking) != 0)
+		int RunSocketCommand(int iArgumentCount, wchar_t* pArgumentValues[])
 		{
-			return false;
-		}
+			int64_t iPort = 0;
+			int64_t iTimeoutMilliseconds = kiDefaultResponseTimeoutMilliseconds;
+			bool bReadStandardInput = false;
+			std::wstring owner;
+			std::string request;
+			bool bHaveRequest = false;
 
-		int iResult = ::connect(socket, reinterpret_cast<const sockaddr*>(&rAddress), sizeof(rAddress));
-		if (iResult != 0)
-		{
-			if (::WSAGetLastError() != WSAEWOULDBLOCK)
+			for (int i = 1; i < iArgumentCount; ++i)
 			{
-				return false;
+				std::wstring_view argument = pArgumentValues[i];
+				if (argument == L"--port" || argument == L"--timeout-ms" || argument == L"--owner")
+				{
+					if (++i >= iArgumentCount)
+					{
+						Fail("socket option requires a value");
+						PrintUsage();
+						return kiExitFailure;
+					}
+					if (argument == L"--port")
+					{
+						iPort = std::wcstoll(pArgumentValues[i], nullptr, 10);
+					}
+					else if (argument == L"--timeout-ms")
+					{
+						iTimeoutMilliseconds = std::wcstoll(pArgumentValues[i], nullptr, 10);
+					}
+					else
+					{
+						owner = pArgumentValues[i];
+					}
+				}
+				else if (argument == L"-")
+				{
+					bReadStandardInput = true;
+				}
+				else
+				{
+					request = WideToUtf8(argument);
+					bHaveRequest = true;
+				}
 			}
 
-			fd_set writeSet;
-			FD_ZERO(&writeSet);
-			FD_SET(socket, &writeSet);
-
-			fd_set errorSet;
-			FD_ZERO(&errorSet);
-			FD_SET(socket, &errorSet);
-
-			timeval timeout = {};
-			timeout.tv_sec = static_cast<long>(iTimeoutMs / 1000);
-			timeout.tv_usec = static_cast<long>((iTimeoutMs % 1000) * 1000);
-
-			int iReady = ::select(0, nullptr, &writeSet, &errorSet, &timeout);
-			if (iReady <= 0 || FD_ISSET(socket, &errorSet))
+			if (iPort <= 0 || iPort > 65535)
 			{
-				return false; // Timed out or connection error.
+				Fail("--port must be in the range 1..65535");
+				PrintUsage();
+				return kiExitFailure;
+			}
+			if (iTimeoutMilliseconds <= 0 || iTimeoutMilliseconds > 600000)
+			{
+				Fail("--timeout-ms must be in the range 1..600000");
+				PrintUsage();
+				return kiExitFailure;
+			}
+			if (bReadStandardInput)
+			{
+				request = ReadAllStandardInput();
+				bHaveRequest = true;
+			}
+			if (!bHaveRequest || request.empty())
+			{
+				Fail("no request JSON provided");
+				PrintUsage();
+				return kiExitFailure;
+			}
+			if (request.size() > kuiMaxRequestBytes)
+			{
+				Fail("request exceeds 1 MiB");
+				return kiExitFailure;
 			}
 
-			int iSocketError = 0;
-			int iOptionLength = sizeof(iSocketError);
-			if (::getsockopt(socket, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&iSocketError), &iOptionLength) != 0 || iSocketError != 0)
+			if (!owner.empty() && !RefreshHarnessHeartbeat(owner))
 			{
-				return false;
+				Fail("harness heartbeat refresh failed");
+				return kiExitFailure;
 			}
+			WSADATA windowsSocketsData {};
+			if (::WSAStartup(MAKEWORD(2, 2), &windowsSocketsData) != 0)
+			{
+				Fail("WSAStartup failed");
+				return kiExitFailure;
+			}
+			SOCKET socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			if (socket == INVALID_SOCKET)
+			{
+				Fail("socket creation failed");
+				::WSACleanup();
+				return kiExitFailure;
+			}
+
+			sockaddr_in address {};
+			address.sin_family = AF_INET;
+			address.sin_port = ::htons(static_cast<uint16_t>(iPort));
+			::inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
+			int iResult = kiExitFailure;
+			do
+			{
+				if (!ConnectWithTimeout(socket, address, kiConnectTimeoutMilliseconds))
+				{
+					Fail("connect to 127.0.0.1 failed or timed out");
+					break;
+				}
+				DWORD uiTimeout = static_cast<DWORD>(iTimeoutMilliseconds);
+				::setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&uiTimeout), sizeof(uiTimeout));
+				::setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&uiTimeout), sizeof(uiTimeout));
+
+				uint32_t uiPayloadLength = static_cast<uint32_t>(request.size());
+				unsigned char pLengthPrefix[4] =
+				{
+					static_cast<unsigned char>(uiPayloadLength & 0xffu),
+					static_cast<unsigned char>((uiPayloadLength >> 8) & 0xffu),
+					static_cast<unsigned char>((uiPayloadLength >> 16) & 0xffu),
+					static_cast<unsigned char>((uiPayloadLength >> 24) & 0xffu),
+				};
+				if (!SendAll(socket, reinterpret_cast<const char*>(pLengthPrefix), sizeof(pLengthPrefix)) || !SendAll(socket, request.data(), request.size()))
+				{
+					Fail("send failed");
+					break;
+				}
+
+				unsigned char pResponseLengthPrefix[4] {};
+				if (!ReceiveAll(socket, reinterpret_cast<char*>(pResponseLengthPrefix), sizeof(pResponseLengthPrefix)))
+				{
+					Fail("no response (timed out or peer closed)");
+					break;
+				}
+				uint32_t uiResponseLength = static_cast<uint32_t>(pResponseLengthPrefix[0]) |
+					(static_cast<uint32_t>(pResponseLengthPrefix[1]) << 8) |
+					(static_cast<uint32_t>(pResponseLengthPrefix[2]) << 16) |
+					(static_cast<uint32_t>(pResponseLengthPrefix[3]) << 24);
+				if (uiResponseLength == 0 || uiResponseLength > kuiMaxResponseBytes)
+				{
+					Fail("response length out of range");
+					break;
+				}
+
+				std::string response(uiResponseLength, '\0');
+				if (!ReceiveAll(socket, response.data(), uiResponseLength))
+				{
+					Fail("incomplete response (timed out or peer closed)");
+					break;
+				}
+				std::cout << response << '\n';
+				try
+				{
+					nlohmann::json parsed = nlohmann::json::parse(response);
+					if (parsed.contains("ok") && parsed["ok"].is_boolean())
+					{
+						iResult = parsed["ok"].get<bool>() ? kiExitOk : kiExitStateConflict;
+					}
+					else
+					{
+						Fail("response missing boolean \"ok\" field");
+					}
+				}
+				catch (const std::exception& rException)
+				{
+					Fail(std::string("response is not valid JSON: ") + rException.what());
+				}
+			}
+			while (false);
+
+			::closesocket(socket);
+			::WSACleanup();
+			return iResult;
 		}
-
-		u_long uiBlocking = 0;
-		if (::ioctlsocket(socket, FIONBIO, &uiBlocking) != 0)
-		{
-			return false;
-		}
-
-		return true;
-	}
-
-	// Best-effort refresh of the agent-harness advisory lock's last-write time so the harness
-	// steal protocol can read a stale mtime as a dead owner. MUST NOT create the file (a touch may
-	// never resurrect a stolen/released lock — hence OPEN_EXISTING) and MUST NOT alter AgentCli's
-	// stdout or exit code — every failure path silently no-ops.
-	//
-	// Lock-path literal (%LOCALAPPDATA%\BrokenEngineHarness\agent-harness.lock) is duplicated in
-	// .claude/skills/agent-harness/SKILL.md ("Claiming the harness"); the two MUST stay identical or the
-	// advisory lock splits across worktrees.
-	void TouchHarnessLock()
-	{
-		// Fixed user-global path so every git worktree claims the SAME lock: %LOCALAPPDATA% is per-user and
-		// worktree-independent. Read the env var (not SHGetKnownFolderPath) so C++ and Git Bash resolve the
-		// identical base string and to avoid a Shell32/Ole32 link dependency. Two-call sizing: the first call
-		// returns the required length INCLUDING the null terminator.
-		DWORD uiRequired = ::GetEnvironmentVariableW(L"LOCALAPPDATA", nullptr, 0);
-		if (uiRequired == 0)
-		{
-			return; // Unset or errored — best-effort, so silently no-op.
-		}
-
-		std::wstring lockPath(uiRequired, L'\0');
-		DWORD uiWritten = ::GetEnvironmentVariableW(L"LOCALAPPDATA", lockPath.data(), uiRequired);
-		if (uiWritten == 0 || uiWritten >= uiRequired)
-		{
-			return; // Failed, or the value grew between calls — no-op.
-		}
-
-		lockPath.resize(uiWritten); // Trim the reserved null terminator to the returned (no-null) length.
-
-		// %LOCALAPPDATA% never carries a trailing separator — concatenate the known-good suffix directly.
-		lockPath += L"\\BrokenEngineHarness\\agent-harness.lock";
-
-		HANDLE hLock = ::CreateFileW(lockPath.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-		if (hLock == INVALID_HANDLE_VALUE)
-		{
-			return;
-		}
-
-		FILETIME nowFileTime = {};
-		::GetSystemTimeAsFileTime(&nowFileTime);
-		::SetFileTime(hLock, nullptr, nullptr, &nowFileTime);
-		::CloseHandle(hLock);
 	}
 }
 
-int main(int iArgumentCount, char* pArgumentValues[])
+int wmain(int iArgumentCount, wchar_t* pArgumentValues[])
 {
-	// Trust boundary: parse and validate every command-line argument.
-	int64_t iPort = 0;
-	int64_t iTimeoutMs = kiDefaultResponseTimeoutMs;
-	bool bReadStdin = false;
-	std::string request;
-	bool bHaveRequest = false;
-
-	for (int i = 1; i < iArgumentCount; ++i)
+	if (iArgumentCount >= 2)
 	{
-		std::string_view argument = pArgumentValues[i];
-		if (argument == "--port")
+		std::wstring_view mode = pArgumentValues[1];
+		if (mode == L"--version")
 		{
-			if (i + 1 >= iArgumentCount)
+			if (iArgumentCount != 2)
 			{
-				Fail("--port requires a value");
-				PrintUsage();
-				return kiExitFailure;
+				agentcli::Fail("--version accepts no arguments");
+				return agentcli::kiExitFailure;
 			}
-
-			iPort = std::atoll(pArgumentValues[++i]);
+			std::cout << "2\n";
+			return agentcli::kiExitOk;
 		}
-		else if (argument == "--timeout-ms")
+		if (mode == L"lock")
 		{
-			if (i + 1 >= iArgumentCount)
-			{
-				Fail("--timeout-ms requires a value");
-				PrintUsage();
-				return kiExitFailure;
-			}
-
-			iTimeoutMs = std::atoll(pArgumentValues[++i]);
+			return agentcli::RunLockCommand(iArgumentCount, pArgumentValues);
 		}
-		else if (argument == "-")
+		if (mode == L"build")
 		{
-			bReadStdin = true;
+			return agentcli::RunBuildCommand(iArgumentCount, pArgumentValues);
 		}
-		else
+		if (mode == L"install")
 		{
-			request = argument;
-			bHaveRequest = true;
+			return agentcli::RunInstallCommand(iArgumentCount);
 		}
 	}
-
-	if (iPort <= 0 || iPort > 65535)
-	{
-		Fail("--port must be in the range 1..65535");
-		PrintUsage();
-		return kiExitFailure;
-	}
-
-	if (iTimeoutMs <= 0 || iTimeoutMs > 600000)
-	{
-		// Upper bound guards SO_RCVTIMEO/SO_SNDTIMEO (DWORD ms): a value that is a nonzero multiple of 2^32
-		// truncates to 0, which Winsock reads as an infinite (never-timing-out) block.
-		Fail("--timeout-ms must be in the range 1..600000");
-		PrintUsage();
-		return kiExitFailure;
-	}
-
-	if (bReadStdin)
-	{
-		request = ReadAllStdin();
-		bHaveRequest = true;
-	}
-
-	if (!bHaveRequest || request.empty())
-	{
-		Fail("no request JSON provided (pass '-' for stdin or the JSON as the last argument)");
-		PrintUsage();
-		return kiExitFailure;
-	}
-
-	if (request.size() > kuiMaxRequestBytes)
-	{
-		Fail("request exceeds 1 MiB (server request cap)");
-		return kiExitFailure;
-	}
-
-	// Arguments are valid: mark that this session issued a harness command so the lock's mtime stays fresh.
-	TouchHarnessLock();
-
-	WSADATA wsaData = {};
-	if (::WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-	{
-		Fail("WSAStartup failed");
-		return kiExitFailure;
-	}
-
-	SOCKET socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (socket == INVALID_SOCKET)
-	{
-		Fail("socket creation failed");
-		::WSACleanup();
-		return kiExitFailure;
-	}
-
-	sockaddr_in address = {};
-	address.sin_family = AF_INET;
-	address.sin_port = ::htons(static_cast<uint16_t>(iPort));
-	::inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
-
-	int iResult = kiExitFailure;
-	do
-	{
-		if (!ConnectWithTimeout(socket, address, kiConnectTimeoutMs))
-		{
-			Fail("connect to 127.0.0.1 failed or timed out");
-			break;
-		}
-
-		// Bound each blocking send/recv with the response timeout.
-		DWORD uiTimeout = static_cast<DWORD>(iTimeoutMs);
-		::setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&uiTimeout), sizeof(uiTimeout));
-		::setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&uiTimeout), sizeof(uiTimeout));
-
-		// Frame: 4-byte little-endian payload length + UTF-8 JSON.
-		uint32_t uiPayloadLength = static_cast<uint32_t>(request.size());
-		unsigned char pLengthPrefix[4] =
-		{
-			static_cast<unsigned char>(uiPayloadLength & 0xFFu),
-			static_cast<unsigned char>((uiPayloadLength >> 8) & 0xFFu),
-			static_cast<unsigned char>((uiPayloadLength >> 16) & 0xFFu),
-			static_cast<unsigned char>((uiPayloadLength >> 24) & 0xFFu),
-		};
-
-		if (!SendAll(socket, reinterpret_cast<const char*>(pLengthPrefix), sizeof(pLengthPrefix)) || !SendAll(socket, request.data(), request.size()))
-		{
-			Fail("send failed");
-			break;
-		}
-
-		// Read the response frame length prefix.
-		unsigned char pResponseLengthPrefix[4] = {};
-		if (!RecvAll(socket, reinterpret_cast<char*>(pResponseLengthPrefix), sizeof(pResponseLengthPrefix)))
-		{
-			Fail("no response (timed out or peer closed)");
-			break;
-		}
-
-		uint32_t uiResponseLength = static_cast<uint32_t>(pResponseLengthPrefix[0]) | (static_cast<uint32_t>(pResponseLengthPrefix[1]) << 8) | (static_cast<uint32_t>(pResponseLengthPrefix[2]) << 16) | (static_cast<uint32_t>(pResponseLengthPrefix[3]) << 24);
-
-		if (uiResponseLength == 0 || uiResponseLength > kuiMaxResponseBytes)
-		{
-			Fail("response length out of range");
-			break;
-		}
-
-		std::string response(uiResponseLength, '\0');
-		if (!RecvAll(socket, response.data(), uiResponseLength))
-		{
-			Fail("incomplete response (timed out or peer closed)");
-			break;
-		}
-
-		// Raw response to stdout regardless of parse outcome.
-		std::cout << response << '\n';
-
-		// Parse only to read the "ok" field (trust boundary: response is opaque socket data).
-		try
-		{
-			nlohmann::json parsed = nlohmann::json::parse(response);
-			if (parsed.contains("ok") && parsed["ok"].is_boolean())
-			{
-				iResult = parsed["ok"].get<bool>() ? kiExitOk : kiExitOkFalse;
-			}
-			else
-			{
-				Fail("response missing boolean \"ok\" field");
-				iResult = kiExitFailure;
-			}
-		}
-		catch (const std::exception& rException)
-		{
-			Fail(std::string("response is not valid JSON: ") + rException.what());
-			iResult = kiExitFailure;
-		}
-	}
-	while (false);
-
-	::closesocket(socket);
-	::WSACleanup();
-	return iResult;
+	return agentcli::RunSocketCommand(iArgumentCount, pArgumentValues);
 }

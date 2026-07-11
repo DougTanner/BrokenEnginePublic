@@ -2,7 +2,7 @@
 name: session-audit
 description: >-
   Final fresh-eyes audit of a logical group of files changed this session (C++
-  Code Change Process step 11) — whole-file coherence, cross-file integration,
+  Code Change Process step 10) — whole-file coherence, cross-file integration,
   and the concrete failure modes earlier steps structurally miss
   (fix-introduced desync, half-applied mirrored edits, doc/code drift from late
   renames, edits no reviewer ever saw). Invoke after all fix/review/build steps
@@ -15,10 +15,10 @@ allowed-tools: [Read, Grep, Glob]
 
 # Session Audit
 
-Fresh-eyes lens, not a re-run of the step 5–9 checklists: read each assigned file whole, then check the group's cross-file story against the plan's intent. Findings only; the caller dispatches fixes. A second independent instance of this skill audits the same group in another context — behave identically, don't assume you are the only auditor; the caller dedupes.
+Fresh-eyes lens, not a re-run of the step 4–9 checklists: read each assigned file whole, then check the group's cross-file story against the plan's intent. Findings only; the caller dispatches fixes. A second independent instance of this skill audits the same group in another context — behave identically, don't assume you are the only auditor; the caller dedupes.
 
 ## Inputs (from caller)
-- File group (paths) + functions/regions touched this session, attributed per step (at minimum: the step 3–4 set vs later-fix regions); if attribution is missing, treat every touched region as potentially post-review
+- File group (paths) + functions/regions touched this session, attributed per step (at minimum: the step 2–3 set vs later-fix regions); if attribution is missing, treat every touched region as potentially post-review
 - Accumulated residuals and self-audit focus areas from earlier steps
 - The plan document or intent summary
 
@@ -28,18 +28,18 @@ If invoked directly with no caller briefing, reconstruct the file group and touc
 
 Earlier steps each see a slice; these surface only when reading the finished whole. Check every item explicitly:
 
-1. **Fix-introduced desync** — a step 5/6/9 fix landed *after* the determinism review. Re-check any post-review edit inside CRC'd state (PostRender members, Update logic, RNG draws, serialization) for float-op ordering, RNG draw-count parity, and correct phase placement.
-2. **Half-applied mirrored edits (backstop)** — steps 4–5 own the full sweep; focus on mirrors touched by post-step-4 fixes, plus one spot-check of the plan's central mirror. One side updated, counterpart missed: client vs server branch, per-collection pattern applied to N−1 of N collections, C++ struct vs shared GLSL header, Spawn vs Transfer vs AllocateAndCopy vs LogDifferences. Grep the sibling sites; don't trust the diff narrative.
-3. **Doc/code drift from late renames** — a step 9 compile fix renamed a symbol after step 7 updated the docs. Grep this session's changed AGENTS.md / plan / diagram text for symbols that no longer exist in the code. If this session created a new directory `AGENTS.md` or `CLAUDE.md`, verify the pair: the `AGENTS.md` has a sibling `CLAUDE.md` containing exactly `@AGENTS.md`, and no `CLAUDE.md` stub was left without its `AGENTS.md`. (No extra scan when the session created neither.)
-4. **Unreviewed late edits** — fixes landed in steps 5–9 (review fixes, style fixes, compile-error fixes) were never themselves reviewed; step 4's propagation edits were (step 5 ran after them). Give diff-of-the-diff attention to everything outside the step 3 + step 4 change set — including any late edit that added or removed a file-wide `BT_CLIENT`/`BT_SERVER` guard (its vcxproj affinity is now stale vs step 8's verification).
+1. **Fix-introduced desync** — a step 4/5/8 fix landed *after* the determinism review. Re-check any post-review edit inside CRC'd state (PostRender members, Update logic, RNG draws, serialization) for float-op ordering, RNG draw-count parity, and correct phase placement.
+2. **Half-applied mirrored edits (backstop)** — steps 3–4 own the full sweep; focus on mirrors touched by post-step-3 fixes, plus one spot-check of the plan's central mirror. One side updated, counterpart missed: client vs server branch, per-collection pattern applied to N−1 of N collections, C++ struct vs shared GLSL header, Spawn vs Transfer vs AllocateAndCopy vs LogDifferences. Grep the sibling sites; don't trust the diff narrative.
+3. **Doc/code drift from late renames** — a step 8 compile fix renamed a symbol after step 6 updated the docs. Grep this session's changed AGENTS.md / plan / diagram text for symbols that no longer exist in the code. If this session created a new directory `AGENTS.md` or `CLAUDE.md`, verify the pair: the `AGENTS.md` has a sibling `CLAUDE.md` containing exactly `@AGENTS.md`, and no `CLAUDE.md` stub was left without its `AGENTS.md`. (No extra scan when the session created neither.)
+4. **Unreviewed late edits** — fixes landed in steps 4–8 (review fixes, style fixes, compile-error fixes) were never themselves reviewed; step 3's propagation edits were (step 4 ran after them). Give diff-of-the-diff attention to everything outside the step 2 + step 3 change set — including any late edit that added or removed a file-wide `BT_CLIENT`/`BT_SERVER` guard (its vcxproj affinity is now stale vs step 7's verification).
 5. **Whole-file incoherence** — the file no longer reads as one design: logic duplicated between an old and a new path, a helper the session's edits made dead, a comment or ASSERT contradicting the new behavior, a `#include`/guard the edits made unnecessary.
 6. **Residual leakage** — every residual and focus area handed in is either resolved in current code or re-reported; never silently gone.
-7. **False completion** — earlier steps' reports are claims, not evidence: for each fix accepted in step 5/9/10 reports and each residual marked resolved, spot-check the change actually exists in current code.
+7. **False completion** — earlier steps' reports are claims, not evidence: for each fix accepted in step 4/8/9 reports and each residual marked resolved, spot-check the change actually exists in current code.
 8. **Debris** — diagnostic `LOG`s left at kDebug/kVerbose from iteration, commented-out code, scratch/temp files introduced this session. Changelog-style comments belong to repo-code-review §2d — don't double-report.
 
 ## Output
 
-Per finding: `path:line`, failure-mode number, one-line description, fix size (**small** — dispatchable now | **structural** — route to a step 12 plan).
+Per finding: `path:line`, failure-mode number, one-line description, fix size (**small** — dispatchable now | **structural** — route to a step 11 plan).
 
 Example:
 > `Projects/BrokenEngineSandbox/Source/Frame/Blasters.cpp:212` — mode 2 — `Spawn()` initializes the new `mChargeTime` member but `Transfer()` does not copy it, so cross-cell transfer leaves it stale — **small**

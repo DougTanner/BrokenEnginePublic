@@ -14,7 +14,7 @@ Implementation plans for brand-new additions — work that gives the engine a ca
 
 Queue lifecycle and the `Order.md` row format are identical to [`../Plans/AGENTS.md`](../Plans/AGENTS.md): a new plan gets its fully scored row in the same edit session, inserted score-sorted; an executed plan has its row removed and its file deleted. Features-specific:
 
-The PC-global per-plan claim is authoritative across worktrees; the local `[CLAIMED <date>]` marker is informational. Duplicate claims block. Different plans with ordinary file overlap may proceed independently; the later lander reconciles the newer primary commit and reruns every affected review, build, and verification step before landing. Mandatory invariant constraints remain binding regardless of landing order.
+The AgentCli v2 plan-domain lock defined by [`../Plans/AGENTS.md`](../Plans/AGENTS.md) is authoritative across worktrees; the local `[CLAIMED <date>]` marker is informational. Feature keys are normalized paths relative to this directory's `Order.md`. Duplicate claims block. Different plans with ordinary file overlap may proceed independently; under root C++ Code Change Process step 12, the later lander reconciles the newer target-branch commit and reruns every affected review, build, and verification step before landing. Mandatory invariant constraints remain binding regardless of landing order.
 
 - A plan that turns out to be a refactor/bugfix in disguise (no new capability) moves to `Documents/Plans/`, updating both `Order.md` files.
 - Designs deferred on YAGNI grounds are scored normally but carry explicit "Revisit When" trigger conditions in the plan body — the `Frame/Future_*.txt` files are the pattern.

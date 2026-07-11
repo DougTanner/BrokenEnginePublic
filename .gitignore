@@ -8,7 +8,7 @@ Log.txt
 Engine/Data/Islands/**/*.jpg
 Engine/Data/Islands/**/Intermediates/
 *.terrain.lock
-/.claude/build-locks/BrokenEngineSandbox.pid
+/.claude/build-locks/
 
 # Local-only directories
 .vs/

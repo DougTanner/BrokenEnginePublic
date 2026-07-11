@@ -1,7 +1,7 @@
 ---
 name: agent-harness
 description: Drive the Broken Engine client/server for automated verification — launch the two executables with an agent command channel, then send JSON commands via AgentCli to control the sim, drive the UI, and read back scene/UI/log/screenshot state. Use whenever you need to run the game to verify a change end-to-end, set up a test scenario (spawn players, inject StatusChanges), drive menus/HUD, capture a screenshot, describe the rendered scene, or run a replay determinism check. ALSO use whenever a plan's Verification section asks to launch, drive, query, or screenshot the client or server.
-allowed-tools: [Bash, PowerShell]
+allowed-tools: [PowerShell]
 ---
 
 # Agent Interaction Harness
@@ -10,29 +10,57 @@ The harness lets an agent run and control the running game headlessly. Each exec
 
 Convention: **server on port 27100, client on port 27101.** `$ROOT` below is the absolute repo root.
 
-## Claiming the harness (do this first)
+## AgentCli setup
 
-Only one Claude session may drive the harness at a time — ports are fixed by convention, so an unclaimed second session would reset scenarios, drive UI, or `quit` exes another session is mid-test on. The claim is an advisory lock file, same pattern as the msbuild.sh build locks. The lock lives at a fixed user-global path (`$LOCALAPPDATA/BrokenEngineHarness/agent-harness.lock`) so every git worktree claims the *same* file. This literal is duplicated in `Tools/AgentCli/AgentCli.cpp` `TouchHarnessLock()` — the two MUST stay identical.
+Use installed `%LOCALAPPDATA%\BrokenEngine\AgentCli\v2\AgentCli.exe`; `--version` must print exactly `2`. Set `$AgentCli` to that path. If missing or mismatched, build AgentCli Release directly with native PowerShell using `C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe` (`vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath` fallback), then run:
 
-**Claim** before the first launch or command of your session (atomic create — fails if another session holds it):
-
-```bash
-mkdir -p "$LOCALAPPDATA/BrokenEngineHarness" && ( set -o noclobber; printf 'session: %s\nclaimed: %s\n' "<short task label>" "$(date -Iseconds)" > "$LOCALAPPDATA/BrokenEngineHarness/agent-harness.lock" ) && echo claimed
+```powershell
+& "$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe" install
+if ($LASTEXITCODE -ne 0 -or (& $AgentCli --version) -ne '2') { throw 'AgentCli v2 bootstrap failed' }
 ```
 
-Report the claim line (`claimed`) verbatim in your final report, alongside the release line below — a report missing either is an incomplete harness session.
+The direct build must use Release/x64 plus `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; see `/compile` for the full bootstrap command.
 
-**Verify the heartbeat after claiming:** every AgentCli command touches the lock's mtime, so after your first launch send a `ping` (or any first command) and confirm the lock mtime advanced (`ls -l --full-time "$LOCALAPPDATA/BrokenEngineHarness/agent-harness.lock"` — or `stat -c %y` — before and after; plain `ls -l` prints only minute resolution, so a healthy touch seconds after the claim reads as "did not advance" and triggers a spurious rebuild). If it did not advance, rebuild AgentCli via the `/compile` skill (AgentCli section) before proceeding, or your live claim will look dead to a steal within ~5 minutes. This check also catches any AgentCli whose build targets a different lock path (e.g. a stale binary not yet rebuilt): it touches a different file, so this lock's mtime won't advance and the check correctly says "rebuild."
+## Claiming the harness (do this first)
 
-**If the claim fails**, another session owns the harness. `cat` the lock. A lock mtime older than **~5 minutes** means the owner has issued no harness command for that long (dead session, crashed shell, or stale pre-touch AgentCli) — every live AgentCli command freshens the mtime, so age is direct evidence of owner liveness. The lock's `claimed:` content line records when the claim was *first* taken, not liveness — a `cat` showing an hours-old `claimed:` on a healthy long session is not grounds to steal; mtime is the sole staleness criterion. To steal a stale lock: send `quit` to both agent ports (server autosaves), fall back to `taskkill` only if `quit` gets no response, verify `tasklist | grep -i BrokenEngineSandbox` is empty, then take the lock over by an **atomic rename** — run the whole takeover (mv → rm the moved file → noclobber re-claim) as ONE shell invocation so `$$` stays consistent (splitting it across tool calls gives each a fresh pid and the later `rm` misses the file): `mv "$LOCALAPPDATA/BrokenEngineHarness/agent-harness.lock" "$LOCALAPPDATA/BrokenEngineHarness/agent-harness.steal.$$" && rm "$LOCALAPPDATA/BrokenEngineHarness/agent-harness.steal.$$" && ( set -o noclobber; printf 'session: %s\nclaimed: %s\n' "<label>" "$(date -Iseconds)" > "$LOCALAPPDATA/BrokenEngineHarness/agent-harness.lock" ) && echo claimed`. Rename is atomic, so exactly one stealer wins; if `mv` fails (file already gone) another session won the steal — back off and re-evaluate, do NOT proceed (do not bare-`rm` the live lock — two concurrent stealers would both `rm` and re-create, defeating noclobber). A non-stale lock (mtime within ~5 min) is NOT stealable, full stop — you may not `quit` or kill its processes to qualify a steal. Otherwise wait and retry later, or report the verification as blocked-by-harness-contention in your residuals; never drive or `quit` instances you didn't claim.
+Only one session may drive the fixed harness ports. Generate an owner token once, keep it for the entire verification, and claim the unified harness key before launching or sending commands:
 
-**Release** at the end of your session — this is a mandatory checklist, not prose:
+```powershell
+$Owner = & $AgentCli lock token
+$Session = '<short task label>'
+& $AgentCli lock claim --domain harness --key default --owner $Owner --session $Session --worktree $ROOT
+$ClaimExit = $LASTEXITCODE
+if ($ClaimExit -eq 2) {
+	& $AgentCli lock status --domain harness --key default
+	throw 'Harness is owned by another session'
+}
+if ($ClaimExit -ne 0) { throw "Harness claim failed: $ClaimExit" }
+```
 
-1. `quit` both exes (the server autosaves on exit).
-2. Verify nothing lingers: `tasklist | grep -i BrokenEngineSandbox` is empty. Mandatory after ANY crashed, reaped, or abandoned launch attempt during the session — a detached orphan from a failed launch survives your quits.
-3. `rm "$LOCALAPPDATA/BrokenEngineHarness/agent-harness.lock" && echo released` — and put the `released` line verbatim in your final report. "Quit cleanly" prose is not evidence of release; the echoed line is.
+Report the successful claim metadata verbatim. Hold the claim across rebuild/relaunch cycles. Every socket command must pass `--owner $Owner`; AgentCli refreshes the heartbeat only when that token still owns the harness key. After the first command, compare `lock status` before/after and confirm `heartbeatAt` advanced.
 
-Hold the claim across your whole verification, including rebuild/relaunch cycles — release only when you are done with the harness entirely.
+If claim returns exit code `2`, read `lock status`. A heartbeat older than five minutes is the only stale criterion. A fresh claim is not stealable and its processes must not be disturbed. For a stale claim:
+
+1. Copy the reported owner and send `quit` to both ports with `--owner $OldOwner`; fall back to `Stop-Process` only if commands cannot connect.
+2. Verify `Get-Process BrokenEngineSandbox* -ErrorAction SilentlyContinue` returns nothing.
+3. Generate a new token and conditionally replace ownership:
+
+The old-owner `quit` commands may refresh `heartbeatAt`; that is takeover cleanup traffic and does not negate the staleness established before cleanup. The conditional `--expect` still refuses takeover if the recorded owner changed.
+
+```powershell
+$OldOwner = '<owner from lock status>'
+$Owner = & $AgentCli lock token
+& $AgentCli lock steal --domain harness --key default --expect $OldOwner --owner $Owner --session $Session --worktree $ROOT
+if ($LASTEXITCODE -ne 0) { throw 'Harness ownership changed during takeover' }
+```
+
+At session end, complete this mandatory release checklist:
+
+1. Send `quit` to both executables with `--owner $Owner`; the server autosaves.
+2. Verify `Get-Process BrokenEngineSandbox* -ErrorAction SilentlyContinue` returns nothing. Do this after every crashed, reaped, or abandoned launch attempt too.
+3. Run `& $AgentCli lock release --domain harness --key default --owner $Owner`; report exit code `0` verbatim.
+
+An owner mismatch is a hard stop; never remove coordination state manually.
 
 ## Launching
 
@@ -60,15 +88,13 @@ Before rebuilding/relinking, **send `quit` to any running instance** (the server
 
 ## AgentCli invocation
 
-Build it via the `/compile` skill (AgentCli section) — separate `Tools/AgentCli/Platforms/VisualStudio2026/AgentCli.sln`. Output is config-suffixed like the game exes: **`AgentCli.Debug.exe`** (Debug), `AgentCli.exe` (Release) — use the suffix matching what you built; a stale unsuffixed exe may sit beside a fresh Debug one.
+Use installed v2 and always pass the harness owner. Prefer stdin mode (trailing `-`) to avoid quoting JSON; use forward slashes in JSON Windows paths.
 
-**Prefer stdin mode** (trailing `-`): it sidesteps PowerShell/Bash quoting of the JSON. Piping the request avoids escaping quotes in the shell. **Windows paths inside JSON:** use forward slashes (`C:/...` — accepted everywhere) — Git Bash `echo` mangles `\\` into `\`, producing invalid JSON escapes ("malformed JSON").
-
-```bash
-echo '{"cmd":"status"}' | "$ROOT/Tools/AgentCli/Platforms/VisualStudio2026/Output/AgentCli.Debug.exe" --port 27100 -
+```powershell
+'{"cmd":"status"}' | & $AgentCli --owner $Owner --port 27100 -
 ```
 
-Argument form also works: `AgentCli.Debug.exe --port 27100 '{"cmd":"ping"}'`. Optional `--timeout-ms N` (default 15000, max 600000) bounds the response wait — raise it for deferred client commands (screenshots, scripted input) that resolve over several frames.
+Argument form also works: `& $AgentCli --owner $Owner --port 27100 '{"cmd":"ping"}'`. Optional `--timeout-ms N` (default 15000, max 600000) bounds the response wait; raise it for deferred client commands.
 
 **Exit codes:** `0` = response parsed and `"ok":true`; `2` = parsed and `"ok":false` (a command error — read `.error`); `1` = transport/usage failure (connect failed, timeout, malformed args — message on stderr). Always read stdout (the full JSON) regardless of exit code.
 
@@ -226,7 +252,7 @@ Only the focused fleet exposes a `members` list; spaceship units carry no id (`g
 - **Agent-mode launches stay minimized:** both executables use `SW_SHOWMINNOACTIVE` with `--agent-port`. The client also skips `SetForegroundWindow`/`BringWindowToTop`/`SetFocus` and suspends audio at boot, so it starts minimized, unfocused, and silent; a human restoring and clicking the window resumes audio, so hold focus before any audio check. `screenshot` and `dump_render_target` may briefly restore it without activation, but re-minimize it before replying.
 - **Focus/injection interleaving:** client focus state is logged — if a scripted action depends on which window/fleet is focused, read `get_logs` (or `describe_ui` `focused` flags) to confirm state before acting.
 - **Replay commands require `kbDebugInput`** — they error on builds without it (on in Debug, off in Profile/Release).
-- **Keep the claim warm during long soaks:** the lock goes stealable after a ~5-minute mtime gap. During long unattended runs (e.g. replay determinism soaks) poll `status`/`get_logs` at least every few minutes — each AgentCli command refreshes the claim; a silent 5-minute gap (worst with the game already quit) exposes it to a steal. Do not leave a background AgentCli poll loop running past your session: an orphaned loop keeps touching the lock and holds it fresh indefinitely — the exact orphan-owner failure this staleness design exists to catch.
+- **Keep the claim warm during long soaks:** the claim becomes stealable after a five-minute heartbeat gap. Poll `status`/`get_logs` at least every few minutes with `--owner $Owner`. Never leave a background poll loop running beyond the session.
 - **Port in use:** if a command can't connect (AgentCli exit 1, "connect failed"), a prior instance is likely still running and holding the port/mutex. `quit` it (or confirm it exited) before relaunching — a duplicate launch exits itself.
 
 ## Missing capability? Extend the harness

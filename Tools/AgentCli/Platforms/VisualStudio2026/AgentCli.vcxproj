@@ -12,6 +12,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\AgentCli.cpp" />
+    <ClCompile Include="..\..\AgentCliCommon.cpp" />
+    <ClCompile Include="..\..\BuildCommand.cpp" />
+    <ClCompile Include="..\..\InstallCommand.cpp" />
+    <ClCompile Include="..\..\LockCommands.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\AgentCliCommon.h" />
+    <ClInclude Include="..\..\BuildCommand.h" />
+    <ClInclude Include="..\..\InstallCommand.h" />
+    <ClInclude Include="..\..\LockCommands.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -75,7 +85,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>bcrypt.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -104,7 +114,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>bcrypt.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

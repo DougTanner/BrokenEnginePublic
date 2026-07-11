@@ -11,7 +11,7 @@ description: >-
   the changes (an implementation subagent, or the main session for direct
   edits), never a fresh fork — a fresh context cannot see the implementer's
   assumptions.
-allowed-tools: [Read, Grep, Glob, Edit, "Bash(git diff *)", "Bash(git status *)", "Bash(bash *msbuild.sh*)"]
+allowed-tools: [Read, Grep, Glob, Edit, "Bash(git diff *)", "Bash(git status *)", PowerShell]
 ---
 
 # Self-Audit
@@ -26,7 +26,7 @@ Audit your own epistemic state after implementing: what you assumed without veri
 - No confidence percentages — verbalized confidence is miscalibrated. For a shaky item, ask instead: what are the 2–3 concrete ways this could be wrong? Each way becomes a check.
 - Investigate every checkable item in-session to root cause — do the Grep/Read legwork inline (this skill runs inside the implementing context, which does not spawn subagents). Fix confirmed problems immediately via the normal edit flow, then re-run the item's check.
 - Only genuinely uncheckable-in-session items (needs runtime behavior, user knowledge, hardware) survive as handoff notes.
-- If any fix edited code, rebuild the affected `.cpp` files before the final report and fix compile errors the fixes introduced — the implementation build precedes this audit, so an unbuilt fix would otherwise break only at the process's final build, in a context blind to the audit's reasoning. Subagents build inline by running the `/compile` skill's selective `--files` `msbuild.sh` command directly via Bash (the syntax is already in context from the implementation build); the main session dispatches the build per the model table.
+- If any fix edited code, rebuild the affected `.cpp` files before the final report and fix compile errors the fixes introduced — the implementation build precedes this audit, so an unbuilt fix would otherwise break only at the process's final build, in a context blind to the audit's reasoning. Subagents build inline through installed AgentCli v2 using the `/compile` skill's native PowerShell selective `build --files` command (the syntax is already in context from the implementation build); the main session dispatches the build per the model table. If AgentCli is missing or mismatched, use the `/compile` skill's direct Release-build/install bootstrap first.
 
 ## Rubric
 
