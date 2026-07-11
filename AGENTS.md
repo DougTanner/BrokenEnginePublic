@@ -61,7 +61,6 @@ Each subagent reports files changed + functions/regions touched (one line each),
 
 ## Directives
 - Follow KISS, YAGNI, DRY — before writing logic that may already exist, grep; call or extract a shared helper, never paste a copy. Exception: mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel
-- **Rebase-only Git history:** never create merge commits and never use `git merge` to reconcile or land session work. Rebase the session branch onto the current primary branch, resolve conflicts on the rebased session branch, rerun affected verification, then advance the clean primary branch linearly. A fast-forward describes the required graph shape; it does not permit `git merge --ff-only`. Read-only commands such as `git merge-base` are allowed.
 - Before step 13, use only read-only Git commands outside an existing session worktree. Never push.
 - Claude Skills `.claude\skills` and AGENTS.md files are used only by AI agents and must be kept CONCISE
 - Each directory's agent memory lives in `AGENTS.md`; its sibling `CLAUDE.md` is a one-line `@AGENTS.md` import stub for Claude Code loading — edit `AGENTS.md`, never the stub
