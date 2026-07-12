@@ -6,10 +6,10 @@ Exit codes:
   1  Version changed. The script prints an auto-fingerprint-diff to stderr
      (new node types, new enum values, dropped fields) so /gaea2-load can
      surface it to the user.
-  2  First run on this machine — no cached version exists. Cache is initialised
+  2  First run for this PC-local shared cache — no cached version exists. Cache is initialised
      silently and a baseline fingerprint is written.
-  3  Could not determine current Gaea version (Gaea 2 not installed, never
-     opened, version probe failed). Caller should treat as a soft warning.
+  3  Could not determine current Gaea version or access the shared cache.
+     Caller should treat as a soft warning.
 
 Source for current version (in priority order):
   1. Latest .txt log in %APPDATA%\\QuadSpinner\\Gaea\\2.0\\Logs (every log starts
@@ -27,11 +27,14 @@ import re
 import subprocess
 import sys
 
-CACHE_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                          '..', 'cache'))
-VERSION_FILE = os.path.join(CACHE_DIR, 'gaea-version.txt')
+from gaea_cache import GaeaCacheError, atomic_write_text, cache_file
+
 LOG_DIR = os.path.expandvars(r'%APPDATA%\QuadSpinner\Gaea\2.0\Logs')
 GAEA_EXE = r'C:\Program Files\QuadSpinner\Gaea 2\Gaea.exe'
+
+
+class FingerprintError(RuntimeError):
+    """The sample fingerprint child could not establish or refresh its baseline."""
 
 
 def version_from_latest_log():
@@ -81,13 +84,16 @@ def fingerprint_diff_if_changed(prev_version, new_version):
     """Run inspect_samples.py --fingerprint --diff and capture its stdout for relay."""
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'inspect_samples.py')
     if not os.path.isfile(script):
-        return None
+        raise FingerprintError(f'fingerprint script is missing: {script}')
     try:
         result = subprocess.run(
             [sys.executable, script, '--fingerprint', '--diff'],
             capture_output=True, text=True, timeout=60)
-    except (subprocess.SubprocessError, OSError) as e:
-        return f'(fingerprint diff failed: {e})'
+    except (subprocess.SubprocessError, OSError) as error:
+        raise FingerprintError(str(error)) from error
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or f'exit {result.returncode}'
+        raise FingerprintError(detail)
     return result.stdout.strip() or '(no structural changes — only the version string moved)'
 
 
@@ -97,20 +103,29 @@ def main():
         print('# Could not determine Gaea 2 version (not installed, or no log present).', file=sys.stderr)
         sys.exit(3)
 
-    os.makedirs(CACHE_DIR, exist_ok=True)
+    try:
+        version_file = cache_file('gaea-version.txt')
+    except GaeaCacheError as error:
+        print(f'# Could not access shared Gaea cache: {error}', file=sys.stderr)
+        sys.exit(3)
     cached = None
-    if os.path.isfile(VERSION_FILE):
+    if os.path.isfile(version_file):
         try:
-            with open(VERSION_FILE, 'r', encoding='utf-8') as f:
+            with open(version_file, 'r', encoding='utf-8') as f:
                 cached = f.read().strip() or None
-        except OSError:
-            cached = None
+        except OSError as error:
+            print(f'# Could not access shared Gaea cache: {error}', file=sys.stderr)
+            sys.exit(3)
 
     if cached is None:
-        with open(VERSION_FILE, 'w', encoding='utf-8') as f:
-            f.write(current + '\n')
-        # First run: silently establish the baseline fingerprint too.
-        fingerprint_diff_if_changed(None, current)
+        try:
+            # Establish both baselines as one logical operation: a failed fingerprint
+            # must not make the version appear successfully processed.
+            fingerprint_diff_if_changed(None, current)
+            atomic_write_text(version_file, current + '\n')
+        except (FingerprintError, GaeaCacheError) as error:
+            print(f'# Could not establish Gaea fingerprint baseline: {error}', file=sys.stderr)
+            sys.exit(3)
         print(f'# First version probe: cached Gaea {current}.', file=sys.stderr)
         sys.exit(2)
 
@@ -119,9 +134,12 @@ def main():
         sys.exit(0)
 
     # Version moved — refresh the fingerprint and report what changed.
-    diff_text = fingerprint_diff_if_changed(cached, current)
-    with open(VERSION_FILE, 'w', encoding='utf-8') as f:
-        f.write(current + '\n')
+    try:
+        diff_text = fingerprint_diff_if_changed(cached, current)
+        atomic_write_text(version_file, current + '\n')
+    except (FingerprintError, GaeaCacheError) as error:
+        print(f'# Could not refresh Gaea fingerprint baseline: {error}', file=sys.stderr)
+        sys.exit(3)
 
     print(f'# Gaea version changed: {cached} -> {current}', file=sys.stderr)
     if diff_text:

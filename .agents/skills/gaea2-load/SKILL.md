@@ -31,12 +31,12 @@ Convert a Gaea 2 `.terrain` JSON into:
    ```
    "<python-exe-path>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/check_gaea_version.py"
    ```
-   The script reads the current Gaea version from the latest session log (or, as a fallback, from `Gaea.exe`'s `ProductVersion`) and compares it against a cached value at `.claude/skills/gaea2-shared/cache/gaea-version.txt`.
+   The script reads the current Gaea version from the latest session log (or, as a fallback, from `Gaea.exe`'s `ProductVersion`) and compares it against the PC-local baseline at `%LOCALAPPDATA%/BrokenEngine/AgentCache/Gaea2/gaea-version.txt`. Every worktree reuses this cache; the script safely copies an older checkout-local baseline when present and retains the legacy source for compatibility with already-running older tools.
    - **Exit 0** — version unchanged, proceed silently.
    - **Exit 1** — version changed. The script prints a structural diff (new node types, new enum values, dropped properties) to stderr. Surface this to the user in your final report as a one- or two-line note ("Gaea moved 2.3.0.0 → 2.4.0.0; SatMap.Library gained 'Volcanic'"). Suggest they check `gaea2-modify/SKILL.md`'s per-type constraints aren't stale.
-   - **Exit 2** — first run on this machine; baseline cached silently, proceed.
-   - **Exit 3** — could not detect a Gaea install. Note it in the report but continue — this is just an information probe, not a gate.
-   The cache also stores a sample-structure fingerprint so the diff includes *what* changed, not just the version string. Cache files are gitignored; first run on a fresh checkout is always exit 2.
+   - **Exit 2** — no PC-local shared baseline exists yet; baseline cached silently, proceed.
+   - **Exit 3** — could not detect a Gaea install or access the shared cache. Note it in the report but continue — this is just an information probe, not a gate.
+   The shared cache also stores a sample-structure fingerprint so the diff includes *what* changed, not just the version string. A fresh checkout can return exit 0 by reusing the PC-local baseline.
 
 4. **Run the loader using the detected Python path.** Quote it (the path may contain spaces):
    ```

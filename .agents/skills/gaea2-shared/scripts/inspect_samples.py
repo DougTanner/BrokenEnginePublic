@@ -13,7 +13,7 @@ Subcommands:
   --ports TYPE            Port catalogue for a node type
   --list-types            Every node $type seen across samples (with counts)
   --field-grep KEY        Every JSON path where this key appears
-  --fingerprint           Write a structural fingerprint to ../cache/sample-fingerprint.json
+  --fingerprint           Write a structural fingerprint to the shared PC-local cache
   --fingerprint --diff    Write fingerprint AND diff against the cached one
 
 check_gaea_version.py runs `--fingerprint --diff` automatically when the Gaea
@@ -34,10 +34,9 @@ import re
 import sys
 from collections import Counter, OrderedDict
 
+from gaea_cache import GaeaCacheError, atomic_write_text, cache_file
+
 SAMPLES_DIR_DEFAULT = r'C:\Program Files\QuadSpinner\Gaea 2\Examples'
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        '..', 'cache')
-FINGERPRINT_PATH = os.path.normpath(os.path.join(CACHE_DIR, 'sample-fingerprint.json'))
 
 
 def load_terrain(path):
@@ -248,20 +247,27 @@ def diff_fingerprints(old, new):
 
 
 def cmd_fingerprint(args):
+    try:
+        fingerprint_path = cache_file('sample-fingerprint.json')
+    except GaeaCacheError as error:
+        sys.exit(f'Could not access shared Gaea cache: {error}')
     fp = build_fingerprint(args.samples_dir)
-    os.makedirs(CACHE_DIR, exist_ok=True)
 
     cached = None
-    if os.path.isfile(FINGERPRINT_PATH):
+    if os.path.isfile(fingerprint_path):
         try:
-            with open(FINGERPRINT_PATH, 'r', encoding='utf-8') as f:
+            with open(fingerprint_path, 'r', encoding='utf-8') as f:
                 cached = json.load(f)
-        except Exception:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             cached = None
+        except OSError as error:
+            sys.exit(f'Could not access shared Gaea cache: {error}')
 
-    with open(FINGERPRINT_PATH, 'w', encoding='utf-8') as f:
-        json.dump(fp, f, indent=2)
-    print(f'Wrote {FINGERPRINT_PATH}', file=sys.stderr)
+    try:
+        atomic_write_text(fingerprint_path, json.dumps(fp, indent=2))
+    except GaeaCacheError as error:
+        sys.exit(f'Could not access shared Gaea cache: {error}')
+    print(f'Wrote {fingerprint_path}', file=sys.stderr)
     print(f'  samples: {len(fp["sample_files"])}  types: {len(fp["node_types"])}  enums: {len(fp["enums"])}',
           file=sys.stderr)
 
