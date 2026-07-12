@@ -78,7 +78,7 @@ using ChunkFlags_t = Flags<ChunkFlags>;
 
 // A chunk payload is compressed on disk (and must be decompressed into the lazy pool at load) when it
 // carries either compression flag. Texture chunks are LZ4-compressed today; kZlibCompressed stays a
-// legal on-disk form (the FileManager decode path still handles it). Single predicate so every
+// legal on-disk form (the chunk decode path still handles it). Single predicate so every
 // "is this chunk compressed" test covers both codecs rather than double-checking each flag at each site.
 inline bool IsCompressed(ChunkFlags_t flags)
 {
@@ -432,7 +432,7 @@ struct ChunkHeader
 	};
 };
 // The engine read path reinterpret_casts mapped pack bytes to ChunkHeader* and copies it by value
-// (FileManager.cpp), so the byte representation must be trivially copyable. The per-union-member
+// (PackChunks.cpp), so the byte representation must be trivially copyable. The per-union-member
 // sizeof asserts above lock the union footprint; a change to the largest member also shifts
 // sizeof(ChunkHeader) and so auto-bumps DataHeader::kiVersion.
 static_assert(std::is_trivially_copyable_v<ChunkHeader>, "ChunkHeader must be trivially copyable for the reinterpret_cast/memcpy read path");

@@ -352,6 +352,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Debug\DebugRender.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\File\DifferenceStream.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\File\FileManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\File\PackChunks.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights\AreaLights.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards\Billboards.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collection.h" />
@@ -525,6 +526,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoices.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\File\PackChunks.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights\AreaLights.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights\AreaLightsUpdate.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights\AreaLightsRender.cpp" />

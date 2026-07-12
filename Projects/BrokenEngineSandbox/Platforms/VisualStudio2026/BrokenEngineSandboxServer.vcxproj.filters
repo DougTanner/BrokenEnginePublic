@@ -159,6 +159,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\File\FileManager.h">
       <Filter>Engine\File</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\File\PackChunks.h">
+      <Filter>Engine\File</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\File\DifferenceStream.h">
       <Filter>Engine\File</Filter>
     </ClInclude>
@@ -528,6 +531,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">
+      <Filter>Engine\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\File\PackChunks.cpp">
       <Filter>Engine\File</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Game.cpp">

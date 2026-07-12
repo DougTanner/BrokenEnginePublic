@@ -43,7 +43,7 @@ The manager must supply three immutable lifecycle values: `$PRIMARY` (absolute p
 
 DataPacker's mutex coordinates across worktrees and its shared chunks live under `%TEMP%\DataPacker\<Project>`; do not add another PC-global DataPacker lock or a checkout-local cache copy. Gaea raw and split intermediates use the single mutable `%TEMP%\DataPacker\<Project>\Gaea\Islands` cache; source-tree island leaves retain only tracked BC outputs.
 
-Run normal builds in the foreground with an execution timeout of at least 15 minutes so AgentCli's 660-second lock wait cannot be preempted; extend it for cold builds. Orchestrated worktree game builds never run DataPacker, Gaea, or texture export. Always preserve `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; the bundled VS2026 clang-tidy crashes on this codebase.
+**Run every build synchronously in the foreground and stay in-turn until the `AgentCli build` call returns an exit code — only then report. NEVER background a build (`run_in_background`, a `Monitor` watcher, `Start-Job`, or a trailing `&`) and then end your turn to await completion.** A delegated subagent that yields its turn while a build runs is not reliably re-woken when the build finishes, so the workflow stalls half-done — a common failure is ThirdParty completing while the client/server targets are never started — and no result is ever reported. Give each foreground `AgentCli build` call the maximum execution timeout the tool allows so AgentCli's 660-second lock wait cannot be preempted; a cold first build of a fresh worktree can approach that limit. If a call times out with the build still running, **re-invoke the same `AgentCli build` command** — AgentCli serializes per target and its incremental/tlog state continues the same build to completion — rather than backgrounding it. If blocking is genuinely unacceptable, poll the build's own output to completion within the same turn (repeated short reads in a loop) and report only once you hold the final per-target exit code; never hand the wait to a fire-and-forget watcher and stop. Orchestrated worktree game builds never run DataPacker, Gaea, or texture export. Always preserve `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; the bundled VS2026 clang-tidy crashes on this codebase.
 
 ## Select runtime data mode
 
@@ -115,6 +115,7 @@ Only `.cpp` inputs already present in the target project are valid. After a head
 
 ## Report results
 
+- Report only after every build has returned an exit code; do not end your turn (or hand back to the caller) while any build is still running. If you delegated this skill, the build ran in the foreground of your turn per the rule above — its exit code is in hand before you report.
 - Final status per project: success or fail.
 - Every error line verbatim.
 - Warning lines verbatim only for files involved in the change.

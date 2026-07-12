@@ -57,7 +57,7 @@ struct LazyChunk
 	MovableAtomicChunkState eState {};                // Atomic state tracking load progress
 	common::ChunkHeader header {};                    // Chunk header
 
-	std::byte* pData = nullptr;                       // Points into FileManager's pre-allocated pool (null until assigned)
+	std::byte* pData = nullptr;                       // Points into the pre-allocated lazy pool (null until assigned)
 	int64_t iDataSize = 0;
 
 	// GPU upload results (written by upload thread, read by main thread)
@@ -98,6 +98,11 @@ constexpr bool IsEagerChunk(data::DataTypes eDataType);
 // Used to skip opening (and locking) pack files the server never reads — Audio, Texture, etc.
 constexpr bool IsServerChunk(data::DataTypes eDataType);
 
+// Owned by FileManager (std::unique_ptr, forward-declared for the compile firewall): the packed-asset chunk
+// engine (eager buffers, lazy maps, loading threads, VirtualAlloc pool). Definition in PackChunks.h, included
+// only by PackChunks.cpp + FileManager.cpp.
+class PackChunks;
+
 class FileManager
 {
 public:
@@ -105,7 +110,7 @@ public:
 	FileManager();
 	~FileManager();
 
-	FileManager(const FileManager&) = delete; // Owns a raw std::thread whose lambda captures `this`; deleting copy also suppresses the implicit move
+	FileManager(const FileManager&) = delete; // Holds a std::unique_ptr<PackChunks> (non-copyable); deleting copy also suppresses the implicit move
 	FileManager& operator=(const FileManager&) = delete;
 
 	bool Exists(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
@@ -158,72 +163,13 @@ private:
 	bool CommitAtomicWrite(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, bool bWriteSucceeded);
 	void BackupExistingFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 
-	void LoadPackFiles();
-	void LoadingThread(int64_t iThreadIndex);
-	void LoadChunk(const LoadRequest& rRequest, int64_t iThreadIndex);
-	std::filesystem::path GetDataFilePath(data::DataTypes eDataType, std::string_view extension) const;
-
 	std::filesystem::path mAppDataDirectory;
 	std::filesystem::path mTempDirectory;
-	std::filesystem::path mDataDirectory;
 
-	// Cached pack file paths (initialized once in LoadPackFiles)
-	std::filesystem::path mPackFilePaths[data::kDataTypeCount];
-
-	// Only available for eager pack files
-	std::vector<std::byte> mPackFileData[data::kDataTypeCount];
-
-	// Per-data-type chunk-location tables (offset/size/crc), read from each manifest in LoadPackFiles
-	std::vector<common::ChunkLocation> mpChunkLocations[data::kDataTypeCount];
-
-	// Split chunk maps for eager and lazy loading
-	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Model, Shaders
-	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Islands, Texture
-	
-	// N background loading threads, assigned inside the async eager-load task (mLoadingFuture), not the ctor body.
-	// Each LoadingThread pops from the shared priority queue and reads the sync members below
-	// (mWakeCondition/mQueueMutex/mRequestQueue/mShutdown), owning a private read buffer + decompress scratch
-	// (indexed by thread index). ~FileManager first drains mLoadingFuture (ensuring these assignments have
-	// happened), then sets mShutdown + notify_all()s + join()s every thread before those members destruct.
-	// Count is deliberately small: each thread doubles the read-buffer + decompress-scratch memory footprint.
-	static constexpr int64_t kiLoadingThreadCount = 2;
-	std::thread mLoadingThreads[kiLoadingThreadCount];
-	std::condition_variable mWakeCondition;
-	std::condition_variable mCompletionCondition;
-	mutable std::mutex mQueueMutex;
-	std::priority_queue<LoadRequest> mRequestQueue;
-	std::atomic<bool> mShutdown {false};
-
-	// Eager-load completion, assigned in LoadPackFiles. mutable: the first GetEagerChunkMap() drains it
-	// (a lazy completion behind the const accessor).
-	mutable std::future<void> mLoadingFuture;
-
-	// Published (release) at the end of the async eager-load task; eager-map readers (ReadChunkData,
-	// IsChunkReady, the memory-stats getters) acquire it before touching mEagerChunkMap / mPackFileData,
-	// which the task populates. Gates the boot window only — always true once the first frame runs.
-	std::atomic<bool> mbEagerLoadComplete {false};
-
-	// Persistent pack file handles for lazy loading (opened with FILE_FLAG_NO_BUFFERING)
-	HANDLE mLazyPackFileHandles[data::kDataTypeCount] {};
-
-	// Per-loading-thread sector-aligned read buffers (one per thread, indexed by thread index; reused across that
-	// thread's chunk reads). Size is shared — identical for every thread.
-	std::byte* mpReadBuffers[kiLoadingThreadCount] {};
-	int64_t miReadBufferSize = 0;
-	int64_t miSectorSize = 0;
-	int64_t miPageSize = 0; // VM page granularity for lazy-chunk sub-range decommit/recommit
-
-	// Pre-allocated memory pool for all lazy chunk data (VirtualAlloc MEM_COMMIT — committed, not pre-faulted)
-	std::byte* mpLazyPool = nullptr;
-	int64_t miLazyPoolSize = 0;
-
-	// Per-loading-thread scratch buffers for compressed chunks (LZ4 or zlib; one per thread, indexed by thread index).
-	// Each sized at boot to the largest compressed chunk on disk; reused per chunk. Size is shared.
-	std::byte* mpDecompressScratches[kiLoadingThreadCount] {};
-	int64_t miDecompressScratchSize = 0;
-
-	// Sub-read size for chunked disk reads (256KB balances NVMe throughput vs L3 cache pressure)
-	static constexpr int64_t kiSubReadSize = 256 * 1024;
+	// Packed-asset chunk engine. Owns the eager buffers, lazy maps, loading threads, and VirtualAlloc pool; the
+	// public chunk methods above forward to it. unique_ptr so PackChunks.h stays out of this header's ~20 PCH
+	// consumers (out-of-line ~FileManager in the .cpp destroys it where PackChunks is complete).
+	std::unique_ptr<PackChunks> mpPackChunks;
 };
 
 inline FileManager* gpFileManager = nullptr;

@@ -133,7 +133,7 @@ enum class CollectionFlags : uint32_t
 };
 using CollectionFlags_t = common::Flags<CollectionFlags>;
 
-// Request lazy-load of a texture chunk by CRC (implemented in FileManager.cpp)
+// Request lazy-load of a texture chunk by CRC (implemented in the FileManager subsystem)
 void RequestTextureChunkLoad(common::crc_t crc);
 
 #if defined(BT_CLIENT)

@@ -341,6 +341,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\..\..\Engine\Data\Shaders\ShaderLayoutsBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\File\DifferenceStream.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\File\FileManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\File\PackChunks.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collection.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\CollectionController.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\CollectionId.h" />
@@ -450,6 +451,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\..\..\Common\Log\LogDifference.cpp" />
     <ClCompile Include="..\..\..\..\Common\Smoothed.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\File\PackChunks.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions\Explosions.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions\ExplosionsSpawn.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions\ExplosionsUpdate.cpp" />
