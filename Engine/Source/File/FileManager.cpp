@@ -1,5 +1,6 @@
 #include "FileManager.h"
 
+#include "LaunchOptions.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -44,12 +45,20 @@ FileManager::FileManager()
 	LOG(kLoading, kDebug, "Temp directory: \"{}\"", mTempDirectory.string());
 	std::filesystem::create_directory(mTempDirectory);
 
-	// Get the file path of the executable, the /Data/ folder will be beside it
-	GetModuleFileNameW(nullptr, pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
-	mDataDirectory = pcDirectory;
-	mDataDirectory.remove_filename();
-	mDataDirectory /= "Data";
-	LOG(kLoading, kDebug, "Data directory: \"{}\"", mDataDirectory.string());
+	if (!gLaunchOptions.dataDirectory.empty())
+	{
+		mDataDirectory = gLaunchOptions.dataDirectory;
+		LOG(kLoading, kInfo, "Using explicit data directory: \"{}\"", mDataDirectory);
+	}
+	else
+	{
+		// Get the file path of the executable, the /Data/ folder will be beside it
+		GetModuleFileNameW(nullptr, pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
+		mDataDirectory = pcDirectory;
+		mDataDirectory.remove_filename();
+		mDataDirectory /= "Data";
+		LOG(kLoading, kDebug, "Data directory: \"{}\"", mDataDirectory.string());
+	}
 
 	LoadPackFiles();
 }

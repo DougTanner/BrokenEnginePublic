@@ -645,28 +645,28 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\ModelPipeline.h">
       <Filter>Engine\Graphics\Objects</Filter>
     </ClInclude>
-    <ClInclude Include="Output\Data\Texture.h">
+    <ClInclude Include="$(GameDataDirectory)\Texture.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
-    <ClInclude Include="Output\Data\Audio.h">
+    <ClInclude Include="$(GameDataDirectory)\Audio.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
-    <ClInclude Include="Output\Data\Font.h">
+    <ClInclude Include="$(GameDataDirectory)\Font.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
-    <ClInclude Include="Output\Data\Scene.h">
+    <ClInclude Include="$(GameDataDirectory)\Scene.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
-    <ClInclude Include="Output\Data\Islands.h">
+    <ClInclude Include="$(GameDataDirectory)\Islands.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
-    <ClInclude Include="Output\Data\Model.h">
+    <ClInclude Include="$(GameDataDirectory)\Model.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
-    <ClInclude Include="Output\Data\Shader.h">
+    <ClInclude Include="$(GameDataDirectory)\Shader.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
-    <ClInclude Include="Output\Data\Data.h">
+    <ClInclude Include="$(GameDataDirectory)\Data.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\AudioUtility.h">

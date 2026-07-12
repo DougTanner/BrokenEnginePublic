@@ -56,6 +56,44 @@ bool ParseLaunchOptions()
 				LOG(kDefault, kWarning, "Launch option --log-file missing value");
 			}
 		}
+		else if (wcscmp(pArgumentValues[i], L"--data-directory") == 0)
+		{
+			gLaunchOptions.dataDirectory.clear();
+			if (i + 1 >= iArgumentCount)
+			{
+				LOG(kDefault, kError, "Launch option --data-directory missing value");
+				bOk = false;
+				continue;
+			}
+
+			std::filesystem::path requestedDirectory = pArgumentValues[++i];
+			if (!requestedDirectory.is_absolute())
+			{
+				LOG(kDefault, kError, "Launch option --data-directory must be absolute: \"{}\"", requestedDirectory);
+				bOk = false;
+				continue;
+			}
+
+			std::error_code canonicalError;
+			std::filesystem::path canonicalDirectory = std::filesystem::canonical(requestedDirectory, canonicalError);
+			if (canonicalError)
+			{
+				LOG(kDefault, kError, "Launch option --data-directory is missing or unusable: \"{}\" (error {})", requestedDirectory, canonicalError.value());
+				bOk = false;
+				continue;
+			}
+
+			std::error_code typeError;
+			bool bIsDirectory = std::filesystem::is_directory(canonicalDirectory, typeError);
+			if (typeError || !bIsDirectory)
+			{
+				LOG(kDefault, kError, "Launch option --data-directory is not a usable directory: \"{}\" (error {})", canonicalDirectory, typeError.value());
+				bOk = false;
+				continue;
+			}
+
+			gLaunchOptions.dataDirectory = std::move(canonicalDirectory);
+		}
 		else if (wcscmp(pArgumentValues[i], L"--windowed") == 0)
 		{
 			if (i + 1 < iArgumentCount)

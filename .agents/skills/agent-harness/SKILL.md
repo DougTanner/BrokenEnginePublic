@@ -8,7 +8,7 @@ allowed-tools: [PowerShell]
 
 The harness lets an agent run and control the running game headlessly. Each executable (`--agent-port N`) opens a loopback TCP JSON command channel on `127.0.0.1:N`. AgentCli sends one length-prefixed JSON request and prints the JSON response. The **server** is a headless dev instance of the authoritative sim; the **client** renders and drives the UI. (Production servers are Azure-hosted — a local "Server" is only a dev instance.)
 
-Convention: **server on port 27100, client on port 27101.** `$ROOT` below is the absolute repo root.
+Convention: **server on port 27100, client on port 27101.** `$ROOT` below is the absolute adopted worktree.
 
 ## AgentCli setup
 
@@ -66,7 +66,9 @@ An owner mismatch is a hard stop; never remove coordination state manually.
 
 Launch each executable in the background so it keeps running across turns. Use `run_in_background: true`; do not poll or sleep. All configs land in one flat folder (`Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/Output/`) with the config as a filename suffix — `BrokenEngineSandbox.Debug.exe`, `BrokenEngineSandboxServer.Debug.exe`, `.Profile.exe` etc.; use the suffix matching the config you built.
 
-Launch args (all optional): `--agent-port N` (opens the channel; required to drive it), `--log-file <path>` (mirror the log ring to a file; write it under `$ROOT\Temp\` — gitignored, but create the directory first: the sink soft-fails if the parent is missing), `--windowed WxH` (force a windowed client size; overrides fullscreen only at read-time, never mutates the saved setting). `1600x900` is a good windowed size — small enough to see, large enough for UI hit-testing.
+Require the `/compile` result's `DataBuildMode`, `RunDataPacker=false`, canonical `GameDataDirectory`, and selected-data required-file identity snapshot. Before every launch, confirm the directory exists and recheck the snapshot; stop if any required header, manifest, or pack changed, disappeared, or appeared. In Local mode, also require and recheck the primary snapshot before launch and after verification to prove the harness did not write authoritative output. Use the compile-selected path exactly for both processes; never infer a path, switch modes, fall back to Shared data, or trigger DataPacker/Gaea/texture export.
+
+Launch args (all optional): `--agent-port N` (opens the channel; required to drive it), `--data-directory <absolute-path>` (pack/manifest root; required by this workflow), `--log-file <path>` (mirror the log ring to a file; write it under `$ROOT\Temp\` — gitignored, but create the directory first: the sink soft-fails if the parent is missing), `--windowed WxH` (force a windowed client size; overrides fullscreen only at read-time, never mutates the saved setting). `1600x900` is a good windowed size — small enough to see, large enough for UI hit-testing.
 
 Both executables start minimized without activation when `--agent-port` is set, so launches stay in the background. Client capture commands temporarily restore the client without activation, capture from the live swapchain, and re-minimize it before responding.
 
@@ -74,9 +76,11 @@ Both executables start minimized without activation when `--agent-port` is set, 
 
 ```powershell
 # run_in_background: true — start the server (headless), then the client windowed.
-& "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandboxServer.Debug.exe" --agent-port 27100 --log-file "$ROOT\Temp\server-agent.log"
-& "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandbox.Debug.exe" --agent-port 27101 --windowed 1600x900 --log-file "$ROOT\Temp\client-agent.log"
+& "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandboxServer.Debug.exe" --agent-port 27100 --data-directory "$GameDataDirectory" --log-file "$ROOT\Temp\server-agent.log"
+& "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandbox.Debug.exe" --agent-port 27101 --data-directory "$GameDataDirectory" --windowed 1600x900 --log-file "$ROOT\Temp\client-agent.log"
 ```
+
+Do not set or change the processes' working directory. `--data-directory` is the sole worktree data-root override; omission deliberately tests legacy executable-sibling `Data` behavior only when a verification plan asks for that negative/compatibility case.
 
 Bad `--agent-port` (outside `[1,65535]`) aborts startup. A mangled `--windowed` value is rejected and logged.
 
