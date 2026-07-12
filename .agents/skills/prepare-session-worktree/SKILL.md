@@ -15,7 +15,8 @@ allowed-tools: [Bash]
 
 Establish one isolated checkout before repository edits begin. This skill owns
 initial discovery, adoption, or creation only; `/finalize-changes` owns commits,
-reconciliation, landing, and cleanup.
+reconciliation, landing, and locking, then retains the landed worktree and
+branch for explicit user-managed cleanup.
 
 ## Inputs
 

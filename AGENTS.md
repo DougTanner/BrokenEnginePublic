@@ -51,13 +51,18 @@ Main session accumulates every skill's residuals and handoffs, passes them to la
 6. Use an Opus subagent to invoke the /update-claude-docs skill
 7. Have a Sonnet subagent invoke /update-vcxproj on every file changed this session
 8. Have a Sonnet subagent invoke /compile; send failures to an Opus /resolve-findings subagent
-9. For runtime-observable changes, have an Opus subagent invoke /agent-harness; send failures to an Opus /resolve-findings subagent. Skip only changes with no runtime surface
+9. Verify every testable change in the isolated session worktree before landing:
+	- Build a verification ledger from the plan's acceptance criteria, changed behavior, and review/build residuals. Every testable item needs an exact check and `PASS` evidence; documentation/tooling/configuration changes use the strongest applicable static or functional check, not an automatic runtime skip
+	- For runtime-observable changes, have an Opus subagent invoke /agent-harness. When the plan has no Verification section, derive the smallest live checks that cover its acceptance criteria
+	- Send every failure to an Opus /resolve-findings subagent, then rerun the failed check plus any regression checks affected by the fix. Repeat test -> fix -> retest until all testable items pass
+	- A testable check requiring new authority, hardware, or external coordination is blocked, not skipped: ask the user. It remains a landing blocker unless the user explicitly changes the plan's scope or acceptance criteria, after which the revised criterion must be verified
+	- Do not proceed to step 10 while any in-scope testable item is failed, skipped, blocked, or unverified. Bind the ledger to a final changed-file manifest (normalized paths plus content hashes/deletion markers); any repository mutation that changes that manifest makes the ledger stale
 10. Audit the completed change per logical file group:
 	- **a)** Run two concurrent /session-audit subagents (Fable + Opus) on identical inputs
 	- **b)** Main session dedupes findings; send accepted non-structural in-scope fixes to /resolve-findings (Opus) and route structural findings through step 11
-	- **c)** Run /compile (Sonnet) on fixed `.cpp` files, then one /resolve-findings verification pass (Opus) on fixed regions; do not cycle again
-11. Have an Opus subagent invoke /create-follow-up-plans for unresolved structural or out-of-scope residuals
-12. When working in a session worktree, invoke /finalize-changes for every repository mutation, including documentation, plans, skills, configuration, and other non-C++ changes.
+	- **c)** Run /compile (Sonnet) on fixed `.cpp` files, then one independent /resolve-findings verification pass (Opus) on fixed regions. Any failure or repository mutation returns to step 9's test -> fix -> retest loop; repeat until the affected ledger entries pass. Do not repeat the paired audits
+11. Have an Opus subagent invoke /create-follow-up-plans for unresolved structural or out-of-scope residuals. Because plan/queue edits mutate the repository, return to step 9 afterward and verify their links, scoring, ordering, overlap metadata, and acceptance coverage
+12. When working in a session worktree, invoke /finalize-changes for every repository mutation, including documentation, plans, skills, configuration, and other non-C++ changes. Finalize only when the step-9 ledger matches the final changed-file content manifest
 
 ## Resolving Ambiguity
 
@@ -68,7 +73,7 @@ Main session accumulates every skill's residuals and handoffs, passes them to la
 ## Directives
 
 - Follow KISS, YAGNI, DRY — before writing logic that may already exist, grep; call or extract a shared helper, never paste a copy. Exception: mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel
-- Before step 12, do not mutate Git state outside the adopted session worktree; /finalize-changes owns commit, rebase, landing, locking, and cleanup. Never push
+- Before step 12, do not mutate Git state outside the adopted session worktree; /finalize-changes owns commit, rebase, landing, and locking. It retains the clean landed session worktree and branch for user-managed cleanup. Never push
 - Agent-memory changes invoke /update-claude-docs; edit `AGENTS.md`, never its `CLAUDE.md` import stub
 - **Error handling at trust boundaries only**: assume function parameters from within the codebase are valid — no defensive validation between our own functions. Do validate anything opaque to the current code unit: network input, file reads, OS/third-party API results.
 - **No useless ASSERTs**: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it; prefer making the condition impossible in calling code or recovering gracefully. Resolution ladder: repo-code-review skill §2c.

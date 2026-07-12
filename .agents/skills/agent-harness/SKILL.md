@@ -388,7 +388,7 @@ Only the focused fleet exposes a `members` list; spaceship units carry no id (`g
 
 ## Process verification report
 
-For C++ Code Change Process step 9, run the plan's Verification section when present; otherwise derive the smallest live checks that cover its acceptance criteria. Report each criterion as `PASS` or `FAIL` with the exact query, scene, UI, screenshot, or log evidence. Report setup limitations as residuals rather than weakening a criterion. Do not diagnose or edit a failure in this role; return it to `/resolve-findings` with the reproducing commands and evidence.
+For C++ Code Change Process step 9, run the plan's Verification section when present; otherwise derive the smallest live checks that cover its acceptance criteria. Report each criterion as `PASS` or `FAIL` with the exact query, scene, UI, screenshot, or log evidence. Report setup limitations as blocked checks rather than weakening a criterion. Do not diagnose or edit a failure in this role; return it to `/resolve-findings` with the reproducing commands and evidence. The caller re-invokes this skill after each fix until every affected live check passes. A failed or blocked in-scope testable check is not a completed step-9 report; the user must supply the missing authority/environment or explicitly revise the plan's scope or acceptance criteria before verification resumes.
 
 End the process verification report with:
 
@@ -418,4 +418,4 @@ Residuals:
 If a verification step needs an interaction the harness can't do — a missing command, param, result field, queryable state, or scripted-input primitive — **do not** fake it with fragile workarounds (pixel-guessing, log-scraping for state a query should expose) and do not silently skip the verification. Instead:
 
 1. **Preferred: build it.** Additions are cheap and follow existing patterns — shared commands in `Projects/BrokenEngineSandbox/Source/Agent/AgentCommands.cpp`, server commands/queries in `AgentCommandsServer*.cpp`, client commands in `AgentCommandsClient.cpp` (deferred capture/input via `AgentCommandServer::DeferResponse`), input primitives in `Engine/Source/Agent/AgentInput.cpp`, scene fields in `AgentScene.cpp`. Route through the C++ Code Change Process; update this skill's command reference in the same session.
-2. **Otherwise: defer, visibly.** If the extension is out of scope right now, create a plan in `Documents/Plans/Agent/` (+ `Order.md` row) specifying the missing capability and the verification it blocks, and report the skipped verification as a residual — never drop it silently.
+2. **Otherwise: remain blocked.** If the extension is out of scope right now, keep the current verification `BLOCKED` and forbid landing until either the capability is built and its check passes, or the user explicitly revises the plan's scope or acceptance criteria and the revised criterion is verified. A follow-up plan may record the missing capability, but it does not waive the current verification gate.
