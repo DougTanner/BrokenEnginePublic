@@ -57,7 +57,7 @@ Main session accumulates every skill's residuals and handoffs, passes them to la
 	- **b)** Main session dedupes findings; send accepted non-structural in-scope fixes to /resolve-findings (Opus) and route structural findings through step 11
 	- **c)** Run /compile (Sonnet) on fixed `.cpp` files, then one independent /resolve-findings verification pass (Opus) on fixed regions. Any failure or repository mutation returns to step 9's test -> fix -> retest loop; repeat until the affected ledger entries pass. Do not repeat the paired audits
 11. Have an Opus subagent invoke /create-follow-up-plans for unresolved structural or out-of-scope residuals. Because plan/queue edits mutate the repository, return to step 9 afterward and verify their links, scoring, ordering, overlap metadata, and acceptance coverage
-12. When working in a session worktree, invoke /finalize-changes for every repository mutation, including documentation, plans, skills, configuration, and other non-C++ changes. Finalize only when the step-9 ledger matches the final changed-file content manifest. Before rebasing the session branch onto the primary branch, stop, present the user with the skill's detailed sign-off summary, and require explicit confirmation to proceed
+12. Invoke /finalize-changes; the skill owns final verification, sign-off, reconciliation, landing, claim release, and completion reporting
 
 ## Resolving Ambiguity
 
@@ -68,7 +68,6 @@ Main session accumulates every skill's residuals and handoffs, passes them to la
 ## Directives
 
 - Follow KISS, YAGNI, DRY — before writing logic that may already exist, grep; call or extract a shared helper, never paste a copy. Exception: mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel
-- Before step 12, do not mutate Git state outside the adopted session worktree; /finalize-changes owns commit, rebase, landing, and locking. It retains the clean landed session worktree and branch for user-managed cleanup. Never push
 - Agent-memory changes invoke /update-claude-docs; edit `AGENTS.md`, never its `CLAUDE.md` import stub
 - **Error handling at trust boundaries only**: assume function parameters from within the codebase are valid — no defensive validation between our own functions. Do validate anything opaque to the current code unit: network input, file reads, OS/third-party API results.
 - **No useless ASSERTs**: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it; prefer making the condition impossible in calling code or recovering gracefully. Resolution ladder: repo-code-review skill §2c.

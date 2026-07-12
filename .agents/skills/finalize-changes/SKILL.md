@@ -16,6 +16,8 @@ allowed-tools: [Read, Bash, AskUserQuestion]
 
 Finalize only the verified change set. Preserve unrelated user changes, never create a worktree at this late stage, and never remove a session worktree or branch.
 
+Use this workflow for every repository mutation made in a session worktree, including C++, documentation, plans, skills, configuration, and project files. Before finalization, keep all Git-state mutation inside the adopted session worktree. This skill exclusively owns the final commit, reconciliation rebase, landing lock, parent-branch update, claim release, and retained-worktree checks. Never push.
+
 ## Rebase-only history
 
 Keep repository history linear. Reconciliation means running `git rebase <primary-branch>` from the session worktree so verified session commits are replayed onto current primary; resolve conflicts with the normal rebase continue/abort flow. Landing means advancing clean primary to that already-rebased session tip with `git rebase <session-branch>` after proving primary is its ancestor. The landing graph operation is a fast-forward, but the command remains `git rebase`.
