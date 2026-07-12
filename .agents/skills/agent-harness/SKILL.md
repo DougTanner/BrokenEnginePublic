@@ -10,6 +10,147 @@ The harness lets an agent run and control the running game headlessly. Each exec
 
 Convention: **server on port 27100, client on port 27101.** `$ROOT` below is the absolute adopted worktree.
 
+## Private-LAN firewall (opt-in)
+
+The AgentCli TCP command channels stay on `127.0.0.1` and need no firewall exception. Only use this workflow when a requested scenario explicitly requires a client on another machine or private Wi-Fi to reach the server's all-interface UDP game listener (27015) and discovery listener (27016). Ordinary same-machine harness runs neither need nor inspect this rule.
+
+Firewall changes are operator-driven. Never run these blocks automatically, request elevation, disable the firewall or notifications, change a network category, or add an executable-path/Public-profile rule. To opt in, the operator opens an **elevated PowerShell** and runs this exact-name, idempotent install block:
+
+```powershell
+$RuleName = 'BrokenEngine-PrivateLan-UDP'
+$DisplayName = 'Broken Engine Private-LAN UDP'
+
+Remove-NetFirewallRule -PolicyStore PersistentStore -Name $RuleName -ErrorAction SilentlyContinue
+New-NetFirewallRule -PolicyStore PersistentStore -Name $RuleName -DisplayName $DisplayName `
+	-Enabled True -Direction Inbound -Action Allow -Profile Private -Protocol UDP `
+	-LocalPort 27015,27016 -RemoteAddress LocalSubnet
+```
+
+When cross-machine Private-LAN access is explicitly required, run the following **read-only, non-elevated** inspection before launching. It reports the exact local-persistent rule separately from resultant ActiveStore policy, traces the policy source, compares port/address filters, and checks current enforcement. `ActiveStore` presence or `PrimaryStatus` alone is never proof that the rule is enforced.
+
+```powershell
+$RuleName = 'BrokenEngine-PrivateLan-UDP'
+$DesiredPorts = @('27015', '27016')
+
+function ConvertTo-ValueSet([object[]] $Values)
+{
+	return @($Values | ForEach-Object { "$_" -split ',' } |
+		ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)
+}
+
+function Test-ValueSet([object[]] $Actual, [object[]] $Expected)
+{
+	return @(Compare-Object (ConvertTo-ValueSet $Actual) (ConvertTo-ValueSet $Expected)).Count -eq 0
+}
+
+function Get-RuleShape($Rule)
+{
+	$Port = Get-NetFirewallPortFilter -AssociatedNetFirewallRule $Rule
+	$Address = Get-NetFirewallAddressFilter -AssociatedNetFirewallRule $Rule
+	return [pscustomobject]@{
+		Name = $Rule.Name
+		Enabled = $Rule.Enabled
+		Direction = $Rule.Direction
+		Action = $Rule.Action
+		Profile = $Rule.Profile
+		Protocol = $Port.Protocol
+		LocalPort = $Port.LocalPort
+		RemoteAddress = $Address.RemoteAddress
+		PolicyStoreSource = $Rule.PolicyStoreSource
+		PolicyStoreSourceType = $Rule.PolicyStoreSourceType
+		EnforcementStatus = $Rule.EnforcementStatus
+	}
+}
+
+function Test-DesiredShape($Shape)
+{
+	return $Shape.Name -eq $RuleName -and
+		"$($Shape.Enabled)" -eq 'True' -and
+		"$($Shape.Direction)" -eq 'Inbound' -and
+		"$($Shape.Action)" -eq 'Allow' -and
+		(Test-ValueSet $Shape.Profile @('Private')) -and
+		(Test-ValueSet $Shape.Protocol @('UDP')) -and
+		(Test-ValueSet $Shape.LocalPort $DesiredPorts) -and
+		(Test-ValueSet $Shape.RemoteAddress @('LocalSubnet'))
+}
+
+function Get-InspectionStatus($LocalRules, $DesiredLocalShapes, $ActiveRules,
+	$DesiredActiveLocalShapes, $PrivateProfile, $PrivateConnections)
+{
+	if (@($LocalRules).Count -eq 0)
+	{
+		return 'NOT INSTALLED: no exact-name rule exists in PersistentStore.'
+	}
+	if (@($LocalRules).Count -ne 1 -or @($DesiredLocalShapes).Count -ne 1)
+	{
+		return 'LOCAL RULE MISMATCH: the exact-name PersistentStore rule does not have the required shape.'
+	}
+	if (@($ActiveRules).Count -eq 0)
+	{
+		return 'NO RESULTANT RULE: the local rule exists but no exact-name rule reached ActiveStore.'
+	}
+	if (@($DesiredActiveLocalShapes).Count -ne 1)
+	{
+		return 'RESULTANT OVERRIDE/MISMATCH: inspect PolicyStoreSourceType and the filters above.'
+	}
+	if ("$($PrivateProfile.Enabled)" -ne 'True')
+	{
+		return 'NOT ENFORCED: FirewallOffInProfile.'
+	}
+	if ("$($PrivateProfile.AllowLocalFirewallRules)" -eq 'False')
+	{
+		return 'NOT ENFORCED: LocalFirewallRulesDisallowed.'
+	}
+	if (@($PrivateConnections).Count -eq 0)
+	{
+		return 'NOT ENFORCED: InactiveProfile (no current Private connection).'
+	}
+	$Statuses = ConvertTo-ValueSet $DesiredActiveLocalShapes.EnforcementStatus
+	if (-not (Test-ValueSet $Statuses @('Enforced')))
+	{
+		return "NOT ENFORCED: $($Statuses -join ', ')."
+	}
+	return 'FULLY ENFORCED: exact local rule is resultant and enforced for an eligible Private connection.'
+}
+
+$LocalRules = @(Get-NetFirewallRule -PolicyStore PersistentStore -Name $RuleName -ErrorAction SilentlyContinue)
+$ActiveRules = @(Get-NetFirewallRule -PolicyStore ActiveStore -TracePolicyStore -Name $RuleName -ErrorAction SilentlyContinue)
+$LocalShapes = @($LocalRules | ForEach-Object { Get-RuleShape $_ })
+$ActiveShapes = @($ActiveRules | ForEach-Object { Get-RuleShape $_ })
+$PrivateProfile = Get-NetFirewallProfile -PolicyStore ActiveStore -Name Private
+$Connections = @(Get-NetConnectionProfile)
+$PrivateConnections = @($Connections | Where-Object NetworkCategory -eq 'Private')
+$DesiredLocalShapes = @($LocalShapes | Where-Object { Test-DesiredShape $_ })
+$DesiredActiveLocalShapes = @($ActiveShapes | Where-Object {
+	(Test-DesiredShape $_) -and $_.PolicyStoreSourceType -eq 'Local' -and
+	$_.PolicyStoreSource -eq 'PersistentStore'
+})
+
+'Local PersistentStore rule:'
+$LocalShapes | Format-List
+'Resultant ActiveStore rule(s), including traced source:'
+$ActiveShapes | Format-List
+'Private firewall profile:'
+$PrivateProfile | Select-Object Name, Enabled, AllowLocalFirewallRules | Format-List
+'Current connection categories:'
+$Connections | Select-Object Name, InterfaceAlias, NetworkCategory, IPv4Connectivity, IPv6Connectivity | Format-Table -AutoSize
+
+Get-InspectionStatus $LocalRules $DesiredLocalShapes $ActiveRules `
+	$DesiredActiveLocalShapes $PrivateProfile $PrivateConnections
+```
+
+If the result is absent, mismatched, overridden, or not enforced (including `InactiveProfile`, `FirewallOffInProfile`, or `LocalFirewallRulesDisallowed`), report the exact reason and the install block without executing it. Continue with same-machine loopback verification only when that still satisfies the request; otherwise report the Private-LAN prerequisite as a blocker. Group Policy may prevent local-rule merge on managed devices.
+
+To opt out, the operator opens an **elevated PowerShell** and removes only the exact local-persistent rule; this is safe when the rule is already absent:
+
+```powershell
+Remove-NetFirewallRule -PolicyStore PersistentStore -Name 'BrokenEngine-PrivateLan-UDP' -ErrorAction SilentlyContinue
+```
+
+Microsoft generally recommends an app allowance instead of opening a port, but app rules are executable-path-specific and every worktree has a different path. This narrowly scoped exception covers only inbound UDP 27015/27016 from `LocalSubnet` while the `Private` profile applies; it does not cover Public-profile or WAN traffic. Developer Mode configures firewall access for specific features such as Device Portal and SSH, not arbitrary development executables. The port rule is expected to avoid per-worktree allowances, but prompt suppression for this exact application/rule combination remains a manual cross-worktree check rather than a guaranteed static result.
+
+References: [firewall allowance risks](https://support.microsoft.com/en-us/windows/security/firewall/risks-of-allowing-apps-through-windows-firewall), [Windows Firewall rule guidance](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules), [`New-NetFirewallRule`](https://learn.microsoft.com/en-us/powershell/module/netsecurity/new-netfirewallrule?view=windowsserver2025-ps), [`Get-NetFirewallRule`](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule?view=windowsserver2025-ps), [`MSFT_NetFirewallRule.EnforcementStatus`](https://learn.microsoft.com/en-us/windows/win32/fwp/wmi/wfascimprov/msft-netfirewallrule), [`MSFT_NetFirewallProfile.AllowLocalFirewallRules`](https://learn.microsoft.com/en-us/windows/win32/fwp/wmi/wfascimprov/msft-netfirewallprofile), and [Developer Mode settings](https://learn.microsoft.com/en-us/windows/advanced-settings/developer-mode).
+
 ## AgentCli setup
 
 Use installed `%LOCALAPPDATA%\BrokenEngine\AgentCli\v2\AgentCli.exe`; `--version` must print exactly `2`. Set `$AgentCli` to that path. If missing or mismatched, build AgentCli Release directly with native PowerShell using `C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe` (`vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath` fallback), then run:
