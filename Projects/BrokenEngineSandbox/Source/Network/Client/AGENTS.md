@@ -36,5 +36,5 @@ Client-side networking: connection lifecycle, server data ingestion, rollback-an
 ## See Also
 
 - [../AGENTS.md](../AGENTS.md) - Parent hub (packet types, wire format, StatusChange batch)
-- [Game Reconciliation](../../../../../Documents/Architecture/GameReconciliation.md)
+- [Game Reconciliation](../../../../../Documents/Architecture/GameReconciliation.md) - Update when rollback, replay, full-state injection, or desync handling changes
 - [Network Architecture](../../../../../Documents/Architecture/Network.md)

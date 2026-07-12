@@ -37,4 +37,4 @@ Client/server networking over ENet reliable UDP with slot-based coord subscripti
 - [Client/AGENTS.md](Client/AGENTS.md) - Client peer and `ClientSessionBase`
 - [Server/AGENTS.md](Server/AGENTS.md) - Server host and `ServerSessionBase`
 - [Network.md](../../../Documents/Architecture/Network.md) - Protocol flow, ACK/resend, clock correction
-- [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md)
+- [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md) - Update when rollback, replay, full-state injection, or reconciliation integration changes

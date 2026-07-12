@@ -36,7 +36,7 @@ Confirm exhaustiveness by Grep, not recall: for every rename or repeated-pattern
 ## Non-Scope
 
 - Sibling *features* or scope expansion — a counterpart site needing a design decision is a residual, not an edit
-- Style, naming, formatting (code-style-review); AGENTS.md docs (update-claude-docs); vcxproj membership (update-vcxproj); architecture diagrams (update-architecture-diagrams)
+- Style, naming, formatting (code-style-review); AGENTS.md docs (update-claude-docs); vcxproj membership (update-vcxproj)
 - Refactoring or cleanup the change doesn't force
 
 ## Build

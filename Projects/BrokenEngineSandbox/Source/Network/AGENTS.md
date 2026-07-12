@@ -35,4 +35,4 @@ Update both switches (`SerializeGroup` / `DeserializeStatusChangeBatch`), the co
 
 - [Engine/Source/Network/AGENTS.md](../../../../Engine/Source/Network/AGENTS.md) - Engine hub (shared patterns)
 - [Network Architecture](../../../../Documents/Architecture/Network.md)
-- [Game Reconciliation](../../../../Documents/Architecture/GameReconciliation.md)
+- [Game Reconciliation](../../../../Documents/Architecture/GameReconciliation.md) - Update when game packet or reconciliation flow changes

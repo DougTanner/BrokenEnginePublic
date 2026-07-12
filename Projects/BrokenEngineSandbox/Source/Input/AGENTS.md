@@ -18,4 +18,4 @@ Two responsibilities share this directory: the `Input` class converts the engine
 ## See Also
 
 - Engine raw input: [../../../../Engine/Source/Input/AGENTS.md](../../../../Engine/Source/Input/AGENTS.md)
-- [Documents/Architecture/GameReconciliation.md](../../../../Documents/Architecture/GameReconciliation.md)
+- [Game Reconciliation](../../../../Documents/Architecture/GameReconciliation.md) - Update when input-driven prediction or reconciliation flow changes

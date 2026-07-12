@@ -52,7 +52,3 @@ Foundation layer (`namespace common`) with no dependencies outside the codebase.
 - **ExternalHeaders.h** - Central include for all external/standard-library headers, gated by `BT_CLIENT`/`BT_ENGINE`/`BT_SERVER` and a `BT_DATA_PACKER` block for the offline-tool-only third-party headers. **Inclusion rule**: `#include` additions for standard-library and third-party *consumption* headers go here (gated by `BT_CLIENT`/`BT_ENGINE`/`BT_SERVER`/`BT_DATA_PACKER` as appropriate), never in individual source files; the exception is library *implementation* units — the single-TU `*_IMPLEMENTATION` includes in the `ThirdParty/Prebuilts/Source/` unity `.cpp`s — which stay local by necessity. Also sets the determinism build knobs (SSE4-only DirectXMath, AVX `#error` guard), includes `Determinism.h` (which carries the deterministic `XMFLOAT2/3/4` / `XMVECTOR` `operator==`; see Determinism above), and defines `BT_OFFSETOF` (constexpr-safe `offsetof`, used by the DataFile.h layout locks).
 - **WindowsUtils.h** - Win32 wrappers (last-error/HRESULT string formatting, file-time formatting, physical/logical core counts, child-process launch/capture) used mostly by tools and startup.
 - **ScopedLambda** - RAII deferred callable for cleanup that doesn't fit other scope guards.
-
-## See Also
-
-- [Architecture diagrams](../Documents/Architecture/)

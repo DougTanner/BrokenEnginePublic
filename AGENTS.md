@@ -51,7 +51,7 @@ Each subagent reports files changed + functions/regions touched (one line each),
 	- **b)** Main session dedupes and adjudicates findings by evidence; delegate external claims to /verify-external-claims (Sonnet) and query the user when authoritative verification remains unresolved
 	- **c)** Send accepted non-structural in-scope fixes to /resolve-findings (Opus); route structural findings through step 11
 5. Use a Sonnet subagent to invoke the /code-style-review skill
-6. Use an Opus subagent to invoke the /update-claude-docs skill — and the /update-architecture-diagrams skill if its trigger applies
+6. Use an Opus subagent to invoke the /update-claude-docs skill
 7. Have a Sonnet subagent invoke /update-vcxproj on every file changed this session
 8. Have a Sonnet subagent invoke /compile; send failures to an Opus /resolve-findings subagent
 9. For runtime-observable changes, have an Opus subagent invoke /agent-harness; send failures to an Opus /resolve-findings subagent. Skip only changes with no runtime surface
@@ -88,7 +88,7 @@ Each subagent reports files changed + functions/regions touched (one line each),
 - `/Projects/` - Game implementations (`game::` namespace) - [AGENTS.md](Projects/BrokenEngineSandbox/Source/AGENTS.md)
 - `/Tools/AgentCli/` - Standalone harness client and local workflow coordinator - [AGENTS.md](Tools/AgentCli/AGENTS.md)
 - `/ThirdParty/` - External libraries (do not modify) - [AGENTS.md](ThirdParty/AGENTS.md)
-- `/Documents/` - Style guide (`C++StyleGuide.txt`), Mermaid architecture diagrams (`Architecture/`), and the plan queues (`Plans/`, `Features/`) - [AGENTS.md](Documents/AGENTS.md)
+- `/Documents/` - Style guide (`C++StyleGuide.txt`), Mermaid architecture diagrams and network protocol reference (`Architecture/`), and the plan queues (`Plans/`, `Features/`) - [AGENTS.md](Documents/AGENTS.md)
 
 ## Static Analysis
 

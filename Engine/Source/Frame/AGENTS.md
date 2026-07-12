@@ -4,7 +4,7 @@
 
 Manages per-frame game state through a dual-phase update system (Interpolate for rendering, PostRender for logic) over a sparse grid of simulation cells. `game::Frame` aggregates engine base classes (`FrameInterpolateBase`, `FramePostRenderBase`) with game-specific extensions. Collections get automatic CRC, serialization, and comparison via compile-time type lists.
 
-See also: [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePipeline.md) — update this diagram if phase ordering changes.
+See also: [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePipeline.md) — update this diagram if frame phase ordering or participation changes.
 
 ## Key Classes
 

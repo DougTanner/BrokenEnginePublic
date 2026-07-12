@@ -16,7 +16,7 @@ Extends `engine::CameraBase`, which owns the matrices, snapped visible areas, LO
 
 **Game/Frame Boundary**: Shake is driven by Game (armor damage on the flagship player), not Frame; the camera only decays it and converts it to controller vibration. Focus resolves via the client's grid cell and player index against `PlayersPostRender`, surviving spawns and cross-cell transfers. Resolution failures rate-limit diagnostic logs and extrapolate the last-known position along derived velocity, clamped to a short window; no valid client player ID at all falls back to the canonical main-menu pose instead of stranding at a stale gameplay position.
 
-**Reconciliation Visual Smoothing**: Network corrections for the flagship player produce a decaying visual offset applied to the camera target only; simulation stays authoritative. See [Documents/Architecture/GameReconciliation.md](../../../../Documents/Architecture/GameReconciliation.md).
+**Reconciliation Visual Smoothing**: Network corrections for the flagship player produce a decaying visual offset applied to the camera target only; simulation stays authoritative. See [Game Reconciliation](../../../../Documents/Architecture/GameReconciliation.md); update the diagram if correction-offset integration changes.
 
 **Long-Distance Jump Easing**: Fixed-duration smoothstep ease triggered by distance-to-target or mid-jump target-shift exceeding threshold; re-anchors from current position without cancelling; ends on proximity or duration force-snap.
 

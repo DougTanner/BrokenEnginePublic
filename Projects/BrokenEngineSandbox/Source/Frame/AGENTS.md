@@ -6,7 +6,7 @@ Game frame state extending the engine base structs in `FrameBase.h` with collect
 
 Frame purity constraint is documented in the parent ([../AGENTS.md](../AGENTS.md)) and must be respected here.
 
-See also: [Frame Update Pipeline](../../../../Documents/Architecture/FrameUpdatePipeline.md) — update this diagram if phase ordering changes.
+See also: [Frame Update Pipeline](../../../../Documents/Architecture/FrameUpdatePipeline.md) — update this diagram if game frame phase ordering or participation changes.
 
 ## Key Classes/Systems
 
