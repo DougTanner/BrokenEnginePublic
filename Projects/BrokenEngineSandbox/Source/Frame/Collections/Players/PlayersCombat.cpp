@@ -300,15 +300,13 @@ void PlayersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame,
 }
 
 // =============================================================================
-// Weapon and death-explosion spawn helpers. Blasters run from PreCollision; missiles and death
-// explosions run from PlayersPostRender::Spawn.
+// Weapon and death-explosion spawn helpers (called from PlayersPostRender::Spawn)
 // =============================================================================
 
-void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
+void PlayersPostRender::SpawnBlasters(Frame& __restrict rFrame)
 {
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
 	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
-	const PlayersInterpolate& rPreviousInterpolate = *rPreviousFrame.interpolate.pPlayers;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
@@ -342,11 +340,9 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame,
 			// Timer went negative by this amount when it crossed zero inside this tick, which equals
 			// the elapsed time from the fire moment to the end of the tick (kfDeltaTime - fire_offset).
 			float fInterFrameTime = -rCurrentPostRender.pfNextBlasterFireTimes[i];
-			float fFireTime = 1.0f - fInterFrameTime / fDeltaTime;
 
-			// Interpolate the exact position interval used for this tick. PostRender has already updated
-			// velocity, so rewinding from that velocity would not invert Interpolate::Update.
-			XMVECTOR vecPlayerPositionAtSpawn = XMVectorLerp(rPreviousInterpolate.pVecPositions[i], rCurrentInterpolate.pVecPositions[i], fFireTime);
+			// Rewind player to the fire-moment position (end-of-tick position minus elapsed time times velocity).
+			XMVECTOR vecPlayerPositionAtSpawn = XMVectorSubtract(rCurrentInterpolate.pVecPositions[i], XMVectorScale(rCurrentPostRender.pVecVelocities[i], fInterFrameTime));
 
 			// Alternate barrels: left vs right of player forward
 			rCurrentPostRender.pFlags[i].Toggle(kBlasterSpawnLeft);
@@ -368,11 +364,8 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame,
 			{
 				.vecPosition = vecFinalPosition,
 				.vecVelocity = vecBlasterVelocity,
-				.vecCollisionStartPosition = vecSpawnPosition,
 				.uiTypeIndex = PlayersInterpolate::suiBlasterTypeIndex,
 				.alignment = rCurrentPostRender.pAlignments[i],
-				.fCollisionStartTime = fFireTime,
-				.bHasCollisionInterval = true,
 				.fWindTrailIntensity = game::gWindDepositPlayerBlastersIntensity.Get(),
 				.fWindTrailWidth = game::gWindDepositPlayerBlastersWidth.Get(),
 				.fWindTrailLengthMultiplier = game::gWindDepositPlayerBlastersLengthMultiplier.Get(),

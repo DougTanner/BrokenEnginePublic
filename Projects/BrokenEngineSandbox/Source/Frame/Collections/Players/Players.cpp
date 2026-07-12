@@ -413,6 +413,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	}
 #endif // BT_CLIENT
 
+	SpawnBlasters(rFrame);
 	SpawnMissiles(rFrame);
 	SpawnDeathExplosions(rFrame);
 }
@@ -676,10 +677,6 @@ static PlayerCollisionIntervalScratch& GetPlayerCollisionIntervalScratch()
 void PlayersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
 	PlayerCollisionIntervalScratch& rCollisionScratch = GetPlayerCollisionIntervalScratch();
-	// Player blasters are born during this tick and must join the collision phase with their
-	// fire-time muzzle interval. Blasters register after Players in FramePostRender::PreCollision.
-	SpawnBlasters(rFrame, rPreviousFrame);
-
 	// Heap: static vectors resized each frame, only allocates on first call or when count grows (capacity retained).
 	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
 	ScopedSuppressAllocationTracking suppress;

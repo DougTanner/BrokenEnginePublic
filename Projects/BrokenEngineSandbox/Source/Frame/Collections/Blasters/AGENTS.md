@@ -14,7 +14,7 @@ Fast-moving energy projectiles with shared `BlastersType` configuration. Blaster
 
 Two overloads exist. The phase-dispatched `Spawn(Frame, FrameStaticData)` is intentionally empty — blasters have no server-driven spawner. New blasters come only from the `Spawn(Frame, SpawnInfo&)` overload invoked by weapon code. Do not add server-driven spawn logic to the phase entry point.
 
-Player-fired blasters spawn before collision-layer registration and carry the muzzle-to-end movement segment beginning at the exact sub-tick fire time. Other spawn paths use the normal full-tick interval on their next update.
+Player-fired blasters are created during the Spawn phase after collision and first participate in collision on the next tick. Existing blasters sweep their normal previous-to-current movement interval with terrain and frame-boundary cutoffs.
 
 The fire-and-forget muzzle one-shot is emitted at the weapon firing site (Players/Spaceships combat code), not inside `Spawn(SpawnInfo&)` — cross-cell `TransferRequest` re-spawns route through the same overload, and audio there would retrigger the muzzle cue on every cell handoff. (The terrain-impact one-shot, by contrast, fires from `PostCollision` since impacts are not re-spawned.)
 

@@ -31,14 +31,6 @@ static thread_local std::vector<engine::CollisionFlags_t> sCollisionFlags;
 static thread_local std::vector<float> sCollisionRadii;
 static thread_local std::vector<float> sCollisionDamages;
 
-struct SpawnCollisionInterval
-{
-	int64_t iIndex = 0;
-	XMVECTOR vecStartPosition {};
-	float fStartTime = 0.0f;
-};
-static thread_local int64_t siSpawnCollisionIntervalCount = 0;
-
 struct BlasterCollisionIntervalScratch
 {
 	std::vector<XMVECTOR> startPositions;
@@ -48,7 +40,6 @@ struct BlasterCollisionIntervalScratch
 	std::vector<float> maxTimes;
 	std::vector<SegmentHit> terrainHits;
 	std::vector<SegmentHit> boundaryHits;
-	std::vector<SpawnCollisionInterval> spawnIntervals;
 };
 
 static BlasterCollisionIntervalScratch& GetBlasterCollisionIntervalScratch()
@@ -69,24 +60,6 @@ constexpr float kfBlasterCollisionRadius = 0.5f;
 
 // Terrain impact
 constexpr float kfTerrainImpactJitter = 0.25f;
-
-void BlastersPostRender::RecordSpawnCollisionInterval(int64_t iIndex, FXMVECTOR vecStartPosition, float fStartTime)
-{
-	BlasterCollisionIntervalScratch& rCollisionScratch = GetBlasterCollisionIntervalScratch();
-	if (siSpawnCollisionIntervalCount >= static_cast<int64_t>(rCollisionScratch.spawnIntervals.size()))
-	{
-		// Heap: retained per-thread collision-spawn scratch grows only when a larger firing burst appears.
-		ScopedSuppressAllocationTracking suppress;
-		rCollisionScratch.spawnIntervals.resize(std::max<int64_t>(16, siSpawnCollisionIntervalCount * 2));
-	}
-	rCollisionScratch.spawnIntervals.at(static_cast<size_t>(siSpawnCollisionIntervalCount)) =
-	{
-		.iIndex = iIndex,
-		.vecStartPosition = vecStartPosition,
-		.fStartTime = fStartTime,
-	};
-	++siSpawnCollisionIntervalCount;
-}
 
 #if defined(BT_CLIENT)
 // Terrain effect registrations
@@ -271,7 +244,6 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 
 	if (rCurrentInterpolate.iCount == 0)
 	{
-		siSpawnCollisionIntervalCount = 0;
 		return;
 	}
 
@@ -299,14 +271,6 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		rCollisionScratch.startTimes.at(uiIndex) = 0.0f;
 		rCollisionScratch.endTimes.at(uiIndex) = 1.0f;
 	}
-
-	for (int64_t i = 0; i < siSpawnCollisionIntervalCount; ++i)
-	{
-		const SpawnCollisionInterval& rInterval = rCollisionScratch.spawnIntervals.at(static_cast<size_t>(i));
-		rCollisionScratch.startPositions.at(static_cast<size_t>(rInterval.iIndex)) = rInterval.vecStartPosition;
-		rCollisionScratch.startTimes.at(static_cast<size_t>(rInterval.iIndex)) = rInterval.fStartTime;
-	}
-	siSpawnCollisionIntervalCount = 0;
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
