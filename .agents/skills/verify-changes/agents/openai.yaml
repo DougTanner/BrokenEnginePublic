@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify Changes"
+  short_description: "Verify all testable session changes before audit and landing"
+  default_prompt: "Use $verify-changes to verify the current session change set and return its final-tree verification report."

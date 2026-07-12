@@ -19,7 +19,7 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 
 ### When to use each model
 
-Note: If you are ChatGPT Codex, Fable -> Sol, Opus -> Terra, Sonnet -> Luna
+If you are ChatGPT Codex: Fable -> Sol, Opus -> Terra, Sonnet -> Luna
 
 Fable is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down. IMPORTANT: If Fable is unavailable or its limit has been reached, Claude Code uses /codex-review for delegated reviewer/auditor roles, then Opus if Codex is also unavailable; other Fable roles fall back directly to Opus. Codex uses Opus (Terra).
 
@@ -51,12 +51,7 @@ Main session accumulates every skill's residuals and handoffs, passes them to la
 6. Use an Opus subagent to invoke the /update-claude-docs skill
 7. Have a Sonnet subagent invoke /update-vcxproj on every file changed this session
 8. Have a Sonnet subagent invoke /compile; send failures to an Opus /resolve-findings subagent
-9. Verify every testable change in the isolated session worktree before landing:
-	- Build a verification ledger from the plan's acceptance criteria, changed behavior, and review/build residuals. Every testable item needs an exact check and `PASS` evidence; documentation/tooling/configuration changes use the strongest applicable static or functional check, not an automatic runtime skip
-	- For runtime-observable changes, have an Opus subagent invoke /agent-harness. When the plan has no Verification section, derive the smallest live checks that cover its acceptance criteria
-	- Send every failure to an Opus /resolve-findings subagent, then rerun the failed check plus any regression checks affected by the fix. Repeat test -> fix -> retest until all testable items pass
-	- A testable check requiring new authority, hardware, or external coordination is blocked, not skipped: ask the user. It remains a landing blocker unless the user explicitly changes the plan's scope or acceptance criteria, after which the revised criterion must be verified
-	- Do not proceed to step 10 while any in-scope testable item is failed, skipped, blocked, or unverified. Bind the ledger to a final changed-file manifest (normalized paths plus content hashes/deletion markers); any repository mutation that changes that manifest makes the ledger stale
+9. Have an Opus subagent invoke /verify-changes with the plan, fixed session baseline, and all accumulated reports and residuals, then report its result back; continue only on a passing final-tree verification report
 10. Audit the completed change per logical file group:
 	- **a)** Run two concurrent /session-audit subagents (Fable + Opus) on identical inputs
 	- **b)** Main session dedupes findings; send accepted non-structural in-scope fixes to /resolve-findings (Opus) and route structural findings through step 11
