@@ -41,11 +41,11 @@ Fix: after each `common::Read(rStream, fSpawnTimer)` (`:588` and `:603`), neutra
 
 OPEN DECISION (B2 finite-check form) — staged for grill:
 - Option A (recommended): finite-check → `0.0f` (`fSpawnTimer = std::isfinite(fSpawnTimer) ? fSpawnTimer : 0.0f;`). `0.0f` matches the field's reset-to-zero drain semantics (the loop subtracts down toward zero) and is safe against the `>= kfSpawnInterval` gate: `0.0f < 0.5f`, so the loop simply does not fire and normal accumulation resumes next tick. Neutralizes both `NaN` and `+Inf`.
-- Option B: finite-check + upper clamp (e.g. `[0, kfSpawnInterval]`). Rejected as the default: bounding benign accumulation is a SEPARATE concern already owned by `Frame/FrameTickMinorHardening.md` item 2 (main-menu unbounded `fSpawnTimer` growth) — B2 should stay a pure trust-boundary finite-check and not double-own the accumulation bound.
+- Option B: finite-check + upper clamp (e.g. `[0, kfSpawnInterval]`). Rejected as the default: bounding benign accumulation is a SEPARATE concern — the main-menu `fSpawnTimer` accumulate side is already menu-gated in current code — so B2 should stay a pure trust-boundary finite-check and not double-own the accumulation bound.
 
 A read-side finite-check is a no-op on any validly-produced stream — a bit-deterministic sim never emits a non-finite `fSpawnTimer` — so, exactly like the server plan's clamps, it needs NO `Frame::kiVersion` bump and introduces NO CRC / stream-format change.
 
-Relationship to `FrameTickMinorHardening.md` item 2 — complementary, not duplicate. That item bounds the ACCUMULATE side (`Frame.cpp:102` unconditional add; drain skipped under `kMainMenu` at `:372`) to prevent a benign menu→game burst; B2 hardens the READ side against non-finite garbage. The two edits touch the same field in different locations for different hazards — co-schedule to keep the `Frame.cpp` `fSpawnTimer` cites in sync.
+The main-menu `fSpawnTimer` accumulate side is already menu-gated in current code (`FrameInterpolate::Update` skips the `+= fDeltaTime` under `kMainMenu`; the drain loop is also skipped under `kMainMenu`), so B2 is not a duplicate — it hardens the READ side (`Read`/`ServerRead`) against non-finite garbage. Same field, different location and hazard.
 
 ## Critical files
 
@@ -57,7 +57,7 @@ Relationship to `FrameTickMinorHardening.md` item 2 — complementary, not dupli
 
 - The server-side dispatch backstop and `ReadFleet` `fNavigationDelay`/`fFrameChangeTimer` finite-checks — already present in the server net path.
 - Engine `Client::Receive` / `Server::Receive` backstops — already wrapped.
-- Bounding benign `fSpawnTimer` accumulation (main-menu unbounded growth) — owned by `Frame/FrameTickMinorHardening.md` item 2 (co-scheduled, complementary).
+- Bounding benign `fSpawnTimer` accumulation (main-menu growth) — already handled in current code (the accumulate side is menu-gated); B2 is only the read-side finite-check.
 - Any other `FrameInterpolate` / collection deserialized-field finite/range validation — the broader shared-serialization index/finite hardening is `Frame/CollectionReadIndexHardening.md`; B2 is scoped to the single `fSpawnTimer` hang hazard.
 - Any `Frame::kiVersion` bump, stream-format change, or new serialized field.
 
@@ -70,6 +70,6 @@ Relationship to `FrameTickMinorHardening.md` item 2 — complementary, not dupli
 
 **Decision plan (present options).** Two open decisions to resolve at `/external-grill-plan`:
 1. **A1 wrap scope** — one `try/catch` spanning the three untrusted parse/apply sub-sections (recommended, KISS) vs three independent per-section wraps (finer isolation, server-parity granularity). Either way, EXCLUDE the `:114-117` data-receiver/reconciler tail.
-2. **B2 finite-check form** — finite-check → `0.0f` (recommended; matches the drain's reset-to-zero semantics, safe against the `>= kfSpawnInterval` gate) vs finite-check + upper range clamp (rejected default — the accumulation bound is owned by `FrameTickMinorHardening.md` item 2).
+2. **B2 finite-check form** — finite-check → `0.0f` (recommended; matches the drain's reset-to-zero semantics, safe against the `>= kfSpawnInterval` gate) vs finite-check + upper range clamp (rejected default — the accumulation bound is already handled by the menu-gated accumulate side in current code).
 
 Both residuals are defense-in-depth parity with no confirmed live throw/non-finite path today; the value is closing a demonstrable client-crash (A1) and server/client-hang (B2) hazard class at the two trust boundaries the server plan could not reach.

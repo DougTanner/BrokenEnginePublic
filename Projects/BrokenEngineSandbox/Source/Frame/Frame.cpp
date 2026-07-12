@@ -11,7 +11,7 @@ using enum GameFlags;
 // Bump this base on any change that shifts computed frame CRCs without bumping a collection's own kiVersion
 // — notably the CRC mixing algorithm/constants in Common/Crc.h. This gate is the only thing distinguishing
 // "data desynced" from "checksum algorithm changed"; skipping the bump makes straddling replays false-desync.
-const int64_t Frame::kiVersion = 117 + engine::kiNavDataVersion + BlastersInterpolate::kiVersion + BlastersPostRender::kiVersion + MissilesInterpolate::kiVersion + MissilesPostRender::kiVersion + PlayersInterpolate::kiVersion + PlayersPostRender::kiVersion + SpaceshipsInterpolate::kiVersion + SpaceshipsPostRender::kiVersion + TargetsInterpolate::kiVersion + TargetsPostRender::kiVersion + engine::ExplosionsInterpolate::kiVersion + engine::PushersInterpolate::kiVersion + engine::PushersPostRender::kiVersion + engine::ExplosionsPostRender::kiVersion;
+const int64_t Frame::kiVersion = 118 + engine::kiNavDataVersion + BlastersInterpolate::kiVersion + BlastersPostRender::kiVersion + MissilesInterpolate::kiVersion + MissilesPostRender::kiVersion + PlayersInterpolate::kiVersion + PlayersPostRender::kiVersion + SpaceshipsInterpolate::kiVersion + SpaceshipsPostRender::kiVersion + TargetsInterpolate::kiVersion + TargetsPostRender::kiVersion + engine::ExplosionsInterpolate::kiVersion + engine::PushersInterpolate::kiVersion + engine::PushersPostRender::kiVersion + engine::ExplosionsPostRender::kiVersion;
 
 // FrameInterpolate
 FrameInterpolate::FrameInterpolate()
@@ -101,8 +101,14 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	GameFlags_t gameFlags = rPrevious.gameFlags;
 	float fSpawnTimer = rPrevious.fSpawnTimer;
 
-	// Update spawn timer
-	fSpawnTimer += fDeltaTime;
+	// Update spawn timer. Held at its 0.0f init while the main menu is up: menu frames never drain the timer
+	// (Spawn early-returns before the drain loop when kMainMenu is set), so accumulating here would build an
+	// unbounded backlog that bursts into simultaneous spawn groups if a menu->game transition is ever added.
+	// Freezing yields a clean full interval before the first spawn after any such transition.
+	if (!(gameFlags & GameFlags::kMainMenu))
+	{
+		fSpawnTimer += fDeltaTime;
+	}
 
 	// Save
 	rCurrent.gameFlags = gameFlags;

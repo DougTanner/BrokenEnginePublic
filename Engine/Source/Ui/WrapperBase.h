@@ -4,10 +4,13 @@ namespace engine
 {
 
 // Float-backed container for a UI-bound setting (float / bool / discrete-enum flavors).
-// Thread contract: no atomics. Single writer on the main thread during ImGuiManager::Prepare (Tweaks/menu screens,
-// ImGuiManager.cpp:383-433); readers run later in the same frame, also main-thread. A wrapper read inside a
-// gpMultithreading->Dispatch() region (e.g. gBaseHeight in NavQuery.cpp:503/583/603) must have NO runtime writer —
-// mfCurrent is unsynchronized, so a Tweaks/menu-bound wrapper read from a worker thread would race.
+// Thread contract: no atomics. All writes (Set/Reset/ResetToDefault/Toggle/SetPercent/SetIndex) are main-thread
+// operations. The writer sites span several subsystems — menu/Tweaks screens (ImGuiManager::Prepare), input
+// handling, render-target maintenance, swapchain creation, texture-capability clamps, and settings load, among
+// others — so this is not a single-writer contract. mfCurrent is unsynchronized, so the invariant that keeps reads
+// safe is not "single writer" but "no write overlaps an active gpMultithreading->Dispatch() window": the main thread
+// is blocked inside Dispatch for the tick, so a wrapper read from a worker thread there (e.g. gBaseHeight in
+// NavQuery.cpp:465/580/600) cannot race a concurrent writer.
 class Wrapper
 {
 public:

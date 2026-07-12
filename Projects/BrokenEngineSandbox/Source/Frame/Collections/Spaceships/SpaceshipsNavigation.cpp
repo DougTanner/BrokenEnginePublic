@@ -35,7 +35,7 @@ constexpr float kfSpaceshipTerrainBounceRotation = 8.0f;
 constexpr float kfSpaceshipTerrainBounceMove = kfSpaceshipRadius * 2.0f;
 constexpr float kfSpaceshipTerrainBounceVelocity = 4.0f;
 
-// Terrain avoidance (player-proximity skip constants; sampling constants in GameUtils.cpp)
+// Terrain avoidance (player-proximity skip constants; sampling constants in TerrainUtils.cpp)
 constexpr float kfSpaceshipAvoidTerrainPlayerAngle = 0.4f;
 constexpr float kfSpaceshipAvoidTerrainPlayerDistance = 40.0f;
 
@@ -146,7 +146,9 @@ void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFram
 			continue;
 		}
 
-		// Skip terrain avoidance if close to nearest alive player and facing them
+		// Skip terrain avoidance if close to nearest alive player and facing them. Reads current-frame players
+		// (race-free: Players update before Spaceships this tick). Deliberately differs from
+		// SpaceshipsPostRender::Update, which scans previous-frame players — see the rationale comment there.
 		XMVECTOR vecNearestPlayer = XMVectorZero();
 		if (NearestAlivePlayerPosition(*rFrame.interpolate.pPlayers, *rFrame.postRender.pPlayers, rCurrentInterpolate.pVecPositions[i], vecNearestPlayer))
 		{

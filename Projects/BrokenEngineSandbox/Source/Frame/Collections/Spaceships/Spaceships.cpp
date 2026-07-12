@@ -484,6 +484,8 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	SpaceshipsInterpolate& rCurrentInterpolate = *rFrame.interpolate.pSpaceships;
 	SpaceshipsPostRender& rCurrentPostRender = *rFrame.postRender.pSpaceships;
 
+	// Reads current-frame players (race-free: Players update before Spaceships this tick). Deliberately differs
+	// from SpaceshipsPostRender::Update, which scans previous-frame players — see the rationale comment there.
 	const PlayersInterpolate& rPlayers = *rFrame.interpolate.pPlayers;
 	const PlayersPostRender& rPlayersPostRender = *rFrame.postRender.pPlayers;
 
@@ -652,6 +654,11 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 	SpaceshipsInterpolate& rCurrentInterpolate = *rFrame.interpolate.pSpaceships;
 	const SpaceshipsPostRender& rPrevious = *rPreviousFrame.postRender.pSpaceships;
 	const SpaceshipsInterpolate& rPreviousInterpolate = *rPreviousFrame.interpolate.pSpaceships;
+	// Player scan reads previous-frame players here, while AvoidTerrain (SpaceshipsNavigation.cpp) and the
+	// Spawn-blaster block scan current-frame players. The split is intentional: Players update before Spaceships
+	// this tick (Frame.cpp PostRender fold order), so current-frame reads are race-free — but unifying Update
+	// onto current-frame would shift this scan's steering / health-regen / targeting by one tick of player
+	// movement, a CRC-visible gameplay change with no correctness gain. Kept on previous-frame.
 	const PlayersInterpolate& rPlayers = *rPreviousFrame.interpolate.pPlayers;
 	const PlayersPostRender& rPlayersPostRender = *rPreviousFrame.postRender.pPlayers;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;

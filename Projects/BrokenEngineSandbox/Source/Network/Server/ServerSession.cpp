@@ -101,7 +101,7 @@ void ServerSession::ServicePausedNetwork()
 	// A coord first subscribed while paused was created by PrepareActiveSet with empty NavData (RunFrameTick builds it
 	// lazily, but never runs at iFullTicks == 0). SendNewSubscriptionFullStates below ships NavData in the static-data
 	// message — the only path clients receive it (resyncs re-send frames, not static data) — so build it here first,
-	// reusing RunFrameTick's exact server-only call and emptiness gate. NavData derives only from islands (not the
+	// reusing RunFrameTick's exact server-only call and bNavDataBuilt gate. NavData derives only from islands (not the
 	// elevation grid), so no ordering vs the other lazy caches is required; clients build their own elevation grid.
 	for (const engine::PendingNewSubscription& rSub : engine::gpServer->DrainPendingNewSubscriptions())
 	{
@@ -111,9 +111,10 @@ void ServerSession::ServicePausedNetwork()
 			continue;
 		}
 		engine::FrameStaticData& rStaticData = frameIt->second.staticData;
-		if (rStaticData.navData.vertices.empty() && !rStaticData.islands.empty())
+		if (!rStaticData.bNavDataBuilt && !rStaticData.islands.empty())
 		{
 			engine::BuildCellNavData(rStaticData.navData, rStaticData.islands);
+			rStaticData.bNavDataBuilt = true;
 		}
 	}
 

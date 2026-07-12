@@ -37,6 +37,14 @@ struct FrameStaticData
 	// through the const FrameStaticData& it gets from ActiveFrameRef.
 	mutable NavData navData;
 
+	// Whether navData reflects a completed build/deserialize for this cell's current placements. Gates the
+	// lazy build so a cell that legitimately yields zero nav vertices (all contours degenerate/underwater)
+	// is not rebuilt every tick — an empty navData.vertices is a valid built result, not a "not yet built"
+	// sentinel. Set true after BuildCellNavData (server) or Read(true) (client wire); reset false only on
+	// Read(false) (save-load), which clears navData so the reloaded cell rebuilds. Like navData, lives outside
+	// the CRC and the persisted save format.
+	mutable bool bNavDataBuilt = false;
+
 	// Derived from islands + per-template heightmaps. Built lazily on the per-coord
 	// frame-tick thread (both client and server build their own bit-identical copy from
 	// the same deterministic placements), refreshed when the network resends staticData,

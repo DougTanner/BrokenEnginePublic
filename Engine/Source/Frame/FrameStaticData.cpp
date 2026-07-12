@@ -38,10 +38,16 @@ void FrameStaticData::Read(std::istream& rStream, bool bIncludeNavData)
 	if (bIncludeNavData)
 	{
 		navData.Read(rStream);
+		// Wire-received navData is authoritative (client never rebuilds — server-only NavContour), so mark it
+		// built regardless of vertex count.
+		bNavDataBuilt = true;
 	}
 	else
 	{
 		navData = {};
+		// Save-load only (the network-receive path takes the if-branch above with bIncludeNavData true): clear so
+		// RunFrameTick (server) rebuilds navData via BuildCellNavData from the freshly-read placements.
+		bNavDataBuilt = false;
 	}
 	// Never serialized — purely local derived data. Clear so a network resend / save-load
 	// forces RunFrameTick to rebuild from the freshly-read placements.

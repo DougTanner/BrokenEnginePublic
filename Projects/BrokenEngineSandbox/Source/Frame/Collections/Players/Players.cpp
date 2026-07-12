@@ -725,9 +725,9 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 		XMVECTOR vecWantedDirection = rPrevious.pVecWantedDirections[i];
 		float fArmor = rPrevious.pfArmors[i];
 		float fShield = rPrevious.pfShields[i];
-		float fShieldCooldown = rPrevious.pfShieldCooldowns[i] - fDeltaTime;
-		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
-		float fShieldDownSoundCooldown = rPrevious.pfShieldDownSoundCooldowns[i] - fDeltaTime;
+		float fShieldCooldown = std::max(0.0f, rPrevious.pfShieldCooldowns[i] - fDeltaTime);
+		float fDestroyedExplosionTime = std::max(0.0f, rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime);
+		float fShieldDownSoundCooldown = std::max(0.0f, rPrevious.pfShieldDownSoundCooldowns[i] - fDeltaTime);
 		XMVECTOR vecAiDirection = rPrevious.pVecAiDirections[i];
 		float fTransferLockTimer = rPrevious.pfTransferLockTimers[i];
 		float fArrivalGracePeriod = std::max(0.0f, rPrevious.pfArrivalGracePeriods[i] - fDeltaTime);

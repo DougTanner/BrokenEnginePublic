@@ -30,10 +30,11 @@ void RunFrameTick(const ActiveFrameRef& rRef, int64_t iTickCounter, float fCurre
 	// per-coord dispatch thread (naturally parallel across coords) on the first tick after
 	// a coord is created or reloaded from save. Client receives prebuilt navData over the
 	// wire and never enters this branch (server-only NavContour).
-	if (rStaticData.navData.vertices.empty() && !rStaticData.islands.empty())
+	if (!rStaticData.bNavDataBuilt && !rStaticData.islands.empty())
 	{
 		ScopedSuppressAllocationTracking suppress;
 		engine::BuildCellNavData(rStaticData.navData, rStaticData.islands);
+		rStaticData.bNavDataBuilt = true;
 	}
 #endif
 
