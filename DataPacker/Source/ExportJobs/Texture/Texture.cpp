@@ -1,5 +1,7 @@
 #include "Texture.h"
 
+#include "FileManager.h"
+
 // Aggressive lambda — well above bc7enc_rdo author's typical 0.5–1.0 examples. Full-grid
 // sweeps on 2K (Ship_baseColor) + 8K (island Color) showed lambda=4.0 strictly dominates
 // lower lambdas on BOTH speed and compression: the per-block RDO search converges sooner at
@@ -355,6 +357,11 @@ static utils::image_u8 ToImageU8(const std::vector<float>& rIn, int64_t iWidth, 
 
 void Texture::EncodeWithRdo(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, VkFormat vkFormat, float fLambda, uint32_t uiLookbackWindowSize, int iBc7UberLevel, TextureOptions_t options)
 {
+	if (gpFileManager->mbForbidExpensiveExport)
+	{
+		throw std::runtime_error("Texture encoding blocked by BT_DATAPACKER_FORBID_EXPENSIVE_EXPORT=1");
+	}
+
 	const bool bVerifyNoAlpha = options & TextureOptions::kVerifyNoAlpha;
 	// Callers must hold Texture::sEncodeMutex — this function trusts the caller's lock.
 	int iActiveEncodes = sActiveEncodeCount.fetch_add(1, std::memory_order_relaxed) + 1;

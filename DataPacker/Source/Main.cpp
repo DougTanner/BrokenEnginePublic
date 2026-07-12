@@ -43,6 +43,10 @@ static void WriteIfChanged(const std::string& rContent, const std::filesystem::p
 {
 	if (!common::ContentsEqual(rContent, rPath))
 	{
+		if (gpFileManager->EnsureLocal(FileManager::OutputRoot::kData) == FileManager::EnsureLocalResult::kCancelled)
+		{
+			throw std::runtime_error("Output materialization cancelled");
+		}
 		std::fstream stream(rPath, std::ios::out | std::ios::binary);
 		stream << rContent;
 		stream.close();
@@ -130,6 +134,10 @@ bool RunExportJobs()
 	if (!bDirty)
 	{
 		return true;
+	}
+	if (gpFileManager->EnsureLocal(FileManager::OutputRoot::kData) == FileManager::EnsureLocalResult::kCancelled)
+	{
+		throw std::runtime_error("Output materialization cancelled");
 	}
 
 	LOG(kDefault, kDebug, "\"{}\" is dirty, running export", T::kName);
@@ -358,7 +366,7 @@ bool MainThread(int argc, char* argv[])
 	GenerateDataHeader(gpFileManager->mOutputDirectory / "Data.h");
 
 	// Copy license files from ThirdParty directories to Attribution directory in output
-	attribution::CopyThirdPartyLicenses(gpFileManager->mOutputDirectory);
+	attribution::CopyThirdPartyLicenses();
 
 	LOG(kDefault, kDebug, "");
 

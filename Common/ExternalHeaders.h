@@ -82,6 +82,7 @@ using namespace std::chrono_literals;
 #include <future>
 #include <iomanip>
 #include <istream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -113,6 +114,9 @@ using namespace std::chrono_literals;
 
 // Windows
 #include <windows.h>
+#include <bcrypt.h>
+#include <winioctl.h>
+#pragma comment(lib, "bcrypt.lib")
 
 #include <corecrt_math.h>
 #include <corecrt_math_defines.h>

@@ -24,6 +24,11 @@ static int64_t ComputeUncompressedTextureSize(VkFormat vkFormat, int64_t iWidth,
 
 void ExportTexture::Export()
 {
+	if (gpFileManager->mbForbidExpensiveExport)
+	{
+		throw std::runtime_error("Texture export blocked by BT_DATAPACKER_FORBID_EXPENSIVE_EXPORT=1");
+	}
+
 	// Format tokens live in either the file extension (explicit raw-intermediate formats) or the
 	// filename (the [BC4]/[BC5]/[BC7] encode tags). Matching against extension()/filename() — not
 	// the full path — keeps a parent directory whose name happens to contain a token (e.g. a folder

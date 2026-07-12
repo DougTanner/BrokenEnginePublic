@@ -143,10 +143,7 @@
       <AdditionalDependencies>ThirdParty.$(Configuration).lib;ws2_32.lib;winmm.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
-      <Command Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">if not EXIST "$(GameDataDirectory)" (
-    mkdir "$(GameDataDirectory)"
-)
-"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(GameDataDirectory)"</Command>
+      <Command Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(GameDataDirectory)"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">Running DataPacker.exe</Message>
@@ -211,10 +208,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
       <AdditionalDependencies>ThirdParty.$(Configuration).lib;ws2_32.lib;winmm.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
-      <Command Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">if not EXIST "$(GameDataDirectory)" (
-    mkdir "$(GameDataDirectory)"
-)
-"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(GameDataDirectory)"</Command>
+      <Command Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(GameDataDirectory)"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">Running DataPacker.exe</Message>
@@ -283,10 +277,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
       <AdditionalDependencies>ThirdParty.$(Configuration).lib;ws2_32.lib;winmm.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
-      <Command Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">if not EXIST "$(GameDataDirectory)" (
-    mkdir "$(GameDataDirectory)"
-)
-"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(GameDataDirectory)"</Command>
+      <Command Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(GameDataDirectory)"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">Running DataPacker.exe</Message>

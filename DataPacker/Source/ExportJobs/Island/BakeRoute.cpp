@@ -350,8 +350,12 @@ void RunGaeaExport(const IslandBakeContext& rContext, const RouteSubdivision& rR
 		commandLine += L" --vars \"" + varsFile.native() + L"\"";
 	}
 
-	LOG(kDefault, kDebug, "Running: {}", commandLine);
+	if (gpFileManager->mbForbidExpensiveExport)
+	{
+		throw std::runtime_error("Gaea.Swarm export blocked by BT_DATAPACKER_FORBID_EXPENSIVE_EXPORT=1");
+	}
 
+	LOG(kDefault, kDebug, "Running: {}", commandLine);
 	common::ExecutableResult result = common::RunExecutableInNewConsole(rContext.rGaeaExecutable, commandLine);
 
 	if (result.miExitCode != 0)
