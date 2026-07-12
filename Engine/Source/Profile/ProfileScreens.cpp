@@ -123,7 +123,7 @@ void FormatGpuGraphicsInfo(common::Workbuffer& rWorkbuffer)
 	rWorkbuffer.Append(gMultisampling.Get<bool>() ? "On" : "Off");
 	rWorkbuffer.Append(" - ");
 	rWorkbuffer.Append(gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_FIFO_KHR ? "Fifo" : (gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR ? "Mailbox" : "Immediate"));
-	gpTextManager->UpdateTextArea(kTextGraphics, rWorkbuffer.View());
+	gpImGuiManager->UpdateTextArea(kTextGraphics, rWorkbuffer.View());
 }
 
 void FormatGpuTimerRows(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate)
@@ -209,7 +209,7 @@ void FormatGpuTimerRows(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rPr
 		rWorkbuffer.Append("\n");
 	}
 
-	gpTextManager->UpdateTextArea(kTextProfileGpuTimers, rWorkbuffer.View());
+	gpImGuiManager->UpdateTextArea(kTextProfileGpuTimers, rWorkbuffer.View());
 }
 
 void FormatGpuMemoryStats(common::Workbuffer& rWorkbuffer)
@@ -262,7 +262,7 @@ void FormatGpuMemoryStats(common::Workbuffer& rWorkbuffer)
 		}
 	}
 
-	gpTextManager->UpdateTextArea(kTextProfileMemory, rWorkbuffer.View());
+	gpImGuiManager->UpdateTextArea(kTextProfileMemory, rWorkbuffer.View());
 }
 #endif // BT_CLIENT
 
@@ -304,7 +304,7 @@ void FormatFpsHeader(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfi
 	rWorkbuffer.Append("   Camera height: ");
 	rWorkbuffer.Append(static_cast<int64_t>(game::gpCamera->mfCameraEyeHeight));
 	rWorkbuffer.Append(" m");
-	gpTextManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());
+	gpImGuiManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());
 }
 
 void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate)
@@ -313,14 +313,14 @@ void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfi
 	{
 		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 		FormatCpuTimersText(rWorkbuffer, rProfileManager, bReevaluate);
-		gpTextManager->UpdateTextArea(kTextProfileCpuTimers, rWorkbuffer.View());
+		gpImGuiManager->UpdateTextArea(kTextProfileCpuTimers, rWorkbuffer.View());
 	}
 
 	// Counters text
 	{
 		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 		FormatCpuCountersText(rWorkbuffer, rProfileManager, bReevaluate);
-		gpTextManager->UpdateTextArea(kTextProfileCpuCounters, rWorkbuffer.View());
+		gpImGuiManager->UpdateTextArea(kTextProfileCpuCounters, rWorkbuffer.View());
 	}
 
 	// Memory profiling
@@ -350,7 +350,7 @@ void FormatCpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfi
 	rWorkbuffer.Append(")");
 	rWorkbuffer.Append("\nAllocations: ");
 	rWorkbuffer.Append(rProfileManager.GetSmoothedAllocations().Get());
-	gpTextManager->UpdateTextArea(kTextProfileMemory, rWorkbuffer.View());
+	gpImGuiManager->UpdateTextArea(kTextProfileMemory, rWorkbuffer.View());
 }
 
 void FormatGpuScreen(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rProfileManager, bool bReevaluate)

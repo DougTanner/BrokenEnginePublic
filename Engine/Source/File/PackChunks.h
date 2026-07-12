@@ -64,7 +64,7 @@ private:
 	std::vector<common::ChunkLocation> mChunkLocations[data::kDataTypeCount];
 
 	// Split chunk maps for eager and lazy loading
-	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Scene, Model, Shader, Raw
+	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Scene, Model, Shader, Raw
 	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Islands, Texture
 
 	// N background loading threads, assigned inside the async eager-load task (mLoadingFuture), not the ctor body.

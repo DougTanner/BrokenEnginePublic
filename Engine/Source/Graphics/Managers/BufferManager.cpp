@@ -250,7 +250,6 @@ void BufferManager::DestroySwapchainDependentBuffers()
 
 	mGlobalLayoutUniformBuffers.clear();
 	mMainLayoutUniformBuffers.clear();
-	mTextStorageBuffers.clear();
 	mUiRectStorageBuffers.clear();
 	mLongParticlesSpawnStorageBuffers.clear();
 	mSquareParticlesSpawnStorageBuffers.clear();
@@ -293,7 +292,6 @@ void BufferManager::InitializePerCommandBufferBuffers(int64_t iCommandBufferCoun
 {
 	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
-	mTextStorageBuffers.resize(iCommandBufferCount);
 	mUiRectStorageBuffers.resize(iCommandBufferCount);
 	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 	mSquareParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
@@ -312,13 +310,6 @@ void BufferManager::InitializePerCommandBufferBuffers(int64_t iCommandBufferCoun
 			.name = "MainLayout",
 			.flags = {kUniform, kCopyToDeviceLocalEveryFrame},
 			.dataVkDeviceSize = sizeof(shaders::MainLayout),
-		});
-
-		mTextStorageBuffers.at(i).Create(
-		{
-			.name = "Text",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = kiMaxTextQuads * sizeof(shaders::AxisAlignedQuadLayout),
 		});
 
 		mUiRectStorageBuffers.at(i).Create(

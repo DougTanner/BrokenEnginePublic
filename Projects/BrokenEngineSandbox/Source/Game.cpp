@@ -826,7 +826,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			if (mTimeStep.miTimeMultiply == 1 && mTimeStep.miTimeDivide == 1)
 			{
 #if defined(BT_CLIENT)
-				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "");
+				engine::gpImGuiManager->UpdateTextArea(engine::kTextDebug, "");
 #endif
 			}
 			else
@@ -845,7 +845,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 					common::gpThreadLocal->mWorkbuffer.Append("x");
 				}
 #if defined(BT_CLIENT)
-				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+				engine::gpImGuiManager->UpdateTextArea(engine::kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
 #endif
 			}
 		}
@@ -860,11 +860,11 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			}
 			if (mGameFlags & engine::GameFlags::kPaused)
 			{
-				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "PAUSED");
+				engine::gpImGuiManager->UpdateTextArea(engine::kTextDebug, "PAUSED");
 			}
 			else
 			{
-				engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "");
+				engine::gpImGuiManager->UpdateTextArea(engine::kTextDebug, "");
 			}
 #else
 			LOG(kDefault, kDebug, "Server paused: {}", static_cast<bool>(mGameFlags & engine::GameFlags::kPaused));

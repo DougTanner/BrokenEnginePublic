@@ -171,7 +171,6 @@ enum GpuTimers : int64_t
 		kGpuTimerTerrain,
 		kGpuTimerWater,
 		kGpuTimerHexShields,
-		kGpuTimerText,
 		kGpuTimerLongParticlesRender,
 		kGpuTimerSquareParticlesRender,
 		kGpuTimerVisibleLights,
@@ -215,7 +214,6 @@ inline constexpr std::string_view kGpuTimerNames[]
 	"    Terrain",
 	"    Water",
 	"    Hex Shields",
-	"    Text",
 	"    Long Particles Render",
 	"    Square Particles Render",
 	"    VisibleLights",
@@ -251,7 +249,6 @@ enum BootTimers : int64_t
 			kBootTimerTextureManager,
 				kBootTimerTextureUpload,
 				kModelTexturesGeneration,
-			kBootTimerTextManager,
 			kBootTimerRecordCommandBuffers,
 			kBootTimerRenderPresent,
 
@@ -278,7 +275,6 @@ inline constexpr std::string_view kBootTimerNames[]
 	"      TextureManager",
 	"          TextureUpload",
 	"          Pbr textures",
-	"      TextManager",
 	"      Record command buffers",
 	"      Render present",
 };

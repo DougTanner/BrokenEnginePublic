@@ -521,6 +521,7 @@ void ImGuiManager::Prepare(int64_t iFramebuffer)
 	mpTweaksScreen->Render();
 
 	gpProfileManager->RenderImPlotGraphs();
+	RenderTextAreas();
 
 	ImGui::Render();
 	mpDrawData = ImGui::GetDrawData();
@@ -532,6 +533,41 @@ void ImGuiManager::Prepare(int64_t iFramebuffer)
 	}
 
 	UpdateUiRectBuffers(iFramebuffer);
+}
+
+void ImGuiManager::UpdateTextArea(TextAreas eTextArea, std::string_view characters)
+{
+	ASSERT(common::gpMultithreading->IsMainThread());
+	ASSERT(characters.size() < TextArea::kiMaxChars);
+
+	TextArea& rTextArea = mTextAreas[eTextArea];
+	rTextArea.iCharacterCount = std::min(static_cast<int64_t>(characters.size()), TextArea::kiMaxChars);
+	std::memcpy(rTextArea.pcText, characters.data(), rTextArea.iCharacterCount);
+}
+
+void ImGuiManager::RenderTextAreas()
+{
+	const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+	ImDrawList* pDrawList = ImGui::GetBackgroundDrawList();
+	ImFont* pFont = ImGui::GetFont();
+
+	for (const TextArea& rTextArea : mTextAreas)
+	{
+		if (rTextArea.iCharacterCount == 0)
+		{
+			continue;
+		}
+
+		const char* pcTextEnd = rTextArea.pcText + rTextArea.iCharacterCount;
+		const ImVec2 pos(rTextArea.fX * displaySize.x, rTextArea.fY * displaySize.y);
+		const float fFontSize = 0.25f * rTextArea.fSize * displaySize.y;
+		const ImVec2 shadowPos(pos.x + 0.00075f * displaySize.x, pos.y + 0.00175f * displaySize.y);
+
+		// Heap: ImGui may grow internal draw-list vertex/index buffers for first-use or worst-case profile text.
+		ScopedSuppressAllocationTracking suppress;
+		pDrawList->AddText(pFont, fFontSize, shadowPos, IM_COL32_BLACK, rTextArea.pcText, pcTextEnd);
+		pDrawList->AddText(pFont, fFontSize, pos, IM_COL32_WHITE, rTextArea.pcText, pcTextEnd);
+	}
 }
 
 void ImGuiManager::RegisterOpaqueRect(const ImVec2& pos, const ImVec2& size)

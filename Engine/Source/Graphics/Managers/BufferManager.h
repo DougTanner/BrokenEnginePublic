@@ -59,7 +59,6 @@ public:
 	std::vector<Buffer> mGlobalLayoutUniformBuffers;
 	std::vector<Buffer> mMainLayoutUniformBuffers;
 
-	std::vector<Buffer> mTextStorageBuffers;
 	std::vector<Buffer> mUiRectStorageBuffers;
 
 	// Smoke hierarchical dispatch buffers (device-local, single instance)

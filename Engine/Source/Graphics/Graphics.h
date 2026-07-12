@@ -21,7 +21,6 @@ class Islands;
 class ParticleManager;
 class PipelineManager;
 class SwapchainManager;
-class TextManager;
 class TextureManager;
 class Wrapper;
 
@@ -129,7 +128,6 @@ public:
 	std::unique_ptr<CommandBufferManager> mpCommandBufferManager;
 	std::unique_ptr<BufferManager> mpBufferManager;
 	std::unique_ptr<TextureManager> mpTextureManager;
-	std::unique_ptr<TextManager> mpTextManager;
 	std::unique_ptr<Islands> mpIslands;
 	std::unique_ptr<PipelineManager> mpPipelineManager;
 	std::unique_ptr<ParticleManager> mpParticleManager;

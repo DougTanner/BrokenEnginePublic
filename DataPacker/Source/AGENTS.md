@@ -1,6 +1,6 @@
 # `DataPacker/Source`
 
-Asset preprocessing tool that converts raw assets (textures, models, shaders, audio, fonts) into optimized binary formats for runtime loading.
+Asset preprocessing tool that converts raw assets (textures, models, shaders, audio) into optimized binary formats for runtime loading.
 
 ## Architecture
 

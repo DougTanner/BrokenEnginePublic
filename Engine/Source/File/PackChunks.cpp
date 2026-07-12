@@ -84,7 +84,7 @@ std::filesystem::path PackChunks::GetDataFilePath(data::DataTypes eDataType, std
 
 constexpr bool IsEagerChunk(data::DataTypes eDataType)
 {
-	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeScene || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader || eDataType == data::kDataTypeRaw;
+	return eDataType == data::kDataTypeScene || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader || eDataType == data::kDataTypeRaw;
 }
 
 constexpr bool IsServerChunk(data::DataTypes eDataType)
@@ -96,10 +96,6 @@ constexpr bool IsServerChunk(data::DataTypes eDataType)
 // Derive data type from chunk flags for pack file handle lookup
 static constexpr data::DataTypes DataTypeFromFlags(const common::ChunkFlags_t& rFlags)
 {
-	if (rFlags & common::ChunkFlags::kFont)
-	{
-		return data::kDataTypeFont;
-	}
 	if (rFlags & common::ChunkFlags::kScene)
 	{
 		return data::kDataTypeScene;

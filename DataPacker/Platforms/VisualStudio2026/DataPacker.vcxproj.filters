@@ -69,9 +69,6 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportTexture.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\ExportJobs\ExportFont.cpp">
-      <Filter>DataPacker\ExportJobs</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Source\ExportJobs\ExportModel.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
@@ -189,9 +186,6 @@
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\ExportJobs\ExportTexture.h">
-      <Filter>DataPacker\ExportJobs</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Source\ExportJobs\ExportFont.h">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\Common\Math\MathUtils.h">

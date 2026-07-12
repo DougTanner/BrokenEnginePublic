@@ -172,7 +172,7 @@ static void VerifyHullCcwConvex(const ExportedIsland& rOut)
 static void MaskMipSaveTexture(Texture& rTexture, const std::vector<float>& rHeightmapData, int64_t iElevationWidth, int64_t iElevationHeight, int64_t iMaskDivisor, const float (&pfFlat)[4], VkFormat vkFormat, const std::filesystem::path& rSavePath, TextureOptions_t saveOptions, const std::filesystem::path& rJpegPath, int iJpegQuality, TextureOptions_t jpegOptions)
 {
 	rTexture.MaskByHeightmap(rHeightmapData, iElevationWidth, iElevationHeight, iMaskDivisor, common::kfUnderwaterMaskThresholdMeters, pfFlat);
-	rTexture.MakeMipmaps(vkFormat, 32, {});
+	rTexture.MakeMipmaps(vkFormat);
 	rTexture.Save(rSavePath, vkFormat, saveOptions);
 	rTexture.SaveJpegSidecar(rJpegPath, iJpegQuality, jpegOptions);
 }

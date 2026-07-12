@@ -199,12 +199,13 @@ Changes (12 files)
 
 5. Engine/Source/Graphics/Managers/BufferManager.h
    Add a distortion source storage buffer.
-   After mTextStorageBuffers (line 60), add:
+   After mUiRectStorageBuffers (line 62), add:
 
      std::vector<Buffer> mDistortionStorageBuffers;
 
-   Initialize these in BufferManager.cpp alongside the text storage
-   buffers, one per framebuffer, with size for
+   Initialize these in BufferManager::InitializePerCommandBufferBuffers
+   alongside mUiRectStorageBuffers (BufferManager.cpp:295/315), one per
+   framebuffer, with size for
    kiMaxDistortionSources * sizeof(DistortionSourceLayout).
 
 6. Engine/Source/Graphics/Managers/PipelineManager.h

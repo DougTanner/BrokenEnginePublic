@@ -25,7 +25,7 @@ After the lighting deposit render pass (area lights, point lights, lighting part
 
 ## Main Render Pass Order
 
-Opaque models, terrain, water, hex shields, transparent models, particles (long then square), visible lights, billboards, text. Opaque materials drawn first with depth writing; transparent materials drawn after water/hex shields with alpha blending. In debug builds, the entire geometry sequence can be replaced by a single fullscreen debug texture draw (toggled at runtime via F2), with only profile text remaining.
+Opaque models, terrain, water, hex shields, transparent models, particles (long then square), visible lights, and billboards. Opaque materials draw first with depth writing; transparent materials draw after water/hex shields with alpha blending. In debug builds, the entire geometry sequence can be replaced by a single fullscreen debug texture draw (toggled at runtime via F2). Fixed profile and debug text renders later in the ImGui submission.
 
 ## Synchronization
 

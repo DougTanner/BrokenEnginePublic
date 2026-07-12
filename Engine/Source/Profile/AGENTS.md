@@ -8,7 +8,7 @@ Base holds engine-level counter/timer arrays; game derived adds project-specific
 
 All recording and update entry points are wrapped in `if constexpr (kbProfiling)` for zero overhead when disabled. The visibility-cadence tick (`TickVisibilityCadence`), the CPU text formatters (`FormatCpuTimersText`/`FormatCpuCountersText`), and the virtual timer/counter accessors are deliberately left unwrapped so the server's GDI display still renders them (showing zeros when profiling is off).
 
-GPU timing, the `VkQueryPool`, and the overlay renderer are client-only; CPU timers, counters, boot timers, and the CPU text-formatting free functions compile in both builds — the server's GDI display reuses them by calling `UpdateProfileText()`, which runs the shared prefix (`SmoothCpuTimers()` + the per-frame allocation latch/reset) and skips its `BT_CLIENT`-gated GPU-timer and overlay-formatting work. The base also carries mimalloc memory stats (gated `BT_SERVER`) written and read only by that server display.
+GPU timing, the `VkQueryPool`, and the ImGui text-area output are client-only; CPU timers, counters, boot timers, and the CPU text-formatting free functions compile in both builds — the server's GDI display reuses them by calling `UpdateProfileText()`, which runs the shared prefix (`SmoothCpuTimers()` + the per-frame allocation latch/reset) and skips its `BT_CLIENT`-gated GPU-timer and overlay-formatting work. The base also carries mimalloc memory stats (gated `BT_SERVER`) written and read only by that server display.
 
 ## GPU Queries
 
@@ -28,7 +28,7 @@ CPU timers latch into their smoothing rings once per render frame via `SmoothCpu
 
 ## Overlay
 
-`ToggleProfileText()` cycles through fixed screens (off / CPU / GPU / Frames / Network); each transition clears all profile text slots to prevent stale content. The FPS header renders in CPU and GPU modes; the CPU screen adds asset-chunk memory stats, the GPU screen adds per-pass dynamic-resolution annotations (shadow window, lighting spread, terrain elevation, water LOD grid) and VMA memory stats. Frames/Network are game-owned via a `FormatGameScreens` override. Client-only ImPlot graphs render alongside the text overlay.
+`ToggleProfileText()` cycles through fixed screens (off / CPU / GPU / Frames / Network); each transition clears the ImGui-owned profile text areas to prevent stale content. The FPS header renders in CPU and GPU modes; the CPU screen adds asset-chunk memory stats, the GPU screen adds per-pass dynamic-resolution annotations (shadow window, lighting spread, terrain elevation, water LOD grid) and VMA memory stats. Frames/Network are game-owned via a `FormatGameScreens` override. Client-only ImPlot graphs render alongside the text overlay.
 
 Display visibility is synchronized and sticky: `TickVisibilityCadence()` is the shared driver, re-evaluating every row's cached visibility flag (`ProfileRowFlags::kVisible`) together only on a ~2s boundary, so all rows (CPU timers, CPU counters, GPU timers) flip at once and every show/hide lasts at least ~2s. Displayed numbers stay live each frame; `ToggleProfileText()` resets the clock so a switched-to screen re-evaluates immediately.
 

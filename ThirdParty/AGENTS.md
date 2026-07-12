@@ -32,7 +32,6 @@ Third-party *consumption* headers go through `Common/ExternalHeaders.h`, gated b
 - **openexr** (BSD-3) — HDR `.exr` reads; OpenEXRCore C API only, with config-shim headers under `Prebuilts/Source/DataPacker/openexr/` replacing its CMake configure step
 - **SPIRV-Cross** (Apache-2.0) — shader reflection (descriptor and vertex-input layouts baked into `.pack`)
 - **tinygltf** (MIT) — glTF model/animation import
-- **tinyobjloader** (MIT) — compiled but currently has no call sites
 - **glm** / **gli** (MIT / Happy Bunny dual — use the MIT terms) — gli handles DDS/KTX containers; glm is vendored only so gli's `<glm/...>` includes resolve — no first-party code uses it directly
 
 ## License Policy

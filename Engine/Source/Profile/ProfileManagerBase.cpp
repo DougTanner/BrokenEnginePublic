@@ -126,7 +126,7 @@ void ProfileManagerBase::ToggleProfileText()
 #if defined(BT_CLIENT)
 		for (int64_t i = kTextGraphics; i < kTextAreasCount; ++i)
 		{
-			gpTextManager->UpdateTextArea(static_cast<TextAreas>(i), "");
+			gpImGuiManager->UpdateTextArea(static_cast<TextAreas>(i), "");
 		}
 #endif
 	}

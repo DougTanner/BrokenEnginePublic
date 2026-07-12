@@ -170,7 +170,6 @@
     <ClCompile Include="..\..\Source\DataPacker\StackWalker.cpp" />
     <ClCompile Include="..\..\Source\DataPacker\stb.cpp" />
     <ClCompile Include="..\..\Source\DataPacker\tinygltf.cpp" />
-    <ClCompile Include="..\..\Source\DataPacker\tinyobjloader.cpp" />
     <ClCompile Include="..\..\Source\DataPacker\meshoptimizer.cpp" />
     <ClCompile Include="..\..\Source\DataPacker\openexr\openexr.c" />
     <ClCompile Include="..\..\..\zlib\adler32.c" />

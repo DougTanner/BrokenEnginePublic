@@ -28,7 +28,6 @@
     <ClCompile Include="..\..\Source\ExportJobs\AudioRepair.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportAudio.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportCubemapIbl.cpp" />
-    <ClCompile Include="..\..\Source\ExportJobs\ExportFont.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportScene.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\Scene\SceneVerticesLoader.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\Scene\SceneSkeletonLoader.cpp" />
@@ -87,7 +86,6 @@
     <ClInclude Include="..\..\Source\ExportJobs\AudioRepair.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportAudio.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportCubemapIbl.h" />
-    <ClInclude Include="..\..\Source\ExportJobs\ExportFont.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportScene.h" />
     <ClInclude Include="..\..\Source\ExportJobs\Scene\SceneVerticesLoader.h" />
     <ClInclude Include="..\..\Source\ExportJobs\Scene\SceneSkeletonLoader.h" />

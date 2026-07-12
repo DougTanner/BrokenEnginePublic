@@ -144,7 +144,7 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 			rWorkbuffer.AppendFloat(rRenderFrame.interpolate.fCurrentTime, 1);
 			rWorkbuffer.Append("s");
 		}
-		engine::gpTextManager->UpdateTextArea(engine::kTextProfileFrameStats, rWorkbuffer.View());
+		engine::gpImGuiManager->UpdateTextArea(engine::kTextProfileFrameStats, rWorkbuffer.View());
 	}
 
 	if (meProfileScreen == engine::ProfileScreen::kNetwork)
@@ -361,7 +361,7 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 			rWorkbuffer.Append(bKnockOnFlag ? " knock-on!" : " knock-on");
 		}
 
-		engine::gpTextManager->UpdateTextArea(engine::kTextProfileFps, rWorkbuffer.View());
+		engine::gpImGuiManager->UpdateTextArea(engine::kTextProfileFps, rWorkbuffer.View());
 	}
 }
 

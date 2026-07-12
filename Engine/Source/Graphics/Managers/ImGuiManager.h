@@ -19,6 +19,30 @@ namespace engine
 
 enum class UiTheme : uint8_t;
 
+enum TextAreas
+{
+	kTextDebug,
+	kTextGraphics,
+	kTextProfileFps,
+	kTextProfileCpuTimers,
+	kTextProfileGpuTimers,
+	kTextProfileCpuCounters,
+	kTextProfileMemory,
+	kTextProfileFrameStats,
+	kTextAreasCount
+};
+
+struct TextArea
+{
+	static constexpr int64_t kiMaxChars = 4096;
+
+	float fX = 0.0f;
+	float fY = 0.0f;
+	float fSize = 0.1f;
+	int64_t iCharacterCount = 0;
+	char pcText[kiMaxChars] {};
+};
+
 class ImGuiManager
 {
 public:
@@ -29,6 +53,7 @@ public:
 	void Prepare(int64_t iFramebuffer);
 	void Submit(int64_t iFramebuffer);
 	void RegisterOpaqueRect(const ImVec2& pos, const ImVec2& size);
+	void UpdateTextArea(TextAreas eTextArea, std::string_view characters);
 
 	static constexpr int64_t kiMaxUiRects = 32;
 
@@ -46,6 +71,7 @@ private:
 	void UpdateUiRectBuffers(int64_t iFramebuffer);
 	void SetupThemeGeometry(float fUiScale);
 	void ApplyThemeColors(UiTheme eTheme);
+	void RenderTextAreas();
 
 	VkRenderPass mImGuiRenderPass = VK_NULL_HANDLE;
 	std::vector<VkFramebuffer> mImGuiFramebuffers;
@@ -63,6 +89,20 @@ private:
 
 	int64_t miOpaqueRectCount = 0;
 	XMFLOAT4 mOpaqueRects[kiMaxUiRects] {};
+
+	static constexpr float kfTextEdge = 0.025f;
+	TextArea mTextAreas[kTextAreasCount]
+	{
+		{ .fX = 0.45f, .fY = 1.0f - 2.0f * kfTextEdge },
+		{ .fX = 0.875f, .fY = kfTextEdge },
+		{ .fX = 0.5f * kfTextEdge, .fY = kfTextEdge },
+		{ .fX = 0.5f * kfTextEdge, .fY = kfTextEdge },
+		{ .fX = 0.5f * kfTextEdge, .fY = kfTextEdge },
+		{ .fX = 0.875f, .fY = 0.15f },
+		{ .fX = 0.725f, .fY = 0.15f },
+		{ .fX = 0.5f * kfTextEdge, .fY = kfTextEdge },
+	};
+	static_assert(kTextAreasCount == 8);
 };
 
 inline ImGuiManager* gpImGuiManager = nullptr;

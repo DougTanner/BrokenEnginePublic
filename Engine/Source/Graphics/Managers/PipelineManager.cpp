@@ -110,20 +110,6 @@ PipelineManager::PipelineManager()
 
 	CreateTerrainDataPipelines();
 
-	mpPipelines[kPipelineProfileText].Create(
-	{
-		.name = "ProfileText",
-		.flags = {kIndirectHostVisible, kAlphaBlend, kNoWireframe, kUpdateAfterBind},
-		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &mShaders.at(data::kShadersUiProfileTextfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mTextStorageBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesUiBC4NotoSansRegularpngCrc},
-		},
-	});
-
 	mpPipelines[kPipelineUiDepthPrepass].Create(
 	{
 		.name = "UiDepthPrepass",

@@ -93,8 +93,6 @@ public:
 	// Non-water priority textures preloaded at boot, surrounding the water-normal block below.
 	static inline constexpr common::crc_t kpPriorityHead[]
 	{
-		data::kTexturesUiBC4NotoSansRegularpngCrc,
-		data::kTexturesUiBC4NotoSansSCLightpngCrc,
 		data::kTexturesWaterDepthLutpngCrc,
 		data::kTexturesWaterBC4NoisepngCrc,
 	};

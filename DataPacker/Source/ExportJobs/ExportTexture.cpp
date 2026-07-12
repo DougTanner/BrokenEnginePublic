@@ -257,43 +257,9 @@ static void ComputeBc5MipVariance(const Texture& rTexture, float pfOutVariance[c
 
 void ExportTexture::ProcessRegularTexture(VkFormat vkFormat)
 {
-	// The font-atlas stem set is fixed for the whole run (input dirs resolve at startup), so collect
-	// every Fonts/**/*.fnt stem once instead of re-walking the Fonts tree on every texture job. The
-	// function-local static initializes thread-safely on first use even though jobs run concurrently
-	// on std::async threads (see RunExportJobs in Main.cpp).
-	static const std::unordered_set<std::wstring> fontStems = []
-	{
-		std::unordered_set<std::wstring> stems;
-		for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
-		{
-			std::filesystem::path fontsDir = rBaseDirectory / "Fonts";
-			if (!std::filesystem::exists(fontsDir))
-			{
-				continue;
-			}
-			for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(fontsDir))
-			{
-				if (rEntry.path().extension() == ".fnt")
-				{
-					stems.insert(rEntry.path().stem().native());
-				}
-			}
-		}
-		return stems;
-	}();
-
-	std::wstring stem = mInputPath.stem().native();
-	if (size_t uiBracket = stem.rfind(L']'); uiBracket != std::wstring::npos)
-	{
-		stem = stem.substr(uiBracket + 1);
-	}
-	const bool bFontAtlas = fontStems.contains(stem);
-
 	std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
 	Texture texture(mInputPath, FileType::kImage);
-	TextureOptions_t mipOptions;
-	mipOptions.Set(TextureOptions::kUseBoxFilter, bFontAtlas);
-	texture.MakeMipmaps(vkFormat, 32, mipOptions);
+	texture.MakeMipmaps(vkFormat);
 
 	float pfMipVariance[common::TextureHeader::kiMipVarianceCount] {};
 	if (vkFormat == VK_FORMAT_BC5_UNORM_BLOCK)

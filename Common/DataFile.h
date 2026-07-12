@@ -52,8 +52,6 @@ static_assert(BT_OFFSETOF(ChunkLocation, uiSize) == 16, "ChunkLocation::uiSize o
 
 enum class ChunkFlags : uint64_t
 {
-	kFont            = 0x00000001,
-
 	kScene           = 0x00000002,
 
 	kIsland          = 0x00000004,
@@ -84,25 +82,6 @@ inline bool IsCompressed(ChunkFlags_t flags)
 {
 	return (flags & ChunkFlags::kLz4Compressed) || (flags & ChunkFlags::kZlibCompressed);
 }
-
-struct FontHeader
-{
-	int64_t iCharacters = 0;
-	int64_t iKerningPairs = 0;
-
-	int64_t iLineHeight = 0;
-	int64_t iBase = 0;
-	int64_t iScaleW = 0;
-	int64_t iScaleH = 0;
-
-	// Chunk payload layout: [ids ALIGN16] [characters]; the id count equals the character count.
-	// Single source for the writer (ExportFont.cpp) and reader (TextManager.cpp) offset math.
-	static constexpr int64_t CharactersOffset(int64_t iIdCount)
-	{
-		return RoundUp<int64_t, kiAlignmentBytes>(iIdCount * static_cast<int64_t>(sizeof(uint32_t)));
-	}
-};
-static_assert(sizeof(FontHeader) == 48, "FontHeader layout changed — bump DataHeader::kiVersion; unless sizeof(ChunkHeader) also changed, bump ExportFont::GetVersion's raw version too (cached chunk headers aren't otherwise re-exported)");
 
 struct SceneHeader
 {
@@ -290,18 +269,6 @@ constexpr int64_t SceneHeader::AnimationSectionOffset(int64_t iTextureCount, int
 	return MaterialDataOffset(iTextureCount, iMaterialCount) + RoundUp<int64_t, kiAlignmentBytes>(iMaterialCount * static_cast<int64_t>(sizeof(MaterialShaderData)));
 }
 
-struct Character
-{
-	uint16_t uiX = 0;
-	uint16_t uiY = 0;
-	uint16_t uiWidth = 0;
-	uint16_t uiHeight = 0;
-	int16_t iXOffset = 0;
-	int16_t iYOffset = 0;
-	int16_t iXAdvance = 0;
-};
-static_assert(sizeof(Character) == 14, "Character layout changed — bump DataHeader::kiVersion; same-size reorder also bumps ExportFont::GetVersion's raw version (sizeof fold catches size changes only)");
-
 struct IslandHeader
 {
 	common::crc_t ambientOcclusionCrc = 0;
@@ -422,7 +389,6 @@ struct ChunkHeader
 
 	union
 	{
-		FontHeader fontHeader;
 		SceneHeader sceneHeader;
 		IslandHeader islandHeader;
 		ModelHeader modelHeader;
@@ -442,7 +408,7 @@ static_assert(BT_OFFSETOF(ChunkHeader, crc) == 16, "ChunkHeader::crc offset chan
 static_assert(BT_OFFSETOF(ChunkHeader, pcPath) == 24, "ChunkHeader::pcPath offset changed — bump DataHeader::kiVersion");
 static_assert(BT_OFFSETOF(ChunkHeader, iSize) == 288, "ChunkHeader::iSize offset changed — bump DataHeader::kiVersion");
 static_assert(BT_OFFSETOF(ChunkHeader, iUncompressedSize) == 296, "ChunkHeader::iUncompressedSize offset changed — bump DataHeader::kiVersion");
-static_assert(BT_OFFSETOF(ChunkHeader, fontHeader) == 304, "ChunkHeader union offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkHeader, sceneHeader) == 304, "ChunkHeader union offset changed — bump DataHeader::kiVersion");
 
 inline constexpr int64_t kiChunkDataOffset = RoundUp<int64_t, kiAlignmentBytes>(static_cast<int64_t>(sizeof(ChunkHeader)));
 
@@ -454,13 +420,13 @@ struct DataHeader
 	// Auto-bumps when sizeof(ChunkHeader) changes (largest-union-member or outer-field edits). Layout
 	// edits that DON'T change sizeof — reordering/shrinking a non-largest union member, or changing a
 	// non-union payload struct — are instead caught by the per-struct sizeof/offsetof static_asserts
-	// beside each header; bump the manual 48 below when one of those fires. A kiVersion bump forces a
+	// beside each header; bump the manual 49 below when one of those fires. A kiVersion bump forces a
 	// full re-export: the DataPacker manifest check (Main.cpp RunExportJobs) re-runs everything on a
 	// version mismatch, and the engine ASSERTs on a stale-version manifest. Per-job chunk caches are
 	// separate — payload-struct SIZE changes auto-dirty them via the sizeof folds in each job's
-	// GetVersion (ExportScene/ExportModel/ExportFont); same-size reorders still need that raw version
+	// GetVersion (ExportScene/ExportModel); same-size reorders still need that raw version
 	// bumped by hand (the static_assert message beside each struct names the owning job).
-	static constexpr int64_t kiVersion = 48 + sizeof(ChunkHeader);
+	static constexpr int64_t kiVersion = 49 + sizeof(ChunkHeader);
 	int64_t iVersion = kiVersion;
 
 	int64_t iChunkCount = 0;

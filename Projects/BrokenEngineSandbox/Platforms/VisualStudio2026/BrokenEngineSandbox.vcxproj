@@ -405,7 +405,6 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\DynamicPipelines.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\InstanceManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\SwapchainManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\RenderTargetTextures.h" />
@@ -597,7 +596,6 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\DynamicPipelines.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\InstanceManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\SwapchainManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\RenderTargetTextures.cpp" />
@@ -751,7 +749,6 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <None Include="..\..\..\..\Engine\Data\Shaders\Log.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlurH.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlurV.comp" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\ProfileText.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Ui\UiDepthPrepass.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Ui\UiDepthPrepass.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsVisibleArea.vert" />

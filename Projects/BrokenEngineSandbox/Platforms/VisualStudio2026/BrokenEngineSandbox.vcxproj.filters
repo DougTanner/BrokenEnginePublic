@@ -324,9 +324,6 @@
     <ClInclude Include="..\..\Source\Profile\ProfileManager.h">
       <Filter>Game\Profile</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextManager.h">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Islands.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
@@ -923,9 +920,6 @@
     <ClCompile Include="..\..\Source\Profile\NetworkGraphs.cpp">
       <Filter>Game\Profile</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Islands.cpp">
       <Filter>Engine\Graphics</Filter>
     </ClCompile>
@@ -1486,9 +1480,6 @@
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlurV.comp">
       <Filter>Engine\Data\Shaders\Shadow</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\ProfileText.frag">
-      <Filter>Engine\Data\Shaders\Ui</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Ui\UiDepthPrepass.vert">
       <Filter>Engine\Data\Shaders\Ui</Filter>

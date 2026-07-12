@@ -8,13 +8,11 @@ enum class FileType
 	kUint16Raw,
 };
 
-// Per-call options for Texture loading, encoding, and debug output. Bundled into one enum so
-// every Texture method takes the same `common::Flags<TextureOptions>` parameter type — callers
-// pass `{}` for no flags or e.g. `TextureOptions::kVerifyNoAlpha` to opt in.
+// Per-call options for Texture loading, encoding, and debug output. Callers pass `{}` for no flags
+// or e.g. `TextureOptions::kVerifyNoAlpha` to opt in.
 enum class TextureOptions : uint8_t
 {
 	kVerifyNoAlpha = 0x02, // Encode/Export/Save BC7: assert the encoder didn't produce an alpha mode
-	kUseBoxFilter  = 0x04, // MakeMipmaps: STBIR_FILTER_BOX instead of stbir_resize_float_linear
 	kGrayscale     = 0x08, // SaveJpegSidecar: replicate R into G/B (single-channel data)
 	kAutoNormalize = 0x10, // SaveJpegSidecar: rescale R from observed [min,max] to byte [0,255]
 };
@@ -113,12 +111,12 @@ public:
 	Texture(const std::filesystem::path& rPath, FileType eFileType, int64_t iWidth = 0, int64_t iHeight = 0);
 	Texture(const std::byte* puiPixels, int64_t iWidth, int64_t iHeight, int64_t iStride);
 
-	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, TextureOptions_t options, int64_t iPreviousLevel, int64_t iPreviousWidth, int64_t iPreviousHeight);
+	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, int64_t iPreviousLevel, int64_t iPreviousWidth, int64_t iPreviousHeight);
 
-	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel = 32, TextureOptions_t options = {})
+	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel = 32)
 	{
 		ASSERT(mData.size() == 1);
-		MakeMipmaps(vkFormat, iMaxLevel, options, 0, miWidth, miHeight);
+		MakeMipmaps(vkFormat, iMaxLevel, 0, miWidth, miHeight);
 	}
 
 	void Downsize(int64_t iLevels);

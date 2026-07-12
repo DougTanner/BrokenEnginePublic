@@ -281,10 +281,6 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 		}
 	}
 
-	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerText);
-	pPipelines[kPipelineProfileText].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerText);
-
 	Texture::RecordEndRenderPass(vkCommandBuffer);
 
 	// HDR resolve: tone-map + color-grade the F16 scene intermediate into the swapchain. Single DONT_CARE

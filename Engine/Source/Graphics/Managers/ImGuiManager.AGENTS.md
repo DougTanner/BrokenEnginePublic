@@ -2,7 +2,7 @@
 
 **Global**: `gpImGuiManager`
 
-Integrates Dear ImGui for menu and debug UI rendering with dedicated Vulkan render pass and framebuffers. Renders after main pass with `VK_ATTACHMENT_LOAD_OP_LOAD` to preserve frame content. Noto Sans SC Light is the single default font for both Latin and CJK text. Signals the per-framebuffer fence as the final GPU submission in the frame.
+Integrates Dear ImGui for menu, debug UI, and fixed profiler/statistics/debug/pause text areas with dedicated Vulkan render pass and framebuffers. Fixed text areas use the background draw list and remain independent of menu visibility. Renders after main pass with `VK_ATTACHMENT_LOAD_OP_LOAD` to preserve frame content. Noto Sans SC Light is the single default font for both Latin and CJK text. Signals the per-framebuffer fence as the final GPU submission in the frame.
 
 ## Screen Delegation
 

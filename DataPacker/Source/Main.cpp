@@ -3,7 +3,6 @@
 #include "Attribution.h"
 #include "ExportJobs/ExportAudio.h"
 #include "ExportJobs/ExportCubemapIbl.h"
-#include "ExportJobs/ExportFont.h"
 #include "ExportJobs/ExportScene.h"
 #include "ExportJobs/ExportIsland.h"
 #include "ExportJobs/ExportJob.h"
@@ -31,7 +30,6 @@ struct DataTypeEntry
 static constexpr DataTypeEntry kDataTypes[] =
 {
 	{"Audio",   "Audio",   "Audio.h"},
-	{"Font",    "Font",    "Font.h"},
 	{"Scene",   "Scene",   "Scene.h"},
 	{"Islands", "Islands", "Islands.h"},
 	{"Model",   "Model",   "Model.h"},
@@ -354,7 +352,7 @@ bool MainThread(int argc, char* argv[])
 	GenerateIrradianceCubemaps();
 	GeneratePreFilteredCubemaps();
 
-	bSuccess &= RunAllMainExports<ExportAudio, ExportFont, ExportModel, ExportShader, ExportTexture, ExportRaw>();
+	bSuccess &= RunAllMainExports<ExportAudio, ExportModel, ExportShader, ExportTexture, ExportRaw>();
 
 	GenerateDataTypesHeader(gpFileManager->mOutputDirectory / "DataTypes.h");
 	GenerateDataHeader(gpFileManager->mOutputDirectory / "Data.h");

@@ -24,7 +24,7 @@ The packed-asset chunk engine, owned by FileManager via `std::unique_ptr` and re
 
 ### Eager vs Lazy
 
-Split determined by `IsEagerChunk(DataTypes)`: Font/Scene/Model/Shader/Raw are eager (client-only, each pack read whole into memory at boot; chunk pointers alias that buffer, no per-chunk copies); Audio/Islands/Texture are lazy. Server skips eager types entirely and additionally restricts lazy opens to types matching `IsServerChunk(DataTypes)` (currently `kDataTypeIslands` only) — Audio/Texture packs are never opened server-side, so DataPacker can rewrite them while the server runs (an open `FILE_SHARE_READ` handle would block rewrites). Eager load runs async and is format-agnostic (populates the chunk map only — consumers parse their own formats); readers acquire an atomic completion flag (set release by the async task) before touching the eager map — gates the boot window only.
+Split determined by `IsEagerChunk(DataTypes)`: Scene/Model/Shader/Raw are eager (client-only, each pack read whole into memory at boot; chunk pointers alias that buffer, no per-chunk copies); Audio/Islands/Texture are lazy. Server skips eager types entirely and additionally restricts lazy opens to types matching `IsServerChunk(DataTypes)` (currently `kDataTypeIslands` only) — Audio/Texture packs are never opened server-side, so DataPacker can rewrite them while the server runs (an open `FILE_SHARE_READ` handle would block rewrites). Eager load runs async and is format-agnostic (populates the chunk map only — consumers parse their own formats); readers acquire an atomic completion flag (set release by the async task) before touching the eager map — gates the boot window only.
 
 ### Lazy Loading
 

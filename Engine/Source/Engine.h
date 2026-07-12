@@ -48,7 +48,6 @@
 #include "Graphics/Managers/ParticleManager.h"
 #include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/SwapchainManager.h"
-#include "Graphics/Managers/TextManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Graphics/Managers/TextureUploadManager.h"
 

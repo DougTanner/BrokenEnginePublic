@@ -435,10 +435,6 @@ void Graphics::Create()
 	{
 		gpTextureManager->CreateScreenDependentResources();
 	}
-	if (mpTextManager == nullptr)
-	{
-		mpTextManager = std::make_unique<TextManager>();
-	}
 	if (mpPipelineManager == nullptr)
 	{
 		mpPipelineManager = std::make_unique<PipelineManager>();

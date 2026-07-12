@@ -22,8 +22,6 @@ enum Pipelines
 	kPipelineTerrainElevation,
 	kPipelineTerrain,
 
-	kPipelineProfileText,
-
 	kPipelineWater,
 	kPipelineWaterDisplacement,
 

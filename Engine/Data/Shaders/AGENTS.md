@@ -23,7 +23,6 @@ Nearly every shader `#include "ShaderLayouts.h"` — the per-project wrapper (`P
 
 The `Ui/` subdirectory has no AGENTS.md of its own; documented here:
 
-- **ProfileText.frag** — profiler-overlay text; per-instance packed color, alpha modulated by the glyph texture's `.r` channel (the font atlas is single-channel BC4).
 - **UiDepthPrepass.vert/.frag** — depth-only prepass writing depth under opaque ImGui rects so the world behind them is early-Z rejected. Self-contained (declares its own scalar layout instead of including `ShaderLayouts.h`); expands two triangles per rect from `gl_VertexIndex` reading an unsized rect SSBO, with an empty fragment shader.
 
 ## Architecture Notes

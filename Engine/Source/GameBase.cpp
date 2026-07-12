@@ -608,11 +608,8 @@ void GameBase::Render()
 
 	gpGraphics->RenderGlobal(fCurrentTime);
 
-	// Write UI buffers on main thread (safe - Update() already complete)
 	// Capture command buffer index before async launch to avoid re-reading in async thread
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
-	gpTextManager->RenderMain(iCommandBuffer);
-
 	gpGraphics->RenderMainPresentAcquire(iCommandBuffer, mRenderInterpolates, rActiveCoords, cameraCoord);
 
 }
