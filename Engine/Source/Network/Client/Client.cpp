@@ -23,8 +23,10 @@ Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots,
 	mReceivedCoordUpdates.resize(iCoordSlots);
 	mCoordSlots.resize(iCoordSlots);
 	mStatusChangeScratch.resize(kiMaxStatusChangesPerCell);
+	ENetAddress localAddress {};
+	localAddress.host = htonl(INADDR_LOOPBACK);
 	// Heap: ENet allocates host data internally
-	mpHost = enet_host_create(nullptr, 1, NetworkManager::kuiChannelCount, 0, 0);
+	mpHost = enet_host_create(gLaunchOptions.bLoopbackOnly ? &localAddress : nullptr, 1, NetworkManager::kuiChannelCount, 0, 0);
 	if (mpHost == nullptr)
 	{
 		LOG(kNetwork, kWarning, "Client::Client enet_host_create failed");

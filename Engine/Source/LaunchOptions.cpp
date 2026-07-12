@@ -22,7 +22,11 @@ bool ParseLaunchOptions()
 	bool bOk = true;
 	for (int i = 1; i < iArgumentCount; ++i)
 	{
-		if (wcscmp(pArgumentValues[i], L"--agent-port") == 0)
+		if (wcscmp(pArgumentValues[i], L"--loopback-only") == 0)
+		{
+			gLaunchOptions.bLoopbackOnly = true;
+		}
+		else if (wcscmp(pArgumentValues[i], L"--agent-port") == 0)
 		{
 			if (i + 1 < iArgumentCount)
 			{

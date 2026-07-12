@@ -21,7 +21,7 @@ Server::Server(uint16_t uiPort)
 	gpServer = this;
 
 	ENetAddress address {};
-	address.host = ENET_HOST_ANY;
+	address.host = gLaunchOptions.bLoopbackOnly ? htonl(INADDR_LOOPBACK) : ENET_HOST_ANY;
 	address.port = uiPort;
 
 	ScopedSuppressAllocationTracking suppress;

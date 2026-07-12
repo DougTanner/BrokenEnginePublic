@@ -12,7 +12,7 @@ Convention: **server on port 27100, client on port 27101.** `$ROOT` below is the
 
 ## Private-LAN firewall (opt-in)
 
-The AgentCli TCP command channels stay on `127.0.0.1` and need no firewall exception. Only use this workflow when a requested scenario explicitly requires a client on another machine or private Wi-Fi to reach the server's all-interface UDP game listener (27015) and discovery listener (27016). Ordinary same-machine harness runs neither need nor inspect this rule.
+The AgentCli TCP command channels stay on `127.0.0.1` and need no firewall exception. Only use this workflow when a requested scenario explicitly requires a client on another machine or private Wi-Fi to reach the server's all-interface UDP game listener (27015) and discovery listener (27016). Cross-machine launches must omit `--loopback-only`; ordinary same-machine harness runs include it and neither need nor inspect this rule.
 
 Firewall changes are operator-driven. Never run these blocks automatically, request elevation, disable the firewall or notifications, change a network category, or add an executable-path/Public-profile rule. To opt in, the operator opens an **elevated PowerShell** and runs this exact-name, idempotent install block:
 
@@ -24,6 +24,30 @@ Remove-NetFirewallRule -PolicyStore PersistentStore -Name $RuleName -ErrorAction
 New-NetFirewallRule -PolicyStore PersistentStore -Name $RuleName -DisplayName $DisplayName `
 	-Enabled True -Direction Inbound -Action Allow -Profile Private -Protocol UDP `
 	-LocalPort 27015,27016 -RemoteAddress LocalSubnet
+```
+
+Windows-generated per-executable `Query User` inbound block rules override the path-independent Private/`LocalSubnet` allow rule. Before relying on the allow rule, run this **read-only, non-elevated** check once for each exact client and server executable path; any output is a blocker to report, not authorization to remove or change the rule:
+
+```powershell
+$ExecutablePath = (Resolve-Path -LiteralPath '<exact client-or-server executable path>').Path
+
+Get-NetFirewallRule -PolicyStore ActiveStore -TracePolicyStore -Enabled True `
+	-Direction Inbound -Action Block | Where-Object {
+		$_.Name -like '*Query User*' -or $_.DisplayName -like '*Query User*'
+} | ForEach-Object {
+	$Rule = $_
+	Get-NetFirewallApplicationFilter -AssociatedNetFirewallRule $Rule | Where-Object {
+		[Environment]::ExpandEnvironmentVariables($_.Program) -ieq $ExecutablePath
+	} | ForEach-Object {
+		[pscustomobject]@{
+			Name = $Rule.Name
+			DisplayName = $Rule.DisplayName
+			Action = $Rule.Action
+			Program = $_.Program
+			PolicyStoreSource = $Rule.PolicyStoreSource
+		}
+	}
+}
 ```
 
 When cross-machine Private-LAN access is explicitly required, run the following **read-only, non-elevated** inspection before launching. It reports the exact local-persistent rule separately from resultant ActiveStore policy, traces the policy source, compares port/address filters, and checks current enforcement. `ActiveStore` presence or `PrimaryStatus` alone is never proof that the rule is enforced.
@@ -209,7 +233,7 @@ Launch each executable in the background so it keeps running across turns. Use `
 
 Require the `/compile` result's `DataBuildMode`, `RunDataPacker=false`, canonical `GameDataDirectory`, and selected-data required-file identity snapshot. Before every launch, confirm the directory exists and recheck the snapshot; stop if any required header, manifest, or pack changed, disappeared, or appeared. In Local mode, also require and recheck the primary snapshot before launch and after verification to prove the harness did not write authoritative output. Use the compile-selected path exactly for both processes; never infer a path, switch modes, fall back to Shared data, or trigger DataPacker/Gaea/texture export.
 
-Launch args (all optional): `--agent-port N` (opens the channel; required to drive it), `--data-directory <absolute-path>` (pack/manifest root; required by this workflow), `--log-file <path>` (mirror the log ring to a file; write it under `$ROOT\Temp\` — gitignored, but create the directory first: the sink soft-fails if the parent is missing), `--windowed WxH` (force a windowed client size; overrides fullscreen only at read-time, never mutates the saved setting). `1600x900` is a good windowed size — small enough to see, large enough for UI hit-testing.
+Launch args (all optional): `--agent-port N` (opens the channel; required to drive it), `--loopback-only` (binds game and discovery UDP traffic to loopback; required for ordinary same-machine harness runs), `--data-directory <absolute-path>` (pack/manifest root; required by this workflow), `--log-file <path>` (mirror the log ring to a file; write it under `$ROOT\Temp\` — gitignored, but create the directory first: the sink soft-fails if the parent is missing), `--windowed WxH` (force a windowed client size; overrides fullscreen only at read-time, never mutates the saved setting). `1600x900` is a good windowed size — small enough to see, large enough for UI hit-testing.
 
 Both executables start minimized without activation when `--agent-port` is set, so launches stay in the background. Client capture commands temporarily restore the client without activation, capture from the live swapchain, and re-minimize it before responding.
 
@@ -217,8 +241,8 @@ Both executables start minimized without activation when `--agent-port` is set, 
 
 ```powershell
 # run_in_background: true — start the server (headless), then the client windowed.
-& "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandboxServer.Debug.exe" --agent-port 27100 --data-directory "$GameDataDirectory" --log-file "$ROOT\Temp\server-agent.log"
-& "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandbox.Debug.exe" --agent-port 27101 --data-directory "$GameDataDirectory" --windowed 1600x900 --log-file "$ROOT\Temp\client-agent.log"
+& "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandboxServer.Debug.exe" --agent-port 27100 --loopback-only --data-directory "$GameDataDirectory" --log-file "$ROOT\Temp\server-agent.log"
+& "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandbox.Debug.exe" --agent-port 27101 --loopback-only --data-directory "$GameDataDirectory" --windowed 1600x900 --log-file "$ROOT\Temp\client-agent.log"
 ```
 
 Do not set or change the processes' working directory. `--data-directory` is the sole worktree data-root override; omission deliberately tests legacy executable-sibling `Data` behavior only when a verification plan asks for that negative/compatibility case.

@@ -15,10 +15,23 @@ NetworkDiscoveryScanner::NetworkDiscoveryScanner()
 		LOG(kNetwork, kError, "NetworkDiscoveryScanner socket creation failed: {}", WSAGetLastError());
 	}
 
-	BOOL bBroadcast = TRUE;
-	if (setsockopt(mSocket, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&bBroadcast), sizeof(bBroadcast)) == SOCKET_ERROR)
+	if (gLaunchOptions.bLoopbackOnly)
 	{
-		LOG(kNetwork, kError, "NetworkDiscoveryScanner setsockopt SO_BROADCAST failed: {}", WSAGetLastError());
+		sockaddr_in address {};
+		address.sin_family = AF_INET;
+		address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+		if (bind(mSocket, reinterpret_cast<sockaddr*>(&address), sizeof(address)) == SOCKET_ERROR)
+		{
+			LOG(kNetwork, kError, "NetworkDiscoveryScanner bind failed: {}", WSAGetLastError());
+		}
+	}
+	else
+	{
+		BOOL bBroadcast = TRUE;
+		if (setsockopt(mSocket, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&bBroadcast), sizeof(bBroadcast)) == SOCKET_ERROR)
+		{
+			LOG(kNetwork, kError, "NetworkDiscoveryScanner setsockopt SO_BROADCAST failed: {}", WSAGetLastError());
+		}
 	}
 
 	u_long uiNonBlocking = 1;
@@ -38,18 +51,21 @@ void NetworkDiscoveryScanner::StartScan()
 	uint32_t uiMagic = kuiDiscoveryMagic;
 
 	// Send to localhost first (zero latency, always arrives first if local server exists)
-	sockaddr_in localAddr {};
-	localAddr.sin_family = AF_INET;
-	localAddr.sin_port = htons(kuiDiscoveryPort);
-	localAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-	sendto(mSocket, reinterpret_cast<const char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&localAddr), sizeof(localAddr));
+	sockaddr_in localAddress {};
+	localAddress.sin_family = AF_INET;
+	localAddress.sin_port = htons(kuiDiscoveryPort);
+	localAddress.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	sendto(mSocket, reinterpret_cast<const char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&localAddress), sizeof(localAddress));
 
-	// Then broadcast to LAN
-	sockaddr_in broadcastAddr {};
-	broadcastAddr.sin_family = AF_INET;
-	broadcastAddr.sin_port = htons(kuiDiscoveryPort);
-	broadcastAddr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
-	sendto(mSocket, reinterpret_cast<const char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&broadcastAddr), sizeof(broadcastAddr));
+	if (!gLaunchOptions.bLoopbackOnly)
+	{
+		// Then broadcast to LAN
+		sockaddr_in broadcastAddress {};
+		broadcastAddress.sin_family = AF_INET;
+		broadcastAddress.sin_port = htons(kuiDiscoveryPort);
+		broadcastAddress.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+		sendto(mSocket, reinterpret_cast<const char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&broadcastAddress), sizeof(broadcastAddress));
+	}
 
 	mTimer.Reset();
 	mFlags.Set(DiscoveryScannerFlags::kStarted);
