@@ -57,7 +57,7 @@ Main session accumulates every skill's residuals and handoffs, passes them to la
 	- **b)** Main session dedupes findings; send accepted non-structural in-scope fixes to /resolve-findings (Opus) and route structural findings through step 11
 	- **c)** Run /compile (Sonnet) on fixed `.cpp` files, then one independent /resolve-findings verification pass (Opus) on fixed regions. Any failure or repository mutation returns to step 9's test -> fix -> retest loop; repeat until the affected ledger entries pass. Do not repeat the paired audits
 11. Have an Opus subagent invoke /create-follow-up-plans for unresolved structural or out-of-scope residuals. Because plan/queue edits mutate the repository, return to step 9 afterward and verify their links, scoring, ordering, overlap metadata, and acceptance coverage
-12. Invoke /finalize-changes; the skill owns final verification, sign-off, reconciliation, landing, claim release, and completion reporting
+12. Invoke /finalize-changes; the skill owns final verification, automatic reconciliation (escalating to user sign-off only for genuinely unsafe/ambiguous conflicts), landing, claim release, and completion reporting
 
 ## Resolving Ambiguity
 
