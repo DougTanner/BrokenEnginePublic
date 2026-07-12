@@ -324,6 +324,12 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
+		// Dying players stop firing blasters through the death-explosion animation (mirrors SpawnMissiles gate)
+		if (rCurrentPostRender.pFlags[i] & kExploding)
+		{
+			continue;
+		}
+
 		// Base direction and left-normal for barrel offset
 		XMVECTOR vecBaseDirection = rCurrentInterpolate.pVecDirections[i];
 		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecBaseDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));

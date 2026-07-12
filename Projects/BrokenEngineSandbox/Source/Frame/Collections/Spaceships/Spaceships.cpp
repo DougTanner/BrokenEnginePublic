@@ -500,6 +500,12 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 			continue;
 		}
 
+		// Exploding ships stop firing blasters through the death animation
+		if (rCurrentPostRender.pFlags[i] & kExploding)
+		{
+			continue;
+		}
+
 		// Find nearest alive player for blaster targeting
 		XMVECTOR vecNearestPlayer = XMVectorZero();
 		if (!NearestAlivePlayerPosition(rPlayers, rPlayersPostRender, rCurrentInterpolate.pVecPositions[i], vecNearestPlayer))

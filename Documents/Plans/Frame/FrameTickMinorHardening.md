@@ -27,11 +27,11 @@ Each item is independent and mechanical once its one-line verification holds; no
 
 ## Out of scope
 
-- The exploding-entity fire gates in the same Spaceships/Players functions — `Frame/DyingEntitiesKeepFiring.md`.
+- The exploding-entity fire gates in the same Spaceships/Players functions — already present (`SpawnBlasters` / `SpaceshipsPostRender::Spawn` gate blaster spawns on `kExploding`).
 - Any NavData build-content change (item 1 is lifecycle-flag only).
 - Wrapper synchronization machinery — item 5 is doc-only; the read pattern is verified safe.
 
 ## Notes
 
-- **Invariant exposure.** Items 2-4 mutate CRC'd values (clamps/accumulation/scan source) — behavior-visible to replays even when semantically inert; land as one batch so a single replay-invalidation event covers them, and co-schedule with `Frame/DyingEntitiesKeepFiring.md` (same files, same class of small CRC'd behavior change). Item 1's flag lives on per-cell derived data outside the CRC. Items 5-7 are docs/comments. No wire/`kiVersion` changes.
+- **Invariant exposure.** Items 2-4 mutate CRC'd values (clamps/accumulation/scan source) — behavior-visible to replays even when semantically inert; land as one batch so a single replay-invalidation event covers them. Item 1's flag lives on per-cell derived data outside the CRC. Items 5-7 are docs/comments. No wire/`kiVersion` changes.
 - No open grill decisions; item 4's pick (unify vs document) is a trivial choice — prefer unify-to-current unless the diff turns non-local.
