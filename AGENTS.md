@@ -69,6 +69,7 @@ Each subagent reports files changed + functions/regions touched (one line each),
 - **Architectural decisions** (new system shape, public API, data layout, threading model): stop and ask the user. Concisely present: (a) the problem, (b) proposed solutions, (c) pros and cons of each.
 
 ## Directives
+
 - Follow KISS, YAGNI, DRY — before writing logic that may already exist, grep; call or extract a shared helper, never paste a copy. Exception: mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel
 - Before step 12, use only read-only Git commands outside an existing session worktree. Step 12 reconciliation and landing are rebase-only: never use `git merge`, `git merge --ff-only`, `git pull` without `--rebase`, or `git rebase --rebase-merges`. Never push.
 - Claude Skills `.claude\skills` and AGENTS.md files are used only by AI agents and must be kept CONCISE
@@ -80,6 +81,7 @@ Each subagent reports files changed + functions/regions touched (one line each),
 - **Response style**: Stay concise — no pleasantries, hedging, or restating the request. Terse ≠ incomplete: cut the words around the facts, never the facts — when the user (or output style) asks for explanation, provide it fully. Never compress errors, irreversible-action confirmations, or order-sensitive step sequences. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
 
 ## Directory Structure
+
 - `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [AGENTS.md](Common/AGENTS.md)
 - `/DataPacker/` - Asset preprocessor producing `.pack`/`.manifest` files - [AGENTS.md](DataPacker/Source/AGENTS.md)
 - `/Engine/` - Runtime: graphics, audio, input, frame state (`engine::` namespace); `Engine.h` is the single aggregation header (included by `Pch.h`) with `#ifdef BT_CLIENT`/`BT_SERVER` guards, save the few deliberate exceptions noted at the subsystem hubs - [AGENTS.md](Engine/Source/AGENTS.md)
@@ -89,6 +91,7 @@ Each subagent reports files changed + functions/regions touched (one line each),
 - `/Documents/` - Style guide (`C++StyleGuide.txt`), Mermaid architecture diagrams (`Architecture/`), and the plan queues (`Plans/`, `Features/`) - [AGENTS.md](Documents/AGENTS.md)
 
 ## Static Analysis
+
 - `.editorconfig` (repo root) — formatting (Allman, tabs, spacing, include sort). VS applies on save / Ctrl+K, Ctrl+D.
 - `.clang-tidy` (repo root) — enforced checks mapped to `Documents/C++StyleGuide.txt`. Enablement/exclusion mechanics: [VisualStudio2026/AGENTS.md](Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md); deferred checks and details: comment block at the top of the file.
 
@@ -107,18 +110,10 @@ Rules:
 
 ## Agent Interaction Harness
 
-Drive both executables from an agent for verification. Launch args: `--agent-port N`, `--log-file path`, `--windowed WxH`. `AgentCli.exe` sends length-prefixed JSON to 127.0.0.1 (server 27100, client 27101 by convention). Command families:
-- lifecycle/logs: `ping`, `quit`, `get_logs`, `set_log_level`
-- server sim control: `status`, `pause`, `timescale`, `reset`
-- save/load/replay: `save`, `load`, `replay_record`, `replay_play`
-- server queries + StatusChange injection: `query_frame`, `query_players`, `query_collection`, `inject_status_changes`, `spawn_players`
-- client capture + window: `screenshot`, `dump_render_target`, `resize`, `fullscreen`, `window_state`
-- UI drive: `describe_ui`, `click`, `hover`, `set_slider`, `key`, `mouse`
-- scene: `describe_scene`
-
-Full usage (JSON schemas, workflows, caveats) in the agent-harness skill.
+The agent interaction harness launches and controls the client/server for live verification, including simulation setup, UI input, state queries, screenshots, logs, and replay determinism checks. Invoke `/agent-harness` for all harness operations; the skill owns launch details, command schemas, workflows, evidence reporting, and caveats.
 
 ## Key Patterns
+
 - **Log levels**: `kVerbose` — per-frame / high-frequency. `kDebug` — one-time (startup, connect). `kInfo` — state transitions, important one-shots (default threshold). `kWarning` — investigate (timeouts, desync); may spam. `kError` — failures; always logged. Per-category thresholds are runtime-adjustable (default `kInfo`, via the agent `set_log_level` command) atop a per-project compile-time floor that eliminates below-floor calls; mechanics in [Common/AGENTS.md](Common/AGENTS.md) Logging.
 - **Managers**: Singletons via `gp*` globals (`gpGraphics`, `gpAudioManager`)
 - **Memory**: RAII everywhere, no manual memory management
@@ -135,7 +130,7 @@ Full usage (JSON schemas, workflows, caveats) in the agent-harness skill.
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/AGENTS.md](Common/AGENTS.md)
 
 ## Diagnosis Discipline
+
 - **Verify root cause before editing**: state the suspected root cause, then confirm it — either close code inspection shows the bug unambiguously and deterministically, or logs directly evidence it. "I know what the bug is" is not verification.
 - **If uncertain, say so** and re-investigate — never fabricate justifications when challenged.
 - **Authority order when sources disagree** about intended behavior: explicit user statement > plan document (post-grill) > AGENTS.md/docs/comments > current code behavior. Never silently make one side match another — surface the contradiction as a residual (footer line) naming both sides and which was trusted.
-- **Never remove working features as part of a 'fix'** without explicit confirmation.
