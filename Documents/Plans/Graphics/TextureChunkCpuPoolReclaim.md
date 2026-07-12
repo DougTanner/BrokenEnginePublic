@@ -26,7 +26,7 @@ Profile the resident texture-CPU-pool bytes and the cycling churn cost before co
 
 ## Out of scope
 - The island mesh CPU slice (`IslandMeshCpuSliceReclaim.md`) and the other island residency buckets.
-- Eager-pack (`mPackFileData`) reclaim — different storage mechanism (`File/EagerPackBufferReclaim.md`).
+- Eager-pack (`mPackFileData`) reclaim — different storage mechanism.
 
 ## Notes
 - Client/graphics-only. **No determinism/CRC/`.pack`/`kiVersion` exposure** — texture CPU bytes never feed the sim.
