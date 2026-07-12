@@ -7,7 +7,8 @@ description: >-
   land an existing session worktree under the PC-global landing lock. Before
   rebasing onto the primary branch, present a detailed change summary and
   require explicit user sign-off. Retain the worktree and branch for
-  user-managed cleanup.
+  user-managed cleanup, and end a fully landed run with an unmistakable
+  safe-to-close session message.
 allowed-tools: [Read, Bash, AskUserQuestion]
 ---
 
@@ -48,6 +49,15 @@ Never run `git merge`, `git merge --ff-only`, `git pull` without `--rebase`, or 
 9. Reverify `lock status` reports this owner, then run `lock release --domain landing --repo <git-common-dir> --owner <token>`.
 10. If the caller workflow holds another session-scoped claim that may release only after the landed commit is verified, such as a plan claim, use its AgentCli domain and locator to owner-check it with `lock status` and release it with `lock release ... --owner <caller-token>`.
 11. Verify the session worktree is clean, remains registered at the recorded path on the recorded branch, and its tip is fully contained in primary. Retain the worktree and branch unchanged for explicit user-managed cleanup; do not run `git worktree remove`, delete the directory, or delete the branch.
+12. Only after every landing, claim-release, primary/session identity, manifest, containment, and cleanliness check above succeeds, end the user-facing response with this exact standalone block as its final content:
+
+    ```text
+    SESSION COMPLETE
+    All verified worktree changes have landed on the parent branch, and all session claims are released.
+    It is safe to close this session tab.
+    ```
+
+    Do not place caveats, residuals, follow-up suggestions, or any other text after this block. Never emit `SESSION COMPLETE` for `LEFT UNCOMMITTED`, `COMMITTED`, a blocked/failed landing, a retained claim, a dirty checkout, unequal primary/session tips, or any result that still requires user action. Those outcomes must end with their blocker or next required action instead.
 
 Stop and report the exact blocker before any operation that would require broader authority, disturb unrelated changes, bypass a failed verification, or violate lock ownership.
 
@@ -63,3 +73,4 @@ Report:
 - Files changed during finalization, or `none`
 - Functions/regions touched during finalization, or `none`
 - Residuals: blocker or `none` (always last)
+- For `LANDED` with every step-12 condition satisfied, append the exact `SESSION COMPLETE` block after the structured report; it is the absolute final output.
