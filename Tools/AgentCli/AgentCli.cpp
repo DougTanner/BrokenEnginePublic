@@ -33,7 +33,7 @@ namespace agentcli
 		{
 			std::cerr << "Usage: AgentCli.exe [--owner TOKEN] --port N [--timeout-ms 15000] -\n";
 			std::cerr << "       AgentCli.exe [--owner TOKEN] --port N [--timeout-ms 15000] \"<json>\"\n";
-			std::cerr << "       AgentCli.exe lock <token|claim|status|release|steal> ...\n";
+			std::cerr << "       AgentCli.exe lock <token|claim|status|refresh|recover|release|steal> ...\n";
 			std::cerr << "       AgentCli.exe build [--files <cpp...> --] <project-or-solution> <MSBuild args...>\n";
 			std::cerr << "       AgentCli.exe install\n";
 			std::cerr << "       AgentCli.exe --version\n";

@@ -23,6 +23,9 @@ namespace agentcli
 	namespace
 	{
 		constexpr int kiSchemaVersion = 2;
+		constexpr int kiLandingLeaseSchemaVersion = 3;
+		constexpr int64_t kiMinimumLeaseSeconds = 60;
+		constexpr int64_t kiMaximumLeaseSeconds = 86'400;
 		constexpr DWORD kuiGuardWaitMilliseconds = 10000;
 
 		struct LockLocator
@@ -30,6 +33,18 @@ namespace agentcli
 			std::wstring domain;
 			std::wstring logicalKey;
 			std::filesystem::path path;
+		};
+
+		struct LandingLease
+		{
+			std::string owner;
+			std::string claimedAt;
+			std::string heartbeatAt;
+			std::string expiresAt;
+			int64_t iDurationSeconds = 0;
+			uint64_t uiClaimedTicks = 0;
+			uint64_t uiHeartbeatTicks = 0;
+			uint64_t uiExpiresTicks = 0;
 		};
 
 		class Guard
@@ -70,6 +85,82 @@ namespace agentcli
 			char pBuffer[32] {};
 			std::snprintf(pBuffer, sizeof(pBuffer), "%04u-%02u-%02uT%02u:%02u:%02u.%03uZ", time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, time.wMilliseconds);
 			return pBuffer;
+		}
+
+		bool ParseUtcTimestamp(const std::string& rValue, uint64_t& rTicks)
+		{
+			SYSTEMTIME time {};
+			char cSuffix = 0;
+			int iRead = std::sscanf(rValue.c_str(), "%hu-%hu-%huT%hu:%hu:%hu.%hu%c", &time.wYear, &time.wMonth, &time.wDay, &time.wHour, &time.wMinute, &time.wSecond, &time.wMilliseconds, &cSuffix);
+			FILETIME fileTime {};
+			if (iRead != 8 || cSuffix != 'Z' || rValue.size() != 24 || ::SystemTimeToFileTime(&time, &fileTime) == FALSE)
+			{
+				return false;
+			}
+			rTicks = (static_cast<uint64_t>(fileTime.dwHighDateTime) << 32) | fileTime.dwLowDateTime;
+			return true;
+		}
+
+		uint64_t CurrentUtcTicks()
+		{
+			FILETIME fileTime {};
+			::GetSystemTimeAsFileTime(&fileTime);
+			return (static_cast<uint64_t>(fileTime.dwHighDateTime) << 32) | fileTime.dwLowDateTime;
+		}
+
+		std::string FormatUtcTimestamp(uint64_t uiTicks)
+		{
+			FILETIME fileTime { static_cast<DWORD>(uiTicks), static_cast<DWORD>(uiTicks >> 32) };
+			SYSTEMTIME time {};
+			::FileTimeToSystemTime(&fileTime, &time);
+			char pBuffer[32] {};
+			std::snprintf(pBuffer, sizeof(pBuffer), "%04u-%02u-%02uT%02u:%02u:%02u.%03uZ", time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, time.wMilliseconds);
+			return pBuffer;
+		}
+
+		std::optional<std::string> RunGit(const std::vector<std::wstring>& rArguments)
+		{
+			SECURITY_ATTRIBUTES securityAttributes { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
+			Handle hRead;
+			Handle hWrite;
+			HANDLE hRawRead = INVALID_HANDLE_VALUE;
+			HANDLE hRawWrite = INVALID_HANDLE_VALUE;
+			if (::CreatePipe(&hRawRead, &hRawWrite, &securityAttributes, 0) == FALSE)
+			{
+				return std::nullopt;
+			}
+			hRead.Reset(hRawRead);
+			hWrite.Reset(hRawWrite);
+			::SetHandleInformation(hRead.Get(), HANDLE_FLAG_INHERIT, 0);
+
+			std::vector<std::wstring> arguments { L"git.exe" };
+			arguments.insert(arguments.end(), rArguments.begin(), rArguments.end());
+			std::wstring commandLine = BuildCommandLine(arguments);
+			STARTUPINFOW startupInfo {};
+			startupInfo.cb = sizeof(startupInfo);
+			startupInfo.dwFlags = STARTF_USESTDHANDLES;
+			startupInfo.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
+			startupInfo.hStdOutput = hWrite.Get();
+			startupInfo.hStdError = hWrite.Get();
+			PROCESS_INFORMATION processInformation {};
+			if (::CreateProcessW(nullptr, commandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &startupInfo, &processInformation) == FALSE)
+			{
+				return std::nullopt;
+			}
+			Handle hProcess(processInformation.hProcess);
+			Handle hThread(processInformation.hThread);
+			hWrite.Reset();
+			std::string output;
+			char pBuffer[4096] {};
+			DWORD uiRead = 0;
+			while (::ReadFile(hRead.Get(), pBuffer, sizeof(pBuffer), &uiRead, nullptr) != FALSE && uiRead != 0)
+			{
+				output.append(pBuffer, uiRead);
+			}
+			::WaitForSingleObject(hProcess.Get(), INFINITE);
+			DWORD uiExitCode = 1;
+			::GetExitCodeProcess(hProcess.Get(), &uiExitCode);
+			return uiExitCode == 0 ? std::optional<std::string>(std::move(output)) : std::nullopt;
 		}
 
 		std::optional<std::string> HashSha256(std::string_view value)
@@ -289,7 +380,7 @@ namespace agentcli
 			std::cout << rMetadata.dump(2) << '\n';
 		}
 
-		std::optional<LockLocator> ParseLocator(int iArgumentCount, wchar_t* pArgumentValues[], int iStartIndex, std::wstring& rOwner, std::wstring& rExpectedOwner, std::wstring& rSession, std::wstring& rWorktree)
+		std::optional<LockLocator> ParseLocator(int iArgumentCount, wchar_t* pArgumentValues[], int iStartIndex, std::wstring& rOwner, std::wstring& rExpectedOwner, std::wstring& rSession, std::wstring& rWorktree, int64_t& riLeaseSeconds)
 		{
 			std::wstring domain;
 			std::wstring key;
@@ -326,6 +417,22 @@ namespace agentcli
 				{
 					pDestination = &rWorktree;
 				}
+				else if (argument == L"--lease-seconds")
+				{
+					if (++i >= iArgumentCount)
+					{
+						Fail("lock option requires a value");
+						return std::nullopt;
+					}
+					wchar_t* pEnd = nullptr;
+					riLeaseSeconds = std::wcstoll(pArgumentValues[i], &pEnd, 10);
+					if (pEnd == pArgumentValues[i] || *pEnd != L'\0')
+					{
+						Fail("--lease-seconds must be an integer");
+						return std::nullopt;
+					}
+					continue;
+				}
 				else
 				{
 					Fail("unknown lock argument: " + WideToUtf8(argument));
@@ -339,6 +446,30 @@ namespace agentcli
 				*pDestination = pArgumentValues[i];
 			}
 			return MakeLocator(ToLowerInvariant(std::move(domain)), key, repository);
+		}
+
+		bool IsValidLeaseDuration(int64_t iLeaseSeconds)
+		{
+			return iLeaseSeconds >= kiMinimumLeaseSeconds && iLeaseSeconds <= kiMaximumLeaseSeconds;
+		}
+
+		bool JsonIntegerEquals(const nlohmann::json& rValue, int64_t iExpected)
+		{
+			if (rValue.is_number_unsigned())
+			{
+				return iExpected >= 0 && rValue.get<uint64_t>() == static_cast<uint64_t>(iExpected);
+			}
+			return rValue.is_number_integer() && rValue.get<int64_t>() == iExpected;
+		}
+
+		std::optional<int64_t> JsonInt64(const nlohmann::json& rValue)
+		{
+			if (rValue.is_number_unsigned())
+			{
+				const uint64_t uiValue = rValue.get<uint64_t>();
+				return uiValue <= static_cast<uint64_t>(INT64_MAX) ? std::optional<int64_t>(static_cast<int64_t>(uiValue)) : std::nullopt;
+			}
+			return rValue.is_number_integer() ? std::optional<int64_t>(rValue.get<int64_t>()) : std::nullopt;
 		}
 
 		nlohmann::json NewMetadata(const LockLocator& rLocator, const std::wstring& rOwner, const std::wstring& rSession, const std::wstring& rWorktree)
@@ -355,6 +486,158 @@ namespace agentcli
 				{ "claimedAt", timestamp },
 				{ "heartbeatAt", timestamp },
 			};
+		}
+
+		nlohmann::json NewLandingMetadata(const LockLocator& rLocator, const std::wstring& rOwner, const std::wstring& rSession, const std::wstring& rWorktree, int64_t iLeaseSeconds)
+		{
+			nlohmann::json metadata = NewMetadata(rLocator, rOwner, rSession, rWorktree);
+			metadata["schemaVersion"] = kiLandingLeaseSchemaVersion;
+			metadata["leaseDurationSeconds"] = iLeaseSeconds;
+			uint64_t uiHeartbeatTicks = 0;
+			ParseUtcTimestamp(metadata["heartbeatAt"].get<std::string>(), uiHeartbeatTicks);
+			uint64_t uiExpiresTicks = uiHeartbeatTicks + static_cast<uint64_t>(iLeaseSeconds) * 10'000'000ull;
+			metadata["expiresAt"] = FormatUtcTimestamp(uiExpiresTicks);
+			return metadata;
+		}
+
+		std::optional<LandingLease> ValidateLandingLease(const nlohmann::json& rMetadata, const LockLocator& rLocator, uint64_t uiCurrentTicks)
+		{
+			const char* pStringFields[] = { "owner", "session", "worktree", "claimedAt", "heartbeatAt", "expiresAt" };
+			if (!rMetadata.contains("schemaVersion") || !JsonIntegerEquals(rMetadata["schemaVersion"], kiLandingLeaseSchemaVersion) ||
+				!rMetadata.contains("domain") || !rMetadata["domain"].is_string() || rMetadata["domain"].get<std::string>() != "landing" ||
+				!rMetadata.contains("logicalKey") || !rMetadata["logicalKey"].is_string() || rMetadata["logicalKey"].get<std::string>() != WideToUtf8(rLocator.logicalKey) ||
+				!rMetadata.contains("leaseDurationSeconds"))
+			{
+				return std::nullopt;
+			}
+			const std::optional<int64_t> durationSeconds = JsonInt64(rMetadata["leaseDurationSeconds"]);
+			if (!durationSeconds)
+			{
+				return std::nullopt;
+			}
+			for (const char* pField : pStringFields)
+			{
+				if (!rMetadata.contains(pField) || !rMetadata[pField].is_string() || rMetadata[pField].get<std::string>().empty())
+				{
+					return std::nullopt;
+				}
+			}
+			LandingLease lease;
+			lease.owner = rMetadata["owner"].get<std::string>();
+			lease.claimedAt = rMetadata["claimedAt"].get<std::string>();
+			lease.heartbeatAt = rMetadata["heartbeatAt"].get<std::string>();
+			lease.expiresAt = rMetadata["expiresAt"].get<std::string>();
+			lease.iDurationSeconds = *durationSeconds;
+			if (!IsValidLeaseDuration(lease.iDurationSeconds) || !ParseUtcTimestamp(lease.claimedAt, lease.uiClaimedTicks) || !ParseUtcTimestamp(lease.heartbeatAt, lease.uiHeartbeatTicks) || !ParseUtcTimestamp(lease.expiresAt, lease.uiExpiresTicks) ||
+				lease.uiHeartbeatTicks > UINT64_MAX - static_cast<uint64_t>(lease.iDurationSeconds) * 10'000'000ull || lease.uiExpiresTicks != lease.uiHeartbeatTicks + static_cast<uint64_t>(lease.iDurationSeconds) * 10'000'000ull ||
+				lease.uiClaimedTicks > lease.uiHeartbeatTicks || lease.uiHeartbeatTicks > uiCurrentTicks)
+			{
+				return std::nullopt;
+			}
+			return lease;
+		}
+
+		nlohmann::json LandingStatus(const nlohmann::json& rMetadata, const LockLocator& rLocator)
+		{
+			nlohmann::json status = { { "held", true }, { "leaseState", "unverifiable" } };
+			for (const char* pField : { "owner", "session", "worktree", "claimedAt", "heartbeatAt", "expiresAt" })
+			{
+				if (rMetadata.contains(pField) && rMetadata[pField].is_string())
+				{
+					status[pField] = rMetadata[pField];
+				}
+			}
+			std::optional<LandingLease> lease = ValidateLandingLease(rMetadata, rLocator, CurrentUtcTicks());
+			if (lease)
+			{
+				status = rMetadata;
+				status["held"] = true;
+				status["leaseState"] = CurrentUtcTicks() < lease->uiExpiresTicks ? "live" : "expired";
+			}
+			return status;
+		}
+
+		bool AllRegisteredWorktreesClear(const LockLocator& rLocator)
+		{
+			std::optional<std::string> listing = RunGit({ L"--git-dir", rLocator.logicalKey, L"worktree", L"list", L"--porcelain", L"-z" });
+			if (!listing)
+			{
+				return false;
+			}
+			std::vector<std::wstring> worktrees;
+			std::wstring currentWorktree;
+			bool bInvalidEntry = false;
+			for (size_t uiStart = 0; uiStart < listing->size();)
+			{
+				size_t uiEnd = listing->find('\0', uiStart);
+				if (uiEnd == std::string::npos)
+				{
+					uiEnd = listing->size();
+				}
+				std::string_view field(listing->data() + uiStart, uiEnd - uiStart);
+				if (field.empty())
+				{
+					if (currentWorktree.empty() || bInvalidEntry)
+					{
+						return false;
+					}
+					worktrees.push_back(currentWorktree);
+					currentWorktree.clear();
+					bInvalidEntry = false;
+				}
+				else if (field.starts_with("worktree "))
+				{
+					currentWorktree = Utf8ToWide(field.substr(9));
+				}
+				else if (field == "bare" || field.starts_with("prunable"))
+				{
+					bInvalidEntry = true;
+				}
+				uiStart = uiEnd + 1;
+			}
+			if (!currentWorktree.empty())
+			{
+				if (bInvalidEntry)
+				{
+					return false;
+				}
+				worktrees.push_back(currentWorktree);
+			}
+			if (worktrees.empty())
+			{
+				return false;
+			}
+			const std::filesystem::path pMarkers[] = { L"MERGE_HEAD", L"rebase-merge", L"rebase-apply", L"CHERRY_PICK_HEAD", L"REVERT_HEAD", L"BISECT_LOG", L"sequencer" };
+			for (const std::wstring& rWorktree : worktrees)
+			{
+				std::error_code error;
+				if (!std::filesystem::is_directory(rWorktree, error) || error)
+				{
+					return false;
+				}
+				std::optional<std::string> gitDirectoryText = RunGit({ L"-C", rWorktree, L"rev-parse", L"--path-format=absolute", L"--git-dir" });
+				if (!gitDirectoryText)
+				{
+					return false;
+				}
+				while (!gitDirectoryText->empty() && (gitDirectoryText->back() == '\r' || gitDirectoryText->back() == '\n'))
+				{
+					gitDirectoryText->pop_back();
+				}
+				std::filesystem::path gitDirectory = Utf8ToWide(*gitDirectoryText);
+				if (!std::filesystem::is_directory(gitDirectory, error) || error)
+				{
+					return false;
+				}
+				for (const std::filesystem::path& rMarker : pMarkers)
+				{
+					if (std::filesystem::exists(gitDirectory / rMarker, error) || error)
+					{
+						return false;
+					}
+				}
+			}
+			return true;
 		}
 
 		bool HasOwner(const nlohmann::json& rMetadata, const std::wstring& rOwner)
@@ -383,7 +666,7 @@ namespace agentcli
 	{
 		if (iArgumentCount < 3)
 		{
-			Fail("lock requires token, claim, status, release, or steal");
+			Fail("lock requires token, claim, status, refresh, recover, release, or steal");
 			return kiExitFailure;
 		}
 		std::wstring verb = ToLowerInvariant(pArgumentValues[2]);
@@ -396,7 +679,7 @@ namespace agentcli
 			}
 			return RunToken();
 		}
-		if (verb != L"claim" && verb != L"status" && verb != L"release" && verb != L"steal")
+		if (verb != L"claim" && verb != L"status" && verb != L"refresh" && verb != L"recover" && verb != L"release" && verb != L"steal")
 		{
 			Fail("unknown lock verb");
 			return kiExitFailure;
@@ -406,24 +689,35 @@ namespace agentcli
 		std::wstring expectedOwner;
 		std::wstring session;
 		std::wstring worktree;
-		std::optional<LockLocator> locator = ParseLocator(iArgumentCount, pArgumentValues, 3, owner, expectedOwner, session, worktree);
+		int64_t iLeaseSeconds = 0;
+		std::optional<LockLocator> locator = ParseLocator(iArgumentCount, pArgumentValues, 3, owner, expectedOwner, session, worktree, iLeaseSeconds);
 		if (!locator)
 		{
 			return kiExitFailure;
 		}
-		if ((verb == L"claim" || verb == L"steal") && (owner.empty() || session.empty() || worktree.empty()))
+		if ((verb == L"claim" || verb == L"steal" || verb == L"recover") && (owner.empty() || session.empty() || worktree.empty()))
 		{
-			Fail("claim and steal require --owner, --session, and --worktree");
+			Fail("claim, steal, and recover require --owner, --session, and --worktree");
 			return kiExitFailure;
 		}
-		if (verb == L"release" && owner.empty())
+		if ((verb == L"release" || verb == L"refresh") && owner.empty())
 		{
-			Fail("release requires --owner");
+			Fail("release and refresh require --owner");
 			return kiExitFailure;
 		}
-		if (verb == L"steal" && expectedOwner.empty())
+		if ((verb == L"steal" || verb == L"recover") && expectedOwner.empty())
 		{
-			Fail("steal requires --expect");
+			Fail("steal and recover require --expect");
+			return kiExitFailure;
+		}
+		if (locator->domain == L"landing" && ((verb == L"claim" || verb == L"recover") && !IsValidLeaseDuration(iLeaseSeconds)))
+		{
+			Fail("landing claim and recover require --lease-seconds in the range 60..86400");
+			return kiExitFailure;
+		}
+		if (locator->domain != L"landing" && (verb == L"refresh" || verb == L"recover" || iLeaseSeconds != 0))
+		{
+			Fail("refresh, recover, and --lease-seconds are landing-only");
 			return kiExitFailure;
 		}
 
@@ -448,7 +742,8 @@ namespace agentcli
 			Fail("could not inspect lock");
 			return kiExitFailure;
 		}
-		if (bExists && !ReadMetadata(locator->path, metadata))
+		bool bReadable = !bExists || ReadMetadata(locator->path, metadata);
+		if (bExists && !bReadable && !(verb == L"status" && locator->domain == L"landing"))
 		{
 			Fail("lock metadata is unreadable");
 			return kiExitFailure;
@@ -461,7 +756,7 @@ namespace agentcli
 				std::cout << "{\"held\":false}\n";
 				return kiExitStateConflict;
 			}
-			PrintMetadata(metadata);
+			PrintMetadata(locator->domain == L"landing" ? LandingStatus(metadata, *locator) : metadata);
 			return kiExitOk;
 		}
 
@@ -472,10 +767,66 @@ namespace agentcli
 				PrintMetadata(metadata);
 				return kiExitStateConflict;
 			}
-			metadata = NewMetadata(*locator, owner, session, worktree);
+			metadata = locator->domain == L"landing" ? NewLandingMetadata(*locator, owner, session, worktree, iLeaseSeconds) : NewMetadata(*locator, owner, session, worktree);
 			if (!WriteMetadataAtomic(locator->path, metadata))
 			{
 				FailWindows("write lock metadata");
+				return kiExitFailure;
+			}
+			PrintMetadata(metadata);
+			return kiExitOk;
+		}
+
+		if (verb == L"refresh")
+		{
+			std::optional<LandingLease> lease = bExists ? ValidateLandingLease(metadata, *locator, CurrentUtcTicks()) : std::nullopt;
+			if (!lease || lease->owner != WideToUtf8(owner))
+			{
+				if (bExists)
+				{
+					PrintMetadata(LandingStatus(metadata, *locator));
+				}
+				return kiExitStateConflict;
+			}
+			const std::string timestamp = CurrentUtcTimestamp();
+			uint64_t uiHeartbeatTicks = 0;
+			ParseUtcTimestamp(timestamp, uiHeartbeatTicks);
+			if (uiHeartbeatTicks < lease->uiHeartbeatTicks)
+			{
+				return kiExitStateConflict;
+			}
+			metadata["heartbeatAt"] = timestamp;
+			metadata["expiresAt"] = FormatUtcTimestamp(uiHeartbeatTicks + static_cast<uint64_t>(lease->iDurationSeconds) * 10'000'000ull);
+			if (!WriteMetadataAtomic(locator->path, metadata))
+			{
+				FailWindows("refresh lock metadata");
+				return kiExitFailure;
+			}
+			PrintMetadata(metadata);
+			return kiExitOk;
+		}
+
+		if (verb == L"recover")
+		{
+			uint64_t uiNow = CurrentUtcTicks();
+			std::optional<LandingLease> lease = bExists ? ValidateLandingLease(metadata, *locator, uiNow) : std::nullopt;
+			if (!lease || lease->owner != WideToUtf8(expectedOwner) || uiNow < lease->uiExpiresTicks || !AllRegisteredWorktreesClear(*locator))
+			{
+				if (bExists)
+				{
+					PrintMetadata(LandingStatus(metadata, *locator));
+				}
+				return kiExitStateConflict;
+			}
+			nlohmann::json revalidatedMetadata;
+			if (!ReadMetadata(locator->path, revalidatedMetadata) || revalidatedMetadata != metadata)
+			{
+				return kiExitStateConflict;
+			}
+			metadata = NewLandingMetadata(*locator, owner, session, worktree, iLeaseSeconds);
+			if (!WriteMetadataAtomic(locator->path, metadata))
+			{
+				FailWindows("recover lock metadata");
 				return kiExitFailure;
 			}
 			PrintMetadata(metadata);
@@ -505,7 +856,23 @@ namespace agentcli
 			return kiExitOk;
 		}
 
-		metadata = NewMetadata(*locator, owner, session, worktree);
+		if (locator->domain == L"landing" && metadata.contains("schemaVersion") && JsonIntegerEquals(metadata["schemaVersion"], kiLandingLeaseSchemaVersion))
+		{
+			PrintMetadata(LandingStatus(metadata, *locator));
+			return kiExitStateConflict;
+		}
+		if (locator->domain == L"landing" && (!metadata.contains("schemaVersion") || (!JsonIntegerEquals(metadata["schemaVersion"], 1) && !JsonIntegerEquals(metadata["schemaVersion"], 2))))
+		{
+			PrintMetadata(LandingStatus(metadata, *locator));
+			return kiExitStateConflict;
+		}
+		if (locator->domain == L"landing" && !IsValidLeaseDuration(iLeaseSeconds))
+		{
+			Fail("legacy landing steal requires --lease-seconds in the range 60..86400");
+			return kiExitFailure;
+		}
+
+		metadata = locator->domain == L"landing" ? NewLandingMetadata(*locator, owner, session, worktree, iLeaseSeconds) : NewMetadata(*locator, owner, session, worktree);
 		if (!WriteMetadataAtomic(locator->path, metadata))
 		{
 			FailWindows("replace lock metadata");
