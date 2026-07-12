@@ -11,7 +11,8 @@ inline constexpr int32_t kiCollisionZonesY = 8;
 inline constexpr int64_t kiCollisionZonePreallocate = 256;
 inline constexpr int64_t kiCollisionLayerPreallocate = 16;
 inline constexpr int64_t kiCollisionLayerPairPreallocate = 16;
-inline constexpr int64_t kiCollisionResultPreallocate = 512;
+inline constexpr int64_t kiCollisionCandidatePreallocate = 512;
+inline constexpr int64_t kiCollisionResultPreallocate = 1024;
 inline constexpr int64_t kiCollisionResultSpanPreallocate = 1024;
 
 // Collision Flags - Behavior modifiers
@@ -26,13 +27,17 @@ using CollisionFlags_t = common::Flags<CollisionFlags>;
 struct CollisionLayer
 {
 	// Pointers to collection-owned ephemeral static buffers
-	const XMVECTOR* pVecPositions = nullptr;
+	const XMVECTOR* pVecStartPositions = nullptr;
+	const XMVECTOR* pVecEndPositions = nullptr;
+	const float* pfStartTimes = nullptr;       // Normalized absolute tick time
+	const float* pfEndTimes = nullptr;         // Normalized absolute tick time
+	const float* pfMaxTimes = nullptr;         // Optional exclusive entity-collision cutoff
 	const float* pfRadii = nullptr;           // Per-object radii
 	const float* pfDamages = nullptr;         // Per-object damages
 	CollisionFlags_t* pFlags = nullptr;       // Per-object flags (read/write for kAlreadyCollided)
 	const XMVECTOR* pVecVelocities = nullptr; // Optional: velocity/direction per object
 	int64_t iCount = 0;
-	bool bSweptTest = false;                  // Use swept sphere test (requires pVecVelocities)
+	bool bSweptTest = false;                  // Sweep every pair involving this layer
 
 	// Per-layer constants
 	uint16_t uiCategory = 0;
@@ -49,7 +54,9 @@ struct CollisionResult
 	size_t uiOtherLayerIndex = 0;             // Which layer (index into sLayers)
 	uint16_t uiOtherCategory = 0;
 	float fDamageReceived = 0.0f;
+	float fTimeOfImpact = 0.0f;
 	XMVECTOR vecContactPoint {};
+	XMVECTOR vecSelfPosition {};
 	XMVECTOR vecOtherVelocity {};  // Velocity of the colliding object (zero if not provided)
 };
 
@@ -63,6 +70,7 @@ struct CollisionResultSpan
 // Implementation-detail types defined in Collision.cpp
 struct ZoneRange;
 struct LayerPairZones;
+struct CollisionCandidate;
 
 class Collision
 {
@@ -86,9 +94,11 @@ private:
 
 	static void SetupZones(FXMVECTOR vecArea);
 	static ZoneRange CalculateZoneRange(float fMinX, float fMaxX, float fMinY, float fMaxY, float fRadius);
-	static ZoneRange CalculateObjectZoneRange(const CollisionLayer& rLayer, int64_t iIndex);
+	static ZoneRange CalculateObjectZoneRange(const CollisionLayer& rLayer, int64_t iIndex, bool bSweptPair);
 	static void InsertObjectIntoZones(LayerPairZones& rPairZones, int64_t iIndex, const ZoneRange& rRange, bool bIsLayerA);
+	static void InsertLayerObjectsIntoZones(LayerPairZones& rPairZones, const CollisionLayer& rLayer, bool bIsLayerA, bool bSweptPair);
 	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones);
+	static void CommitCandidate(const CollisionCandidate& rCandidate);
 	static void AllocateResultStorage();
 
 	// thread_local: each Dispatch worker and reconcile thread gets its own copy

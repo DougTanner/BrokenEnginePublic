@@ -140,15 +140,19 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 	{
 		XMVECTOR vecPosition = DirectX::XMVectorZero();
 		XMVECTOR vecVelocity = DirectX::XMVectorZero();
+		XMVECTOR vecCollisionStartPosition = DirectX::XMVectorZero();
 		uint8_t uiTypeIndex;
 		BlasterFlags_t flags {};
 		engine::alignment_t alignment {};
+		float fCollisionStartTime = 0.0f;
+		bool bHasCollisionInterval = false;
 		float fWindTrailIntensity = 0.0f;
 		float fWindTrailWidth = 0.0f;
 		float fWindTrailLengthMultiplier = 1.0f;
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
+	static void RecordSpawnCollisionInterval(int64_t iIndex, FXMVECTOR vecStartPosition, float fStartTime);
 };
 
 } // namespace game

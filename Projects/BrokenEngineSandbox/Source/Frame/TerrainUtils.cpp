@@ -129,4 +129,203 @@ float XM_CALLCONV ComputeTerrainAvoidance(const engine::FrameStaticData& rStatic
 	return fCurrentDeltaRotation;
 }
 
+SegmentHit XM_CALLCONV TracePointAgainstTerrain(const engine::FrameStaticData& rStaticData, FXMVECTOR vecStartPosition, FXMVECTOR vecEndPosition, float fStartTime, float fEndTime)
+{
+	static constexpr int64_t kiGridDimension = Frame::kiElevationGridDim;
+	static constexpr float kfGridPitchX = Frame::kfCellWidth / static_cast<float>(kiGridDimension);
+	static constexpr float kfGridPitchY = Frame::kfCellHeight / static_cast<float>(kiGridDimension);
+
+	engine::FrameElevationSampler sampler = engine::gpIslandTerrain->MakeFrameElevationSampler(rStaticData);
+	XMFLOAT4A f4Start {};
+	XMFLOAT4A f4End {};
+	XMStoreFloat4A(&f4Start, vecStartPosition);
+	XMStoreFloat4A(&f4End, vecEndPosition);
+
+	float fDeltaX = f4End.x - f4Start.x;
+	float fDeltaY = f4End.y - f4Start.y;
+	float fDeltaZ = f4End.z - f4Start.z;
+	int64_t iGridX = static_cast<int64_t>(std::floor((f4Start.x - sampler.fCellOriginX) / kfGridPitchX));
+	int64_t iGridY = static_cast<int64_t>(std::floor((f4Start.y - sampler.fCellOriginY) / kfGridPitchY));
+	int64_t iStepX = fDeltaX > 0.0f ? 1 : fDeltaX < 0.0f ? -1 : 0;
+	int64_t iStepY = fDeltaY > 0.0f ? 1 : fDeltaY < 0.0f ? -1 : 0;
+	int64_t iNextBoundaryX = iGridX + (iStepX > 0 ? 1 : 0);
+	int64_t iNextBoundaryY = iGridY + (iStepY > 0 ? 1 : 0);
+	float fAbsoluteDeltaX = std::abs(fDeltaX);
+	float fAbsoluteDeltaY = std::abs(fDeltaY);
+
+	float fCurrentPercent = 0.0f;
+	for (;;)
+	{
+		XMVECTOR vecCurrentPosition = XMVectorLerp(vecStartPosition, vecEndPosition, fCurrentPercent);
+		float fPointElevation = sampler.Sample(vecCurrentPosition);
+		float fCurrentZ = f4Start.z + fDeltaZ * fCurrentPercent;
+		if (fCurrentZ <= fPointElevation)
+		{
+			float fTime = fStartTime + fCurrentPercent * (fEndTime - fStartTime);
+			return
+			{
+				.bHit = true,
+				.fTime = fTime,
+				.vecPosition = XMVectorSetZ(vecCurrentPosition, fPointElevation),
+			};
+		}
+
+		float fDistanceX = std::numeric_limits<float>::max();
+		float fDistanceY = std::numeric_limits<float>::max();
+		if (iStepX != 0)
+		{
+			float fBoundaryX = sampler.fCellOriginX + static_cast<float>(iNextBoundaryX) * kfGridPitchX;
+			fDistanceX = std::abs(fBoundaryX - f4Start.x);
+		}
+		if (iStepY != 0)
+		{
+			float fBoundaryY = sampler.fCellOriginY + static_cast<float>(iNextBoundaryY) * kfGridPitchY;
+			fDistanceY = std::abs(fBoundaryY - f4Start.y);
+		}
+
+		bool bAdvanceX = false;
+		bool bAdvanceY = false;
+		if (iStepX == 0 && iStepY != 0)
+		{
+			bAdvanceY = true;
+		}
+		else if (iStepY == 0 && iStepX != 0)
+		{
+			bAdvanceX = true;
+		}
+		else if (iStepX != 0 && iStepY != 0)
+		{
+			// Compare the two rational crossing times by cross multiplication. A double exactly holds
+			// the product of two floats, so mathematical corner ties advance both axes without epsilon.
+			double fScaledDistanceX = static_cast<double>(fDistanceX) * static_cast<double>(fAbsoluteDeltaY);
+			double fScaledDistanceY = static_cast<double>(fDistanceY) * static_cast<double>(fAbsoluteDeltaX);
+			bAdvanceX = fScaledDistanceX <= fScaledDistanceY;
+			bAdvanceY = fScaledDistanceY <= fScaledDistanceX;
+		}
+
+		float fNextPercent = 1.0f;
+		if (bAdvanceX || bAdvanceY)
+		{
+			fNextPercent = bAdvanceX ? fDistanceX / fAbsoluteDeltaX : fDistanceY / fAbsoluteDeltaY;
+			fNextPercent = std::min(1.0f, fNextPercent);
+		}
+		float fElevation = sampler.fSeaFloor;
+		if (sampler.pGrid != nullptr && iGridX >= 0 && iGridX < kiGridDimension && iGridY >= 0 && iGridY < kiGridDimension)
+		{
+			fElevation = sampler.pGrid->at(static_cast<size_t>(iGridY * kiGridDimension + iGridX));
+		}
+		// The traversed cell owns the open interval after fCurrentPercent. If a height step rises immediately
+		// across a boundary, collision begins at the boundary even when the exact point belongs to the
+		// outgoing cell under floor ownership.
+		if (fCurrentZ <= fElevation)
+		{
+			float fTime = fStartTime + fCurrentPercent * (fEndTime - fStartTime);
+			XMVECTOR vecPosition = XMVectorSetZ(vecCurrentPosition, fElevation);
+			return
+			{
+				.bHit = true,
+				.fTime = fTime,
+				.vecPosition = vecPosition,
+			};
+		}
+
+		float fNextZ = f4Start.z + fDeltaZ * fNextPercent;
+		// The next boundary is excluded from this cell. Equality is resolved below by Sample(), whose
+		// floor lookup defines ownership for positive crossings and final endpoints.
+		if (fNextZ < fElevation)
+		{
+			float fHitPercent = (fElevation - f4Start.z) / fDeltaZ;
+			float fTime = fStartTime + fHitPercent * (fEndTime - fStartTime);
+			XMVECTOR vecPosition = XMVectorSetZ(XMVectorLerp(vecStartPosition, vecEndPosition, fHitPercent), fElevation);
+			return
+			{
+				.bHit = true,
+				.fTime = fTime,
+				.vecPosition = vecPosition,
+			};
+		}
+
+		if (fNextPercent >= 1.0f)
+		{
+			float fEndElevation = sampler.Sample(vecEndPosition);
+			if (f4End.z <= fEndElevation)
+			{
+				return
+				{
+					.bHit = true,
+					.fTime = fEndTime,
+					.vecPosition = XMVectorSetZ(vecEndPosition, fEndElevation),
+				};
+			}
+			return {};
+		}
+
+		if (bAdvanceX)
+		{
+			iGridX += iStepX;
+			iNextBoundaryX += iStepX;
+		}
+		if (bAdvanceY)
+		{
+			iGridY += iStepY;
+			iNextBoundaryY += iStepY;
+		}
+		fCurrentPercent = fNextPercent;
+	}
+}
+
+SegmentHit XM_CALLCONV TracePointToFrameExit(FXMVECTOR vecArea, FXMVECTOR vecStartPosition, FXMVECTOR vecEndPosition, float fStartTime, float fEndTime)
+{
+	FrameBounds bounds = ComputeFrameBounds(vecArea);
+	XMFLOAT4A f4Start {};
+	XMFLOAT4A f4End {};
+	XMStoreFloat4A(&f4Start, vecStartPosition);
+	XMStoreFloat4A(&f4End, vecEndPosition);
+	float fDeltaX = f4End.x - f4Start.x;
+	float fDeltaY = f4End.y - f4Start.y;
+	float fPercent = std::numeric_limits<float>::max();
+
+	bool bStartsOutside = f4Start.x < bounds.fMinX || f4Start.x > bounds.fMaxX || f4Start.y < bounds.fMinY || f4Start.y > bounds.fMaxY;
+	bool bStartsOnNonInwardBoundary =
+		(f4Start.x == bounds.fMinX && fDeltaX <= 0.0f) ||
+		(f4Start.x == bounds.fMaxX && fDeltaX >= 0.0f) ||
+		(f4Start.y == bounds.fMinY && fDeltaY <= 0.0f) ||
+		(f4Start.y == bounds.fMaxY && fDeltaY >= 0.0f);
+	if (bStartsOutside || bStartsOnNonInwardBoundary)
+	{
+		fPercent = 0.0f;
+	}
+	else
+	{
+		if (fDeltaX > 0.0f && f4End.x >= bounds.fMaxX)
+		{
+			fPercent = std::min(fPercent, (bounds.fMaxX - f4Start.x) / fDeltaX);
+		}
+		else if (fDeltaX < 0.0f && f4End.x <= bounds.fMinX)
+		{
+			fPercent = std::min(fPercent, (bounds.fMinX - f4Start.x) / fDeltaX);
+		}
+		if (fDeltaY > 0.0f && f4End.y >= bounds.fMaxY)
+		{
+			fPercent = std::min(fPercent, (bounds.fMaxY - f4Start.y) / fDeltaY);
+		}
+		else if (fDeltaY < 0.0f && f4End.y <= bounds.fMinY)
+		{
+			fPercent = std::min(fPercent, (bounds.fMinY - f4Start.y) / fDeltaY);
+		}
+	}
+
+	if (fPercent == std::numeric_limits<float>::max())
+	{
+		return {};
+	}
+
+	return
+	{
+		.bHit = true,
+		.fTime = fStartTime + fPercent * (fEndTime - fStartTime),
+		.vecPosition = XMVectorLerp(vecStartPosition, vecEndPosition, fPercent),
+	};
+}
+
 } // namespace game

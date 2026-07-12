@@ -23,7 +23,7 @@ Interview the user about every aspect of this plan until reaching shared underst
 ## Rules
 - For each question, provide your recommended answer based on codebase exploration
 - If a question can be answered by exploring the codebase, explore it instead of asking
-- Ask one focused question at a time, not a batch of 10
+- Batch independent decision points into one interaction; keep only genuinely dependent follow-ups for a later batch
 - Begin with the first concrete unresolved decision; do not preface the interview with a plan summary or restatement
 - Use adversarial thinking — actively try to find flaws, then provide concrete suggestions to fix them
 - Skip branches that are clearly irrelevant to the plan (e.g., don't probe determinism for a client-only UI change)
@@ -32,9 +32,17 @@ Interview the user about every aspect of this plan until reaching shared underst
 ## Workflow
 1. Read the plan file and any accepted audit findings from the current conversation context
 2. Validate and incorporate supplied findings, then identify all remaining decision points, ambiguities, and unstated assumptions — scan against the Decision-Point Taxonomy below; plans routinely leave these classes implicit
-3. Walk each branch of the decision tree, resolving dependencies one-by-one
+3. Walk the decision tree in dependency order, batching every set of currently independent branches
 4. Ask the Closing Question (below) as the final interview question
 5. When all branches are resolved, silently update the plan file with the resolved details, then immediately return control to continue the calling workflow's next step — no summary, no "ready to proceed?" prompt, no stop.
+
+## Decision batching and UI
+
+- Prefer one multi-question UI interaction for all currently independent decisions. Give each question the codebase-backed recommendation and 2–3 mutually exclusive choices.
+- With Claude, use one `AskUserQuestion` call containing the independent questions supported by that UI.
+- With Codex, use `request_user_input` when it is available, with up to three questions per call. If more than three independent decisions remain, send the minimum number of consecutive UI batches.
+- When Codex `request_user_input` is unavailable (including Default mode), batch independent decisions as concise open-ended plain-text prompts without lettered or multiple-choice options. State recommendations in prose when useful. Continue with reasonable assumptions for non-blocking decisions; ask only genuinely blocking questions, and keep those concise.
+- Keep dependent questions out of the current batch. Resolve their prerequisites first, then batch the newly unblocked questions. The Closing Question remains last because it depends on the resolved plan.
 
 ## Closing Question
 

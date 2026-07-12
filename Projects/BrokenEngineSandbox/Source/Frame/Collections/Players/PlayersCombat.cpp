@@ -261,13 +261,6 @@ void PlayersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame,
 			continue;
 		}
 
-		// Flag for transfer if outside frame boundaries (Transfer phase handles removal)
-		if (IsOutOfBounds(bounds, rCurrentInterpolate.pVecPositions[i])) [[unlikely]]
-		{
-			rCurrentPostRender.pFlags[i].Set(kTransfer);
-			continue;
-		}
-
 		// Check collision results
 		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
 		{
@@ -298,17 +291,24 @@ void PlayersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame,
 			rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
 			rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
 		}
+		else if (IsOutOfBounds(bounds, rCurrentInterpolate.pVecPositions[i])) [[unlikely]]
+		{
+			// Entity candidates at or beyond frame exit were filtered during PreCollision.
+			rCurrentPostRender.pFlags[i].Set(kTransfer);
+		}
 	}
 }
 
 // =============================================================================
-// Weapon and death-explosion spawn helpers (called from PlayersPostRender::Spawn)
+// Weapon and death-explosion spawn helpers. Blasters run from PreCollision; missiles and death
+// explosions run from PlayersPostRender::Spawn.
 // =============================================================================
 
-void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
+void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
 	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
+	const PlayersInterpolate& rPreviousInterpolate = *rPreviousFrame.interpolate.pPlayers;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
@@ -342,9 +342,11 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 			// Timer went negative by this amount when it crossed zero inside this tick, which equals
 			// the elapsed time from the fire moment to the end of the tick (kfDeltaTime - fire_offset).
 			float fInterFrameTime = -rCurrentPostRender.pfNextBlasterFireTimes[i];
+			float fFireTime = 1.0f - fInterFrameTime / fDeltaTime;
 
-			// Rewind player to where they were at the fire moment (end_of_tick_pos - elapsed*vel).
-			XMVECTOR vecPlayerPositionAtSpawn = XMVectorSubtract(rCurrentInterpolate.pVecPositions[i], XMVectorScale(rCurrentPostRender.pVecVelocities[i], fInterFrameTime));
+			// Interpolate the exact position interval used for this tick. PostRender has already updated
+			// velocity, so rewinding from that velocity would not invert Interpolate::Update.
+			XMVECTOR vecPlayerPositionAtSpawn = XMVectorLerp(rPreviousInterpolate.pVecPositions[i], rCurrentInterpolate.pVecPositions[i], fFireTime);
 
 			// Alternate barrels: left vs right of player forward
 			rCurrentPostRender.pFlags[i].Toggle(kBlasterSpawnLeft);
@@ -366,8 +368,11 @@ void PlayersPostRender::SpawnBlasters([[maybe_unused]] Frame& __restrict rFrame)
 			{
 				.vecPosition = vecFinalPosition,
 				.vecVelocity = vecBlasterVelocity,
+				.vecCollisionStartPosition = vecSpawnPosition,
 				.uiTypeIndex = PlayersInterpolate::suiBlasterTypeIndex,
 				.alignment = rCurrentPostRender.pAlignments[i],
+				.fCollisionStartTime = fFireTime,
+				.bHasCollisionInterval = true,
 				.fWindTrailIntensity = game::gWindDepositPlayerBlastersIntensity.Get(),
 				.fWindTrailWidth = game::gWindDepositPlayerBlastersWidth.Get(),
 				.fWindTrailLengthMultiplier = game::gWindDepositPlayerBlastersLengthMultiplier.Get(),

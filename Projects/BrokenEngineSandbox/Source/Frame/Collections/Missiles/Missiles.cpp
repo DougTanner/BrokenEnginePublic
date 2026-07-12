@@ -83,6 +83,20 @@ static uint8_t suiSmokeTrailTypeIndex = 0xFF;
 static uint8_t suiMissileExplosionTypeIndex = 0xFF;
 
 #if defined(BT_CLIENT)
+void XM_CALLCONV SyncMissileTrail(FrameInterpolate& rFrameInterpolate, engine::smoke_trails_t uiSmokeTrail, FXMVECTOR vecPosition)
+{
+	if (!uiSmokeTrail.IsValid())
+	{
+		return;
+	}
+
+	engine::SmokeTrailsInterpolate::Sync(rFrameInterpolate, uiSmokeTrail,
+	{
+		.vecPosition = vecPosition,
+		.fIntensity = gMissileTrailIntensity.Get(),
+	});
+}
+
 // Helper to sync owned objects for a missile
 void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::smoke_trails_t uiSmokeTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, [[maybe_unused]] float fDeltaRotation, float fExhaustLength)
 {
@@ -117,12 +131,7 @@ void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_l
 		float fTrailOffset = kfTrailOffset;
 		XMVECTOR vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
 		XMVECTOR vecTrailPosition = XMVectorAdd(vecPosition, (flags & kExploding) ? XMVectorZero() : vecTrailOffset);
-
-		engine::SmokeTrailsInterpolate::Sync(rFrameInterpolate, uiSmokeTrail,
-		{
-			.vecPosition = vecTrailPosition,
-			.fIntensity = gMissileTrailIntensity.Get(),
-		});
+		SyncMissileTrail(rFrameInterpolate, uiSmokeTrail, vecTrailPosition);
 	}
 
 	// Sync sound position (looping engine sound)

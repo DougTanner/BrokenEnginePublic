@@ -2,6 +2,7 @@
 
 #include "Frame/FrameStaticData.h"
 #include "Frame/HealthDamage.h"
+#include "Frame/TerrainUtils.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Targets/Targets.h"
 
@@ -19,6 +20,28 @@ static thread_local std::vector<engine::CollisionFlags_t> sCollisionFlags;
 static thread_local std::vector<float> sCollisionRadii;
 static thread_local std::vector<float> sCollisionDamages;
 
+struct MissileCollisionIntervalScratch
+{
+	std::vector<float> startTimes;
+	std::vector<float> endTimes;
+	std::vector<float> maxTimes;
+	std::vector<SegmentHit> terrainHits;
+	std::vector<SegmentHit> boundaryHits;
+};
+
+static MissileCollisionIntervalScratch& GetMissileCollisionIntervalScratch()
+{
+	static thread_local MissileCollisionIntervalScratch* spScratch = nullptr;
+	if (spScratch == nullptr)
+	{
+		// Heap: function-local TLS defers non-trivial construction until allocator startup is complete.
+		ScopedSuppressAllocationTracking suppress;
+		static thread_local MissileCollisionIntervalScratch sScratch;
+		spScratch = &sScratch;
+	}
+	return *spScratch;
+}
+
 // Missile AI
 constexpr float kfAccelerationAtMaxDeltaAngle = 0.9f;
 constexpr float kfVelocityDecay = 1.0f;
@@ -35,6 +58,7 @@ constexpr float kfDeltaRotationTowardsStored = 3.0f;
 #if defined(BT_CLIENT)
 // Forward declaration of SyncMissile (defined in Missiles.cpp, also used by ClientInit)
 void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::smoke_trails_t uiSmokeTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength);
+void XM_CALLCONV SyncMissileTrail(FrameInterpolate& rFrameInterpolate, engine::smoke_trails_t uiSmokeTrail, FXMVECTOR vecPosition);
 #endif
 
 void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
@@ -227,6 +251,7 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
+	MissileCollisionIntervalScratch& rCollisionScratch = GetMissileCollisionIntervalScratch();
 	// Heap: static vectors resized each frame, only allocates on first call or when count grows (capacity retained).
 	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
 	ScopedSuppressAllocationTracking suppress;
@@ -244,17 +269,42 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	sCollisionFlags.resize(uiCount);
 	sCollisionRadii.resize(uiCount);
 	sCollisionDamages.resize(uiCount);
+	rCollisionScratch.startTimes.resize(uiCount);
+	rCollisionScratch.endTimes.resize(uiCount);
+	rCollisionScratch.maxTimes.resize(uiCount);
+	rCollisionScratch.terrainHits.resize(uiCount);
+	rCollisionScratch.boundaryHits.resize(uiCount);
+	const MissilesInterpolate& rPreviousInterpolate = *rPreviousFrame.interpolate.pMissiles;
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {engine::CollisionFlags::kDestroyOnCollide};
-		sCollisionRadii.at(static_cast<size_t>(i)) = kfMissileCollisionRadius;
-		sCollisionDamages.at(static_cast<size_t>(i)) = 0.0f;  // Damage via area damage system
+		size_t uiIndex = static_cast<size_t>(i);
+		sCollisionFlags.at(uiIndex) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {engine::CollisionFlags::kDestroyOnCollide};
+		sCollisionRadii.at(uiIndex) = kfMissileCollisionRadius;
+		sCollisionDamages.at(uiIndex) = 0.0f;  // Damage via area damage system
+		rCollisionScratch.startTimes.at(uiIndex) = 0.0f;
+		rCollisionScratch.endTimes.at(uiIndex) = 1.0f;
+		rCollisionScratch.terrainHits.at(uiIndex) = TracePointAgainstTerrain(rStaticData, rPreviousInterpolate.pVecPositions[i], rCurrentInterpolate.pVecPositions[i], 0.0f, 1.0f);
+		rCollisionScratch.boundaryHits.at(uiIndex) = TracePointToFrameExit(rStaticData.vecArea, rPreviousInterpolate.pVecPositions[i], rCurrentInterpolate.pVecPositions[i], 0.0f, 1.0f);
+		float fMaxTime = std::numeric_limits<float>::max();
+		if (rCollisionScratch.terrainHits.at(uiIndex).bHit)
+		{
+			fMaxTime = rCollisionScratch.terrainHits.at(uiIndex).fTime;
+		}
+		if (rCollisionScratch.boundaryHits.at(uiIndex).bHit)
+		{
+			fMaxTime = std::min(fMaxTime, rCollisionScratch.boundaryHits.at(uiIndex).fTime);
+		}
+		rCollisionScratch.maxTimes.at(uiIndex) = fMaxTime;
 	}
 
 	// Note: Damage is applied via area damage system, not direct collision
 	suiCollisionLayerIndex = engine::Collision::AddLayer(
 	{
-		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pVecStartPositions = rPreviousInterpolate.pVecPositions,
+		.pVecEndPositions = rCurrentInterpolate.pVecPositions,
+		.pfStartTimes = rCollisionScratch.startTimes.data(),
+		.pfEndTimes = rCollisionScratch.endTimes.data(),
+		.pfMaxTimes = rCollisionScratch.maxTimes.data(),
 		.pfRadii = sCollisionRadii.data(),
 		.pfDamages = sCollisionDamages.data(),
 		.pFlags = sCollisionFlags.data(),
@@ -269,6 +319,7 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 
 void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
+	MissileCollisionIntervalScratch& rCollisionScratch = GetMissileCollisionIntervalScratch();
 	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
 	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
@@ -277,8 +328,6 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		return;
 	}
 
-	const FrameBounds bounds = ComputeFrameBounds(rStaticData.vecArea);
-
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		if (rCurrentPostRender.pFlags[i] & kExploding) [[unlikely]]
@@ -286,27 +335,32 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			continue;
 		}
 
-		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
-
-		// Flag for transfer if outside frame boundaries (Transfer phase handles removal)
-		if (IsOutOfBounds(bounds, vecPosition)) [[unlikely]]
-		{
-			rCurrentPostRender.pFlags[i].Set(kTransfer);
-			continue;
-		}
-
-		// Check collision results - missiles explode on hit
+		size_t uiIndex = static_cast<size_t>(i);
+		// Entity results are pre-filtered against terrain and frame-exit cutoffs.
 		if (engine::Collision::HasCollision(suiCollisionLayerIndex, i))
 		{
+			const engine::CollisionResult& rResult = engine::Collision::GetCollisions(suiCollisionLayerIndex, i).front();
+			rCurrentInterpolate.pVecPositions[i] = rResult.vecSelfPosition;
+#if defined(BT_CLIENT)
+			SyncMissileTrail(rFrame.interpolate, rCurrentInterpolate.puiSmokeTrails[i], rResult.vecSelfPosition);
+#endif
 			Explode(rFrame, rStaticData, i, false);
 			continue;
 		}
 
-		// Collide terrain
-		float fElevationFinal = engine::gpIslandTerrain->FrameElevation(rStaticData, rCurrentInterpolate.pVecPositions[i]);
-		if (XMVectorGetZ(rCurrentInterpolate.pVecPositions[i]) <= fElevationFinal)
+		const SegmentHit& rTerrainHit = rCollisionScratch.terrainHits.at(uiIndex);
+		const SegmentHit& rBoundaryHit = rCollisionScratch.boundaryHits.at(uiIndex);
+		if (rTerrainHit.bHit && (!rBoundaryHit.bHit || rTerrainHit.fTime <= rBoundaryHit.fTime))
 		{
+			rCurrentInterpolate.pVecPositions[i] = rTerrainHit.vecPosition;
+#if defined(BT_CLIENT)
+			SyncMissileTrail(rFrame.interpolate, rCurrentInterpolate.puiSmokeTrails[i], rTerrainHit.vecPosition);
+#endif
 			Explode(rFrame, rStaticData, i, true);
+		}
+		else if (rBoundaryHit.bHit) [[unlikely]]
+		{
+			rCurrentPostRender.pFlags[i].Set(kTransfer);
 		}
 	}
 }

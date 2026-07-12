@@ -3,6 +3,7 @@
 #include "Data/Audio.h"
 #include "Frame/FrameStaticData.h"
 #include "Frame/HealthDamage.h"
+#include "Frame/TerrainUtils.h"
 #include "Frame/Collections/Targets/Targets.h"
 
 #if defined(BT_CLIENT)
@@ -26,6 +27,26 @@ static thread_local size_t suiCollisionLayerIndex = 0;
 static thread_local std::vector<engine::CollisionFlags_t> sCollisionFlags;
 static thread_local std::vector<float> sCollisionRadii;
 static thread_local std::vector<float> sCollisionDamages;
+
+struct SpaceshipCollisionIntervalScratch
+{
+	std::vector<float> startTimes;
+	std::vector<float> endTimes;
+	std::vector<float> maxTimes;
+};
+
+static SpaceshipCollisionIntervalScratch& GetSpaceshipCollisionIntervalScratch()
+{
+	static thread_local SpaceshipCollisionIntervalScratch* spScratch = nullptr;
+	if (spScratch == nullptr)
+	{
+		// Heap: function-local TLS defers non-trivial construction until allocator startup is complete.
+		ScopedSuppressAllocationTracking suppress;
+		static thread_local SpaceshipCollisionIntervalScratch sScratch;
+		spScratch = &sScratch;
+	}
+	return *spScratch;
+}
 
 // Shared type indices (defined in Spaceships.cpp, set during Register())
 extern uint8_t gSpaceshipExplosionTypeIndex;
@@ -76,6 +97,7 @@ void XM_CALLCONV SpaceshipsPostRender::ApplyDeathKnockback(FXMVECTOR vecDamageDi
 
 void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
+	SpaceshipCollisionIntervalScratch& rCollisionScratch = GetSpaceshipCollisionIntervalScratch();
 	// Heap: static vectors resized each frame, only allocates on first call or when count grows (capacity retained).
 	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
 	ScopedSuppressAllocationTracking suppress;
@@ -93,20 +115,32 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 	sCollisionFlags.resize(uiCount);
 	sCollisionRadii.resize(uiCount);
 	sCollisionDamages.resize(uiCount);
+	rCollisionScratch.startTimes.resize(uiCount);
+	rCollisionScratch.endTimes.resize(uiCount);
+	rCollisionScratch.maxTimes.resize(uiCount);
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {};
 		sCollisionRadii.at(static_cast<size_t>(i)) = kfSpaceshipRadius;
 		sCollisionDamages.at(static_cast<size_t>(i)) = kfSpaceshipCollisionDamage;
+		rCollisionScratch.startTimes.at(static_cast<size_t>(i)) = 0.0f;
+		rCollisionScratch.endTimes.at(static_cast<size_t>(i)) = 1.0f;
+		SegmentHit boundaryHit = TracePointToFrameExit(rStaticData.vecArea, rPreviousFrame.interpolate.pSpaceships->pVecPositions[i], rCurrentInterpolate.pVecPositions[i], 0.0f, 1.0f);
+		rCollisionScratch.maxTimes.at(static_cast<size_t>(i)) = boundaryHit.bHit ? boundaryHit.fTime : std::numeric_limits<float>::max();
 	}
 
 	// Add spaceship layer to Collision
 	suiCollisionLayerIndex = engine::Collision::AddLayer(
 	{
-		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pVecStartPositions = rPreviousFrame.interpolate.pSpaceships->pVecPositions,
+		.pVecEndPositions = rCurrentInterpolate.pVecPositions,
+		.pfStartTimes = rCollisionScratch.startTimes.data(),
+		.pfEndTimes = rCollisionScratch.endTimes.data(),
+		.pfMaxTimes = rCollisionScratch.maxTimes.data(),
 		.pfRadii = sCollisionRadii.data(),
 		.pfDamages = sCollisionDamages.data(),
 		.pFlags = sCollisionFlags.data(),
+		.pVecVelocities = rCurrentPostRender.pVecVelocities,
 		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kSpaceship,
 		.uiCollidesWith = CollidesWith::kSpaceship,
@@ -130,15 +164,6 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 	{
 		if (rCurrentPostRender.pFlags[i] & kExploding) [[unlikely]]
 		{
-			continue;
-		}
-
-		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
-
-		// Flag for transfer if outside frame boundaries (Transfer phase handles removal)
-		if (IsOutOfBounds(bounds, vecPosition)) [[unlikely]]
-		{
-			rCurrentPostRender.pFlags[i].Set(kTransfer);
 			continue;
 		}
 
@@ -171,6 +196,12 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 					}
 				}
 			}
+		}
+
+		if (!(rCurrentPostRender.pFlags[i] & kExploding) && IsOutOfBounds(bounds, rCurrentInterpolate.pVecPositions[i])) [[unlikely]]
+		{
+			// Entity candidates at or beyond frame exit were filtered during PreCollision.
+			rCurrentPostRender.pFlags[i].Set(kTransfer);
 		}
 	}
 }

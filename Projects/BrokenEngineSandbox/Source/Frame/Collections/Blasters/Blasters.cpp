@@ -191,6 +191,11 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	float fPitch = kfBlasterPitchMin + common::Random<kfBlasterPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 
+	if (rInfo.bHasCollisionInterval)
+	{
+		RecordSpawnCollisionInterval(iIndex, rInfo.vecCollisionStartPosition, rInfo.fCollisionStartTime);
+	}
+
 #if defined(BT_CLIENT)
 	BlastersInterpolate::ClientInit(rFrame, iIndex);
 #endif

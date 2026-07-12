@@ -225,8 +225,9 @@ private:
 	static void XM_CALLCONV UpdateFacing(FXMVECTOR vecPosition, FXMVECTOR vecLookPosition, XMVECTOR& rVecWantedDirection);
 	static void RegenerateShield(float fDeltaTime, float fShieldCooldown, float& rfShield);
 
-	// Weapon and death-explosion spawn helpers (called from PlayersPostRender::Spawn). Defined in PlayersCombat.cpp.
-	static void SpawnBlasters(Frame& __restrict rFrame);
+	// Weapon and death-explosion spawn helpers. Blasters run from PreCollision; missiles and
+	// death explosions run from Spawn. Defined in PlayersCombat.cpp.
+	static void SpawnBlasters(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void SpawnMissiles(Frame& __restrict rFrame);
 	static void SpawnDeathExplosions(Frame& __restrict rFrame);
 

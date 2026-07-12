@@ -3,6 +3,7 @@
 #include "Data/Texture.h"
 #include "Frame/FrameStaticData.h"
 #include "Frame/HealthDamage.h"
+#include "Frame/TerrainUtils.h"
 #include "Frame/Collections/Blasters/Blasters.h"
 #include "Frame/Collections/Explosions/Explosions.h"
 #include "Frame/Collections/Pushers/Pushers.h"
@@ -412,7 +413,6 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	}
 #endif // BT_CLIENT
 
-	SpawnBlasters(rFrame);
 	SpawnMissiles(rFrame);
 	SpawnDeathExplosions(rFrame);
 }
@@ -653,8 +653,33 @@ static thread_local std::vector<float> sCollisionRadii;
 static thread_local std::vector<float> sCollisionDamages;
 static thread_local std::vector<engine::CollisionFlags_t> sCollisionFlags;
 
+struct PlayerCollisionIntervalScratch
+{
+	std::vector<float> startTimes;
+	std::vector<float> endTimes;
+	std::vector<float> maxTimes;
+};
+
+static PlayerCollisionIntervalScratch& GetPlayerCollisionIntervalScratch()
+{
+	static thread_local PlayerCollisionIntervalScratch* spScratch = nullptr;
+	if (spScratch == nullptr)
+	{
+		// Heap: function-local TLS defers non-trivial construction until allocator startup is complete.
+		ScopedSuppressAllocationTracking suppress;
+		static thread_local PlayerCollisionIntervalScratch sScratch;
+		spScratch = &sScratch;
+	}
+	return *spScratch;
+}
+
 void PlayersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
+	PlayerCollisionIntervalScratch& rCollisionScratch = GetPlayerCollisionIntervalScratch();
+	// Player blasters are born during this tick and must join the collision phase with their
+	// fire-time muzzle interval. Blasters register after Players in FramePostRender::PreCollision.
+	SpawnBlasters(rFrame, rPreviousFrame);
+
 	// Heap: static vectors resized each frame, only allocates on first call or when count grows (capacity retained).
 	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
 	ScopedSuppressAllocationTracking suppress;
@@ -672,20 +697,32 @@ void PlayersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, 
 	sCollisionRadii.resize(uiCount);
 	sCollisionDamages.resize(uiCount);
 	sCollisionFlags.resize(uiCount);
+	rCollisionScratch.startTimes.resize(uiCount);
+	rCollisionScratch.endTimes.resize(uiCount);
+	rCollisionScratch.maxTimes.resize(uiCount);
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		sCollisionRadii.at(static_cast<size_t>(i)) = kfPlayerRadius;
 		sCollisionDamages.at(static_cast<size_t>(i)) = 0.0f; // Player doesn't deal collision damage
 		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {};
+		rCollisionScratch.startTimes.at(static_cast<size_t>(i)) = 0.0f;
+		rCollisionScratch.endTimes.at(static_cast<size_t>(i)) = 1.0f;
+		SegmentHit boundaryHit = TracePointToFrameExit(rStaticData.vecArea, rPreviousFrame.interpolate.pPlayers->pVecPositions[i], rCurrentInterpolate.pVecPositions[i], 0.0f, 1.0f);
+		rCollisionScratch.maxTimes.at(static_cast<size_t>(i)) = boundaryHit.bHit ? boundaryHit.fTime : std::numeric_limits<float>::max();
 	}
 
 	// Add player layer to CollisionSystem
 	siCollisionLayerIndex = engine::Collision::AddLayer(
 	{
-		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pVecStartPositions = rPreviousFrame.interpolate.pPlayers->pVecPositions,
+		.pVecEndPositions = rCurrentInterpolate.pVecPositions,
+		.pfStartTimes = rCollisionScratch.startTimes.data(),
+		.pfEndTimes = rCollisionScratch.endTimes.data(),
+		.pfMaxTimes = rCollisionScratch.maxTimes.data(),
 		.pfRadii = sCollisionRadii.data(),
 		.pfDamages = sCollisionDamages.data(),
 		.pFlags = sCollisionFlags.data(),
+		.pVecVelocities = rCurrentPostRender.pVecVelocities,
 		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kPlayer,
 		.uiCollidesWith = CollidesWith::kPlayer,

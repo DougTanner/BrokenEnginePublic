@@ -5,6 +5,7 @@
 
 #include "Frame/FrameStaticData.h"
 #include "Frame/HealthDamage.h"
+#include "Frame/TerrainUtils.h"
 #if defined(BT_CLIENT)
 #include "Frame/Collections/PointLights/PointLights.h"
 #include "Frame/Collections/Puffs/Puffs.h"
@@ -30,15 +31,62 @@ static thread_local std::vector<engine::CollisionFlags_t> sCollisionFlags;
 static thread_local std::vector<float> sCollisionRadii;
 static thread_local std::vector<float> sCollisionDamages;
 
+struct SpawnCollisionInterval
+{
+	int64_t iIndex = 0;
+	XMVECTOR vecStartPosition {};
+	float fStartTime = 0.0f;
+};
+static thread_local int64_t siSpawnCollisionIntervalCount = 0;
+
+struct BlasterCollisionIntervalScratch
+{
+	std::vector<XMVECTOR> startPositions;
+	std::vector<XMVECTOR> endPositions;
+	std::vector<float> startTimes;
+	std::vector<float> endTimes;
+	std::vector<float> maxTimes;
+	std::vector<SegmentHit> terrainHits;
+	std::vector<SegmentHit> boundaryHits;
+	std::vector<SpawnCollisionInterval> spawnIntervals;
+};
+
+static BlasterCollisionIntervalScratch& GetBlasterCollisionIntervalScratch()
+{
+	static thread_local BlasterCollisionIntervalScratch* spScratch = nullptr;
+	if (spScratch == nullptr)
+	{
+		// Heap: function-local TLS defers non-trivial construction until allocator startup is complete.
+		ScopedSuppressAllocationTracking suppress;
+		static thread_local BlasterCollisionIntervalScratch sScratch;
+		spScratch = &sScratch;
+	}
+	return *spScratch;
+}
+
 // Collision
 constexpr float kfBlasterCollisionRadius = 0.5f;
 
 // Terrain impact
 constexpr float kfTerrainImpactJitter = 0.25f;
 
-// Terrain collision search
-constexpr int64_t kiTerrainSearchSteps = 32;
-constexpr float kfTerrainSearchStepPercent = 1.0f / static_cast<float>(kiTerrainSearchSteps);
+void BlastersPostRender::RecordSpawnCollisionInterval(int64_t iIndex, FXMVECTOR vecStartPosition, float fStartTime)
+{
+	BlasterCollisionIntervalScratch& rCollisionScratch = GetBlasterCollisionIntervalScratch();
+	if (siSpawnCollisionIntervalCount >= static_cast<int64_t>(rCollisionScratch.spawnIntervals.size()))
+	{
+		// Heap: retained per-thread collision-spawn scratch grows only when a larger firing burst appears.
+		ScopedSuppressAllocationTracking suppress;
+		rCollisionScratch.spawnIntervals.resize(std::max<int64_t>(16, siSpawnCollisionIntervalCount * 2));
+	}
+	rCollisionScratch.spawnIntervals.at(static_cast<size_t>(siSpawnCollisionIntervalCount)) =
+	{
+		.iIndex = iIndex,
+		.vecStartPosition = vecStartPosition,
+		.fStartTime = fStartTime,
+	};
+	++siSpawnCollisionIntervalCount;
+}
 
 #if defined(BT_CLIENT)
 // Terrain effect registrations
@@ -213,6 +261,7 @@ void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
+	BlasterCollisionIntervalScratch& rCollisionScratch = GetBlasterCollisionIntervalScratch();
 	// Heap: static vectors resized each frame, only allocates on first call or when count grows (capacity retained).
 	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
 	ScopedSuppressAllocationTracking suppress;
@@ -222,6 +271,7 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 
 	if (rCurrentInterpolate.iCount == 0)
 	{
+		siSpawnCollisionIntervalCount = 0;
 		return;
 	}
 
@@ -230,16 +280,58 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	sCollisionFlags.resize(uiCount);
 	sCollisionRadii.resize(uiCount);
 	sCollisionDamages.resize(uiCount);
+	rCollisionScratch.startPositions.resize(uiCount);
+	rCollisionScratch.endPositions.resize(uiCount);
+	rCollisionScratch.startTimes.resize(uiCount);
+	rCollisionScratch.endTimes.resize(uiCount);
+	rCollisionScratch.maxTimes.resize(uiCount);
+	rCollisionScratch.terrainHits.resize(uiCount);
+	rCollisionScratch.boundaryHits.resize(uiCount);
+	const BlastersInterpolate& rPreviousInterpolate = *rPreviousFrame.interpolate.pBlasters;
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
+		size_t uiIndex = static_cast<size_t>(i);
 		sCollisionFlags.at(static_cast<size_t>(i)) = engine::CollisionFlags::kDestroyOnCollide;
-		sCollisionRadii.at(static_cast<size_t>(i)) = kfBlasterCollisionRadius;
-		sCollisionDamages.at(static_cast<size_t>(i)) = kfBlasterDamage;
+		sCollisionRadii.at(uiIndex) = kfBlasterCollisionRadius;
+		sCollisionDamages.at(uiIndex) = kfBlasterDamage;
+		rCollisionScratch.startPositions.at(uiIndex) = i < rPreviousInterpolate.iCount ? rPreviousInterpolate.pVecPositions[i] : rCurrentInterpolate.pVecPositions[i];
+		rCollisionScratch.endPositions.at(uiIndex) = rCurrentInterpolate.pVecPositions[i];
+		rCollisionScratch.startTimes.at(uiIndex) = 0.0f;
+		rCollisionScratch.endTimes.at(uiIndex) = 1.0f;
+	}
+
+	for (int64_t i = 0; i < siSpawnCollisionIntervalCount; ++i)
+	{
+		const SpawnCollisionInterval& rInterval = rCollisionScratch.spawnIntervals.at(static_cast<size_t>(i));
+		rCollisionScratch.startPositions.at(static_cast<size_t>(rInterval.iIndex)) = rInterval.vecStartPosition;
+		rCollisionScratch.startTimes.at(static_cast<size_t>(rInterval.iIndex)) = rInterval.fStartTime;
+	}
+	siSpawnCollisionIntervalCount = 0;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		size_t uiIndex = static_cast<size_t>(i);
+		rCollisionScratch.terrainHits.at(uiIndex) = TracePointAgainstTerrain(rStaticData, rCollisionScratch.startPositions.at(uiIndex), rCollisionScratch.endPositions.at(uiIndex), rCollisionScratch.startTimes.at(uiIndex), 1.0f);
+		rCollisionScratch.boundaryHits.at(uiIndex) = TracePointToFrameExit(rStaticData.vecArea, rCollisionScratch.startPositions.at(uiIndex), rCollisionScratch.endPositions.at(uiIndex), rCollisionScratch.startTimes.at(uiIndex), 1.0f);
+		float fMaxTime = std::numeric_limits<float>::max();
+		if (rCollisionScratch.terrainHits.at(uiIndex).bHit)
+		{
+			fMaxTime = rCollisionScratch.terrainHits.at(uiIndex).fTime;
+		}
+		if (rCollisionScratch.boundaryHits.at(uiIndex).bHit)
+		{
+			fMaxTime = std::min(fMaxTime, rCollisionScratch.boundaryHits.at(uiIndex).fTime);
+		}
+		rCollisionScratch.maxTimes.at(uiIndex) = fMaxTime;
 	}
 
 	suiCollisionLayerIndex = engine::Collision::AddLayer(
 	{
-		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pVecStartPositions = rCollisionScratch.startPositions.data(),
+		.pVecEndPositions = rCollisionScratch.endPositions.data(),
+		.pfStartTimes = rCollisionScratch.startTimes.data(),
+		.pfEndTimes = rCollisionScratch.endTimes.data(),
+		.pfMaxTimes = rCollisionScratch.maxTimes.data(),
 		.pfRadii = sCollisionRadii.data(),
 		.pfDamages = sCollisionDamages.data(),
 		.pFlags = sCollisionFlags.data(),
@@ -254,6 +346,7 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 
 void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
 {
+	BlasterCollisionIntervalScratch& rCollisionScratch = GetBlasterCollisionIntervalScratch();
 	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
 	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
 
@@ -262,59 +355,22 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		return;
 	}
 
-	const FrameBounds bounds = ComputeFrameBounds(rStaticData.vecArea);
-
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
-
-		// Flag for transfer if outside frame boundaries (Transfer phase handles removal)
-		if (IsOutOfBounds(bounds, vecPosition)) [[unlikely]]
-		{
-			rCurrentPostRender.pFlags[i].Set(kTransfer);
-			continue;
-		}
-
-		// Check collision
+		size_t uiIndex = static_cast<size_t>(i);
+		// Entity results are pre-filtered against terrain and frame-exit cutoffs.
 		if (engine::Collision::HasCollision(suiCollisionLayerIndex, i))
 		{
 			rCurrentPostRender.pFlags[i].Set(kDestroy);
 			continue;
 		}
 
-		// Collide terrain
-		float fPositionFinal = XMVectorGetZ(vecPosition);
-		float fElevationFinal = engine::gpIslandTerrain->FrameElevation(rStaticData, vecPosition);
-
-		if (fPositionFinal <= fElevationFinal) [[unlikely]]
+		const SegmentHit& rTerrainHit = rCollisionScratch.terrainHits.at(uiIndex);
+		const SegmentHit& rBoundaryHit = rCollisionScratch.boundaryHits.at(uiIndex);
+		if (rTerrainHit.bHit && (!rBoundaryHit.bHit || rTerrainHit.fTime <= rBoundaryHit.fTime)) [[unlikely]]
 		{
 			rCurrentPostRender.pFlags[i].Set(kDestroy);
-
-			// Reconstruct the previous (pre-integration) position so the back-march has a real
-			// second endpoint. Velocity is constant (memcpy'd forward in AllocateAndCopy), so
-			// vecPosition - vecVelocity*fDeltaTime is the exact inverse of the integration in
-			// BlastersInterpolate::Update and lands on the previous interpolate position.
-			XMVECTOR vecVelocity = rCurrentPostRender.pVecVelocities[i];
-			float fDeltaTime = rFrame.interpolate.fDeltaTime;
-			XMVECTOR vecInitialPosition = XMVectorMultiplyAdd(XMVectorReplicate(-fDeltaTime), vecVelocity, vecPosition);
-			vecInitialPosition = XMVectorSetW(vecInitialPosition, 1.0f);
-			XMVECTOR vecFinalPosition = vecPosition;
-
-			// Linear back-march from the over-shot post-integration point toward the previous
-			// position; the first sub-step at or above terrain is the surface crossing
-			float fPercent = 0.0f;
-			XMVECTOR vecCollisionPosition = vecFinalPosition;
-
-			for (int64_t k = 0; k < kiTerrainSearchSteps; ++k, fPercent += kfTerrainSearchStepPercent)
-			{
-				XMVECTOR vecPossibleCollisionPosition = XMVectorLerp(vecFinalPosition, vecInitialPosition, fPercent);
-				float fPossibleElevation = engine::gpIslandTerrain->FrameElevation(rStaticData, vecPossibleCollisionPosition);
-				if (fPossibleElevation <= XMVectorGetZ(vecPossibleCollisionPosition))
-				{
-					vecCollisionPosition = XMVectorSetZ(vecPossibleCollisionPosition, fPossibleElevation);
-					break;
-				}
-			}
+			XMVECTOR vecCollisionPosition = rTerrainHit.vecPosition;
 
 			// Add jitter for visual variety
 			vecCollisionPosition = common::RandomPositionJitter<kfTerrainImpactJitter>(vecCollisionPosition, rFrame.postRender.randomEngine);
@@ -330,6 +386,10 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 #if defined(BT_CLIENT)
 			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, gTerrainImpactVolume.Get());
 #endif
+		}
+		else if (rBoundaryHit.bHit) [[unlikely]]
+		{
+			rCurrentPostRender.pFlags[i].Set(kTransfer);
 		}
 	}
 }
