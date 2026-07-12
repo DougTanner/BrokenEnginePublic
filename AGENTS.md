@@ -46,13 +46,19 @@ Each subagent reports files changed + functions/regions touched (one line each),
 1. Have one Fable subagent invoke /plan-audit on the plan file. The audit is findings-only; the main session validates its findings, then invokes /external-grill-plan with the accepted findings. **When the user has responded to the grill, DO NOT stop or summarize — immediately continue to step 2 in the same turn.**
 2. Have Opus subagents invoke /implement-plan, splitting large plans across disjoint file sets. Pass its sweep handoffs to step 3 and review focus areas to steps 4 and 10
 3. Have a Sonnet subagent invoke /update-affected-code with the plan and accumulated step 2 reports
-4. Run concurrent /repo-code-review (Fable) and /adversarial-review (Opus) subagents on identical inputs; add /glsl-review (Opus) when shaders changed. The main session dedupes and adjudicates findings by evidence, delegates external claims to /verify-external-claims (Sonnet), queries the user when authoritative verification remains unresolved, sends accepted non-structural in-scope fixes to /resolve-findings (Opus), and routes structural findings through step 11
+4. Review and resolve changes:
+	- **a)** Run concurrent /repo-code-review (Fable) and /adversarial-review (Opus) subagents on identical inputs; add /glsl-review (Opus) when shaders changed
+	- **b)** Main session dedupes and adjudicates findings by evidence; delegate external claims to /verify-external-claims (Sonnet) and query the user when authoritative verification remains unresolved
+	- **c)** Send accepted non-structural in-scope fixes to /resolve-findings (Opus); route structural findings through step 11
 5. Use a Sonnet subagent to invoke the /code-style-review skill
 6. Use an Opus subagent to invoke the /update-claude-docs skill — and the /update-architecture-diagrams skill if its trigger applies
 7. Have a Sonnet subagent invoke /update-vcxproj on every file changed this session
 8. Have a Sonnet subagent invoke /compile; send failures to an Opus /resolve-findings subagent
 9. For runtime-observable changes, have an Opus subagent invoke /agent-harness; send failures to an Opus /resolve-findings subagent. Skip only changes with no runtime surface
-10. Per logical file group, run two concurrent /session-audit subagents (Fable + Opus) on identical inputs. The main session dedupes findings, sends accepted non-structural in-scope fixes to /resolve-findings (Opus), routes structural findings through step 11, then runs /compile (Sonnet, fixed `.cpp` files) and one /resolve-findings verification pass (Opus) on fixed regions; do not cycle again
+10. Audit the completed change per logical file group:
+	- **a)** Run two concurrent /session-audit subagents (Fable + Opus) on identical inputs
+	- **b)** Main session dedupes findings; send accepted non-structural in-scope fixes to /resolve-findings (Opus) and route structural findings through step 11
+	- **c)** Run /compile (Sonnet) on fixed `.cpp` files, then one /resolve-findings verification pass (Opus) on fixed regions; do not cycle again
 11. Have an Opus subagent invoke /create-follow-up-plans for unresolved structural or out-of-scope residuals
 12. When working in a session worktree, invoke /finalize-changes for every repository mutation, including documentation, plans, skills, configuration, and other non-C++ changes.
 
