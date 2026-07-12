@@ -14,7 +14,7 @@ Reconciles orphaned plan files on disk into `Documents/Plans/Order.md`, then wal
 
 - The skill assumes **bypass-permissions** mode and mutates without further confirmation: it inserts orphan rows (Step 0), atomically creates the target's PC-global claim and mirrors `[CLAIMED <date>]` locally (Step 2), and overwrites the plan file with the synthesis (Step 7). Row/file cleanup and owner-checked claim release happen only through Step 8. User approval is requested only on the final synthesized plan.
 - `Documents/Plans/Order.md` must exist. If it does not, report the missing file and stop.
-- The skill does **not** require — and does not use — plan mode. It mimics plan mode's "review-before-implement" UX by auditing (`/plan-audit`) then grilling (`/external-grill-plan`) the plan up front, printing the final refined plan as a standalone turn-ending text message, then asking for approval via `AskUserQuestion`. Audit and grill together are C++ Code Change Process step 1, so approval jumps straight into implementation at step 2. See Step 9 for the exact audit-grill-present-approve contract.
+- The skill does **not** require — and does not use — plan mode. It mimics plan mode's "review-before-implement" UX by auditing (`/plan-audit`) then grilling (`/external-grill-plan`) the plan up front, then printing the final refined plan once as a standalone turn-ending text message (readable and scrollable in the session window). After that presentation, an unambiguous `Approve` or "execute" jumps straight into implementation (C++ Code Change Process step 2) with no further interview or approval prompt. Audit and grill together are C++ Code Change Process step 1. See Step 9 for the exact audit-grill-present-approve contract.
 - **`/next-plan` requires an existing isolated worktree.** If the session is not already in one, report that precondition and stop; never create one inside the skill. All subagents share that checkout and the fixed session-start commit is the changed-file baseline. Sessions coordinate through AgentCli's PC-global claim and landing locks, not checkout-local queue edits.
 - Re-read the relevant `Order.md` region before every edit, key edits on plan-path text, and verify the table structure afterwards. At landing, reconcile the latest primary-branch version semantically; do not overwrite another session's queue changes.
 - Set `$AgentCli` to installed `%LOCALAPPDATA%\BrokenEngine\AgentCli\v2\AgentCli.exe`; `--version` must print exactly `2`. If missing or mismatched, build `Tools/AgentCli/Platforms/VisualStudio2026/AgentCli.sln` Release/x64 directly with native PowerShell using `C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe` (`vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath` fallback), preserving the code-analysis-disable properties. Run the Release output's `install` mode, then require installed `--version` to print `2`; the `/compile` skill contains the exact bootstrap block.
@@ -275,11 +275,9 @@ The audit and grill run **before** approval so that once the user approves, impl
 
 Have one Fable subagent invoke `/plan-audit` on the plan file Step 7 wrote — this is C++ Code Change Process step 1, pulled ahead of approval. Validate its findings and carry accepted flaws and improvements into the grill; the audit does not edit the plan.
 
-**Before invoking the grill, emit the plan's two-part `## Summary` (the **What this plan does** / **Why it's good for the codebase** pair from Step 7) as plain session text** so the user has the plan's context in front of them when the grill's questions arrive — a grill question answered blind is a bad interview. Print the Summary as ordinary text (not inside a tool call), then invoke the grill in the same turn.
+Invoke `/external-grill-plan` directly on the plan file Step 7 wrote, passing the accepted audit findings — this completes C++ Code Change Process step 1 before approval. **Do not print the plan's `## Summary` or the full plan before the grill.** The grill presents only concrete decisions, ambiguities, recommendations, or its required closing question; it silently updates the plan file with the resolved answers, so the plan the user sees in 9b is already refined.
 
-Invoke `/external-grill-plan` on the plan file Step 7 wrote, passing the accepted audit findings — this completes C++ Code Change Process step 1 before approval. It interviews the user, resolves the plan's decision points, and silently updates the plan file with the resolved answers, so the plan the user approves in 9c is already the refined one.
-
-- On a trivial/mechanical plan the grill commonly finds no decision points and returns with nothing to ask — expected; proceed straight to 9b (the Summary already printed above carries into the full-plan presentation).
+- On a trivial/mechanical plan the grill commonly finds no decision points and returns with nothing to ask — expected; proceed straight to 9b.
 - **Do not stop or summarise when the grill returns** — continue to 9b in the same turn. The only legitimate reasons to pause here are (a) the grill asked the user a question that is still open, or (b) the grill recommended running `/external-design-interface` first per its role-boundary clause; resolve those before presenting.
 
 #### 9b. Present the final (grill-refined) plan
@@ -290,9 +288,9 @@ Output the Step 7 markdown (as refined by 9a) as the **final text of the turn, w
 
 #### 9c. Request approval
 
-When the user responds (any acknowledgement — the content of their reply doesn't matter unless it raises questions), call `AskUserQuestion` for the approval. Optionally duplicate the plan in the `Approve` option's `preview` as a convenience copy, but never as the only copy.
+When the user responds, first inspect the response itself. If it contains an unambiguous decision ("approved", "execute", "go ahead", "reject", "skip the TextureCache one"), honor it directly. **Approval is complete at that point: never call `AskUserQuestion`, re-present the plan, summarize it again, or ask for confirmation.** Proceed immediately to implementation or rejection handling in the same turn.
 
-If the user's reply to 9b already contains an unambiguous decision ("approved", "execute", "reject", "skip the TextureCache one"), honor it directly and skip or trim the `AskUserQuestion` accordingly.
+Only when the response is a neutral acknowledgement with no decision should `AskUserQuestion` request approval. Optionally duplicate the plan in the `Approve` option's `preview` as a convenience copy, but never as the only copy.
 
 The `AskUserQuestion` is a single question along the lines of:
 

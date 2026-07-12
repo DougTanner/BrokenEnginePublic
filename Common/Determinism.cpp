@@ -95,7 +95,9 @@ void SetupExceptionHandling()
 					break;
 
 				case DBG_PRINTEXCEPTION_C:
-					if (giMyOutputDebugString == 0)
+					if (giMyOutputDebugString == 0
+						&& pExceptionPointers->ExceptionRecord->NumberParameters >= 2
+						&& pExceptionPointers->ExceptionRecord->ExceptionInformation[1] != 0)
 					{
 						LOG(kDefault, kVerbose, "DBG_PRINTEXCEPTION_C: {}", reinterpret_cast<char*>(pExceptionPointers->ExceptionRecord->ExceptionInformation[1]));
 					}
@@ -106,6 +108,11 @@ void SetupExceptionHandling()
 					LOG(kDefault, kWarning, "RPC_E_DISCONNECTED: The object invoked has disconnected from its clients");
 					break;
 
+				case EXCEPTION_STACK_OVERFLOW:
+					LOG(kDefault, kError, "Vectored exception: Stack overflow");
+					DEBUG_BREAK();
+					break;
+
 				case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
 				case EXCEPTION_ACCESS_VIOLATION:
 				case EXCEPTION_FLT_DIVIDE_BY_ZERO:
@@ -113,7 +120,6 @@ void SetupExceptionHandling()
 				case EXCEPTION_INT_DIVIDE_BY_ZERO:
 				case EXCEPTION_INT_OVERFLOW:
 				case EXCEPTION_IN_PAGE_ERROR:
-				case EXCEPTION_STACK_OVERFLOW:
 				case EXCEPTION_DATATYPE_MISALIGNMENT:
 				case EXCEPTION_ILLEGAL_INSTRUCTION:
 				case STATUS_HEAP_CORRUPTION:

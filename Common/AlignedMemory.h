@@ -28,6 +28,8 @@ using AlignedUniquePtr = std::unique_ptr<T[], AlignedDeleter>;
 template<typename T>
 AlignedUniquePtr<T> MakeAligned(int64_t iCount)
 {
+	static_assert(std::is_trivially_default_constructible_v<T>, "MakeAligned requires a trivially default-constructible type");
+	static_assert(std::is_trivially_destructible_v<T>, "MakeAligned requires a trivially destructible type");
 	const size_t uiBytes = static_cast<size_t>(iCount) * sizeof(T);
 	ASSERT(iCount >= 0 && uiBytes / sizeof(T) == static_cast<size_t>(iCount));
 	return AlignedUniquePtr<T>(static_cast<T*>(_aligned_malloc(uiBytes, 64)));

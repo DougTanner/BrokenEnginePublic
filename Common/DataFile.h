@@ -46,6 +46,9 @@ struct ChunkLocation
 	uint64_t uiSize = 0;
 };
 static_assert(sizeof(ChunkLocation) == 24, "ChunkLocation layout changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkLocation, crc) == 0, "ChunkLocation::crc offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkLocation, uiOffset) == 8, "ChunkLocation::uiOffset offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkLocation, uiSize) == 16, "ChunkLocation::uiSize offset changed — bump DataHeader::kiVersion");
 
 enum class ChunkFlags : uint64_t
 {
@@ -433,6 +436,13 @@ struct ChunkHeader
 // sizeof asserts above lock the union footprint; a change to the largest member also shifts
 // sizeof(ChunkHeader) and so auto-bumps DataHeader::kiVersion.
 static_assert(std::is_trivially_copyable_v<ChunkHeader>, "ChunkHeader must be trivially copyable for the reinterpret_cast/memcpy read path");
+static_assert(BT_OFFSETOF(ChunkHeader, iMagic) == 0, "ChunkHeader::iMagic offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkHeader, flags) == 8, "ChunkHeader::flags offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkHeader, crc) == 16, "ChunkHeader::crc offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkHeader, pcPath) == 24, "ChunkHeader::pcPath offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkHeader, iSize) == 288, "ChunkHeader::iSize offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkHeader, iUncompressedSize) == 296, "ChunkHeader::iUncompressedSize offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkHeader, fontHeader) == 304, "ChunkHeader union offset changed — bump DataHeader::kiVersion");
 
 inline constexpr int64_t kiChunkDataOffset = RoundUp<int64_t, kiAlignmentBytes>(static_cast<int64_t>(sizeof(ChunkHeader)));
 
@@ -456,6 +466,9 @@ struct DataHeader
 	int64_t iChunkCount = 0;
 };
 static_assert(sizeof(DataHeader) == 24, "DataHeader layout changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(DataHeader, iMagic) == 0, "DataHeader::iMagic offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(DataHeader, iVersion) == 8, "DataHeader::iVersion offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(DataHeader, iChunkCount) == 16, "DataHeader::iChunkCount offset changed — bump DataHeader::kiVersion");
 
 struct ModelVertex
 {

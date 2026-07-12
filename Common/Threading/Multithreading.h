@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ScopedLambda.h"
 #include "PersistentWorker.h"
 
 namespace common
@@ -26,6 +27,13 @@ public:
 		{
 			return;
 		}
+
+		bool bExpected = false;
+		ASSERT(mbDispatchActive.compare_exchange_strong(bExpected, true, std::memory_order_acq_rel));
+		ScopedLambda dispatchActiveGuard([this]()
+		{
+			mbDispatchActive.store(false, std::memory_order_release);
+		});
 
 		int64_t iThreadCount = static_cast<int64_t>(mWorkers.size()) + 1;
 		int64_t iPerThread = iCount / iThreadCount;
@@ -77,11 +85,26 @@ public:
 			{
 				pWorker->Wait();
 			}
+			catch (const std::exception& rException)
+			{
+				if (firstException == nullptr)
+				{
+					firstException = std::current_exception();
+				}
+				else
+				{
+					LOG(kDefault, kError, "Multithreading::Dispatch discarded later worker exception: {}", rException.what());
+				}
+			}
 			catch (...)
 			{
 				if (firstException == nullptr)
 				{
 					firstException = std::current_exception();
+				}
+				else
+				{
+					LOG(kDefault, kError, "Multithreading::Dispatch discarded later non-standard worker exception");
 				}
 			}
 		}
@@ -96,6 +119,7 @@ private:
 
 	std::thread::id mMainThreadId;
 	std::vector<std::unique_ptr<PersistentWorker>> mWorkers;
+	std::atomic<bool> mbDispatchActive = false;
 };
 
 } // namespace common

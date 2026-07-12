@@ -174,9 +174,10 @@ inline constexpr bool XmIsInf(float fValue)
 	return (std::bit_cast<uint32_t>(fValue) & 0x7FFFFFFFu) == 0x7F800000u;
 }
 
-// Deterministic bitwise operator== for XMVECTOR / XMFLOAT2/3/4 lives in Determinism.h (kept out of this
-// header so it can sit alongside the MXCSR + exception-handler setup). Included here, right after the
-// DirectXMath includes, so the operators stay globally visible for all downstream code.
+// Deterministic exact (non-epsilon) IEEE operator== for XMVECTOR / XMFLOAT2/3/4 lives in Determinism.h
+// (kept out of this header so it can sit alongside the MXCSR + exception-handler setup). This is value
+// equality rather than byte identity. Included here, right after the DirectXMath includes, so the
+// operators stay globally visible for all downstream code.
 #include "Determinism.h"
 
 // DirectXTK

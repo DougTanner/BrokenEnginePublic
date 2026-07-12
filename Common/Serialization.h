@@ -103,6 +103,7 @@ inline void Read(std::istream& rStream, T* pValues, int64_t iCount)
 template<typename T>
 inline void Read(std::istream& rStream, std::vector<T>& rVector)
 {
+	static_assert(std::is_trivially_copyable_v<T>, "Vector element type must be trivially copyable");
 	rStream.read(reinterpret_cast<char*>(rVector.data()), VectorByteSize(rVector));
 }
 
@@ -132,6 +133,7 @@ inline void Write(std::ostream& rStream, T* pValues, int64_t iCount)
 template<typename T>
 inline void Write(std::ostream& rStream, const std::vector<T>& rVector)
 {
+	static_assert(std::is_trivially_copyable_v<T>, "Vector element type must be trivially copyable");
 	rStream.write(reinterpret_cast<const char*>(rVector.data()), VectorByteSize(rVector));
 }
 

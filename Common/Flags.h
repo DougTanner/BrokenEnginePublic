@@ -70,6 +70,7 @@ public:
 		meFlags = static_cast<ENUM_TYPE>(0);
 	}
 
+	// Composite enumerators use any-bit semantics: true when at least one requested bit is set.
 	constexpr bool operator&(ENUM_TYPE eFlag) const
 	{
 		underlying_t iFlag = std::to_underlying(eFlag);
@@ -81,6 +82,7 @@ public:
 		return std::to_underlying(meFlags) & std::to_underlying(rOther.meFlags);
 	}
 
+	// For composite enumerators, returns true when any toggled bit remains set.
 	constexpr bool Toggle(ENUM_TYPE eFlag)
 	{
 		underlying_t iFlag = std::to_underlying(eFlag);

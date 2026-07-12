@@ -66,7 +66,15 @@ inline std::vector<std::byte> ReadEntireFile(const std::filesystem::path& rPath)
 {
 	std::vector<std::byte> data(std::filesystem::file_size(rPath));
 	std::fstream fileStream(rPath, std::ios::in | std::ios::binary);
-	fileStream.read(reinterpret_cast<char*>(data.data()), data.size());
+	if (!fileStream)
+	{
+		throw std::runtime_error("ReadEntireFile failed to open file");
+	}
+	fileStream.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(data.size()));
+	if (static_cast<size_t>(fileStream.gcount()) != data.size())
+	{
+		throw std::runtime_error("ReadEntireFile failed to read complete file");
+	}
 	return data;
 }
 

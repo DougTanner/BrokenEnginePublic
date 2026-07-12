@@ -14,10 +14,20 @@ struct RandomEngine
 
 	RandomEngine(uint32_t uiSeed);
 
+	template <typename T> requires std::same_as<std::remove_cvref_t<T>, uint64_t>
+	explicit RandomEngine(T&& uiSeed)
+	{
+		Seed(static_cast<uint64_t>(uiSeed));
+	}
+
 	// NOT deterministic — never seed a simulation engine from this without broadcasting/recording the resulting seed
 	void TimeSeed();
 	bool operator==(const RandomEngine& rOther) const;
 	crc_t Crc() const;
+
+private:
+
+	void Seed(uint64_t uiSeed);
 };
 
 static_assert(sizeof(RandomEngine) == sizeof(uint64_t), "Extend operator== / Crc() / serialization when adding RandomEngine state");

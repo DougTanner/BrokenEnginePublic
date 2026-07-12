@@ -86,7 +86,7 @@ minimax polynomial (basic IEEE ops only, bit-identical under
 
 6. Deterministic RNG
 ---------------------
-Simulation uses a Xorshift PRNG with explicit 64-bit seeding. The
+Simulation uses a Xorshift PRNG with explicit 32-bit and 64-bit seeding. The
 random engine state is stored in FramePostRender and included in CRC
 calculations, ensuring any divergence is immediately detected.
 

@@ -125,7 +125,9 @@ concept NotStringLike = !std::is_convertible_v<T, std::string_view>;
 // bit patterns; pass a value-initialized, padding-free (or deterministically-zeroed) object.
 // Parameters: rIn - Trivially copyable object to hash
 // Returns: 64-bit hash value
-template<typename T> requires NotStringLike<T> && (!std::is_same_v<std::remove_cvref_t<T>, XMVECTOR>)
+template <typename T> requires NotStringLike<T>
+	&& (!std::is_pointer_v<std::remove_cvref_t<T>>)
+	&& (!std::is_same_v<std::remove_cvref_t<T>, XMVECTOR>)
 inline crc_t XM_CALLCONV Crc(const T& rIn)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable to hash by byte reinterpretation");

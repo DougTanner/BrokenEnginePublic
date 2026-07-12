@@ -94,19 +94,16 @@ public:
 		const std::filesystem::path framesFilename = std::filesystem::path(rFilename).concat(".frames");
 		const bool bFramesWritten = gpFileManager->WriteFileAtomically(fileFlags, framesFilename, [&](std::fstream& rFramesStream)
 		{
-			if (!mDifferences.empty())
+			for (const auto& [iTick, difference] : mDifferences)
 			{
+				common::Write(rFramesStream, iTick);
 				if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
 				{
-					common::Write(rFramesStream, mDifferences);
+					common::Write(rFramesStream, difference);
 				}
 				else
 				{
-					for (const auto& [iTick, difference] : mDifferences)
-					{
-						common::Write(rFramesStream, iTick);
-						rFramesStream << difference;
-					}
+					rFramesStream << difference;
 				}
 			}
 		});
@@ -236,28 +233,36 @@ public:
 			// Trust boundary (replay .frames file): bound the difference count against the stream before
 			// allocating; each record serializes at least an int64 tick plus one byte of difference.
 			common::ValidateDeserializedCount(mDifferenceCount, sizeof(int64_t) + 1, fileStream, "DifferenceStreamReader differences");
-			if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
+			mDifferences.reserve(mDifferenceCount);
+			for (int64_t i = 0; i < mDifferenceCount; ++i)
 			{
-				mDifferences.resize(mDifferenceCount);
-				common::Read(fileStream, mDifferences);
-				int64_t iBytesRead = fileStream.gcount();
-				if (iBytesRead != static_cast<int64_t>(sizeof(difference_t) * mDifferenceCount))
+				int64_t iTick = 0;
+				common::Read(fileStream, iTick);
+				if (fileStream.gcount() != static_cast<std::streamsize>(sizeof(iTick)))
 				{
 					LOG(kDefault, kWarning, "Recorded frames file size doesn't match header");
 					return;
 				}
-			}
-			else
-			{
-				mDifferences.reserve(mDifferenceCount);
-				for (int64_t i = 0; i < mDifferenceCount; ++i)
+				DIFFERENCE_TYPE difference {};
+				if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
 				{
-					int64_t iTick = 0;
-					common::Read(fileStream, iTick);
-					DIFFERENCE_TYPE difference {};
-					fileStream >> difference;
-					mDifferences.emplace_back(iTick, std::move(difference));
+					common::Read(fileStream, difference);
+					if (fileStream.gcount() != static_cast<std::streamsize>(sizeof(DIFFERENCE_TYPE)))
+					{
+						LOG(kDefault, kWarning, "Recorded frames file size doesn't match header");
+						return;
+					}
 				}
+				else
+				{
+					fileStream >> difference;
+					if (!fileStream)
+					{
+						LOG(kDefault, kWarning, "Recorded frames file size doesn't match header");
+						return;
+					}
+				}
+				mDifferences.emplace_back(iTick, std::move(difference));
 			}
 
 			mDifferencesIterator = mDifferences.begin();

@@ -6,10 +6,11 @@
 	#error "Include DirectXMath before Determinism.h"
 #endif
 
-// Deterministic, bitwise (non-epsilon) equality for DirectXMath types — central to CRC-based
-// client/server reconciliation. Included from ExternalHeaders.h immediately after the DirectXMath
-// includes so these operators are globally visible wherever the types are used. The SSE4-only build
-// knob, the PI subdivisions, kfEpsilon, and XmIsNan/XmIsInf remain in ExternalHeaders.h.
+// Deterministic exact (non-epsilon) IEEE equality for DirectXMath types. This is value equality, not
+// bitwise identity: -0.0f equals +0.0f and NaNs never compare equal. Consumers requiring byte identity
+// use byte comparison (for example, LogDifference). Included from ExternalHeaders.h immediately after
+// the DirectXMath includes so these operators are globally visible wherever the types are used. The
+// SSE4-only build knob, the PI subdivisions, kfEpsilon, and XmIsNan/XmIsInf remain in ExternalHeaders.h.
 inline bool XM_CALLCONV operator==(FXMVECTOR rOne, FXMVECTOR rTwo)
 {
 	return XMVector4Equal(rOne, rTwo);
@@ -37,7 +38,8 @@ namespace common
 void ConfigureThreadFloatingPoint();
 
 // Installs the SEH translator, invalid-parameter handler, vectored exception handler, and terminate handler.
-// Promotes structured faults into C++ exceptions and logs a stack walk before DEBUG_BREAK(). Called by ThreadLocal ctor.
+// Promotes structured faults into C++ exceptions and logs a stack walk before DEBUG_BREAK(); stack overflow logs a
+// fixed error and skips the stack walk. Called by ThreadLocal ctor.
 void SetupExceptionHandling();
 
 // DbgHelp (dbghelp.dll) is documented single-threaded per process — every stack-walk driver must serialize on

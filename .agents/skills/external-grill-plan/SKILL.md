@@ -24,6 +24,7 @@ Interview the user about every aspect of this plan until reaching shared underst
 - For each question, provide your recommended answer based on codebase exploration
 - If a question can be answered by exploring the codebase, explore it instead of asking
 - Ask one focused question at a time, not a batch of 10
+- Begin with the first concrete unresolved decision; do not preface the interview with a plan summary or restatement
 - Use adversarial thinking — actively try to find flaws, then provide concrete suggestions to fix them
 - Skip branches that are clearly irrelevant to the plan (e.g., don't probe determinism for a client-only UI change)
 - Stop when all branches of the decision tree are resolved
@@ -33,7 +34,7 @@ Interview the user about every aspect of this plan until reaching shared underst
 2. Validate and incorporate supplied findings, then identify all remaining decision points, ambiguities, and unstated assumptions — scan against the Decision-Point Taxonomy below; plans routinely leave these classes implicit
 3. Walk each branch of the decision tree, resolving dependencies one-by-one
 4. Ask the Closing Question (below) as the final interview question
-5. When all branches are resolved, silently update the plan file with the resolved details, then immediately return control to the calling context to begin implementation — no summary, no "ready to proceed?" prompt, no stop.
+5. When all branches are resolved, silently update the plan file with the resolved details, then immediately return control to continue the calling workflow's next step — no summary, no "ready to proceed?" prompt, no stop.
 
 ## Closing Question
 
