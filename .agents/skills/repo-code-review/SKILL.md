@@ -239,4 +239,11 @@ Only include sections where issues were found. For sections with no issues, omit
 Brief summary of overall assessment.
 ```
 
-If no issues were found in any category, output the Files Reviewed list and "PASS — no issues found." In every case, the caller-required residuals footer (C++ Code Change Process) is appended after this template — it is not optional even on a clean PASS.
+If no issues were found in any category, output the Files Reviewed list and "PASS — no issues found." Append this final footer in every case, including a clean PASS:
+
+```text
+Files changed: none
+Functions/regions touched: none
+Residuals:
+- <pre-existing issue or incomplete review item, or none>
+```

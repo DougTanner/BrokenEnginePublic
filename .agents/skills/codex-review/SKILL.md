@@ -22,14 +22,14 @@ Run a delegated reviewer/auditor role on **Codex/Sol** headless when Fable can't
 
 ## Method
 1. Assemble the review target into a scratch file (session scratchpad): for a code review, start with `git -C <worktree> diff <baseline> -- <changed files>`, then use `git -C <worktree> ls-files --others --exclude-standard -- <changed files>` and append each returned path plus its full contents. Never omit new files. For a plan/doc audit, include the file(s) the caller names.
-2. Write the prompt to a scratch file. Tell Codex to read and follow `<worktree>/.agents/skills/<targetSkill>/SKILL.md`, review only the supplied target, and emit the target skill's output template followed by the AGENTS.md residuals footer.
+2. Write the prompt to a scratch file. Tell Codex to read and follow `<worktree>/.agents/skills/<targetSkill>/SKILL.md`, review only the supplied target, and emit the target skill's complete output template, including its files/regions/residuals footer.
 3. Run the helper:
    `pwsh -File <worktree>/.codex/codex-review.ps1 -Worktree <worktree> -PromptFile <prompt> -OutFile <out>`
    (Codex runs `gpt-5.6-sol` headless with bypass at xhigh; ~1–3 min. Don't tail its stdout.)
-4. Read `<out>`; verify it satisfies the target skill's output template + residuals footer, coercing shape only (never invent findings). Return that block verbatim as your entire output.
+4. Read `<out>`; verify it satisfies the target skill's output template and files/regions/residuals footer, coercing shape only (never invent findings). Return that block verbatim as your entire output.
 
 ## Fallback (never block the process)
-If the helper exits non-zero (127 = codex missing), `<out>` is empty/garbled, or the diff step fails, return `CODEX-UNAVAILABLE: <short reason>` as the first line, followed only by the mandatory AGENTS.md residuals footer. The caller recognizes the first-line sentinel and runs the role on Opus. Do not retry Codex more than once.
+If the helper exits non-zero (127 = codex missing), `<out>` is empty/garbled, or the diff step fails, return `CODEX-UNAVAILABLE: <short reason>` followed by `Files changed: none`, `Functions/regions touched: none`, and `Residuals: <reason>`. The caller recognizes the first-line sentinel and runs the role on Opus. Do not retry Codex more than once.
 
 ## Notes
 - Findings only — never edit code (the target roles are findings-only; Codex runs read-only by instruction even though the sandbox is bypassed).

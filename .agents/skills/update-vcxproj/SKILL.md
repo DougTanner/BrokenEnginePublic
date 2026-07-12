@@ -33,7 +33,7 @@ Read `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md` first �
 
 ## Workflow
 
-1. For each file, determine affinity: Grep it for a file-wide `#if defined(BT_CLIENT)` / `BT_SERVER` wrap. A guardless engine file appearing only in the client project may be deliberate (the client-vcxproj-membership + `Engine.h` BT_CLIENT aggregation-span mechanism, root `AGENTS.md` → Client/Server Targets) — report NOTE, not FAIL, and let the caller decide.
+1. For each file, determine affinity: Grep it for a file-wide `#if defined(BT_CLIENT)` / `BT_SERVER` wrap. A guardless engine file appearing only in the client project may be a leaf-documented forced-include exception; verify that documentation and report NOTE rather than FAIL. `Engine.h` aggregation spans alone do not establish affinity.
 2. Find the insertion/verification anchor by Grep-ing the vcxproj and .filters for an existing entry of the same element type from the same directory; if none exists (new directory), anchor on the nearest ancestor-directory entry of the same type and extend its relative path. Do not Read whole project files — they are thousands of lines.
 3. Add mode: Edit each missing entry next to its anchor (`ClCompile` for `.cpp`, `ClInclude` for `.h` including shader headers, `None` for shader stage sources), matching the sibling entries' form; add the mirrored filter entry, creating missing `<Filter Include>` GUIDs.
 4. Verify mode: confirm presence in the correct project(s), absence from the wrong one, and that the filter path mirrors the directory.
@@ -45,4 +45,15 @@ One line per file — never echo XML:
 
 ```
 <path> — client|server|both|DataPacker — filter <Filter\Path> — added|verified|NOTE <detail>|FAIL <what's wrong>
+```
+
+Append this final footer:
+
+```text
+Files changed:
+- <project/filter path, or none>
+Functions/regions touched:
+- <project item/filter group, or none>
+Residuals:
+- <unfixed FAIL, unresolved NOTE, or none>
 ```

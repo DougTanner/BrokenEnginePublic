@@ -122,3 +122,17 @@ Always probe these areas if the plan touches them:
 - **Build wiring**: Any new files? Which vcxproj filters get updated (client AND server for game collections — four files total)? Any new `#include <std>` that should move to `Common/ExternalHeaders.h`?
 - **Layer compliance**: Does engine code access game-layer through `game::gpGame`? Any new cross-layer dependencies?
   _e.g., "This engine code references a game-specific enum directly. Should it go through `game::gpGame` instead?"_
+
+## Completion Report
+
+After all decisions are resolved, give this handoff to the calling context
+without ending the user turn; the caller continues directly into implementation:
+
+```text
+Files changed:
+- <plan path, or none>
+Functions/regions touched:
+- <plan section changed, or none>
+Residuals:
+- <unresolved decision or none>
+```

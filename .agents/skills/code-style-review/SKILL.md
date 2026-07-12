@@ -73,3 +73,14 @@ List fixes applied by rule number, and cross-file fixes made after Hungarian/abb
 ### Doc/Plan References Not Edited
 - <old identifier> — <AGENTS.md/doc/plan file:line> (routed to caller)
 ```
+
+Append this final footer:
+
+```text
+Files changed:
+- <path, or none>
+Functions/regions touched:
+- <function or region, or none>
+Residuals:
+- <unfixed violation or routed reference, or none>
+```

@@ -61,4 +61,11 @@ For non-obvious API usage a finding depends on (Vulkan entry points, DirectXMath
 [Only if no findings: what was traced and why it holds]
 ```
 
-Severity: **Critical:** = data loss, broken functionality, determinism break, allocation-tracker violation; no prefix = required fix. Nothing optional — anything below "required" fails the evidence rule and is dropped. The caller-required residuals footer (C++ Code Change Process) is appended after this template in every case.
+Severity: **Critical:** = data loss, broken functionality, determinism break, allocation-tracker violation; no prefix = required fix. Nothing optional — anything below "required" fails the evidence rule and is dropped. Append this final footer in every case:
+
+```text
+Files changed: none
+Functions/regions touched: none
+Residuals:
+- <pre-existing issue or incomplete review item, or none>
+```

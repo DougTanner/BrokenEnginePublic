@@ -103,6 +103,7 @@ Order.md:
 
 Files changed + regions touched:
 - <path> — <heading/row/region>
+- none
 
 Residuals:
 - <unqueued item and reason, or none>

@@ -260,6 +260,15 @@ Brief summary.
 
 If no issues in any category: "PASS — no issues found." plus the Files Reviewed list.
 
+Append this final footer in every case:
+
+```text
+Files changed: none
+Functions/regions touched: none
+Residuals:
+- <pre-existing issue or incomplete review item, or none>
+```
+
 ---
 
 ## See Also

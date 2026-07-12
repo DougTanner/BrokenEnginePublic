@@ -208,3 +208,16 @@ Current models follow instructions well; aggressive emphasis causes over-trigger
 Readers should understand system architecture and responsibilities, not be able to reconstruct class definitions. If you're listing variable names with explanations, you're too detailed.
 
 **Removal test**: For each sentence you're about to keep, ask "would removing this cause a future reader to make a worse decision?" If no, cut it. Apply this on every pass — including sentences that weren't touched by the current code change.
+
+## Completion Report
+
+End sync and audit modes with:
+
+```text
+Files changed:
+- <AGENTS.md or CLAUDE.md path, or none>
+Functions/regions touched:
+- <document section, or none>
+Residuals:
+- <conflict or incomplete documentation item, or none>
+```

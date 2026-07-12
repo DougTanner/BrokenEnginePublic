@@ -245,6 +245,15 @@ Only the focused fleet exposes a `members` list; spaceship units carry no id (`g
 
 For C++ Code Change Process step 9, run the plan's Verification section when present; otherwise derive the smallest live checks that cover its acceptance criteria. Report each criterion as `PASS` or `FAIL` with the exact query, scene, UI, screenshot, or log evidence. Report setup limitations as residuals rather than weakening a criterion. Do not diagnose or edit a failure in this role; return it to `/resolve-findings` with the reproducing commands and evidence.
 
+End the process verification report with:
+
+```text
+Files changed: none
+Functions/regions touched: none
+Residuals:
+- <failed criterion, setup limitation, or none>
+```
+
 ## Caveats
 
 - **Don't drive client weapon-mode / fleet-nav update requests while the server is paused.** Those request queues are wiped by `BuildFrameInputs` before an unpaused tick can consume them (tracked by `Documents/Plans/Network/ServerPauseAndResetSemantics.md`, not yet landed) — silently lost. Spawn requests survive a pause (separate persist-until-served queue). Pause is fine for server-side inspection/injection.

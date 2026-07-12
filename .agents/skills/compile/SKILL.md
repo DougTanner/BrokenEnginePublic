@@ -92,3 +92,12 @@ Only `.cpp` inputs already present in the target project are valid. After a head
 - LNK1168 or EXE LNK2019 can mean a client/server process still holds the executable; report it rather than diagnosing unless asked.
 - A prior killed build's `unsuccessfulbuild` marker clears on the next successful run; rerun instead of deleting tlogs.
 - A lock timeout means another AgentCli build still owns that target. Retry after it finishes; never delete `.claude/build-locks/` manually.
+
+End with:
+
+```text
+Files changed: none
+Functions/regions touched: none
+Residuals:
+- <failed or skipped required build, or none>
+```

@@ -45,4 +45,11 @@ Per finding: `path:line`, failure-mode number, one-line description, fix size (*
 Example:
 > `Projects/BrokenEngineSandbox/Source/Frame/Blasters.cpp:212` — mode 2 — `Spawn()` initializes the new `mChargeTime` member but `Transfer()` does not copy it, so cross-cell transfer leaves it stale — **small**
 
-If clean, state which checklist items were checked and found clean. End with the standard residuals footer (root AGENTS.md process rules).
+If clean, state which checklist items were checked and found clean. Append this final footer in every case:
+
+```text
+Files changed: none
+Functions/regions touched: none
+Residuals:
+- <pre-existing issue or incomplete audit item, or none>
+```

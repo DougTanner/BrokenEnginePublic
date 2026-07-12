@@ -136,15 +136,16 @@ Reviewer focus areas:
 - specific uncheckable request phrased as "verify X holds when Y"
 - none
 
-Files changed:
+Files changed + functions/regions touched:
 - `path` — function/type/section
+- none
 
 Residuals:
 - incomplete item, skipped fix, contradiction, or unverified blocker with evidence
 - none
 ```
 
-List each changed file once and identify every touched region. Preserve handed-off
+List each changed file once and identify every touched region, or report `none`. Preserve handed-off
 requests verbatim so the caller can pass sweep items to `/update-affected-code`
 and audit concerns to both fresh-context review stages. The `Residuals` section
 is the final footer even when another invoked skill prescribes its own output

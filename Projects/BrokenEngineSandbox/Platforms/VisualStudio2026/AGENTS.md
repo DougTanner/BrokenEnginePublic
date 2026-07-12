@@ -23,6 +23,8 @@ Both use `$(ProjectName)` in `IntDir`, so client and server builds can run simul
 
 Each `.cpp` belongs in the client vcxproj, server vcxproj, or both, matching its preprocessor-guard scope (root rule). Shared files (no guards or partial guards) go in both; entirely one-sided files must be removed from the opposite vcxproj — guards alone leave empty translation units compiling there.
 
+Entirely one-sided source files also carry a whole-file `#if defined(BT_CLIENT)` / `BT_SERVER` wrap; headers keep `#pragma once` outside that guard. `Engine.h` guard spans group includes but do not establish affinity. A file force-included by both builds but consumed on only one side stays unwrapped and documents that deliberate exception in its leaf `AGENTS.md`.
+
 Headers follow the same affinity (Solution Explorer cleanliness; `ClInclude` has no build effect). The server omits the client-only generated `Output\Data\Shader.h`.
 
 **Naming conventions that signal build affinity:**

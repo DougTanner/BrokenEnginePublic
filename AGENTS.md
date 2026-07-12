@@ -15,10 +15,7 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 
 - Main session is manager: delegate aggressively to keep the context small, except trivial edits
 - Subagent instructions: CONCISE but COMPLETE — objective, scope, file paths, output format. Provide them only with the instructions and context they need.
-- One top-level agent session owns one worktree for its full plan lifecycle. Every subagent works in that same checkout; subagents never create nested or sibling worktrees.
-- If the top-level session already runs in an orchestrator-managed worktree, adopt it and record its resolved path, branch, and session-start commit; do not create another. Otherwise create one unique session branch/worktree from the branch and HEAD currently checked out by the primary non-worktree checkout. Never hard-code `main` or a release branch. The recorded session-start commit is the fixed changed-file baseline.
-- Record the resolved primary checkout, target branch, session worktree, session branch, and session-start commit. Share that checkout and fixed baseline with every subagent.
-- Agents commit only their session changes and mutate only their session branch/worktree until step 12. Never push, force-update, destructively reset, or mutate another session's branch/worktree.
+- Before repository mutation, invoke /prepare-session-worktree. One top-level session owns one worktree and fixed start commit for its full plan lifecycle; every subagent shares that checkout and baseline
 
 ### When to use each model
 
@@ -39,7 +36,7 @@ Fable is the top tier for judgment roles (manager/planner/reviewer); don't move 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 
 Exception for one-line changes: Make the edit yourself, then do step 3
-Each subagent reports files changed + functions/regions touched (one line each), ending with residuals — incomplete items, skipped fixes, findings not acted on — or "none"; main session accumulates and passes to all later steps (subagents can't see other subagents' session), and re-dispatches residuals or routes them to step 11, never drops them silently. The residuals footer is appended after any skill-defined output format and takes precedence over a skill's "output only the template" phrasing.
+Main session accumulates every skill's residuals and handoffs, passes them to later steps, and routes unresolved work through step 11; never drop them silently
 
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 	- Plans MAY include a Verification section of agent-harness steps (launch, drive, query, screenshot — see the agent-harness skill); optional, so trivial refactors don't gold-plate
@@ -71,13 +68,12 @@ Each subagent reports files changed + functions/regions touched (one line each),
 ## Directives
 
 - Follow KISS, YAGNI, DRY — before writing logic that may already exist, grep; call or extract a shared helper, never paste a copy. Exception: mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel
-- Before step 12, use only read-only Git commands outside an existing session worktree. Step 12 reconciliation and landing are rebase-only: never use `git merge`, `git merge --ff-only`, `git pull` without `--rebase`, or `git rebase --rebase-merges`. Never push.
-- Claude Skills `.claude\skills` and AGENTS.md files are used only by AI agents and must be kept CONCISE
-- Each directory's agent memory lives in `AGENTS.md`; its sibling `CLAUDE.md` is a one-line `@AGENTS.md` import stub for Claude Code loading — edit `AGENTS.md`, never the stub
+- Before step 12, do not mutate Git state outside the adopted session worktree; /finalize-changes owns commit, rebase, landing, locking, and cleanup. Never push
+- Agent-memory changes invoke /update-claude-docs; edit `AGENTS.md`, never its `CLAUDE.md` import stub
 - **Error handling at trust boundaries only**: assume function parameters from within the codebase are valid — no defensive validation between our own functions. Do validate anything opaque to the current code unit: network input, file reads, OS/third-party API results.
 - **No useless ASSERTs**: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it; prefer making the condition impossible in calling code or recovering gracefully. Resolution ladder: repo-code-review skill §2c.
 - Do not add unit tests
-- **Don't touch unrelated code**: only modify files, functions, and lines directly tied to the current task. Do not refactor, rename, reformat, or restyle adjacent code. Surface incidental findings — mention trivial observations in chat; for bugs or other important issues, route through C++ Code Change Process step 11 (a follow-up plan in `Documents/Plans/`). Remove only imports/usings/variables that *your* edits made unused.
+- **Don't touch unrelated code**: change only the requested task scope; route important incidental findings through step 11
 - **Response style**: Stay concise — no pleasantries, hedging, or restating the request. Terse ≠ incomplete: cut the words around the facts, never the facts — when the user (or output style) asks for explanation, provide it fully. Never compress errors, irreversible-action confirmations, or order-sensitive step sequences. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
 
 ## Directory Structure
@@ -93,7 +89,7 @@ Each subagent reports files changed + functions/regions touched (one line each),
 ## Static Analysis
 
 - `.editorconfig` (repo root) — formatting (Allman, tabs, spacing, include sort). VS applies on save / Ctrl+K, Ctrl+D.
-- `.clang-tidy` (repo root) — enforced checks mapped to `Documents/C++StyleGuide.txt`. Enablement/exclusion mechanics: [VisualStudio2026/AGENTS.md](Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md); deferred checks and details: comment block at the top of the file.
+- `.clang-tidy` (repo root) — enforced checks mapped to `Documents/C++StyleGuide.txt`; [VisualStudio2026/AGENTS.md](Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md) owns project enablement and exclusions
 
 ## Client/Server Targets
 
@@ -104,9 +100,7 @@ Same source, two executables:
 - **server** (headless physics) — vcxproj defines `BT_SERVER`
 
 Rules:
-- Gate client-only code with `#ifdef BT_CLIENT` at the narrowest practical scope. Single-build source files (whole file compiles only on one side) must carry a whole-file `#if defined(BT_CLIENT)`/`BT_SERVER` wrap — headers keep `#pragma once` outside the guard — in addition to matching vcxproj membership; the `Engine.h` `BT_CLIENT`/`BT_SERVER` spans remain as include grouping only, not the affinity mechanism. Exception: a file included unconditionally from both builds (e.g. via a shared PCH) but consumed only client/server-side stays unwrapped and is documented at its leaf as a deliberate exception.
-- Files fully wrapped in `#if defined(BT_CLIENT)` must only appear in the client vcxproj; same for `BT_SERVER`. See [VisualStudio2026/AGENTS.md](Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md).
-- Collections with client-only fields use the `SharedMembers()`/`ClientMembers()` pattern — see [Collections/AGENTS.md](Engine/Source/Frame/Collections/AGENTS.md)
+- Guard client/server-only code at the narrowest practical scope; whole-file affinity must match project membership. /update-vcxproj and [VisualStudio2026/AGENTS.md](Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md) own exact membership, filter, and exception rules
 
 ## Agent Interaction Harness
 
@@ -121,10 +115,9 @@ The agent interaction harness launches and controls the client/server for live v
 	- **XMVECTOR W invariant**: Positions W=1.0; directions / velocities / normals / offsets W=0.0; color alpha defaults 1.0 (opaque)
 	- **Function form, not operators**: `XMVectorAdd`/`Subtract`/`Multiply`/`Divide`/`Scale`/`Negate` — never `vec + vec`, `f * vec`, `-vec`.
 - **Base classes**: Include/use game versions, not Base versions — `Camera.h` not `CameraBase.h`, `game::gpGame` not `GameBase` directly
-- **Engine reading game-layer state is by design** — the engine may assume **any** `game::` type or symbol exists, and Game must implement whatever the engine assumes; do not file plans to "inject" or "decouple" these. The real violation is the reverse: engine *types* naming game concepts. Details: [Engine/Source/AGENTS.md](Engine/Source/AGENTS.md)
 - **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temp allocations instead of local `std::vector`/`std::string`. See [Common/AGENTS.md](Common/AGENTS.md)
 - **Allocation tracking**: Heap allocations in the main loop trigger `DEBUG_BREAK()`. When unavoidable, wrap with `ScopedSuppressAllocationTracking` + `// Heap:` comment. See [Memory/AGENTS.md](Engine/Source/Memory/AGENTS.md)
-- **LOG formatting**: in allocation-tracked builds only (Game and Engine are; offline DataPacker is not), never use allocating format specs (`{:.Nf}`, `{:e}`, width/precision like `{:>10}`) or the `std::format` family in `LOG(...)` — they trip the allocation tracker. Wrap floats with `common::Wb(value, precision)`, `XMVECTOR`s with `common::WbV2/V3/V4`; placeholder stays `{}`. Full rules: repo-code-review skill §2b.
+- **LOG formatting**: logging in allocation-tracked Game/Engine code must remain allocation-free; /repo-code-review owns accepted formatting and wrapper details
 - **Standard library / external headers**: new standard-library/third-party `#include`s go in `Common/ExternalHeaders.h` (gated by build defines), not in individual source files — rule and exception: [Common/AGENTS.md](Common/AGENTS.md)
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/AGENTS.md](Common/AGENTS.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/AGENTS.md](Common/AGENTS.md)

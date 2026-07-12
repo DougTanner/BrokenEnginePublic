@@ -45,6 +45,6 @@ Build the edited `.cpp` files via selective `/compile` and fix compile errors be
 
 ## Report
 
-- Files changed + functions/regions touched (one line each)
+- Files changed + functions/regions touched (one line each), or `none`
 - Per handed-off item: resolved (what was updated, or why nothing needed updating) or REFUTED with evidence
 - End with residuals — affected sites found but not updated, incomplete searches, and hits you could not classify — or "none"
