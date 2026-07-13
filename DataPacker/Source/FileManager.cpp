@@ -591,6 +591,11 @@ std::string FileManager::GetFingerprint(const std::filesystem::path& rPath)
 	return mpInputFingerprintCache->Get(rPath);
 }
 
+std::string FileManager::GetSharedCacheFingerprint(const std::filesystem::path& rPath)
+{
+	return mpInputFingerprintCache->GetPersistent(rPath);
+}
+
 FileManager::~FileManager()
 {
 	if (gpFileManager == this)

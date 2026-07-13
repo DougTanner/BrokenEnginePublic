@@ -7,6 +7,7 @@ public:
 	InputFingerprintCache(const std::filesystem::path& rRepositoryRoot);
 
 	std::string Get(const std::filesystem::path& rPath);
+	std::string GetPersistent(const std::filesystem::path& rPath);
 
 private:
 
@@ -14,6 +15,7 @@ private:
 	{
 		uintmax_t uiSize = 0;
 		int64_t iLastWriteTime = 0;
+		int64_t iCreationTime = 0;
 		int64_t iChangeTime = 0;
 		uint64_t uiFileId = 0;
 		uint32_t uiVolumeSerialNumber = 0;
@@ -39,6 +41,7 @@ private:
 
 	std::string GetUnlocked(const std::filesystem::path& rPath);
 	std::string GetFile(const std::filesystem::path& rPath);
+	std::string GetPersistentFile(const std::filesystem::path& rPath);
 	std::string GetDirectory(const std::filesystem::path& rPath);
 	void LoadGitIndex(const std::filesystem::path& rRepositoryRoot);
 

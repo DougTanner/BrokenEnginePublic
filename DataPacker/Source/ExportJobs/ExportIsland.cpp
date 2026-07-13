@@ -394,11 +394,11 @@ std::string ExportIsland::GetInputFingerprint() const
 	nlohmann::json fingerprint;
 	for (const char* pcFile : kpcLeafInputs)
 	{
-		fingerprint["leaf"][pcFile] = gpFileManager->GetFingerprint(cacheLeafDirectory / pcFile);
+		fingerprint["leaf"][pcFile] = gpFileManager->GetSharedCacheFingerprint(cacheLeafDirectory / pcFile);
 	}
 	for (const char* pcFile : kpcRouteInputs)
 	{
-		fingerprint["route"][pcFile] = gpFileManager->GetFingerprint(cacheRouteDirectory / pcFile);
+		fingerprint["route"][pcFile] = gpFileManager->GetSharedCacheFingerprint(cacheRouteDirectory / pcFile);
 	}
 	return fingerprint.dump();
 }

@@ -32,6 +32,7 @@ public:
 	bool mbForbidExpensiveExport = false;
 
 	std::string GetFingerprint(const std::filesystem::path& rPath);
+	std::string GetSharedCacheFingerprint(const std::filesystem::path& rPath);
 	EnsureLocalResult EnsureLocal(OutputRoot eRoot);
 	std::filesystem::path GetAttributionDirectory() const;
 
