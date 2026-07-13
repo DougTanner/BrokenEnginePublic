@@ -29,16 +29,12 @@ private:
 
 	struct GitIndexEntry
 	{
-		FileSnapshot snapshot;
 		std::string blobId;
-	};
-
-	struct GitCandidate
-	{
-		std::filesystem::path path;
-		std::string key;
-		std::string blobId;
-		FileSnapshot snapshot;
+		uintmax_t uiSize = 0;
+		int64_t iChangeTimeSeconds = 0;
+		int64_t iChangeTimeNanoseconds = 0;
+		int64_t iLastWriteTimeSeconds = 0;
+		int64_t iLastWriteTimeNanoseconds = 0;
 	};
 
 	std::string GetUnlocked(const std::filesystem::path& rPath);
@@ -47,6 +43,7 @@ private:
 	void LoadGitIndex(const std::filesystem::path& rRepositoryRoot);
 
 	static FileSnapshot Snapshot(const std::filesystem::path& rPath);
+	static bool MatchesGitIndex(const FileSnapshot& rSnapshot, const GitIndexEntry& rGitEntry);
 	static std::string PathKey(const std::filesystem::path& rPath);
 
 	std::mutex mMutex;

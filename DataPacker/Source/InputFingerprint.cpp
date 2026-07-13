@@ -202,7 +202,7 @@ std::string InputFingerprintCache::GetFile(const std::filesystem::path& rPath)
 
 		std::string fingerprint;
 		auto gitIterator = mGitIndex.find(key);
-		if (gitIterator != mGitIndex.end() && gitIterator->second.snapshot == snapshot)
+		if (gitIterator != mGitIndex.end() && MatchesGitIndex(snapshot, gitIterator->second))
 		{
 			fingerprint = gitIterator->second.blobId;
 		}
@@ -254,7 +254,43 @@ void InputFingerprintCache::LoadGitIndex(const std::filesystem::path& rRepositor
 		return;
 	}
 
-	std::wstring parameters = L" -C \"" + rRepositoryRoot.native() + L"\" ls-files --stage -z";
+	auto LoadDirtyPaths = [&](std::unordered_set<std::string>& rDirtyPaths)
+	{
+		std::wstring parameters = L" -C \"" + rRepositoryRoot.native() + L"\" diff-files --name-only --ignore-submodules=all -z";
+		common::ExecutableResult result = common::RunExecutable(*gitExecutable, parameters);
+		if (result.miExitCode != 0)
+		{
+			return false;
+		}
+
+		size_t uiEntryStart = 0;
+		while (uiEntryStart < result.mOutput.size())
+		{
+			size_t uiEntryEnd = result.mOutput.find('\0', uiEntryStart);
+			if (uiEntryEnd == std::string::npos)
+			{
+				return false;
+			}
+			rDirtyPaths.emplace(PathKey(rRepositoryRoot / std::filesystem::path(std::string(result.mOutput.data() + uiEntryStart, uiEntryEnd - uiEntryStart))));
+			uiEntryStart = uiEntryEnd + 1;
+		}
+		return true;
+	};
+
+	std::unordered_set<std::string> dirtyPaths;
+	try
+	{
+		if (!LoadDirtyPaths(dirtyPaths))
+		{
+			return;
+		}
+	}
+	catch (const std::exception&)
+	{
+		return;
+	}
+
+	std::wstring parameters = L" -C \"" + rRepositoryRoot.native() + L"\" ls-files --stage --debug -z";
 	common::ExecutableResult result;
 	try
 	{
@@ -271,7 +307,7 @@ void InputFingerprintCache::LoadGitIndex(const std::filesystem::path& rRepositor
 		return;
 	}
 
-	std::vector<GitCandidate> candidates;
+	std::unordered_map<std::string, GitIndexEntry> gitIndex;
 	size_t uiEntryStart = 0;
 	while (uiEntryStart < result.mOutput.size())
 	{
@@ -292,71 +328,86 @@ void InputFingerprintCache::LoadGitIndex(const std::filesystem::path& rRepositor
 		std::string blobId;
 		int64_t iStage = -1;
 		headerStream >> mode >> blobId >> iStage;
+		if (!headerStream || blobId.size() != 40)
+		{
+			return;
+		}
+		size_t uiDebugEnd = result.mOutput.find("\tflags: ", uiEntryStart);
+		size_t uiNextHeaderEnd = result.mOutput.find('\0', uiEntryStart);
+		if (uiDebugEnd == std::string::npos || (uiNextHeaderEnd != std::string::npos && uiNextHeaderEnd < uiDebugEnd))
+		{
+			return;
+		}
+		uiDebugEnd = result.mOutput.find('\n', uiDebugEnd);
+		if (uiDebugEnd == std::string::npos)
+		{
+			return;
+		}
+		std::string debug(result.mOutput.data() + uiEntryStart, uiDebugEnd - uiEntryStart);
+		uiEntryStart = uiDebugEnd + 1;
 		if (iStage != 0 || (mode != "100644" && mode != "100755"))
 		{
 			continue;
 		}
-		std::filesystem::path path = rRepositoryRoot / std::filesystem::path(std::string(entry.substr(uiTab + 1)));
-		std::error_code error;
-		if (!std::filesystem::is_regular_file(path, error))
+
+		int64_t iLastWriteTimeSeconds = 0;
+		int64_t iLastWriteTimeNanoseconds = 0;
+		int64_t iChangeTimeSeconds = 0;
+		int64_t iChangeTimeNanoseconds = 0;
+		uintmax_t uiSize = 0;
+		size_t uiChangeTime = debug.find("  ctime: ");
+		size_t uiModifiedTime = debug.find("\n  mtime: ");
+		size_t uiFileSize = debug.find("\n  size: ");
+		if (uiChangeTime == std::string::npos || uiModifiedTime == std::string::npos || uiFileSize == std::string::npos
+			|| std::sscanf(debug.c_str() + uiChangeTime, "  ctime: %lld:%lld", &iChangeTimeSeconds, &iChangeTimeNanoseconds) != 2
+			|| std::sscanf(debug.c_str() + uiModifiedTime, "\n  mtime: %lld:%lld", &iLastWriteTimeSeconds, &iLastWriteTimeNanoseconds) != 2
+			|| std::sscanf(debug.c_str() + uiFileSize, "\n  size: %llu", &uiSize) != 1)
 		{
-			continue;
+			return;
 		}
-		try
+
+		std::string key = PathKey(rRepositoryRoot / std::filesystem::path(std::string(entry.substr(uiTab + 1))));
+		gitIndex.emplace(std::move(key), GitIndexEntry
 		{
-			candidates.emplace_back(GitCandidate {.path = path, .key = PathKey(path), .blobId = std::move(blobId), .snapshot = Snapshot(path)});
-		}
-		catch (const std::system_error&)
-		{
-			continue;
-		}
+			.blobId = std::move(blobId),
+			.uiSize = uiSize,
+			.iChangeTimeSeconds = iChangeTimeSeconds,
+			.iChangeTimeNanoseconds = iChangeTimeNanoseconds,
+			.iLastWriteTimeSeconds = iLastWriteTimeSeconds,
+			.iLastWriteTimeNanoseconds = iLastWriteTimeNanoseconds,
+		});
 	}
 
-	parameters = L" -C \"" + rRepositoryRoot.native() + L"\" diff-files --name-only --ignore-submodules=all -z";
 	try
 	{
-		result = common::RunExecutable(*gitExecutable, parameters);
+		if (!LoadDirtyPaths(dirtyPaths))
+		{
+			return;
+		}
 	}
 	catch (const std::exception&)
 	{
 		return;
 	}
-	if (result.miExitCode != 0)
+	for (const std::string& rDirtyPath : dirtyPaths)
 	{
-		return;
+		gitIndex.erase(rDirtyPath);
 	}
-	std::unordered_set<std::string> dirtyPaths;
-	uiEntryStart = 0;
-	while (uiEntryStart < result.mOutput.size())
-	{
-		size_t uiEntryEnd = result.mOutput.find('\0', uiEntryStart);
-		if (uiEntryEnd == std::string::npos)
-		{
-			return;
-		}
-		dirtyPaths.emplace(PathKey(rRepositoryRoot / std::filesystem::path(std::string(result.mOutput.data() + uiEntryStart, uiEntryEnd - uiEntryStart))));
-		uiEntryStart = uiEntryEnd + 1;
-	}
-
-	for (GitCandidate& rCandidate : candidates)
-	{
-		if (dirtyPaths.contains(rCandidate.key))
-		{
-			continue;
-		}
-		try
-		{
-			if (Snapshot(rCandidate.path) == rCandidate.snapshot)
-			{
-				mGitIndex.emplace(std::move(rCandidate.key), GitIndexEntry {.snapshot = rCandidate.snapshot, .blobId = std::move(rCandidate.blobId)});
-			}
-		}
-		catch (const std::system_error&)
-		{
-			continue;
-		}
-	}
+	mGitIndex = std::move(gitIndex);
 	LOG(kDefault, kDebug, "Loaded {} Git input fingerprints", mGitIndex.size());
+}
+
+bool InputFingerprintCache::MatchesGitIndex(const FileSnapshot& rSnapshot, const GitIndexEntry& rGitEntry)
+{
+	constexpr int64_t kiWindowsEpochOffsetSeconds = 11'644'473'600;
+	constexpr int64_t kiFileTimeTicksPerSecond = 10'000'000;
+	int64_t iUnixTicks = rSnapshot.iLastWriteTime - kiWindowsEpochOffsetSeconds * kiFileTimeTicksPerSecond;
+	int64_t iUnixChangeTicks = rSnapshot.iChangeTime - kiWindowsEpochOffsetSeconds * kiFileTimeTicksPerSecond;
+	return rSnapshot.uiSize == rGitEntry.uiSize
+		&& iUnixTicks / kiFileTimeTicksPerSecond == rGitEntry.iLastWriteTimeSeconds
+		&& iUnixTicks % kiFileTimeTicksPerSecond * 100 == rGitEntry.iLastWriteTimeNanoseconds
+		&& iUnixChangeTicks / kiFileTimeTicksPerSecond == rGitEntry.iChangeTimeSeconds
+		&& iUnixChangeTicks % kiFileTimeTicksPerSecond * 100 == rGitEntry.iChangeTimeNanoseconds;
 }
 
 InputFingerprintCache::FileSnapshot InputFingerprintCache::Snapshot(const std::filesystem::path& rPath)
