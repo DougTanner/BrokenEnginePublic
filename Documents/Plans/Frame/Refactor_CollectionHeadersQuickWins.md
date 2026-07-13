@@ -24,7 +24,7 @@ Each item is independent and local.
 
 8. **D7 [LOW] — formatter-location doc note.** `CollectionId.h:129-144` hosts `std::formatter<global_id_t>` while `Engine.h` hosts `std::formatter<uuid_t>` / `std::formatter<id_t<T>>`. Add one line in the `Engine.h` formatter comment noting `global_id_t`'s formatter lives with its type in `CollectionId.h` (doc-only; do not move the specialization).
 
-9. **D8 [LOW] — verify then resolve the `MultiCrc` count guard asymmetry.** `MultiCrc` (`Collection.h:33`) guards `if (iCount > 0)` but `MultiWrite` (:60) and `MultiRead` (:85) do not. Verify `common::Crc` zero-count behavior; then either drop the `MultiCrc` guard (if `Crc(ptr, 0)` is well-defined and identity) or add a one-line comment justifying the asymmetry. (If `Frame/Refactor_CollectionMemberVisitor.md` lands first, resolve inside the shared visitor.)
+9. **D8 [LOW] — verify then resolve the `MultiCrc` count guard asymmetry.** `MultiCrc` (`Collection.h:33`) guards `if (iCount > 0)` but `MultiWrite` (:60) and `MultiRead` (:85) do not. Verify `common::Crc` zero-count behavior; then either drop the `MultiCrc` guard (if `Crc(ptr, 0)` is well-defined and identity) or add a one-line comment justifying the asymmetry. (The `MultiCrc`/`MultiWrite`/`MultiRead` bodies already route through the shared `ForEachMemberPointer` visitor (`CollectionMemory.h`), so the guard sits on the current visitor-based `MultiCrc`.)
 
 ## Critical files
 
@@ -37,10 +37,10 @@ Each item is independent and local.
 
 ## Out of scope
 
-- The member-pointer visitor dedup (`Frame/Refactor_CollectionMemberVisitor.md`), copy/zero-init contract, phase-hook redesign, and deserialization memory-safety hardening — separate plans, same files.
+- The copy/zero-init contract, phase-hook redesign, and deserialization memory-safety hardening — separate plans, same files.
 - Any behavioral / CRC / wire / `kiVersion` change (all items are ASSERT-add, comment, or compile-time-identical dedup).
 
 ## Notes
 
 - Items 1 and 9 add a startup ASSERT / possibly remove a redundant guard — verify `common::Crc(ptr, 0)` for item 9 before touching it. Everything else is comment or dead-signal cleanup. No runtime behavior change; no replay/CRC exposure beyond the item-9 guard which must stay byte-identical.
-- Land within the Frame-collections series scheduling (Order.md Dependencies / File Group); refresh citations if `Refactor_CollectionMemberVisitor` lands first (it rewrites the `MultiCrc`/`MultiWrite`/`MultiRead` bodies item 9 cites).
+- Land within the Frame-collections series scheduling (Order.md Dependencies / File Group); item 9 cites the current visitor-based `MultiCrc`/`MultiWrite`/`MultiRead` bodies.

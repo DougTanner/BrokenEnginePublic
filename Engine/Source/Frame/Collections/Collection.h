@@ -34,22 +34,11 @@ common::crc_t MultiCrc(int64_t iCount, TTuple&& members)
 	{
 		std::apply([&](auto&... memberPtrRefs)
 		{
-			// Handle both arrays and single pointers
-			([&]()
+			// Handle both arrays and single pointers via the shared member-pointer visitor.
+			(ForEachMemberPointer(memberPtrRefs, [&](auto& elementPtrRef)
 			{
-				if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
-				{
-					static constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
-					for (size_t i = 0; i < N; ++i)
-					{
-						checksum = (checksum ^ common::Crc(memberPtrRefs[i], iCount)) * common::kCrcMultiplier;
-					}
-				}
-				else
-				{
-					checksum = (checksum ^ common::Crc(memberPtrRefs, iCount)) * common::kCrcMultiplier;
-				}
-			}(), ...);
+				checksum = (checksum ^ common::Crc(elementPtrRef, iCount)) * common::kCrcMultiplier;
+			}), ...);
 		}, std::forward<TTuple>(members));
 	}
 	return checksum;
@@ -61,22 +50,11 @@ void MultiWrite(std::ostream& rStream, int64_t iCount, TTuple&& members)
 {
 	std::apply([&](auto&... memberPtrRefs)
 	{
-		// Handle both arrays and single pointers
-		([&]()
+		// Handle both arrays and single pointers via the shared member-pointer visitor.
+		(ForEachMemberPointer(memberPtrRefs, [&](auto& elementPtrRef)
 		{
-			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
-			{
-				static constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
-				for (size_t i = 0; i < N; ++i)
-				{
-					common::Write(rStream, memberPtrRefs[i], iCount);
-				}
-			}
-			else
-			{
-				common::Write(rStream, memberPtrRefs, iCount);
-			}
-		}(), ...);
+			common::Write(rStream, elementPtrRef, iCount);
+		}), ...);
 	}, std::forward<TTuple>(members));
 }
 
@@ -86,22 +64,11 @@ void MultiRead(std::istream& rStream, int64_t iCount, TTuple&& members)
 {
 	std::apply([&](auto&... memberPtrRefs)
 	{
-		// Handle both arrays and single pointers
-		([&]()
+		// Handle both arrays and single pointers via the shared member-pointer visitor.
+		(ForEachMemberPointer(memberPtrRefs, [&](auto& elementPtrRef)
 		{
-			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
-			{
-				static constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
-				for (size_t i = 0; i < N; ++i)
-				{
-					common::Read(rStream, memberPtrRefs[i], iCount);
-				}
-			}
-			else
-			{
-				common::Read(rStream, memberPtrRefs, iCount);
-			}
-		}(), ...);
+			common::Read(rStream, elementPtrRef, iCount);
+		}), ...);
 	}, std::forward<TTuple>(members));
 }
 

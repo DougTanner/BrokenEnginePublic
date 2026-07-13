@@ -31,7 +31,7 @@ Add a paired-parity check where the paired collections are read (the `FrameBase.
 ## Out of scope
 
 - SOA-index-value validation and the real-stride capacity-byte ceiling — `Frame/CollectionReadIndexHardening.md`.
-- The copy/zero-init contract, member-visitor dedup, and phase-hook redesign (`Frame/Architecture_CollectionCopyContract.md`, `Frame/Refactor_CollectionMemberVisitor.md`, `Frame/Architecture_PhaseHookOptIn.md`) — same files, separate sessions.
+- The copy/zero-init contract and phase-hook redesign (`Frame/Architecture_CollectionCopyContract.md`, `Frame/Architecture_PhaseHookOptIn.md`) — same files, separate sessions.
 - Any wire / `kiVersion` / `.pack` / CRC-format change.
 
 ## Acceptance criteria

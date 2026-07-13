@@ -4,30 +4,50 @@ namespace engine
 {
 
 // ============================================================================
+// MEMBER-POINTER VISITOR
+// ============================================================================
+// Resolves the "member is a C-array-of-pointers T* pp[N] vs a single pointer T*" branch exactly once.
+// Array members visit each element-pointer reference member[i] in order 0 .. N-1; single-pointer members
+// invoke fn once on the member-pointer reference. Visitation order is CRC- and layout-load-bearing.
+// fn receives a reference to the element pointer so assign/reset/swap callers can mutate it, carrying the
+// member's const-ness. Where fn needs the element size, derive it as
+// std::remove_pointer_t<std::remove_reference_t<decltype(elementPtrRef)>> — strip the reference *before*
+// the pointer; remove_pointer_t on the reference type is a no-op and yields sizeof(pointer) (8).
+
+template <typename TMember, typename TFn>
+constexpr void ForEachMemberPointer(TMember& member, TFn&& fn)
+{
+	if constexpr (std::is_array_v<TMember>)
+	{
+		constexpr size_t N = std::extent_v<TMember>;
+		for (size_t i = 0; i < N; ++i)
+		{
+			fn(member[i]);
+		}
+	}
+	else
+	{
+		fn(member);
+	}
+}
+
+// ============================================================================
 // SIZE CALCULATION HELPER
 // ============================================================================
 // Calculate buffer size needed for a member (array or single pointer).
 
 template <typename T>
-constexpr int64_t CalculateBufferSize(int64_t iCapacity, [[maybe_unused]] const T& member)
+constexpr int64_t CalculateBufferSize(int64_t iCapacity, const T& member)
 {
 	ASSERT(iCapacity >= 0);
 
-	if constexpr (std::is_array_v<T>)
+	int64_t iBufferSize = 0;
+	ForEachMemberPointer(member, [&](auto& elementPtrRef)
 	{
-		// Array case: sum size for all array elements
-		constexpr size_t N = std::extent_v<T>;
-		using ElementPtrType = std::remove_extent_t<T>;
-		using ElementType = std::remove_pointer_t<ElementPtrType>;
-
-		return N * common::RoundUp<int64_t, 64>(iCapacity * sizeof(ElementType));
-	}
-	else
-	{
-		// Single pointer case
-		using ElementType = std::remove_pointer_t<T>;
-		return common::RoundUp<int64_t, 64>(iCapacity * sizeof(ElementType));
-	}
+		using ElementType = std::remove_pointer_t<std::remove_reference_t<decltype(elementPtrRef)>>;
+		iBufferSize += common::RoundUp<int64_t, 64>(iCapacity * sizeof(ElementType));
+	});
+	return iBufferSize;
 }
 
 // ============================================================================
@@ -39,68 +59,34 @@ constexpr int64_t CalculateBufferSize(int64_t iCapacity, [[maybe_unused]] const 
 template <typename T>
 void AssignAligned(T& member, int64_t iCapacity, std::byte*& rpCurrent)
 {
-	if constexpr (std::is_array_v<T>)
+	ForEachMemberPointer(member, [&](auto& elementPtrRef)
 	{
-		// Array case: assign each array element
-		constexpr size_t N = std::extent_v<T>;
-		using ElementPtrType = std::remove_extent_t<T>;
+		using ElementPtrType = std::remove_reference_t<decltype(elementPtrRef)>;
 		using ElementType = std::remove_pointer_t<ElementPtrType>;
-
-		for (size_t i = 0; i < N; ++i)
-		{
-			rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
-			member[i] = reinterpret_cast<ElementPtrType>(rpCurrent);
-			rpCurrent += iCapacity * sizeof(ElementType);
-		}
-	}
-	else
-	{
-		// Single pointer case
-		using ElementType = std::remove_pointer_t<T>;
 		rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
-		member = reinterpret_cast<T>(rpCurrent);
+		elementPtrRef = reinterpret_cast<ElementPtrType>(rpCurrent);
 		rpCurrent += iCapacity * sizeof(ElementType);
-	}
+	});
 }
 
 // Aligns pointer, copies existing data, and advances current position. Used during capacity growth.
 template <typename T>
 void AssignAndCopyAligned(T& member, int64_t iCapacity, int64_t iCount, std::byte*& rpCurrent)
 {
-	if constexpr (std::is_array_v<T>)
+	ForEachMemberPointer(member, [&](auto& elementPtrRef)
 	{
-		// Array case: copy and assign each array element
-		constexpr size_t N = std::extent_v<T>;
-		using ElementPtrType = std::remove_extent_t<T>;
+		using ElementPtrType = std::remove_reference_t<decltype(elementPtrRef)>;
 		using ElementType = std::remove_pointer_t<ElementPtrType>;
-
-		for (size_t i = 0; i < N; ++i)
-		{
-			rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
-
-			if (member[i] != nullptr)
-			{
-				std::memcpy(rpCurrent, member[i], iCount * sizeof(ElementType));
-			}
-
-			member[i] = reinterpret_cast<ElementPtrType>(rpCurrent);
-			rpCurrent += iCapacity * sizeof(ElementType);
-		}
-	}
-	else
-	{
-		// Single pointer case
-		using ElementType = std::remove_pointer_t<T>;
 		rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
 
-		if (member != nullptr)
+		if (elementPtrRef != nullptr)
 		{
-			std::memcpy(rpCurrent, member, iCount * sizeof(ElementType));
+			std::memcpy(rpCurrent, elementPtrRef, iCount * sizeof(ElementType));
 		}
 
-		member = reinterpret_cast<T>(rpCurrent);
+		elementPtrRef = reinterpret_cast<ElementPtrType>(rpCurrent);
 		rpCurrent += iCapacity * sizeof(ElementType);
-	}
+	});
 }
 
 // ============================================================================
@@ -144,24 +130,13 @@ void ResetDataToNull(TStruct& rStruct, TTuple&& members)
 	rStruct.pData.reset();
 	rStruct.iCapacity = 0;
 
-	// Null each member (handle arrays with loop, single pointers directly)
+	// Null each member (array or single pointer) via the shared member-pointer visitor.
 	std::apply([&](auto&... memberPtrRefs)
 	{
-		([&]()
+		(ForEachMemberPointer(memberPtrRefs, [](auto& elementPtrRef)
 		{
-			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
-			{
-				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
-				for (size_t i = 0; i < N; ++i)
-				{
-					memberPtrRefs[i] = nullptr;
-				}
-			}
-			else
-			{
-				memberPtrRefs = nullptr;
-			}
-		}(), ...);
+			elementPtrRef = nullptr;
+		}), ...);
 	}, std::forward<TTuple>(members));
 }
 
@@ -274,22 +249,11 @@ void SwapElement(TStruct& rStruct, int64_t i, TTuple&& members)
 {
 	std::apply([&](auto&... memberPtrRefs)
 	{
-		// Handle both arrays and single pointers
-		([&]()
+		// Handle both arrays and single pointers via the shared member-pointer visitor.
+		(ForEachMemberPointer(memberPtrRefs, [&](auto& elementPtrRef)
 		{
-			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
-			{
-				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
-				for (size_t j = 0; j < N; ++j)
-				{
-					memberPtrRefs[j][i] = memberPtrRefs[j][rStruct.iCount - 1];
-				}
-			}
-			else
-			{
-				memberPtrRefs[i] = memberPtrRefs[rStruct.iCount - 1];
-			}
-		}(), ...);
+			elementPtrRef[i] = elementPtrRef[rStruct.iCount - 1];
+		}), ...);
 	}, std::forward<TTuple>(members));
 }
 
