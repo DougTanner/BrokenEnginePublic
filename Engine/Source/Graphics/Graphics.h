@@ -64,8 +64,8 @@ struct ScreenshotRequest
 	// Set only by the agent screenshot handler: the async save publishes its result JSON to the capture-result slot
 	// (consumed by the deferred-response poll). False for F9 dev saves so they never publish into an agent response.
 	bool bPublishResult = false;
-	// Capture token minted by ResetCaptureResult(); the async save tags its result with it so a stale result from an
-	// abandoned (timed-out/disconnected) capture is not consumed as the response to a newer request. 0 for dev saves.
+	// Capture token minted and made active by ResetCaptureResult(); the async save publishes only while it remains
+	// active, so an overlapping abandoned encoder cannot replace a newer request's result. 0 for dev saves.
 	uint64_t uiCaptureToken = 0;
 };
 
@@ -82,8 +82,8 @@ struct DumpRenderTargetRequest
 	// As ScreenshotRequest::bPublishResult — set only by the agent dump handler so the encode result reaches the
 	// deferred-response poll and no non-agent save is consumed as the response to a concurrent agent capture.
 	bool bPublishResult = false;
-	// As ScreenshotRequest::uiCaptureToken — tags the published result so a stale abandoned-capture result is not
-	// consumed as the response to a newer request. 0 for non-agent dumps.
+	// As ScreenshotRequest::uiCaptureToken — publication succeeds only while this request remains active, so an
+	// overlapping abandoned encoder cannot replace a newer request's result. 0 for non-agent dumps.
 	uint64_t uiCaptureToken = 0;
 };
 

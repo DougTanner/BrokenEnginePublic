@@ -15,13 +15,13 @@ namespace
 {
 
 // Thread-safe hand-off of the finished agent "result" JSON from the async save/encode thread to the main-thread
-// deferred-response poll. Only one capture is in flight at a time (single agent connection). The token guards
-// against cross-talk: a late result from an abandoned capture (timeout/disconnect) carries the old token and is
-// discarded rather than consumed as the response to a newer request.
+// deferred-response poll. There is one active agent request/result slot, but abandoned screenshot and dump encoders
+// may overlap because their independent futures outlive timeout/disconnect. The active token rejects their late
+// publications so they cannot replace the newer request's result.
 std::mutex sCaptureResultMutex;
 std::optional<nlohmann::json> sCaptureResult;
 uint64_t sCaptureTokenNext = 0; // monotonic mint (guarded by sCaptureResultMutex)
-uint64_t sCaptureResultToken = 0; // token tagging the currently-held sCaptureResult
+uint64_t suiCaptureTokenActive = 0; // current request token (guarded by sCaptureResultMutex)
 
 std::u8string PathToU8(const std::filesystem::path& rPath)
 {
@@ -42,20 +42,24 @@ uint64_t ResetCaptureResult()
 {
 	std::unique_lock lock(sCaptureResultMutex);
 	sCaptureResult.reset();
-	return ++sCaptureTokenNext;
+	suiCaptureTokenActive = ++sCaptureTokenNext;
+	return suiCaptureTokenActive;
 }
 
 void SetCaptureResult(uint64_t uiCaptureToken, nlohmann::json result)
 {
 	std::unique_lock lock(sCaptureResultMutex);
+	if (uiCaptureToken != suiCaptureTokenActive)
+	{
+		return;
+	}
 	sCaptureResult = std::move(result);
-	sCaptureResultToken = uiCaptureToken;
 }
 
 std::optional<nlohmann::json> TakeCaptureResult(uint64_t uiCaptureToken)
 {
 	std::unique_lock lock(sCaptureResultMutex);
-	if (!sCaptureResult.has_value() || sCaptureResultToken != uiCaptureToken)
+	if (uiCaptureToken != suiCaptureTokenActive || !sCaptureResult.has_value())
 	{
 		return std::nullopt;
 	}

@@ -96,15 +96,16 @@ Steps:
 6. If the user picks a library, **stop grilling the hand-rolled plan** and either return control to the calling context (nothing left to implement) or pivot to a short integration plan covering: vendoring location, build wiring (`ThirdParty.vcxproj` + filters), namespace / header isolation, and which engine call sites swap over.
 7. If the user confirms hand-roll, record the rejection reason in a not-yet-approved plan file ("Considered <lib>, rejected because <reason>") and continue to the standard branches. For an approved plan, include that exact addition in the proposed delta without editing.
 
-## Bug-Fix Pre-Step (Hypothesis Ranking)
+## Bug-Fix Pre-Step (Internal Hypothesis Ranking)
 
 When the loaded plan is a bug fix or regression diagnosis (filename starts with `Bugfix_`, or the plan describes a broken behavior), prepend the following to the workflow above — **before** walking the engine-specific branches:
 
 1. From the plan's symptom description, generate **3–5 ranked falsifiable hypotheses** for the cause. Each hypothesis must state a prediction:
    > "If `<X>` is the cause, then changing `<Y>` will make the bug disappear / changing `<Z>` will make it worse."
 2. If a hypothesis cannot be stated as a prediction, it's a vibe — discard or sharpen it.
-3. **Present the ranked list to the user before grilling implementation details.** The user often has context that instantly re-ranks ("we just changed #3 yesterday") or rules out hypotheses already disproven. Cheap checkpoint, big time saver.
-4. Once the user confirms or re-ranks, proceed to the standard engine-specific interrogation branches with the leading hypothesis as the working assumption.
+3. Verify and rank the hypotheses from repository evidence, logs, and supplied diagnostics. Keep the ranking internal when the leading cause is already confirmed unambiguously and the alternatives are disproven or do not change the implementation plan.
+4. Surface hypotheses to the user only when their knowledge is required to choose between two or more still-plausible causes that would materially change the fix or verification strategy. Ask the narrow unresolved factual question; do not ask the user to approve, confirm, or re-rank an analysis the repository already resolves.
+5. Proceed to the standard engine-specific interrogation branches with the evidence-backed leading hypothesis as the working assumption. Record any unresolved causal ambiguity in the plan.
 
 Skip this pre-step for refactor / debt / capability plans — those have no "cause" to hypothesize about; the standard interrogation branches cover them directly.
 
