@@ -17,6 +17,7 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 - Subagent packets: CONCISE, COMPLETE, and fresh — objective, scope, baseline, relevant residuals/handoffs, file paths, output format; use a fresh Claude prompt or Codex `fork_turns:"none"` without breaking the residual chain.
 - Before repository mutation, invoke /prepare-session-worktree. One top-level session owns one worktree and fixed start commit for its full plan lifecycle; every subagent shares that checkout and baseline
 - Claude Code and Codex CLI may each manage the complete process; client-specific mechanics stay in the owning skill with an equivalent for the other client.
+- Start repository-changing sessions through `.claude/claude-worktree.sh` or `.codex/codex-worktree.ps1`; both provision stable primary ThirdParty sources and prebuilt Output before launch and preserve partial artifacts on failure.
 
 ### When to use each model
 

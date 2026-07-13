@@ -16,6 +16,8 @@ Use `%LOCALAPPDATA%\BrokenEngine\AgentCli\v2\AgentCli.exe`. Before the first inv
 $AgentCli = Join-Path $env:LOCALAPPDATA 'BrokenEngine\AgentCli\v2\AgentCli.exe'
 $Version = if (Test-Path -LiteralPath $AgentCli) { & $AgentCli --version }
 if ($Version -ne '2') {
+	& "$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot $ROOT
+	if ($LASTEXITCODE -ne 0) { throw "ThirdParty provisioning failed: $LASTEXITCODE" }
 	$MSBuild = 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe'
 	if (-not (Test-Path -LiteralPath $MSBuild)) {
 		$VSWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -36,8 +38,10 @@ This direct build is only bootstrap/recovery. All normal builds, including later
 
 - Default: BrokenEngineSandbox client Debug.
 - If any changed file is shared (`Common/`, `Engine/`, or non-exclusive game code), build both client and server.
-- ThirdParty builds only on explicit request or a missing ThirdParty-library link failure.
+- ThirdParty builds only on explicit request. Missing source or library links are provisioning failures; never rebuild ThirdParty automatically.
 - DataPacker builds Release only. AgentCli still supplies the normal worktree-local target serialization; DataPacker's `"BrokenEngineDataPacker"` mutex remains the only PC-global coordination exception.
+
+Before any AgentCli, DataPacker, client, or server build, invoke `$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1 -RepositoryRoot $ROOT` and stop on failure. Validated stable primary submodule trees and shared prebuilt Output are the only exception to worktree-local build artifacts.
 
 The manager must supply three immutable lifecycle values: `$PRIMARY` (absolute primary checkout), `$ROOT` (absolute adopted session worktree), and `$BASELINE` (fixed session-start commit). Do not rediscover the primary checkout or move the baseline. Canonicalize both paths, require distinct directories with the same `git rev-parse --git-common-dir`, and never build in `$PRIMARY`. Missing or inconsistent lifecycle metadata is a hard stop. `Build/`, `Output/`, and `.claude/build-locks/` are worktree-local; do not share or seed them between worktrees. Accept the first cold C++/PCH build.
 

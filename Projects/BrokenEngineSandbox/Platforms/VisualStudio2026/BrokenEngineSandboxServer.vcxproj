@@ -150,9 +150,9 @@
       <Outputs Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">true</Outputs>
     </CustomBuildStep>
     <PreBuildEvent>
-      <Command>if not EXIST "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" (
-    "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.sln" /Build "$(Configuration)|x64" /project "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.vcxproj"
-)
+      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(DataRepositoryRoot)\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot "$(DataRepositoryRoot)"
+if errorlevel 1 exit /b %errorlevel%
+if not EXIST "$(DataRepositoryRoot)\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" ( echo Required ThirdParty.$(Configuration).lib is missing after provisioning. 1&gt;&amp;2 &amp; exit /b 1 )
 if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(DataRepositoryIsLinkedWorktree)"=="True" (
     "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.vcxproj"
 )
@@ -215,9 +215,9 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
       <Outputs Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">true</Outputs>
     </CustomBuildStep>
     <PreBuildEvent>
-      <Command>if not EXIST "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" (
-    "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.sln" /Build "$(Configuration)|x64" /project "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.vcxproj"
-)
+      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(DataRepositoryRoot)\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot "$(DataRepositoryRoot)"
+if errorlevel 1 exit /b %errorlevel%
+if not EXIST "$(DataRepositoryRoot)\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" ( echo Required ThirdParty.$(Configuration).lib is missing after provisioning. 1&gt;&amp;2 &amp; exit /b 1 )
 if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(DataRepositoryIsLinkedWorktree)"=="True" (
     "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.vcxproj"
 )
@@ -284,9 +284,9 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
       <Outputs Condition="'$(DataBuildMode)'=='Local' and '$(RunDataPacker)'=='true'">true</Outputs>
     </CustomBuildStep>
     <PreBuildEvent>
-      <Command>if not EXIST "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" (
-    "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.sln" /Build "$(Configuration)|x64" /project "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.vcxproj"
-)
+      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(DataRepositoryRoot)\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot "$(DataRepositoryRoot)"
+if errorlevel 1 exit /b %errorlevel%
+if not EXIST "$(DataRepositoryRoot)\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" ( echo Required ThirdParty.$(Configuration).lib is missing after provisioning. 1&gt;&amp;2 &amp; exit /b 1 )
 if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(DataRepositoryIsLinkedWorktree)"=="True" (
     "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.vcxproj"
 )

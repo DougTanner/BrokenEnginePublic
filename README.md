@@ -43,10 +43,11 @@ The suggested launch commands below bypass permission prompts and other safeguar
 	irm https://claude.ai/install.ps1 | iex
 	```
 - Close and reopen the terminal, then verify the installation with `claude --version`.
-- Git for Windows is recommended on native Windows. From a Git Bash tab inside Windows Terminal, opened at the repository root, launch Claude Code in an isolated, automatically named worktree:
+- Git for Windows is recommended on native Windows. From Git Bash at the repository root, use the provisioned-worktree wrapper:
 	```bash
-	claude --dangerously-skip-permissions --worktree
+	./.claude/claude-worktree.sh
 	```
+- It validates stable primary ThirdParty source and prebuilt-library links before launch. Direct `claude --dangerously-skip-permissions --worktree` is an unprovisioned fallback.
 
 ### Codex CLI
 
@@ -60,7 +61,7 @@ The suggested launch commands below bypass permission prompts and other safeguar
 	. .\.codex\codex-worktree.ps1
 	codex-worktree
 	```
-- `codex-worktree` creates branch `codex/<uuid>`, stores the worktree under `~/.codex/worktrees/<repository>/<uuid>`, and launches Codex with `--dangerously-bypass-approvals-and-sandbox`.
+- `codex-worktree` creates branch `codex/<uuid>`, stores the worktree under `~/.codex/worktrees/<repository>/<uuid>`, validates the same ThirdParty links, and launches Codex with `--dangerously-bypass-approvals-and-sandbox`. Both wrappers preserve partial artifacts on provisioning failure.
 - **Fable-unavailable fallback (Claude Code → Codex/Sol):** per the global model-fallback rule in `AGENTS.md`, when Fable is unavailable or over limit Claude Code runs delegated reviewer/auditor roles on Codex/Sol headless via `codex exec` — helper `.codex/codex-review.ps1`, driven by the `/codex-review` skill — instead of Fable, falling back to Opus if Codex is also unavailable. Codex bills the ChatGPT subscription, not metered API credits. Claude Code only: under the Fable→Sol mapping Codex is already Sol, so Codex never calls this.
 
 ## Compile

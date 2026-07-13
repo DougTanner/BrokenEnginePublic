@@ -59,6 +59,13 @@ recorded session worktree. Git shape, branch names, directory names, and
 ancestry do not prove ownership; block a linked checkout with no affirmative
 provenance rather than risk adopting another session's worktree.
 
+Supported wrappers provide the complete `BROKEN_ENGINE_WORKTREE_PATH`,
+`BROKEN_ENGINE_SESSION_BRANCH`, `BROKEN_ENGINE_PRIMARY_CHECKOUT`,
+`BROKEN_ENGINE_TARGET_BRANCH`, and `BROKEN_ENGINE_BASELINE` environment schema.
+Treat it as provenance only when all values exactly match canonical registered
+paths, branches, primary target, baseline, and ancestry. Mismatches block
+adoption; Git remains authoritative.
+
 1. Require an attached session branch, clean status, no in-progress Git
    operation, and no other registered worktree using that branch.
 2. Require the primary checkout path, target branch, and primary `HEAD` to be

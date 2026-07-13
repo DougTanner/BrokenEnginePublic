@@ -2,6 +2,8 @@
 
 Asset preprocessing tool that converts raw assets (textures, models, shaders, audio) into optimized binary formats for runtime loading.
 
+The vcxproj provisions ThirdParty before linking and requires the prebuilt configuration library. Linked worktrees consume validated stable primary submodule trees and prebuilt Output; failures never trigger a nested ThirdParty build.
+
 ## Architecture
 
 Main.cpp orchestrates a multi-phase pipeline: a one-shot migration of legacy `.BC[457]_UNORM_BLOCK` / `.R16_UNORM` intermediates to the current magic-prefixed format (idempotent via the `kiTextureIntermediateMagic` byte-0 check; BCn files get a full decode → re-encode with current RDO knobs, R16 a zlib wrap), then pre-export (Scene, a Gaea bake of island intermediates, Islands) generates intermediates, offline IBL cubemap convolution runs next, main export processes the remaining asset types (every type runs even if an earlier one failed; each type's job failures combine into one MessageBox), then header generation and ThirdParty attribution collection. The Gaea bake is a separate step (not an `ExportJob`) that shells out to `Gaea.Swarm.exe` once per dirty route per island, parses the resulting heightmap / textures / mesh, and splits each into per-chunk leaves in the shared cache. The bake/split orchestration — route table, archetype patching, elevation scaling, auto-crop, mesh subdivision — is documented in the two paragraphs below (the bake TUs live in `ExportJobs/Island/`); cache ownership, the two-stage dirty sentinels, leaf rejection, and the `ExportIsland` chunk consumer are documented in `ExportJobs/AGENTS.md`.

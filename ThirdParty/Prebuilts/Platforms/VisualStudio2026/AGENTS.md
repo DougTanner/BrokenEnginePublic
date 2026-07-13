@@ -12,9 +12,9 @@ Solution and project that compile all compiled third-party library source into a
 - **Defines**: `USING_XINPUT`, `VK_NO_PROTOTYPES`, `VK_USE_PLATFORM_WIN32_KHR`
 - **Requires**: `VK_SDK_PATH` environment variable for Vulkan SDK headers
 
-## Consumer Auto-Build
+## Consumer Provisioning
 
-The client, server, and DataPacker vcxprojs carry a PreBuildEvent that builds this solution only when `Output/ThirdParty.$(Configuration).lib` is missing. Changing third-party sources or this vcxproj does not trigger a consumer rebuild — build this solution manually (or delete the lib) after such changes.
+Supported launchers link stable primary submodule trees and primary `Output/` into linked worktrees. Consumer PreBuildEvents provision and require `Output/ThirdParty.$(Configuration).lib`; they never build ThirdParty. Primary Debug, Profile, and Release libraries must remain nonempty while worktrees are active. Rebuild only as explicit primary maintenance.
 
 ## Source Organization
 
