@@ -10,6 +10,8 @@ allowed-tools: [Read, Write, Grep, Glob, Agent, Edit, PowerShell, AskUserQuestio
 
 Reconciles orphaned plan files on disk into `Documents/Plans/Order.md`, then walks the `## Plans` table, picks the top-priority unblocked plan, verifies it still describes a real problem in the current code, refreshes stale line numbers or paths, scans the codebase for similar changes the plan may have missed, audits and grills the plan up front, and presents a ready-to-execute plan for explicit user approval.
 
+All requirements are outcome-first. Delegate with a self-contained fresh Claude prompt or Codex `fork_turns:"none"`; edit/search/run commands through Claude's local tools or Codex's local shell/edit tools; present the complete plan as ordinary transcript text; request approval through Claude `AskUserQuestion`, Codex `request_user_input`, or a direct blocking question when that UI is unavailable.
+
 ## Preconditions
 
 - The skill assumes **bypass-permissions** mode and mutates without further confirmation: it inserts orphan rows (Step 0), atomically creates the target's PC-global claim and mirrors `[CLAIMED <date>]` locally (Step 2), and overwrites the plan file with the synthesis (Step 7). Row/file cleanup and owner-checked claim release happen only through Step 8. User approval is requested only on the final synthesized plan.
@@ -300,6 +302,8 @@ The `AskUserQuestion` is a single question along the lines of:
 If the `## Additional candidate locations` section contains any **Surfaced** entries (only those the Step 6 extension-review gate flagged as carrying new invariant exposure, needing a design decision, or unconfirmable — everything else was auto-folded), ask the user whether to fold them into the execution scope, defer them to a follow-up plan, or ignore them. Use a separate `AskUserQuestion` call (or a multi-select question) so the approval decision and the scope-expansion decision are tracked independently. Do **not** ask about auto-folded candidates — those are already in `## Execution steps` by design; just mention them in the presentation so the user can veto if they disagree, but don't gate on it. Because the review gate now clears the routine cases automatically, the Surface set is usually empty — when it is (or when every candidate was auto-folded), skip the scope-expansion question entirely.
 
 If the user picks `Approve`, follow the standard C++ Code Change Process defined in the top-level `AGENTS.md`, **starting from step 2 (implementation)** — step 1 (audit and grill) already ran in 9a. Carry the user's decisions on additional candidates into the process and proceed straight into the edit in the same turn. After step 11, execute Step 8's coordinated queue cleanup and invoke `/finalize-changes` with the plan claim locator and owner.
+
+After approval, subagents treat this canonical plan as immutable. A discovered change to behavior, scope, acceptance criteria, architecture, or verification obligations returns an exact material plan delta without editing; main requests explicit approval of that delta, applies it to the canonical plan only after approval, and then continues with the approved-delta summary. Non-material corrections must not alter those dimensions.
 
 If the user picks `Reject`, follow Step 8's rejection route: strip this session's `[CLAIMED <date>] ` mirror, keep the refined plan file and row queued, review the changes, then invoke `/finalize-changes` with the plan claim locator and owner. If landing fails, retain the claim and session worktree/branch and report it.
 

@@ -21,12 +21,15 @@ Resolve only the accepted failures assigned by the caller. The main agent owns f
 Require the caller to provide:
 
 - **Mode**: `fix` or `independent-verify`
+- Caller classification: **Intent** (`conformance` or `plan_delta`) and **Scope** (`non_structural` or `structural`)
 - Accepted finding or failure evidence, including affected file/region and expected behavior
 - Plan document or concise intent summary
 - Assigned file/function scope and session-start baseline
 - Required verification, if the process already prescribes one
 
 If an input is missing, reconstruct it from the prompt and current worktree only when unambiguous. Otherwise report the item unresolved rather than choosing new scope or intent.
+
+Fix mode accepts only `conformance + non_structural`. Return `PLAN DELTA REQUIRED` without editing if the fix would change approved behavior, scope, acceptance criteria, or verification obligations. Route structural work to step 11. If the user explicitly expands current scope, main updates the canonical plan and sends the work back through `/implement-plan`; structural work never enters fix mode. Delegation is client-neutral: use a self-contained fresh Claude prompt or Codex `fork_turns:"none"`, preserving baseline, classification, and residuals.
 
 ## Fix Mode
 
@@ -59,7 +62,7 @@ Do not expand into a general review. A new issue outside the fixed regions is a 
 
 ## Authority and Boundaries
 
-Use this intent order when sources disagree: explicit user statement, post-grill plan, AGENTS.md/docs/comments, current behavior. Name any contradiction and which source controls; do not silently reconcile it.
+Use this intent order when sources disagree: explicit user statement, final approved plan plus approved deltas, AGENTS.md/docs/comments, current behavior. Name any contradiction and which source controls; do not silently reconcile it.
 
 Treat repository-internal inputs as valid unless the finding concerns a trust boundary. Never remove working behavior to make a check pass without explicit user approval.
 

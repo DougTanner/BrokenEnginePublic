@@ -14,14 +14,16 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 ### Subagents
 
 - Main session is manager: delegate aggressively to keep the context small, except trivial edits
-- Subagent instructions: CONCISE but COMPLETE — objective, scope, file paths, output format. Provide them only with the instructions and context they need.
+- Subagent packets: CONCISE, COMPLETE, and fresh — objective, scope, baseline, relevant residuals/handoffs, file paths, output format; use a fresh Claude prompt or Codex `fork_turns:"none"` without breaking the residual chain.
 - Before repository mutation, invoke /prepare-session-worktree. One top-level session owns one worktree and fixed start commit for its full plan lifecycle; every subagent shares that checkout and baseline
+- Claude Code and Codex CLI may each manage the complete process; client-specific mechanics stay in the owning skill with an equivalent for the other client.
 
 ### When to use each model
 
 If you are ChatGPT Codex: Fable -> Sol, Opus -> Terra, Sonnet -> Luna
 
 Fable is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down. IMPORTANT: If Fable is unavailable or its limit has been reached, Claude Code uses /codex-review for delegated reviewer/auditor roles, then Opus if Codex is also unavailable; other Fable roles fall back directly to Opus. Codex uses Opus (Terra).
+Report requested role, actual/fallback executor when known, fallback reason, and whether paired-review model diversity was preserved.
 
 - Code/Web search: Sonnet — must never summarize; return direct quotes, file:line references, or links for the main context to analyze
 - Builds: Sonnet — invoke `/compile`; return status + error/warning lines verbatim
@@ -40,24 +42,24 @@ Main session accumulates every skill's residuals and handoffs, passes them to la
 
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 	- Plans MAY include a Verification section of agent-harness steps (launch, drive, query, screenshot — see the agent-harness skill); optional, so trivial refactors don't gold-plate
-1. Have one Fable subagent invoke /plan-audit on the plan file. The audit is findings-only; the main session validates its findings, then invokes /external-grill-plan with the accepted findings. **When the user has responded to the grill, DO NOT stop or summarize — immediately continue to step 2 in the same turn.**
+1. Have one Fable subagent invoke /plan-audit on the plan file. The audit is findings-only; the main validates its findings, invokes /external-grill-plan, presents the refined not-yet-approved plan, and requests approval. Continue directly to step 2 in the same turn after approval; material changes to an approved plan require exact-delta approval, after which only main updates the canonical plan.
 2. Have Opus subagents invoke /implement-plan, splitting large plans across disjoint file sets. Pass its sweep handoffs to step 3 and review focus areas to steps 4 and 10
 3. Have a Sonnet subagent invoke /update-affected-code with the plan and accumulated step 2 reports
 4. Review and resolve changes:
 	- **a)** Run concurrent /repo-code-review (Fable) and /adversarial-review (Opus) subagents on identical inputs; add /glsl-review (Opus) when shaders changed
-	- **b)** Main session dedupes and adjudicates findings by evidence; delegate external claims to /verify-external-claims (Sonnet) and query the user when authoritative verification remains unresolved
-	- **c)** Send accepted non-structural in-scope fixes to /resolve-findings (Opus); route structural findings through step 11
-5. Use a Sonnet subagent to invoke the /code-style-review skill
+	- **b)** Main dedupes and adjudicates by evidence, classifying Intent (`conformance | plan_delta`) and Scope (`non_structural | structural`); verify external claims before dependent fixes and query the user when authoritative verification remains unresolved
+	- **c)** Send only accepted `conformance + non_structural` fixes to /resolve-findings (Opus); route structural findings through step 11 and plan deltas through user approval
+5. Invoke /code-style-review (Sonnet) when its trigger applies; otherwise record N/A
 6. Use an Opus subagent to invoke the /update-claude-docs skill
-7. Have a Sonnet subagent invoke /update-vcxproj on every file changed this session
-8. Have a Sonnet subagent invoke /compile; send failures to an Opus /resolve-findings subagent
-9. Have an Opus subagent invoke /verify-changes with the plan, fixed session baseline, and all accumulated reports and residuals, then report its result back; continue only on a passing final-tree verification report
+7. Invoke /update-vcxproj (Sonnet) when its trigger applies; otherwise record N/A
+8. Invoke /compile (Sonnet) when its trigger applies; otherwise record N/A; send failures to an Opus /resolve-findings subagent
+9. Have an Opus subagent invoke /verify-changes with the final approved plan, approved-delta summary, fixed session baseline, and all accumulated reports and residuals; continue only on a passing final-tree verification report
 10. Audit the completed change per logical file group:
 	- **a)** Run two concurrent /session-audit subagents (Fable + Opus) on identical inputs
-	- **b)** Main session dedupes findings; send accepted non-structural in-scope fixes to /resolve-findings (Opus) and route structural findings through step 11
+	- **b)** Main dedupes and classifies findings as in step 4; send only `conformance + non_structural` fixes to /resolve-findings (Opus), route structural findings through step 11, and plan deltas through user approval
 	- **c)** Run /compile (Sonnet) on fixed `.cpp` files, then one independent /resolve-findings verification pass (Opus) on fixed regions. Any failure or repository mutation returns to step 9's test -> fix -> retest loop; repeat until the affected ledger entries pass. Do not repeat the paired audits
 11. Have an Opus subagent invoke /create-follow-up-plans for unresolved structural or out-of-scope residuals. Because plan/queue edits mutate the repository, return to step 9 afterward and verify their links, scoring, ordering, overlap metadata, and acceptance coverage
-12. Invoke /finalize-changes; the skill owns final verification, automatic reconciliation (escalating to user sign-off only for genuinely unsafe/ambiguous conflicts), landing, claim release, and completion reporting
+12. Invoke /finalize-changes; it automatically reconciles and reverifies first, then always requires explicit approval of the final landing summary before advancing primary; it owns landing, claim release, and completion reporting
 
 ## Resolving Ambiguity
 
@@ -125,4 +127,4 @@ The agent interaction harness launches and controls the client/server for live v
 
 - **Verify root cause before editing**: state the suspected root cause, then confirm it — either close code inspection shows the bug unambiguously and deterministically, or logs directly evidence it. "I know what the bug is" is not verification.
 - **If uncertain, say so** and re-investigate — never fabricate justifications when challenged.
-- **Authority order when sources disagree** about intended behavior: explicit user statement > plan document (post-grill) > AGENTS.md/docs/comments > current code behavior. Never silently make one side match another — surface the contradiction as a residual (footer line) naming both sides and which was trusted.
+- **Authority order when sources disagree** about intended behavior: explicit user statement > final approved plan plus approved deltas > AGENTS.md/docs/comments > current code behavior. Never silently make one side match another — surface the contradiction as a residual (footer line) naming both sides and which was trusted.

@@ -19,6 +19,7 @@ Interview the user about every aspect of this plan until reaching shared underst
 - Plan file and explicit user intent
 - Accepted `/plan-audit` findings and repository evidence, or none for direct invocation
 - Applicable repository instructions and known constraints
+- Approval state: `not-approved` or `approved`, plus any previously approved delta summary
 
 ## Rules
 - For each question, provide your recommended answer based on codebase exploration
@@ -34,7 +35,7 @@ Interview the user about every aspect of this plan until reaching shared underst
 2. Validate and incorporate supplied findings, then identify all remaining decision points, ambiguities, and unstated assumptions — scan against the Decision-Point Taxonomy below; plans routinely leave these classes implicit
 3. Walk the decision tree in dependency order, batching every set of currently independent branches
 4. Ask the Closing Question (below) as the final interview question
-5. When all branches are resolved, silently update the plan file with the resolved details, then immediately return control to continue the calling workflow's next step — no summary, no "ready to proceed?" prompt, no stop.
+5. For a not-yet-approved plan, update the plan file with the resolved details, then immediately return control so the caller presents it for approval. For an approved plan, do not edit it: return an exact proposed delta and let main decide whether approval remains valid.
 
 ## Decision batching and UI
 
@@ -46,7 +47,7 @@ Interview the user about every aspect of this plan until reaching shared underst
 
 ## Closing Question
 
-After all branches are resolved but before updating the plan file, ask one final question:
+After all branches are resolved but before updating a not-yet-approved plan file or returning an approved-plan delta, ask one final question:
 
 > "The biggest thing I think you may be missing about this situation is: \<X\>."
 
@@ -58,7 +59,7 @@ Derive X by zooming out from the plan. Run these prompts and present the stronge
 4. What invariant surface (CRC, `kiVersion`/`.pack` layout, network protocol, save/replay format, main-loop allocation tracking) does this touch that the plan never mentions?
 5. What does the plan assume about scale that the unbounded world breaks — uncapped entity counts, sparse-cell parallelism, kilometer-scale coordinate magnitudes?
 
-If nothing qualifies, say so and skip — do not invent one. If the user's answer changes anything, fold it into the plan before the silent update.
+If nothing qualifies, say so and skip — do not invent one. If the user's answer changes anything, fold it into a not-yet-approved plan before the silent update; for an approved plan, include it in the exact proposed delta without editing.
 
 ## Decision-Point Taxonomy
 
@@ -93,7 +94,7 @@ Steps:
    - "Hand-roll because <specific reason>" (e.g., need deterministic cross-platform output, license incompatibility, dependency bloat, library missing critical feature)
    - "Wrap library X with thin adapter" (use upstream for the hard part, keep our API)
 6. If the user picks a library, **stop grilling the hand-rolled plan** and either return control to the calling context (nothing left to implement) or pivot to a short integration plan covering: vendoring location, build wiring (`ThirdParty.vcxproj` + filters), namespace / header isolation, and which engine call sites swap over.
-7. If the user confirms hand-roll, record the rejection reason in the plan file ("Considered <lib>, rejected because <reason>") and continue to the standard branches.
+7. If the user confirms hand-roll, record the rejection reason in a not-yet-approved plan file ("Considered <lib>, rejected because <reason>") and continue to the standard branches. For an approved plan, include that exact addition in the proposed delta without editing.
 
 ## Bug-Fix Pre-Step (Hypothesis Ranking)
 
@@ -137,6 +138,8 @@ After all decisions are resolved, give this handoff to the calling context
 without ending the user turn; the caller continues directly into implementation:
 
 ```text
+Plan delta: none | non-material | material
+Exact proposed changes: <none, or precise plan edits; required for an approved plan>
 Files changed:
 - <plan path, or none>
 Functions/regions touched:
@@ -144,3 +147,5 @@ Functions/regions touched:
 Residuals:
 - <unresolved decision or none>
 ```
+
+`Plan delta` describes change relative to the supplied plan state. Before initial approval, plan edits are normal refinement. After approval, `material` means behavior, acceptance criteria, scope, architecture, or verification obligations would change; only main may apply the exact delta after explicit user approval. A non-material correction cannot silently alter those dimensions.

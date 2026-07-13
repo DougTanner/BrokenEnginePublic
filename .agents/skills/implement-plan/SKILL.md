@@ -24,11 +24,11 @@ divergence from the implementing context.
 
 Require these inputs for implementation mode:
 
-- approved plan document or exact intent summary;
+- final approved plan document and explicit approved-delta summary (`none` is valid);
 - assigned plan items and allowed file scope;
 - session worktree and fixed session-start commit;
 - applicable repository instructions;
-- known residuals or focus areas relevant to the slice.
+- complete residual, handoff, and reviewer-focus packet relevant to the slice.
 
 If invoked directly after changes were already made, treat it as audit-only
 mode: derive the touched scope from the caller's change list, edit history, and
@@ -50,6 +50,9 @@ pre-existing worktree changes.
 4. Follow any specialist collection, shader, project, or subsystem skill whose
    trigger applies. Keep generated or mechanical edits within the same assigned
    scope.
+   When nested delegation is required, give Claude a self-contained fresh prompt
+   or set Codex `fork_turns:"none"`; both packets carry the fixed baseline,
+   approved plan/deltas, scope, and complete relevant residual/handoff chain.
 5. Verify the implementation in proportion to the slice. Run focused static
    checks needed to establish that the edit is internally coherent. Delegate
    any build to a Sonnet `/compile` subagent and preserve its status plus error
@@ -58,6 +61,11 @@ pre-existing worktree changes.
 6. Track every file changed and the exact functions, types, sections, or data
    regions touched. Record repeated-pattern changes that need a repository-wide
    exhaustiveness sweep for `/update-affected-code`.
+7. For checks that touch ignored or non-worktree state, follow the owning
+   subsystem contract and report the exact path, owner/serialization mechanism,
+   expected persistence, and outcome. This includes worktree build outputs,
+   Gaea agent cache, DataPacker cache, `.pack`/`.manifest` outputs, and ignored
+   checkout caches; do not invent cleanup or persistence rules outside that owner.
 
 Do not enter implementation mode for an audit-only invocation. Start at the
 self-audit phase and limit fixes to problems confirmed in the existing changes.
