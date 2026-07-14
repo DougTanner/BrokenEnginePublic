@@ -1,7 +1,7 @@
 ---
 name: external-skill-creator
 description: Create new skills and improve existing skills following best practices. Use when users want to create a skill from scratch, edit or revise an existing skill, review a skill for quality, or need guidance on skill structure, frontmatter, descriptions, writing patterns, or progressive disclosure. User-invoked via /external-skill-creator (the disable-model-invocation flag means Claude cannot invoke or chain to this skill).
-allowed-tools: [Read, Write, Edit, Glob, Grep, Agent]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Agent, Bash, PowerShell]
 disable-model-invocation: true
 ---
 
@@ -14,7 +14,7 @@ Help the user create or improve a skill: understand what it should do, then draf
 Sibling skills in this repo follow these conventions — match them when creating a new skill:
 
 - **`external-` prefix** marks explicit-invocation skills (e.g., `external-grill-plan`, `external-design-interface`, `external-deep-analysis`). Most set `disable-model-invocation: true`, but the flag removes the skill from Claude's reach entirely (no auto-trigger, no Skill tool) — set it only when nothing, neither a documented workflow step nor Claude itself, needs programmatic invocation. Two intentional exceptions are `external-grill-plan` (the main agent invokes it during step 1 of the AGENTS.md C++ Code Change Process) and `external-design-interface` (proactively suggests itself, which requires staying in the listing). Locally-created workflow skills such as `implement-plan`, `plan-audit`, and `finalize-changes` omit the prefix and the flag so the process can invoke them. User-only skills without the prefix (e.g., `gaea2-load`, `next-plan`) follow the same rule. Unprefixed proactive skills (e.g., `add-collection`, `repo-code-review`, `compile`) auto-trigger on matching contexts.
-- **Directory layout**: each skill lives at `.claude/skills/<name>/SKILL.md` with optional `references/`, `scripts/`, `assets/` sidecars.
+- **Directory layout**: each skill lives at `.agents/skills/<name>/SKILL.md` with optional `references/`, `scripts/`, `assets/` sidecars; `.claude/skills` exposes the same directory to Claude Code.
 - **Frontmatter style**: `allowed-tools:` uses YAML array syntax `[Read, Edit, Write]` in this repo (the skill schema also accepts space- or comma-separated strings, but the repo is consistent on arrays).
 
 ## Creating a Skill
@@ -103,12 +103,13 @@ All fields are optional. Only `description` is recommended so Claude can decide 
 
 Skills use a three-level loading system:
 1. **Metadata** (name + description) - Always in context (~100 words)
-2. **SKILL.md body** - Loads on invocation and **stays in context for the rest of the session** — every line is a recurring token cost (<500 lines ideal)
+2. **SKILL.md body** - Loads on invocation and **stays in context for the rest of the session** — its entire size is a recurring context cost
 3. **Bundled resources** - Loaded as needed (unlimited size; scripts can execute without being loaded into context)
 
 **Key patterns:**
-- If approaching the 500-line limit, move detail into reference files with clear pointers about when to read them
-- For reference files longer than 100 lines, include a table of contents
+- Measure with `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`; `bt-token-v1` is normalized UTF-8 bytes divided by four, rounded up, not an exact model-token count
+- Consider progressive disclosure above 10,000 bt-token-v1 and target at most 15,000 bt-token-v1 for the SKILL.md body
+- For reference files over 2,000 bt-token-v1, include a table of contents
 
 **Domain organization**: When a skill supports multiple domains/frameworks, organize by variant:
 ```
@@ -212,7 +213,7 @@ When the user asks to review, audit, or evaluate an existing skill, walk this ch
 - `user-invocable: false` is set only for background-knowledge skills the user shouldn't type directly (note: this controls `/` menu visibility, not Skill-tool access — use `disable-model-invocation: true` to actually block model invocation)
 
 **Body quality**
-- SKILL.md body under 500 lines; if longer, detail has been moved to `references/` with clear pointers
+- SKILL.md body targets at most 15,000 bt-token-v1; above 10,000, progressive disclosure has been considered and detail moved to `references/` where useful
 - Instructions use imperative form ("Read the file") not hedged ("You should read…")
 - Heavy-handed MUST/ALWAYS/NEVER only where truly non-negotiable; elsewhere the *why* is explained
 - No narrow overfitting to a single example — instructions generalize to similar cases
@@ -221,7 +222,7 @@ When the user asks to review, audit, or evaluate an existing skill, walk this ch
 **Progressive disclosure**
 - Metadata (name + description) conveys purpose without loading the body
 - Bundled resources (`scripts/`, `references/`, `assets/`) used when content is large, repetitive, or rarely needed
-- Reference files >100 lines include a table of contents
+- Reference files >2,000 bt-token-v1 include a table of contents
 
 **Project fit**
 - Matches conventions of sibling skills in the same repo (naming prefix, subagent model, tool usage)

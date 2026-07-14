@@ -24,17 +24,19 @@ The game Kinetic Storm runs on Broken Engine and is currently available on Steam
 
 ## Git
 
-- **Enable Windows Developer Mode _before_ cloning** (Settings -> System -> For developers -> Developer Mode -> On). This grants the privilege Git needs to create symlinks. Without it, symlinked files check out as plain text files containing the link target instead of working links — notably `.agents/skills`, which points Codex at Claude Code's shared `.claude/skills`, so the shared skills fail to load.
+- **Enable Windows Developer Mode _before_ cloning** (Settings -> System -> For developers -> Developer Mode -> On). This grants the privilege Git needs to create symlinks. Without it, symlinked files check out as plain text files containing the link target instead of working links — notably `.claude/skills`, which points to the repository's canonical tracked `.agents/skills` directory at `../.agents/skills` and exposes those skills to Claude Code.
 - Repository should be cloned with `--recurse-submodules` and symlink support enabled so Codex and Claude Code share the same skills:
 	- With Developer Mode on, clone with `git -c core.symlinks=true clone --recurse-submodules <repository-url>`
 	- Or use "git submodule init" & "git submodule update" after cloning
-	- If you already cloned without Developer Mode, enable it, open a new terminal (so the new privilege takes effect), then re-create the links with `git checkout -- .agents/skills`
+	- If you already cloned without Developer Mode, enable it, open a new terminal (so the new privilege takes effect), then enable symlinks for that clone with `git config core.symlinks true` before restoring the link with `git checkout -- .claude/skills`
 - Consider setting "git config --global core.safecrlf false" to supress warnings about automatic endline conversions
 	- "LF will be replaced by CRLF the next time Git touches it"
 
 ## AI Coding CLIs
 
 The suggested launch commands below bypass permission prompts and other safeguards. Use them only in a repository and environment where that level of access is intentional.
+
+Use separate Windows Terminal profiles for the two clients: run Claude Code from Git Bash (installed with Git for Windows), and run Codex CLI from PowerShell 7. The repository wrappers and command examples use the native syntax of those shells; `pwsh` must also be available to Git Bash for shared PowerShell helpers.
 
 ### Claude Code
 
@@ -47,7 +49,8 @@ The suggested launch commands below bypass permission prompts and other safeguar
 	```bash
 	./.claude/claude-worktree.sh
 	```
-- It validates stable primary ThirdParty source and prebuilt-library links before launch. Direct `claude --dangerously-skip-permissions --worktree` is an unprovisioned fallback.
+- The shared host admits the session before bootstrap, creates and validates the report directory and stable primary dependency links, then tracks Claude for the claim's complete lifetime. On first protocol rollout, explicitly confirm all legacy sessions are closed before initializing coordination state. Do not bypass the wrapper.
+- After that explicit one-time confirmation, initialize from Git Bash with `./.claude/claude-worktree.sh --legacy-sessions-closed`.
 
 ### Codex CLI
 
@@ -58,10 +61,10 @@ The suggested launch commands below bypass permission prompts and other safeguar
 - Close and reopen the terminal, then verify the installation with `codex --version`.
 - From a PowerShell 7 tab inside Windows Terminal, opened at the repository root, load the repository helper and launch Codex in a UUID-named worktree:
 	```powershell
-	. .\.codex\codex-worktree.ps1
-	codex-worktree
+	.\.codex\codex-worktree.ps1
 	```
-- `codex-worktree` creates branch `codex/<uuid>`, stores the worktree under `~/.codex/worktrees/<repository>/<uuid>`, validates the same ThirdParty links, and launches Codex with `--dangerously-bypass-approvals-and-sandbox`. Both wrappers preserve partial artifacts on provisioning failure.
+- After the same explicit one-time confirmation, initialize from PowerShell with `.\.codex\codex-worktree.ps1 -LegacySessionsClosed`.
+- The wrapper creates branch `codex/<uuid>`, stores the worktree under `~/.codex/worktrees/<repository>/<uuid>`, validates the same links and report directory, and launches Codex with `--dangerously-bypass-approvals-and-sandbox`. Both wrappers wait up to 660 seconds while AgentCli maintenance is exclusive, track the client with kill-on-host-close lifetime, propagate its exit code, and preserve partial artifacts on provisioning failure.
 - **Fable-unavailable fallback (Claude Code → Codex/Sol):** per the global model-fallback rule in `AGENTS.md`, when Fable is unavailable or over limit Claude Code runs delegated reviewer/auditor roles on Codex/Sol headless via `codex exec` — helper `.codex/codex-review.ps1`, driven by the `/codex-review` skill — instead of Fable, falling back to Opus if Codex is also unavailable. Codex bills the ChatGPT subscription, not metered API credits. Claude Code only: under the Fable→Sol mapping Codex is already Sol, so Codex never calls this.
 
 ## Compile

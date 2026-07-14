@@ -7,8 +7,6 @@
 // BakeIslandIntermediates downsamples Gaea's full-resolution elevation in-process to this ratio.
 inline constexpr int64_t kiElevationDivisor = 4;
 
-inline constexpr char kpcIslandIntermediatesDir[] = "Intermediates";
-
 inline constexpr char kpcIslandAmbientOcclusion[] = "AmbientOcclusion.BC4_UNORM_BLOCK";
 inline constexpr char kpcIslandColor[] = "Color.BC7_UNORM_BLOCK";
 inline constexpr char kpcIslandMasks[] = "Masks.BC7_UNORM_BLOCK";

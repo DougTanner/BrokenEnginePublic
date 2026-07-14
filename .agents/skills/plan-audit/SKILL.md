@@ -6,8 +6,8 @@ description: >-
   assumptions against the repository, and propose tighter or simpler approaches.
   Runs inside one delegated Fable reviewer; findings only, with no plan/code
   edits, user interview, or further delegation.
-allowed-tools: [Read, Grep, Glob]
-disallowed-tools: [Agent, Write, Edit, Bash, AskUserQuestion]
+allowed-tools: [Read, Write, Grep, Glob]
+disallowed-tools: [Agent, Edit, Bash, AskUserQuestion]
 ---
 
 # Plan Audit
@@ -19,6 +19,15 @@ Assume the supplied plan is flawed. Verify it against the current repository and
 - Plan file and user intent
 - Relevant repository paths and the current changed-file baseline, when available
 - Accumulated constraints or known residuals
+- `ReportPath` when invoked in a delegated subagent
+
+## Reporting Mode
+
+When delegated, require `ReportPath` and follow
+[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
+audit in the existing Output schema, verify it, and return only the compact
+envelope. A missing or unwritable delegated report blocks the audit. A direct
+invocation without `ReportPath` keeps the existing full inline output.
 
 ## Audit
 

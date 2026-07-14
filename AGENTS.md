@@ -8,16 +8,18 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 - **Language**: C++23
 - **Graphics API**: Vulkan 1.2
 - **Platform**: Windows 10+
+- **Agent shells**: Claude Code runs in Git Bash; Codex CLI runs in PowerShell 7. Use native syntax for the owning client and call `pwsh` explicitly when Claude needs a PowerShell script.
 
 ## IMPORTANT: Context management and agent selection
 
 ### Subagents
 
-- Main session is manager: delegate aggressively to keep the context small, except trivial edits
+- Main session is manager: delegate all repository code implementation, including one-line changes; keep planning, evidence adjudication, user decisions, and process management in main
 - Subagent packets: CONCISE, COMPLETE, and fresh — objective, scope, baseline, relevant residuals/handoffs, file paths, output format; use a fresh Claude prompt or Codex `fork_turns:"none"` without breaking the residual chain.
-- Before repository mutation, invoke /prepare-session-worktree. One top-level session owns one worktree and fixed start commit for its full plan lifecycle; every subagent shares that checkout and baseline
+- Delegated process calls use caller-assigned absolute paths under `<session-worktree>/Temp/AgentReports/` and follow [.agents/references/subagent-reporting.md](.agents/references/subagent-reporting.md). Subagents write full evidence there and return only the compact indexed envelope; downstream agents receive report paths instead of pasted reports. Main reads every decision-driving item before adjudication.
+- One top-level wrapper-created session owns one isolated worktree, live AgentCli session claim, fixed start commit, and `Temp/AgentReports/` directory for its full plan lifecycle; every subagent shares that checkout and baseline. The wrapper's five `BROKEN_ENGINE_*` provenance values are authoritative.
 - Claude Code and Codex CLI may each manage the complete process; client-specific mechanics stay in the owning skill with an equivalent for the other client.
-- Start repository-changing sessions through `.claude/claude-worktree.sh` or `.codex/codex-worktree.ps1`; both provision stable primary ThirdParty sources and prebuilt Output before launch and preserve partial artifacts on failure.
+- Start repository-changing sessions only through `.claude/claude-worktree.sh` or `.codex/codex-worktree.ps1`. Their shared PowerShell host acquires AgentCli admission before bootstrap/worktree creation, waits up to 660 seconds against exclusive maintenance, provisions stable primary ThirdParty sources plus immutable primary ThirdParty and AgentCli Output links, creates and verifies `Temp/AgentReports/`, and holds the claim until the tracked client exits. Initial rollout requires explicit confirmation that legacy pre-protocol sessions are closed. Explicitly user-authorized wrapper/AgentCli meta-maintenance may run in the primary checkout; no other repository-changing exception is implied.
 
 ### When to use each model
 
@@ -26,9 +28,9 @@ If you are ChatGPT Codex: Fable -> Sol, Opus -> Terra, Sonnet -> Luna
 Fable is the top tier for judgment roles (manager/planner/reviewer); don't move mechanical roles up to it or these roles down. IMPORTANT: If Fable is unavailable or its limit has been reached, Claude Code uses /codex-review for delegated reviewer/auditor roles, then Opus if Codex is also unavailable; other Fable roles fall back directly to Opus. Codex uses Opus (Terra).
 Report requested role, actual/fallback executor when known, fallback reason, and whether paired-review model diversity was preserved.
 
-- Code/Web search: Sonnet — must never summarize; return direct quotes, file:line references, or links for the main context to analyze
-- Builds: Sonnet — invoke `/compile`; return status + error/warning lines verbatim
-- Large-file/log filtering: Sonnet — return matching lines verbatim
+- Code/Web search: Sonnet — put direct quotes, file:line references, or links in the full report; the envelope indexes every decision-driving result without replacing evidence with a summary
+- Builds: Sonnet — invoke `/compile`; put status plus verbatim error/relevant warning lines in the full report and return the compact routing envelope
+- Large-file/log filtering: Sonnet — put matching lines verbatim in the full report and index the relevant groups in the envelope
 - Planning: Fable
 - New Code: Opus
 - Code edits: Sonnet
@@ -38,8 +40,7 @@ Report requested role, actual/fallback executor when known, fallback reason, and
 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 
-Exception for one-line changes: Make the edit yourself, then do step 3
-Main session accumulates every skill's residuals and handoffs, passes them to later steps, and routes unresolved work through step 11; never drop them silently
+Main session accumulates every skill's report path, indexed residuals, and handoffs, passes the paths to later steps, reads the evidence required for its decisions, and routes unresolved work through step 11; never drop them silently
 
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 	- Plans MAY include a Verification section of agent-harness steps (launch, drive, query, screenshot — see the agent-harness skill); optional, so trivial refactors don't gold-plate
@@ -71,6 +72,7 @@ Main session accumulates every skill's residuals and handoffs, passes them to la
 ## Directives
 
 - Follow KISS, YAGNI, DRY — before writing logic that may already exist, grep; call or extract a shared helper, never paste a copy. Exception: mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel
+- Add backward compatibility only after explicit user consent. Without that consent, keep one current format, path, or behavior and remove obsolete compatibility code.
 - Agent-memory changes invoke /update-claude-docs; edit `AGENTS.md`, never its `CLAUDE.md` import stub
 - **Error handling at trust boundaries only**: assume function parameters from within the codebase are valid — no defensive validation between our own functions. Do validate anything opaque to the current code unit: network input, file reads, OS/third-party API results.
 - **No useless ASSERTs**: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it; prefer making the condition impossible in calling code or recovering gracefully. Resolution ladder: repo-code-review skill §2c.

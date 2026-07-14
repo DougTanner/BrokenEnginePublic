@@ -1,7 +1,7 @@
 ---
 name: glsl-review
 description: Reviews GLSL shader changes (.vert .frag .comp and related stages) for correctness, performance, and Broken Engine conventions. Use this skill after editing shader source under Engine/Data/Shaders/ or Projects/*/Data/Shaders/ to catch NaN/Inf hazards, divergent branching, early-Z regressions, descriptor-set mistakes, scalar-block-layout violations, and the NVIDIA `inverse()` compiler-hang bug. ALSO use proactively when the user asks to review, audit, or verify shader code.
-allowed-tools: [Read, Grep, Glob, WebFetch]
+allowed-tools: [Read, Write, Grep, Glob, WebFetch, Bash, PowerShell]
 paths: ["**/*.vert", "**/*.frag", "**/*.comp", "**/*.geom", "**/*.tesc", "**/*.tese", "**/*.mesh", "**/*.task", "**/*.rgen", "**/*.rmiss", "**/*.rchit", "**/*.rahit", "**/*.rint", "**/*.rcall", "**/*.glsl", "**/Data/Shaders/**/*.h"]
 ---
 
@@ -17,9 +17,23 @@ Sibling to `/repo-code-review` — that skill covers C++; this one covers shader
 
 ### 1. Identify Modified Shaders
 
-Scan the conversation for shader files edited in this session — any `.vert`, `.frag`, `.comp`, `.geom`, `.tesc`, `.tese`, `.mesh`, `.task`, ray-tracing stages (`.rgen` etc.), `.glsl`, and shared headers under `Engine/Data/Shaders/**/*.h` or `Projects/*/Data/Shaders/**/*.h`. Include `ShaderLayoutsBase.h`, `ShaderLayouts.h`, `ShaderFunctions.h`, and any `*Common.h` that shaders `#include`.
+When delegated, load the shader changed-region and focus-area IDs from the
+supplied implementation/affected-code report paths. When invoked directly,
+scan the conversation for shader files edited in this session — any `.vert`,
+`.frag`, `.comp`, `.geom`, `.tesc`, `.tese`, `.mesh`, `.task`, ray-tracing
+stages (`.rgen` etc.), `.glsl`, and shared headers under
+`Engine/Data/Shaders/**/*.h` or `Projects/*/Data/Shaders/**/*.h`. Include
+`ShaderLayoutsBase.h`, `ShaderLayouts.h`, `ShaderFunctions.h`, and any
+`*Common.h` that shaders `#include`.
 
 For each modified file, focus the review on the *changed* regions, but always skim the whole file for nearby interactions that the change may have broken.
+
+When invoked as a subagent, also require `ReportPath` and follow
+[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
+review in the existing Output Format, verify it, and return only the compact
+envelope. Index every finding, API-verification request, and residual. A missing
+or unwritable delegated report blocks the review. A direct invocation without
+`ReportPath` keeps the existing full inline output.
 
 ---
 
@@ -203,8 +217,8 @@ In addition to §4:
 
 ### 8. File-Size and Complexity
 
-- Shaders over ~500 lines: flag as `RECOMMEND` splitting into multiple stages via `#include`d helpers. The repo's convention is one shader per file with shared logic in `ShaderFunctions.h` or subdirectory `*Common.h`.
-- Functions over ~100 lines inside a fragment shader: flag if a natural split exists (lighting term, material evaluation, tone mapping).
+- Shaders over ~5,000 bt-token-v1: flag as `RECOMMEND` splitting into multiple stages via `#include`d helpers. Measure with `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`; `bt-token-v1` is a deterministic normalized-byte estimate, not an exact model-token count. The repo's convention is one shader per file with shared logic in `ShaderFunctions.h` or subdirectory `*Common.h`.
+- Functions over ~1,000 bt-token-v1 inside a fragment shader: flag if a natural split exists (lighting term, material evaluation, tone mapping). Measure the inclusive function range with `-StartLine` and `-EndLine`.
 
 ---
 
@@ -248,7 +262,7 @@ Only include sections where issues were found. Omit empty sections entirely.
 - file:line - Push-constant overflow, missing feature flag, subgroup-op hazard
 
 ### File Size Warnings
-- file (N lines) - [RECOMMEND] split or extract into ShaderFunctions.h
+- file (N bt-token-v1) - [RECOMMEND] split or extract into ShaderFunctions.h
 
 ### API Verification Requests
 - <api/symbol> — <spec URL> — <what to confirm, and which finding depends on it>

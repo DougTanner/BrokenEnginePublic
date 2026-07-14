@@ -2,7 +2,7 @@
 name: external-architecture-review
 description: Performs a multi-perspective architectural review of a codebase area, focusing on *shape* concerns — dependency structure, module depth (Ousterhout), coupling/cohesion, determinism, frame-phase and thread-model alignment, shader-CPU consistency, ThirdParty library-replacement opportunities, and the structural anti-patterns characteristic of iteratively AI-generated code (dead modules, cosmetic/broken abstractions, pattern abandonment, cross-file duplication, inter-module seams). Line-level concerns (complexity, hot-path allocations, bool→Flags, file size) belong to `/external-refactor-clean`, which this skill hands off to. Only invoke when the user explicitly requests it (e.g., "/external-architecture-review", "run an architecture review") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
 disable-model-invocation: true
-allowed-tools: [Read, Grep, Glob, Agent]
+allowed-tools: [Read, Grep, Glob, Agent, Bash, PowerShell]
 ---
 
 # Architecture Review
@@ -56,7 +56,7 @@ Prompt the agent to evaluate:
 - **AI-generation structural anti-patterns** — this codebase is iteratively AI-generated; hunt the residue (structural only, no security):
   - *Cosmetic & broken abstractions* — interfaces / abstract bases with a single implementation that add no isolation (deleting them and using the concrete type changes no behavior); a defined interface bypassed by referencing concrete types directly elsewhere; abstractions that relocate complexity rather than hide it, forcing callers to understand internals (leaky). Apply the deep-modules lens already central to this skill.
   - *Pattern abandonment* — an established engine pattern (`SharedMembers()`/`ClientMembers()`, manager-singleton shape, Collection registration / `ForEach` helpers) followed in early modules but dropped in later-added ones; sibling files whose conventions diverge, signalling a later-generated block that lost the original context.
-  - *Cross-file duplication* — near-duplicate functions or logic blocks (~10+ lines) recurring across files from context loss during generation; flag because one copy can drift or receive a fix the other misses. (In-function duplication stays with `/external-refactor-clean`.)
+  - *Cross-file duplication* — near-duplicate functions or logic blocks (~100+ bt-token-v1) recurring across files from context loss during generation; flag because one copy can drift or receive a fix the other misses. (In-function duplication stays with `/external-refactor-clean`.)
   - *Inter-module contract seams* — integration edges where two modules show divergent naming, error-handling, or abstraction styles (a sign they were generated in different sessions); verify the producing side's output assumptions match the consuming side's — the highest-probability spot for silent contract violations.
 
 #### Agent E: ThirdParty Library Replacement Opportunities (subagent_type: general-purpose)
@@ -70,11 +70,11 @@ Prompt the agent to:
 - Skip code that is engine-specific by design (frame pipeline, collections, manager singletons, gameplay logic, Vulkan/shader integration glue).
 - For each candidate, propose a **specific** replacement library and verify its license against the **License Policy** in `ThirdParty/AGENTS.md` (read above) — that file is the sole authority; do not filter against a remembered license list. Reject anything not on its allow list.
 - Prefer libraries that are widely adopted in the C++ game-engine / graphics / systems space and actively maintained.
-- Be conservative: do NOT propose libraries that would require heavy build-system changes, drag in large transitive dependencies, or replace ≲50 lines of trivial code.
+- Be conservative: do NOT propose libraries that would require heavy build-system changes, drag in large transitive dependencies, or replace ≲500 bt-token-v1 of trivial code. Measure the inclusive range with `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path> -StartLine <n> -EndLine <n>`; `bt-token-v1` is a deterministic normalized-byte estimate, not an exact model-token count.
 
 Report per candidate:
 - **Module / cluster**: path(s) and approximate line range
-- **Lines removable**: rough LOC that would be deleted
+- **Size removable**: rough bt-token-v1 estimate that would be deleted
 - **Proposed library**: name, license, one-line justification (battle-tested signal: adoption / maintenance status)
 - **Risks**: API mismatch, performance characteristics vs in-house, integration cost, transitive deps
 - **Confidence**: HIGH / MEDIUM / LOW
@@ -123,7 +123,7 @@ After deduplicating findings, provide an opinionated recommendation: what is the
 
 ### ThirdParty Library Replacement Opportunities
 [Consolidated findings from Agent E]
-- Per candidate: module/cluster, lines removable, proposed library (name + license), risks, confidence
+- Per candidate: module/cluster, bt-token-v1 removable, proposed library (name + license), risks, confidence
 - License-rejected candidates (note any tempting libraries excluded for copyleft)
 
 ### Cross-Cutting Concerns

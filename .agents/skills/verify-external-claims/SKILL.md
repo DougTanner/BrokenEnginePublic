@@ -9,7 +9,7 @@ description: >-
   extension applicability, and returns VERIFIED, REFUTED, or UNRESOLVED with
   direct links or exact citations. Read-only evidence role; never implements or
   recommends a fix.
-allowed-tools: [Read, Grep, Glob, WebFetch, WebSearch]
+allowed-tools: [Read, Write, Grep, Glob, WebFetch, WebSearch]
 ---
 
 # Verify External Claims
@@ -25,6 +25,7 @@ Require one or more claims containing:
 - Dependent finding and why the result matters
 - Candidate official URL or specification, when the reviewer supplied one
 - Relevant project version, target, extension/feature enablement, or compile mode
+- For a delegated call, a caller-assigned absolute `ReportPath` under the session worktree's `Temp/AgentReports/`
 
 Read only the minimum local configuration, headers, or call site needed to determine which external version and conditions apply. Do not independently review the surrounding change.
 
@@ -58,7 +59,12 @@ Do not edit files, run mutating commands, implement fixes, or adjudicate whether
 
 ## Report
 
-Use this structure for each proposition:
+For a delegated call, follow
+[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md),
+write the complete report to `ReportPath`, and return only the compact indexed
+envelope. Keep every proposition verdict and unresolved evidence request in the
+index. With no delegated `ReportPath`, retain inline reporting. Use this
+structure for each proposition:
 
 ```markdown
 ## External Claim Verification

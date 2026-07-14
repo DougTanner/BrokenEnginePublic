@@ -7,7 +7,7 @@ description: >-
   each decision branch with engine-specific questions (determinism,
   client/server, memory, threading, frame phases), recommending an answer for
   each from codebase exploration.
-allowed-tools: [Read, Grep, Glob, Edit, Agent, AskUserQuestion]
+allowed-tools: [Read, Write, Grep, Glob, Edit, Agent, AskUserQuestion]
 ---
 
 # Grill Plan
@@ -17,9 +17,10 @@ Interview the user about every aspect of this plan until reaching shared underst
 ## Inputs
 
 - Plan file and explicit user intent
-- Accepted `/plan-audit` findings and repository evidence, or none for direct invocation
+- `/plan-audit` report path plus accepted stable finding IDs, or none for direct invocation; read those indexed sections directly
 - Applicable repository instructions and known constraints
 - Approval state: `not-approved` or `approved`, plus any previously approved delta summary
+- For a delegated call, a caller-assigned absolute `ReportPath` under the session worktree's `Temp/AgentReports/`
 
 ## Rules
 - For each question, provide your recommended answer based on codebase exploration
@@ -135,8 +136,12 @@ Always probe these areas if the plan touches them:
 
 ## Completion Report
 
-After all decisions are resolved, give this handoff to the calling context
-without ending the user turn; the caller continues directly into implementation:
+After all decisions are resolved, follow
+[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
+For a delegated call, write this complete handoff to `ReportPath` and return its
+compact indexed envelope without ending the user turn. With no delegated
+`ReportPath`, return the handoff inline. Questions, recommendations, the closing
+question, and any material-delta approval remain live user interaction:
 
 ```text
 Plan delta: none | non-material | material

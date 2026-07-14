@@ -15,10 +15,16 @@
     <ClCompile Include="..\..\BuildCommand.cpp">
       <Filter>AgentCli</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\InstallCommand.cpp">
+    <ClCompile Include="..\..\CoordinationStore.cpp">
+      <Filter>AgentCli</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\LandingLockLifecycle.cpp">
       <Filter>AgentCli</Filter>
     </ClCompile>
     <ClCompile Include="..\..\LockCommands.cpp">
+      <Filter>AgentCli</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\PlanCommands.cpp">
       <Filter>AgentCli</Filter>
     </ClCompile>
   </ItemGroup>
@@ -29,10 +35,16 @@
     <ClInclude Include="..\..\BuildCommand.h">
       <Filter>AgentCli</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\InstallCommand.h">
+    <ClInclude Include="..\..\CoordinationStore.h">
+      <Filter>AgentCli</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\LandingLockLifecycle.h">
       <Filter>AgentCli</Filter>
     </ClInclude>
     <ClInclude Include="..\..\LockCommands.h">
+      <Filter>AgentCli</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\PlanCommands.h">
       <Filter>AgentCli</Filter>
     </ClInclude>
   </ItemGroup>

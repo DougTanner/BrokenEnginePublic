@@ -1,8 +1,10 @@
 # Feature Execution Order
 
-All brand-new additions — new render passes, new effects, new systems, new collections, new network/audio capabilities, new dev tooling that ships in the binary — sorted by score (lowest = highest priority).
+All brand-new additions — new render passes, new effects, new systems, new collections, new network/audio capabilities, new dev tooling that ships in the binary — roughly ordered by score (lower = higher priority).
 
 Score = Effort − Impact + Risks (lower = higher priority)
+
+The scores and the resulting row order are rough estimates — a quick tiebreaker for what to pick up next, not a strictly enforced ranking. Approximate ordering is fine; don't spend effort re-scoring or precisely repositioning rows, and a row sitting slightly out of order is not a defect worth fixing.
 
 `Tier` is an informal size/risk descriptor (**Quick Win** / **Small** / **Medium** / **Large** / **Architectural**); it does not affect score or ordering.
 

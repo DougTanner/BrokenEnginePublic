@@ -9,7 +9,7 @@ description: >-
   change", "assume it's broken", "find reasons this fails", or wants an
   adversarial second opinion on a diff. Findings only — never edits. Logic and
   correctness only; style belongs to code-style-review.
-allowed-tools: [Read, Grep, Glob]
+allowed-tools: [Read, Write, Grep, Glob]
 ---
 
 # Adversarial Review
@@ -18,7 +18,20 @@ Assume the change is broken. The only job: find bugs and concrete reasons the co
 
 ## Inputs (from caller)
 
-Changed-file list, touched functions/regions, the plan document or intent summary, and accumulated residuals/focus areas. If invoked directly with no briefing, reconstruct the change set from conversation history.
+Implementation/affected-code report paths plus indexed changed-region,
+residual, and focus-area IDs; the plan document or intent summary; and
+`ReportPath` when delegated. Read those indexed sections directly rather than
+requiring pasted full reports. If invoked directly with no briefing,
+reconstruct the change set from conversation history.
+
+## Reporting Mode
+
+When delegated, require `ReportPath` and follow
+[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
+review in the existing Output schema, verify it, and return only the compact
+envelope. Index every finding, API-verification request, and residual. A missing
+or unwritable delegated report blocks the review. A direct invocation without
+`ReportPath` keeps the existing full inline output.
 
 ## Method
 

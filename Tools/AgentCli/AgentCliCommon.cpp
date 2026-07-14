@@ -177,18 +177,6 @@ namespace agentcli
 		return std::filesystem::path(value);
 	}
 
-	std::filesystem::path GetCurrentExecutablePath()
-	{
-		std::wstring value(32768, L'\0');
-		DWORD uiWritten = ::GetModuleFileNameW(nullptr, value.data(), static_cast<DWORD>(value.size()));
-		if (uiWritten == 0 || uiWritten >= value.size())
-		{
-			return {};
-		}
-		value.resize(uiWritten);
-		return std::filesystem::path(value);
-	}
-
 	std::wstring ToLowerInvariant(std::wstring value)
 	{
 		if (!value.empty())

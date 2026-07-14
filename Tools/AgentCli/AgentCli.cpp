@@ -6,8 +6,8 @@
 
 #include "AgentCliCommon.h"
 #include "BuildCommand.h"
-#include "InstallCommand.h"
 #include "LockCommands.h"
+#include "PlanCommands.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -29,14 +29,14 @@ namespace agentcli
 		constexpr int64_t kiConnectTimeoutMilliseconds = 2000;
 		constexpr int64_t kiDefaultResponseTimeoutMilliseconds = 15000;
 
-		void PrintUsage()
+		void PrintUsage(std::ostream& rOutput)
 		{
-			std::cerr << "Usage: AgentCli.exe [--owner TOKEN] --port N [--timeout-ms 15000] -\n";
-			std::cerr << "       AgentCli.exe [--owner TOKEN] --port N [--timeout-ms 15000] \"<json>\"\n";
-			std::cerr << "       AgentCli.exe lock <token|claim|status|refresh|recover|release|steal> ...\n";
-			std::cerr << "       AgentCli.exe build [--files <cpp...> --] <project-or-solution> <MSBuild args...>\n";
-			std::cerr << "       AgentCli.exe install\n";
-			std::cerr << "       AgentCli.exe --version\n";
+			rOutput << "Usage: AgentCli.exe [--owner TOKEN] --port N [--timeout-ms 15000] -\n";
+			rOutput << "       AgentCli.exe [--owner TOKEN] --port N [--timeout-ms 15000] \"<json>\"\n";
+			rOutput << "       AgentCli.exe lock <token|claim|status|refresh|recover|release|steal> ...\n";
+			rOutput << "       AgentCli.exe plan <queue|row> <verb> ...\n";
+			rOutput << "       AgentCli.exe build [--files <cpp...> --] <project-or-solution> <MSBuild args...>\n";
+			rOutput << "       AgentCli.exe --help\n";
 		}
 
 		std::string ReadAllStandardInput()
@@ -139,7 +139,7 @@ namespace agentcli
 					if (++i >= iArgumentCount)
 					{
 						Fail("socket option requires a value");
-						PrintUsage();
+						PrintUsage(std::cerr);
 						return kiExitFailure;
 					}
 					if (argument == L"--port")
@@ -169,13 +169,13 @@ namespace agentcli
 			if (iPort <= 0 || iPort > 65535)
 			{
 				Fail("--port must be in the range 1..65535");
-				PrintUsage();
+				PrintUsage(std::cerr);
 				return kiExitFailure;
 			}
 			if (iTimeoutMilliseconds <= 0 || iTimeoutMilliseconds > 600000)
 			{
 				Fail("--timeout-ms must be in the range 1..600000");
-				PrintUsage();
+				PrintUsage(std::cerr);
 				return kiExitFailure;
 			}
 			if (bReadStandardInput)
@@ -186,7 +186,7 @@ namespace agentcli
 			if (!bHaveRequest || request.empty())
 			{
 				Fail("no request JSON provided");
-				PrintUsage();
+				PrintUsage(std::cerr);
 				return kiExitFailure;
 			}
 			if (request.size() > kuiMaxRequestBytes)
@@ -298,27 +298,27 @@ int wmain(int iArgumentCount, wchar_t* pArgumentValues[])
 	if (iArgumentCount >= 2)
 	{
 		std::wstring_view mode = pArgumentValues[1];
-		if (mode == L"--version")
+		if (mode == L"--help")
 		{
 			if (iArgumentCount != 2)
 			{
-				agentcli::Fail("--version accepts no arguments");
+				agentcli::Fail("--help accepts no arguments");
 				return agentcli::kiExitFailure;
 			}
-			std::cout << "2\n";
+			agentcli::PrintUsage(std::cout);
 			return agentcli::kiExitOk;
 		}
 		if (mode == L"lock")
 		{
 			return agentcli::RunLockCommand(iArgumentCount, pArgumentValues);
 		}
+		if (mode == L"plan")
+		{
+			return agentcli::RunPlanCommand(iArgumentCount, pArgumentValues);
+		}
 		if (mode == L"build")
 		{
 			return agentcli::RunBuildCommand(iArgumentCount, pArgumentValues);
-		}
-		if (mode == L"install")
-		{
-			return agentcli::RunInstallCommand(iArgumentCount);
 		}
 	}
 	return agentcli::RunSocketCommand(iArgumentCount, pArgumentValues);

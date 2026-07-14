@@ -1,38 +1,81 @@
 ---
 name: compile
-description: Builds Broken Engine projects through AgentCli's serialized MSBuild driver — exact commands for full and selective (--files) builds. Use whenever you need to build, rebuild, compile, or check for compile/link errors in ThirdParty, DataPacker, AgentCli, or BrokenEngineSandbox (client or server).
+description: Builds Broken Engine projects through AgentCli's serialized MSBuild driver and governs immutable prebuilt AgentCli bootstrap/maintenance policy. Use whenever you need to build, rebuild, compile, or check for compile/link errors in ThirdParty, DataPacker, AgentCli, or BrokenEngineSandbox (client or server).
 allowed-tools: [PowerShell]
 ---
 
 # Build
 
-Builds through installed AgentCli v2. `AgentCli build` serializes writers per target basename inside the current worktree, waits up to 660 seconds, preserves native Windows argument boundaries, and owns MSBuild through a kill-on-close Job Object.
+Builds through the current checkout's AgentCli executable. `AgentCli build` serializes writers per target basename inside the current worktree, waits up to 660 seconds, preserves native Windows argument boundaries, and owns MSBuild through a kill-on-close Job Object.
 
 ## Bootstrap AgentCli
 
-Use `%LOCALAPPDATA%\BrokenEngine\AgentCli\v2\AgentCli.exe`. Before the first invocation, probe `--version`; it must print exactly `2`. If missing or mismatched, build Release directly with native PowerShell/MSBuild, install it, then probe again:
+The canonical executable is `$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe`. The Codex and Claude wrappers hold a live AgentCli session claim before bootstrap, worktree creation, provisioning, and client launch. Wrapper bootstrap before worktree creation may atomically upgrade its sole session claim to maintenance whenever the primary executable is missing. Routine work starts with the wrapper-provisioned immutable primary AgentCli Output and must retain the wrapper claim. Never build AgentCli or write through the shared Output link in a routine worktree:
 
 ```powershell
-$AgentCli = Join-Path $env:LOCALAPPDATA 'BrokenEngine\AgentCli\v2\AgentCli.exe'
-$Version = if (Test-Path -LiteralPath $AgentCli) { & $AgentCli --version }
-if ($Version -ne '2') {
-	& "$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot $ROOT
-	if ($LASTEXITCODE -ne 0) { throw "ThirdParty provisioning failed: $LASTEXITCODE" }
-	$MSBuild = 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe'
-	if (-not (Test-Path -LiteralPath $MSBuild)) {
-		$VSWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-		$InstallPath = & $VSWhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
-		$MSBuild = Join-Path $InstallPath 'MSBuild\Current\Bin\MSBuild.exe'
-	}
-	& $MSBuild "$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\AgentCli.sln" '/p:Configuration=Release' '/p:Platform=x64' '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
-	if ($LASTEXITCODE -ne 0) { throw "AgentCli bootstrap build failed: $LASTEXITCODE" }
-	& "$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe" install
-	if ($LASTEXITCODE -ne 0) { throw "AgentCli install failed: $LASTEXITCODE" }
-	if ((& $AgentCli --version) -ne '2') { throw 'AgentCli v2 installation verification failed' }
+if ([string]::IsNullOrWhiteSpace($env:BROKEN_ENGINE_AGENTCLI_SESSION_OWNER)) { throw 'Live wrapper AgentCli session claim is required.' }
+& "$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot $ROOT
+if ($LASTEXITCODE -ne 0) { throw "Worktree provisioning failed: $LASTEXITCODE" }
+$AgentCli = Join-Path $ROOT 'Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe'
+if (-not (Test-Path -LiteralPath $AgentCli -PathType Leaf)) { throw "AgentCli is missing: '$AgentCli'." }
+```
+
+If the primary prebuilt executable is missing, stop: worktree wrappers own missing-executable bootstrap before worktree creation. Routine mode neither builds AgentCli nor mutates its shared Output.
+
+### Explicit primary-maintenance mode
+
+Use this narrow mode only when the user explicitly authorizes AgentCli maintenance in the canonical primary checkout. The manager must supply `$PRIMARY`, the fixed `$BASELINE`, and the exact approved changed-path set. Before building, require all of the following:
+
+- For initial rollout only, the user has explicitly confirmed every legacy pre-protocol session is closed; pass `-LegacySessionsClosed` when initializing the ledger. Later maintenance trusts the validated ledger.
+- `$PRIMARY` is absolute, equals `git rev-parse --show-toplevel`, contains an ordinary `.git` directory, and that directory equals `git rev-parse --path-format=absolute --git-common-dir`.
+- `git symbolic-ref --quiet --short HEAD` succeeds, `HEAD` descends from the fixed `$BASELINE`, and no merge, rebase, cherry-pick, revert, bisect, or sequencer operation is in progress.
+- The normalized, deduplicated union of committed paths from `git -C $PRIMARY diff --name-only $BASELINE..HEAD --`, staged paths from `git -C $PRIMARY diff --cached --name-only --`, unstaged paths from `git -C $PRIMARY diff --name-only --`, and untracked paths from `git -C $PRIMARY ls-files --others --exclude-standard` is contained in the exact manager-supplied approved changed-path set. This permits approved commits made after the fixed direct-primary session baseline; any path outside the approved set is a hard stop.
+- `Tools\AgentCli\Platforms\VisualStudio2026\Output` is an ordinary primary directory, not a reparse point.
+
+Locate Visual Studio 2026 MSBuild at `C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe`, using `vswhere -latest -version '[18.0,19.0)' -products * -requires Microsoft.Component.MSBuild -property installationPath` only when that exact path is absent. Acquire exclusive maintenance for the full capability-check/build/recheck window, wait up to 660 seconds with owner/session/worktree diagnostics, and use the module's kill-on-close tracked runner. Release owner-conditionally in `finally`:
+
+```powershell
+Import-Module "$PRIMARY\.agents\scripts\AgentCliSessionExclusion.psm1" -Force
+$AgentCli = "$PRIMARY\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe"
+function Assert-AgentCliCapabilities {
+	$EscapedAgentCli = $AgentCli.Replace("'", "''")
+	$CapabilityScript = @"
+`$AgentCli = '$EscapedAgentCli'
+`$Item = Get-Item -LiteralPath `$AgentCli -Force -ErrorAction Stop
+if (`$Item.PSIsContainer -or (`$Item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or `$Item.Length -eq 0) {
+	throw "Primary AgentCli executable must be a nonempty ordinary file: '`$AgentCli'."
+}
+`$Help = @(& `$AgentCli --help 2>&1)
+if (`$LASTEXITCODE -ne 0) { throw "Primary AgentCli --help failed: `$LASTEXITCODE" }
+`$HelpText = `$Help -join "``n"
+foreach (`$Required in @('AgentCli.exe lock ', 'AgentCli.exe plan ', 'AgentCli.exe build ')) {
+	if (-not `$HelpText.Contains(`$Required, [StringComparison]::Ordinal)) { throw "Primary AgentCli help is missing '`$Required'." }
+}
+if (`$HelpText -match '(?im)^\s*AgentCli\.exe\s+install(?:\s|`$)') { throw 'Primary AgentCli help advertises removed install command.' }
+Write-Output `$HelpText
+"@
+	$EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($CapabilityScript))
+	$ExitCode = Invoke-AgentCliTrackedProcess -Executable "$PSHOME\pwsh.exe" -WorkingDirectory $PRIMARY -ArgumentList @('-NoProfile', '-EncodedCommand', $EncodedCommand)
+	if ($ExitCode -ne 0) { throw "AgentCli capability check failed: $ExitCode" }
+}
+$Owner = [guid]::NewGuid().ToString()
+$Maintenance = $null
+try {
+	$Maintenance = Enter-AgentCliMaintenance -RepositoryRoot $PRIMARY -Owner $Owner -Label 'explicit primary AgentCli maintenance' -Worktree $PRIMARY -WaitSeconds 660 -LegacySessionsClosed:$LegacySessionsClosed
+	Assert-AgentCliCapabilities
+	$ExitCode = Invoke-AgentCliTrackedProcess -Executable $MSBuild -WorkingDirectory $PRIMARY -ArgumentList @(
+		"$PRIMARY\Tools\AgentCli\Platforms\VisualStudio2026\AgentCli.sln",
+		'/p:Configuration=Release', '/p:Platform=x64',
+		'/p:EnableClangTidyCodeAnalysis=false', '/p:RunCodeAnalysis=false', '/verbosity:minimal')
+	if ($ExitCode -ne 0) { throw "AgentCli primary-maintenance build failed: $ExitCode" }
+	Assert-AgentCliCapabilities
+}
+finally {
+	if ($null -ne $Maintenance) { Exit-AgentCliMaintenance -RepositoryRoot $PRIMARY -Owner $Owner }
 }
 ```
 
-This direct build is only bootstrap/recovery. All normal builds, including later AgentCli builds, use `AgentCli build`.
+Both capability checks require `Output\AgentCli.exe` to be a nonempty ordinary file (not a directory or reparse point), require `--help` to succeed, advertise the current `lock`, `plan`, and `build` command surface, and omit the removed `install` command. Report the direct MSBuild status and exact executable path. Do not copy or install the executable elsewhere.
 
 ## Determine what to build
 
@@ -41,9 +84,15 @@ This direct build is only bootstrap/recovery. All normal builds, including later
 - ThirdParty builds only on explicit request. Missing source or library links are provisioning failures; never rebuild ThirdParty automatically.
 - DataPacker builds Release only. AgentCli still supplies the normal worktree-local target serialization; DataPacker's `"BrokenEngineDataPacker"` mutex remains the only PC-global coordination exception.
 
-Before any AgentCli, DataPacker, client, or server build, invoke `$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1 -RepositoryRoot $ROOT` and stop on failure. Validated stable primary submodule trees and shared prebuilt Output are the only exception to worktree-local build artifacts.
+Before any DataPacker, client, or server build, invoke `$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1 -RepositoryRoot $ROOT` and stop on failure. Validated stable primary submodule trees plus shared immutable ThirdParty and AgentCli Output directories are the only exceptions to worktree-local build artifacts.
 
-The manager must supply three immutable lifecycle values: `$PRIMARY` (absolute primary checkout), `$ROOT` (absolute adopted session worktree), and `$BASELINE` (fixed session-start commit). Do not rediscover the primary checkout or move the baseline. Canonicalize both paths, require distinct directories with the same `git rev-parse --git-common-dir`, and never build in `$PRIMARY`. Missing or inconsistent lifecycle metadata is a hard stop. `Build/`, `Output/`, and `.claude/build-locks/` are worktree-local; do not share or seed them between worktrees. Accept the first cold C++/PCH build.
+For routine mode, the manager must supply three immutable lifecycle values: `$PRIMARY` (absolute primary checkout), `$ROOT` (absolute adopted session worktree), and `$BASELINE` (fixed session-start commit). Do not rediscover the primary checkout or move the baseline. Canonicalize both paths, require distinct directories with the same `git rev-parse --git-common-dir`, and never build in `$PRIMARY`. Missing or inconsistent lifecycle metadata is a hard stop. The explicit AgentCli primary-maintenance mode above is the sole exception. Except for the provisioned immutable `ThirdParty/Prebuilts/Platforms/VisualStudio2026/Output` and `Tools/AgentCli/Platforms/VisualStudio2026/Output` directory links, `Build/`, `Output/`, and `.claude/build-locks/` are worktree-local; do not share or seed them between worktrees. Accept the first cold C++/PCH build.
+
+For a delegated call, the manager must also supply an absolute `ReportPath`
+under `$ROOT/Temp/AgentReports/`. Follow
+[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md);
+PowerShell may create the report file. With no delegated `ReportPath`, retain
+inline reporting.
 
 DataPacker's mutex coordinates across worktrees and its shared chunks live under `%TEMP%\DataPacker\<Project>`; do not add another PC-global DataPacker lock or a checkout-local cache copy. Gaea raw and split intermediates use the single mutable `%TEMP%\DataPacker\<Project>\Gaea\Islands` cache; source-tree island leaves retain only tracked BC outputs.
 
@@ -93,17 +142,7 @@ Snapshot the primary required-file set before Local work and recheck it after ea
 & $AgentCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln" '/p:Configuration=Debug' '/p:Platform=x64' @DataProperties '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
 & $AgentCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln" '/p:Configuration=Debug' '/p:Platform=x64' @DataProperties '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
 
-# AgentCli: Debug is optional for development.
-& $AgentCli build "$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\AgentCli.sln" '/p:Configuration=Debug' '/p:Platform=x64' '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
-
-# Required after any AgentCli source change, even when the version remains 2.
-& $AgentCli build "$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\AgentCli.sln" '/p:Configuration=Release' '/p:Platform=x64' '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
-if ($LASTEXITCODE -ne 0) { throw "AgentCli Release build failed: $LASTEXITCODE" }
-& "$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe" install
-if ($LASTEXITCODE -ne 0 -or (& $AgentCli --version) -ne '2') { throw 'AgentCli v2 installation verification failed' }
 ```
-
-After any AgentCli source change, the Release build, `install`, and installed `--version` probe above are mandatory even when the version number did not change.
 
 ## Selective file compile
 
@@ -119,6 +158,9 @@ Only `.cpp` inputs already present in the target project are valid. After a head
 
 ## Report results
 
+- For a delegated call, write the complete results below to `ReportPath` and
+  return only the shared compact indexed envelope. Keep overall/per-project
+  status, data mode/path, and decisive blockers in the envelope.
 - Report only after every build has returned an exit code; do not end your turn (or hand back to the caller) while any build is still running. If you delegated this skill, the build ran in the foreground of your turn per the rule above — its exit code is in hand before you report.
 - Final status per project: success or fail.
 - Every error line verbatim.

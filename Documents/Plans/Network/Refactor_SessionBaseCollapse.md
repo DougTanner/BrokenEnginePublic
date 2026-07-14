@@ -8,16 +8,16 @@
 
 ## Context
 
-- **Source:** `Documents/Plans/Network/Refactor_SessionBaseCollapse.md` (claimed; removed with its Order.md row after execution completes).
-- **Order.md row:** Tier Medium / Effort 3 / Impact 2 / Risks 1 / Score 2 (marked `[CLAIMED]` this session).
-- **Notes (verbatim):** Delete `ClientSessionBase`/`ServerSessionBase`/`ClientDataReceiver` (each one subclass, welded to `gpGame`), fold bodies into game `ClientSession`/`ServerSession` across sibling TUs; removes a zero-capability layer and reunites the clock + subscription mechanisms split across the seam. Engine calls already go through game globals (no call-site edits); only `Engine.h` + 2 vcxproj pairs flip. Move-only, no wire/CRC/determinism. Decided: clock correction folds into `ClientSession.cpp`; server timing stays in `ServerSession.cpp`; no new TUs.
-- **Relevance:** Partially — all files/symbols exist; line citations refreshed against current source, and two stale plan assumptions corrected (see "Changes since the plan was written").
-- **Dependency resolution:** switched from the top-of-queue walk. `Network/AuditSweepQuickWins.md` (top unclaimed) is blocked — its prerequisite `Network/DeadMachinerySweep.md` is `[CLAIMED]` by another session. The next unclaimed row `Network/Refactor_DrainContractUnification.md` depends on this plan (session-refactor series: "land SessionBaseCollapse first"), so the walk recursed here — this plan is the head of that series and has no unmet prerequisites.
-- **Changes since the plan was written (2026-07-03):**
-  - `miConsecutiveClockErrorFrames` **no longer exists** anywhere in source (only in plan docs) — dropped from the member-absorption list below. The confirmed clock fields are the 12 named in the Client side step.
-  - Server-side there is **no `ServerSession::PollNetwork`** — the actual member is `ServerSession::PreTickNetwork` (`ServerSession.cpp:286`), which calls `PollNetworkBase()` at `:292`. Corrected below.
-  - `kiClockSnapThreshold` is the engine constant `engine::kiClockSnapThreshold` (`NetworkProtocol.h:70`, value 28), consumed by the snap block — not a `ClientSession.cpp` local as the original Evidence prose implied.
-  - Line drift: `ClientSessionBase.cpp` symbols sit ~3–4 lines earlier than the original cites; comment mentions moved (`TextureManager.cpp:221→232`, `Game.cpp:887→889`); `GameBase.cpp` `GetSimTickCeiling` is `:62` (was `:64`), `WaitForTick` `:131` (was `:130`). `Engine.h` (`:77`/`:90`) and `ProfileManager.cpp` (`:268`/`:284`) cites still match exactly.
+- **Source:** `Documents/Plans/Network/Refactor_SessionBaseCollapse.md` (removed with its Order.md row after execution completes).
+- **Order.md row:** Tier Medium / Effort 3 / Impact 2 / Risks 1 / Score 2.
+- **Notes (verbatim):** Delete `ClientSessionBase`/`ServerSessionBase`/`ClientDataReceiver` (each one subclass, welded to `gpGame`), fold bodies into game `ClientSession`/`ServerSession` across sibling TUs; removes a zero-capability layer and reunites the clock + subscription mechanisms split across the seam. Engine calls already go through game globals (no call-site edits); only `Engine.h` + 2 vcxproj pairs flip. Move-only, no wire/CRC/determinism. Decided: clock correction folds into `ClientSession.cpp`; server timing stays in `ServerSession.cpp`; add one client receive TU and no dedicated clock/server timing TUs.
+- **Relevance:** Partially — all files/symbols exist, with current citations and scope facts listed below.
+- **Dependency resolution:** this plan is the prerequisite for `Network/Refactor_DrainContractUnification.md` and has no unmet prerequisites.
+- **Current-source refinements:**
+  - The member-absorption list uses the 12 confirmed clock fields named in the Client-side step; `miConsecutiveClockErrorFrames` is absent from source.
+  - Server-side uses `ServerSession::PreTickNetwork` (`ServerSession.cpp:286`), which calls `PollNetworkBase()` at `:292`.
+  - The snap block consumes engine constant `engine::kiClockSnapThreshold` (`NetworkProtocol.h:70`, value 28).
+  - Current citations: `TextureManager.cpp:232`, `Game.cpp:889`, `GameBase.cpp` `GetSimTickCeiling` at `:62`, `WaitForTick` at `:131`, `Engine.h` at `:77`/`:90`, and `ProfileManager.cpp` at `:268`/`:284`.
   - Current TU sizes: `ClientSession.cpp` 501 lines, `ClientSessionSubscriptions.cpp` 183 lines, `ServerSession.cpp` 627 lines — line projections in Notes refreshed accordingly.
 
 Evidence (verified current source):
@@ -62,7 +62,7 @@ Distribute the folded bodies across sibling TUs to respect the 500–1000-line g
 - **`Engine.h`** — remove the `#include "Network/Client/ClientSessionBase.h"` (`:77`) and `#include "Network/Server/ServerSessionBase.h"` (`:90`).
 - **vcxproj + filters** — client build (`BrokenEngineSandbox.vcxproj`/`.filters`): remove the `ClientSessionBase.{h,cpp}` and `ClientDataReceiver.{h,cpp}` items; add `ClientSessionReceive.cpp` (the only new TU). Server build (`BrokenEngineSandboxServer.vcxproj`/`.filters`): remove the `ServerSessionBase.{h,cpp}` items; no new server TU. New TUs are whole-file `#if defined(BT_CLIENT)` / `BT_SERVER` wrapped and appear only in the respective side's vcxproj (per the Server/AGENTS.md build-config rule).
 - **Comment refresh** — update the two comment mentions `ClientDataReceiver::ApplyReceivedStaticData` → `ClientSession::ApplyReceivedStaticData` (`TextureManager.cpp:232`, `Game.cpp:889`).
-- **AGENTS.md** — `Engine/Source/Network/Client/AGENTS.md` and `Server/AGENTS.md` (remove the "engine-generic `ClientSessionBase`" / "`ServerSessionBase` … game sessions inherit" framing; the session policy now lives wholly in the game layer, transport `Client`/`Server` stays engine); game `Network/Client/AGENTS.md` (drop `ClientDataReceiver` from Key Classes, fold its description into `ClientSession`). Also refresh the parent `Network/AGENTS.md` "See Also" bullets that describe `ClientSessionBase`/`ServerSessionBase`.
+- **AGENTS.md** — `Engine/Source/Network/Client/AGENTS.md` and `Server/AGENTS.md` document session policy in the game layer and transport `Client`/`Server` in the engine; game `Network/Client/AGENTS.md` describes the folded `ClientDataReceiver` responsibilities under `ClientSession`. Parent `Network/AGENTS.md` "See Also" bullets name the concrete game sessions.
 
 ## Critical files
 
@@ -93,7 +93,7 @@ Distribute the folded bodies across sibling TUs to respect the 500–1000-line g
 
 ## Notes
 
-- **Sequence**: this is the **first** of three interacting Network refactors. Land it before `Refactor_ClientResetUnification.md` (which needs the reset fields owned by a single class) and before/coordinated-with `Refactor_DrainContractUnification.md` (which renames the `Drain*` accessors this plan's receive code calls — landing collapse first shrinks that plan's call-site list, since `ClientDataReceiver.cpp` folds away). See Dependencies in `Order.md`. **Grill-confirmed (this session): execute the collapse alone — do not co-schedule `Refactor_DrainContractUnification.md`; the siblings (none currently CLAIMED) refresh their `path:line` citations when they run next.**
+- **Sequence**: this is the **first** of three interacting Network refactors. Land it before `Refactor_ClientResetUnification.md` (which needs the reset fields owned by a single class) and before `Refactor_DrainContractUnification.md` (which renames the `Drain*` accessors this plan's receive code calls and has fewer call sites once `ClientDataReceiver.cpp` is removed). Execute the collapse alone; do not co-schedule `Refactor_DrainContractUnification.md`. Sibling plans refresh their `path:line` citations when selected. See Dependencies in `Order.md`.
 - **Sibling-plan citation drift**: `Network/SubscriptionLifecycleRaceHardening.md` cites its watchdog tick site as "`ClientSessionBase` (`ClientSessionBase.cpp`), alongside the existing queue rebuild" — this collapse moves that code to `ClientSessionSubscriptions.cpp`. The reset-unification plan touches the resync reset region. Refresh their citations if collapse lands first.
 - **Invariant exposure**: touches **client/server `BT_*` guard scope** (whole-file guards on the new TUs; membership must match, per Server/AGENTS.md) but **no** determinism/CRC/wire/`kiVersion`/replay/allocation-tracked-path exposure — move-only, compile-checked.
 - **Decision (2026-07-03, projections refreshed against current source)** — both pre-staged options resolved by measured line projections; no open decisions remain:

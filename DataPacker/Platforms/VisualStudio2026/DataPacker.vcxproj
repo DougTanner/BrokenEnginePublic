@@ -112,7 +112,7 @@
     <ProjectGuid>{D5EBBF67-C8FC-4602-BCE6-0CC55278F498}</ProjectGuid>
     <RootNamespace>DataPacker</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-	<DataRepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\'))</DataRepositoryRoot>
+	<DataRepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..'))</DataRepositoryRoot>
   </PropertyGroup>
   <PropertyGroup>
     <ClangTidyToolExeAdditionalOptions>--quiet</ClangTidyToolExeAdditionalOptions>
@@ -193,9 +193,9 @@
       <AdditionalLibraryDirectories>$(ProjectDir)\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PreBuildEvent>
-      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(DataRepositoryRoot).agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot "$(DataRepositoryRoot)"
+      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(DataRepositoryRoot)\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot "$(DataRepositoryRoot)"
 if errorlevel 1 exit /b %errorlevel%
-if not EXIST "$(DataRepositoryRoot)ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" (
+if not EXIST "$(DataRepositoryRoot)\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" (
     echo Required ThirdParty.$(Configuration).lib is missing after provisioning. 1&gt;&amp;2
     exit /b 1
 )</Command>
@@ -240,9 +240,9 @@ if not EXIST "$(DataRepositoryRoot)ThirdParty\Prebuilts\Platforms\VisualStudio20
       <AdditionalLibraryDirectories>$(ProjectDir)\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PreBuildEvent>
-      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(DataRepositoryRoot).agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot "$(DataRepositoryRoot)"
+      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(DataRepositoryRoot)\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot "$(DataRepositoryRoot)"
 if errorlevel 1 exit /b %errorlevel%
-if not EXIST "$(DataRepositoryRoot)ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" (
+if not EXIST "$(DataRepositoryRoot)\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" (
     echo Required ThirdParty.$(Configuration).lib is missing after provisioning. 1&gt;&amp;2
     exit /b 1
 )</Command>

@@ -96,6 +96,52 @@ bool IsReparsePoint(const std::filesystem::path& rPath)
 	return uiAttributes != INVALID_FILE_ATTRIBUTES && (uiAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
 }
 
+std::filesystem::path GetRepositoryRootFromExecutable()
+{
+	std::wstring executableBuffer(32'768, L'\0');
+	DWORD uiLength = GetModuleFileNameW(nullptr, executableBuffer.data(), static_cast<DWORD>(executableBuffer.size()));
+	if (uiLength == 0 || uiLength >= executableBuffer.size())
+	{
+		throw std::runtime_error(std::format("Unable to resolve DataPacker executable path (GetModuleFileNameW returned {}, Win32 {})", uiLength, GetLastError()));
+	}
+
+	std::filesystem::path executablePath(std::wstring(executableBuffer.data(), uiLength));
+	const std::wstring executableName = executablePath.filename().native();
+	if (CompareStringOrdinal(executableName.c_str(), -1, L"DataPacker.exe", -1, TRUE) != CSTR_EQUAL
+		&& CompareStringOrdinal(executableName.c_str(), -1, L"DataPacker.Debug.exe", -1, TRUE) != CSTR_EQUAL)
+	{
+		throw std::runtime_error(std::format("DataPacker executable path has unexpected layout: {} (expected suffix DataPacker\\Platforms\\VisualStudio2026\\Output\\DataPacker.exe or DataPacker.Debug.exe)", executablePath.string()));
+	}
+
+	static constexpr const wchar_t* kpwcExpectedDirectories[] =
+	{
+		L"Output",
+		L"VisualStudio2026",
+		L"Platforms",
+		L"DataPacker",
+	};
+	std::filesystem::path repositoryRoot = executablePath.parent_path();
+	for (const wchar_t* pwcExpected : kpwcExpectedDirectories)
+	{
+		if (repositoryRoot.empty() || CompareStringOrdinal(repositoryRoot.filename().native().c_str(), -1, pwcExpected, -1, TRUE) != CSTR_EQUAL)
+		{
+			throw std::runtime_error(std::format("DataPacker executable path has unexpected layout: {} (expected suffix DataPacker\\Platforms\\VisualStudio2026\\Output\\DataPacker.exe or DataPacker.Debug.exe)", executablePath.string()));
+		}
+		repositoryRoot = repositoryRoot.parent_path();
+	}
+	return repositoryRoot;
+}
+
+void EstablishOutputDestinationParent(const std::filesystem::path& rDestination)
+{
+	const std::filesystem::path& rParent = rDestination.parent_path();
+	std::filesystem::create_directories(rParent);
+	if (!IsOrdinaryDirectory(rParent))
+	{
+		throw std::runtime_error(std::format("Output destination parent must be an ordinary non-reparse directory: {} (destination {})", rParent.string(), rDestination.string()));
+	}
+}
+
 struct FileSnapshot
 {
 	uint64_t uiVolumeSerial = 0;
@@ -190,7 +236,9 @@ bool IsRecognizedLinkRaw(const std::filesystem::path& rLink, const std::filesyst
 	{
 		targetPath = rLink.parent_path() / targetPath;
 	}
-	return PathEqual(std::filesystem::absolute(targetPath).lexically_normal(), std::filesystem::absolute(rExpected).lexically_normal());
+	targetPath = std::filesystem::absolute(targetPath).lexically_normal().make_preferred();
+	std::filesystem::path expectedPath = std::filesystem::absolute(rExpected).lexically_normal().make_preferred();
+	return PathEqual(targetPath, expectedPath);
 }
 
 uint64_t AddChecked(uint64_t uiLeft, uint64_t uiRight)
@@ -224,9 +272,10 @@ FileManager::FileManager(std::span<char*> argvSpan)
 
 	if (argvSpan.size() == 1)
 	{
-		mpInputDirectories[0] = "../../../Engine/Data";
-		mpInputDirectories[1] = "../../../Projects/BrokenEngineSandbox/Data";
-		mOutputDirectory = "../../../Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/Output/Data";
+		const std::filesystem::path repositoryRoot = GetRepositoryRootFromExecutable();
+		mpInputDirectories[0] = repositoryRoot / "Engine" / "Data";
+		mpInputDirectories[1] = repositoryRoot / "Projects" / "BrokenEngineSandbox" / "Data";
+		mOutputDirectory = repositoryRoot / "Projects" / "BrokenEngineSandbox" / "Platforms" / "VisualStudio2026" / "Output" / "Data";
 	}
 	else
 	{
@@ -249,6 +298,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	InitializeWorktreeOutputs();
 	if (mDataOutput.meState == OutputRootState::kAbsent)
 	{
+		EstablishOutputDestinationParent(mOutputDirectory);
 		std::filesystem::create_directories(mOutputDirectory);
 		mDataOutput.meState = OutputRootState::kLocal;
 	}
@@ -356,10 +406,18 @@ void FileManager::InitializeWorktreeOutputs()
 		RejectUnvalidatedReparse();
 		return;
 	}
-	mDataOutput.mSource = primaryRoot / std::filesystem::relative(mDataOutput.mDestination, repositoryRoot);
-	mAttributionOutput.mSource = primaryRoot / std::filesystem::relative(mAttributionOutput.mDestination, repositoryRoot);
+	std::filesystem::path primaryThirdPartyDirectory = primaryRoot / "ThirdParty";
+	if (!IsOrdinaryDirectory(primaryThirdPartyDirectory))
+	{
+		throw std::runtime_error(std::format("Primary ThirdParty source must be an ordinary non-reparse directory: {}", primaryThirdPartyDirectory.string()));
+	}
+	mThirdPartyDirectory = std::move(primaryThirdPartyDirectory);
+	const std::filesystem::path expectedAttribution = expected.parent_path() / "Attribution";
+	mDataOutput.mSource = primaryRoot / expected.lexically_relative(repositoryRoot);
+	mAttributionOutput.mSource = primaryRoot / expectedAttribution.lexically_relative(repositoryRoot);
 	for (OutputRootInfo* pRoot : { &mDataOutput, &mAttributionOutput })
 	{
+		EstablishOutputDestinationParent(pRoot->mDestination);
 		if (pRoot->meState == OutputRootState::kAbsent && IsReparsePoint(pRoot->mSource))
 		{
 			throw std::runtime_error(std::format("Primary output source is a reparse point: {}", pRoot->mSource.string()));
@@ -384,7 +442,7 @@ void FileManager::InitializeWorktreeOutputs()
 				DWORD uiError = GetLastError();
 				if (uiError != ERROR_PRIVILEGE_NOT_HELD && uiError != ERROR_INVALID_PARAMETER && uiError != ERROR_NOT_SUPPORTED)
 				{
-					throw std::runtime_error(std::format("CreateSymbolicLinkW failed with {}", uiError));
+					throw std::runtime_error(std::format("CreateSymbolicLinkW failed for destination {} from source {} (Win32 {})", pRoot->mDestination.string(), pRoot->mSource.string(), uiError));
 				}
 				if (MaterializeOutput(*pRoot) == EnsureLocalResult::kCancelled)
 				{
@@ -417,6 +475,7 @@ FileManager::EnsureLocalResult FileManager::EnsureLocal(OutputRoot eRoot)
 
 FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rRoot)
 {
+	EstablishOutputDestinationParent(rRoot.mDestination);
 	if (rRoot.meState == OutputRootState::kLocal)
 	{
 		return EnsureLocalResult::kAlreadyLocal;
@@ -431,7 +490,6 @@ FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rR
 		rRoot.meState = OutputRootState::kLocal;
 		return EnsureLocalResult::kMaterialized;
 	}
-	std::filesystem::create_directories(rRoot.mDestination.parent_path());
 	std::vector<std::filesystem::path> files;
 	std::vector<FileSnapshot> snapshots;
 	uint64_t uiAllocation = 0;
@@ -569,6 +627,7 @@ FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rR
 		bool bPreserveStaging = false;
 		if (!std::filesystem::exists(rRoot.mDestination) && rRoot.meState == OutputRootState::kRecognizedPrimaryLink)
 		{
+			EstablishOutputDestinationParent(rRoot.mDestination);
 			if (!CreateSymbolicLinkW(rRoot.mDestination.native().c_str(), rRoot.mSource.native().c_str(), SYMBOLIC_LINK_FLAG_DIRECTORY | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE))
 			{
 				bPreserveStaging = true;

@@ -22,10 +22,11 @@ Require the caller to provide:
 
 - **Mode**: `fix` or `independent-verify`
 - Caller classification: **Intent** (`conformance` or `plan_delta`) and **Scope** (`non_structural` or `structural`)
-- Accepted finding or failure evidence, including affected file/region and expected behavior
+- Source report path(s) and the stable IDs of each accepted finding or failure; read the indexed sections for affected region, evidence, and expected behavior
 - Plan document or concise intent summary
 - Assigned file/function scope and session-start baseline
 - Required verification, if the process already prescribes one
+- For a delegated call, an absolute caller-assigned `ReportPath` under the session worktree's `Temp/AgentReports/`
 
 If an input is missing, reconstruct it from the prompt and current worktree only when unambiguous. Otherwise report the item unresolved rather than choosing new scope or intent.
 
@@ -70,7 +71,12 @@ Do not verify disputed external API or documentation claims from memory. Return 
 
 ## Report
 
-Use this structure:
+Follow [`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
+For a delegated call, require `ReportPath`, write this complete structure there,
+and return only the compact indexed envelope. Keep mode, every item verdict,
+tracked-file mutation state, `PLAN DELTA REQUIRED`, structural routing, failed
+verification, and residual owner/action visible in the envelope. With no
+delegated `ReportPath`, retain the complete inline report:
 
 ```markdown
 ## Finding Resolution

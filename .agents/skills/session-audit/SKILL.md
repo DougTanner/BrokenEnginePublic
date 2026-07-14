@@ -10,7 +10,7 @@ description: >-
   Fable, one Opus) and dedupes. ALSO use when the user asks for a "session
   audit", a final fresh-eyes pass, or to check everything changed this session
   as a whole. Findings only — never edits.
-allowed-tools: [Read, Grep, Glob]
+allowed-tools: [Read, Write, Grep, Glob]
 ---
 
 # Session Audit
@@ -20,8 +20,9 @@ Fresh-eyes lens, not a re-run of the step 4–9 checklists: read each assigned f
 ## Inputs (from caller)
 - One logical file group partitioned by subsystem or plan-step slice; keep code and documentation in separate groups
 - File group (paths) + functions/regions touched this session, attributed per step (at minimum: the step 2–3 set vs later-fix regions); if attribution is missing, treat every touched region as potentially post-review
-- Accumulated residuals and self-audit focus areas from earlier steps
+- Paths to earlier-step reports plus the indexed residual and focus-area IDs relevant to this file group
 - The plan document or intent summary
+- For a delegated call, a caller-assigned absolute `ReportPath` under the session worktree's `Temp/AgentReports/`
 
 If invoked directly with no caller briefing, reconstruct the file group and touched regions from the conversation history's edits, and treat the residual list as empty.
 
@@ -36,9 +37,15 @@ Earlier steps each see a slice; these surface only when reading the finished who
 5. **Whole-file incoherence** — the file no longer reads as one design: logic duplicated between an old and a new path, a helper the session's edits made dead, a comment or ASSERT contradicting the new behavior, a `#include`/guard the edits made unnecessary.
 6. **Residual leakage** — every residual and focus area handed in is either resolved in current code or re-reported; never silently gone.
 7. **False completion** — earlier steps' reports are claims, not evidence: for each fix accepted in step 4/8/9 reports and each residual marked resolved, spot-check the change actually exists in current code.
-8. **Debris** — diagnostic `LOG`s left at kDebug/kVerbose from iteration, commented-out code, scratch/temp files introduced this session. Changelog-style comments belong to repo-code-review §2d — don't double-report.
+8. **Debris** — diagnostic `LOG`s left at kDebug/kVerbose from iteration, commented-out code, scratch/temp files introduced this session. `Temp/AgentReports/` artifacts conforming to the shared reporting contract are intentional process state, not debris. Changelog-style comments belong to repo-code-review §2d — don't double-report.
 
 ## Output
+
+For a delegated call, follow
+[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md),
+write the complete output to `ReportPath`, and return only the compact indexed
+envelope. The caller must read every finding before deduplication and
+classification. With no delegated `ReportPath`, retain inline reporting.
 
 Per finding: `path:line`, failure-mode number, one-line description, fix size (**small** — dispatchable now | **structural** — route to a step 11 plan).
 

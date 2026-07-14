@@ -3,11 +3,6 @@
 *.local.json
 tmpclaude*
 Log.txt
-# Legacy checkout-local Gaea agent cache retained only for migration to
-# %LOCALAPPDATA%/BrokenEngine/AgentCache/Gaea2. DataPacker's separate Gaea
-# intermediates and diagnostics remain under %TEMP%/DataPacker.
-Engine/Data/Islands/**/*.jpg
-Engine/Data/Islands/**/Intermediates/
 *.terrain.lock
 /.claude/build-locks/
 
@@ -15,9 +10,10 @@ Engine/Data/Islands/**/Intermediates/
 .vs/
 Build/
 DiagnosticLogs/
-Output/
+Output
 Temp
 Plans/Temp
+# Gaea 2 agent cache is local-only; independent of DataPacker's Gaea cache.
 .agents/skills/gaea2-shared/cache/
 .claude/worktrees/
 

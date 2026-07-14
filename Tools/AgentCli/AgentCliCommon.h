@@ -41,7 +41,6 @@ namespace agentcli
 	std::wstring QuoteCommandLineArgument(std::wstring_view argument);
 	std::wstring BuildCommandLine(const std::vector<std::wstring>& rArguments);
 	std::filesystem::path GetLocalApplicationDataPath();
-	std::filesystem::path GetCurrentExecutablePath();
 	std::wstring ToLowerInvariant(std::wstring value);
 	bool EndsWithCaseInsensitive(std::wstring_view value, std::wstring_view suffix);
 }

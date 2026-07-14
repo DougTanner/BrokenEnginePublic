@@ -14,14 +14,18 @@
     <ClCompile Include="..\..\AgentCli.cpp" />
     <ClCompile Include="..\..\AgentCliCommon.cpp" />
     <ClCompile Include="..\..\BuildCommand.cpp" />
-    <ClCompile Include="..\..\InstallCommand.cpp" />
+    <ClCompile Include="..\..\CoordinationStore.cpp" />
+    <ClCompile Include="..\..\LandingLockLifecycle.cpp" />
     <ClCompile Include="..\..\LockCommands.cpp" />
+    <ClCompile Include="..\..\PlanCommands.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\AgentCliCommon.h" />
     <ClInclude Include="..\..\BuildCommand.h" />
-    <ClInclude Include="..\..\InstallCommand.h" />
+    <ClInclude Include="..\..\CoordinationStore.h" />
+    <ClInclude Include="..\..\LandingLockLifecycle.h" />
     <ClInclude Include="..\..\LockCommands.h" />
+    <ClInclude Include="..\..\PlanCommands.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

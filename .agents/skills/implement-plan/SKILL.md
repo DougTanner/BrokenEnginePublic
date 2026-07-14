@@ -28,7 +28,18 @@ Require these inputs for implementation mode:
 - assigned plan items and allowed file scope;
 - session worktree and fixed session-start commit;
 - applicable repository instructions;
-- complete residual, handoff, and reviewer-focus packet relevant to the slice.
+- source report paths plus indexed residual, handoff, and reviewer-focus IDs relevant to the slice;
+- `ReportPath` when invoked in a delegated subagent.
+
+## Reporting Mode
+
+When delegated, require `ReportPath` and follow
+[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
+handoff in the existing Handoff Report schema, verify it, and return only the
+compact envelope. Index applied changes, sweep handoffs, reviewer focus areas,
+and residuals because each drives later process work. A missing or unwritable
+delegated report blocks implementation. A direct invocation without
+`ReportPath` keeps the existing full inline handoff.
 
 If invoked directly after changes were already made, treat it as audit-only
 mode: derive the touched scope from the caller's change list, edit history, and
@@ -52,7 +63,8 @@ pre-existing worktree changes.
    scope.
    When nested delegation is required, give Claude a self-contained fresh prompt
    or set Codex `fork_turns:"none"`; both packets carry the fixed baseline,
-   approved plan/deltas, scope, and complete relevant residual/handoff chain.
+   approved plan/deltas, scope, report paths, and indexed relevant
+   residual/handoff chain.
 5. Verify the implementation in proportion to the slice. Run focused static
    checks needed to establish that the edit is internally coherent. Delegate
    any build to a Sonnet `/compile` subagent and preserve its status plus error

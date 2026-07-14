@@ -2,7 +2,7 @@
 name: update-claude-docs
 description: Updates AGENTS.md files after code changes — syncs docs in the directories modified this session. Also has an explicit audit mode that grades every AGENTS.md in the repo against a rubric, reports, then applies improvements.
 when_to_use: Sync mode (default) — after any code change, or "update AGENTS.md", "sync project memory", "refresh the docs". Audit mode — "audit AGENTS.md", "grade AGENTS.md files", "AGENTS.md quality report", "improve AGENTS.md across the repo".
-allowed-tools: [Read, Edit, Write, Grep, Glob]
+allowed-tools: [Read, Edit, Write, Grep, Glob, Bash, PowerShell]
 ---
 
 # Update AGENTS.md Documentation
@@ -11,6 +11,12 @@ Two modes — infer from the invocation:
 
 - **Sync mode** (default) — invoked after code changes or with a list of changed files. Targets only the directories touched this session; small, surgical edits.
 - **Audit mode** — only when the user asks for an audit / report / grade / repo-wide improvement pass. Quality report first, then improvements after user approval.
+
+For a delegated call, require a caller-assigned absolute `ReportPath` under the
+session worktree's `Temp/AgentReports/` and follow
+[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
+Keep audit approval requests and decision-driving contradictions live. With no
+delegated `ReportPath`, retain inline reporting.
 
 ---
 
@@ -50,7 +56,7 @@ Two modes — infer from the invocation:
    - [Subdirectory/AGENTS.md](Subdirectory/AGENTS.md) - Brief description
    ```
 
-7. **Length target**: Aim for 20-50 lines per subsystem AGENTS.md. Cross-cutting hubs (repo root, `Engine/Source`, `Common`) may reach ~100 lines because they document patterns used everywhere. If longer than that, you're too detailed.
+7. **Size target**: Run `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>` on each applicable AGENTS.md file. Aim for at most 2,000 bt-token-v1 per leaf document and 4,000 per cross-cutting hub (repo root, `Engine/Source`, `Common`). Sum the measurements for the effective root-to-leaf AGENTS.md chain: target under 15,000 bt-token-v1 and warn above 20,000. `bt-token-v1` is a deterministic normalized-byte estimate, not an exact model-token count.
 
 8. **Vestigial docs**: If a directory is no longer a distinct subsystem (refactored away, collapsed into a parent), report the leftover `AGENTS.md` (and its `CLAUDE.md` stub) path to the user and recommend deletion — leave the actual removal to the user.
 
@@ -73,7 +79,7 @@ For each file, score against this rubric (each row scored 0 to its weight, total
 | Commands/workflows | 20 | Are commands/workflows present and current? Builds are delegated to the `/compile` skill — a leaf with no commands to document scores full here. |
 | Architecture clarity | 20 | Can Claude understand the subsystem's shape in one read? |
 | Non-obvious patterns | 15 | Are gotchas (allocation tracking, determinism, `BT_CLIENT` guards, SOA pitfalls) documented? |
-| Conciseness | 15 | No member-by-member listings; respects 20–50 line target (100 for hubs)? |
+| Conciseness | 15 | No member-by-member listings; leaf document <=2,000 and hub <=4,000 bt-token-v1; effective chain targets <15,000 and warns >20,000? |
 | Currency | 15 | Reflects current codebase state (no stale paths, removed APIs); no changelog / edit-history narration (see Content Guidelines → No Changelogs)? |
 | Actionability | 15 | Instructions are executable — not vague? |
 
@@ -124,7 +130,7 @@ Output the quality report before making any edits. Format:
 
 ### Phase A4: Apply Improvements
 
-After user approval, apply edits following the sync-mode content rules (§Content Guidelines below). Show diffs per file; preserve existing structure; keep each file under its length target.
+After user approval, apply edits following the sync-mode content rules (§Content Guidelines below). Show diffs per file; preserve existing structure; keep each file under its bt-token-v1 target.
 
 ---
 
@@ -211,7 +217,8 @@ Readers should understand system architecture and responsibilities, not be able 
 
 ## Completion Report
 
-End sync and audit modes with:
+End sync and audit modes with the complete report below. For a delegated call,
+write it to `ReportPath` and return only the shared compact indexed envelope:
 
 ```text
 Files changed:

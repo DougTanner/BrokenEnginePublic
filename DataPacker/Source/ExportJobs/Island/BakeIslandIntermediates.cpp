@@ -3,7 +3,6 @@
 #include "BakeIslandIntermediatesInternal.h"
 #include "FileManager.h"
 #include "GaeaArchetype.h"
-#include "ExportJobs/ExportIsland.h"
 
 namespace
 {
@@ -31,186 +30,6 @@ std::filesystem::path IslandRelativePath(const std::filesystem::path& rSourcePat
 		throw std::runtime_error(std::format("Island path \"{}\" is not under an input root's Islands directory", rSourcePath.string()));
 	}
 	throw std::runtime_error(std::format("Island path \"{}\" is outside DataPacker input roots", rSourcePath.string()));
-}
-
-bool FilesEqual(const std::filesystem::path& rFirst, const std::filesystem::path& rSecond)
-{
-	if (std::filesystem::file_size(rFirst) != std::filesystem::file_size(rSecond))
-	{
-		return false;
-	}
-
-	std::ifstream firstStream(rFirst, std::ios::binary);
-	std::ifstream secondStream(rSecond, std::ios::binary);
-	if (!firstStream || !secondStream)
-	{
-		return false;
-	}
-	std::vector<char> firstBytes(64 * 1024);
-	std::vector<char> secondBytes(64 * 1024);
-	do
-	{
-		firstStream.read(firstBytes.data(), firstBytes.size());
-		secondStream.read(secondBytes.data(), secondBytes.size());
-		if (firstStream.gcount() != secondStream.gcount()
-			|| !std::equal(firstBytes.data(), firstBytes.data() + firstStream.gcount(), secondBytes.data()))
-		{
-			return false;
-		}
-	} while (firstStream.gcount() != 0);
-	return !firstStream.bad() && !secondStream.bad();
-}
-
-bool DirectoryCanMerge(const std::filesystem::path& rSource, const std::filesystem::path& rDestination)
-{
-	if (std::filesystem::exists(rDestination) && !std::filesystem::is_directory(rDestination))
-	{
-		return false;
-	}
-	for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(rSource))
-	{
-		if (!rEntry.is_regular_file())
-		{
-			continue;
-		}
-		std::filesystem::path destinationFile = rDestination / std::filesystem::relative(rEntry.path(), rSource);
-		if (std::filesystem::exists(destinationFile)
-			&& (!std::filesystem::is_regular_file(destinationFile) || !FilesEqual(rEntry.path(), destinationFile)))
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
-bool MigrateLegacyDirectory(const std::filesystem::path& rSource, const std::filesystem::path& rDestination)
-{
-	if (!std::filesystem::exists(rSource))
-	{
-		return true;
-	}
-
-	if (!std::filesystem::exists(rDestination))
-	{
-		std::filesystem::create_directories(rDestination.parent_path());
-		std::error_code renameError;
-		std::filesystem::rename(rSource, rDestination, renameError);
-		if (!renameError)
-		{
-			LOG(kDefault, kDebug, "Moved legacy Gaea cache \"{}\" -> \"{}\"", rSource.string(), rDestination.string());
-			return true;
-		}
-	}
-
-	if (!DirectoryCanMerge(rSource, rDestination))
-	{
-		LOG(kDefault, kWarning, "Legacy Gaea cache \"{}\" conflicts with \"{}\"; leaving legacy data untouched and invalidating cached route", rSource.string(), rDestination.string());
-		return false;
-	}
-
-	std::filesystem::create_directories(rDestination);
-	for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(rSource))
-	{
-		if (!rEntry.is_regular_file())
-		{
-			continue;
-		}
-		std::filesystem::path destinationFile = rDestination / std::filesystem::relative(rEntry.path(), rSource);
-		if (!std::filesystem::exists(destinationFile))
-		{
-			std::filesystem::create_directories(destinationFile.parent_path());
-			std::filesystem::copy_file(rEntry.path(), destinationFile);
-		}
-		if (!FilesEqual(rEntry.path(), destinationFile))
-		{
-			LOG(kDefault, kWarning, "Legacy Gaea cache copy \"{}\" -> \"{}\" failed validation; leaving source data in place", rEntry.path().string(), destinationFile.string());
-			return false;
-		}
-	}
-	std::filesystem::remove_all(rSource);
-	LOG(kDefault, kDebug, "Migrated legacy Gaea cache \"{}\" -> \"{}\"", rSource.string(), rDestination.string());
-	return true;
-}
-
-bool MigrateLegacyFile(const std::filesystem::path& rSource, const std::filesystem::path& rDestination)
-{
-	if (std::filesystem::exists(rDestination) && !std::filesystem::is_regular_file(rDestination))
-	{
-		LOG(kDefault, kWarning, "Legacy island diagnostic \"{}\" conflicts with non-file destination \"{}\"; leaving source file untouched", rSource.string(), rDestination.string());
-		return false;
-	}
-	if (!std::filesystem::exists(rDestination))
-	{
-		std::filesystem::create_directories(rDestination.parent_path());
-		std::error_code renameError;
-		std::filesystem::rename(rSource, rDestination, renameError);
-		if (!renameError)
-		{
-			return true;
-		}
-		std::filesystem::copy_file(rSource, rDestination);
-	}
-	if (!FilesEqual(rSource, rDestination))
-	{
-		LOG(kDefault, kWarning, "Legacy island diagnostic \"{}\" conflicts with \"{}\"; leaving source file untouched", rSource.string(), rDestination.string());
-		return false;
-	}
-	std::filesystem::remove(rSource);
-	return true;
-}
-
-void MigrateLegacyIslandCache(const std::filesystem::path& rIslandFolder, const std::vector<const RouteSubdivision*>& rRoutes)
-{
-	for (const RouteSubdivision* pRoute : rRoutes)
-	{
-		std::filesystem::path sourceRoute = rIslandFolder / pRoute->pcLabel;
-		std::filesystem::path cacheRoute = GetIslandCachePath(sourceRoute);
-		std::filesystem::path conflictMarker = cacheRoute / "LegacyMigrationConflict.meta";
-		if (std::filesystem::exists(conflictMarker))
-		{
-			continue;
-		}
-		bool bMigrated = MigrateLegacyDirectory(sourceRoute / kpcIslandIntermediatesDir, cacheRoute);
-		if (std::filesystem::exists(sourceRoute))
-		{
-			for (const std::filesystem::directory_entry& rEntry : std::filesystem::directory_iterator(sourceRoute))
-			{
-				if (rEntry.is_directory())
-				{
-					bMigrated &= MigrateLegacyDirectory(rEntry.path() / kpcIslandIntermediatesDir, cacheRoute / rEntry.path().filename());
-				}
-			}
-		}
-		if (!bMigrated)
-		{
-			std::filesystem::create_directories(cacheRoute);
-			std::ofstream markerStream(conflictMarker);
-			markerStream << "Legacy source cache conflicts with shared cache; source retained and ignored.";
-			markerStream.close();
-			VERIFY_SUCCESS(markerStream.good());
-			std::filesystem::remove(cacheRoute / "BakeVersion.meta");
-			std::filesystem::remove(cacheRoute / "SplitVersion.meta");
-			std::filesystem::remove(cacheRoute / "BakeVersion.txt");
-			std::filesystem::remove(cacheRoute / "SplitVersion.txt");
-		}
-		else
-		{
-			std::filesystem::remove(conflictMarker);
-		}
-	}
-
-	std::vector<std::filesystem::path> jpegFiles;
-	for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(rIslandFolder))
-	{
-		if (rEntry.is_regular_file() && common::ToLower(rEntry.path().extension().string()) == ".jpg")
-		{
-			jpegFiles.push_back(rEntry.path());
-		}
-	}
-	for (const std::filesystem::path& rJpeg : jpegFiles)
-	{
-		MigrateLegacyFile(rJpeg, GetIslandDiagnosticsPath(rJpeg));
-	}
 }
 
 // Route → subdivision table (single source of truth). `pcLabel` is BOTH the Island.json "routes"
@@ -374,12 +193,10 @@ void BakeOne(const std::filesystem::path& rGaeaExecutable, const std::filesystem
 	}
 
 	std::filesystem::path archetypeFile = ResolveTerrain(rIslandFolder, islandJson);
-	MigrateLegacyIslandCache(rIslandFolder, routes);
 	std::filesystem::path cacheIslandFolder = GetIslandCachePath(rIslandFolder);
 
-	// Prune stale sub-folders: any directory whose name isn't a current route label. Migrates the
-	// pre-routes top-level Intermediates/ layout away and drops folders for routes removed from the
-	// list, so no orphaned leaf produces a stale chunk. Intermediates are build cache, not source;
+	// Prune stale source sub-folders: any directory whose name isn't a current route label. This
+	// drops folders for routes removed from the list, so no orphaned leaf produces a stale chunk.
 	// Island.json and the archetype .terrain are files, so this never touches them.
 	// Collect stale sub-folders first, then delete — mutating the directory mid-iteration via
 	// remove_all is unspecified behavior for directory_iterator.

@@ -9,7 +9,7 @@ allowed-tools: [Read, Grep, Glob, Bash, Agent]
 
 Analyzes specified code for in-function refactoring opportunities specific to a C++23 data-oriented Vulkan game engine. Because this codebase was built through iterative AI-generation sessions, the scan also hunts the in-function residue that process characteristically leaves. Security auditing is deliberately out of scope — every finding here is structural or correctness-only; injection, auth, secrets, crypto, and CORS belong to a dedicated security pass, not this skill.
 
-**Scope boundary:** This skill owns what happens *inside* functions and structs. It does NOT flag layer violations, include-chain complexity, cross-file duplication, or dependency-shape issues — those belong to `/external-architecture-review`. Oversized files (>500–1000 lines) are handed off to `/reduce-file` rather than analyzed here.
+**Scope boundary:** This skill owns what happens *inside* functions and structs. It does NOT flag layer violations, include-chain complexity, cross-file duplication, or dependency-shape issues — those belong to `/external-architecture-review`. Oversized files (>5,000–10,000 bt-token-v1) are handed off to `/reduce-file` rather than analyzed here.
 
 ## Arguments
 
@@ -30,20 +30,20 @@ Cite these documents in findings; the checklists below are detection heuristics,
 
 ### 1. Scan the Target Area
 
-Use Glob to enumerate `.h` and `.cpp` files in the target path — non-recursive globs (`*.h`) by default, recursive (`**/*.h`) if the caller requested recursion. Get line counts with Bash `wc -l`.
+Use Glob to enumerate `.h` and `.cpp` files in the target path — non-recursive globs (`*.h`) by default, recursive (`**/*.h`) if the caller requested recursion. Measure each size with `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`; `bt-token-v1` is normalized UTF-8 bytes divided by four, rounded up, not an exact model-token count.
 
 ### 2. File-Size Triage (handoff only)
 
-For each file exceeding 500 lines (header) or 1000 lines (implementation), **do not analyze in detail** — list it in the output with a recommendation to run `/reduce-file <path>`. Continue with the remaining files.
+For each header exceeding 5,000 bt-token-v1 or implementation exceeding 10,000 bt-token-v1, **do not analyze in detail** — list it in the output with a recommendation to run `/reduce-file <path>`. Continue with the remaining files.
 
 ### 3. Fan-Out for Large Targets
 
-If more than ~15 files or ~8,000 lines remain after triage, do not scan inline — partition the remaining files into batches of related functionality (same subsystem, sibling files) and launch one subagent per batch in parallel (`subagent_type: "general-purpose"`, `model: "fable"`). Each subagent prompt includes: the step-0 authority list to read first, the full checklists from steps 4–7, its file batch, and the instruction to return findings as a structured list with `file:line` locations and the checklist category for each. Consolidate and dedup the returned findings, then continue at step 8. At or below the threshold, scan inline yourself (steps 4–7).
+If more than ~15 files or ~80,000 bt-token-v1 remain after triage, do not scan inline — partition the remaining files into batches of related functionality (same subsystem, sibling files) and launch one subagent per batch in parallel (`subagent_type: "general-purpose"`, `model: "fable"`). Each subagent prompt includes: the step-0 authority list to read first, the full checklists from steps 4–7, its file batch, and the instruction to return findings as a structured list with `file:line` locations and the checklist category for each. Consolidate and dedup the returned findings, then continue at step 8. At or below the threshold, scan inline yourself (steps 4–7).
 
 ### 4. Complexity Within Functions
 
 Flag:
-- **Oversized functions** — exceeding ~100 lines that could be decomposed
+- **Oversized functions** — exceeding ~1,000 bt-token-v1 that could be decomposed; add `-StartLine <n> -EndLine <n>` to the single-path measurement command for each inclusive function range
 - **Deep nesting** — more than 3 levels of indentation from control flow
 - **Long parameter lists** — more than 5–6 parameters (consider a struct)
 - **Unreachable code** — after unconditional `return`/`break`/`continue`
@@ -87,7 +87,7 @@ Output a structured report (default template — omit sections with no findings)
 ## Refactor-Clean Analysis: [target path]
 
 ### File-Size Triage (delegate to /reduce-file)
-- file — N lines — run `/reduce-file <path>`
+- file — N bt-token-v1 — run `/reduce-file <path>`
 
 ### Complexity Issues
 [List with file:line locations]

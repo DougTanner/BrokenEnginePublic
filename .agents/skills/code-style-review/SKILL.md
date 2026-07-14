@@ -1,7 +1,7 @@
 ---
 name: code-style-review
 description: Reviews and auto-fixes C++ style violations in files modified during the session, per `Documents/C++StyleGuide.txt` — Hungarian notation, `auto` restrictions, float literal suffixes, `nullptr`, `override`, naming/abbreviation rules, brace and argument formatting. Use after any C++ code change, or when the user asks for a style review, style check, or naming/formatting cleanup.
-allowed-tools: [Read, Edit, Grep]
+allowed-tools: [Read, Write, Edit, Grep]
 ---
 
 # Code Style Review
@@ -12,7 +12,18 @@ Reviews C++ files edited in this conversation and fixes style violations per `Do
 
 ### 1. Identify Modified Files
 
-If invoked as a subagent, use the changed-file list and touched regions from the caller's prompt. Otherwise list all `.cpp` and `.h` files you edited in this conversation (check your Edit/Write tool calls). Apply fixes only to line ranges that were modified.
+If invoked as a subagent, load the changed-file and touched-region IDs from the
+supplied implementation/affected-code report paths instead of requiring pasted
+reports. Otherwise list all `.cpp` and `.h` files you edited in this
+conversation (check your Edit/Write tool calls). Apply fixes only to line
+ranges that were modified.
+
+When invoked as a subagent, also require `ReportPath` and follow
+[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
+review in the existing Report schema, verify it, and return only the compact
+envelope. Index every applied fix, routed reference, and residual. A missing or
+unwritable delegated report blocks review and auto-fix work. A direct invocation
+without `ReportPath` keeps the existing full inline output.
 
 ### 2. Read the Style Guide
 

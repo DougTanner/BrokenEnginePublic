@@ -1,7 +1,7 @@
 ---
 name: repo-code-review
 description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, useless-ASSERT discipline, collection integrity, determinism, client/server guard scope and affinity. Use after any C++ code change, when the user says "review my changes", "check my code", "code review", or before declaring an implementation complete. Flags oversized files for /reduce-file. Logic and correctness only — formatting/style belongs to code-style-review.
-allowed-tools: [Read, Grep, Glob, WebFetch]
+allowed-tools: [Read, Write, Grep, Glob, WebFetch, Bash, PowerShell]
 ---
 
 # Code Review
@@ -12,11 +12,22 @@ Reviews this session's C++ changes for **logic and correctness** — formatting/
 
 ### 1. Identify Modified Code
 
-If invoked as a subagent, use the changed-file list, touched functions/regions (they scope the §2c/§2d "added this session" checks), and any focus areas from the caller's prompt. Otherwise review the conversation history to find all files that were edited during this session. Focus on:
+If invoked as a subagent, require the implementation/affected-code report paths
+and indexed changed-region/focus-area IDs, then read those sections directly;
+they scope the §2c/§2d "added this session" checks without pasting full reports
+into the caller prompt. Otherwise review the conversation history to find all
+files that were edited during this session. Focus on:
 - New functions/methods added
 - Modified logic in existing functions
 - New data structures or classes
 - Integration points where new code connects to existing systems
+
+When invoked as a subagent, also require `ReportPath` and follow
+[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
+review in the existing Output Format, verify it, and return only the compact
+envelope. Index every finding, API-verification request, and residual. A missing
+or unwritable delegated report blocks the review. A direct invocation without
+`ReportPath` keeps the existing full inline output.
 
 ### 2. Review for General Bugs
 
@@ -151,9 +162,9 @@ Verify existing `common::` utilities are used instead of reimplementing. `Common
 
 ### 7. File Size Check
 
-For each modified `.cpp` file, check its total line count:
-- **Over 1000 lines**: Always flag as **REQUIRED** — the file needs `/reduce-file`. The caller routes flagged files to a follow-up plan in `Documents/Plans/`; the split is never run inline during a review
-- **500-1000 lines**: Only flag as **RECOMMEND** if you identified a natural split point during the review (e.g., distinct responsibility groups, client/server code that could separate, utility functions that belong in a `*Utils` file). Do not flag files in this range that are cohesive and have no obvious split
+For each modified `.cpp` file, run `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>` and check its `bt-token-v1` estimate (normalized UTF-8 bytes divided by four, rounded up; this is a deterministic size metric, not an exact model-token count):
+- **Over 10,000 bt-token-v1**: Always flag as **REQUIRED** — the file needs `/reduce-file` or an accepted cohesive exception. The caller routes flagged files to a follow-up plan in `Documents/Plans/`; reduction is never run inline during a review
+- **5,000-10,000 bt-token-v1**: Only flag as **RECOMMEND** if you identified a natural split point during the review (e.g., distinct responsibility groups, client/server code that could separate, utility functions that belong in a `*Utils` file). Do not flag files in this range that are cohesive and have no obvious split
 - **Struct splitting**: Structs with static methods (e.g., SOA collections) can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). Classes must NOT be split this way — extract independent classes instead. See `/reduce-file` skill
 
 ### 8. Implementation Assessment
@@ -166,9 +177,9 @@ Evaluate the changes holistically:
 	- New enum value → grep every switch/dispatch/serialization table over that enum.
 	- Anything renamed → grep comments, AGENTS.md, plans, and shared headers for the old name.
 - **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested. Flag over-built code added this session: an abstraction (base class, template, callback, indirection layer) with exactly one implementation/user and no second on the horizon; a config value, parameter, or option that never varies at any call site; speculative "for later" scaffolding no current code path exercises; reimplementation of an existing `common::` or stdlib facility (§6 owns the `common::` catalog check).
-- **New duplication** - Flag (required) when the diff introduces a near-copy (~5+ lines, or a repeated multi-condition check) of logic that already exists in the repo — verify by grepping a distinctive fragment of each substantial new block; require calling or extracting a shared helper. Exception: deliberate mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel — do not recommend abstracting them.
+- **New duplication** - Flag (required) when the diff introduces a near-copy (~50+ bt-token-v1, or a repeated multi-condition check) of logic that already exists in the repo — verify by grepping a distinctive fragment of each substantial new block; require calling or extracting a shared helper. Exception: deliberate mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel — do not recommend abstracting them.
 - **Workaround justification test** - A workaround that needs a paragraph-long comment to justify why it is OK is itself a required finding: the code is wrong — require fixing the underlying code, not accepting the justification.
-- **Function size**: Aim for 50-100 lines max per function. Soft guideline — some functions are legitimately large. If a modified function has grown past this, flag with "function does too much" and recommend a split only if a natural responsibility boundary exists.
+- **Function size**: Inspect modified functions around 500 bt-token-v1 and treat 1,000 bt-token-v1 as a soft maximum. Some functions are legitimately large; flag "function does too much" and recommend a split only when a natural responsibility boundary exists. Add `-StartLine <n> -EndLine <n>` to the measurement command for the inclusive function range.
 
 For micro-simplification opportunities (unnecessary intermediate variables, over-complicated expressions), recommend running `/simplify` on the changed files rather than listing them here — that skill owns surface-level simplification; duplication of existing repo logic is the §8 New-duplication check, not a `/simplify` punt. For nesting-depth / style complaints, `/code-style-review` owns those.
 
@@ -226,7 +237,7 @@ Only include sections where issues were found. For sections with no issues, omit
 - ✗ [pattern name] - [details of what's wrong and how to fix]
 
 ### File Size Warnings
-- file (N lines) - [RECOMMEND / REQUIRED] `/reduce-file <path>`
+- file (N bt-token-v1) - [RECOMMEND / REQUIRED] `/reduce-file <path>`
 
 ### Implementation Issues
 - [Description of completeness, integration, minimality, or simplification concern]

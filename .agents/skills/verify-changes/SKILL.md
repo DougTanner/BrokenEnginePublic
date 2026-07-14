@@ -19,7 +19,8 @@ Require:
 
 - Absolute adopted session-worktree path and fixed session-start baseline commit
 - Final approved plan and caller-supplied approved-delta summary (`none` is valid)
-- Accumulated implementation, affected-code, review, style, documentation, project-membership, and build reports, including every residual and handoff
+- For a delegated call, an absolute caller-assigned `ReportPath` under the session worktree's `Temp/AgentReports/`
+- Paths to accumulated implementation, affected-code, review, style, documentation, project-membership, and build reports, including every residual and handoff
 
 If lifecycle identity or required evidence is missing or ambiguous, return `BLOCKED`; do not rediscover a movable baseline or invent acceptance criteria.
 Block when any report shows an unapproved plan delta or a subagent edit to the approved plan. Only main may apply an exact user-approved delta before verification.
@@ -42,7 +43,12 @@ Block when any report shows an unapproved plan delta or a subagent edit to the a
 
 ## Output
 
-Return this concise report:
+Follow [`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
+For a delegated call, require `ReportPath`, write this complete report there,
+and return only the compact indexed envelope. Keep `Verification`,
+worktree/baseline, final-manifest identity, every non-passing status, and any
+decision-driving blocker visible in the envelope. With no delegated
+`ReportPath`, retain the complete inline report:
 
 - `Verification: PASS | BLOCKED`
 - Worktree and fixed baseline

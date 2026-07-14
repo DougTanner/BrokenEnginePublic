@@ -75,7 +75,7 @@ Name the interface being changed, not just `path:line` — symbol names survive 
 
 Keep plans focused — one plan per logical group (e.g., `Architecture_IncludeGraph.md`, `Architecture_LayerViolations.md`, `Architecture_CollectionCohesion.md`, `Architecture_LibraryReplacement.md`). Only create a plan if there are concrete changes to make. If a plan would exceed 15 items, split it by subdirectory or file group.
 
-ThirdParty library-replacement candidates from the architecture review get their own plan file (`Architecture_LibraryReplacement.md`). Each item must include: candidate library name, license (allow-list only), approximate LOC removable, and risks. The verification phase re-checks the license claim and confirms the library is not already in `/ThirdParty/`.
+ThirdParty library-replacement candidates from the architecture review get their own plan file (`Architecture_LibraryReplacement.md`). Each item must include: candidate library name, license (allow-list only), approximate `bt-token-v1` removable measured with `.agents/scripts/Measure-Tokens.ps1`, and risks. The verification phase re-checks the license claim and confirms the library is not already in `/ThirdParty/`.
 
 ### 2. Phase 2: Refactor-Clean
 

@@ -18,7 +18,7 @@ No repository requirement, bootstrap, wrapper, or other `PyYAML` reference curre
 - `C:\Users\dougt\.codex\skills\.system\skill-creator\scripts\quick_validate.py` — current authoritative implementation and its unconditional `yaml` dependency; inspect only unless ownership is explicitly established outside this repository.
 - `.agents/skills/external-skill-creator/SKILL.md` and repository-owned validation script/bootstrap location selected at grill — shared skill-authoring entry point and durable implementation boundary.
 - `.agents/skills/verify-changes/SKILL.md` and `AGENTS.md` — verification/process instructions that must use the same clean-environment command where skill files are in the change manifest.
-- `.agents/skills/external-grill-plan/SKILL.md`, `.agents/skills/finalize-changes/SKILL.md`, `.agents/skills/implement-plan/SKILL.md`, `.agents/skills/next-plan/SKILL.md`, and `.agents/skills/resolve-findings/SKILL.md` — active-session overlap; update only if the chosen validation contract requires local invocation text rather than one centralized process rule.
+- `.agents/skills/external-grill-plan/SKILL.md`, `.agents/skills/finalize-changes/SKILL.md`, `.agents/skills/implement-plan/SKILL.md`, `.agents/skills/next-plan/SKILL.md`, and `.agents/skills/resolve-findings/SKILL.md` — update only if the chosen validation contract requires local invocation text rather than one centralized process rule; any conditional edits must preserve current-checkout AgentCli Output execution and the prohibition on routine-worktree AgentCli builds.
 
 ## Out of scope
 
@@ -38,4 +38,4 @@ No repository requirement, bootstrap, wrapper, or other `PyYAML` reference curre
 
 - Decision plan: present the three boundary options with repository and actual-validator evidence at grill; do not preselect one from this residual alone.
 - Developer workflow only. No C++ build, runtime, determinism/CRC, replay, wire protocol, `kiVersion`/`.pack`, shader, client/server guard, allocation-tracked, or agent-harness exposure.
-- This plan overlaps the active session's `AGENTS.md` and six process skills. Reconcile those files against the final landed session before execution; ordinary overlap is not a dependency.
+- Any edits to process skills must preserve current-checkout AgentCli Output execution, the wrapper-held session exclusion contract and 660-second maintenance wait, and the prohibition on routine-worktree AgentCli builds. Validation tooling must not introduce an independent lock domain.

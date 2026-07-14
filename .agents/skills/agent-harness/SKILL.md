@@ -177,14 +177,17 @@ References: [firewall allowance risks](https://support.microsoft.com/en-us/windo
 
 ## AgentCli setup
 
-Use installed `%LOCALAPPDATA%\BrokenEngine\AgentCli\v2\AgentCli.exe`; `--version` must print exactly `2`. Set `$AgentCli` to that path. If missing or mismatched, build AgentCli Release directly with native PowerShell using `C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe` (`vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath` fallback), then run:
+Require the live wrapper-held AgentCli session claim, provision the worktree, then use `$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe`. If exclusive maintenance is active, wrapper admission waits up to 660 seconds before the session starts:
 
 ```powershell
-& "$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe" install
-if ($LASTEXITCODE -ne 0 -or (& $AgentCli --version) -ne '2') { throw 'AgentCli v2 bootstrap failed' }
+if ([string]::IsNullOrWhiteSpace($env:BROKEN_ENGINE_AGENTCLI_SESSION_OWNER)) { throw 'Live wrapper AgentCli session claim is required.' }
+& "$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot $ROOT
+if ($LASTEXITCODE -ne 0) { throw "Worktree provisioning failed: $LASTEXITCODE" }
+$AgentCli = Join-Path $ROOT 'Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe'
+if (-not (Test-Path -LiteralPath $AgentCli -PathType Leaf)) { throw "AgentCli is missing: '$AgentCli'." }
 ```
 
-The direct build must use Release/x64 plus `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; see `/compile` for the full bootstrap command.
+If the executable is missing, stop. Routine harness work never builds AgentCli or writes through the shared Output link; `/compile` owns the explicitly authorized primary-maintenance workflow.
 
 ## Claiming the harness (do this first)
 
@@ -257,7 +260,7 @@ Before rebuilding/relinking, **send `quit` to any running instance** (the server
 
 ## AgentCli invocation
 
-Use installed v2 and always pass the harness owner. Prefer stdin mode (trailing `-`) to avoid quoting JSON; use forward slashes in JSON Windows paths.
+Use the current-checkout AgentCli and always pass the harness owner. Prefer stdin mode (trailing `-`) to avoid quoting JSON; use forward slashes in JSON Windows paths.
 
 ```powershell
 '{"cmd":"status"}' | & $AgentCli --owner $Owner --port 27100 -
@@ -412,7 +415,19 @@ Only the focused fleet exposes a `members` list; spaceship units carry no id (`g
 
 ## Process verification report
 
-For C++ Code Change Process step 9, run the plan's Verification section when present; otherwise derive the smallest live checks that cover its acceptance criteria. Report each criterion as `PASS` or `FAIL` with the exact query, scene, UI, screenshot, or log evidence. Report setup limitations as blocked checks rather than weakening a criterion. Do not diagnose or edit a failure in this role; return it to `/resolve-findings` with the reproducing commands and evidence. The caller re-invokes this skill after each fix until every affected live check passes. A failed or blocked in-scope testable check is not a completed step-9 report; the user must supply the missing authority/environment or explicitly revise the plan's scope or acceptance criteria before verification resumes.
+For C++ Code Change Process step 9, require a caller-assigned absolute
+`ReportPath` under the session worktree's `Temp/AgentReports/` and follow
+[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
+Run the plan's Verification section when present; otherwise derive the smallest
+live checks that cover its acceptance criteria. Report each criterion as `PASS`
+or `FAIL` with the exact query, scene, UI, screenshot, or log evidence. Report
+setup limitations as blocked checks rather than weakening a criterion. Do not
+diagnose or edit a failure in this role; return it to `/resolve-findings` with
+the reproducing commands and evidence. The caller re-invokes this skill after
+each fix until every affected live check passes. A failed or blocked in-scope
+testable check is not a completed step-9 report; the user must supply the
+missing authority/environment or explicitly revise the plan's scope or
+acceptance criteria before verification resumes.
 
 End the process verification report with:
 
@@ -422,6 +437,11 @@ Functions/regions touched: none
 Residuals:
 - <failed criterion, setup limitation, or none>
 ```
+
+Write the complete process verification report to `ReportPath`, then return
+only the shared compact indexed envelope. Keep every criterion verdict and
+blocked requirement in the index. Direct harness use outside delegated process
+verification retains its normal inline command results.
 
 ## Caveats
 

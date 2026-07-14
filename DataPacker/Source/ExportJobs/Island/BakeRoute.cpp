@@ -109,72 +109,6 @@ std::string SplitFingerprint(const RouteSubdivision& rRoute)
 	return metadata.dump();
 }
 
-bool AreLegacyRawOutputsCurrent(const std::filesystem::path& rIntermediatesDirectory, const std::filesystem::path& rIslandJsonFile, const std::filesystem::path& rArchetypeFile)
-{
-	for (const char* pcFile : kpcIntermediateFiles)
-	{
-		if (!std::filesystem::exists(rIntermediatesDirectory / pcFile))
-		{
-			return false;
-		}
-	}
-	if (!std::filesystem::exists(rIntermediatesDirectory / kpcPatchedArchetypeFile))
-	{
-		return false;
-	}
-
-	std::filesystem::file_time_type inputNewest = std::max(std::filesystem::last_write_time(rIslandJsonFile), std::filesystem::last_write_time(rArchetypeFile));
-	for (const char* pcFile : kpcIntermediateFiles)
-	{
-		if (std::filesystem::last_write_time(rIntermediatesDirectory / pcFile) < inputNewest)
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
-void UpgradeLegacyMetadata(const std::filesystem::path& rIntermediatesDirectory, const std::filesystem::path& rIslandJsonFile, const std::filesystem::path& rArchetypeFile, const std::string& rBakeFingerprint, const std::string& rSplitFingerprint)
-{
-	// Legacy sentinels only encoded code versions; preserve the old IsGaeaRawDirty timestamp gate
-	// before promoting them to content fingerprints. Otherwise a fresh worktree could bless raw
-	// outputs older than Island.json or the archetype and permanently skip the required re-bake.
-	bool bRawOutputsCurrent = AreLegacyRawOutputsCurrent(rIntermediatesDirectory, rIslandJsonFile, rArchetypeFile);
-	std::filesystem::path legacyBakeFile = rIntermediatesDirectory / "BakeVersion.txt";
-	if (bRawOutputsCurrent && !std::filesystem::exists(rIntermediatesDirectory / kpcBakeVersionFile) && std::filesystem::exists(legacyBakeFile))
-	{
-		bool bUpgradeMetadata = false;
-		{
-			std::ifstream stream(legacyBakeFile);
-			int32_t iVersion = 0;
-			stream >> iVersion;
-			bUpgradeMetadata = stream && iVersion == kiBakeVersion;
-		}
-		if (bUpgradeMetadata)
-		{
-			WriteTextFile(rIntermediatesDirectory / kpcBakeVersionFile, rBakeFingerprint);
-			std::filesystem::remove(legacyBakeFile);
-		}
-	}
-
-	std::filesystem::path legacySplitFile = rIntermediatesDirectory / "SplitVersion.txt";
-	if (bRawOutputsCurrent && !std::filesystem::exists(rIntermediatesDirectory / kpcSplitVersionFile) && std::filesystem::exists(legacySplitFile))
-	{
-		bool bUpgradeMetadata = false;
-		{
-			std::ifstream stream(legacySplitFile);
-			int32_t iVersion = 0;
-			stream >> iVersion;
-			bUpgradeMetadata = stream && iVersion == kiSplitVersion;
-		}
-		if (bUpgradeMetadata)
-		{
-			WriteTextFile(rIntermediatesDirectory / kpcSplitVersionFile, rSplitFingerprint);
-			std::filesystem::remove(legacySplitFile);
-		}
-	}
-}
-
 // True if the route's RAW Gaea outputs are missing or stale — forces a (slow) Gaea.Swarm re-export.
 // Checks only Gaea-output concerns: the raw intermediate files + the patched archetype (needed for
 // the split's sea-level read) are present, the Gaea-bake-version sentinel matches, and the raw
@@ -557,7 +491,6 @@ void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute
 	int64_t iLeafCount = rRoute.iColumns * rRoute.iRows;
 	std::string bakeFingerprint = BakeFingerprint(rContext, rRoute);
 	std::string splitFingerprint = SplitFingerprint(rRoute);
-	UpgradeLegacyMetadata(intermediatesDirectory, rContext.rIslandJsonFile, rContext.rArchetypeFile, bakeFingerprint, splitFingerprint);
 
 	// Sweep leaf folders orphaned by a route leaf-count shrink before anything else: this must run even
 	// on the otherwise-clean early-return path, since a kRouteSubdivisions edit need not bump kiSplitVersion.

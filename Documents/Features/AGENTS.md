@@ -4,7 +4,9 @@ Implementation plans for brand-new additions — work that gives the engine a ca
 
 ## Index File
 
-`Order.md` — all feature plans, sorted by score (lowest first). Plans live in area subdirectories: `Audio/`, `Engine/`, `Frame/`, `Graphics/`, `Network/`. Besides the scored table, `Order.md` has three sections plan authors must keep current:
+All feature work requires a wrapper-created worktree with its live AgentCli session claim. Use the same per-repository session/maintenance exclusion defined for Plans; do not initialize an independent lock domain.
+
+`Order.md` — all feature plans, roughly ordered by score (lowest first) — a loose tiebreaker for pick-next order, not a strict invariant. Plans live in area subdirectories: `Audio/`, `Engine/`, `Frame/`, `Graphics/`, `Network/`. Besides the scored table, `Order.md` has three sections plan authors must keep current:
 
 - **Reference / Index Documents** — unscored reference/index docs; exempt from the scoring requirement and never independently scheduled.
 - **Dependencies** — explicit prerequisites and mandatory invariant landing constraints, including cross-queue dependencies on `Documents/Plans/`. Unfinished prerequisites block execution; nondirectional constraints do not block selection but remain mandatory at landing.
@@ -12,13 +14,13 @@ Implementation plans for brand-new additions — work that gives the engine a ca
 
 ## Rules
 
-Queue lifecycle and the `Order.md` row format are identical to [`../Plans/AGENTS.md`](../Plans/AGENTS.md): a new plan gets its fully scored row in the same edit session, inserted score-sorted; an executed plan has its row removed and its file deleted. Features-specific:
+Queue lifecycle and the `Order.md` row format are identical to [`../Plans/AGENTS.md`](../Plans/AGENTS.md): a new plan gets its fully scored row in the same edit session, inserted at roughly its score position (exact placement isn't important); an executed plan has its row removed and its file deleted. Features-specific:
 
-The AgentCli v2 plan-domain lock defined by [`../Plans/AGENTS.md`](../Plans/AGENTS.md) is authoritative across worktrees; the local `[CLAIMED <date>]` marker is informational. Feature keys are normalized paths relative to this directory's `Order.md`. Duplicate claims block. Different plans with ordinary file overlap may proceed independently; under root C++ Code Change Process step 12, the later lander reconciles the newer target-branch commit and reruns every affected review, build, and verification step before landing. Mandatory invariant constraints remain binding regardless of landing order.
+The AgentCli plan queue/row coordination defined by [`../Plans/AGENTS.md`](../Plans/AGENTS.md) is authoritative across worktrees. Use the current checkout's `Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe` and address this queue with canonical Git common directory plus repo-relative `Documents/Features/Order.md`; feature row identities are normalized paths relative to that file. Duplicate row claims block, and no claim metadata belongs in `Order.md` or plan files. Different plans with ordinary file overlap may proceed independently; under root C++ Code Change Process step 12, the later lander reconciles the newer target-branch commit and reruns every affected review, build, and verification step before landing. Mandatory invariant constraints remain binding regardless of landing order.
 
 - A plan that turns out to be a refactor/bugfix in disguise (no new capability) moves to `Documents/Plans/`, updating both `Order.md` files.
 - Designs deferred on YAGNI grounds are scored normally but carry explicit "Revisit When" trigger conditions in the plan body — the `Frame/Future_*.txt` files are the pattern.
 
 ## Plan File Authoring
 
-New plans follow the [`../Plans/AGENTS.md`](../Plans/AGENTS.md) authoring conventions (heading shape, required `## Out of scope` section, name interfaces not just paths) and use `.md`. Existing `.txt` plans are grandfathered with varied legacy headings.
+New plans follow the [`../Plans/AGENTS.md`](../Plans/AGENTS.md) authoring conventions (heading shape, required `## Out of scope` section, name interfaces not just paths) and use `.md`. Heading structure is not enforced for `.txt` plans.

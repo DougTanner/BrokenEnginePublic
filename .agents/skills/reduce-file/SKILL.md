@@ -1,17 +1,17 @@
 ---
 name: reduce-file
-description: Analyzes a C++ file that exceeds size guidelines (500-1000 lines) and produces a structured plan for refactoring or splitting it into smaller files. Invoke when executing a plan that calls for reducing an oversized file (e.g., one pulled by /next-plan), or when the user runs /reduce-file. Do not run inline during review passes — flagged files route to a follow-up plan in `Documents/Plans/` instead.
+description: Analyzes a C++ file that exceeds bt-token-v1 size guidelines (5,000-10,000) and produces a structured plan for refactoring or splitting it into smaller files. Invoke when executing a plan that calls for reducing an oversized file (e.g., one pulled by /next-plan), or when the user runs /reduce-file. Do not run inline during review passes — flagged files route to a follow-up plan in `Documents/Plans/` instead.
 argument-hint: <file-path>
 allowed-tools: [Read, Grep, Glob, Bash, AskUserQuestion]
 ---
 
 # Reduce File
 
-Analyzes a C++ source file that exceeds the project's size guidelines (500-1000 lines) and produces a structured plan for reducing it — either through extracting helpers to utility files, extracting new classes, or splitting struct implementations across multiple `.cpp` files.
+Analyzes a C++ source file that exceeds the project's `bt-token-v1` size guidelines (5,000-10,000) and produces a structured plan for reducing it — either through extracting helpers to utility files, extracting new classes, or splitting struct implementations across multiple `.cpp` files.
 
 Interactive — runs in the main session (it asks the user about direction in step 2 and for the final option choice); do not dispatch it to a subagent.
 
-> **IMPORTANT — never split a `class` across multiple `.cpp` files to reduce size.** Determine first whether the oversized type is a `class` (instance methods + member data) or a `struct` of static methods (e.g. an SOA collection). Scattering a class's member-function definitions across sibling TUs (`Foo::A()` in `Foo.cpp`, `Foo::B()` in `FooMore.cpp`) does **not** fix the oversized *class* — it only hides the line count and destroys the one-place-to-reason-about-its-invariants property. The only sanctioned reductions for an oversized **class** are: **(a)** extract free functions/helpers to `*Utils.{h,cpp}`; or **(b)** extract an *independent class* that owns a cohesive slice of the data+behavior, which the original class holds as a member and delegates to (Option B below). Only **structs of static methods** may be split across `.cpp` files by responsibility (core/update/render). If neither (a) nor (b) yields a clean boundary, the correct outcome is **accept-and-document** (add a size-accepted comment at the top of the file so future passes stop re-flagging it) — never a member scatter. This is enforced by `repo-code-review` §7 (File Size Check): "Classes must NOT be split this way — extract independent classes instead." A plan that says "`/reduce-file` split of `Foo.cpp`" where `Foo` is a class must be read as **(a)/(b)/accept-and-document**, not a member scatter.
+> **IMPORTANT — never split a `class` across multiple `.cpp` files to reduce size.** Determine first whether the oversized type is a `class` (instance methods + member data) or a `struct` of static methods (e.g. an SOA collection). Scattering a class's member-function definitions across sibling TUs (`Foo::A()` in `Foo.cpp`, `Foo::B()` in `FooMore.cpp`) does **not** fix the oversized *class* — it only hides its measured size and destroys the one-place-to-reason-about-its-invariants property. The only sanctioned reductions for an oversized **class** are: **(a)** extract free functions/helpers to `*Utils.{h,cpp}`; or **(b)** extract an *independent class* that owns a cohesive slice of the data+behavior, which the original class holds as a member and delegates to (Option B below). Only **structs of static methods** may be split across `.cpp` files by responsibility (core/update/render). If neither (a) nor (b) yields a clean boundary, the correct outcome is **accept-and-document** (add a size-accepted comment at the top of the file so future passes stop re-flagging it) — never a member scatter. This is enforced by `repo-code-review` §7 (File Size Check): "Classes must NOT be split this way — extract independent classes instead." A plan that says "`/reduce-file` split of `Foo.cpp`" where `Foo` is a class must be read as **(a)/(b)/accept-and-document**, not a member scatter.
 
 ## Key Principles
 
@@ -32,11 +32,11 @@ If no argument is provided, ask the user which file to analyze.
 
 ### 1. Measure the File
 
-Count total lines and determine severity:
-- **500-1000 lines**: Look for refactoring opportunities (soft guideline)
-- **Over 1000 lines**: File should be split (hard guideline, requires human approval of split plan)
+Run `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>` on the file and determine severity. `bt-token-v1` is normalized UTF-8 bytes divided by four, rounded up; it is a deterministic size estimate, not an exact model-token count:
+- **5,000-10,000 bt-token-v1**: Look for refactoring opportunities (soft guideline)
+- **Over 10,000 bt-token-v1**: File should be reduced or receive an accepted cohesive exception (hard guideline, requires human approval of split plan)
 
-Report the line count upfront.
+Report the bt-token-v1 estimate upfront.
 
 ### 2. Consider Alternatives
 
@@ -46,7 +46,7 @@ Before mapping the file, ask the user whether they have other approaches in mind
 
 Build a complete map of the file's contents. For each function/method/struct, record:
 - **Name** and line range (start-end)
-- **Approximate line count**
+- **Approximate bt-token-v1 estimate**
 - **Scope guards**: Is it inside `#ifdef BT_CLIENT`, `#ifdef BT_SERVER`, or unguarded (shared)?
 - **Access pattern**: Is it `static`, a free function, a method, a class definition?
 
@@ -64,7 +64,7 @@ Group the functions into logical responsibilities based on:
 - **Call chains**: Functions that primarily call each other
 
 For each responsibility group, calculate:
-- Total line count
+- Total bt-token-v1 estimate
 - Whether it's client-only, server-only, or shared
 - Key data types it operates on
 - **Which member variables** the group reads/writes (critical for identifying what data moves to the new class)
@@ -105,14 +105,14 @@ For each proposed new class:
 - **New files**: `ClassName.h` and `ClassName.cpp`
 - **Extracted data**: Which member variables move from the original class to the new class
 - **Extracted methods**: Which methods move to the new class
-- **Line count estimate**: How many lines the new `.h` and `.cpp` will have
+- **Size estimate**: Approximate bt-token-v1 for the new `.h` and `.cpp`
 - **Scope guard**: Whether the files are wrapped in `#ifdef`
 - **Includes needed**: What headers the new files require
 - **Delegation pattern**: How the original class uses the new class (owns it as a member? pointer? global?)
 - **Implementation order**: Break into incremental steps where the program compiles and works after each step (e.g., 1. Create new file with class shell, 2. Move first method group, 3. Move data members, 4. Update callers)
 
 Also state:
-- What remains in the original class and its reduced line count
+- What remains in the original class and its reduced bt-token-v1 estimate
 - How the original class's header changes (removed members, new includes/forward declarations)
 
 The extracted class must be a genuine abstraction — it should own the data it operates on and present a meaningful interface. Don't create a class that just wraps free functions with no state.
@@ -124,13 +124,13 @@ This applies to structs whose interface is a set of static methods (common for S
 For each proposed `.cpp` file:
 - **File name**: `StructName<Responsibility>.cpp` (e.g., `BlastersUpdate.cpp`, `BlastersRender.cpp`)
 - **Methods moved**: Which static methods go into this file
-- **Line count estimate**: How many lines the new `.cpp` will have
+- **Size estimate**: Approximate bt-token-v1 for the new `.cpp`
 - **Scope guard**: Whether the file is wrapped in `#ifdef`
 - **Includes needed**: What headers the new file requires
 - **Implementation order**: Break into incremental steps where the program compiles after each step (e.g., 1. Create new .cpp, 2. Move first method group, 3. Update vcxproj and vcxproj.filters (filter must mirror on-disk directory), 4. Verify build)
 
 Also state:
-- What remains in the original `.cpp` and its reduced line count
+- What remains in the original `.cpp` and its reduced bt-token-v1 estimate
 - The `.h` file does not change (all methods remain declared there)
 
 ### 8. Highlight Risks
@@ -157,11 +157,11 @@ Default template — adapt as needed and omit option sections that don't apply.
 
 ## File Analysis: `<filename>`
 
-**Lines**: `<count>` (`<severity>`)
+**Size**: `<bt-token-v1>` (`<severity>`)
 
 ### Responsibility Groups
 
-| # | Responsibility | Lines | Scope | Key Types | Member Variables |
+| # | Responsibility | bt-token-v1 | Scope | Key Types | Member Variables |
 |---|---------------|-------|-------|-----------|-----------------|
 | 1 | `<name>`      | ~`<n>` | shared/client/server | `<types>` | `<vars>` |
 | 2 | `<name>`      | ~`<n>` | shared/client/server | `<types>` | `<vars>` |
@@ -181,7 +181,7 @@ Default template — adapt as needed and omit option sections that don't apply.
 **Target file**: `<AnotherUtils>.h` / `<AnotherUtils>.cpp` (if needed)
 - `<function/constant/struct to extract>`
 
-**Estimated result**: ~`<n>` lines (down from `<original>`)
+**Estimated result**: ~`<n>` bt-token-v1 (down from `<original>`)
 
 ### Option B: Extract New Classes
 
@@ -189,14 +189,14 @@ Default template — adapt as needed and omit option sections that don't apply.
 - **Purpose**: `<what this class represents>`
 - **Extracted data**: `<member variables that move to this class>`
 - **Extracted methods**: `<methods that become methods of this class>`
-- **~Lines**: `<h lines>` + `<cpp lines>`
+- **~bt-token-v1**: `<header>` + `<implementation>`
 - **Scope**: `<shared/client/server>`
 - **Delegation**: `<how the original class uses this — member, pointer, global, etc.>`
 
 **Original class after extraction**:
 - **Removed members**: `<list>`
 - **New members/includes**: `<list>`
-- **~Lines**: `<h lines>` + `<cpp lines>` (down from `<original>`)
+- **~bt-token-v1**: `<header>` + `<implementation>` (down from `<original>`)
 
 ### Option C: Split Struct Implementation
 
@@ -204,15 +204,15 @@ Default template — adapt as needed and omit option sections that don't apply.
 
 #### `<StructName><Responsibility>.cpp`
 - **Methods**: `<static methods in this file>`
-- **~Lines**: `<n>`
+- **~bt-token-v1**: `<n>`
 - **Scope**: `<shared/client/server>`
 
 #### `<StructName><Responsibility2>.cpp`
 - **Methods**: `<static methods in this file>`
-- **~Lines**: `<n>`
+- **~bt-token-v1**: `<n>`
 - **Scope**: `<shared/client/server>`
 
-**Original `.cpp` after split**: ~`<n>` lines (down from `<original>`)
+**Original `.cpp` after split**: ~`<n>` bt-token-v1 (down from `<original>`)
 
 ### Shared Symbol Resolution
 - `<symbol>`: `<where it goes and why>`

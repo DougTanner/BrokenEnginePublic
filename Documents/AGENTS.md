@@ -23,7 +23,7 @@ Deciding test: *does this plan give the engine a capability it didn't have befor
 
 ## Scoring Anchors (canonical — both `Order.md` files reference here)
 
-Each `Order.md` row carries `Score = Effort − Impact + Risks`; lower = higher priority. Scores are not comparable across the two files (originally one sort, later split). Calibrate against neighbouring rows; do not default to the middle.
+Each `Order.md` row carries `Score = Effort − Impact + Risks`; lower = higher priority. Scores are not comparable across the two files (originally one sort, later split). Calibrate against neighbouring rows; do not default to the middle. These scores — and the row order they produce — are rough estimates that serve only as a quick tiebreaker for pick-next order, not a precise or enforced ranking; approximate placement is sufficient and not worth policing. Size-removal anchors use the deterministic `bt-token-v1` estimate from [Measure-Tokens.ps1](../.agents/scripts/Measure-Tokens.ps1), not exact model tokens.
 
 **Effort** (size of change):
 
@@ -39,9 +39,9 @@ Each `Order.md` row carries `Score = Effort − Impact + Risks`; lower = higher 
 
 | Score | Anchor |
 |-------|--------|
-| 1 | Cosmetic — terminology, IDE-view only, comment cleanup, single-digit line removal |
+| 1 | Cosmetic — terminology, IDE-view only, comment cleanup, under ~100 `bt-token-v1` removed |
 | 2 | Modest — minor consistency/perf, eliminates noise, narrow dev-experience win |
-| 3 | Real — visible bug fix, meaningful perf/correctness gain, removes hundreds of lines |
+| 3 | Real — visible bug fix, meaningful perf/correctness gain, removes at least ~1,000 `bt-token-v1` |
 | 4 | Significant — fixes a determinism/desync source, eliminates a real bug class, major code-quality lift |
 | 5 | High — fixes a critical bug, unlocks a major scenario, enables further work |
 

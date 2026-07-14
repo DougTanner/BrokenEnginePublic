@@ -6,17 +6,17 @@
 **Why it's good for the codebase:** Closes a latent silent-UB hazard — the shadow, combine, and water-displacement storage-image formats are currently hand-mirrored between the C++ `VkImageCreateInfo.format` and the shader's `layout(r16/rgba8/rgba16f, ...)` qualifier with nothing tying the two sides together, so a one-sided future edit silently yields a storage-image format mismatch (undefined behavior) or an under-dispatch. It extends the established single-sourcing pattern (`keSmokeFormat`/`keWindFormat`/`keElevationFormat`/`keLightingFormat` and `kiComputeTileSize` already work this way; ~14 other dispatch sites already use the constant) to the last three format families and the two outlier dispatches, and removes three constants (`kiLightingTextures`, `kiBillboardTexturesCount`, `kiMaxAlphaMesh`) that are confirmed dead repo-wide and mislead readers into trusting them as live sizing values.
 
 ## Context
-- Source: `Documents/Plans/Graphics/Architecture_ShaderCpuSingleSourcing.md` (claimed; removed with its Order.md row after execution completes)
-- Order.md row: Tier Small / Effort 2 / Impact 2 / Risks 1 / Score 1 (marked `[CLAIMED]` in Step 2)
+- Source: `Documents/Plans/Graphics/Architecture_ShaderCpuSingleSourcing.md` (removed with its Order.md row after execution completes)
+- Order.md row: Tier Small / Effort 2 / Impact 2 / Risks 1 / Score 1
 - Notes: Add `keShadowFormat`/`keCombineFormat`/`keWaterDisplacementFormat` dual-language constants (three hand-mirrored storage-image families — one-sided edit is silent UB), use `kiComputeTileSize` at the two literal-8 blur dispatches, `keElevationFormat` at two literal sites, delete three dead `ShaderLayoutsBase.h` constants. Shader repack; water session in-flight — refresh cites
 - Relevance: **Fully** — every cited literal, dead constant, and shader qualifier still exists with the exact value/format the plan assumes; no literal has already been converted, no format changed, and all three "dead" constants have zero repo-wide uses (verified against current source).
-- Dependency resolution: switched from the two higher-priority table rows — `Network/AuditSweepQuickWins.md` (blocked: prerequisite `DeadMachinerySweep` is `[CLAIMED]`) and `Network/Refactor_DrainContractUnification.md` (blocked: prerequisite `SessionBaseCollapse` is `[CLAIMED]`); the lighting-occupancy-removal plan was itself `[CLAIMED]` at the time (since landed and removed). This plan has no `Order.md` dependency edges.
-- Changes since the plan was written (line drift from the in-flight water session + path corrections — no logic impact):
-  - Lighting-blur dispatches: `TextureManager.cpp` 792/799 → **817/824**
-  - rgba8 lighting-blur intermediate/result placeholders: `TextureManager.cpp` 730/752 → **759/777**
-  - Elevation literal: `TextureManager.cpp` 125 → **126**; `IslandTerrainResidency.cpp` 81 → **89**
-  - Dead constant `kiMaxAlphaMesh`: `ShaderLayoutsBase.h` 184 → **189**
-  - **Path corrections:** `RenderTargetTextures.cpp` and `RenderTargetTexturesLighting.cpp` live under `Engine/Source/Graphics/Managers/`, not `.../Render/`. Shaders live in subdirectories: `Engine/Data/Shaders/Lighting/`, `.../Shadow/`, `.../Water/`.
+- Dependency resolution: this plan has no unmet prerequisites or `Order.md` dependency edges.
+- Current-source refinements:
+  - Lighting-blur dispatches: `TextureManager.cpp:817` and `:824`.
+  - rgba8 lighting-blur intermediate/result placeholders: `TextureManager.cpp:759` and `:777`.
+  - Elevation literals: `TextureManager.cpp:126` and `IslandTerrainResidency.cpp:89`.
+  - Dead constant `kiMaxAlphaMesh`: `ShaderLayoutsBase.h:189`.
+  - `RenderTargetTextures.cpp` and `RenderTargetTexturesLighting.cpp` are under `Engine/Source/Graphics/Managers/`; shaders are under `Engine/Data/Shaders/Lighting/`, `.../Shadow/`, and `.../Water/`.
 
 ## Execution steps
 

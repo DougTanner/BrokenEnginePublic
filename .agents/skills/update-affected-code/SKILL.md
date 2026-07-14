@@ -9,7 +9,7 @@ description: >-
   self-audit, passing the changed-file list, touched functions/regions, and any
   sweep-exhaustiveness handoffs. Search-and-update only — no refactoring, no
   style fixes, no scope expansion.
-allowed-tools: [Read, Grep, Glob, Edit, Bash]
+allowed-tools: [Read, Write, Grep, Glob, Edit, Bash]
 ---
 
 # Update Affected Code
@@ -18,9 +18,19 @@ Propagate the session's changes outward: find every location whose correctness d
 
 ## Inputs (from the caller's prompt)
 
-- Changed-file list + touched functions/regions from the implementation step
+- Implementation report path(s) plus the indexed changed-region and sweep-handoff IDs; read those sections directly instead of requiring the caller to paste them
 - Plan document path (or the caller's one-paragraph intent summary) — needed to judge mirrored-pattern edits and plan-scope residuals
-- Sweep-exhaustiveness items handed off by the self-audit — treat each as a mandatory search target and report its resolution individually
+- Sweep-exhaustiveness items loaded from the supplied implementation reports — treat each as a mandatory search target and report its resolution individually
+- `ReportPath` for this delegated step
+
+## Reporting Mode
+
+This process step is delegated, so require `ReportPath` and follow
+[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
+report in the existing Report schema, verify it, and return only the compact
+envelope. Index every applied propagation, handed-off-item disposition, and
+residual. A missing or unwritable report blocks the sweep. If invoked directly
+without `ReportPath`, preserve the existing full inline report.
 
 ## What to Search For
 
