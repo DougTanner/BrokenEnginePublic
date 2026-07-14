@@ -26,142 +26,15 @@ New-NetFirewallRule -PolicyStore PersistentStore -Name $RuleName -DisplayName $D
 	-LocalPort 27015,27016 -RemoteAddress LocalSubnet
 ```
 
-Windows-generated per-executable `Query User` inbound block rules override the path-independent Private/`LocalSubnet` allow rule. Before relying on the allow rule, run this **read-only, non-elevated** check once for each exact client and server executable path; any output is a blocker to report, not authorization to remove or change the rule:
+Windows-generated per-executable `Query User` inbound block rules override the path-independent Private/`LocalSubnet` allow rule. When cross-machine Private-LAN access is explicitly required, run the bundled **read-only, non-elevated** readiness check before launching. Pass every exact client and server executable path in one invocation:
 
 ```powershell
-$ExecutablePath = (Resolve-Path -LiteralPath '<exact client-or-server executable path>').Path
-
-Get-NetFirewallRule -PolicyStore ActiveStore -TracePolicyStore -Enabled True `
-	-Direction Inbound -Action Block | Where-Object {
-		$_.Name -like '*Query User*' -or $_.DisplayName -like '*Query User*'
-} | ForEach-Object {
-	$Rule = $_
-	Get-NetFirewallApplicationFilter -AssociatedNetFirewallRule $Rule | Where-Object {
-		[Environment]::ExpandEnvironmentVariables($_.Program) -ieq $ExecutablePath
-	} | ForEach-Object {
-		[pscustomobject]@{
-			Name = $Rule.Name
-			DisplayName = $Rule.DisplayName
-			Action = $Rule.Action
-			Program = $_.Program
-			PolicyStoreSource = $Rule.PolicyStoreSource
-		}
-	}
-}
+& "$ROOT\.agents\skills\agent-harness\scripts\Test-PrivateLanFirewallReadiness.ps1" `
+	-ExecutablePath '<exact client executable path>','<exact server executable path>'
+$ReadinessExit = $LASTEXITCODE
 ```
 
-When cross-machine Private-LAN access is explicitly required, run the following **read-only, non-elevated** inspection before launching. It reports the exact local-persistent rule separately from resultant ActiveStore policy, traces the policy source, compares port/address filters, and checks current enforcement. `ActiveStore` presence or `PrimaryStatus` alone is never proof that the rule is enforced.
-
-```powershell
-$RuleName = 'BrokenEngine-PrivateLan-UDP'
-$DesiredPorts = @('27015', '27016')
-
-function ConvertTo-ValueSet([object[]] $Values)
-{
-	return @($Values | ForEach-Object { "$_" -split ',' } |
-		ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)
-}
-
-function Test-ValueSet([object[]] $Actual, [object[]] $Expected)
-{
-	return @(Compare-Object (ConvertTo-ValueSet $Actual) (ConvertTo-ValueSet $Expected)).Count -eq 0
-}
-
-function Get-RuleShape($Rule)
-{
-	$Port = Get-NetFirewallPortFilter -AssociatedNetFirewallRule $Rule
-	$Address = Get-NetFirewallAddressFilter -AssociatedNetFirewallRule $Rule
-	return [pscustomobject]@{
-		Name = $Rule.Name
-		Enabled = $Rule.Enabled
-		Direction = $Rule.Direction
-		Action = $Rule.Action
-		Profile = $Rule.Profile
-		Protocol = $Port.Protocol
-		LocalPort = $Port.LocalPort
-		RemoteAddress = $Address.RemoteAddress
-		PolicyStoreSource = $Rule.PolicyStoreSource
-		PolicyStoreSourceType = $Rule.PolicyStoreSourceType
-		EnforcementStatus = $Rule.EnforcementStatus
-	}
-}
-
-function Test-DesiredShape($Shape)
-{
-	return $Shape.Name -eq $RuleName -and
-		"$($Shape.Enabled)" -eq 'True' -and
-		"$($Shape.Direction)" -eq 'Inbound' -and
-		"$($Shape.Action)" -eq 'Allow' -and
-		(Test-ValueSet $Shape.Profile @('Private')) -and
-		(Test-ValueSet $Shape.Protocol @('UDP')) -and
-		(Test-ValueSet $Shape.LocalPort $DesiredPorts) -and
-		(Test-ValueSet $Shape.RemoteAddress @('LocalSubnet'))
-}
-
-function Get-InspectionStatus($LocalRules, $DesiredLocalShapes, $ActiveRules,
-	$DesiredActiveLocalShapes, $PrivateProfile, $PrivateConnections)
-{
-	if (@($LocalRules).Count -eq 0)
-	{
-		return 'NOT INSTALLED: no exact-name rule exists in PersistentStore.'
-	}
-	if (@($LocalRules).Count -ne 1 -or @($DesiredLocalShapes).Count -ne 1)
-	{
-		return 'LOCAL RULE MISMATCH: the exact-name PersistentStore rule does not have the required shape.'
-	}
-	if (@($ActiveRules).Count -eq 0)
-	{
-		return 'NO RESULTANT RULE: the local rule exists but no exact-name rule reached ActiveStore.'
-	}
-	if (@($DesiredActiveLocalShapes).Count -ne 1)
-	{
-		return 'RESULTANT OVERRIDE/MISMATCH: inspect PolicyStoreSourceType and the filters above.'
-	}
-	if ("$($PrivateProfile.Enabled)" -ne 'True')
-	{
-		return 'NOT ENFORCED: FirewallOffInProfile.'
-	}
-	if ("$($PrivateProfile.AllowLocalFirewallRules)" -eq 'False')
-	{
-		return 'NOT ENFORCED: LocalFirewallRulesDisallowed.'
-	}
-	if (@($PrivateConnections).Count -eq 0)
-	{
-		return 'NOT ENFORCED: InactiveProfile (no current Private connection).'
-	}
-	$Statuses = ConvertTo-ValueSet $DesiredActiveLocalShapes.EnforcementStatus
-	if (-not (Test-ValueSet $Statuses @('Enforced')))
-	{
-		return "NOT ENFORCED: $($Statuses -join ', ')."
-	}
-	return 'FULLY ENFORCED: exact local rule is resultant and enforced for an eligible Private connection.'
-}
-
-$LocalRules = @(Get-NetFirewallRule -PolicyStore PersistentStore -Name $RuleName -ErrorAction SilentlyContinue)
-$ActiveRules = @(Get-NetFirewallRule -PolicyStore ActiveStore -TracePolicyStore -Name $RuleName -ErrorAction SilentlyContinue)
-$LocalShapes = @($LocalRules | ForEach-Object { Get-RuleShape $_ })
-$ActiveShapes = @($ActiveRules | ForEach-Object { Get-RuleShape $_ })
-$PrivateProfile = Get-NetFirewallProfile -PolicyStore ActiveStore -Name Private
-$Connections = @(Get-NetConnectionProfile)
-$PrivateConnections = @($Connections | Where-Object NetworkCategory -eq 'Private')
-$DesiredLocalShapes = @($LocalShapes | Where-Object { Test-DesiredShape $_ })
-$DesiredActiveLocalShapes = @($ActiveShapes | Where-Object {
-	(Test-DesiredShape $_) -and $_.PolicyStoreSourceType -eq 'Local' -and
-	$_.PolicyStoreSource -eq 'PersistentStore'
-})
-
-'Local PersistentStore rule:'
-$LocalShapes | Format-List
-'Resultant ActiveStore rule(s), including traced source:'
-$ActiveShapes | Format-List
-'Private firewall profile:'
-$PrivateProfile | Select-Object Name, Enabled, AllowLocalFirewallRules | Format-List
-'Current connection categories:'
-$Connections | Select-Object Name, InterfaceAlias, NetworkCategory, IPv4Connectivity, IPv6Connectivity | Format-Table -AutoSize
-
-Get-InspectionStatus $LocalRules $DesiredLocalShapes $ActiveRules `
-	$DesiredActiveLocalShapes $PrivateProfile $PrivateConnections
-```
+The script emits one JSON document containing resolved executable paths and matching blockers, local `PersistentStore` and resultant traced `ActiveStore` rule shapes, Private-profile and connection state, `Ready`, and a final `ReadinessReason`. `ActiveStore` presence or `PrimaryStatus` alone is never treated as proof of enforcement. Exit `0` means the exact local rule is fully enforced and no supplied executable has an enabled inbound `Query User` blocker; exit `2` means the rule is absent, mismatched, overridden, or not enforced, or at least one executable is blocked; exit `1` means invocation or a firewall/network-profile query failed. Any blocker output is diagnostic only, not authorization to remove or change a rule. Pass `-RuleName` only when inspecting a deliberately different exact rule name; its default is `BrokenEngine-PrivateLan-UDP`.
 
 If the result is absent, mismatched, overridden, or not enforced (including `InactiveProfile`, `FirewallOffInProfile`, or `LocalFirewallRulesDisallowed`), report the exact reason and the install block without executing it. Continue with same-machine loopback verification only when that still satisfies the request; otherwise report the Private-LAN prerequisite as a blocker. Group Policy may prevent local-rule merge on managed devices.
 

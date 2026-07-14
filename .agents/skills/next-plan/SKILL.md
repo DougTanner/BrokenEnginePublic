@@ -123,22 +123,15 @@ Ensure every plan file on disk is represented in the `## Plans` table — orphan
 
 ### Step 2. Atomically claim the target row and unlock the queue
 
-As soon as Step 1 settles on a target, claim it while the matching queue lock from Step 0f is still owned:
+As soon as Step 1 settles on a target, invoke the transaction sidecar while the matching queue lock from Step 0f is still owned:
 
 ```powershell
-& $AgentCli plan row claim --repo $GitCommonDir --order Documents/Plans/Order.md --plan $TargetPlan --owner $Owner --session '<short task label>' --worktree $ROOT
-$ClaimExitCode = $LASTEXITCODE
-& $AgentCli plan queue unlock --repo $GitCommonDir --order Documents/Plans/Order.md --owner $Owner
-$UnlockExitCode = $LASTEXITCODE
-if ($UnlockExitCode -ne 0) {
-    throw "plan queue unlock failed with exit code $UnlockExitCode; recover queue state before continuing"
-}
-if ($ClaimExitCode -ne 0 -and $ClaimExitCode -ne 2) {
-    throw "plan row claim failed with exit code $ClaimExitCode"
-}
+$TransactionJson = & "$ROOT\.agents\skills\next-plan\scripts\Invoke-PlanRowClaim.ps1" -AgentCli $AgentCli -GitCommonDir $GitCommonDir -OrderPath 'Documents/Plans/Order.md' -Plan $TargetPlan -Owner $Owner -Session '<short task label>' -Worktree $ROOT
+$TransactionExitCode = $LASTEXITCODE
+$Transaction = $TransactionJson | ConvertFrom-Json
 ```
 
-Always run queue unlock after the claim attempt. The snippet stops on an unlock failure and on a claim failure; branch on captured claim exit `2` using the conflict rule below. Never read `$LASTEXITCODE` after unlock as the claim result. Exit code `0` from row claim reserves the plan; repository content does not. Retain `$Owner` as the row owner through completion, abandonment, rejection, or explicit deferral. Queue unlock must succeed before continuing to Step 3.
+The sidecar always attempts owner-unlock after the claim attempt and reports `claimExitCode`, `unlockExitCode`, `claimOutput`, and `unlockOutput` in its JSON result. Branch on `$TransactionExitCode`: `0` means the row claim succeeded and unlock succeeded; `2` means claim conflict with unlock succeeded and uses the conflict rule below; `1` means claim or unlock failed. An unlock failure always takes precedence in `result` and exit status, so inspect both raw codes and recover queue state before any other work. Exit code `0` from row claim reserves the plan; repository content does not. Retain `$Owner` as the row owner through completion, abandonment, rejection, or explicit deferral. Queue unlock must succeed before continuing to Step 3.
 
 Important sequencing rules:
 

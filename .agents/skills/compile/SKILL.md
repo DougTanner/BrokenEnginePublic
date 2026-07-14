@@ -32,50 +32,15 @@ Use this narrow mode only when the user explicitly authorizes AgentCli maintenan
 - The normalized, deduplicated union of committed paths from `git -C $PRIMARY diff --name-only $BASELINE..HEAD --`, staged paths from `git -C $PRIMARY diff --cached --name-only --`, unstaged paths from `git -C $PRIMARY diff --name-only --`, and untracked paths from `git -C $PRIMARY ls-files --others --exclude-standard` is contained in the exact manager-supplied approved changed-path set. This permits approved commits made after the fixed direct-primary session baseline; any path outside the approved set is a hard stop.
 - `Tools\AgentCli\Platforms\VisualStudio2026\Output` is an ordinary primary directory, not a reparse point.
 
-Locate Visual Studio 2026 MSBuild at `C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe`, using `vswhere -latest -version '[18.0,19.0)' -products * -requires Microsoft.Component.MSBuild -property installationPath` only when that exact path is absent. Acquire exclusive maintenance for the full capability-check/build/recheck window, wait up to 660 seconds with owner/session/worktree diagnostics, and use the module's kill-on-close tracked runner. Release owner-conditionally in `finally`:
+Run the bundled sidecar. It enforces the preconditions above, locates Visual Studio 2026 MSBuild at the exact Community path with the documented `vswhere` fallback, acquires exclusive maintenance for the full capability-check/build/recheck window, and owner-conditionally releases it in `finally`:
 
 ```powershell
-Import-Module "$PRIMARY\.agents\scripts\AgentCliSessionExclusion.psm1" -Force
-$AgentCli = "$PRIMARY\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe"
-function Assert-AgentCliCapabilities {
-	$EscapedAgentCli = $AgentCli.Replace("'", "''")
-	$CapabilityScript = @"
-`$AgentCli = '$EscapedAgentCli'
-`$Item = Get-Item -LiteralPath `$AgentCli -Force -ErrorAction Stop
-if (`$Item.PSIsContainer -or (`$Item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or `$Item.Length -eq 0) {
-	throw "Primary AgentCli executable must be a nonempty ordinary file: '`$AgentCli'."
-}
-`$Help = @(& `$AgentCli --help 2>&1)
-if (`$LASTEXITCODE -ne 0) { throw "Primary AgentCli --help failed: `$LASTEXITCODE" }
-`$HelpText = `$Help -join "``n"
-foreach (`$Required in @('AgentCli.exe lock ', 'AgentCli.exe plan ', 'AgentCli.exe build ')) {
-	if (-not `$HelpText.Contains(`$Required, [StringComparison]::Ordinal)) { throw "Primary AgentCli help is missing '`$Required'." }
-}
-if (`$HelpText -match '(?im)^\s*AgentCli\.exe\s+install(?:\s|`$)') { throw 'Primary AgentCli help advertises removed install command.' }
-Write-Output `$HelpText
-"@
-	$EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($CapabilityScript))
-	$ExitCode = Invoke-AgentCliTrackedProcess -Executable "$PSHOME\pwsh.exe" -WorkingDirectory $PRIMARY -ArgumentList @('-NoProfile', '-EncodedCommand', $EncodedCommand)
-	if ($ExitCode -ne 0) { throw "AgentCli capability check failed: $ExitCode" }
-}
-$Owner = [guid]::NewGuid().ToString()
-$Maintenance = $null
-try {
-	$Maintenance = Enter-AgentCliMaintenance -RepositoryRoot $PRIMARY -Owner $Owner -Label 'explicit primary AgentCli maintenance' -Worktree $PRIMARY -WaitSeconds 660 -LegacySessionsClosed:$LegacySessionsClosed
-	Assert-AgentCliCapabilities
-	$ExitCode = Invoke-AgentCliTrackedProcess -Executable $MSBuild -WorkingDirectory $PRIMARY -ArgumentList @(
-		"$PRIMARY\Tools\AgentCli\Platforms\VisualStudio2026\AgentCli.sln",
-		'/p:Configuration=Release', '/p:Platform=x64',
-		'/p:EnableClangTidyCodeAnalysis=false', '/p:RunCodeAnalysis=false', '/verbosity:minimal')
-	if ($ExitCode -ne 0) { throw "AgentCli primary-maintenance build failed: $ExitCode" }
-	Assert-AgentCliCapabilities
-}
-finally {
-	if ($null -ne $Maintenance) { Exit-AgentCliMaintenance -RepositoryRoot $PRIMARY -Owner $Owner }
-}
+& "$PRIMARY\.agents\skills\compile\scripts\Invoke-AgentCliPrimaryMaintenance.ps1" `
+	-Primary $PRIMARY -Baseline $BASELINE -ApprovedChangedPath $ApprovedChangedPath `
+	-LegacySessionsClosed:$LegacySessionsClosed
 ```
 
-Both capability checks require `Output\AgentCli.exe` to be a nonempty ordinary file (not a directory or reparse point), require `--help` to succeed, advertise the current `lock`, `plan`, and `build` command surface, and omit the removed `install` command. Report the direct MSBuild status and exact executable path. Do not copy or install the executable elsewhere.
+`-WaitSeconds` defaults to 660. Both capability checks run as tracked child processes and require `Output\AgentCli.exe` to be a nonempty ordinary file (not a directory or reparse point), require `--help` to succeed, advertise the current `lock`, `plan`, and `build` command surface, and omit the removed `install` command. Report the returned direct MSBuild status and exact executable path. Do not copy or install the executable elsewhere.
 
 ## Determine what to build
 

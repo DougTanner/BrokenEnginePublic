@@ -1,7 +1,7 @@
 ---
 name: analyze-diagsession
 description: Analyzes Visual Studio .diagsession CPU profiling dumps (client/server captures) — extracts the ETW trace, symbolizes with xperf against the build's PDBs, computes per-process hotspot shares, interprets build-config overhead vs real algorithmic cost, and creates scored plan files in Documents/Plans/ for the optimizations found. Use whenever the user provides or mentions .diagsession files, profiling dumps/captures, or asks to examine a profile for hotspots / performance problems — even if they only attach the files and say "look at these".
-allowed-tools: [Read, Bash, Grep, Glob, Agent]
+allowed-tools: [Read, Bash, PowerShell, Grep, Glob, Agent]
 ---
 
 # Analyze .diagsession CPU Profiles
@@ -23,13 +23,13 @@ Deterministic work goes to scripts/tools, judgment goes to models — per root A
 
 ## 2. Symbolize with xperf
 
-xperf lives at `C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\xperf`.
+xperf lives at `C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\xperf.exe`. Invoke the repository sidecar from the repository root so Claude/Git Bash and Codex/PowerShell use the same fixed tool lookup, symbol paths, arguments, and exit code:
 
-```bash
-export _NT_SYMBOL_PATH="<repo>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output;srv*C:\Users\<user>\AppData\Local\Temp\symsrv*https://msdl.microsoft.com/download/symbols"
-export _NT_SYMCACHE_PATH="C:\Users\<user>\AppData\Local\Temp\symc"
-xperf -i sc.user_aux.etl -symbols -tle -tti -a profile -detail -ao out_profile.txt
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .agents/skills/analyze-diagsession/scripts/Invoke-DiagSessionSymbolization.ps1 -EtlPath <etl-path> -RepositoryRoot <repo-root> -OutputPath <profile-output-path>
 ```
+
+Pass `-SymbolCacheRoot <short-path>` only when the default `%TEMP%` cache root is unsuitable. The sidecar sets `_NT_SYMBOL_PATH` and `_NT_SYMCACHE_PATH` only on the xperf child process.
 
 Pitfalls (each cost real time once):
 - **`_NT_SYMCACHE_PATH` must be a short path.** A deep scratchpad path fails with `0x80070003` (path-not-found) on longer PDB names while shorter ones succeed — maddeningly partial.

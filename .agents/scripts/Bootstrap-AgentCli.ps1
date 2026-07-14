@@ -19,33 +19,6 @@ function Get-CanonicalPath([string] $Path) {
 	return [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
 }
 
-function Assert-AgentCliCapabilities([string] $Executable) {
-	$item = Get-Item -LiteralPath $Executable -Force -ErrorAction Stop
-	if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -eq 0) {
-		throw "Primary AgentCli executable must be a nonempty ordinary file: '$Executable'."
-	}
-	$help = @(& $Executable --help 2>&1)
-	if ($LASTEXITCODE -ne 0) {
-		throw "Primary AgentCli executable does not support --help: '$Executable'."
-	}
-	$helpText = $help -join "`n"
-	$requiredCommands = @(
-		'Usage: AgentCli.exe',
-		'AgentCli.exe lock ',
-		'AgentCli.exe plan ',
-		'AgentCli.exe build ',
-		'AgentCli.exe --help'
-	)
-	foreach ($requiredCommand in $requiredCommands) {
-		if (-not $helpText.Contains($requiredCommand, [StringComparison]::Ordinal)) {
-			throw "Primary AgentCli help is missing '$requiredCommand': '$Executable'."
-		}
-	}
-	if ($helpText -match '(?im)^\s*AgentCli\.exe\s+install(?:\s|$)') {
-		throw "Primary AgentCli help advertises the removed install command: '$Executable'."
-	}
-}
-
 if (-not [System.IO.Path]::IsPathRooted($RepositoryRoot)) { throw 'RepositoryRoot must be absolute.' }
 $root = Get-CanonicalPath $RepositoryRoot
 $topLevel = Get-CanonicalPath (@(Invoke-Git @('-C', $root, 'rev-parse', '--show-toplevel'))[0].Trim())
@@ -70,7 +43,7 @@ if ($null -ne $outputItem -and (-not $outputItem.PSIsContainer -or ($outputItem.
 $agentCli = Join-Path $output 'AgentCli.exe'
 $agentCliItem = Get-Item -LiteralPath $agentCli -Force -ErrorAction SilentlyContinue
 if ($null -ne $agentCliItem) {
-	Assert-AgentCliCapabilities $agentCli
+	& (Join-Path $PSScriptRoot 'Test-AgentCliCapabilities.ps1') -Executable $agentCli | Out-Null
 	Write-Host "Primary AgentCli already available at '$agentCli'."
 	return
 }
@@ -97,7 +70,7 @@ try {
 	else { $maintenance = Enter-AgentCliMaintenance -RepositoryRoot $root -Owner $owner -Label 'wrapper bootstrap' -Worktree $root -WaitSeconds $WaitSeconds -UpgradeSession }
 	$exitCode = Invoke-AgentCliTrackedProcess -Executable $msBuild -ArgumentList @($solution, '/p:Configuration=Release', '/p:Platform=x64', '/p:EnableClangTidyCodeAnalysis=false', '/p:RunCodeAnalysis=false', '/verbosity:minimal') -WorkingDirectory $root
 	if ($exitCode -ne 0) { throw "AgentCli bootstrap build failed with exit code $exitCode." }
-	Assert-AgentCliCapabilities $agentCli
+	& (Join-Path $PSScriptRoot 'Test-AgentCliCapabilities.ps1') -Executable $agentCli | Out-Null
 	Write-Host "Built primary AgentCli at '$agentCli'."
 }
 finally {
