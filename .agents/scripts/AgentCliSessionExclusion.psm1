@@ -4,7 +4,10 @@ $script:LedgerVersion = 1
 $script:DefaultWaitSeconds = 660
 
 function Get-CanonicalPath([string] $Path) {
-	return [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
+	$full = [System.IO.Path]::GetFullPath($Path)
+	$root = [System.IO.Path]::GetPathRoot($full)
+	if ($full.Length -gt $root.Length) { return $full.TrimEnd('\', '/') }
+	return $full
 }
 
 function Get-AgentCliRepositoryIdentity([string] $RepositoryRoot) {
@@ -12,8 +15,9 @@ function Get-AgentCliRepositoryIdentity([string] $RepositoryRoot) {
 	$common = @(& git -C $root rev-parse --path-format=absolute --git-common-dir 2>&1)
 	if ($LASTEXITCODE -ne 0 -or $common.Count -ne 1) { throw "Unable to resolve Git common directory for '$root': $($common -join '; ')." }
 	$common = Get-CanonicalPath $common[0].Trim()
-	$sha = [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($common.ToUpperInvariant()))
-	$hash = [Convert]::ToHexString($sha).ToLowerInvariant()
+	$sha256 = [Security.Cryptography.SHA256]::Create()
+	try { $sha = $sha256.ComputeHash([Text.Encoding]::UTF8.GetBytes($common.ToUpperInvariant())) } finally { $sha256.Dispose() }
+	$hash = [BitConverter]::ToString($sha).Replace('-', '').ToLowerInvariant()
 	$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value.Replace('-', '_')
 	$directory = Join-Path $env:LOCALAPPDATA 'BrokenEngineLocks'
 	return [pscustomobject]@{
@@ -65,7 +69,10 @@ function Test-StrictClaim($Claim, $Identity, $Owners) {
 
 function Read-AgentCliLedger($Identity) {
 	if (-not (Test-Path -LiteralPath $Identity.LedgerPath -PathType Leaf)) { return $null }
-	try { $ledger = Get-Content -Raw -LiteralPath $Identity.LedgerPath | ConvertFrom-Json -DateKind String }
+	try {
+		$convertArguments = if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { @{ DateKind = 'String' } } else { @{} }
+		$ledger = Get-Content -Raw -LiteralPath $Identity.LedgerPath | ConvertFrom-Json @convertArguments
+	}
 	catch { throw "AgentCli session ledger is unreadable or malformed: '$($Identity.LedgerPath)': $($_.Exception.Message)" }
 	$ledgerNames = if ($ledger -is [pscustomobject]) { @($ledger.PSObject.Properties.Name) } else { @() }
 	$missingLedgerNames = @(@('version', 'repository', 'sessions', 'maintenance') | Where-Object { $_ -notin $ledgerNames })
@@ -109,7 +116,10 @@ function Write-AgentCliLedger($Identity, $Ledger) {
 	$bytes = [Text.Encoding]::UTF8.GetBytes(($Ledger | ConvertTo-Json -Depth 8 -Compress))
 	$stream = [IO.File]::Open($temp, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
 	try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
-	try { [IO.File]::Move($temp, $Identity.LedgerPath, $true) }
+	try {
+		if (Test-Path -LiteralPath $Identity.LedgerPath -PathType Leaf) { [IO.File]::Replace($temp, $Identity.LedgerPath, [System.Management.Automation.Language.NullString]::Value) }
+		else { [IO.File]::Move($temp, $Identity.LedgerPath) }
+	}
 	finally { if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force } }
 }
 
@@ -128,6 +138,19 @@ function Invoke-LedgerTransition($Identity, [scriptblock] $Action, [DateTime] $D
 	finally { if ($held) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
 }
 
+function Invoke-LedgerReadOnly($Identity, [scriptblock] $Action, [DateTime] $Deadline = [DateTime]::UtcNow.AddSeconds($script:DefaultWaitSeconds)) {
+	$mutex = [Threading.Mutex]::new($false, $Identity.MutexName)
+	$held = $false
+	try {
+		$remaining = $Deadline - [DateTime]::UtcNow
+		$milliseconds = [Math]::Max(0, [Math]::Min([int]::MaxValue, [Math]::Ceiling($remaining.TotalMilliseconds)))
+		try { $held = $mutex.WaitOne([int]$milliseconds) } catch [Threading.AbandonedMutexException] { $held = $true }
+		if (-not $held) { throw 'Timed out waiting for AgentCli session ledger mutex.' }
+		return & $Action (Read-AgentCliLedger $Identity)
+	}
+	finally { if ($held) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
+}
+
 function New-Claim([string] $Owner, [string] $Label, [string] $Repository, [string] $Worktree) {
 	return [pscustomobject]@{
 		owner = $Owner; pid = $PID; processStartUtc = Get-ProcessStartUtc $PID; label = $Label
@@ -142,7 +165,7 @@ function Initialize-AgentCliLedger($Identity, [switch] $LegacySessionsClosed) {
 	return [pscustomobject]@{ version = $script:LedgerVersion; repository = $Identity.Repository; sessions = @(); maintenance = $null }
 }
 
-function Acquire-AgentCliSession {
+function Register-AgentCliSession {
 	[CmdletBinding()] param([string] $RepositoryRoot, [string] $Owner = [guid]::NewGuid().ToString(), [string] $Label, [string] $Worktree,
 		[int] $WaitSeconds = $script:DefaultWaitSeconds, [switch] $LegacySessionsClosed, [string] $BootstrapExecutable)
 	$identity = Get-AgentCliRepositoryIdentity $RepositoryRoot
@@ -188,6 +211,55 @@ function Get-AgentCliExclusionStatus {
 	} $deadline
 }
 
+function Get-AgentCliSessionClassification {
+	[CmdletBinding()] param(
+		[Parameter(Mandatory)][string] $RepositoryRoot,
+		[Parameter(Mandatory)][string] $Owner,
+		[Parameter(Mandatory)][string] $Worktree,
+		[int] $WaitSeconds = $script:DefaultWaitSeconds
+	)
+	$ownerGuid = [guid]::Empty
+	if (-not [guid]::TryParseExact($Owner, 'D', [ref]$ownerGuid) -or $ownerGuid.ToString() -cne $Owner) {
+		throw "AgentCli session owner must be a canonical lowercase GUID: '$Owner'."
+	}
+	$identity = Get-AgentCliRepositoryIdentity $RepositoryRoot
+	$expectedWorktree = Get-CanonicalPath $Worktree
+	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
+	return Invoke-LedgerReadOnly $identity {
+		param($ledger)
+		$claims = if ($null -eq $ledger) { @() } else { @($ledger.sessions) }
+		$ownerMatches = @($claims | Where-Object { $_.owner -ceq $Owner })
+		$worktreeMatches = @($claims | Where-Object { (Get-CanonicalPath $_.worktree).Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase) })
+		$claim = @($ownerMatches | Where-Object { (Get-CanonicalPath $_.worktree).Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase) })
+		$classification = 'absent'
+		$decisive = $null
+		if ($claim.Count -eq 1) {
+			$decisive = $claim[0]
+			$actualStart = Get-ProcessStartUtc ([int]$decisive.pid)
+			$classification = if ($null -ne $actualStart -and $actualStart -ceq $decisive.processStartUtc) { 'expected-live' } else { 'stale' }
+		}
+		elseif ($ownerMatches.Count -ne 0 -or $worktreeMatches.Count -ne 0) {
+			$classification = 'mismatch'
+			$decisive = if ($ownerMatches.Count -ne 0) { $ownerMatches[0] } else { $worktreeMatches[0] }
+			$actualStart = Get-ProcessStartUtc ([int]$decisive.pid)
+		}
+		else { $actualStart = $null }
+		return [pscustomobject]@{
+			Classification = $classification
+			Initialized = $null -ne $ledger
+			Repository = $identity.Repository
+			LedgerPath = $identity.LedgerPath
+			ExpectedOwner = $Owner
+			ExpectedWorktree = $expectedWorktree
+			ClaimOwner = if ($null -eq $decisive) { $null } else { $decisive.owner }
+			ClaimWorktree = if ($null -eq $decisive) { $null } else { $decisive.worktree }
+			ClaimPid = if ($null -eq $decisive) { $null } else { $decisive.pid }
+			ClaimProcessStartUtc = if ($null -eq $decisive) { $null } else { $decisive.processStartUtc }
+			ActualProcessStartUtc = $actualStart
+		}
+	} $deadline
+}
+
 function Assert-AgentCliSessionOwner([string] $RepositoryRoot, [string] $Owner) {
 	$identity = Get-AgentCliRepositoryIdentity $RepositoryRoot
 	Invoke-LedgerTransition $identity {
@@ -202,7 +274,7 @@ function Assert-AgentCliSessionOwner([string] $RepositoryRoot, [string] $Owner) 
 	}
 }
 
-function Release-AgentCliSession([string] $RepositoryRoot, [string] $Owner) {
+function Unregister-AgentCliSession([string] $RepositoryRoot, [string] $Owner) {
 	$identity = Get-AgentCliRepositoryIdentity $RepositoryRoot
 	Invoke-LedgerTransition $identity {
 		param($ledger)
@@ -335,4 +407,4 @@ function Invoke-AgentCliTrackedProcess {
 	return [BrokenEngine.TrackedProcess]::Run($application, ($parts -join ' '), (Get-CanonicalPath $WorkingDirectory))
 }
 
-Export-ModuleMember -Function Get-AgentCliRepositoryIdentity,Get-AgentCliExclusionStatus,Acquire-AgentCliSession,Assert-AgentCliSessionOwner,Release-AgentCliSession,Enter-AgentCliMaintenance,Exit-AgentCliMaintenance,Invoke-AgentCliTrackedProcess
+Export-ModuleMember -Function Get-AgentCliRepositoryIdentity,Get-AgentCliExclusionStatus,Get-AgentCliSessionClassification,Register-AgentCliSession,Assert-AgentCliSessionOwner,Unregister-AgentCliSession,Enter-AgentCliMaintenance,Exit-AgentCliMaintenance,Invoke-AgentCliTrackedProcess

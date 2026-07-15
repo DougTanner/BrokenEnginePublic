@@ -1,7 +1,7 @@
 ---
 name: code-style-review
 description: Reviews and auto-fixes C++ style violations in files modified during the session, per `Documents/C++StyleGuide.txt` — Hungarian notation, `auto` restrictions, float literal suffixes, `nullptr`, `override`, naming/abbreviation rules, brace and argument formatting. Use after any C++ code change, or when the user asks for a style review, style check, or naming/formatting cleanup.
-allowed-tools: [Read, Write, Edit, Grep]
+allowed-tools: [Read, Write, Edit, Grep, PowerShell]
 ---
 
 # Code Style Review
@@ -12,11 +12,13 @@ Reviews C++ files edited in this conversation and fixes style violations per `Do
 
 ### 1. Identify Modified Files
 
-If invoked as a subagent, load the changed-file and touched-region IDs from the
-supplied implementation/affected-code report paths instead of requiring pasted
-reports. Otherwise list all `.cpp` and `.h` files you edited in this
-conversation (check your Edit/Write tool calls). Apply fixes only to line
-ranges that were modified.
+If invoked as a subagent, require each supplied implementation/affected-code
+report's `REPORT` and `REPORT_SHA256` plus changed-file/touched-region IDs,
+exact evidence locators, and dependencies. Invoke `Read-AgentReportSection.ps1`
+once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md)
+consumption contract instead of requiring pasted reports. Otherwise list all
+`.cpp` and `.h` files you edited in this conversation (check your Edit/Write
+tool calls). Apply fixes only to line ranges that were modified.
 
 When invoked as a subagent, also require `ReportPath` and follow
 [`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
@@ -65,7 +67,7 @@ These are project-wide conventions that complement `Documents/C++StyleGuide.txt`
 
 - Fix violations directly without asking permission — auto-apply within changed files.
 - For mechanical rules (`NULL` → `nullptr`, float suffix, `override`, etc.) the risk is near-zero; apply silently.
-- For **Rule 3 (Hungarian notation)** and **Rule 56 (abbreviation expansion)** renames, the risk is real: renaming an identifier referenced from outside the modified file will break callers. Apply the rename anyway — the user has accepted this tradeoff. After the rename, Grep the old identifier across the repo and fix every remaining reference in code files only (`.cpp`/`.h`/shader sources — breakage caused by the rename is in scope, even outside the modified files); report each rename and the cross-file fixes applied. Do not edit AGENTS.md, docs, or plan files (other steps own those concurrently) — list any doc/plan hits of the old identifier in the report so the caller can route them.
+- For **Rule 3 (Hungarian notation)** and **Rule 56 (abbreviation expansion)** renames, the risk is real: renaming an identifier referenced from outside the modified file will break callers. Apply the rename anyway — the user has accepted this tradeoff. After the rename, Grep the old identifier across the repo and fix every remaining reference in code files only (`.cpp`/`.h`/shader sources — breakage caused by the rename is in scope, even outside the modified files); report each rename and the cross-file fixes applied. Do not edit AGENTS.md, docs, or plan files (the conditional documentation role owns those when triggered) — list any doc/plan hits of the old identifier in the report so the caller can route them.
 
 ### 5. Report
 

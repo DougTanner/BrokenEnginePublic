@@ -48,6 +48,10 @@ Server tick-orchestration gap surfaced by the Network audit, verified against cu
 - Flagship updates queued while paused (e.g. re-queued by a load that lands on a paused cycle, or by fleet spawn/death bookkeeping) are not dropped.
 - No global ids are minted for waiting spawns during paused cycles.
 
+## Coordination
+
+- `Documents/Plans/Engine/Architecture_GameBaseDeadVirtuals.md`: mandatory reciprocal joint resolution of fresh-game reset semantics; preserve the decision that removal of the server MenuInput/Quickload path makes this plan's fresh-game reset item moot.
+
 ## Notes
 
 - **Invariant exposure.** Server tick-orchestration semantics (when request queues are drained relative to the pause gate). No wire-format change, no CRC/`kiVersion`/determinism-math change. Gameplay-visible → needs playtest.

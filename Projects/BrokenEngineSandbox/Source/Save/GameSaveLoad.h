@@ -20,9 +20,9 @@ public:
 
 	void Quicksave(const game::MenuInput& rMenuInput);
 	bool Quickload(const game::MenuInput& rMenuInput);
-	void ServerSave();
+	bool ServerSave();
 	bool ServerLoad();
-	void ServerSave(const std::filesystem::path& rFilename); // appdata-relative; caller validates the bare filename
+	bool ServerSave(const std::filesystem::path& rFilename); // appdata-relative; caller validates the bare filename
 	bool ServerLoad(const std::filesystem::path& rFilename);
 	void ServerReset();
 	void Autosave();
@@ -39,7 +39,7 @@ public:
 
 private:
 
-	void WriteGrid(const engine::FileFlags_t& rFlags, const std::filesystem::path& rFilename, engine::GridCoord clientGridCoord);
+	bool WriteGrid(const engine::FileFlags_t& rFlags, const std::filesystem::path& rFilename, engine::GridCoord clientGridCoord);
 	bool ReadGrid(const engine::FileFlags_t& rFlags, const std::filesystem::path& rFilename, engine::GridCoord& rClientGridCoord);
 
 	engine::GameBase& mrGameBase;

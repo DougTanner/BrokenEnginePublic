@@ -45,6 +45,10 @@ After those choices:
 - Client and server builds pass; replay determinism passes across repeated runs; final-code proofs cover traversal ownership, TOI ordering, W lanes, phase-scratch lifetime, and absence of tick-path heap allocation.
 - Agent-harness smoke drives normal Player/Spaceship movement near islands and reports no crash, desync, transfer/contact double-resolution, or persistent penetration. Record exact synthetic edge arrangements as unautomated if the current harness cannot place them.
 
+## Coordination
+
+- `Documents/Plans/Frame/FireCooldownNegativeFloor.md`: reciprocal `Frame.cpp` version-bump and deterministic replay coordination; co-schedule or serialize the changes so one landing owns the reconciled version/replay verification.
+
 ## Notes
 
 - **Revisit when:** before increasing `kfPlayerRadius` / `kfSpaceshipRadius`, before adding a larger ship collection, or when a reproducible radius-overlap/tunneling case is observed. The current conversion remains part of this plan once scheduled.

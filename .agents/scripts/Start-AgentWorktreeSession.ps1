@@ -47,7 +47,7 @@ $worktreeCreated = $false
 $exitCode = 1
 try {
 	$agentCli = Join-Path $root 'Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe'
-	$claim = Acquire-AgentCliSession -RepositoryRoot $root -Owner $owner -Label "$Client wrapper" -Worktree $worktree -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed -BootstrapExecutable $agentCli
+	$claim = Register-AgentCliSession -RepositoryRoot $root -Owner $owner -Label "$Client wrapper" -Worktree $worktree -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed -BootstrapExecutable $agentCli
 	$env:BROKEN_ENGINE_AGENTCLI_SESSION_OWNER = $owner
 	$env:BROKEN_ENGINE_AGENTCLI_SESSION_WORKTREE = $worktree
 	$env:BROKEN_ENGINE_AGENTCLI_ADMISSION_MODE = $claim.Mode
@@ -88,7 +88,7 @@ finally {
 		try {
 			$exclusion = Get-AgentCliExclusionStatus -RepositoryRoot $root -WaitSeconds $WaitSeconds
 			if ($null -ne $exclusion.Maintenance -and $exclusion.Maintenance.owner -eq $owner) { Exit-AgentCliMaintenance -RepositoryRoot $root -Owner $owner }
-			elseif (@($exclusion.Sessions | Where-Object { $_.owner -eq $owner }).Count -eq 1) { Release-AgentCliSession -RepositoryRoot $root -Owner $owner }
+			elseif (@($exclusion.Sessions | Where-Object { $_.owner -eq $owner }).Count -eq 1) { Unregister-AgentCliSession -RepositoryRoot $root -Owner $owner }
 		}
 		catch { [Console]::Error.WriteLine("Failed to release AgentCli session '$owner': $($_.Exception.Message)"); $exitCode = 1 }
 	}

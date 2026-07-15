@@ -17,9 +17,12 @@ Sibling to `/repo-code-review` — that skill covers C++; this one covers shader
 
 ### 1. Identify Modified Shaders
 
-When delegated, load the shader changed-region and focus-area IDs from the
-supplied implementation/affected-code report paths. When invoked directly,
-scan the conversation for shader files edited in this session — any `.vert`,
+When delegated, require each supplied implementation/affected-code report's
+`REPORT` and `REPORT_SHA256` plus shader changed-region and focus-area IDs,
+exact evidence locators, and dependencies. Invoke `Read-AgentReportSection.ps1`
+once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md)
+consumption contract. When invoked directly, scan the conversation for shader
+files edited in this session — any `.vert`,
 `.frag`, `.comp`, `.geom`, `.tesc`, `.tese`, `.mesh`, `.task`, ray-tracing
 stages (`.rgen` etc.), `.glsl`, and shared headers under
 `Engine/Data/Shaders/**/*.h` or `Projects/*/Data/Shaders/**/*.h`. Include

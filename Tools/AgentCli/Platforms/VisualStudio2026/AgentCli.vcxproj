@@ -18,6 +18,7 @@
     <ClCompile Include="..\..\LandingLockLifecycle.cpp" />
     <ClCompile Include="..\..\LockCommands.cpp" />
     <ClCompile Include="..\..\PlanCommands.cpp" />
+    <ClCompile Include="..\..\PlanOrderCommands.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\AgentCliCommon.h" />
@@ -26,6 +27,7 @@
     <ClInclude Include="..\..\LandingLockLifecycle.h" />
     <ClInclude Include="..\..\LockCommands.h" />
     <ClInclude Include="..\..\PlanCommands.h" />
+    <ClInclude Include="..\..\PlanOrderCommands.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

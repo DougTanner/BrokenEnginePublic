@@ -24,6 +24,10 @@ Source: /external-refactor-clean on Engine/Source (recursive). The Graphics/Obje
 - The corrupt-chunk upload-thread catch (`CorruptTextureChunkLifecycleHardening` — lands before `BindlessSlotLifecycle`; this plan's leak sites are different)
 - Buffer/Texture API redesign beyond the out-param removal
 
+## Coordination
+
+- `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
+
 ## Notes
 - Invariant exposure: none for determinism/CRC/wire — client/graphics-only. The VkDeviceMemory removal is mechanical but ~10-file blast radius; compile-checked. Overlaps pipeline-cluster and TextureUploadManager plan files — schedule around them per Order.md Dependencies
 - Grill decision: none — all three items have one clear shape

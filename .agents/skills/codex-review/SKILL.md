@@ -5,9 +5,8 @@ description: >-
   delegated reviewer/auditor role such as /plan-audit, /repo-code-review,
   or /session-audit on Codex/Sol headless via `codex exec`, and return
   its output in the target role's format. If Codex is also unavailable it reports
-  `CODEX-UNAVAILABLE: reason` so the caller uses Opus instead. Invoked per the
-  global model-fallback rule in AGENTS.md. Not for Codex — under the Fable→Sol
-  mapping Codex is already Sol, so it never calls this.
+  `CODEX-UNAVAILABLE: reason` so the caller uses Opus instead. Not for Codex —
+  under the Fable→Sol mapping Codex is already Sol, so it never calls this.
 allowed-tools: [Read, Bash]
 ---
 
@@ -18,7 +17,7 @@ Run a delegated reviewer/auditor role on **Codex/Sol** headless when Fable can't
 ## Inputs (from caller)
 - `targetSkill` — the role's skill (e.g. `plan-audit`, `repo-code-review`, `session-audit`)
 - That role's normal inputs: changed-file list, touched regions, plan/intent, residuals/focus areas
-- Worktree path and changed-file baseline commit (derive if absent: worktree = current repo root; baseline = `HEAD`, because process reviews precede the step 12 commit)
+- Worktree path and changed-file baseline commit (derive if absent: worktree = current repo root; baseline = `HEAD`, because process reviews precede final reconciliation and landing)
 - Caller-assigned absolute `ReportPath` under the worktree's `Temp/AgentReports/`
 
 ## Method
@@ -28,6 +27,10 @@ Run a delegated reviewer/auditor role on **Codex/Sol** headless when Fable can't
    `pwsh -File <worktree>/.codex/codex-review.ps1 -Worktree <worktree> -PromptFile <prompt> -OutFile <out>`
    (Codex runs `gpt-5.6-sol` headless with bypass at xhigh; ~1–3 min. Don't tail its stdout.)
 4. Read `<out>`; verify the compact envelope is valid and `ReportPath` contains the target skill's complete output template and footer, coercing shape only (never invent findings). Return the envelope verbatim as your entire output.
+
+This fallback preserves role capability, not permission to duplicate reviews.
+Use it for the one role already selected by the risk-tiered process. Do not run
+another reviewer merely to manufacture profile diversity or consensus.
 
 ## Fallback (never block the process)
 If the helper exits non-zero (127 = codex missing), `<out>` is empty/garbled,

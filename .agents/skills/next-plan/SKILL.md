@@ -1,6 +1,6 @@
 ---
 name: next-plan
-description: First reconciles any orphaned plan files on disk that aren't referenced in `Documents/Plans/Order.md` by dispatching an Opus subagent to score them and inserting their rows. Then pulls the highest-priority plan, follows any unfinished prerequisites, validates it against the current codebase, refreshes stale details, scans the codebase for similar changes the plan may have missed, audits and grills the plan up front, and presents a ready-to-execute plan for approval. Coordinates queue mutation and selection through AgentCli plan queue/row state without persisting claim metadata in repository files. Use when the user invokes `/next-plan`.
+description: Validates the live primary plan queue through AgentCli, lands any legacy orphan repair before restarting fresh, then atomically claims the highest-priority eligible plan (or an explicit plan), validates it against current code, refreshes stale details, audits and grills it, and presents a ready-to-execute plan for approval. Use when the user invokes `/next-plan`.
 disable-model-invocation: true
 argument-hint: "[plan-file-path]"
 allowed-tools: [Read, Write, Grep, Glob, Agent, Edit, PowerShell, AskUserQuestion]
@@ -8,138 +8,63 @@ allowed-tools: [Read, Write, Grep, Glob, Agent, Edit, PowerShell, AskUserQuestio
 
 # Next Plan
 
-Reconciles orphaned plan files on disk into `Documents/Plans/Order.md`, then walks the `## Plans` table, picks the top-priority unblocked plan, verifies it still describes a real problem in the current code, refreshes stale line numbers or paths, scans the codebase for similar changes the plan may have missed, audits and grills the plan up front, and presents a ready-to-execute plan for explicit user approval.
+Validates the clean primary queue and atomically claims its highest-priority eligible plan, then verifies that plan still describes a real problem in current code, refreshes stale references, scans for required propagation, audits and grills it up front, and presents a ready-to-execute plan for explicit user approval.
 
 All requirements are outcome-first. Delegate with a self-contained fresh Claude prompt or Codex `fork_turns:"none"`; edit/search/run commands through Claude's local tools or Codex's local shell/edit tools; present the complete plan as ordinary transcript text; request approval through Claude `AskUserQuestion`, Codex `request_user_input`, or a direct blocking question when that UI is unavailable.
 
-For the delegated Step 0 orphan evaluation, Step 4 research/audit, Step 6 sweep and extension-review gate, and Step 9 plan audit, follow the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) contract. Assign each subagent a unique absolute report path under this session worktree's `Temp/AgentReports/`, require it to write the full report there and return only the compact indexed envelope, and read every decision-driving report item before adjudicating or synthesizing its results. Delegated report paths are transient coordination metadata: never copy one into the canonical plan.
+For the delegated Step 0 orphan evaluation, Step 4 research/audit, conditional Step 6 sweep, and Step 9 plan audit, follow the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) contract. Assign each subagent a unique absolute report path under this session worktree's `Temp/AgentReports/`, require it to write the full report there and return only the compact indexed envelope. For every consumed report, require `REPORT`, `REPORT_SHA256`, the requested indexed IDs, their exact evidence locators, and dependencies; invoke `Read-AgentReportSection.ps1` once per exact range under the shared contract before adjudicating or synthesizing. Delegated report paths and source-scope packet paths are transient coordination metadata: never copy one into the canonical plan.
 
 ## Preconditions
 
-- The skill assumes **bypass-permissions** mode and mutates without further confirmation: it inserts orphan rows under a queue lock (Step 0), atomically claims the target row (Step 2), and overwrites the plan file with the synthesis (Step 7). Row/file cleanup and owner-checked row unclaim happen only through Step 8. User approval is requested only on the final synthesized plan.
-- `Documents/Plans/Order.md` must exist. If it does not, report the missing file and stop.
-- The skill does **not** require — and does not use — plan mode. It mimics plan mode's "review-before-implement" UX by auditing (`/plan-audit`) then grilling (`/external-grill-plan`) the plan up front, then printing the final refined plan once as a standalone turn-ending text message (readable and scrollable in the session window). After that presentation, an unambiguous `Approve` or "execute" jumps straight into implementation (C++ Code Change Process step 2) with no further interview or approval prompt. Audit and grill together are C++ Code Change Process step 1. See Step 9 for the exact audit-grill-present-approve contract.
-- **`/next-plan` requires an existing wrapper-created isolated worktree and its live AgentCli session claim.** If either is absent, report that precondition and stop; never create one inside the skill. The wrapper owns deterministic worktree provenance and `Temp/AgentReports/`. All subagents share that checkout and the fixed session-start commit is the changed-file baseline. Sessions coordinate through AgentCli's PC-global session, plan, and landing state, not checkout-local queue edits.
-- Re-read the relevant `Order.md` region before every edit, key edits on plan-path text, and verify the table structure afterwards. Every queue mutation occurs while this session owns the queue lock. At landing, reconcile the latest primary-branch version semantically; do not overwrite another session's queue changes.
-- Set `$AgentCli` to `$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe`. The existing isolated worktree must already have the primary Output directory provisioned by its wrapper. If the executable is missing, stop and report that explicitly authorized primary maintenance through `/compile` is required; `/next-plan` never builds AgentCli or writes through the shared Output link.
-- Resolve `git rev-parse --git-common-dir` to a canonical absolute path and address the queue with `plan queue ... --repo <git-common-dir> --order Documents/Plans/Order.md`. Generate one owner token with `lock token` before coordination and retain it for every queue and row operation in this run. `plan queue lock` returns `{ "queue": <metadata>, "claims": [...] }`; use the sorted `claims` array as the authoritative availability snapshot for that selection attempt and verify `queue.ownedByRequester` before mutating. `plan queue list` returns the same shape for diagnostics only and never substitutes for the lock snapshot.
-- Row claims use `plan row claim|status|steal|unclaim` with the same repo/order locator plus `--plan <normalized Order.md-relative path>`. Claim and steal require ownership of the matching queue lock. Claim age is warning-only. Never auto-steal a paused claim; takeover requires explicit user approval and conditional `plan row steal --expect <reported-owner>`. Unclaim only with this session's row-owner token. Never persist claim state, owner, session, timestamps, or worktree metadata in `Order.md` or a plan file.
-- Hold the queue lock only across the short re-read/recompute/mutate/select/claim critical section. Unlock immediately after the row claim or before any user wait, subagent research, plan refresh, review, build, verification, landing, or other expensive work. After any unlock/reacquire boundary, discard the earlier snapshot and restart queue re-read, orphan recomputation, dependency resolution, and selection from current state.
-
-## Order.md structure reference
-
-Order.md has a single `## Plans` table. Columns are: `Plan | Tier | Effort | Impact | Risks | Score | Notes`. Rows are sorted by Score ascending (lowest = highest priority) — position in the table conveys priority; there is no ordinal column. Every row in the table is executable; rows are deleted from the table when the plan is done. Plan cells should be markdown links (`[path](path)`) for clickable navigation. Notes describe stable plan facts only; coordination state is external.
-
-- **`### Reference / Index Documents` subsection**: a separate table below the main one, listing meta/overview docs that are never executed as plans. **Ignore this subsection entirely.**
-- **`## Dependencies` section**: prose bullets expressing ordering constraints between plans. May contain a `### Cross-directory dependencies` subsection whose bullets cite plans under `Documents/Features/` — those live in a separate queue (`Documents/Features/Order.md`) and never appear in this table; see Step 1e for how to resolve them.
-- **`## File Groups` section**: plans that touch the same files. This is warning and landing-order information only — never a prerequisite edge.
+- The skill assumes **bypass-permissions** mode and mutates without further confirmation only at these points: legacy orphan repair through AgentCli `add` followed by its own verified landing; AgentCli `claim-next`; Step 7's synthesized plan-file replacement; and Step 8's AgentCli `complete` on an authorized terminal-cleanup route. User approval is requested only on the final synthesized plan.
+- The skill does **not** require plan mode. It preserves the existing audit-grill-present-approve contract in Step 9; an unambiguous approval completes the root Approve and classify stage and proceeds directly to Implement and propagate.
+- **`/next-plan` requires a wrapper-created isolated worktree, its live AgentCli session claim, and the wrapper's authoritative primary checkout and branch.** The session must start clean at the same commit as primary. If any identity is missing or ambiguous, stop; never create or adopt a worktree here.
+- Set `$AgentCli` to `$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe`. If it is missing, stop and report that explicitly authorized primary maintenance through `/compile` is required. Resolve `git rev-parse --git-common-dir` to a canonical absolute path, take `$Primary` and `$Branch` from wrapper provenance, generate one `$Owner` with `lock token`, and retain it for the selected row's full lifecycle.
+- AgentCli exclusively parses and mutates executable `Order.md` rows, validates the cross-queue dependency graph, selects eligible plans, and acquires/releases queue locks. `/next-plan` never parses or edits either `Order.md`, never interprets prose prerequisites, and never persists claim metadata in repository files.
 
 ## Workflow
 
-Execute these steps in order. Mutation points (bypass-permissions assumed): Step 0 inserts recomputed orphan rows while the queue lock is held, Step 2 atomically claims the target row and unlocks the queue, Step 7 overwrites the plan file with the synthesis, and Step 8 defines cleanup, landing, and row unclaim. Everything else is read-only research and synthesis; the plan grill and user approval both happen at Step 9 (grill first, then approval).
+Execute these steps in order. Step 0 either proves the primary queue valid or lands a standalone legacy repair and ends this session. Steps 1–2 validate and atomically claim from live primary. Step 7 replaces only the selected plan's prose. Step 8 defines terminal completion or retained-queue release. Everything else is research and synthesis; audit, grill, and approval remain in Step 9.
 
-### Step 0. Reconcile orphaned plan files into `Order.md`
+### Step 0. Validate primary and repair legacy orphans before selection
 
-Ensure every plan file on disk is represented in the `## Plans` table — orphans (present on disk, missing from the table) are otherwise invisible to the priority walk.
+Run:
 
-  a. **Enumerate plan files on disk.** Use `Glob` against `Documents/Plans/**/*.md` and `Documents/Plans/**/*.txt`. Normalize every hit to the Order.md-relative form (`<area>/<File>.<ext>`).
-
-  b. **Build the exclusion set.** Skip:
-       - `Documents/Plans/Order.md` itself and any `AGENTS.md` or `CLAUDE.md` under `Documents/Plans/`.
-       - Every path listed under the `### Reference / Index Documents` subsection of `Order.md` (meta/overview docs that are never executed).
-       - Every path referenced in the `## Plans` table's Plan cells (already in the queue). Extract paths from both link form (`[path](path)`) and bare-path form. Apply the same normalization as Step 1b.
-
-  c. **Compute the provisional orphan set.** Files from (a) that aren't in (b). If empty, log "no orphans" and skip scoring in (d–e), but still acquire the queue lock and recompute through (f–h) before Step 1.
-
-  d. **Dispatch a single Opus subagent via the `Agent` tool** to evaluate all orphans in one call. Brief it with:
-       - The full list of orphan paths.
-       - The scoring anchors from `Documents/AGENTS.md` (Effort 1-5, Impact 1-5, Risks 0-4, Score = Effort − Impact + Risks; lower = higher priority).
-       - The required row format from `Documents/Plans/AGENTS.md`:
-         `| [<area>/<File>.<ext>](<area>/<File>.<ext>) | <Tier> | <Effort> | <Impact> | <Risks> | <Score> | <one-line Notes> |`
-       - The current `## Plans` table contents so it can pick a score-correct insertion position and write Notes consistent with neighbouring rows.
-       - An instruction to read each orphan in full and spot-check the cited files/symbols in the codebase before scoring — a plan whose premise no longer exists should be flagged as "stale; recommend deletion" instead of getting a row.
-       - The shared [`be-agent-report/v1`](../../references/subagent-reporting.md) contract, including a unique absolute report path under this session worktree's `Temp/AgentReports/`.
-
-  e. **Ask the subagent to record in its full report**, for each orphan:
-       - The fully-populated table row (including final Score).
-       - A target insertion position in the existing table (which existing row it goes immediately before or after, per the Score sort).
-       - A label: `add` (insert into table) or `stale` (recommend the user delete the file — do not insert).
-       - A one-paragraph justification for the scoring (kept out of `Order.md`, surfaced to the user in the post-Step-0 report).
-
-     Accept only the compact indexed envelope in the subagent response, then read each indexed row/result section from the report before applying any scoring result. Do not load unrelated search detail into main context.
-
-  f. **Acquire the queue lock after expensive analysis.** Generate `$Owner` with `& $AgentCli lock token`, then run:
-
-     ```powershell
-     & $AgentCli plan queue lock --repo $GitCommonDir --order Documents/Plans/Order.md --owner $Owner --session '<short task label>' --worktree $ROOT
-     ```
-
-     Retain the returned claims snapshot as the sole authority for this critical section. Exit `2` means another coordinator holds the queue: inspect with `plan queue status`, report the holder, and retry only after it becomes available or after the user explicitly approves conditional `plan queue steal --expect <reported-owner>`. Never wait for user input while holding a queue lock.
-
-  g. **Re-read and recompute under the lock.** Discard the pre-lock orphan set as a mutation basis. Re-read `Order.md`, re-enumerate plan files and exclusions, and recompute the orphan set. Match recomputed orphans to the completed evaluations from (d–e). If a newly discovered orphan has not been evaluated, unlock the queue, analyze it outside the lock, and restart Step 0f. If an evaluated orphan disappeared or gained a row, drop its proposed mutation.
-
-  h. **Apply recomputed additions.** For every still-valid `add` row, use `Edit` to insert it into the `## Plans` table at its score-correct position. Multiple inserts are independent single-row insertions — anchor each `Edit` on the current neighbouring row's plan-path text, not line numbers. Do not insert `stale` entries. Re-read the table after mutation and carry that current state plus the lock-returned claims snapshot directly into Step 1.
-
-  i. **Report without pausing.** Output a brief summary to the user: which recomputed orphans were added (with score), which were flagged stale, and the subagent's justifications. Do not ask for confirmation or perform further expensive work while the lock is held. Stale flags are advisory only; the user can delete the files manually if they agree.
-
-  j. Continue to Step 1 while retaining the queue lock. If no orphans existed, skip scoring but still acquire the queue lock and re-read/recompute through (f–h) before selection.
-
-### Step 1. Resolve dependencies
-
-  a. Read `Documents/Plans/Order.md`.
-  b. If the user passed an argument (`$1` / `$ARGUMENTS` non-empty), normalize it to the Order.md-relative plan-file form (e.g., `Audio/GateVoiceLifecycleDuringReplay.txt` — strip any leading `./` or `Documents/Plans/`, trim backticks) and use that as the **candidate**. For identity comparisons, normalize every candidate, Plans-table path, dependency path, and snapshot `plan` exactly like AgentCli `NormalizeRepositoryRelativeKey`: reject rooted paths and any raw `..` component, lexically collapse separators and `.` components, convert separators to `\`, and compare the lowercase invariant result. Otherwise, walk the `## Plans` table top-down and take the first candidate whose normalized identity is absent from the normalized authoritative claims snapshot returned by Step 0f. A row claim means another session owns it; `Order.md` Notes never affect availability. Extract plan paths from either link or bare-path form. If the automatic walk exhausts all rows without a selectable target, unlock the queue, report that no plan is currently available, and stop; retain any independently required Step 0 orphan reconciliation for the normal review, verification, and landing workflow.
-  c. Reject ineligible candidates up front. A plan is ineligible if the `## Dependencies` section marks it as `is subsumed` or `is an index/meta document, not an executable plan`. If the user passed such a path, unlock the queue, then stop and tell them it isn't executable; if it turned up as the top row, skip it and continue walking down.
-  d. Scan the `## Dependencies` section. Each bullet expresses a directional constraint between one or more plans. Normalize every relevant bullet to the canonical form "X depends on Y" (X cannot run until Y is done) using these patterns:
-
-       - `X depends on Y` → X depends on Y
-       - `X depends on Y and Z` → split into two edges: X depends on Y, X depends on Z
-       - `X depends on Y1, Y2, ... and Yn` → split into n edges (one per Yi)
-       - `X should run AFTER Y` → X depends on Y
-       - `Y must precede X` → X depends on Y
-       - `Y should precede X` → X depends on Y
-       - `resolve Y first` / `resolve Y before X` → X depends on Y when X is the other named plan or set in that entry
-       - `land X after Y` → X depends on Y
-       - `land Y before X` → X depends on Y
-       - `land X first` → every other plan explicitly named in that entry depends on X
-       - `X is a prerequisite for Y` → Y depends on X
-       - `X last` / `X runs last` → X depends on every other plan explicitly named in that entry
-       - `X1, X2, ..., Xn all depend on Y` (including brace-set forms like `ocean-phase-{2,3,4,5,6,7}`) → expand the set, then each Xi depends on Y
-       - `X and Y ... do them in the same session` / `coordinate in one session` / `de-dupe at execution time` / `co-schedule` / shared-file or refresh-citation overlap → **not** a prerequisite; record the intersecting files and expected landing order as a warning, but do not recurse
-       - `never interleave`, `conflicts`, `resolve jointly before landing either`, `executes alone`, `runs alone`, or protocol-version, CRC/replay, `.pack`, or `kiVersion` batching → **not** a prerequisite unless the entry also gives directional prerequisite language; record it as a mandatory landing constraint that the later lander must preserve, reconcile, and reverify, not as an ordinary warning
-       - Bullets that name only a single plan (e.g., "edits `WindSpreadCommon.h` — that header is included by both ...") are informational; no dependency edge
-
-     Before matching, normalize every path token on **both** sides (Dependencies bullets and the Plans table) the same way Step 1b normalizes `$ARGUMENTS`: strip surrounding backticks, strip any leading `./` or `Documents/Plans/` prefix. Authors sometimes wrap paths in backticks or include the `Documents/Plans/` prefix inside bullets; without symmetric normalization, string matches silently miss.
-
-     Direction matters: in "Y must precede X", the candidate being checked is the prerequisite (Y) in half the bullets and the dependent (X) in the other half. Match on the candidate's plan-file path appearing on either side, then use the verb to decide which side points at the prerequisite. Do not infer an edge from ordinary `refresh citations`, `refresh after`, `co-schedule`, or shared-file wording unless the same entry also uses one of the explicit directional forms above.
-
-  e. Collect the prerequisite set for the current candidate (the Ys where the candidate is X in the normalized form). For each prerequisite:
-       - If the prerequisite is still a row in the `## Plans` table → unfinished. If the authoritative snapshot reports a row claim for it, do not recurse: the original top-level candidate is blocked. During the automatic walk, return to the caller and continue with the next top-level eligible row; for an explicitly requested candidate, unlock the queue, report the blocker, and stop. Include claim metadata and never treat claim age as release authority. Otherwise recurse from Step 1 with the prerequisite as the new candidate. (Exception: if the row is present but its plan file is missing from disk, unlock before reporting the bookkeeping anomaly or waiting for direction; after any answer, reacquire and restart Step 0g.)
-       - If the prerequisite path lives under `Documents/Features/` → it is tracked in `Documents/Features/Order.md`, outside this skill's queue. If it still has a row there, it is unfinished — do not recurse into it (this skill never executes Features plans); during automatic selection continue with the next candidate without pausing. For an explicitly requested candidate, unlock the queue, report the blocker, and stop. If it has no row there, treat as satisfied.
-       - If the prerequisite is not present in the table → treat as satisfied; it was either already executed or hand-cleaned. Whether the file itself remains on disk doesn't matter at this point.
-
-  f. When a candidate has no unmet prerequisites, it is the **target plan**. Record its path and row fields (Tier / Effort / Impact / Risks / Score / Notes). Also collect ordinary warning-only overlaps from `## Dependencies` and `## File Groups`; report the other plan/session, intersecting files, and likely landing order. Separately report every `never interleave`, conflict/joint-resolution, alone-execution, and protocol/version/CRC/replay/`.pack`/`kiVersion` landing constraint so it survives synthesis and landing. Ordinary overlap and nondirectional landing constraints do not change selection; explicit prerequisites do.
-
-> Cycle guard: maintain a stack of candidates currently being resolved (ancestors on the active dependency path, not a global visited set). If recursion would push a plan already on that stack, unlock the queue, then stop and ask the user which to run first — this is a back-edge in the Dependencies section and indicates an authoring bug. After the answer, reacquire and restart Step 0g rather than continuing from stale state. A plan appearing in two unrelated sibling branches is fine and does not trigger the guard.
-
-### Step 2. Atomically claim the target row and unlock the queue
-
-As soon as Step 1 settles on a target, invoke the transaction sidecar while the matching queue lock from Step 0f is still owned:
-
-```powershell
-$TransactionJson = & "$ROOT\.agents\skills\next-plan\scripts\Invoke-PlanRowClaim.ps1" -AgentCli $AgentCli -GitCommonDir $GitCommonDir -OrderPath 'Documents/Plans/Order.md' -Plan $TargetPlan -Owner $Owner -Session '<short task label>' -Worktree $ROOT
-$TransactionExitCode = $LASTEXITCODE
-$Transaction = $TransactionJson | ConvertFrom-Json
+```text
+plan order validate --repo <common-dir> --worktree <primary-worktree>
 ```
 
-The sidecar always attempts owner-unlock after the claim attempt and reports `claimExitCode`, `unlockExitCode`, `claimOutput`, and `unlockOutput` in its JSON result. Branch on `$TransactionExitCode`: `0` means the row claim succeeded and unlock succeeded; `2` means claim conflict with unlock succeeded and uses the conflict rule below; `1` means claim or unlock failed. An unlock failure always takes precedence in `result` and exit status, so inspect both raw codes and recover queue state before any other work. Exit code `0` from row claim reserves the plan; repository content does not. Retain `$Owner` as the row owner through completion, abandonment, rejection, or explicit deferral. Queue unlock must succeed before continuing to Step 3.
+Require exit `0` and JSON `ok: true` before selection. Stable diagnostics from this command are authoritative for malformed rows, missing files, executable/reference overlap, invalid dependencies/cycles, and unindexed executable files. Do not reproduce or weaken those checks in the skill.
 
-Important sequencing rules:
+If primary validation reports a legacy orphan, selection is blocked. Dispatch the existing Opus orphan-evaluation role once for all reported orphan paths under the shared reporting contract. It reads each plan and spot-checks current source, then returns `tier`, `effort`, `impact`, `risks`, `notes`, explicit already-live `dependsOn`, prerequisite-first grouping, and scoring justification. Main adjudicates semantic duplicates and stale/non-executable cases; any deletion or reference reclassification needs the user's explicit decision because AgentCli `add` only adopts executable plans.
 
-- Step 1 must be fully resolved before claiming. If dependency interpretation needs user input, unlock first; after the answer, reacquire and restart Step 0g so selection uses a fresh snapshot.
-- If row claim returns exit code `2`, the unconditional queue unlock has already run. Discard the prior snapshot. For automatic selection, reacquire the queue and restart Step 0g. For an explicitly requested plan, run `plan row status` after unlock, report the owner, and ask whether the user approves takeover. Age only triggers a warning. On approval, reacquire the queue, restart Step 0g, reselect the target, run fresh row status, and conditionally execute `plan row steal ... --expect <reported-owner> --owner $Owner --session '<label>' --worktree $ROOT`; then unlock immediately. Abort or retry selection if ownership changed.
-- If claim succeeds but queue unlock fails, stop expensive work and recover the queue-lock state with `plan queue status`; owner-unlock it when safe. The row remains claimed and must be reported if queue release cannot be proven.
-- Do **not** edit `Order.md` or the plan file to record the claim. Do **not** remove the row or delete the plan file here. Both survive until Step 8; the file is needed through implementation.
-- In an isolated session worktree, another checkout cannot make the local row/file disappear. If either vanishes after unlock, inspect local edits and action history first. Only if post-reconciliation primary history proves another session completed the plan may this session owner-check and unclaim its redundant row, then restart selection; otherwise stop and report the unexplained local mutation.
+For every approved executable adoption, create a schema-version `1` `operation: "add"` request beneath this session worktree's `Temp/`, grouping prerequisite-first sequences and independent plans separately, then run:
+
+```text
+plan order add --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>
+```
+
+Do not edit `Order.md`. Require the add receipt and a passing session `plan order validate`. Treat the repair as a standalone queue-only change: create its Tier-1 execution-control record, run only the triggered targeted check, workflow-coherence review, `/verify-changes`, and conditional-audit/finalization roles, land it into primary, and end this session without claiming a plan. Queue prose alone does not trigger paired correctness or session audits. The user must invoke `/next-plan` from a fresh wrapper-created session so `claim-next` can prove a clean primary/session baseline. A failed repair stays as explicit retryable session state and blocks selection.
+
+### Step 1. Validate the clean session snapshot
+
+When Step 0 passed without mutation, run `plan order validate --repo <common-dir> --worktree <session-worktree>` and require the same passing result. The session must remain clean and byte-identical to the primary commit; otherwise stop with the exact stale-session or validation diagnostics. Do not select from a dirty or locally repaired snapshot.
+
+If the user supplied `$ARGUMENTS`, normalize it to one canonical repository-relative identity under `Documents/Plans/` and pass it as `--plan`. Reject rooted paths, raw `..`, or a Features identity; this skill selects only the Plans queue. With no argument, omit `--plan` and let AgentCli choose the first unclaimed row whose structured dependency rows are absent.
+
+### Step 2. Atomically validate, select, and claim
+
+Run exactly one selection transaction:
+
+```text
+plan order claim-next --repo <common-dir> --primary-worktree <primary-worktree> --worktree <session-worktree> --branch <target-branch> --owner <token> --session <label> --queue plans [--plan <Documents/Plans/...>]
+```
+
+AgentCli acquires both queue locks in canonical order, revalidates live primary, proves primary/session commit and selected-plan byte equality, applies structured dependency blocking, creates the global row claim, and releases the locks without repository edits. Require `claimed: true`, successful unlock results, the normalized plan path, row fields, dependency disposition, primary commit, Order/plan hashes, and matching claim metadata before continuing. Retain the returned receipt and `$Owner` through Step 8 and finalization.
+
+For automatic selection, `no-eligible-row` means no plan is currently selectable; report the returned blockers and stop. For explicit selection, report exact dependency/claim/missing blockers. Existing claim takeover remains user-authorized only: inspect owner metadata with `plan row status`, ask explicitly, and use owner-matched `plan row steal --expect <reported-owner>` only after a fresh primary/session validation. A stale-session, plan-byte mismatch, validation failure, or unlock failure blocks; never fall back to manual row parsing, queue locking, or the removed sidecar.
+
+Do **not** edit `Order.md` or the plan file to record the claim, and do not remove either at selection time. If the local row/file later vanishes, inspect local action history; only primary history proving another completed landing can authorize redundant-claim release.
 
 ### Step 3. Relevance check — does the code still exist?
 
@@ -155,7 +80,7 @@ Classify the plan into one of four buckets:
 
 - **Fully relevant** — every reference resolves; plan proceeds as-is.
 - **Partially relevant** — some references moved, got renamed, or shifted by a few lines; plan proceeds with refreshed references (Step 5).
-- **Obsolete** — the bug is already fixed, the file was deleted, or the code was rewritten in a way that invalidates the plan's premise. Obsolescence is a terminal state: run the Step 8 completion cleanup now (remove the selected row, delete the plan file), report the obsolescence to the user, and stop. The user can re-invoke `/next-plan` to pick the next candidate.
+- **Obsolete** — the bug is already fixed, the file was deleted, or the code was rewritten in a way that invalidates the plan's premise. Show the evidence and ask the user to approve Step 8 terminal cleanup or defer the unchanged plan; obsolescence does not itself authorize `complete`.
 - **Ambiguous** — the original intent is unclear given current code. Ask the user before proceeding. If the user decides to abandon the plan, ask whether to clean it up or defer it back to the queue; both routes use Step 8's owner-checked row unclaim, and only cleanup removes the row/file.
 
 ### Step 4. Validity check — is it still worth doing?
@@ -173,7 +98,7 @@ Treat the Order.md Tier / Effort / Impact / Risks / Score fields as fixed estima
 
 - it fixes a correctness/determinism hazard still present in current code;
 - it delivers measurable perf on a path still hot (check against the most recent capture/baseline the plan or its Notes cite);
-- it unblocks a named queued plan or feature (a `## Dependencies`/`## File Groups` edge, or explicit in the plan body);
+- it unblocks a named queued plan or feature (the structured dependency graph returned by AgentCli, or an explicit statement in the plan body);
 - it deletes a real abstraction or at least ~1,000 `bt-token-v1` estimated tokens of implementation. Run [`../../scripts/Measure-Tokens.ps1`](../../scripts/Measure-Tokens.ps1) on the implementation the plan actually removes rather than whole unrelated files; the metric is normalized UTF-8 bytes divided by four and rounded up, not an exact model-token count.
 
 It fails the bar when the concern is now merely cosmetic or modest, no queued plan depends on it, and the work has materially expanded; it also fails when another queued plan supersedes or will rewrite the same code — surface that plan instead.
@@ -193,62 +118,52 @@ For every Architectural-tier plan, dispatch the existing Opus/Terra second-opini
 
 ### Step 5. Refresh the plan for current code state
 
-For plans classified as Fully or Partially relevant, rewrite the plan so every reference matches the current code:
+Before changing or synthesizing plan text, write a unique immutable source-scope packet under this worktree's `Temp/AgentReports/`; require the allocated path to be absent, create it once, then read it back. The packet is coordination evidence, not a `be-agent-report/v1` subagent report. It contains:
 
-- **Line numbers**: update to current values. Prefer `path:line` citations in the presented plan so the user can jump directly.
-- **Symbol names**: update anything that got renamed.
-- **File moves**: update paths.
-- **Surrounding context**: if a cited function now has additional callers, more branches, or interacts with newly added state, note the change and adjust the plan's approach accordingly.
-- **New blockers**: if the refresh surfaces a new prerequisite (a sibling function the plan also needs to touch, a shared helper added since the plan was written), incorporate it.
+- canonical plan path, fixed session-start commit, exact original bytes encoded losslessly plus decoded text, and the SHA-256 of those bytes;
+- `Tracked source: <author-commit>:<plan-path>@<blob-id>` only when the most recent commit at or before the fixed baseline that changed the plan path introduced the captured blob and that commit's path/blob identity matches; otherwise `Tracked source: unavailable — <untracked, blob mismatch, or uncertain path history>`;
+- stable `S###` IDs, in source order, for every executable source-plan requirement, each paired with its verbatim source excerpt or unambiguous captured anchor.
 
-Do not pad the plan with unrelated cleanup the original plan did not call for. The goal is a faithful, executable version of the same intent, not a scope expansion. (Sibling instances of the same pattern — places the plan should arguably touch but doesn't — are surfaced separately in Step 6 rather than silently folded in here.)
+That path-changing revision is the plan's author baseline for drift evaluation. Do not use a later commit merely because its tree still contains the same bytes, and do not invent a moving author date from the session baseline. An untracked, mismatched, or uncertain path/blob identity leaves the author baseline unavailable; it is not evidence of no drift and triggers the conservative sweep in Step 6. Verify the read-back bytes against the recorded SHA-256 before continuing, never mutate the packet, pass it to Step 9's `/plan-audit`, and never write its transient path into the canonical plan.
+
+For Fully or Partially relevant plans, Step 5 may refresh line citations, renamed symbols, moved paths, and equivalent wording. It may add only correctness-required propagation that passes the `P###` rule below. Do not silently adjust the approach for an additional caller, branch, state interaction, shared helper, prerequisite, failure mode, subsystem, invariant boundary, or verification obligation. Record every such material discovery as a `C###` candidate and route it through the same state machine used for Step 6 findings.
+
+If the source contains `## Coordination`, preserve that section verbatim in synthesis except for approved refreshes of current paths or symbol names. Do not reinterpret, summarize, weaken, or move its reciprocal mandatory constraints into Context. If absent, do not invent a section from ordinary overlap observations.
 
 ### Step 6. Search the codebase for similar changes the plan may have missed
 
-Dispatch an Opus subagent via the `Agent` tool to scan the codebase for additional locations that fit the plan's intent — places the original plan author overlooked, or that appeared in the codebase after the plan was written. The plan describes a specific transformation (a determinism fix in one file, a refactor of one collection, an allocation removed from one hot path); the subagent's job is to find sibling instances of the same pattern that would benefit from the same change.
+After Step 5, evaluate whether a sibling sweep is required. Trigger it only when at least one condition holds:
 
-Apply the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) contract: assign a unique absolute report path, accept only the compact indexed envelope in the response, and read every indexed candidate section before handling candidates.
+- the captured source actually claims an exhaustive transformation or mirrored family (`all`, `every`, or an equivalent bounded family claim);
+- an execution step changes a public or cross-translation-unit signature;
+- an execution step changes a shared, serialized, CRC-participating, or collection data member;
+- the source explicitly says its search/enumeration is incomplete;
+- code after the author baseline materially changed a cited symbol, its callers, or an invariant boundary relevant to the source transformation;
+- the author baseline is missing or uncertain, which conservatively records `Sibling sweep: triggered — author baseline unavailable`.
 
-Brief the subagent with:
+Record the evaluated author baseline, cited paths/symbols/invariant boundaries, and exact trigger reason in synthesized Context. If none applies, record `Sibling sweep: not triggered — <reason>` and dispatch zero sweep or extension-review agents.
 
-- The full text of the target plan (refreshed in Step 5).
-- The transformation pattern the plan implements, extracted from its execution steps: what it changes, where, and why. State this explicitly — "find every other place that does X" — rather than handing the subagent the raw plan and hoping it infers the pattern.
-- Pointers into the codebase: the relevant subsystem `AGENTS.md` files (`Engine/Source/AGENTS.md`, `Common/AGENTS.md`, `Projects/BrokenEngineSandbox/Source/AGENTS.md`, etc.), the `Documents/Architecture/` Mermaid diagrams when the plan touches a diagrammed subsystem, and the aggregation headers (`Common/Common.h`, `Engine/Source/Engine.h`) for the affected namespace.
-- An instruction to search BOTH directions: (a) **oversights** — code that already existed when the plan was written but was missed, and (b) **drift** — code added since the plan was written that exhibits the same pattern. The plan's age (commit history of the plan file or Order.md row) is useful context for distinguishing the two.
+When triggered, dispatch exactly one fresh Sonnet code-search agent. Apply [`be-agent-report/v1`](../../references/subagent-reporting.md), give it the verified source packet, current plan text, explicit transformation pattern, author baseline and drift boundary, and relevant subsystem instructions. Ask it to search oversights and post-authoring drift and report every candidate with `path:line`, evidence, Oversight/Drift, Identical/Related, confidence, and exact proposed edit. There is no second extension-review dispatch. The main session reads every indexed candidate and validates it against current source and the captured scope.
 
-Ask the subagent to record in its full report:
+Assign stable `C###` IDs in discovery order to all material Step 5 and Step 6 candidates and preserve every candidate in Step 7's `## Additional candidate locations`. Route each through exactly one authority state:
 
-- A list of candidate locations, each with `path:line`, the matching pattern, and a one-line justification for why the same change applies.
-- For each candidate, a label: **Oversight** (was probably present when the plan was written) or **Drift** (likely added since).
-- For each candidate, a **sameness** classification: **Identical** (the exact same mechanical transformation as the plan, differing only in file/location — e.g. the same unused-include removal, the same `Game.h` → `Graphics/Camera.h` swap, the same `vec + vec` → `XMVectorAdd` rewrite, the same field added to a sibling collection) or **Related** (same intent but a different edit — needs judgement about how to apply, touches different symbols, or carries invariant exposure the plan didn't declare).
-- A confidence rating per candidate (high / medium / low) so the user can triage quickly.
-- An explicit "no additional candidates" answer if the sweep finds nothing — the absence is informative and should still be recorded in Step 7's synthesized plan.
+- **Folded required propagation `P###`** — execution authority derived from named `S###` and `C###`. This is allowed only when current evidence proves the exact edit, with high confidence, is required for compilation or correctness to realize that named `S###`. A `P###` may introduce intermediate caller signature/result handling and the exact visible behavior already explicitly authorized by `S###` when necessary to realize it, but it may introduce no contract, behavior, failure mode, subsystem, invariant, format, build mode, client/server affinity, or verification dimension beyond `S###`. State the exact edit. Related or lower-confidence candidates never qualify.
+- **Delta requested `C###`** — pending, non-execution, and blocking until Step 9's grill records an exact user disposition.
+- **Approved delta `D###`** — execution authority derived from named `C###` and the exact user decision; add it only after approval, in both the approved-delta ledger and execution steps.
+- **Follow-up pending `C###`** — non-execution. Index it as a residual for the conditional `/create-follow-up-plans` role.
+- **Rejected false positive `C###`** or **Rejected by user `C###`** — non-execution, with repository or decision evidence.
 
-Handle the findings — record all of them in the Step 7 `## Additional candidate locations` section either way. The routing **default is to auto-fold**; surfacing for a user decision is the exception, reserved for candidates a thorough review cannot clear. Do not route on the sweep's `sameness`/`confidence` labels directly — they are triage hints for the review pass, not the gate. **Related** and medium/low-confidence candidates go through the review gate like everything else and fold if it clears them.
+Every execution step must cite exactly one `S###`, `P###`, or `D###`; a `C###` alone never grants execution authority. Candidate correctness, similarity, or low implementation cost does not waive this contract.
 
-**Extension-review gate — dispatch a second, thorough Opus subagent** via the `Agent` tool, dedicated solely to adversarially vetting every candidate for auto-folding before anything is folded. Give it the sweep report path and require it to read every candidate section. Assign a separate unique report path and apply the same shared contract; read every indexed gate verdict before routing candidates without loading unrelated report detail into main. Brief it with the refreshed plan, the explicit transformation pattern, and each candidate's `path:line`. For each candidate it must independently, against current source:
-  - (a) confirm it is genuinely the same transformation the plan implements (reject false positives),
-  - (b) derive the exact edit and confirm it is mechanical and self-contained (no design choice, no ripple beyond the cited site), and
-  - (c) determine whether the edit introduces **new invariant exposure the plan did not already declare** — new determinism/CRC participation, `kiVersion`/`.pack`/manifest layout, replay or save-format change, client/server guard scope, protocol/wire surface, or a main-loop allocation-tracked path.
+For workflow verification only, use the exact dry-run cases and expected routing in [`references/scope-routing-fixtures.md`](references/scope-routing-fixtures.md). Do not load that reference during ordinary plan selection.
 
-  It records, per candidate, exactly one verdict in the full gate report:
-  - **Fold** — (a) and (b) confirmed and (c) is clean (within the plan's already-declared invariant envelope, or invariant-free). Auto-apply with no user ask, **regardless of Identical-vs-Related or confidence level**.
-  - **Surface** — sameness or the exact edit could not be confirmed, the edit needs a design decision, or it carries new invariant exposure / architectural ambiguity / is plainly one slice of a larger superseding pattern.
-
-Route strictly on that verdict:
-
-- **Auto-fold** (no user ask) every **Fold** candidate. Append each to the plan's `## Execution steps` as an additional step tagged `[auto-folded sibling]`, and mark it **Folded** in `## Additional candidate locations` so the expansion stays visible and vetoable.
-- **Surface for decision** only the **Surface** candidates. List these under `## Additional candidate locations` only — do **not** add them to `## Execution steps` — and let the user decide in Step 9 whether to fold them in, defer them to a follow-up plan, or ignore them. With the review gate doing the vetting this set is usually small or empty; an empty Surface set means **no Step 9 scope-expansion question at all**.
-
-The extension-review gate provides the required thoroughness for uncertain candidates: fold aggressively once the gate clears a candidate, and only surface what the gate actually flags. The `[auto-folded sibling]` tag plus the **Folded** listing keep every auto-applied extension visible, and the C++ Code Change Process's post-implementation audit re-reviews them in context.
-
-If the subagent returns more than ~10 candidates, the plan likely describes a pattern broad enough to warrant a dedicated systematic sweep rather than a one-off fix. Note that observation in the synthesized plan and surface it to the user in Step 9 — do not bury dozens of candidates under an unrelated plan.
+If a triggered sweep returns more than ~10 candidates, the plan likely describes a pattern broad enough to warrant a dedicated systematic sweep rather than a one-off fix. Note that observation in the synthesized plan and surface it to the user in Step 9 — do not bury dozens of candidates under an unrelated plan.
 
 ### Step 7. Synthesize the final actionable plan
 
 Assemble a single markdown document matching the template below, then `Write` it over the source plan file — the refreshed plan replaces the original as the canonical record: `/external-grill-plan` updates this file with its resolved answers, the implementation subagent reads it, and it stays recoverable if the run is rejected. This is also the artifact the user will be asked to approve in Step 9.
 
-For the title, use the target plan file's top-level `# ` heading if one exists. Some plans are plain-text `.txt` files with no H1 — for those, fall back to the `Plan` cell stem from Order.md: strip the directory prefix and the extension but **preserve the original casing** (don't re-PascalCase kebab-case or vice-versa).
+For the title, use the target plan file's top-level `# ` heading if one exists. Some plans are plain-text `.txt` files with no H1 — for those, fall back to the selected plan identity's filename stem and **preserve the original casing** (don't re-PascalCase kebab-case or vice-versa).
 
 Examples:
 - `Audio/GateVoiceLifecycleDuringReplay.txt` (no H1) → `GateVoiceLifecycleDuringReplay`
@@ -256,7 +171,7 @@ Examples:
 - `Network/Architecture_FleetRngDeterminism.md` (has `# Fleet RNG Determinism` at top) → `Fleet RNG Determinism`
 
 ```
-# <Plan title — H1 from plan file, or Order.md Plan-cell stem>
+# <Plan title — H1 from plan file, or selected plan filename stem>
 
 ## Summary
 **What this plan does:** <2-4 sentences in plain prose describing the change in concrete terms. Name the subsystems / files touched and the user- or engine-visible behavior change. Avoid restating the title; avoid step-by-step detail (that lives in Execution steps).>
@@ -264,38 +179,62 @@ Examples:
 **Why it's good for the codebase:** <2-4 sentences naming the concrete benefit. Pick from: correctness bug fixed, determinism hazard closed, measurable perf win, debt removed that unblocks <named follow-up>, simplification that deletes <N> bt-token-v1 / removes <named abstraction>, hot-path allocation eliminated, etc. Be specific — "improves code quality" is not acceptable; "removes the per-frame heap allocation in `BlasterPostRender::Update` flagged by allocation tracking" is.>
 
 ## Context
-- Source: <relative path to the plan file> (removed with its Order.md row after execution completes)
-- Order.md row: Tier <T> / Effort <E> / Impact <I> / Risks <R> / Score <S>
-- Notes: <the row's Notes cell, verbatim>
+- Source: <normalized plan identity from the claim receipt; removed by AgentCli complete after successful execution>
+- Queue row: Tier <T> / Effort <E> / Impact <I> / Risks <R> / Score <S>
+- Notes: <the claim receipt's Notes field, verbatim>
 - Relevance: <Fully | Partially> — <one-line justification>
-- Dependency resolution: <"none" or "switched from <original top> because <prereq> was unmet">
+- Dependency disposition: <the claim receipt's structured dependency disposition>
 - Coordination warnings: <"none" or each warning-only overlap with other plan/session, intersecting files, and likely landing order>
-- Mandatory landing constraints: <"none" or every `never interleave`, conflict/joint-resolution, alone-execution, protocol/version, CRC/replay, `.pack`, and `kiVersion` constraint that implementation and landing must preserve and reverify>
 - Research evidence: <the Step 4 decision, concise decision-grade evidence with direct `path:line` citations / diagnostic lines / authoritative links, and whether it cleared the success criteria; never include a `Temp/AgentReports/` path>
 - Current-source refinements: <bullet list of citations or scope facts established in Step 5, or "none">
+- Sibling sweep: <`not triggered — reason` or `triggered — reason`; include the author baseline or `unavailable` and the evaluated cited symbols/callers/invariant boundaries>
+
+## Coordination
+<Copy the source plan's section verbatim except approved current path/symbol refreshes; omit this heading when the source had no Coordination section.>
+
+## Provenance map
+- S001 — Source step — <captured source requirement; repeat for every source execution requirement>
+- P001 — Required propagation derived from S001 and C001 — <exact edit and why every fold condition holds; omit when none>
+- D001 — Approved delta derived from C002 — <exact approved execution; omit when none>
+
+## Approved-delta ledger
+<Write exactly one mutually exclusive form: literal `- none` when empty, or one `- D### — derived from C### — <exact user decision and resulting execution authority>` row per approved delta; never both.>
 
 ## Execution steps
-1. <Refreshed implementation steps from the plan, with current `path:line` citations.>
-2. ...
+1. [S001] <Refreshed source implementation step, with current `path:line` citations.>
+2. [P001] <Exact correctness-required propagation, if any.>
+3. [D001] <Exact user-approved delta, if any.>
+...
+
+## Out of scope
+<The source plan's existing Out of scope content, refreshed only for current path/symbol citations. If absent, write "Not specified in source plan.">
+
+## Acceptance criteria
+<The source plan's existing Acceptance criteria content, refreshed only for current path/symbol citations. If absent, write "Not specified in source plan.">
 
 ## Additional candidate locations
-<Findings from the Step 6 codebase sweep — sibling instances of the same pattern the plan may have missed. One bullet per candidate, with `path:line`, label (**Oversight** | **Drift**), sameness (**Identical** | **Related**), confidence (high/medium/low), routing (**Folded** — auto-folded into `## Execution steps`; or **Surfaced** — awaiting the user's Step 9 decision), and a one-line justification. If the sweep returned nothing, write "No additional candidates found." If it returned more than ~10 candidates, note that the pattern likely warrants a dedicated systematic sweep rather than expanding this plan.>
+<Every material Step 5/6 candidate, one bullet per C###, with `path:line`, Oversight/Drift, Identical/Related, confidence, exact edit, evidence, and one authority state: `Folded required propagation P### derived from S###`; `Delta requested`; `Approved delta D###`; `Follow-up pending`; `Rejected false positive`; or `Rejected by user`. If no candidate exists, write "No additional candidates found." If there are more than ~10, note that a dedicated systematic plan is likely.>
 ```
 
-Authoring the **Summary** section is mandatory and must come from synthesis, not boilerplate. Source the **What** from the plan's body (its goal statement, top-level description, or the union of its execution steps if no narrative exists) and the **Why** from a combination of the plan file's stated rationale and the Order.md row's `Impact` / `Notes` cells. If the plan file contains no rationale at all, infer the Why from the code drift uncovered during Steps 3-5 and prefix the sentence with "Inferred:" so the user knows it isn't author-supplied. Never write a generic Why like "improves quality" or "cleans up the codebase" — if you cannot name a concrete benefit, surface that gap to the user in Step 9 instead of papering over it.
+Authoring the **Summary** section is mandatory and must come from synthesis, not boilerplate. Source the **What** from the plan's body (its goal statement, top-level description, or the union of its execution steps if no narrative exists) and the **Why** from a combination of the plan file's stated rationale and the claim receipt's `Impact` / `Notes` fields. If the plan file contains no rationale at all, infer the Why from the code drift uncovered during Steps 3-5 and prefix the sentence with "Inferred:" so the user knows it isn't author-supplied. Never write a generic Why like "improves quality" or "cleans up the codebase" — if you cannot name a concrete benefit, surface that gap to the user in Step 9 instead of papering over it.
 
-Keep the execution steps in the order the plan originally specified, with citations pointing at current code. Append every Step 6 candidate whose extension-review verdict is **Fold** to `## Execution steps` tagged `[auto-folded sibling]`, regardless of Identical/Related or confidence. Keep every **Surface** candidate out of execution pending Step 9. Preserve the Context coordination warnings and mandatory landing constraints through implementation and landing; the later lander reruns every affected review, build, and verification step. Order.md row removal and plan-file deletion belong to Step 8, not the execution list.
+Keep source execution steps in their original order with current citations and their stable `S###` IDs. Append only validated `P###` and user-approved `D###` steps. The provenance map, approved-delta ledger, execution list, and candidate dispositions must agree; `Delta requested`, `Follow-up pending`, and either Rejected state stay out of execution. Preserve the source `## Coordination` section under the rule above and carry its mandatory constraints through implementation and landing. Queue completion belongs to Step 8, not the execution list.
 
-### Step 8. Completion contract — cleanup and owner-checked release
+Preserve the source plan's `## Out of scope` and `## Acceptance criteria` sections during synthesis; do not add, remove, or broaden their scope except to refresh path/symbol citations and names. A candidate that conflicts with an explicit exclusion or criterion cannot be `P###`; keep the contradiction visible for Step 9 plan audit and grill.
 
-Nothing is deleted at selection time. The selected row and plan file are removed together at exactly one of these points:
+### Step 8. Completion contract — AgentCli complete or retained queue state
 
-Before invoking `/finalize-changes` on every completion, terminal-abandonment, or rejection route, run two independent `/session-audit` reviews on the resulting changed queue files and resolve findings through root step 10's fix/re-review rule. Then refresh root step 9's final-tree ledger and changed-file manifest: verify every changed plan link, score, sorted row position, dependency/file-group reference, and required file deletion/retention. Queue cleanup must be reviewed and verified after its last content mutation before it is committed or landed.
+Nothing is deleted at selection time. Use AgentCli `complete` only after successful execution with all residuals routed, or after the user explicitly approves obsolete/abandoned cleanup. Before successful-execution cleanup, carry every `Follow-up pending C###` as an indexed residual into the conditional `/create-follow-up-plans` role and require a mapping for every candidate.
 
-- **After execution completes**: the user approved in Step 9 and C++ Code Change Process steps 2–11 completed with residuals routed. Remove the plan's row and file, prune every target reference from `## Dependencies` and `## File Groups`, and delete entries that then name fewer than two live plans. Include all cleanup in the reviewed and final-tree-verified session change set, then invoke `/finalize-changes` with the plan row locator and `$Owner`. Only after it verifies the cleanup landed does finalization run `plan row status` and owner-only `plan row unclaim`; the clean landed worktree and branch remain registered for user-managed cleanup.
-- **Terminal abandonment**: Step 3 classified the plan Obsolete, or the user chose "abandon and clean up" in Step 3/4 — remove the row/file, perform the same dependency/file-group pruning and review, then invoke `/finalize-changes` with the plan row locator and owner. Landing precedes row unclaim.
+On an authorized cleanup route, run:
 
-If the run ends any other way, do **not** delete the row or plan file. On rejection in Step 9, land only the refreshed plan file and any independently required orphan reconciliation, then invoke `/finalize-changes` with the plan row locator and owner; finalization unclaims only after the landed commit is verified. If landing or owner verification fails, retain the row claim and session worktree/branch and report it. On an error or user stop mid-execution, retain the row claim and report its metadata unless the user explicitly chooses deferral. Deferral owner-unclaims the row, keeps the partial worktree intact, freezes it against further edits or landing, and permits resume only after this same worktree freshly reacquires the queue, revalidates selection from the new snapshot, and successfully claims or conditionally steals the row again.
+```text
+plan order complete --repo <common-dir> --worktree <session-worktree> --owner <claim-owner-token> --session <label> --plan <normalized selected plan>
+```
+
+Require the matching owned claim and a receipt bound to the resulting Plans and Features queue hashes. AgentCli transactionally removes the executable row and plan file and prunes every inbound structured dependency edge; never perform those Markdown/file edits yourself. The global row claim remains held. Because completion changes final-tree bytes, rerun the affected targeted checks, review only contract-significant changed regions not already seen, and regenerate `/verify-changes`; its final ledger must include the exact complete receipt and a passing session `plan order validate`. Queue cleanup does not by itself trigger paired or per-file-group session audits; apply the root conditional whole-change-audit triggers once during finalization. Invoke `/finalize-changes` with the selected plan identity, owner, and receipt so reconciliation can reapply completion and post-landing unclaim safely.
+
+Rejection and deferral retain both row and plan file; never call `complete`. On rejection, review, verify, and land only the refreshed plan file, then let `/finalize-changes` owner-check and unclaim after that landing. On explicit deferral or another safe stop with no repository mutation requiring landing, use the existing owner-only `plan row unclaim` route, keep the partial worktree intact, and freeze it against further edits. A resume requires a clean/current session as enforced by fresh `claim-next`; if partial changes prevent that, reconcile them through the normal landing/abandonment decision first. Errors and user stops retain and report the claim unless an authorized landing or safe-stop unclaim has completed.
 
 ### Step 9. Audit and grill the plan, present it, and request approval
 
@@ -303,12 +242,27 @@ The audit and grill run **before** approval so that once the user approves, impl
 
 #### 9a. Audit and grill the plan (pre-approval)
 
-Have one Fable subagent invoke `/plan-audit` on the plan file Step 7 wrote — this is C++ Code Change Process step 1, pulled ahead of approval. Apply the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) contract: assign a unique absolute report path, accept only the compact indexed envelope, and read every indexed finding section before validating it. Carry accepted flaws and improvements into the grill; the audit does not edit the plan.
+Have one Fable subagent invoke `/plan-audit` on the plan file Step 7 wrote as part of the root Approve and classify stage. Supply the verified immutable source packet, canonical provenance map, approved-delta ledger, explicit approved-delta summary, and draft execution-control record. Apply the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) contract: assign a unique absolute report path, accept only the compact indexed envelope, and read every indexed finding section before validating it. Require its report/result to establish successful independent verification of the exact packet identity and source provenance; a missing, failed, mismatched, or unaudited packet blocks implementation authority. Carry accepted flaws and improvements into the grill; the audit does not edit the plan.
 
-Invoke `/external-grill-plan` directly on the plan file Step 7 wrote, passing the accepted audit findings — this completes C++ Code Change Process step 1 before approval. **Do not print the plan's `## Summary` or the full plan before the grill.** The grill presents only concrete decisions, ambiguities, recommendations, or its required closing question; it silently updates the plan file with the resolved answers, so the plan the user sees in 9b is already refined.
+Invoke `/external-grill-plan` directly on the plan file Step 7 wrote, passing the accepted audit findings and draft execution-control record. This resolves plan decisions and classification before approval. The grill must resolve every `Delta requested C###`: record the exact user decision as `Approved delta D###`, `Follow-up pending C###`, or `Rejected by user C###`; only an approved delta enters the ledger, provenance map, and execution steps. Promote each follow-up to an indexed conditional-planning residual immediately. **Do not print the plan's `## Summary` or the full plan before the grill.** The grill presents only concrete decisions, ambiguities, recommendations, or its required closing question; it updates the plan file with resolved answers, so the plan the user sees in 9b is already refined.
 
 - On a trivial/mechanical plan the grill commonly finds no decision points and returns with nothing to ask — expected; proceed straight to 9b.
 - **Do not stop or summarise when the grill returns** — continue to 9b in the same turn. The only legitimate reasons to pause here are (a) the grill asked the user a question that is still open, or (b) the grill recommended running `/external-design-interface` first per its role-boundary clause; resolve those before presenting.
+
+After the grill, perform a final authority-state check against the verified source packet: every execution step cites a matching `S###`, `P###`, or `D###`; every `D###` agrees with the exact user decision and approved-delta ledger; every candidate is retained; no `Delta requested` remains; and non-execution states do not appear in execution. Stop before presentation if any check fails. Materialize the approved-delta summary exactly from the final `D###` ledger (`none` when empty) and compare the exact final D ID set, complete ledger, and summary with the state identified in the successful audit result. If the grill created, removed, or changed any D authority, run a fresh authority-focused Fable `/plan-audit` on the complete final authority state under a new shared-contract report path and require success before presentation. If that state is unchanged, including an unchanged empty ledger, dispatch zero additional audits.
+
+Prepare the manager execution-control record before presentation: fixed process
+baseline; highest applicable Tier 1/2/3 and concrete triggers; required roles;
+each conditional role and objective trigger; and the initial
+`criterion -> decisive check -> expected result -> independent signal if
+duplicate` matrix. Keep it as manager coordination state, not canonical plan
+authority. The process applies only when the fixed baseline contains the landed
+linear-process definition.
+
+The downstream Review and resolve stage uses the record to select one applicable
+first correctness reviewer, adding adversarial or shader review only when its
+objective trigger applies. Main adjudicates the union of cited evidence once;
+accepted fixes are focused and rerun only invalidated review/check evidence.
 
 #### 9b. Present the final (grill-refined) plan
 
@@ -325,36 +279,46 @@ Only when the response is a neutral acknowledgement with no decision should `Ask
 The `AskUserQuestion` is a single question along the lines of:
 
 - **question**: "Approve this plan and proceed with implementation?"
-- **options**: `Approve` (proceed to implementation), `Reject` (the refreshed plan and any independently required Step 0 orphan reconciliation are reviewed and landed, then the row is returned to the queue by owner-unclaim)
+- **options**: `Approve` (proceed to implementation), `Reject` (the refreshed plan is reviewed and landed, then the row is returned to the queue by owner-unclaim)
 
-If the `## Additional candidate locations` section contains any **Surfaced** entries (only those the Step 6 extension-review gate flagged as carrying new invariant exposure, needing a design decision, or unconfirmable — everything else was auto-folded), ask the user whether to fold them into the execution scope, defer them to a follow-up plan, or ignore them. Use a separate `AskUserQuestion` call (or a multi-select question) so the approval decision and the scope-expansion decision are tracked independently. Do **not** ask about auto-folded candidates — those are already in `## Execution steps` by design; just mention them in the presentation so the user can veto if they disagree, but don't gate on it. Because the review gate now clears the routine cases automatically, the Surface set is usually empty — when it is (or when every candidate was auto-folded), skip the scope-expansion question entirely.
+Candidate scope decisions already completed in 9a; do not reopen them during plan approval. If any `Delta requested` remains, return to the grill instead of presenting or requesting approval.
 
-If the user picks `Approve`, follow the standard C++ Code Change Process defined in the top-level `AGENTS.md`, **starting from step 2 (implementation)** — step 1 (audit and grill) already ran in 9a. Carry the user's decisions on additional candidates into the process and proceed straight into the edit in the same turn. After step 11, execute Step 8's coordinated queue cleanup and invoke `/finalize-changes` with the plan row locator and owner.
+If the user picks `Approve`, bind the prepared execution-control record to the
+approved plan, exact fixed baseline, and final approved-delta state; this
+completes the root Approve and classify stage. Pass that exact record,
+source-packet identity, final ledger/summary, and the successful audit result
+covering the exact final D state to every downstream role. Follow the standard
+C++ Code Change Process defined in the top-level `AGENTS.md` through the remaining
+named stages: Implement and propagate; Run targeted pre-review checks; Review and
+resolve correctness; Apply conditional hygiene; Verify the acceptance matrix; and
+Reconcile, audit when triggered, and finalize. Carry the user's decisions on
+additional candidates into the process and proceed straight into the edit in the
+same turn. After all
+triggered conditional-hygiene/follow-up roles complete, execute Step 8's
+coordinated queue cleanup and invoke `/finalize-changes` with the plan row locator
+and owner.
 
-After approval, subagents treat this canonical plan as immutable. A discovered change to behavior, scope, acceptance criteria, architecture, or verification obligations returns an exact material plan delta without editing; main requests explicit approval of that delta, applies it to the canonical plan only after approval, and then continues with the approved-delta summary. Non-material corrections must not alter those dimensions.
+After approval, subagents treat this canonical plan as immutable. A discovered change to behavior, scope, acceptance criteria, architecture, or verification obligations returns an exact material plan delta without editing; main requests explicit approval, then records the candidate and a new `D###` in the provenance map, approved-delta ledger, execution steps, and approved-delta summary. Before implementation resumes, run a fresh authority-focused Fable `/plan-audit` under a new shared-contract report path and require its successful result to explicitly cover the complete final D ID set, ledger, and summary. Non-material corrections must not alter those dimensions.
 
-If the user picks `Reject`, follow Step 8's rejection route: keep the row queued, review and land only the refined plan file plus independently required orphan reconciliation, then invoke `/finalize-changes` with the plan row locator and owner. If landing fails, retain the row claim and session worktree/branch and report it.
+If the user picks `Reject`, follow Step 8's rejection route: keep the row queued, review and land only the refined plan file, then invoke `/finalize-changes` with the plan identity and owner. If landing fails, retain the row claim and session worktree/branch and report it.
 
 ## Edge cases
 
-- **No orphans found in Step 0**: skip the subagent dispatch entirely and proceed to Step 1. No mutations.
-- **Step 0 subagent flags every orphan as stale**: no rows inserted; report the stale list to the user and continue to Step 1 against the unchanged table.
-- **Orphan file lives under a subdirectory the table doesn't yet reference** (e.g., a new `Audio/` area): the row goes in at score-correct position regardless of subdirectory — the table is sorted by Score, not grouped by area.
-- **Orphan is itself a Reference / Index document** that wasn't added to the `### Reference / Index Documents` subsection: Step 0b only excludes paths already listed there, so a genuinely-meta doc would be misclassified as a plan. The Opus subagent should detect this from the document's content (no execution steps, no `## Critical files` section, narrative overview tone) and label it `stale` with a justification recommending the user move it to the reference subsection.
-- **Empty table** (`## Plans` table has no rows after Step 0h): unlock the queue, report "Order.md has no plans", and stop. No row claim exists; retain any independently required Step 0 orphan reconciliation for the normal review, verification, and landing workflow.
-- **Top row is marked subsumed or index/meta in Dependencies**: Step 1c filters it; fall through to the next row. No claim happens for filtered rows — Step 2 only fires on the eventual selected target.
-- **Plan file missing from disk** but row still in `## Plans`: the row and file are removed together at completion, so this state means the file was likely hand-deleted without cleaning up Order.md. Unlock the queue before reporting the bookkeeping anomaly or asking whether to remove the stale row. After any answer, reacquire and restart Step 0g. Do not claim a candidate whose plan file is missing — Step 3 would have nothing to read.
-- **Claim already exists**: another session owns the plan. Automatic selection skips claims from the authoritative lock snapshot; a claim-attempt conflict requires queue reacquisition and a Step 0g restart. An explicit request reports `plan row status` metadata only after queue unlock and requires user-approved conditional takeover after reacquiring and restarting Step 0g; age is warning-only.
+- **No primary validation diagnostics**: skip orphan evaluation and proceed directly to session validation and `claim-next`.
+- **Legacy orphan diagnostic**: selection stays blocked until the approved AgentCli add repair is verified and landed; end this session after landing and restart fresh.
+- **Orphan is stale or really a reference/index document**: do not add it as executable. Obtain the user's exact cleanup/reclassification decision, verify and land that standalone repair, then restart fresh.
+- **No executable rows**: `claim-next` returns `no-eligible-row`; report it and stop without a claim.
+- **Missing plan file, malformed row, or dependency cycle**: primary `validate` reports the stable diagnostic before selection. Do not claim or manually repair the queue.
+- **Claim already exists**: automatic `claim-next` skips it; explicit selection returns owner/blocker evidence and requires user-approved conditional takeover. Claim age is warning-only.
 - **Repository text suggests ownership**: ignore it for coordination and remove it when the file is otherwise in scope; only the authoritative queue-lock snapshot and row status determine ownership.
 - **Row or plan file disappears mid-run**: isolated worktrees do not receive remote checkout mutations. Treat this as a local mutation and inspect local edits/action history. If it appears only after reconciliation, verify the rebased primary commit actually completed the plan before restarting selection; otherwise stop and report rather than attributing it to another session.
-- **User provided a plan name as an argument**: Step 1b handles this — normalize and use as the candidate; the dependency walk still runs from it downward.
-- **Prerequisite missing from both the table and disk**: Step 1e already treats this as satisfied. No extra handling needed.
-- **User rejects in Step 9 approval**: follow Step 8's rejection route — keep the refreshed plan file and row, review and land the refreshed plan plus any independently required Step 0 orphan reconciliation, then invoke `/finalize-changes` with the plan row locator and owner. No repository claim-state mutation is part of rejection. Retain the row claim and session worktree/branch if landing fails.
-- **Step 6 sweep finds an obviously-superseding plan**: if the codebase sweep finds that the plan is one instance of a much larger pattern that has its own existing plan in `Order.md`, surface that to the user in Step 9 so they can decide whether to abandon the current plan in favor of the broader one.
+- **User provided a plan name as an argument**: Step 1 normalizes it and passes the canonical identity to explicit `claim-next`; structured dependencies still block it while their rows exist.
+- **User rejects in Step 9 approval**: follow Step 8's rejection route — keep the refreshed plan file and row, review and land only the refreshed plan, then post-land owner-unclaim. Retain the claim and session worktree/branch if landing fails.
+- **Step 6 sweep finds an obviously-superseding plan**: if the codebase sweep finds that the plan is one instance of a much larger pattern owned by another queued plan, surface that to the user in Step 9 so they can approve abandonment cleanup or retain/defer this plan.
 
 ## What this skill does not do
 
-- Does not execute the plan — that happens after Step 9 approval. Step 9 audits and grills the plan first (Step 9a — C++ Code Change Process step 1, pulled ahead of approval), so an approval proceeds into the process at step 2 (implementation).
-- Does not reassess or re-prioritize the `## Plans` table. Its scoring fields are estimates used only to order the queue.
-- Does not remove the Order.md row or delete the plan file at selection time. Selection creates only authoritative AgentCli row coordination state; cleanup and owner-checked unclaim follow Step 8.
-- Does not blindly expand scope, but **does auto-fold aggressively**: every Step 6 candidate that the dedicated extension-review subagent clears (confirmed same transformation, mechanical, no new undeclared invariant exposure) is folded into `## Execution steps` with no user ask, tagged `[auto-folded sibling]` and listed **Folded** under `## Additional candidate locations` so it stays visible and vetoable. This includes **Related** and lower-confidence siblings — the thorough review gate, not a reflexive user prompt, is what vets them. Only candidates the review gate flags (new invariant exposure, a needed design decision, or unconfirmable sameness) are surfaced for an explicit Step 9 decision.
+- Does not execute the plan — that happens after Step 9 approval. Step 9 audits, grills, and classifies first, so approval proceeds into Implement and propagate.
+- Does not reassess or re-prioritize queue rows. Their scoring fields are fixed estimates used only to order the queue.
+- Does not remove the executable row or delete the plan file at selection time. Selection creates only authoritative AgentCli row coordination state; AgentCli completion and owner-checked unclaim follow Step 8.
+- Does not treat similarity as authority. Only captured source steps, exact correctness-required propagation, and exact user-approved deltas may enter execution; every other candidate remains non-execution or becomes a conditional follow-up-plan residual.

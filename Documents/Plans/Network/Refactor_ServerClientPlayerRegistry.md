@@ -72,6 +72,10 @@ Replace `coordSubscriptions` / `coordAckStates` / `prevResendCounts` / `resendLo
 - `ClientConnection` holds one slot vector; `FreeSlot` has no bounds guards.
 - Server build compiles; assign/spawn/death/transfer/reconnect/load paths behave identically (owned set, assign send order creation-stable).
 
+## Coordination
+
+- `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md`: never interleave the shared slot-state work; this plan's structured dependency requires the hardening first.
+
 ## Notes
 
 - **Invariant exposure**: server-side bookkeeping only — no CRC/determinism sim path, no `.pack`/`kiVersion`, no wire bytes. **But relink governs which client owns which player and the assign/spawn send order** (creation-order-stable by global-id sort); a registry bug mis-assigns ownership on reconnect/load, so treat ownership/assign-order parity as the correctness bar (Risks 2-3). No client-visible protocol change.

@@ -1,6 +1,6 @@
 ---
 name: external-deep-analysis
-description: Runs a two-phase code analysis pipeline on a directory — architecture review (shape) then refactor-clean (in-function mechanics) — then verifies, scores, and prioritizes all plan files. Produces actionable plan files per phase and score-sorted rows in the `Order.md` priority table. Both phases also surface the non-security anti-patterns characteristic of iteratively AI-generated code (dead modules, broken abstractions, phantom guards, swallowed errors, cross-file duplication); security auditing is deliberately excluded. Only invoke when the user explicitly requests it (e.g., "/external-deep-analysis", "run a deep analysis", "full code analysis"). Never trigger autonomously from general code questions or during routine code changes.
+description: Runs a two-phase code analysis pipeline on a directory — architecture review (shape) then refactor-clean (in-function mechanics) — then verifies, scores, and prioritizes all plan files. Produces actionable plan files per phase and registers them through AgentCli's deterministic plan queue. Both phases also surface the non-security anti-patterns characteristic of iteratively AI-generated code (dead modules, broken abstractions, phantom guards, swallowed errors, cross-file duplication); security auditing is deliberately excluded. Only invoke when the user explicitly requests it (e.g., "/external-deep-analysis", "run a deep analysis", "full code analysis"). Never trigger autonomously from general code questions or during routine code changes.
 disable-model-invocation: true
 allowed-tools: [Read, Write, Edit, Grep, Glob, Agent, Bash]
 ---
@@ -47,7 +47,7 @@ When the report completes, split findings into two groups:
 
 #### Writing Plan Files
 
-Follow the plan-authoring rules in `Documents/Plans/AGENTS.md` (read it before writing the first plan — it owns the required shape and the Order.md bookkeeping). Format:
+Follow the plan-authoring rules in `Documents/Plans/AGENTS.md` (read it before writing the first plan — it owns the required shape, structured dependencies, Coordination policy, and AgentCli queue-submission contract). Format:
 
 ```
 # Architecture: <Group Name>
@@ -83,7 +83,7 @@ Read `.claude/skills/external-refactor-clean/SKILL.md` and execute its workflow,
 - The original target directory (for full coverage of in-function mechanics)
 - Any specific paths flagged as investigation items from Phase 1
 
-**Deduplication**: Before writing plan files, check the Phase-1 plan files from this run AND pre-existing live plans — the output directory plus the `Documents/Plans/Order.md` table (plans from earlier runs stay live). If a finding is already covered by any live plan (even under a different category), skip it.
+**Deduplication**: Before writing plan files, check the Phase-1 plan files from this run AND pre-existing live plans. Run `plan order validate --repo <common-dir> --worktree <session-worktree>` and use its executable-row inventory together with the output directory; never parse `Documents/Plans/Order.md`. If a finding is already covered by any live plan (even under a different category), skip it.
 
 Write all new actionable findings as plan files: `Refactor_<GroupName>.md`, using the same format as Phase 1 with title `# Refactor: <Group Name>` and `Source: /external-refactor-clean on <target path>`.
 
@@ -115,7 +115,7 @@ Score each surviving plan file (post-verification content) using the canonical a
 - **Priority Score** = Effort − Impact + Risks (lower = higher priority)
 - **Tier** — informal size descriptor mirroring the Effort anchor: **Quick Win / Small / Medium / Large / Architectural**
 
-Calibrate against neighbouring rows in the existing `Documents/Plans/Order.md` rather than defaulting to the middle. The Risks axis keys on blast radius, not just likelihood: anything touching determinism / CRC / network protocol / cross-frame state scores 3+ even when the edit is mechanical.
+Calibrate against neighbouring rows from the successful AgentCli validation inventory rather than defaulting to the middle. The Risks axis keys on blast radius, not just likelihood: anything touching determinism / CRC / network protocol / cross-frame state scores 3+ even when the edit is mechanical.
 
 **Debt Score** for the target area as a whole (single label), with one-sentence justification. Use the tier distribution as the primary signal:
 
@@ -124,22 +124,34 @@ Calibrate against neighbouring rows in the existing `Documents/Plans/Order.md` r
 - **HIGH** — multiple Large, or any Architectural
 - **CRITICAL** — several Architectural, or any finding threatening a core invariant (determinism / CRC, network protocol, save/pack compatibility)
 
-The Debt Score is reported in the Phase 6 summary only — never recorded in `Order.md` (per `Documents/Plans/AGENTS.md`, run retrospectives don't belong in the priority index).
+The Debt Score is reported in the Phase 6 summary only — never included in an AgentCli queue request (per `Documents/Plans/AGENTS.md`, run retrospectives don't belong in the priority index).
 
-### 5. Phase 5: Update `Order.md`
+### 5. Phase 5: Register plans through AgentCli
 
-After scoring, add every surviving plan file to `Documents/Plans/Order.md` — in the same session that created the plan files. `Documents/Plans/AGENTS.md` owns the row format and bookkeeping rules; all plans across all target paths intermingle in the single score-sorted `## Plans` table:
+After scoring, write every surviving plan file first, then create one schema-version `1` JSON request beneath the session worktree's `Temp/`:
 
-```markdown
-| Plan | Tier | Effort | Impact | Risks | Score | Notes |
-|------|------|--------|--------|-------|-------|-------|
-| [Frame/Architecture_IncludeGraph.md](Frame/Architecture_IncludeGraph.md) | Quick Win | 1 | 2 | 1 | 0 | One-line summary |
+```json
+{
+  "schemaVersion": 1,
+  "operation": "add",
+  "sequences": [[{
+    "queue": "plans",
+    "plan": "Documents/Plans/Frame/Architecture_IncludeGraph.md",
+    "tier": "Quick Win",
+    "effort": 1,
+    "impact": 2,
+    "risks": 1,
+    "notes": "One-line summary",
+    "dependsOn": []
+  }]]
+}
 ```
 
-- Insert each row at its score-correct position (lowest first). Preserve existing rows.
-- Do **not** add the Debt Score or any other run retrospective to `Order.md` — it lives in the Phase 6 summary only.
-- Add `## Dependencies` entries only for genuine prerequisites or invariant ordering constraints (`PlanA` → `PlanB` — reason); unfinished prerequisites block execution.
-- Record ordinary shared-file overlap in `## File Groups` as a warning with the intersecting files and expected landing order. Overlap does not require one session or block either plan. The later lander reconciles the newer primary commit and reruns every affected review, build, and verification step before landing.
+- Put prerequisite-first plans in the same sequence; AgentCli adds each immediate-predecessor edge. Put independent plans in separate sequences and name already-live prerequisites in `dependsOn`.
+- Invoke `plan order add --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>`. Require a receipt covering every intended plan and successful queue unlocks, then require `plan order validate --repo <common-dir> --worktree <session-worktree>` to report `ok: true`.
+- Never parse or edit either `Order.md`. A failed add leaves retryable plan-file orphans and no new executable rows.
+- Directional prerequisites exist only in `dependsOn`. Mandatory nondirectional constraints require reciprocal `## Coordination` sections in every affected live plan; if existing counterparts need updates, route the set through the atomic multi-plan add/update workflow. Ordinary overlap may remain a nonblocking one-sided warning in plan prose.
+- Do **not** include the Debt Score or any other run retrospective in the request; it lives in the Phase 6 summary only.
 
 ### 6. Phase 6: Summary
 

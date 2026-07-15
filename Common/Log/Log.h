@@ -37,11 +37,13 @@ struct LogBuffer
 		return mLines[iPosition % kiLineCount];
 	}
 
-	// Fills ppLines (caller capacity iMaxLines) with pointers to the most recent buffered lines in chronological
-	// order (oldest returned line first, newest last); returns the number of pointers written. Reuses AcquireLine's
-	// wrap math. Lockless/racy — a line being written concurrently may be torn and empty slots are skipped (same
-	// tolerance as the crash-dump Dump path). Pass iMaxLines == kiLineCount to scan the whole buffer.
-	int64_t Tail(const char** ppLines, int64_t iMaxLines) const
+	// Fills ppLines (caller capacity kiLineCount) with pointers to the most recent buffered lines in chronological
+	// order (oldest returned line first, newest last); iMaxLines is the requested scan cap. Returns the number of
+	// pointers written. Reuses AcquireLine's wrap math. Lockless/racy — a line being written concurrently may be torn
+	// and empty slots are skipped (same tolerance as the crash-dump Dump path). Pass iMaxLines == kiLineCount to scan
+	// the whole buffer.
+	_Ret_range_(0, LINE_COUNT)
+	int64_t Tail(_Out_writes_to_(LINE_COUNT, return) const char** ppLines, int64_t iMaxLines) const
 	{
 		int64_t iWritePos = miWritePosition.load(std::memory_order_relaxed);
 		int64_t iAvailable = std::min(iWritePos, kiLineCount);

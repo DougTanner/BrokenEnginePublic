@@ -1,0 +1,238 @@
+AgentCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln
+MSBuild version 18.7.8+1ac568fee for .NET Framework
+
+  Shared worktree dependencies validated for '<WORKTREE>' using primary '<USER_HOME>\Documents\BrokenEnginePublic'.
+  Pch.cpp
+  ErrorUtils.cpp
+  MathUtils.cpp
+  Workbuffer.cpp
+  ThreadLocal.cpp
+  Determinism.cpp
+  StringUtils.cpp
+  TextureFormat.cpp
+  WindowsUtils.cpp
+  Multithreading.cpp
+  PersistentWorker.cpp
+  Random.cpp
+  DiagnosticLog.cpp
+  Log.cpp
+  LogDifference.cpp
+  Smoothed.cpp
+  AudioManager.cpp
+  StaticVoice.cpp
+  StaticVoices.cpp
+  StreamingVoice.cpp
+  StreamingVoices.cpp
+  FileManager.cpp
+  PackChunks.cpp
+  AreaLights.cpp
+  AreaLightsUpdate.cpp
+  AreaLightsRender.cpp
+  Billboards.cpp
+  BillboardsRender.cpp
+  BillboardsUpdate.cpp
+  Explosions.cpp
+  ExplosionsSpawn.cpp
+  ExplosionsUpdate.cpp
+  HexShields.cpp
+  HexShieldsUpdate.cpp
+  HexShieldsRender.cpp
+  PointLights.cpp
+  PointLightsRender.cpp
+  PointLightsUpdate.cpp
+  Puffs.cpp
+  PuffsUpdate.cpp
+  PuffsRender.cpp
+  Pushers.cpp
+  PushersUpdate.cpp
+  Sounds.cpp
+  SoundsUpdate.cpp
+  SmokeTrails.cpp
+  SmokeTrailsRender.cpp
+  WindRadials.cpp
+  WindRadialsUpdate.cpp
+  WindRadialsRender.cpp
+  WindTrails.cpp
+  WindTrailsUpdate.cpp
+  WindTrailsRender.cpp
+  AreaDamage.cpp
+  Collision.cpp
+  Alignments.cpp
+  FrameBase.cpp
+  FrameStaticData.cpp
+  IslandChainPlacement.cpp
+  IslandTerrain.cpp
+  IslandTerrainResidency.cpp
+  NavBuild.cpp
+  NavCellData.cpp
+  NavQuery.cpp
+  GlobalUniforms.cpp
+  MainUniforms.cpp
+  LightingUniforms.cpp
+  SmokeUniforms.cpp
+  WindUniforms.cpp
+  TimeStep.cpp
+  GameBase.cpp
+  LaunchOptions.cpp
+  AgentCommandServer.cpp
+  AgentInput.cpp
+  AgentUiRegistry.cpp
+  AgentCommands.cpp
+  AgentCommandsClient.cpp
+  AgentScene.cpp
+  GlobalAllocator.cpp
+  CameraBase.cpp
+  DebugRender.cpp
+  Graphics.cpp
+  GraphicsUtils.cpp
+  Islands.cpp
+  BufferManager.cpp
+  CommandBufferManager.cpp
+  CommandBufferRecordGlobal.cpp
+  CommandBufferRecordMain.cpp
+  DeviceManager.cpp
+  ImGuiManager.cpp
+  ParticleManager.cpp
+  DynamicPipelines.cpp
+  PipelineManager.cpp
+  InstanceManager.cpp
+  SwapchainManager.cpp
+  RenderTargetTextures.cpp
+  RenderTargetTexturesLighting.cpp
+  TextureCache.cpp
+  TextureDescriptors.cpp
+  TextureManager.cpp
+  TextureUploadManager.cpp
+  Buffer.cpp
+  CommandBuffers.cpp
+  ModelPipeline.cpp
+  Pipeline.cpp
+  PipelineCreator.cpp
+  PipelineDescriptorWriter.cpp
+  Shader.cpp
+  Texture.cpp
+  AnimationData.cpp
+  OneShotCommandBuffer.cpp
+  Screenshot.cpp
+  RawInputManager.cpp
+  CrashReport.cpp
+  Main.cpp
+  Client.cpp
+  ClientReceive.cpp
+  ClientSend.cpp
+  ClientSessionBase.cpp
+  NetworkDiscoveryScanner.cpp
+  NetworkManager.cpp
+  NetworkSerialization.cpp
+  ProfileManagerBase.cpp
+  ProfileScreens.cpp
+  ProfileManager.cpp
+  NetworkGraphs.cpp
+  TweaksScreenBase.cpp
+  TweaksSliderMap.cpp
+  TweaksScreenPbr.cpp
+  TweaksScreenTerrain.cpp
+  TweaksScreenWater.cpp
+  TweaksScreenLighting.cpp
+  TweaksScreenShadow.cpp
+  TweaksScreenSunMoon.cpp
+  TweaksScreenMisc.cpp
+  TweaksScreenSound.cpp
+  TweaksScreenSmoke.cpp
+  TweaksScreenWind.cpp
+  CurveWidget.cpp
+  WrapperBase.cpp
+  PbrWrappersBase.cpp
+  TerrainWrappersBase.cpp
+  WaterWrappersBase.cpp
+  LightingWrappersBase.cpp
+  ShadowWrappersBase.cpp
+  SunMoonWrappersBase.cpp
+  MiscWrappersBase.cpp
+  SmokeWrappersBase.cpp
+  WindWrappersBase.cpp
+  GraphicsSettingsWrappersBase.cpp
+  HeightLerpWrapperQuartet.cpp
+  SoundSettingsWrappersBase.cpp
+  LightingWrappers.cpp
+  ParticleWrappers.cpp
+  SmokeWrappers.cpp
+  HexShieldWrappers.cpp
+  SoundWrappers.cpp
+  WindDepositsWrappers.cpp
+  TweaksScreen.cpp
+  TweaksScreenHexShield.cpp
+  TweaksScreenLightingEffectsVisible.cpp
+  TweaksScreenLightingEffectsLighting.cpp
+  TweaksScreenParticles.cpp
+  TweaksScreenSmokeDeposits.cpp
+  TweaksScreenSoundEffects.cpp
+  TweaksScreenWindDeposits.cpp
+  Blasters.cpp
+  BlastersRender.cpp
+  BlastersUpdate.cpp
+  Missiles.cpp
+  MissilesRender.cpp
+  MissilesUpdate.cpp
+  Spaceships.cpp
+  SpaceshipsCombat.cpp
+  SpaceshipsNavigation.cpp
+  SpaceshipsRender.cpp
+  Targets.cpp
+  TargetsUpdate.cpp
+  Frame.cpp
+  FrameTick.cpp
+  TerrainUtils.cpp
+  Players.cpp
+  PlayersNavigation.cpp
+  PlayersCombat.cpp
+  PlayersRender.cpp
+  Game.cpp
+  SpawnTransfer.cpp
+  ClientSettings.cpp
+  FleetSelection.cpp
+  ClientSession.cpp
+  ClientSessionSubscriptions.cpp
+  ClientDataReceiver.cpp
+  ClientDesyncManager.cpp
+  ClientReconciler.cpp
+  ReconcileReplay.cpp
+  ReconcileReplayCrc.cpp
+  ReconcileReplayClientState.cpp
+  ReconcileReplayTick.cpp
+  PlayerEvents.cpp
+  Camera.cpp
+  Input.cpp
+  DeathMenuScreen.cpp
+  GraphicsMenuScreen.cpp
+  HudScreen.cpp
+  MainMenuScreen.cpp
+  ModalScreen.cpp
+  PauseMenuScreen.cpp
+  SoundMenuScreen.cpp
+  MenuUtils.cpp
+  Generating code
+  Finished generating code
+  BrokenEngineSandbox.vcxproj -> <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandbox.exe
+<WORKTREE>\Engine\Source\File\PackChunks.cpp(178): warning C26498: The function 'common::RoundUp<__int64,16>' is constexpr, mark variable 'iChunkTableOffset' constexpr if compile-time evaluation is desired (con.5). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Frame\IslandChainPlacement.cpp(209): warning C26494: Variable 'rectHull' is uninitialized. Always initialize an object (type.5). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Frame\IslandChainPlacement.cpp(243): warning C26494: Variable 'rectHull' is uninitialized. Always initialize an object (type.5). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Frame\IslandTerrain.cpp(172): warning C26473: Don't cast between pointer types where the source type and the target type are the same (type.1). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Agent\AgentUiRegistry.cpp(47): warning C26497: You can attempt to make 'engine::`anonymous namespace'::LowerAscii' constexpr unless it contains any undefined behavior (f.4). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Projects\BrokenEngineSandbox\Source\Agent\AgentCommands.cpp(83): warning C6385: Reading invalid data from 'pMatching':  the readable size is '1024' bytes, but 'i' bytes may be read. [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Projects\BrokenEngineSandbox\Source\Agent\AgentCommands.cpp(83): warning C6385: Reading invalid data from 'pMatching':  the readable size is '1024' bytes, but '-8' bytes may be read. [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Projects\BrokenEngineSandbox\Source\Agent\AgentCommands.cpp(83): warning C6001: Using uninitialized memory 'pMatching'. [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Projects\BrokenEngineSandbox\Source\Agent\AgentCommands.cpp(66): warning C26494: Variable 'pLines' is uninitialized. Always initialize an object (type.5). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Projects\BrokenEngineSandbox\Source\Agent\AgentCommands.cpp(70): warning C26494: Variable 'pMatching' is uninitialized. Always initialize an object (type.5). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Projects\BrokenEngineSandbox\Source\Agent\AgentCommands.cpp(83): warning C6385: Reading invalid data from 'pMatching':  the readable size is '4096' bytes, but 'i' bytes may be read. [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Projects\BrokenEngineSandbox\Source\Agent\AgentCommands.cpp(83): warning C6385: Reading invalid data from 'pMatching':  the readable size is '4096' bytes, but '-8' bytes may be read. [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Graphics\Managers\ImGuiManager.cpp(200): warning C26459: You called an STL function 'std::copy<ImVec4 * __ptr64,ImVec4 * __ptr64>' with a raw pointer parameter at position '3' that may be unsafe - this relies on the caller to check that the passed values are correct. Consider wrapping your range in a gsl::span and pass as a span iterator (stl.1). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Graphics\Screenshot.cpp(339): warning C26497: You can attempt to make 'engine::`anonymous namespace'::IsFourByteColor' constexpr unless it contains any undefined behavior (f.4). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Graphics\Screenshot.cpp(345): warning C26497: You can attempt to make 'engine::`anonymous namespace'::IsBgra' constexpr unless it contains any undefined behavior (f.4). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Graphics\Screenshot.cpp(350): warning C26497: You can attempt to make 'engine::`anonymous namespace'::IsSingleChannelNormalizable' constexpr unless it contains any undefined behavior (f.4). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Common\DataFile.h(81): warning C26497: You can attempt to make 'common::IsCompressed' constexpr unless it contains any undefined behavior (f.4). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenBase.cpp(429): warning C26445: Do not assign gsl::span or std::string_view to a reference. They are cheap to construct and are not owners of the underlying data. (gsl.view). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Ui\CurveWidget.cpp(42): warning C26494: Variable 'pfPassTicks' is uninitialized. Always initialize an object (type.5). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Ui\CurveWidget.cpp(69): warning C26494: Variable 'pfY' is uninitialized. Always initialize an object (type.5). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Ui\CurveWidget.cpp(68): warning C26494: Variable 'pfX' is uninitialized. Always initialize an object (type.5). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]
+<WORKTREE>\Engine\Source\Ui\HeightLerpWrapperQuartet.cpp(6): warning C26497: You can attempt to make 'engine::LerpAtHeight' constexpr unless it contains any undefined behavior (f.4). [<WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.vcxproj]

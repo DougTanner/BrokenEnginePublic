@@ -7,7 +7,7 @@ description: >-
   each decision branch with engine-specific questions (determinism,
   client/server, memory, threading, frame phases), recommending an answer for
   each from codebase exploration.
-allowed-tools: [Read, Write, Grep, Glob, Edit, Agent, AskUserQuestion]
+allowed-tools: [Read, Write, Grep, Glob, Edit, Agent, PowerShell, AskUserQuestion]
 ---
 
 # Grill Plan
@@ -17,9 +17,12 @@ Interview the user about every aspect of this plan until reaching shared underst
 ## Inputs
 
 - Plan file and explicit user intent
-- `/plan-audit` report path plus accepted stable finding IDs, or none for direct invocation; read those indexed sections directly
+- `/plan-audit` compact envelope identity (`REPORT`, `REPORT_SHA256`) plus accepted stable finding IDs, exact evidence locators, and dependencies, or none for direct invocation; invoke `Read-AgentReportSection.ps1` once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) consumption contract
 - Applicable repository instructions and known constraints
 - Approval state: `not-approved` or `approved`, plus any previously approved delta summary
+- Draft manager execution-control record, when available: fixed process baseline,
+  proposed risk tier and triggers, required and conditional roles, and the initial
+  acceptance-criterion matrix
 - For a delegated call, a caller-assigned absolute `ReportPath` under the session worktree's `Temp/AgentReports/`
 
 ## Rules
@@ -33,7 +36,7 @@ Interview the user about every aspect of this plan until reaching shared underst
 
 ## Workflow
 1. Read the plan file and any accepted audit findings from the current conversation context
-2. Validate and incorporate supplied findings, then identify all remaining decision points, ambiguities, and unstated assumptions — scan against the Decision-Point Taxonomy below; plans routinely leave these classes implicit
+2. Validate and incorporate supplied findings, then identify all remaining decision points, ambiguities, and unstated assumptions — including the risk classification, role triggers, and initial acceptance matrix — and scan against the Decision-Point Taxonomy below; plans routinely leave these classes implicit
 3. Walk the decision tree in dependency order, batching every set of currently independent branches
 4. Ask the Closing Question (below) as the final interview question
 5. For a not-yet-approved plan, update the plan file with the resolved details, then immediately return control so the caller presents it for approval. For an approved plan, do not edit it: return an exact proposed delta and let main decide whether approval remains valid.
@@ -75,6 +78,11 @@ Recurring ambiguity classes to scan for in Workflow step 2:
 - **Undeclared invariant exposure** — the edit touches CRC'd state, `kiVersion`/`.pack` layout, protocol, save/replay format, or allocation-tracked paths, but the plan never says so.
 - **Self-contradicting requirements** — two statements in the plan that cannot both hold (e.g., an "always/never" in one clause revoked by another); surface the contradiction and resolve it with the user, never pick one side silently.
 - **Cross-plan contradiction** — another queued plan touches the same files/symbols with an incompatible shape (also probed by Closing Question prompt 1).
+- **Execution-control ambiguity** — the proposed tier lacks a concrete trigger,
+  a role is unconditional without a matching file/risk trigger, or an acceptance
+  criterion lacks a decisive check and expected result. Resolve the classification
+  and matrix before approval; never lower a tier already approved by the user
+  without returning that material change to main.
 
 ## Role Boundary
 This skill fills gaps in an existing plan. **Do not re-design** the interface — that is `/external-design-interface`'s job. If the plan's interface shape is itself unclear, stop and recommend running `/external-design-interface` first.
@@ -146,6 +154,9 @@ question, and any material-delta approval remain live user interaction:
 ```text
 Plan delta: none | non-material | material
 Exact proposed changes: <none, or precise plan edits; required for an approved plan>
+Execution-control decisions: <risk tier/triggers, required and conditional roles,
+and initial criterion -> decisive check -> expected result -> independent signal
+if duplicate rows for main to record>
 Files changed:
 - <plan path, or none>
 Functions/regions touched:

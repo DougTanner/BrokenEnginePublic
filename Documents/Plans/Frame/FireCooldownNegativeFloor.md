@@ -46,6 +46,11 @@ The floor is **not** the mechanical `std::max(0.0f, …)` used for the three alr
 - Within a single build, client/server CRC parity holds (both run identical floored code; the fields feed the CRC identically on both sides).
 - `Frame::kiVersion` base is bumped 118→119 (or the shared batch bump if co-scheduled — see Notes), so a save/replay written by pre-floor code is rejected as version-incompatible (fresh-game fallback) instead of false-desyncing on the shifted timer CRC.
 
+## Coordination
+
+- Frame version/save/replay batch with `Documents/Plans/Frame/TransferSentinelConflation.md`, `Documents/Plans/Frame/PlayerTransferUuidPreservation.md`, `Documents/Plans/Frame/MissileLifetimeAndTargetLifecycle.md`, `Documents/Plans/Frame/BlasterWindTrailTransferParams.md`: co-land behind one consolidated `Frame::kiVersion` change and one save/replay invalidation; the last lander owns the bump.
+- `Documents/Features/Frame/SweptShipTerrainCollision.md`: reciprocal `Frame.cpp` version-bump and deterministic replay coordination; co-schedule or serialize the changes so one landing owns the reconciled version/replay verification.
+
 ## Notes
 
 - **Invariant exposure: CRC / `kiVersion`.** Both fields are CRC'd (Spaceships `pfNextBlasterSpawnTimes` in `SharedMembers()`, auto-dispatched via `SharedCollectionCrc`; Players `pfNextSecondarySpawnTimes` in `SharedCrcMembers()`). The floor changes the stored float magnitude, which shifts the computed frame CRC even though the fire/no-fire outcome is identical — so per the `Frame.cpp:11-13` rule the base `Frame::kiVersion` must bump (118→119 if landing alone) to invalidate straddling saves/replays. The current code already bumped `Frame::kiVersion`'s base to 118 for the analogous cooldown clamps and the exploding-entity fire gate, so this floor's bump is 118→119 if it lands alone. No wire/`.pack` change; no RNG-stream change (no `common::Random` draw added or removed); no layout change; no never-interleave.

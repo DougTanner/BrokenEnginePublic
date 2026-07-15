@@ -32,6 +32,10 @@ Source: /external-architecture-review on `Engine/Source/Network` (recursive). Ev
 - Each engine message type's layout is defined exactly once; `NetworkSimulation.h` no longer hard-codes a byte offset; a deliberate one-sided field insertion no longer compiles (or fails a written-size assert) rather than desyncing at runtime.
 - Client/server interop verified after conversion (connect, subscribe, play, resync) with no protocol version bump needed.
 
+## Coordination
+
+- Never interleave with the wire-break batch `Documents/Plans/Network/PackIntegrityHandshake.md`, `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md`, `Documents/Plans/Network/FleetRequestsByGuid.md`, `Documents/Plans/Network/WireFormatPairingGameSide.md`; WireFormatPairingGameSide depends on this plan, while the other batch members may sequence either way with citation refresh.
+
 ## Notes
 
 - **Invariant exposure**: network protocol — highest blast radius in the directory if a conversion is not byte-identical (Risks 3). Mitigate by converting one message family per session and smoke-testing interop between conversions.

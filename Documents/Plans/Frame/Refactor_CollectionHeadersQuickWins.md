@@ -40,6 +40,10 @@ Each item is independent and local.
 - The copy/zero-init contract, phase-hook redesign, and deserialization memory-safety hardening — separate plans, same files.
 - Any behavioral / CRC / wire / `kiVersion` change (all items are ASSERT-add, comment, or compile-time-identical dedup).
 
+## Coordination
+
+- Never interleave with the live frame-collection series `Documents/Plans/Frame/Architecture_CollectionCopyContract.md`, `Documents/Plans/Frame/Architecture_CollectionHelperDedup.md`, `Documents/Plans/Frame/Architecture_PhaseHookOptIn.md`, `Documents/Plans/Frame/CollectionReadIndexHardening.md`, `Documents/Plans/Frame/CollectionDeserializationHardening.md`; each later landing must refresh shared collection-header/TU citations.
+
 ## Notes
 
 - Items 1 and 9 add a startup ASSERT / possibly remove a redundant guard — verify `common::Crc(ptr, 0)` for item 9 before touching it. Everything else is comment or dead-signal cleanup. No runtime behavior change; no replay/CRC exposure beyond the item-9 guard which must stay byte-identical.

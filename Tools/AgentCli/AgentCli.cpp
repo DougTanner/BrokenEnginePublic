@@ -35,6 +35,15 @@ namespace agentcli
 			rOutput << "       AgentCli.exe [--owner TOKEN] --port N [--timeout-ms 15000] \"<json>\"\n";
 			rOutput << "       AgentCli.exe lock <token|claim|status|refresh|recover|release|steal> ...\n";
 			rOutput << "       AgentCli.exe plan <queue|row> <verb> ...\n";
+			rOutput << "       AgentCli.exe plan queue lock --repo COMMON-DIR --order PATH --owner TOKEN --session TOKEN\n";
+			rOutput << "       AgentCli.exe plan queue status --repo COMMON-DIR --order PATH [--owner TOKEN]\n";
+			rOutput << "       AgentCli.exe plan queue unlock --repo COMMON-DIR --order PATH --owner TOKEN\n";
+			rOutput << "       AgentCli.exe plan row status --repo COMMON-DIR --order PATH --plan PATH [--owner TOKEN]\n";
+			rOutput << "       AgentCli.exe plan row unclaim --repo COMMON-DIR --order PATH --plan PATH --owner TOKEN\n";
+			rOutput << "       AgentCli.exe plan order validate --repo COMMON-DIR --worktree CHECKOUT [--plans-order PATH] [--features-order PATH]\n";
+			rOutput << "       AgentCli.exe plan order <add|update> --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL [--plans-order PATH] [--features-order PATH]\n";
+			rOutput << "       AgentCli.exe plan order claim-next --repo COMMON-DIR --primary-worktree CHECKOUT --worktree CHECKOUT --branch TARGET --owner TOKEN --session TOKEN --queue <plans|features> [--plan PATH] [--plans-order PATH] [--features-order PATH]\n";
+			rOutput << "       AgentCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH [--reapply] [--plans-order PATH] [--features-order PATH]\n";
 			rOutput << "       AgentCli.exe build [--files <cpp...> --] <project-or-solution> <MSBuild args...>\n";
 			rOutput << "       AgentCli.exe --help\n";
 		}

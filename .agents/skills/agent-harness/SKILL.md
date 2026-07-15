@@ -1,6 +1,6 @@
 ---
 name: agent-harness
-description: Drive the Broken Engine client/server for automated verification — launch the two executables with an agent command channel, then send JSON commands via AgentCli to control the sim, drive the UI, and read back scene/UI/log/screenshot state. Use whenever you need to run the game to verify a change end-to-end, set up a test scenario (spawn players, inject StatusChanges), drive menus/HUD, capture a screenshot, describe the rendered scene, or run a replay determinism check. ALSO use whenever a plan's Verification section asks to launch, drive, query, or screenshot the client or server.
+description: Drive the Broken Engine client/server for automated verification — launch the two executables with an agent command channel, then send JSON commands via AgentCli to control the sim, drive the UI, and read back scene/UI/log/screenshot state. Use only for runtime-observable acceptance criteria or when the user asks to run the game, set up a scenario, drive menus/HUD, capture a screenshot, describe the rendered scene, or run replay determinism. ALSO use when a plan's Verification section explicitly asks to launch, drive, query, or screenshot the client or server.
 allowed-tools: [PowerShell]
 ---
 
@@ -288,17 +288,21 @@ Only the focused fleet exposes a `members` list; spaceship units carry no id (`g
 
 ## Process verification report
 
-For C++ Code Change Process step 9, require a caller-assigned absolute
+For process verification of runtime-observable acceptance criteria, require a caller-assigned absolute
 `ReportPath` under the session worktree's `Temp/AgentReports/` and follow
 [`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
-Run the plan's Verification section when present; otherwise derive the smallest
-live checks that cover its acceptance criteria. Report each criterion as `PASS`
+Run the plan's applicable runtime Verification steps when present; otherwise
+derive the smallest live checks covering only runtime-observable acceptance
+criteria. Static, documentation, project-membership, and compile-only criteria
+do not trigger the harness. Report each live criterion as `PASS`
 or `FAIL` with the exact query, scene, UI, screenshot, or log evidence. Report
 setup limitations as blocked checks rather than weakening a criterion. Do not
 diagnose or edit a failure in this role; return it to `/resolve-findings` with
 the reproducing commands and evidence. The caller re-invokes this skill after
-each fix until every affected live check passes. A failed or blocked in-scope
-testable check is not a completed step-9 report; the user must supply the
+each fix only for affected live checks. The default is one fix/retest wave; a
+later wave requires a still-reproducible blocker and remains limited to its
+affected scenario. A failed or blocked in-scope
+testable check is not a completed verification report; the user must supply the
 missing authority/environment or explicitly revise the plan's scope or
 acceptance criteria before verification resumes.
 

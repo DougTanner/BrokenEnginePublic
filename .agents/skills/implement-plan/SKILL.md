@@ -8,7 +8,7 @@ description: >-
   assumptions", "what are you least confident about", or "what did you not
   verify"; in that case run the audit phase against the changes already made.
   Stops on plan/repository contradictions instead of improvising, fixes
-  confirmed audit problems, and reports exact changed regions, sweep handoffs,
+  confirmed audit problems, and reports exact changed regions, affected-site triggers,
   reviewer focus areas, and residuals.
 allowed-tools: [Read, Write, Edit, Glob, Grep, Agent, "Bash(git diff *)", "Bash(git status *)", PowerShell]
 ---
@@ -27,8 +27,12 @@ Require these inputs for implementation mode:
 - final approved plan document and explicit approved-delta summary (`none` is valid);
 - assigned plan items and allowed file scope;
 - session worktree and fixed session-start commit;
+- manager execution-control record bound to that fixed baseline: risk tier and
+  concrete triggers, required and conditional roles, and the initial acceptance
+  matrix;
 - applicable repository instructions;
-- source report paths plus indexed residual, handoff, and reviewer-focus IDs relevant to the slice;
+- source report compact-envelope identities (`REPORT`, `REPORT_SHA256`) plus indexed residual, handoff, and reviewer-focus IDs, exact evidence locators, and dependencies relevant to the slice; invoke `Read-AgentReportSection.ps1` once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) consumption contract;
+- for a canonical plan containing either authority heading, the exact immutable source-scope packet identity and the successful `/plan-audit` report/result that independently verified that packet's path, SHA-256, canonical plan path, fixed baseline, tracked-source status and any claimed commit/blob identity, `S###` provenance, and the exact final D ID set, complete ledger, and approved-delta summary;
 - `ReportPath` when invoked in a delegated subagent.
 
 ## Reporting Mode
@@ -36,7 +40,7 @@ Require these inputs for implementation mode:
 When delegated, require `ReportPath` and follow
 [`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
 handoff in the existing Handoff Report schema, verify it, and return only the
-compact envelope. Index applied changes, sweep handoffs, reviewer focus areas,
+compact envelope. Index applied changes, affected-site triggers, reviewer focus areas,
 and residuals because each drives later process work. A missing or unwritable
 delegated report blocks implementation. A direct invocation without
 `ReportPath` keeps the existing full inline handoff.
@@ -48,6 +52,15 @@ pre-existing worktree changes.
 
 ## Phase 1: Implement Assigned Work
 
+0. **Process activation and authority preflight.** Require evidence that the fixed
+   session baseline contains the landed commit that defines the supplied linear,
+   risk-tiered process. If it does not, follow the process contained by that
+   baseline or stop on ambiguity; never activate a newer working-tree process
+   definition mid-session. For `/next-plan` canonical plans, also apply this
+   authority check when the supplied canonical plan contains either
+   `## Provenance map` or `## Approved-delta ledger`; direct and legacy plans with
+   neither marker keep their existing behavior. First require both headings.
+   Require the exact source-scope packet identity and read the supplied successful `/plan-audit` report/result before trusting plan authority. It must explicitly establish that the same packet's path, SHA-256, canonical plan path, fixed baseline, tracked-source status and any claimed commit/blob identity, `S###` provenance, and the exact final D ID set, complete ledger, and approved-delta summary passed independent verification. Before any edit, stop and report a residual when that packet/audit evidence is absent, failed, mismatched, or identifies an unaudited packet; when the audit result's D IDs, ledger rows, or summary differ from the supplied final plan/summary (so a pre-grill `none` result cannot authorize a later D); when any `Delta requested C###` remains; when an execution step lacks exactly one matching `S###`/`P###`/`D###` provenance entry; when a `P###` mapping disagrees with its source/candidate; when a `D###` mapping disagrees with its candidate/ledger; or when the caller's approved-delta summary disagrees with the complete `D###` ledger (including literal `- none` for an empty ledger). `Follow-up pending` and Rejected candidates do not block unless they appear in execution.
 1. Read the assigned plan items, applicable `AGENTS.md` files, and the current
    implementation before editing. Search for existing helpers and mirrored
    patterns so the change follows repository structure without duplicating
@@ -66,13 +79,17 @@ pre-existing worktree changes.
    approved plan/deltas, scope, report paths, and indexed relevant
    residual/handoff chain.
 5. Verify the implementation in proportion to the slice. Run focused static
-   checks needed to establish that the edit is internally coherent. Delegate
-   any build to a Sonnet `/compile` subagent and preserve its status plus error
-   and warning lines verbatim; leave process-wide review, full builds, and
-   runtime verification to their later steps unless the plan assigns them here.
+   checks needed to establish that the edit is internally coherent. Do not
+   substitute these checks for the manager's targeted compile/static-check stage,
+   which runs after all required propagation and before correctness review.
+   Delegate any implementation-assigned build to a Sonnet `/compile` subagent and
+   preserve its status plus error and warning lines verbatim; leave broader
+   review and runtime verification to their trigger-based stages.
 6. Track every file changed and the exact functions, types, sections, or data
-   regions touched. Record repeated-pattern changes that need a repository-wide
-   exhaustiveness sweep for `/update-affected-code`.
+   regions touched. Emit an affected-site trigger for every sweep handoff or
+   signature, identity, semantics, layout, client/server guard-affinity, or
+   mirrored-pattern change. Name the symbol/pattern and search scope. If none
+   applies, emit explicit `none` so main records `/update-affected-code: N/A`.
 7. For checks that touch ignored or non-worktree state, follow the owning
    subsystem contract and report the exact path, owner/serialization mechanism,
    expected persistence, and outcome. This includes worktree build outputs,
@@ -148,8 +165,9 @@ Self-audit resolved:
 - Claim → check → result; fix and repeated verification if applicable
 - none
 
-Sweep handoffs:
-- exact pattern and scope `/update-affected-code` must verify
+Affected-site triggers:
+- `sweep | signature | identity | semantics | layout | guard | mirror` — exact
+  symbol/pattern and scope `/update-affected-code` must verify
 - none
 
 Reviewer focus areas:
@@ -165,8 +183,9 @@ Residuals:
 - none
 ```
 
-List each changed file once and identify every touched region, or report `none`. Preserve handed-off
-requests verbatim so the caller can pass sweep items to `/update-affected-code`
-and audit concerns to both fresh-context review stages. The `Residuals` section
+List each changed file once and identify every touched region, or report `none`.
+Preserve affected-site triggers verbatim so the caller can either invoke
+`/update-affected-code` as mandatory work or record it N/A, and preserve audit
+concerns for every triggered fresh-context review. The `Residuals` section
 is the final footer even when another invoked skill prescribes its own output
 template.

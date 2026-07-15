@@ -62,6 +62,10 @@ Expected saving at cadence 2: ~**(841 + 24 + 18) / 2 ≈ 440 µs average** — a
 - Item 2 at cadence 2: no visible glow stutter panning over a static lit scene; `Spread`+`Combine`+`Temporal` average halves.
 - No CB re-record introduced; Vulkan validation clean (indirect draw buffer usage).
 
+## Coordination
+
+- `Documents/Plans/Graphics/WindowedLightingShadowDispatch.md`: never interleave the shared spread-recording and LightingUniforms edits; land sequentially with citation refresh.
+
 ## Notes
 
 - **Invariant exposure**: client/graphics-only render path. Item 1 requires **no shader edits and no repack** (C++ only). Item 2 as scoped also needs no shader edit (group counts are CPU-side; the min-texel offset shader work belongs to the windowing plan). No determinism/CRC/wire/`kiVersion`/replay exposure. `LightingUniforms.cpp` is allocation-tracked main-loop code — no heap allocation in the new per-frame path (fixed loops over the 40 pipelines and 3 pipeline maps).

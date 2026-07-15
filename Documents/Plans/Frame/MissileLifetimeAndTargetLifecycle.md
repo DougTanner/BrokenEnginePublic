@@ -41,6 +41,10 @@ Three adjacent Target-lifecycle contracts from the same sweep fold in here (same
 - An exploding missile's target row shows the decremented subscriber count on the explode tick, not the destroy tick.
 - No call path can reach the `idToIndexMap.at()` inside `TargetsPostRender::Remove` with an id absent from the current frame's map.
 
+## Coordination
+
+- Frame version/save/replay batch with `Documents/Plans/Frame/TransferSentinelConflation.md`, `Documents/Plans/Frame/PlayerTransferUuidPreservation.md`, `Documents/Plans/Frame/BlasterWindTrailTransferParams.md`, `Documents/Plans/Frame/FireCooldownNegativeFloor.md`: co-land behind one consolidated `Frame::kiVersion` change and one save/replay invalidation; the last lander owns the bump.
+
 ## Notes
 
 - **Invariant exposure: high.** Everything here is inside the `/fp:strict` CRC'd tick. Item 1 (either option) and item 2 change CRC'd behavior/state → bump `MissilesPostRender::kiVersion` (+ `Targets*::kiVersion` if walks change), which propagates into `Frame::kiVersion` and invalidates saves/replays. The delete option also changes the `TransferData` missile payload wire layout (`NetworkSerialization.cpp`). Item 2 changes subscriber counts, which are CRC'd shared state — client and server must land together (they always do; single codebase).

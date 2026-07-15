@@ -48,6 +48,11 @@ Key the four request payloads by `FleetGuid` and have the server resolve guid �
 - A request whose `FleetGuid` no longer resolves (fleet already deleted) is dropped, not misapplied.
 - Fleet UI actions (create/delete/spawn-into/respawn/nav-delay) function identically for a single client with a stable fleet list — no user-visible behavior change absent the race.
 
+## Coordination
+
+- Protocol/version batch with `Documents/Plans/Network/PackIntegrityHandshake.md`, `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md`, `Documents/Plans/Network/WireFormatPairingGameSide.md`: land the wire breaks in one client/server release behind one `kuiProtocolVersion` bump; the last lander owns the consolidated bump.
+- `Documents/Plans/Network/Architecture_WireFormatPairing.md`: never interleave send/receive-site restructuring with this wire change. WireFormatPairingGameSide's structured dependency requires the architecture plan first.
+
 ## Notes
 
 - **Invariant exposure**: **wire change in game-layer payloads** (`>= kGamePacketStart`, engine-opaque). No engine `kuiProtocolVersion` mechanic gates game payloads — the engine forwards them as raw bytes — so nothing auto-detects a client/server skew here: **client and server builds must move together**. No `Frame::kiVersion` / CRC / determinism exposure (`fNavigationDelay` is server-authoritative; guids do not enter sim CRC). Risk: a mixed-build pairing silently misparses fleet requests (wrong fleet or dropped), hard to catch without a version signal.

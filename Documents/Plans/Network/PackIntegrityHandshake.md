@@ -23,6 +23,11 @@ Wire change: extend the hello payload and bump `NetworkProtocol.h`'s `kiVersion`
 - Changing the `LoadChunk` soft-fail policy for non-sim (texture) chunks — client-visual soft-fail stays (see `Graphics/Managers/CorruptTextureChunkLifecycleHardening.md` for its GPU-side hardening).
 - The send/receive pairing restructure (`Network/Architecture_WireFormatPairing.md`) — the new hello field is written/read hand-mirrored like its neighbors for now.
 
+## Coordination
+
+- Protocol/version batch with `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md`, `Documents/Plans/Network/FleetRequestsByGuid.md`, `Documents/Plans/Network/WireFormatPairingGameSide.md`: land the wire breaks in one client/server release behind one `kuiProtocolVersion` bump; the last lander owns the consolidated bump.
+- `Documents/Plans/Network/Architecture_WireFormatPairing.md`: never interleave send/receive-site restructuring with this wire change. WireFormatPairingGameSide's structured dependency requires the architecture plan first.
+
 ## Notes
 
 - Invariant exposure: **wire change** (hello layout + protocol version bump). No determinism/CRC-of-frame exposure — this *prevents* an un-diagnosable desync class.

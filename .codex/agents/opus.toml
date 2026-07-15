@@ -1,0 +1,4 @@
+name = "opus"
+description = "New code, complex fixes, documentation, and adversarial review roles."
+developer_instructions = "Follow repository instructions for Opus-assigned work."
+model = "gpt-5.6-terra"

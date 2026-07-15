@@ -2,6 +2,7 @@
 
 #include "AgentCliCommon.h"
 #include "CoordinationStore.h"
+#include "PlanOrderCommands.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -499,6 +500,10 @@ namespace agentcli
 			return kiExitFailure;
 		}
 		const std::wstring target = ToLowerInvariant(pArgumentValues[2]);
+		if (target == L"order")
+		{
+			return RunPlanOrderCommand(iArgumentCount, pArgumentValues);
+		}
 		const std::wstring verb = ToLowerInvariant(pArgumentValues[3]);
 		const bool bQueueVerb = verb == L"lock" || verb == L"list" || verb == L"status" || verb == L"steal" || verb == L"unlock";
 		const bool bRowVerb = verb == L"claim" || verb == L"status" || verb == L"steal" || verb == L"unclaim";

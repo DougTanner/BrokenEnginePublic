@@ -30,6 +30,10 @@ Source: /external-refactor-clean on Engine/Source (recursive). Mechanical residu
 - `CreateMultiSetPipelineLayout`'s 8 params and the stale `uniformTextureVkDescriptorSetLayoutCreateInfo` name (optional polish; single-caller helpers in plan-cluster territory — rename when those plans touch the lines)
 - The Pipeline record-prologue 6× repetition (small; entangled with the Record* family shape — accept)
 
+## Coordination
+
+- `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
+
 ## Notes
 - Invariant exposure: none — client/graphics-only, create/rebuild-time paths. All items sit inside the pipeline cluster's shared files: respect the Order.md pipeline-cluster sequencing (never interleave with `BindlessSlotLifecycle`; refresh after `Refactor_PipelineManagerSplit` / `WindowedLightingShadowDispatch` if they land first)
 - No open decisions — mechanical

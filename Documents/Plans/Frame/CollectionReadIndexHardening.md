@@ -36,6 +36,10 @@ Surfaced (and extension-review-gated) during the `Save/SaveLoadTrustBoundaryHard
 - A known-good save / replay / network full-state round-trips byte-identically (CRC unchanged).
 - The capacity-bytes ceiling fires for an oversized-stride reserve (the byte bound is no longer inert).
 
+## Coordination
+
+- Never interleave with the live frame-collection series `Documents/Plans/Frame/Architecture_CollectionCopyContract.md`, `Documents/Plans/Frame/Architecture_CollectionHelperDedup.md`, `Documents/Plans/Frame/Architecture_PhaseHookOptIn.md`, `Documents/Plans/Frame/CollectionDeserializationHardening.md`, `Documents/Plans/Frame/Refactor_CollectionHeadersQuickWins.md`; each later landing must refresh shared collection-header/TU citations.
+
 ## Notes
 
 - Surfaced + extension-review-gated during the `SaveLoadTrustBoundaryHardening` session; deferred here by user decision (out of that plan's envelope: shared engine/CRC/client-network path, needs a signature/second-pass design choice).

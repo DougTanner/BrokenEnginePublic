@@ -67,6 +67,11 @@ Off-window texels are no longer written and hold stale data from prior frames / 
 - No command-buffer re-record introduced — all per-frame variation flows through indirect-dispatch buffers, dynamic scissor, and uniforms.
 - Vulkan validation clean (indirect-dispatch buffer usage, dynamic scissor, any new combine/history storage-image layout transitions).
 
+## Coordination
+
+- `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
+- `Documents/Plans/Graphics/Architecture_ShadowLightingUniformDedup.md` and `Documents/Plans/Graphics/LightingSpreadEmptySkipCadence.md`: never interleave their shared GlobalUniforms/LightingUniforms/recording-region edits; land sequentially with citation refresh.
+
 ## Notes
 
 - **Dependency / shared helper:** the `WriteIndirectComputeBuffer` + `RecordComputeIndirect` plumbing and the `PipelineCreator.cpp` `kIndirectHostVisible | kCompute` branch are shared with `Graphics/WaterDisplacementIndirectCompute.md` (Item 1). Land one first or co-implement the helper; the second plan then only wires its pipelines.

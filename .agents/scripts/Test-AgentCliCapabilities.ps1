@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory = $true)]
-	[string] $Executable
+	[string] $Executable,
+	[switch] $PreMaintenanceBaseline
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,13 +17,22 @@ if ($LASTEXITCODE -ne 0) {
 	throw "Primary AgentCli executable does not support --help: '$Executable'."
 }
 $helpText = $help -join "`n"
-foreach ($requiredCommand in @(
+$requiredCommands = @(
 	'Usage: AgentCli.exe',
 	'AgentCli.exe lock ',
 	'AgentCli.exe plan ',
 	'AgentCli.exe build ',
 	'AgentCli.exe --help'
-)) {
+)
+if (-not $PreMaintenanceBaseline) {
+	$requiredCommands += @(
+		'AgentCli.exe plan order validate --repo COMMON-DIR --worktree CHECKOUT',
+		'AgentCli.exe plan order <add|update> --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL',
+		'AgentCli.exe plan order claim-next --repo COMMON-DIR --primary-worktree CHECKOUT --worktree CHECKOUT --branch TARGET --owner TOKEN --session TOKEN --queue <plans|features>',
+		'AgentCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH [--reapply]'
+	)
+}
+foreach ($requiredCommand in $requiredCommands) {
 	if (-not $helpText.Contains($requiredCommand, [StringComparison]::Ordinal)) {
 		throw "Primary AgentCli help is missing '$requiredCommand': '$Executable'."
 	}

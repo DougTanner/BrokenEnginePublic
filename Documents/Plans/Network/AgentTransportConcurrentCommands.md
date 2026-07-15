@@ -17,7 +17,7 @@ Verified against current code (`AgentCommandServer::Drain`, `BeginScriptAndDefer
 
 **Decision plan (present options).** Present the two options and let the user choose:
 
-- **Option A — accept + document (zero code).** The `busy` throw stays as defensive dead code; agents simply wait for script completion before issuing the next command. Document that the transport is single-in-flight and that the two AgentHarness5 concurrency behaviors are aspirational-not-implemented. Cheapest; matches the "rare, lockstep" agent-control usage. Correct the AgentHarness5 docs (and cross-reference below) to say concurrency is not live.
+- **Option A — accept + document (zero code).** The `busy` throw stays as defensive dead code; agents simply wait for script completion before issuing the next command. Update `.agents/skills/agent-harness/SKILL.md`, the durable command-channel owner, to state that the transport is single-in-flight and the two AgentHarness5 concurrency behaviors are aspirational-not-implemented. Cheapest; matches the "rare, lockstep" agent-control usage.
 - **Option B — make the documented concurrency real.** Allow non-blocking commands mid-script: accept a new request during deferred polls, execute non-script commands (e.g. `describe_ui` / `screenshot` / `status`) immediately, and reject a second *input* command with the existing `busy` error (making it live). Touches `AgentCommandServer::Drain` accept/response ordering (read `mPendingRequest` even while `mDeferredPoll` is set; interleave a second response) and the listener/response model (currently one `mPendingResponse` slot + lockstep `ServeConnection` wait — would need to correlate responses by id, or pipeline). Larger blast radius in the transport's concurrency model.
 
 ## Critical files
@@ -26,6 +26,7 @@ Verified against current code (`AgentCommandServer::Drain`, `BeginScriptAndDefer
 - `Engine/Source/Agent/AgentCommandServer.h` — response/request slots, generation bookkeeping.
 - `Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsClient.cpp` — `BeginScriptAndDefer` (`:334`) and its `busy` throw (`:338`).
 - `Engine/Source/Agent/AgentInput.{h,cpp}` — `BeginScript` single-script gate.
+- `.agents/skills/agent-harness/SKILL.md` — Option A only: durable single-in-flight command-channel contract; run `/validate-skill` after editing the skill.
 
 ## Out of scope
 
@@ -37,5 +38,4 @@ Verified against current code (`AgentCommandServer::Drain`, `BeginScriptAndDefer
 
 - Client-only harness; no CRC / wire / determinism exposure. The localhost JSON protocol shape may change under Option B (id-correlated / pipelined responses) — note that if B is chosen.
 - Residual from the AgentHarness5 work.
-- **Cross-reference**: `Documents/Features/Agent/AgentHarness6_SceneDescriptionAndDocs.md` lands after and documents whichever option is chosen — keep its concurrency description in sync with the decision here.
 - Grill: pick A (accept + doc, recommended for the rare-lockstep usage) vs B (implement live mid-script non-blocking commands).

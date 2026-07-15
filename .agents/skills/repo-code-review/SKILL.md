@@ -1,6 +1,6 @@
 ---
 name: repo-code-review
-description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, useless-ASSERT discipline, collection integrity, determinism, client/server guard scope and affinity. Use after any C++ code change, when the user says "review my changes", "check my code", "code review", or before declaring an implementation complete. Flags oversized files for /reduce-file. Logic and correctness only — formatting/style belongs to code-style-review.
+description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, useless-ASSERT discipline, collection integrity, determinism, client/server guard scope and affinity. Use as the correctness review for C++ changes, when the user says "review my changes", "check my code", or "code review". Do not use for shader-only or non-C++ changes. Flags oversized files for /reduce-file. Logic and correctness only — formatting/style belongs to code-style-review.
 allowed-tools: [Read, Write, Grep, Glob, WebFetch, Bash, PowerShell]
 ---
 
@@ -8,15 +8,25 @@ allowed-tools: [Read, Write, Grep, Glob, WebFetch, Bash, PowerShell]
 
 Reviews this session's C++ changes for **logic and correctness** — formatting/style is owned by `/code-style-review`.
 
+Run one evidence-complete pass over the supplied C++ change. The caller
+adjudicates the union of review evidence once; do not request a duplicate or
+consensus review because another reviewer reached a different conclusion.
+After accepted fixes, re-review only the fixed regions and directly affected
+call paths. A later review wave requires a concrete failure that remains
+reproducible after that focused check.
+
 ## Instructions
 
 ### 1. Identify Modified Code
 
-If invoked as a subagent, require the implementation/affected-code report paths
-and indexed changed-region/focus-area IDs, then read those sections directly;
-they scope the §2c/§2d "added this session" checks without pasting full reports
-into the caller prompt. Otherwise review the conversation history to find all
-files that were edited during this session. Focus on:
+If invoked as a subagent, require each implementation/affected-code report's
+`REPORT` and `REPORT_SHA256` plus indexed changed-region/focus-area IDs, exact
+evidence locators, and dependencies. Invoke `Read-AgentReportSection.ps1` once
+per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md)
+consumption contract; those sections scope the §2c/§2d "added this session"
+checks without pasting full reports into the caller prompt. Otherwise review
+the conversation history to find all files that were edited during this
+session. Focus on:
 - New functions/methods added
 - Modified logic in existing functions
 - New data structures or classes
@@ -141,7 +151,9 @@ If `common::ValidateVector<IS_POSITION>()` was added, removed, or moved, verify 
 
 ### 4. Flag Guard-Affinity Changes
 
-vcxproj membership/filter mechanics belong to the `update-vcxproj` skill (process step 7) — never grep the project XML here. This review owns affinity only:
+vcxproj membership/filter mechanics belong to the conditional
+`update-vcxproj` role — never grep the project XML here. This review owns
+affinity only:
 
 - Flag the required affinity (client-only / server-only) of any file created this session that is fully wrapped in `#if defined(BT_CLIENT)` / `BT_SERVER`, and any existing file that gained or lost a file-wide guard (its membership must change).
 - Exception: guardless engine files may be client-only by design via client-vcxproj membership + the `Engine.h` BT_CLIENT aggregation span (root `AGENTS.md` → Client/Server Targets) — check before flagging.

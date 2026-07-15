@@ -34,7 +34,7 @@ Name each accessor by its contract; the executor implements exactly these three 
 2. **Contract (2) — persist-until-served**: rename `DrainPendingNewSubscriptions` → `PendingNewSubscriptions()` and `DrainPendingResyncClientIds` → `PendingResyncClientIds()`, and add explicit `ClearPendingNewSubscriptions()` / `ClearPendingResyncClientIds()` members on `Server`. Consumers call the accessor to read, then the explicit clear when serviced — replacing the in-place `.clear()` on the returned ref (`ServerSessionBase.cpp:93`, `ServerSession.cpp:537`, and the reset-path pending clears `ServerSession.cpp:536-537`). The clear becomes a named, greppable act instead of a `.clear()` easily mistaken for contract (1).
 3. **Contract (3) — true consumers**: rename `DrainReceivedDebugFrame` → `TakeReceivedDebugFrame()`, `DrainLoadNotification` → `TakeLoadNotification()`. `Take*` is the one verb that means "consumes on call."
 
-Net: three verbs, three contracts. `Received*`/`Pending*` (mutable ref) = live-view-cleared-next-poll, `Pending*` + `ClearPending*` = persist-until-served, `Take*` = consume-on-call. Mechanical, compile-checked (every rename breaks the build if a site is missed), no wire/behavior change. Also update the comments that name the old convention: `ClientSession.cpp:61` (`// Heap: ... DrainReceived*`) and any `Drain`-naming prose in `Engine/Source/Network/` AGENTS.md files touched by step 6 of the change process.
+Net: three verbs, three contracts. `Received*`/`Pending*` (mutable ref) = live-view-cleared-next-poll, `Pending*` + `ClearPending*` = persist-until-served, `Take*` = consume-on-call. Mechanical, compile-checked (every rename breaks the build if a site is missed), no wire/behavior change. Also update the comments that name the old convention: `ClientSession.cpp:61` (`// Heap: ... DrainReceived*`) and any `Drain`-naming prose that becomes false in `Engine/Source/Network/` AGENTS.md files; synchronize those durable documentation changes during **Apply conditional hygiene**.
 
 ## Critical files
 
@@ -64,6 +64,10 @@ Call sites (verified 2026-07-03 by grepping `Drain` under `Engine/Source/Network
 - Every receive-buffer accessor on `Client` and `Server` is named by contract: `Received*` (cleared-next-poll), `Pending*` + `ClearPending*` (persist-until-served), `Take*` (consume-on-call). No `Drain*` remains on a non-consuming accessor.
 - Persist-until-served queues (new-subscriptions, resync ids) are cleared only through the named `ClearPending*` methods — no bare `.clear()` on those two refs. (Reset-path `.clear()` on contract-(1) live refs remains legitimate.)
 - Client + server builds compile; behavior unchanged (drain semantics identical — pure rename plus two added clear methods).
+
+## Coordination
+
+- Never interleave with `Documents/Plans/Network/Refactor_SessionBaseCollapse.md`, `Documents/Plans/Network/Refactor_ClientResetUnification.md`. The structured chain is SessionBaseCollapse → DrainContractUnification → ClientResetUnification; refresh relocated citations between landings.
 
 ## Notes
 

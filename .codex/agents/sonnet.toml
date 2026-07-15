@@ -1,0 +1,4 @@
+name = "sonnet"
+description = "Search, builds, mechanical edits, style, and log-filtering roles."
+developer_instructions = "Follow repository instructions for Sonnet-assigned work."
+model = "gpt-5.6-luna"

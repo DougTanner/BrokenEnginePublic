@@ -6,21 +6,19 @@ Implementation plans for brand-new additions — work that gives the engine a ca
 
 All feature work requires a wrapper-created worktree with its live AgentCli session claim. Use the same per-repository session/maintenance exclusion defined for Plans; do not initialize an independent lock domain.
 
-`Order.md` — all feature plans, roughly ordered by score (lowest first) — a loose tiebreaker for pick-next order, not a strict invariant. Plans live in area subdirectories: `Audio/`, `Engine/`, `Frame/`, `Graphics/`, `Network/`. Besides the scored table, `Order.md` has three sections plan authors must keep current:
+`Order.md` is the live feature queue. Its machine-owned executable table and `Depends On` column use the exact format and normalized cross-queue identities defined in [`../Plans/AGENTS.md`](../Plans/AGENTS.md). AgentCli alone parses, validates, or mutates executable rows. Approximate score order remains a loose tiebreaker, not a diagnosed invariant. Plans live in area subdirectories such as `Audio/`, `Engine/`, `Frame/`, `Graphics/`, and `Network/`.
 
-- **Reference / Index Documents** — unscored reference/index docs; exempt from the scoring requirement and never independently scheduled.
-- **Dependencies** — explicit prerequisites and mandatory invariant landing constraints, including cross-queue dependencies on `Documents/Plans/`. Unfinished prerequisites block execution; nondirectional constraints do not block selection but remain mandatory at landing.
-- **File Groups** — shared-file overlap warnings. Record the intersecting files and expected landing order; overlap alone does not block or require one session.
+The **Reference / Index Documents** table remains unscored and non-executable. AgentCli validates its paths and keeps those documents out of scheduling and orphan detection.
 
 ## Rules
 
-Queue lifecycle and the `Order.md` row format are identical to [`../Plans/AGENTS.md`](../Plans/AGENTS.md): a new plan gets its fully scored row in the same edit session, inserted at roughly its score position (exact placement isn't important); an executed plan has its row removed and its file deleted. Features-specific:
+Queue lifecycle, scoring, structured dependencies, Coordination policy, and AgentCli commands are identical to [`../Plans/AGENTS.md`](../Plans/AGENTS.md). The clean primary/root checkout is the live queue; add/update/complete changes in a registered session worktree are proposed state until verified landing advances primary. New feature files are written first and then indexed through a structured AgentCli add request. A failed add leaves a retryable session orphan, not live primary state. Never edit executable rows directly or put claim metadata in `Order.md` or plan files.
 
-The AgentCli plan queue/row coordination defined by [`../Plans/AGENTS.md`](../Plans/AGENTS.md) is authoritative across worktrees. Use the current checkout's `Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe` and address this queue with canonical Git common directory plus repo-relative `Documents/Features/Order.md`; feature row identities are normalized paths relative to that file. Duplicate row claims block, and no claim metadata belongs in `Order.md` or plan files. Different plans with ordinary file overlap may proceed independently; under root C++ Code Change Process step 12, the later lander reconciles the newer target-branch commit and reruns every affected review, build, and verification step before landing. Mandatory invariant constraints remain binding regardless of landing order.
+Directional cross-queue prerequisites use full normalized `Documents/Plans/...` or `Documents/Features/...` identities in `dependsOn`/`Depends On`. Mandatory nondirectional constraints use reciprocal `## Coordination` sections updated atomically for all existing counterparts. Ordinary overlap may remain a nonblocking one-sided warning in a plan body.
 
-- A plan that turns out to be a refactor/bugfix in disguise (no new capability) moves to `Documents/Plans/`, updating both `Order.md` files.
+- A plan that turns out to be a refactor/bugfix in disguise (no new capability) moves to `Documents/Plans/` through the corresponding AgentCli queue mutation.
 - Designs deferred on YAGNI grounds are scored normally but carry explicit "Revisit When" trigger conditions in the plan body — the `Frame/Future_*.txt` files are the pattern.
 
 ## Plan File Authoring
 
-New plans follow the [`../Plans/AGENTS.md`](../Plans/AGENTS.md) authoring conventions (heading shape, required `## Out of scope` section, name interfaces not just paths) and use `.md`. Heading structure is not enforced for `.txt` plans.
+New plans follow the [`../Plans/AGENTS.md`](../Plans/AGENTS.md) authoring conventions (heading shape, required `## Out of scope` section, named C++ process stages, and interface names rather than bare paths) and use `.md`. Internal numbered design steps remain plan-local. Heading structure is not enforced for `.txt` plans.

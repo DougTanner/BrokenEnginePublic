@@ -9,7 +9,7 @@ description: >-
   extension applicability, and returns VERIFIED, REFUTED, or UNRESOLVED with
   direct links or exact citations. Read-only evidence role; never implements or
   recommends a fix.
-allowed-tools: [Read, Write, Grep, Glob, WebFetch, WebSearch]
+allowed-tools: [Read, Write, Grep, Glob, WebFetch, WebSearch, PowerShell]
 ---
 
 # Verify External Claims

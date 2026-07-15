@@ -42,6 +42,9 @@
     <ClCompile Include="..\..\Source\Attribution.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\DiagnosticReporter.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\ExportJobs\Island\BakeIslandIntermediates.cpp">
       <Filter>DataPacker\ExportJobs\Island</Filter>
     </ClCompile>
@@ -156,6 +159,9 @@
       <Filter>DataPacker</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Attribution.h">
+      <Filter>DataPacker</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\DiagnosticReporter.h">
       <Filter>DataPacker</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\FileManager.h">

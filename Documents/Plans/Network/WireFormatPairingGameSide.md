@@ -62,6 +62,11 @@ Move to a new `GamePacketType` enumerator (append-only, per hub) + a game-side p
 - `iFlagshipIndex` is validated in `ParseFleetSyncPayload`; the fleet-sync parse uses `operator[]`; `PlayerEvents.cpp` includes `Pch.h`.
 - (a)/(b) produce byte-identical wire output; interop verified (assign, spawn, changed-frame, died, fleet sync) after conversion.
 
+## Coordination
+
+- Protocol/version batch with `Documents/Plans/Network/PackIntegrityHandshake.md`, `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md`, `Documents/Plans/Network/FleetRequestsByGuid.md`: land the wire breaks in one client/server release behind one `kuiProtocolVersion` bump; the last lander owns the consolidated bump.
+- `Documents/Plans/Network/Architecture_WireFormatPairing.md`: never interleave send/receive-site restructuring with this wire change. WireFormatPairingGameSide's structured dependency requires the architecture plan first.
+
 ## Notes
 
 - **Invariant exposure — two distinct exposures, stated explicitly:**

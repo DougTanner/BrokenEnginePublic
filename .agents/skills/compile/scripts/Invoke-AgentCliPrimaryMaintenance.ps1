@@ -110,7 +110,7 @@ $owner = [guid]::NewGuid().ToString()
 $maintenance = $null
 try {
 	$maintenance = Enter-AgentCliMaintenance -RepositoryRoot $primaryRoot -Owner $owner -Label 'explicit primary AgentCli maintenance' -Worktree $primaryRoot -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed
-	$exitCode = Invoke-AgentCliTrackedProcess -Executable "$PSHOME\pwsh.exe" -WorkingDirectory $primaryRoot -ArgumentList @('-NoProfile', '-File', $capabilityScript, '-Executable', $agentCli)
+	$exitCode = Invoke-AgentCliTrackedProcess -Executable "$PSHOME\pwsh.exe" -WorkingDirectory $primaryRoot -ArgumentList @('-NoProfile', '-File', $capabilityScript, '-Executable', $agentCli, '-PreMaintenanceBaseline')
 	if ($exitCode -ne 0) { throw "AgentCli pre-build capability check failed with exit code $exitCode." }
 	$exitCode = Invoke-AgentCliTrackedProcess -Executable $msBuild -WorkingDirectory $primaryRoot -ArgumentList @(
 		$solution, '/p:Configuration=Release', '/p:Platform=x64',

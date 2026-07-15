@@ -75,6 +75,12 @@ Coarse per-slot age counter on `ClientCoordSlot`: while a slot sits in `kSubscri
 - An epoch-mismatched `kClientUnsubscribe` does not free a reused slot's newer subscription.
 - A slot stuck in any transitional state is auto-reset after the watchdog threshold and the coord re-queued.
 
+## Coordination
+
+- Protocol/version batch with `Documents/Plans/Network/PackIntegrityHandshake.md`, `Documents/Plans/Network/FleetRequestsByGuid.md`, `Documents/Plans/Network/WireFormatPairingGameSide.md`: land the wire breaks in one client/server release behind one `kuiProtocolVersion` bump; the last lander owns the consolidated bump.
+- `Documents/Plans/Network/Architecture_WireFormatPairing.md`: never interleave send/receive-site restructuring with this wire change. WireFormatPairingGameSide's structured dependency requires the architecture plan first.
+- `Documents/Plans/Network/Refactor_ServerClientPlayerRegistry.md`: never interleave the shared slot-state work; the registry plan structurally depends on this hardening landing first.
+
 ## Notes
 
 - **Invariant exposure**: **wire change + `kuiProtocolVersion` bump** (`kClientUnsubscribe` 1→2 payload bytes); touches cross-frame client/server subscription state and network protocol handling (Risk: hard to verify). No sim/CRC/`Frame::kiVersion` change.

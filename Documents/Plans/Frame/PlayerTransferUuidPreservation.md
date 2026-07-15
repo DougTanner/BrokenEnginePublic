@@ -35,6 +35,10 @@ Carry the uuid through transfer and re-add with it:
 - A `kUpdatePlayer` weapon toggle and a `kUpdateFleet` update issued on the same tick a player transfers are applied in the destination cell (uuid lookup succeeds), on both client and server.
 - `Players.cpp` contains no plain `AddIndexableElement` on the transfer path; the hub-convention grep (`AddIndexableElementWithId`) now includes Players.
 
+## Coordination
+
+- Frame version/save/replay batch with `Documents/Plans/Frame/TransferSentinelConflation.md`, `Documents/Plans/Frame/MissileLifetimeAndTargetLifecycle.md`, `Documents/Plans/Frame/BlasterWindTrailTransferParams.md`, `Documents/Plans/Frame/FireCooldownNegativeFloor.md`: co-land behind one consolidated `Frame::kiVersion` change and one save/replay invalidation; the last lander owns the bump.
+
 ## Notes
 
 - **Invariant exposure: high.** `TransferData` layout change → StatusChange wire/save payload change → bump `PlayersPostRender::kiVersion` (propagates to `Frame::kiVersion`, invalidates saves/replays). Uuid allocation order feeds `idToIndexMap` iteration-independent lookups only, but the uuid counter itself is CRC-relevant shared state — re-adding with a carried id must keep the mint counter behavior identical on both sides (verify the `AddIndexableElementWithId` counter contract against SmokeTrails' usage). Inside the `/fp:strict` CRC'd tick; client and server land together.

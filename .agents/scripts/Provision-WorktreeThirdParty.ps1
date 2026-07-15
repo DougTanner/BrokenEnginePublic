@@ -178,7 +178,7 @@ $transientClaim = $null
 $owner = $env:BROKEN_ENGINE_AGENTCLI_SESSION_OWNER
 if ([string]::IsNullOrWhiteSpace($owner)) {
 	$owner = [guid]::NewGuid().ToString()
-	$transientClaim = Acquire-AgentCliSession -RepositoryRoot $root -Owner $owner -Label 'transient provisioner' -Worktree $root -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed
+	$transientClaim = Register-AgentCliSession -RepositoryRoot $root -Owner $owner -Label 'transient provisioner' -Worktree $root -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed
 }
 else { Assert-AgentCliSessionOwner -RepositoryRoot $root -Owner $owner }
 
@@ -260,5 +260,5 @@ if (-not $root.Equals($primaryRoot, [StringComparison]::OrdinalIgnoreCase)) {
 Write-Host "Shared worktree dependencies validated for '$root' using primary '$primaryRoot'."
 }
 finally {
-	if ($null -ne $transientClaim) { Release-AgentCliSession -RepositoryRoot $root -Owner $owner }
+	if ($null -ne $transientClaim) { Unregister-AgentCliSession -RepositoryRoot $root -Owner $owner }
 }

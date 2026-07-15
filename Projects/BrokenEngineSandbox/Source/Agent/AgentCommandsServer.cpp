@@ -20,8 +20,29 @@ std::string PathToUtf8(const std::filesystem::path& rPath)
 	return std::string(reinterpret_cast<const char*>(u8String.c_str()), u8String.size());
 }
 
+bool IsWindowsReservedDeviceBasename(std::string_view utf8)
+{
+	std::string basename(utf8.substr(0, utf8.find('.')));
+	for (char& rCharacter : basename)
+	{
+		if (rCharacter >= 'a' && rCharacter <= 'z')
+		{
+			rCharacter = static_cast<char>(rCharacter - ('a' - 'A'));
+		}
+	}
+
+	if (basename == "CON" || basename == "NUL" || basename == "PRN" || basename == "AUX")
+	{
+		return true;
+	}
+
+	return basename.size() == 4 &&
+		(basename.starts_with("COM") || basename.starts_with("LPT")) &&
+		basename[3] >= '1' && basename[3] <= '9';
+}
+
 // Trust boundary: the agent-supplied save/load filename lands in the user's appdata directory. Reject anything
-// but a bare filename (no path separators, no "..") so it can't escape that directory.
+// but a bare filename (no path separators, no "..") and Windows reserved device basenames.
 std::filesystem::path BareFilenameParam(const nlohmann::json& rValue)
 {
 	std::string utf8 = rValue.get<std::string>(); // throws on a non-string
@@ -29,9 +50,17 @@ std::filesystem::path BareFilenameParam(const nlohmann::json& rValue)
 	{
 		throw std::runtime_error("'file' must be a non-empty bare filename");
 	}
+	if (utf8.find('\0') != std::string::npos)
+	{
+		throw std::runtime_error("'file' must not contain an embedded NUL");
+	}
 	if (utf8.find('/') != std::string::npos || utf8.find('\\') != std::string::npos || utf8.find(':') != std::string::npos || utf8.find("..") != std::string::npos)
 	{
 		throw std::runtime_error("'file' must be a bare filename (no path separators, drive/stream ':', or '..')");
+	}
+	if (IsWindowsReservedDeviceBasename(utf8))
+	{
+		throw std::runtime_error("'file' must not use a reserved Windows device name");
 	}
 	return std::filesystem::path(reinterpret_cast<const char8_t*>(utf8.c_str()));
 }
@@ -91,7 +120,10 @@ void CommandSave(const nlohmann::json& rParams, nlohmann::json& rResult)
 	// QuicksaveFile() overrides the GameBase virtual privately in game::Game, so read the default name via the base's
 	// static type, then feed it to the path overload (identical to the no-arg ServerSave(), which forwards QuicksaveFile()).
 	std::filesystem::path file = rParams.contains("file") ? BareFilenameParam(rParams.at("file")) : static_cast<engine::GameBase&>(*gpGame).QuicksaveFile();
-	gpGame->mGameSaveLoad.ServerSave(file);
+	if (!gpGame->mGameSaveLoad.ServerSave(file))
+	{
+		throw std::runtime_error("save failed to write '" + PathToUtf8(file) + "'");
+	}
 	rResult["file"] = PathToUtf8(file);
 }
 

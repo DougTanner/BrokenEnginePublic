@@ -1,28 +1,36 @@
 ---
 name: adversarial-review
 description: >-
-  Pure adversarial review of C++ changes made this session — assume the change
-  is broken and hunt for concrete, provable reasons it does not work. No rubric,
-  no checklist: reason from the change itself. Runs as the second reviewer in
-  C++ Code Change Process step 4 (Opus subagent), concurrent with and
-  independent of /repo-code-review. ALSO use when the user asks to "attack this
-  change", "assume it's broken", "find reasons this fails", or wants an
-  adversarial second opinion on a diff. Findings only — never edits. Logic and
-  correctness only; style belongs to code-style-review.
-allowed-tools: [Read, Write, Grep, Glob]
+  Bounded falsification review of C++ changes made this session. Use
+  automatically only for Tier-3 changes or when the correctness review leaves
+  one concrete reachable failure hypothesis needing independent falsification.
+  ALSO use when the user asks to "attack this change", "assume it's broken",
+  "find reasons this fails", or wants an adversarial second opinion on a diff.
+  Findings only — never edits. Logic and correctness only; style belongs to
+  code-style-review.
+allowed-tools: [Read, Write, Grep, Glob, PowerShell]
 ---
 
-# Adversarial Review
+# Adversarial Falsification Review
 
-Assume the change is broken. The only job: find bugs and concrete reasons the code does not work. Do not verify checklists, do not assess style, do not implement fixes — a separate rubric reviewer (/repo-code-review) runs concurrently in another context; this review exists because a free-stance adversary catches failure modes no rubric enumerates, and two independent passes over the same diff surface different bugs.
+Try to falsify the change within a bounded scope. Do not optimize for rejection,
+verify checklists, assess style, or implement fixes. Automatic invocation is
+limited to an approved Tier-3 change or one explicit unresolved reachable
+failure hypothesis from the correctness review. User-requested adversarial
+review may start from the supplied diff, but the same evidence threshold
+applies.
 
 ## Inputs (from caller)
 
-Implementation/affected-code report paths plus indexed changed-region,
-residual, and focus-area IDs; the plan document or intent summary; and
-`ReportPath` when delegated. Read those indexed sections directly rather than
-requiring pasted full reports. If invoked directly with no briefing,
-reconstruct the change set from conversation history.
+Implementation/affected-code report compact-envelope identities (`REPORT`,
+`REPORT_SHA256`) plus indexed changed-region, residual, and focus-area IDs,
+exact evidence locators, and dependencies; the plan document or intent summary;
+the approved risk tier and concrete Tier-3 triggers, or the exact unresolved
+failure hypothesis that authorized this review; and `ReportPath` when delegated.
+Invoke `Read-AgentReportSection.ps1` once per
+exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md)
+consumption contract rather than requiring pasted full reports. If invoked
+directly with no briefing, reconstruct the change set from conversation history.
 
 ## Reporting Mode
 
@@ -35,7 +43,13 @@ or unwritable delegated report blocks the review. A direct invocation without
 
 ## Method
 
-Start from the changed regions, then trace outward until each suspicion is proven or dies — diff-only reading is insufficient evidence. Read the callers, callees, data producers/consumers, and sibling code paths the change interacts with. Hunt wherever the change could fail, for example:
+Start from each Tier-3 trigger or supplied failure hypothesis and define the
+smallest trace that could prove or refute it. Trace outward until the hypothesis
+is proven or dies — diff-only reading is insufficient evidence. Read the
+callers, callees, data producers/consumers, and sibling paths needed for that
+trace, then stop. Do not expand a dying hypothesis into unrelated edge cases or
+invent a replacement hypothesis merely to produce a finding. Relevant failure
+surfaces include:
 
 - Logic: inverted/off-by-one conditions, early returns skipping required work, order-of-operations
 - Integration: callers whose assumptions the change silently violates; semantics changed without every call site following
@@ -45,15 +59,31 @@ Start from the changed regions, then trace outward until each suspicion is prove
 - Edge paths: empty input, first/last tick, count==0/1/max, failed I/O, client-only vs server-only build reachability
 - Interactions the implementer wouldn't have tested: the change plus an existing feature, save/load round-trip, cell transfer
 
-Scale trace depth to the change's blast radius: a one-line fix in isolated code doesn't warrant sweeping every subsystem; a semantics change to a shared function warrants tracing every caller.
+Scale trace depth to the authorized risk trigger: a one-line fix in isolated
+code does not warrant sweeping every subsystem; a semantics change to a shared
+function may require tracing every caller. When all authorized hypotheses die,
+return PASS and stop.
 
 ## Evidence rule (anti-confabulation)
 
-Every finding must name `file:line` plus a concrete failure scenario: specific input/state → specific wrong outcome (crash, desync, corruption, wrong value, hang). A suspicion that survives tracing becomes a finding; one that can't state its failure scenario is dropped, not softened into a hedge — no "might be risky", no "Consider:" items. Zero findings is a valid outcome, but must be earned: state what was traced and why it holds.
+Every finding must name `file:line` plus a concrete, reachable, in-scope,
+material failure scenario: specific input/state → specific wrong outcome
+(crash, desync, corruption, wrong value, hang, or failed approved acceptance
+criterion). A suspicion that survives tracing becomes a finding; one that
+cannot establish reachability, scope, and material impact is dropped, not
+softened into a hedge — no "might be risky", no "Consider:" items.
+Trust-boundary inputs that cannot reach the changed path, hypothetical polish,
+and unrelated baseline defects are not findings. Zero findings is a valid
+outcome: state what was falsified and return PASS without further review.
 
 Before reporting a finding, flip stance and try to refute it: look for the alternate explanation, a guard elsewhere, a caller that establishes the precondition, an invariant that makes the bad state unreachable. Only findings that survive the refutation attempt are reported — if not certain the issue is real, don't flag it. Every `file:line` cited must come from a file actually Read during this review, never inferred from the diff, the plan, or memory.
 
-Findings are defects introduced or newly exposed by this session's change only. A genuine pre-existing bug noticed while tracing goes in the residuals footer (caller routes it to a follow-up plan), not in Findings. Also excluded: anything the compiler or clang-tidy catches.
+Findings are material defects introduced or newly exposed by this session's
+change only. A proven pre-existing or out-of-scope bug noticed while tracing
+goes in the residuals footer for possible follow-up routing, not in Findings.
+An in-scope structural acceptance failure remains a blocking finding; do not
+relabel it as follow-up work. Also excluded: anything the compiler or
+clang-tidy catches.
 
 ## API Verification
 
@@ -71,7 +101,8 @@ For non-obvious API usage a finding depends on (Vulkan entry points, DirectXMath
 - <api/symbol> — <spec URL> — <what to confirm, and which finding depends on it>
 
 ### Traced Clean
-[Only if no findings: what was traced and why it holds]
+[Only if no findings: authorized hypotheses, what was traced, why each was
+falsified, and `PASS — bounded falsification complete; stop.`]
 ```
 
 Severity: **Critical:** = data loss, broken functionality, determinism break, allocation-tracker violation; no prefix = required fix. Nothing optional — anything below "required" fails the evidence rule and is dropped. Append this final footer in every case:

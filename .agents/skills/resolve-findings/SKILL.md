@@ -5,7 +5,7 @@ description: >-
   failure, or post-fix verification assignment within the Broken Engine C++
   Code Change Process. Use this skill for delegated fix work after the main
   agent has adjudicated a finding or supplied concrete failure evidence, and
-  for the independent step-10 re-review of fixed regions. Confirms root cause
+  for focused verification of fixed regions. Confirms root cause
   before editing, stays inside the assigned scope, verifies each fix, and
   reports exact changed regions and residuals. Supports explicit fix and
   independent-verify modes; independent-verify mode never edits.
@@ -22,7 +22,7 @@ Require the caller to provide:
 
 - **Mode**: `fix` or `independent-verify`
 - Caller classification: **Intent** (`conformance` or `plan_delta`) and **Scope** (`non_structural` or `structural`)
-- Source report path(s) and the stable IDs of each accepted finding or failure; read the indexed sections for affected region, evidence, and expected behavior
+- Source report compact-envelope identities (`REPORT`, `REPORT_SHA256`) and the stable IDs of each accepted finding or failure, with exact evidence locators and dependencies; invoke `Read-AgentReportSection.ps1` once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) consumption contract to load the affected region, evidence, and expected behavior
 - Plan document or concise intent summary
 - Assigned file/function scope and session-start baseline
 - Required verification, if the process already prescribes one
@@ -30,7 +30,13 @@ Require the caller to provide:
 
 If an input is missing, reconstruct it from the prompt and current worktree only when unambiguous. Otherwise report the item unresolved rather than choosing new scope or intent.
 
-Fix mode accepts only `conformance + non_structural`. Return `PLAN DELTA REQUIRED` without editing if the fix would change approved behavior, scope, acceptance criteria, or verification obligations. Route structural work to step 11. If the user explicitly expands current scope, main updates the canonical plan and sends the work back through `/implement-plan`; structural work never enters fix mode. Delegation is client-neutral: use a self-contained fresh Claude prompt or Codex `fork_turns:"none"`, preserving baseline, classification, and residuals.
+Fix mode accepts only `conformance + non_structural`. Return `PLAN DELTA REQUIRED` without editing if the fix would change approved behavior, scope, acceptance criteria, or verification obligations. An in-scope structural acceptance failure blocks the active change; only proven pre-existing or out-of-scope structural work routes to a follow-up plan. If the user explicitly expands current scope, main updates the canonical plan and sends the work back through `/implement-plan`; structural work never enters fix mode. Delegation is client-neutral: use a self-contained fresh Claude prompt or Codex `fork_turns:"none"`, preserving baseline, classification, and residuals.
+
+The default correction budget is one fix wave followed by focused review and
+retest of the changed regions and directly affected checks. A later wave
+requires a blocker that remains reproducible after that verification; scope it
+only to the regions and checks affected by the blocker. Do not restart general
+review or verification to seek consensus.
 
 ## Fix Mode
 

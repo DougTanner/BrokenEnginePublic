@@ -65,7 +65,7 @@ public:
 		mCurrentDifference = rDifference;
 	}
 
-	void Save(FileFlags_t fileFlags, const std::filesystem::path& rFilename, const SAVED_TYPE& rSavedEnd)
+	bool Save(FileFlags_t fileFlags, const std::filesystem::path& rFilename, const SAVED_TYPE& rSavedEnd)
 	{
 		int64_t iDifferenceCount = mDifferences.size();
 
@@ -154,14 +154,27 @@ public:
 		if (!failedFilename.empty())
 		{
 			LOG(kDefault, kError, "DifferenceStreamWriter save failed writing \"{}\"; deleting partial replay set", failedFilename.string());
-			gpFileManager->RemoveFile(fileFlags, rFilename);
-			gpFileManager->RemoveFile(fileFlags, framesFilename);
-			gpFileManager->RemoveFile(fileFlags, checksumsFilename);
+			const auto RemovePartialFile = [&](const std::filesystem::path& rPartialFilename)
+			{
+				try
+				{
+					gpFileManager->RemoveFile(fileFlags, rPartialFilename);
+				}
+				catch (const std::filesystem::filesystem_error& rException)
+				{
+					LOG(kDefault, kError, "DifferenceStreamWriter cleanup failed removing \"{}\": {}", rPartialFilename.string(), rException.what());
+				}
+			};
+			RemovePartialFile(rFilename);
+			RemovePartialFile(framesFilename);
+			RemovePartialFile(checksumsFilename);
 			if constexpr (kbReplayFullFrames)
 			{
-				gpFileManager->RemoveFile(fileFlags, std::filesystem::path(rFilename).concat(".fullframes"));
+				RemovePartialFile(std::filesystem::path(rFilename).concat(".fullframes"));
 			}
 		}
+
+		return failedFilename.empty();
 	}
 
 private:

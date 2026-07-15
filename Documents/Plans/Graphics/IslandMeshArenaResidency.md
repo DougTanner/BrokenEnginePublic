@@ -52,6 +52,10 @@ Naively freeing `mMeshBuffer` in `EvictionSweep` is infeasible: the per-template
 - No synchronous disk read on the render thread in the restoration path.
 - `Engine/Source/AGENTS.md` / `Frame/AGENTS.md` / `Graphics/AGENTS.md` updated to reflect arena mesh residency and the relaxed boot-order invariant.
 
+## Coordination
+
+- `Documents/Plans/Graphics/TerrainMeshLodChain.md`: never interleave indirect mesh-layout bookkeeping; TerrainMeshLodChain's structured dependency requires this resolved arena design first.
+
 ## Notes
 
 - Client/graphics-only. **No `kiVersion`/`.pack`/CRC/wire/determinism exposure** — the mesh payload layout on disk is untouched; the server never reads the mesh.

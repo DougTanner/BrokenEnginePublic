@@ -1,7 +1,7 @@
 ---
 name: update-claude-docs
-description: Updates AGENTS.md files after code changes — syncs docs in the directories modified this session. Also has an explicit audit mode that grades every AGENTS.md in the repo against a rubric, reports, then applies improvements.
-when_to_use: Sync mode (default) — after any code change, or "update AGENTS.md", "sync project memory", "refresh the docs". Audit mode — "audit AGENTS.md", "grade AGENTS.md files", "AGENTS.md quality report", "improve AGENTS.md across the repo".
+description: Updates AGENTS.md files when a change alters a durable instruction, non-obvious invariant, subsystem boundary, or agent-memory contract. Syncs only affected documentation; ordinary code changes whose existing docs remain true do not trigger it. Also has an explicit audit mode that grades every AGENTS.md in the repo against a rubric, reports, then applies improvements.
+when_to_use: Sync mode (default) — after a durable instruction/invariant or agent-memory change, or for "update AGENTS.md", "sync project memory", "refresh the docs". Audit mode — "audit AGENTS.md", "grade AGENTS.md files", "AGENTS.md quality report", "improve AGENTS.md across the repo".
 allowed-tools: [Read, Edit, Write, Grep, Glob, Bash, PowerShell]
 ---
 
@@ -9,7 +9,7 @@ allowed-tools: [Read, Edit, Write, Grep, Glob, Bash, PowerShell]
 
 Two modes — infer from the invocation:
 
-- **Sync mode** (default) — invoked after code changes or with a list of changed files. Targets only the directories touched this session; small, surgical edits.
+- **Sync mode** (default) — invoked only when changed behavior alters a durable instruction, non-obvious invariant, subsystem boundary, or agent-memory contract, or when the user explicitly requests documentation. Targets only the affected directories; small, surgical edits. If no durable documentation fact changed, report no trigger and make no edits.
 - **Audit mode** — only when the user asks for an audit / report / grade / repo-wide improvement pass. Quality report first, then improvements after user approval.
 
 For a delegated call, require a caller-assigned absolute `ReportPath` under the
@@ -21,6 +21,12 @@ delegated `ReportPath`, retain inline reporting.
 ---
 
 ## Sync Mode (default)
+
+Before discovery, confirm the supplied change made a durable instruction,
+non-obvious invariant, subsystem boundary, or agent-memory contract false or
+incomplete. If none changed and the user did not explicitly request a docs
+edit, report no trigger and stop without scanning or editing the documentation
+tree.
 
 1. **Identify affected directories**: If invoked as a subagent, the caller should provide the list of changed files. Otherwise, derive the list from the top-level session's fixed session-start commit and cross-check it against Edit/Write/NotebookEdit calls. All subagents share that worktree and baseline; do not use a moving merge-base after primary-branch reconciliation, and do not use `git status` alone because it cannot distinguish the session's edits from newly integrated changes. If the baseline or session history is unavailable, ask the user for the file list. Update AGENTS.md only in the immediate directories containing those files (not parent directories unless their content directly changed).
    - **Hub drift**: if a hub AGENTS.md was modified this session (root, `Engine/Source`, `Common`, any `Collections` hub), also audit its immediate descendants for newly-stale duplicated content — leaves often carry pre-trim copies of hub wording.

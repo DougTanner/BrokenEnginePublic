@@ -67,6 +67,11 @@ The bias is user-tunable and defaults to a sharpen that users generally want; a 
 - **DataPacker mip-generation or per-mip variance bake** — no pack-format change; the `TextureHeader::pfMipVariance` bake (used by the water AA) is unrelated.
 - **Implementing every listed site speculatively** — the deliverable is the decision plus, at most, the Model data-sampler split; terrain/masks/AO land only if A/B justifies.
 
+## Coordination
+
+- `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
+- `Documents/Plans/Graphics/Managers/Refactor_PipelineManagerSplit.md`: never interleave with its PipelineManager file-shape change; refresh citations after it lands.
+
 ## Notes
 
 - **Decision plan (present options).** Grill decisions: (1) per-site Option A (dedicated sampler) vs Option B (accept + document) — recommend A for Model normal/MR, B-unless-A/B-justifies for terrain/masks/AO, B for water noise/depthLut; (2) if A for Model: fixed `mipLodBias = 0.0` (minimal) vs a dedicated slider mirroring `gWaterNormalMipBias` (tunable, adds a `MainLayout` field + Ui wiring).

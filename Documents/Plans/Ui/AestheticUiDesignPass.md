@@ -28,7 +28,7 @@ Out of scope: further Main Menu changes, color-theme redesign, textured chrome, 
 5. Preserve all mechanical invariants while tuning presentation: Pause dim/input behavior; Graphics control semantics and column relationships; Sound control behavior; Modal wrapping/action behavior; HUD activation, fixed hover extent, and left/right symmetry.
 6. Keep every widget label byte-identical. Compare each screen's final `describe_ui` label set with its baseline because labels are part of the agent-harness automation API.
 7. Synchronize `Documents/UserInterfaceDesign.txt` with any changed layout rules, named dimensions, exceptions, and verification guidance. Update the screen leaf `AGENTS.md` only when needed for accuracy.
-8. Run the complete repository C++ Code Change Process: implementation self-audit; affected-code sweep; independent correctness and adversarial reviews; style review; documentation and architecture checks; vcxproj verification; client/server compile; agent-harness runtime verification; and paired session audits. Route non-trivial residuals to separate plan files rather than expanding this pass.
+8. Run the repository C++ Code Change Process by its seven named stages. Classify this client-only UI work from its final approved scope, propagate only emitted sweep handoffs or proven signature/semantics/guard/mirror effects, run targeted pre-review compilation, and use one C++ correctness review plus the shader specialist only if shader bytes change. Style review is required for changed C++; documentation, project membership, adversarial review, and the final whole-change audit remain trigger-based. The approved native-resolution harness scenarios below are the decisive runtime evidence. Keep any in-scope structural acceptance failure blocking this pass; route only proven pre-existing or out-of-scope structural residuals to separate plan files.
 9. Present the final native-resolution screenshots to the user. Completion requires explicit user approval of Pause, Graphics, Sound, Modal, and HUD as a coherent family anchored by the approved Main Menu.
 
 ## Acceptance criteria
@@ -40,7 +40,7 @@ Out of scope: further Main Menu changes, color-theme redesign, textured chrome, 
 - HUD preserves activation behavior, fixed hover extent, and left/right symmetry.
 - Pause, Sound, and Modal preserve their existing interaction behavior.
 - Widget labels match their baseline byte-for-byte.
-- Client and server builds pass, harness logs show no new errors, and the full C++ review process is complete.
+- The affected client build passes, harness logs show no new errors, and every role triggered by the seven-stage C++ process is complete.
 - `Documents/UserInterfaceDesign.txt` and affected leaf documentation accurately describe the landed rules.
 - The user explicitly approves the final screenshot set.
 

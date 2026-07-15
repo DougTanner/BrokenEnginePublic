@@ -39,6 +39,11 @@ Recommend gathering the real distribution first: instrument the populated slot c
 - The pipeline registration/ownership rework (`Graphics/Architecture_PipelineRegistrationOwnership.md`) and the bindless lifecycle consolidation (`Graphics/Managers/Architecture_BindlessSlotLifecycle.md`) — those reshape the same `Pipeline::Create`/`Write` paths; sequence with them, do not interleave.
 - Any change to descriptor *semantics* (set/binding numbers, the `kModel` auto-append behavior) — preserve exactly.
 
+## Coordination
+
+- `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
+- `Documents/Plans/Graphics/Architecture_PipelineRegistrationOwnership.md`: never interleave changes to the shared scan-to-max `Pipeline::Create` / `PipelineDescriptorWriter::Write` paths.
+
 ## Notes
 
 - **Decision plan (present options).** Resolve A/B/C via `/external-grill-plan` before any edit; gather the populated-slot distribution first.

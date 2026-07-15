@@ -45,6 +45,10 @@ Add a paired-parity check where the paired collections are read (the `FrameBase.
 
 - **Shared engine deserialization framework — server save/load AND client live-network full-state receive.** A1's affected fields are client-only (out of the CRC), so A1 is client-side corruption, not desync. A3/A5 are no-ops on any validly-produced stream — they only convert AV / OOB-write outcomes on corrupt/hostile input into uniform `CorruptStreamException` rejection. No wire / `kiVersion` / `.pack` / CRC-format change. Because it sits on the deterministic reconstruction path, verify with a replay/CRC soak AND a network full-state soak.
 
+## Coordination
+
+- Never interleave with the live frame-collection series `Documents/Plans/Frame/Architecture_CollectionCopyContract.md`, `Documents/Plans/Frame/Architecture_CollectionHelperDedup.md`, `Documents/Plans/Frame/Architecture_PhaseHookOptIn.md`, `Documents/Plans/Frame/CollectionReadIndexHardening.md`, `Documents/Plans/Frame/Refactor_CollectionHeadersQuickWins.md`; each later landing must refresh shared collection-header/TU citations.
+
 ## Notes
 
 - Grill decisions: A1 physical-capacity member vs. stored buffer byte size; A3 local null-guard vs. `common::MakeAligned` throwing at source.

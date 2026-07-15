@@ -35,6 +35,10 @@ Either way, correct the Blasters AGENTS.md handoff claim to match the landed beh
 - A blaster crossing a cell boundary on a connected client keeps a visually continuous wind trail (server-authoritative replay path, not just local prediction).
 - No wire field in the blaster `TransferData` arm is serialized from a value the sender never populates.
 
+## Coordination
+
+- Frame version/save/replay batch with `Documents/Plans/Frame/TransferSentinelConflation.md`, `Documents/Plans/Frame/PlayerTransferUuidPreservation.md`, `Documents/Plans/Frame/MissileLifetimeAndTargetLifecycle.md`, `Documents/Plans/Frame/FireCooldownNegativeFloor.md`: co-land behind one consolidated `Frame::kiVersion` change and one save/replay invalidation; the last lander owns the bump.
+
 ## Notes
 
 - **Invariant exposure.** Option A: removes wire fields from the StatusChange payload → save/replay payload layout change → `BlastersPostRender::kiVersion` bump; zero CRC/determinism impact (all edits client-only or codec). Option B: adds shared CRC'd members → `kiVersion` bump + CRC stream change. `ClientInit` runs outside the CRC'd phases on the client only — `#ifdef BT_CLIENT` scope stays as-is.

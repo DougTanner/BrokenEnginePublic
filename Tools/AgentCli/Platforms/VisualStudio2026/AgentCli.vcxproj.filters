@@ -27,6 +27,9 @@
     <ClCompile Include="..\..\PlanCommands.cpp">
       <Filter>AgentCli</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\PlanOrderCommands.cpp">
+      <Filter>AgentCli</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\AgentCliCommon.h">
@@ -45,6 +48,9 @@
       <Filter>AgentCli</Filter>
     </ClInclude>
     <ClInclude Include="..\..\PlanCommands.h">
+      <Filter>AgentCli</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\PlanOrderCommands.h">
       <Filter>AgentCli</Filter>
     </ClInclude>
   </ItemGroup>

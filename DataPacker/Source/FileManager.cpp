@@ -1,4 +1,5 @@
 #include "FileManager.h"
+#include "DiagnosticReporter.h"
 
 namespace
 {
@@ -250,15 +251,6 @@ uint64_t AddChecked(uint64_t uiLeft, uint64_t uiRight)
 	return uiLeft + uiRight;
 }
 
-uint64_t MultiplyChecked(uint64_t uiLeft, uint64_t uiRight)
-{
-	if (uiRight != 0 && uiLeft > std::numeric_limits<uint64_t>::max() / uiRight)
-	{
-		throw std::runtime_error("Output materialization size overflow");
-	}
-	return uiLeft * uiRight;
-}
-
 }
 
 FileManager::FileManager(std::span<char*> argvSpan)
@@ -406,6 +398,7 @@ void FileManager::InitializeWorktreeOutputs()
 		RejectUnvalidatedReparse();
 		return;
 	}
+	diagnostic::MarkValidatedLinkedWorktree();
 	std::filesystem::path primaryThirdPartyDirectory = primaryRoot / "ThirdParty";
 	if (!IsOrdinaryDirectory(primaryThirdPartyDirectory))
 	{
@@ -446,7 +439,7 @@ void FileManager::InitializeWorktreeOutputs()
 				}
 				if (MaterializeOutput(*pRoot) == EnsureLocalResult::kCancelled)
 				{
-					throw std::runtime_error("Output materialization cancelled");
+					throw diagnostic::AlreadyReportedError("Output materialization cancelled");
 				}
 			}
 		}
@@ -530,24 +523,30 @@ FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rR
 	ULARGE_INTEGER total {};
 	if (!GetDiskFreeSpaceExW(rRoot.mDestination.root_path().native().c_str(), &available, &total, nullptr))
 	{
-		throw std::runtime_error("GetDiskFreeSpaceExW failed");
-	}
-	uint64_t uiReserve = (std::max)(1ull << 30, AddChecked(MultiplyChecked(uiAllocation, 5), 99) / 100);
-	if (AddChecked(uiAllocation, uiReserve) > available.QuadPart)
-	{
-		std::wstring message = std::format(L"Insufficient disk space. Required: {} bytes. Available: {} bytes.", AddChecked(uiAllocation, uiReserve), available.QuadPart);
-		MessageBoxW(nullptr, message.c_str(), L"DataPacker - Insufficient Disk Space", MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
-		throw std::runtime_error("Insufficient disk space to materialize worktree output");
-	}
-	uint64_t uiProjected = available.QuadPart - uiAllocation;
-	uint64_t uiWarning = (std::max)(10ull << 30, AddChecked(MultiplyChecked(total.QuadPart, 10), 99) / 100);
-	if (uiProjected < uiWarning)
-	{
-		std::string message = std::format("Copy-on-write needs approximately {} bytes. Available: {} bytes. Projected remaining: {} bytes.", uiAllocation, available.QuadPart, uiProjected);
-		if (MessageBoxW(nullptr, std::filesystem::path(message).native().c_str(), L"DataPacker - Low Disk Space", MB_OKCANCEL | MB_ICONWARNING | MB_SYSTEMMODAL) != IDOK)
+		const DWORD uiError = GetLastError();
+		diagnostic::Record record
 		{
-			return EnsureLocalResult::kCancelled;
-		}
+			.eSeverity = diagnostic::Severity::kError,
+			.eOperation = diagnostic::Operation::kMaterializeOutput,
+			.title = "Data Packer - std::exception",
+			.message = std::format("GetDiskFreeSpaceExW failed (Win32 {})", uiError),
+			.eButtons = diagnostic::ButtonContract::kOk,
+			.eIcon = diagnostic::ModalIcon::kNone,
+			.sourcePath = rRoot.mSource,
+			.destinationPath = rRoot.mDestination,
+			.uiWin32Error = uiError,
+		};
+		diagnostic::Report(record);
+		throw diagnostic::AlreadyReportedError(record.message);
+	}
+	diagnostic::DiskSpaceDecision eDiskSpaceDecision = diagnostic::ReportMaterializationDiskSpace(uiAllocation, available.QuadPart, total.QuadPart, rRoot.mSource, rRoot.mDestination);
+	if (eDiskSpaceDecision == diagnostic::DiskSpaceDecision::kFailed)
+	{
+		throw diagnostic::AlreadyReportedError("Insufficient disk space to materialize worktree output");
+	}
+	if (eDiskSpaceDecision == diagnostic::DiskSpaceDecision::kCancelled)
+	{
+		return EnsureLocalResult::kCancelled;
 	}
 	std::filesystem::path staging;
 	for (uint32_t uiAttempt = 0; uiAttempt <= 15; ++uiAttempt)

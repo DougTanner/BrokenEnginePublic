@@ -40,6 +40,10 @@ Separate "spawn with defaults" from "restore transferred state" so no live value
 - A missile past its ramp crossing a boundary keeps full turn authority (no fresh ramp, no fresh RNG draw for the delay on the transfer path).
 - A frozen spaceship bounced across a boundary arrives still frozen with its `fDeltaRotation` preserved.
 
+## Coordination
+
+- Frame version/save/replay batch with `Documents/Plans/Frame/PlayerTransferUuidPreservation.md`, `Documents/Plans/Frame/MissileLifetimeAndTargetLifecycle.md`, `Documents/Plans/Frame/BlasterWindTrailTransferParams.md`, `Documents/Plans/Frame/FireCooldownNegativeFloor.md`: co-land behind one consolidated `Frame::kiVersion` change and one save/replay invalidation; the last lander owns the bump.
+
 ## Notes
 
 - **Invariant exposure: high.** All sites are inside the `/fp:strict` CRC'd tick. Removing the transfer-path RNG draw (missile delay re-roll) changes the deterministic RNG stream; adding spaceship `TransferData` fields changes the StatusChange wire/save payload layout → bump the affected collection `kiVersion`s (propagates to `Frame::kiVersion`, invalidating saves/replays). Client and server land together.

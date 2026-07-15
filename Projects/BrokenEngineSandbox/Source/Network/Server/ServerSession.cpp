@@ -269,7 +269,10 @@ void ServerSession::ParseReceivedGamePackets()
 				case GamePacketType::kClientSaveRequest:
 				{
 					LOG(kDefault, kDebug, "ServerSession::kClientSaveRequest Client: {}", rPacket.iClientId);
-					gpGame->mGameSaveLoad.ServerSave();
+					if (!gpGame->mGameSaveLoad.ServerSave())
+					{
+						LOG(kDefault, kWarning, "ServerSession::kClientSaveRequest ServerSave failed");
+					}
 					break;
 				}
 				case GamePacketType::kClientLoadRequest:

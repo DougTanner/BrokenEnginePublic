@@ -39,6 +39,7 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportShader.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportTexture.cpp" />
     <ClCompile Include="..\..\Source\Attribution.cpp" />
+    <ClCompile Include="..\..\Source\DiagnosticReporter.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\Island\BakeIslandIntermediates.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\Island\BakeRoute.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\Island\ProcessBakedRegion.cpp" />
@@ -97,6 +98,7 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportShader.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportTexture.h" />
     <ClInclude Include="..\..\Source\Attribution.h" />
+    <ClInclude Include="..\..\Source\DiagnosticReporter.h" />
     <ClInclude Include="..\..\Source\ExportJobs\Island\BakeIslandIntermediates.h" />
     <ClInclude Include="..\..\Source\ExportJobs\Island\BakeIslandIntermediatesInternal.h" />
     <ClInclude Include="..\..\Source\FileManager.h" />

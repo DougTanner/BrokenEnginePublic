@@ -1,5 +1,6 @@
 #include "Attribution.h"
 
+#include "DiagnosticReporter.h"
 #include "FileManager.h"
 
 namespace attribution
@@ -191,7 +192,7 @@ void CopyThirdPartyLicenses(bool bRecomputed)
 	}
 	if (gpFileManager->EnsureLocal(FileManager::OutputRoot::kAttribution) == FileManager::EnsureLocalResult::kCancelled)
 	{
-		throw std::runtime_error("Attribution materialization cancelled");
+		throw diagnostic::AlreadyReportedError("Attribution materialization cancelled");
 	}
 	std::vector<std::pair<std::filesystem::path, SourceIdentity>> currentInventory;
 	for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(thirdPartyDirectory))

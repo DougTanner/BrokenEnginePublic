@@ -42,15 +42,15 @@ void GameSaveLoad::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 	}
 }
 
-void GameSaveLoad::ServerSave()
+bool GameSaveLoad::ServerSave()
 {
-	ServerSave(mrGameBase.QuicksaveFile());
+	return ServerSave(mrGameBase.QuicksaveFile());
 }
 
-void GameSaveLoad::ServerSave(const std::filesystem::path& rFilename)
+bool GameSaveLoad::ServerSave(const std::filesystem::path& rFilename)
 {
 	ScopedSuppressAllocationTracking suppress;
-	WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, rFilename, game::gpGame->mClientGridCoord);
+	return WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, rFilename, game::gpGame->mClientGridCoord);
 }
 
 bool GameSaveLoad::ServerLoad()
@@ -301,7 +301,11 @@ void GameSaveLoad::SyncReplayTick()
 			mrGameBase.mGameFlags.Clear(engine::GameFlags::kSaveReplay);
 			mReplayReaders.clear();
 
-			WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.grid"), game::gpGame->mClientGridCoord);
+			if (!WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.grid"), game::gpGame->mClientGridCoord))
+			{
+				LOG(kDefault, kError, "Replay grid write failed; recording not started");
+				return;
+			}
 
 			for (const auto& [rCoord, rFrames] : mrGameBase.mCoordFrames)
 			{
@@ -319,7 +323,7 @@ void GameSaveLoad::SyncReplayTick()
 			mrGameBase.mGameFlags.Clear(engine::GameFlags::kSaveReplay);
 
 			// Write manifest listing all recorded coords
-			static_cast<void>(engine::gpFileManager->WriteFileAtomically({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.manifest"), [&](std::fstream& rManifestStream)
+			bool bReplayWritten = engine::gpFileManager->WriteFileAtomically({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.manifest"), [&](std::fstream& rManifestStream)
 			{
 				common::Write(rManifestStream, kiReplayManifestVersion);
 
@@ -340,12 +344,13 @@ void GameSaveLoad::SyncReplayTick()
 					engine::GridCoord coord = engine::GridCoord::FromKey(uiKey);
 					coord.Write(rManifestStream);
 				}
-			}));
+			});
 
 			for (auto& [rCoord, rpWriter] : mReplayWriters)
 			{
 				std::filesystem::path coordReplayPath = std::filesystem::path("F7.replay." + std::to_string(rCoord.ToKey()));
-				rpWriter->Save({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite, engine::FileFlags::kBackup}, coordReplayPath, mrGameBase.CurrentFrame(rCoord));
+				const bool bWriterSaved = rpWriter->Save({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite, engine::FileFlags::kBackup}, coordReplayPath, mrGameBase.CurrentFrame(rCoord));
+				bReplayWritten = bWriterSaved && bReplayWritten;
 			}
 
 			mReplayWriters.clear();
@@ -356,9 +361,17 @@ void GameSaveLoad::SyncReplayTick()
 				.iClientPlayerIdValue = game::gpGame->ClientPlayerId().iValue,
 				.fPreviousClientArmor = game::gpGame->PreviousClientArmor(),
 			};
-			engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.meta"), meta);
+			const bool bMetadataWritten = engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.meta"), meta);
+			bReplayWritten = bMetadataWritten && bReplayWritten;
 
-			LOG(kDefault, kDebug, "Recording stopped");
+			if (bReplayWritten)
+			{
+				LOG(kDefault, kDebug, "Recording stopped");
+			}
+			else
+			{
+				LOG(kDefault, kError, "Replay persistence failed; recording stopped without a complete replay");
+			}
 			return;
 		}
 
@@ -402,7 +415,7 @@ void GameSaveLoad::SyncReplayTick()
 	}
 }
 
-void GameSaveLoad::WriteGrid(const engine::FileFlags_t& rFlags, const std::filesystem::path& rFilename, engine::GridCoord clientGridCoord)
+bool GameSaveLoad::WriteGrid(const engine::FileFlags_t& rFlags, const std::filesystem::path& rFilename, engine::GridCoord clientGridCoord)
 {
 	int64_t iFrameCount = static_cast<int64_t>(mrGameBase.mCoordFrames.size());
 	int64_t iVersion = game::Frame::kiVersion;
@@ -437,6 +450,7 @@ void GameSaveLoad::WriteGrid(const engine::FileFlags_t& rFlags, const std::files
 	});
 
 	LOG(kDefault, kDebug, "WriteGrid {} iVersion: {} iFrameCount: {} Committed: {}", rFilename, iVersion, iFrameCount, bWritten);
+	return bWritten;
 }
 
 bool GameSaveLoad::ReadGrid(const engine::FileFlags_t& rFlags, const std::filesystem::path& rFilename, engine::GridCoord& rClientGridCoord)

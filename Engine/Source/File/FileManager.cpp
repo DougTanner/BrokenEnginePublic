@@ -120,7 +120,16 @@ void FileManager::BackupExistingFile(const FileFlags_t& rFlags, const std::files
 	ASSERT((rFlags & kWrite) != 0);
 
 	std::filesystem::path file = GetFilePath(rFlags, rFilename);
-	if (!std::filesystem::exists(file))
+	std::error_code existsErrorCode;
+	const bool bExists = std::filesystem::exists(file, existsErrorCode);
+	if (existsErrorCode)
+	{
+		// OS trust boundary (permissions, unavailable media): the atomic write of the main file is unaffected, so continue without the backup
+		LOG(kLoading, kError, "Backup status query for \"{}\" failed: {}", file, existsErrorCode.value());
+		DEBUG_BREAK();
+		return;
+	}
+	if (!bExists)
 	{
 		return;
 	}

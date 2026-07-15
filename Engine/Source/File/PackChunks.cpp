@@ -831,6 +831,8 @@ void PackChunks::DecommitChunkRange(common::crc_t crc, uint64_t uiOffset, uint64
 	uintptr_t uiAlignedEnd = common::RoundDown(uiRangeEnd, static_cast<uintptr_t>(miPageSize));
 	if (uiAlignedEnd > uiAlignedStart)
 	{
+		// MEM_RELEASE would discard the pool reservation that RecommitAndReloadChunkRange recommits at this address.
+#pragma warning(suppress: 6250) // Intentional MEM_DECOMMIT; retaining the lazy-pool reservation is required.
 		VirtualFree(reinterpret_cast<void*>(uiAlignedStart), static_cast<SIZE_T>(uiAlignedEnd - uiAlignedStart), MEM_DECOMMIT);
 	}
 }

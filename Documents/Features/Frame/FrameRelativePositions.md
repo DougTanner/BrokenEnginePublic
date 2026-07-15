@@ -123,7 +123,7 @@ The server-only GDI monitor (`Source/Server/`) is the one position consumer with
 
 ## Execution notes
 
-- Effort is Architectural: suggest slicing step 2 of the code-change process as (a) sim-side items 1-4 + 9, (b) client render/camera/audio items 5-8 — disjoint file sets except `Frame.h`.
+- Effort is Architectural: during **Implement and propagate**, suggest disjoint slices of (a) sim-side items 1-4 + 9 and (b) client render/camera/audio items 5-8 — disjoint file sets except `Frame.h`.
 - The old sketch's `.txt` (deleted by this rewrite) undercounted the blast radius and predates the `FrameElevation` purity refactor, the `ServerTransferManager` split, and the Players/Spaceships file splits — do not consult stale copies.
 
 ## Out of scope

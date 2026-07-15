@@ -485,9 +485,8 @@ void ImGuiManager::Prepare(int64_t iFramebuffer)
 		ImGuiIO& rIo = ImGui::GetIO();
 
 		// (d) Physical cursor poll: unless a synthetic pin owns io.MousePos, park it at ImGui's no-mouse sentinel.
-		// Suppression implies an --agent-port kbAgent client, where Main.cpp constructs gpAgentInput before the window, so
-		// it is always non-null here.
-		if (!gpAgentInput->ImGuiMousePosPinned())
+		// Missing agent input must also suppress the physical cursor rather than dereference a nullable startup global.
+		if (gpAgentInput == nullptr || !gpAgentInput->ImGuiMousePosPinned())
 		{
 			rIo.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
 		}

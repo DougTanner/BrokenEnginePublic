@@ -25,6 +25,10 @@ Source: /external-architecture-review on Engine/Source (recursive). The highest-
 - `Collection.h` file-size reduction (649-line header — separate `/reduce-file` concern)
 - Any change to CRC computation or serialization order
 
+## Coordination
+
+- Never interleave with the live frame-collection series `Documents/Plans/Frame/Architecture_CollectionHelperDedup.md`, `Documents/Plans/Frame/Architecture_PhaseHookOptIn.md`, `Documents/Plans/Frame/CollectionReadIndexHardening.md`, `Documents/Plans/Frame/CollectionDeserializationHardening.md`, `Documents/Plans/Frame/Refactor_CollectionHeadersQuickWins.md`; each later landing must refresh shared collection-header/TU citations.
+
 ## Notes
 - Invariant exposure: HIGH — this touches the cross-frame copy machinery on the CRC'd sim path. Every migration must be byte-identical: same members copied, same order, same widths. The exact-capacity vs reuse-if-large-enough distinction between `AllocateCore` (CollectionMemory.h:181-223) and `AllocateAndAssign` (:116-138) is CRC-mandated (`iCapacity` is CRC'd) — do not unify. Requires client/server cross-build parity check and a replay/CRC soak after landing
 - The eight engine collections listed are all `#if defined(BT_CLIENT)`-only (no `SharedMembers()`, no CRC participation), but the helpers land in the shared `Collection.h`/`CollectionMemory.h` templates that game-layer CRC'd collections also use — the HIGH rating reflects the shared machinery, not the engine leaves

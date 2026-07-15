@@ -20,6 +20,10 @@ Source: /external-architecture-review on Engine/Source (recursive). The Render/ 
 - GPU dispatch windowing (`Graphics/WindowedLightingShadowDispatch.md` — adjacent but distinct: that plan gates dispatch, this one dedups CPU population math)
 - The Gerstner bank recompute and other per-file quick wins (`Graphics/Refactor_RenderUniformsQuickWins.md`)
 
+## Coordination
+
+- `Documents/Plans/Graphics/WindowedLightingShadowDispatch.md`: never interleave the shared GlobalUniforms shadow-region edits; land sequentially with citation refresh.
+
 ## Notes
 - Invariant exposure: client/graphics-only, render-path CPU math; no determinism/CRC/wire. Behavior-preserving extraction — the helper must reproduce each site's exact float sequence (values are visible as shadow/lighting crop windows; a texel of drift shows as edge shimmer). `WindowedLightingShadowDispatch` cites both files — land after it or refresh its citations; never interleave
 - Grill decision: helper home (Render.h vs new header) — trivial; and whether the floor-vs-ceil tile divergence is deliberate (ask before unifying)

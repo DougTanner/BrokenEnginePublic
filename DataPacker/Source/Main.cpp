@@ -1,3 +1,4 @@
+#include "DiagnosticReporter.h"
 #include "FileManager.h"
 
 #include "Attribution.h"
@@ -14,8 +15,6 @@
 #include "ExportJobs/Texture/MigrateLegacyIntermediates.h"
 #include "ExportJobs/Texture/RdoSweep.h"
 #include "ExportJobs/Texture/Texture.h"
-
-void Quit(const char* message, const char* title);
 
 struct DataTypeEntry
 {
@@ -45,7 +44,7 @@ static void WriteIfChanged(const std::string& rContent, const std::filesystem::p
 	{
 		if (gpFileManager->EnsureLocal(FileManager::OutputRoot::kData) == FileManager::EnsureLocalResult::kCancelled)
 		{
-			throw std::runtime_error("Output materialization cancelled");
+			throw diagnostic::AlreadyReportedError("Output materialization cancelled");
 		}
 		std::fstream stream(rPath, std::ios::out | std::ios::binary);
 		stream << rContent;
@@ -137,7 +136,7 @@ bool RunExportJobs()
 	}
 	if (gpFileManager->EnsureLocal(FileManager::OutputRoot::kData) == FileManager::EnsureLocalResult::kCancelled)
 	{
-		throw std::runtime_error("Output materialization cancelled");
+		throw diagnostic::AlreadyReportedError("Output materialization cancelled");
 	}
 
 	LOG(kDefault, kDebug, "\"{}\" is dirty, running export", T::kName);
@@ -194,7 +193,8 @@ bool RunExportJobs()
 	temporaryHeaderFile /= T::kName;
 	temporaryHeaderFile += ".h";
 
-	std::vector<std::string> failureMessages;
+	std::vector<diagnostic::ExportFailure> failures;
+	failures.reserve(exportJobs.size() + 1);
 	for (std::unique_ptr<T>& rpExportJob : exportJobs)
 	{
 		try
@@ -214,37 +214,34 @@ bool RunExportJobs()
 		}
 		catch (const std::exception& rException)
 		{
-			LOG(kDefault, kError, "Exception thrown from future: \"{}\"", rException.what());
-			failureMessages.emplace_back(std::format("Asset: {}\n\n{}", rpExportJob->mInputPath.string(), rException.what()));
+			failures.push_back({.assetPath = rpExportJob->mInputPath, .message = rException.what()});
 		}
 	}
 
 	temporaryManifestFileStream.close();
 	temporaryPackFileStream.close();
 
-	// Trust boundary: a disk-full / IO failure during the writes above sets badbit but leaves failureMessages
+	// Trust boundary: a disk-full / IO failure during the writes above sets badbit but leaves failures
 	// empty, so without this check the success path would rename truncated manifest/pack output over the good files.
 	if (!temporaryManifestFileStream.good() || !temporaryPackFileStream.good())
 	{
-		failureMessages.emplace_back(std::format("Stream write failed for \"{}\" manifest/pack output", T::kName));
+		failures.push_back({.message = std::format("Stream write failed for \"{}\" manifest/pack output", T::kName)});
 	}
 
-	bool bFailed = !failureMessages.empty();
+	bool bFailed = !failures.empty();
 	if (bFailed)
 	{
-		LOG(kDefault, kError, "\n\n\nFAILED\n\n\n");
-
-		// Defer to a single MessageBox so multi-failure runs don't stack modal dialogs.
-		std::string combined;
-		for (size_t i = 0; i < failureMessages.size(); ++i)
+		diagnostic::Record record
 		{
-			if (i > 0)
-			{
-				combined.append("\n\n");
-			}
-			combined.append(failureMessages.at(i));
-		}
-		Quit(combined.c_str(), "Data Packer - Export Failed");
+			.eSeverity = diagnostic::Severity::kError,
+			.eOperation = diagnostic::Operation::kExportJobs,
+			.title = "Data Packer - Export Failed",
+			.message = "One or more export jobs failed",
+			.eButtons = diagnostic::ButtonContract::kOk,
+			.eIcon = diagnostic::ModalIcon::kNone,
+			.exportFailures = std::move(failures),
+		};
+		diagnostic::Report(record);
 
 		std::filesystem::remove(temporaryManifestFile);
 		std::filesystem::remove(temporaryPackFile);
@@ -373,12 +370,6 @@ bool MainThread(int argc, char* argv[])
 	return bSuccess;
 }
 
-void Quit(const char* message, const char* title)
-{
-	fflush(stdout);
-	MessageBox(nullptr, message, title, MB_OK | MB_SYSTEMMODAL);
-}
-
 int main(int argc, char* argv[])
 {
 	// Prevent multiple instances from running simultaneously
@@ -434,13 +425,35 @@ int main(int argc, char* argv[])
 		{
 			bSuccess = runOnce();
 		}
+		catch (const diagnostic::AlreadyReportedError&)
+		{
+		}
 		catch (const std::exception& rException)
 		{
-			Quit(rException.what(), "Data Packer - std::exception");
+			const std::string message = rException.what()[0] == '\0' ? "Empty std::exception message escaped DataPacker" : rException.what();
+			diagnostic::Record record
+			{
+				.eSeverity = diagnostic::Severity::kError,
+				.eOperation = diagnostic::Operation::kTopLevelStandardException,
+				.title = "Data Packer - std::exception",
+				.message = message,
+				.eButtons = diagnostic::ButtonContract::kOk,
+				.eIcon = diagnostic::ModalIcon::kNone,
+			};
+			diagnostic::Report(record);
 		}
 		catch (...)
 		{
-			Quit("", "Data Packer - Unknown exception");
+			diagnostic::Record record
+			{
+				.eSeverity = diagnostic::Severity::kError,
+				.eOperation = diagnostic::Operation::kTopLevelUnknownException,
+				.title = "Data Packer - Unknown exception",
+				.message = "Unknown non-standard exception escaped DataPacker",
+				.eButtons = diagnostic::ButtonContract::kOk,
+				.eIcon = diagnostic::ModalIcon::kNone,
+			};
+			diagnostic::Report(record);
 		}
 	}
 

@@ -38,6 +38,10 @@ Split out of the retired `WaterFoamAndRefraction.txt` (foam went to `WaterFoam.m
 - Refracting objects *under* the water surface differently from terrain (single scene sample; no depth-aware ray march)
 - HDR intermediate (see Notes)
 
+## Coordination
+
+- `Documents/Features/Graphics/HeatDistortionAndShockwave.txt`: mandatory reciprocal scene-color-copy coordination. Either plan may land first; the first creates the shared `RenderTargetTextures` resource from `gpSwapchainManager->mHdrTexture` (F16, pre-resolve), and the later plan reuses it and verifies both copy points.
+
 ## Notes
 
 - Client-only rendering path; no determinism/CRC exposure.

@@ -25,6 +25,11 @@ The upload thread's per-chunk soft-fail catch (`TextureUploadManager::UploadThre
 - The sim-side consequence of corrupt chunks (silent desync) — `Network/PackIntegrityHandshake.md`.
 - Changing the soft-fail policy itself (zero-filled `kReady` chunks stay; this plan only stops them leaking GPU objects and null views).
 
+## Coordination
+
+- `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
+- `Documents/Plans/Graphics/Managers/Refactor_PipelineManagerSplit.md`: never interleave with its PipelineManager file-shape change; refresh citations after it lands.
+
 ## Notes
 
 - Client/graphics-only; no determinism/CRC/`kiVersion`/wire exposure. Reachable only downstream of a corrupt-chunk soft-fail, so severity is hardening-tier.

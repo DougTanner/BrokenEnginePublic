@@ -91,6 +91,10 @@ Distribute the folded bodies across sibling TUs to respect the 500–1000-line g
 - Every folded method keeps its body byte-for-byte (aside from `this->`-qualification of former `gpClientSession->` self-calls and the removed one-line forwarder).
 - No new file exceeds the 1000-line guideline; the `ClientSession.cpp` fold split keeps each TU under it.
 
+## Coordination
+
+- Never interleave with `Documents/Plans/Network/Refactor_DrainContractUnification.md`, `Documents/Plans/Network/Refactor_ClientResetUnification.md`. The structured chain is SessionBaseCollapse → DrainContractUnification → ClientResetUnification; refresh relocated citations between landings.
+
 ## Notes
 
 - **Sequence**: this is the **first** of three interacting Network refactors. Land it before `Refactor_ClientResetUnification.md` (which needs the reset fields owned by a single class) and before `Refactor_DrainContractUnification.md` (which renames the `Drain*` accessors this plan's receive code calls and has fewer call sites once `ClientDataReceiver.cpp` is removed). Execute the collapse alone; do not co-schedule `Refactor_DrainContractUnification.md`. Sibling plans refresh their `path:line` citations when selected. See Dependencies in `Order.md`.

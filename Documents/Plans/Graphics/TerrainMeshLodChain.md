@@ -54,6 +54,10 @@ DataPacker already links meshoptimizer (`ProcessBakedRegion.cpp` uses `meshopt_o
 - `kGpuTimerTerrain` drops measurably at gameplay heights with bias 0; bias −3 reproduces today's cost and visuals exactly.
 - No shoreline/texture/shadow movement at LOD switches (Z from composite elevation verified in shader unchanged).
 
+## Coordination
+
+- `Documents/Plans/Graphics/IslandMeshArenaResidency.md`: never interleave indirect mesh-layout bookkeeping; this plan's structured dependency requires the resolved arena design first.
+
 ## Notes
 
 - **Invariant exposure:** `.pack` layout change → `DataHeader::kiVersion` bump + `ExportIsland::GetVersion` raw bump (shared with any concurrently-landing `kiVersion` bump). **No CRC/wire/determinism exposure**: the mesh is client-render-only (the server never reads it — `IslandTerrainResidency.cpp` documents the server decommits the mesh slice unread); heightmap, placements, and collision are untouched. Client/graphics + DataPacker only.

@@ -24,6 +24,10 @@ Source: /external-refactor-clean on Engine/Source (recursive). `CommandBufferRec
 - Gating/windowing of the recorded passes (live plans: `DisabledPassGatingPerfAudit`, `WindowedLightingShadowDispatch`)
 - Any pass reordering or barrier change
 
+## Coordination
+
+- `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
+
 ## Notes
 - Invariant exposure: none — client/graphics-only, record-once command buffers; move-only decomposition. Sequencing: `DisabledPassGatingPerfAudit` and `WindowedLightingShadowDispatch` cite line ranges in both record files (Order.md File Groups) — land this after them or refresh their citations; the `Pipeline.h` touch respects the pipeline-cluster constraint (never interleave with `BindlessSlotLifecycle`)
 - No open decisions — mechanical

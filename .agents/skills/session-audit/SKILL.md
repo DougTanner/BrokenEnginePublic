@@ -1,42 +1,53 @@
 ---
 name: session-audit
 description: >-
-  Final fresh-eyes audit of a logical group of files changed this session (C++
-  Code Change Process step 10) — whole-file coherence, cross-file integration,
-  and the concrete failure modes earlier steps structurally miss
-  (fix-introduced desync, half-applied mirrored edits, doc/code drift from late
-  renames, edits no reviewer ever saw). Invoke after all fix/review/build steps
-  complete; the caller runs two independent instances per file group (one
-  Fable, one Opus) and dedupes. ALSO use when the user asks for a "session
-  audit", a final fresh-eyes pass, or to check everything changed this session
-  as a whole. Findings only — never edits.
-allowed-tools: [Read, Write, Grep, Glob]
+  Conditional final fresh-eyes audit of the complete logical change — whole-file
+  coherence, cross-file integration, and failure modes earlier checks can miss.
+  Invoke after reconciliation only for late semantic fixes, reconciliation
+  edits or invalidated assumptions, Tier-3 cross-file integration, or
+  contract-significant regions no correctness reviewer saw. ALSO use when the
+  user asks for a "session audit" or final fresh-eyes pass. Findings only —
+  never edits.
+allowed-tools: [Read, Write, Grep, Glob, PowerShell]
 ---
 
 # Session Audit
 
-Fresh-eyes lens, not a re-run of the step 4–9 checklists: read each assigned file whole, then check the group's cross-file story against the plan's intent. Findings only; the caller dispatches fixes. A second independent instance of this skill audits the same group in another context — behave identically, don't assume you are the only auditor; the caller dedupes.
+Fresh-eyes lens, not a repeat of correctness review or verification: read the
+complete logical change after reconciliation, then check its whole-file and
+cross-file story against the plan's intent. Findings only; the caller
+dispatches fixes.
+
+Run one audit only when at least one trigger is recorded: late semantic fixes;
+reconciliation edits or an assumption reconciliation invalidated; Tier-3
+cross-file integration; or contract-significant regions unseen by the
+correctness review. Otherwise report that the role is not triggered and stop.
+A second audit is allowed only when the caller records a distinct,
+non-overlapping evidence domain; it must not repeat the same hypotheses or
+checklist coverage for model consensus. Any overlapping file must be necessary
+to the separate evidence domain.
 
 ## Inputs (from caller)
-- One logical file group partitioned by subsystem or plan-step slice; keep code and documentation in separate groups
-- File group (paths) + functions/regions touched this session, attributed per step (at minimum: the step 2–3 set vs later-fix regions); if attribution is missing, treat every touched region as potentially post-review
-- Paths to earlier-step reports plus the indexed residual and focus-area IDs relevant to this file group
+- Complete logical change (all paths), keeping code and documentation lenses distinct within the same audit
+- Functions/regions touched this session, attributed as implementation/propagation, review fixes, conditional-role edits, or reconciliation edits; if attribution is missing, treat every touched region as potentially late
+- The recorded trigger for this audit and, for an optional second audit, its non-overlapping evidence domain
+- Earlier report compact-envelope identities (`REPORT`, `REPORT_SHA256`) plus the indexed residual and focus-area IDs, exact evidence locators, and dependencies relevant to the logical change; invoke `Read-AgentReportSection.ps1` once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) consumption contract
 - The plan document or intent summary
 - For a delegated call, a caller-assigned absolute `ReportPath` under the session worktree's `Temp/AgentReports/`
 
-If invoked directly with no caller briefing, reconstruct the file group and touched regions from the conversation history's edits, and treat the residual list as empty.
+If invoked directly with no caller briefing, reconstruct the complete logical change and touched regions from the conversation history's edits, and treat the residual list as empty.
 
 ## Failure-mode checklist
 
-Earlier steps each see a slice; these surface only when reading the finished whole. Check every item explicitly:
+Earlier roles each see a slice; these surface only when reading the finished whole. Check every item explicitly:
 
-1. **Fix-introduced desync** — a step 4/5/8 fix landed *after* the determinism review. Re-check any post-review edit inside CRC'd state (PostRender members, Update logic, RNG draws, serialization) for float-op ordering, RNG draw-count parity, and correct phase placement.
-2. **Half-applied mirrored edits (backstop)** — steps 3–4 own the full sweep; focus on mirrors touched by post-step-3 fixes, plus one spot-check of the plan's central mirror. One side updated, counterpart missed: client vs server branch, per-collection pattern applied to N−1 of N collections, C++ struct vs shared GLSL header, Spawn vs Transfer vs AllocateAndCopy vs LogDifferences. Grep the sibling sites; don't trust the diff narrative.
-3. **Doc/code drift from late renames** — a step 8 compile fix renamed a symbol after step 6 updated the docs. Grep this session's changed AGENTS.md / plan / diagram text for symbols that no longer exist in the code. If this session created a new directory `AGENTS.md` or `CLAUDE.md`, verify the pair: the `AGENTS.md` has a sibling `CLAUDE.md` containing exactly `@AGENTS.md`, and no `CLAUDE.md` stub was left without its `AGENTS.md`. (No extra scan when the session created neither.)
-4. **Unreviewed late edits** — fixes landed in steps 4–8 (review fixes, style fixes, compile-error fixes) were never themselves reviewed; step 3's propagation edits were (step 4 ran after them). Give diff-of-the-diff attention to everything outside the step 2 + step 3 change set — including any late edit that added or removed a file-wide `BT_CLIENT`/`BT_SERVER` guard (its vcxproj affinity is now stale vs step 7's verification).
+1. **Fix-introduced desync** — a semantic fix landed after determinism review. Re-check any post-review edit inside CRC'd state (PostRender members, Update logic, RNG draws, serialization) for float-op ordering, RNG draw-count parity, and correct phase placement.
+2. **Half-applied mirrored edits (backstop)** — affected-site propagation and correctness review own the full sweep; focus on mirrors touched by later fixes or reconciliation, plus one spot-check of the plan's central mirror. One side updated, counterpart missed: client vs server branch, per-collection pattern applied to N−1 of N collections, C++ struct vs shared GLSL header, Spawn vs Transfer vs AllocateAndCopy vs LogDifferences. Grep the sibling sites; don't trust the diff narrative.
+3. **Doc/code drift from late renames** — a late compile or reconciliation fix renamed a symbol after conditional documentation updates. Grep this session's changed AGENTS.md / plan / diagram text for symbols that no longer exist in the code. If this session created a new directory `AGENTS.md` or `CLAUDE.md`, verify the pair: the `AGENTS.md` has a sibling `CLAUDE.md` containing exactly `@AGENTS.md`, and no `CLAUDE.md` stub was left without its `AGENTS.md`. (No extra scan when the session created neither.)
+4. **Unreviewed late edits** — semantic fixes, conditional-role edits, or reconciliation edits were not seen by the correctness review. Give diff-of-the-diff attention to those regions, including any late edit that added or removed a file-wide `BT_CLIENT`/`BT_SERVER` guard after project-membership verification.
 5. **Whole-file incoherence** — the file no longer reads as one design: logic duplicated between an old and a new path, a helper the session's edits made dead, a comment or ASSERT contradicting the new behavior, a `#include`/guard the edits made unnecessary.
 6. **Residual leakage** — every residual and focus area handed in is either resolved in current code or re-reported; never silently gone.
-7. **False completion** — earlier steps' reports are claims, not evidence: for each fix accepted in step 4/8/9 reports and each residual marked resolved, spot-check the change actually exists in current code.
+7. **False completion** — earlier reports are claims, not evidence: for each accepted fix and each residual marked resolved, spot-check the change actually exists in current code.
 8. **Debris** — diagnostic `LOG`s left at kDebug/kVerbose from iteration, commented-out code, scratch/temp files introduced this session. `Temp/AgentReports/` artifacts conforming to the shared reporting contract are intentional process state, not debris. Changelog-style comments belong to repo-code-review §2d — don't double-report.
 
 ## Output
@@ -47,7 +58,10 @@ write the complete output to `ReportPath`, and return only the compact indexed
 envelope. The caller must read every finding before deduplication and
 classification. With no delegated `ReportPath`, retain inline reporting.
 
-Per finding: `path:line`, failure-mode number, one-line description, fix size (**small** — dispatchable now | **structural** — route to a step 11 plan).
+Per finding: `path:line`, failure-mode number, one-line description, fix size
+(**small** — dispatchable now | **structural** — blocks when it is an in-scope
+acceptance failure; only proven pre-existing or out-of-scope work routes to a
+follow-up plan).
 
 Example:
 > `Projects/BrokenEngineSandbox/Source/Frame/Blasters.cpp:212` — mode 2 — `Spawn()` initializes the new `mChargeTime` member but `Transfer()` does not copy it, so cross-cell transfer leaves it stale — **small**

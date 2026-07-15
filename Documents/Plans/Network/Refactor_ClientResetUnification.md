@@ -86,6 +86,10 @@ Notes on the table:
 - kResync leaves `mpDesyncManager`'s escalation count and the clock/peer untouched (verified against the table); kServerLoad resets the full nine-field clock set.
 - Client build compiles; behavior matches the union table cell-for-cell (aside from the documented clock superset).
 
+## Coordination
+
+- Never interleave with `Documents/Plans/Network/Refactor_SessionBaseCollapse.md`, `Documents/Plans/Network/Refactor_DrainContractUnification.md`. The structured chain is SessionBaseCollapse → DrainContractUnification → ClientResetUnification; refresh relocated citations between landings.
+
 ## Notes
 
 - **Sequence**: land **after** `Refactor_SessionBaseCollapse.md` — that collapse pulls all the reset fields (`mi*` clock, `mSubscriptionQueue`, `mSessionFlags`, coord-frame access) into the single `ClientSession` class, so this plan can group and reset them as members instead of reaching across the base seam. State this dependency in `Order.md`.

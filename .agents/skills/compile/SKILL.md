@@ -40,7 +40,7 @@ Run the bundled sidecar. It enforces the preconditions above, locates Visual Stu
 	-LegacySessionsClosed:$LegacySessionsClosed
 ```
 
-`-WaitSeconds` defaults to 660. Both capability checks run as tracked child processes and require `Output\AgentCli.exe` to be a nonempty ordinary file (not a directory or reparse point), require `--help` to succeed, advertise the current `lock`, `plan`, and `build` command surface, and omit the removed `install` command. Report the returned direct MSBuild status and exact executable path. Do not copy or install the executable elsewhere.
+`-WaitSeconds` defaults to 660. Both capability checks run as tracked child processes and require `Output\AgentCli.exe` to be a nonempty ordinary file (not a directory or reparse point), require `--help` to succeed, advertise `lock`, legacy `plan`, and `build`, and omit the removed `install` command. The pre-build check accepts that baseline surface so maintenance can upgrade an older executable; the post-build check additionally requires the current plan-order command surface. Direct checker invocations remain strict by default. Report the returned direct MSBuild status and exact executable path. Do not copy or install the executable elsewhere.
 
 ## Determine what to build
 
@@ -61,7 +61,7 @@ inline reporting.
 
 DataPacker's mutex coordinates across worktrees and its shared chunks live under `%TEMP%\DataPacker\<Project>`; do not add another PC-global DataPacker lock or a checkout-local cache copy. Gaea raw and split intermediates use the single mutable `%TEMP%\DataPacker\<Project>\Gaea\Islands` cache; source-tree island leaves retain only tracked BC outputs.
 
-**Run every build synchronously in the foreground and stay in-turn until the `AgentCli build` call returns an exit code — only then report. NEVER background a build (`run_in_background`, a `Monitor` watcher, `Start-Job`, or a trailing `&`) and then end your turn to await completion.** A delegated subagent that yields its turn while a build runs is not reliably re-woken when the build finishes, so the workflow stalls half-done — a common failure is ThirdParty completing while the client/server targets are never started — and no result is ever reported. Give each foreground `AgentCli build` call the maximum execution timeout the tool allows so AgentCli's 660-second lock wait cannot be preempted; a cold first build of a fresh worktree can approach that limit. If a call times out with the build still running, **re-invoke the same `AgentCli build` command** — AgentCli serializes per target and its incremental/tlog state continues the same build to completion — rather than backgrounding it. If blocking is genuinely unacceptable, poll the build's own output to completion within the same turn (repeated short reads in a loop) and report only once you hold the final per-target exit code; never hand the wait to a fire-and-forget watcher and stop. Orchestrated worktree game builds never run DataPacker, Gaea, or texture export. Always preserve `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; the bundled VS2026 clang-tidy crashes on this codebase.
+**Run every build synchronously in the foreground and stay in-turn until the `AgentCli build` call returns an exit code — only then report. NEVER background a build (`run_in_background`, a `Monitor` watcher, `Start-Job`, or a trailing `&`) and then end your turn to await completion.** A delegated subagent that yields its turn while a build runs is not reliably re-woken when the build finishes, so the workflow stalls half-done — a common failure is ThirdParty completing while the client/server targets are never started — and no result is ever reported. Give each foreground `AgentCli build` call the maximum execution timeout the tool allows so AgentCli's 660-second lock wait cannot be preempted; a cold first build of a fresh worktree can approach that limit. If a call times out with the build still running, **re-invoke the same `AgentCli build` command** — AgentCli serializes per target and its incremental/tlog state continues the same build to completion — rather than backgrounding it. If blocking is genuinely unacceptable, poll the build's own output to completion within the same turn (repeated short reads in a loop) and report only once you hold the final per-target exit code; never hand the wait to a fire-and-forget watcher and stop. Orchestrated worktree game builds never run DataPacker, Gaea, or texture export. Ordinary builds always preserve `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; the explicit Microsoft PREfast verification mode below is the sole exception to `RunCodeAnalysis=false`. The bundled VS2026 clang-tidy crashes on this codebase.
 
 ## Select runtime data mode
 
@@ -91,6 +91,20 @@ Before Shared compilation, require these ten nonempty headers: `Data.h`, `DataTy
 Local mode may build the worktree Release DataPacker as a standalone compile check, but must never execute it. Before compiling either game target, require the same complete nonempty output set and explicit confirmation that the user prepared it after the current relevant worktree changes. If either check is absent, stop with `Local data is missing or stale; manual worktree DataPacker export required` and do not build, export, or fall back. Actual generation is a separate user-controlled action outside this skill.
 
 Snapshot the primary required-file set before Local work and recheck it after each game build; any primary write fails the workflow. After the last game build, snapshot the complete selected Local output for the harness. Never copy worktree DataPacker/data source changes into `$PRIMARY` to test them.
+
+## Explicit Microsoft PREfast verification mode
+
+Use this mode only when an approved plan explicitly requires Microsoft PREfast verification. Retain every ordinary game-build protection above: the live wrapper claim, immutable prebuilt AgentCli, worktree provisioning and lifecycle validation, AgentCli target serialization, synchronous foreground execution, data-mode selection, canonical `@DataProperties`, complete-data checks, and selected/primary identity snapshots. Do not invoke MSBuild or `/analyze` outside AgentCli.
+
+Force Clang-Tidy off and Microsoft code analysis on only for the Release target commands below. Do not override the projects' warnings-as-errors settings:
+
+```powershell
+# BrokenEngineSandbox client Release PREfast, then server Release PREfast.
+& $AgentCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln" '/p:Configuration=Release' '/p:Platform=x64' @DataProperties '/p:EnableClangTidyCodeAnalysis=false' '/p:EnableMicrosoftCodeAnalysis=true' '/p:RunCodeAnalysis=true' '/verbosity:minimal'
+& $AgentCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln" '/p:Configuration=Release' '/p:Platform=x64' @DataProperties '/p:EnableClangTidyCodeAnalysis=false' '/p:EnableMicrosoftCodeAnalysis=true' '/p:RunCodeAnalysis=true' '/verbosity:minimal'
+```
+
+Outside this explicitly authorized mode, keep `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; never infer PREfast authorization from a routine compile, rebuild, or link-error check.
 
 ## Full-build commands
 

@@ -63,14 +63,17 @@ common::LogCategory ParseLogCategory(std::string_view name)
 template <typename BUFFER>
 void CollectLogLines(const BUFFER& rBuffer, int64_t iCount, bool bPattern, const std::regex& rPattern, nlohmann::json& rLines)
 {
-	const char* pLines[BUFFER::kiLineCount];
+	_Analysis_assume_(iCount >= 0);
+	const char* pLines[BUFFER::kiLineCount] {};
 	int64_t iScan = bPattern ? BUFFER::kiLineCount : iCount;
 	int64_t iFilled = rBuffer.Tail(pLines, iScan);
+	_Analysis_assume_(iFilled >= 0 && iFilled <= BUFFER::kiLineCount);
 
-	const char* pMatching[BUFFER::kiLineCount];
+	const char* pMatching[BUFFER::kiLineCount] {};
 	int64_t iMatchCount = 0;
 	for (int64_t i = 0; i < iFilled; ++i)
 	{
+		_Analysis_assume_(pLines[i] != nullptr);
 		if (!bPattern || std::regex_search(pLines[i], rPattern))
 		{
 			pMatching[iMatchCount++] = pLines[i];
@@ -78,8 +81,10 @@ void CollectLogLines(const BUFFER& rBuffer, int64_t iCount, bool bPattern, const
 	}
 
 	int64_t iStart = std::max<int64_t>(0, iMatchCount - iCount);
+	_Analysis_assume_(iStart >= 0 && iStart <= iMatchCount && iMatchCount <= BUFFER::kiLineCount);
 	for (int64_t i = iStart; i < iMatchCount; ++i)
 	{
+		_Analysis_assume_(pMatching[i] != nullptr);
 		std::string_view line(pMatching[i]);
 		if (!line.empty() && line.back() == '\n')
 		{
