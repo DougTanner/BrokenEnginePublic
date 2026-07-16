@@ -34,8 +34,8 @@ Mode: fix
   - Verification: heading and body now name the same two overlap families.
 
 - Terra F002: FIXED
-  - Root cause: the PowerShell plan's Context/Design/Acceptance required a `Read-AgentCliLedger` edit, but Critical files named only `Get-AgentCliRepositoryIdentity`.
-  - Change: added `Read-AgentCliLedger` alongside `Get-AgentCliRepositoryIdentity` at `Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:19`.
+  - Root cause: the PowerShell plan's Context/Design/Acceptance required a `Read-WorktreeCliLedger` edit, but Critical files named only `Get-WorktreeCliRepositoryIdentity`.
+  - Change: added `Read-WorktreeCliLedger` alongside `Get-WorktreeCliRepositoryIdentity` at `Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:19`.
   - Verification: both required module interfaces are now in the Critical-files scope; row/score unchanged.
 
 ### Files Changed and Regions Touched
@@ -49,7 +49,7 @@ No code files changed.
 
 ### Queue Coordination
 
-- Revalidated the exact rows, live plans, accepted stale strings, out-of-scope file hashes, and selected-plan claim under the canonical AgentCli Plans queue lock.
+- Revalidated the exact rows, live plans, accepted stale strings, out-of-scope file hashes, and selected-plan claim under the canonical WorktreeCli Plans queue lock.
 - All mutations occurred while owner `<GUID>` held the queue lock.
 - Unlock exited 0; final queue status is `{"held":false}`.
 - Selected row claim remains owned by `<GUID>`, session `next-plan`, in this worktree. No unclaim or steal occurred.

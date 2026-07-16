@@ -180,7 +180,7 @@
     <ClInclude Include="..\..\Source\Network\Server\ServerFleetManager.h">
       <Filter>Game\Network\Server</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Network\Server\ServerFleetManagerUtils.h">
+    <ClInclude Include="..\..\Source\Network\Server\ServerFleetSerialization.h">
       <Filter>Game\Network\Server</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Network\Server\FleetNavigationController.h">
@@ -551,7 +551,7 @@
     <ClCompile Include="..\..\Source\Network\Server\ServerFleetManager.cpp">
       <Filter>Game\Network\Server</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Network\Server\ServerFleetManagerUtils.cpp">
+    <ClCompile Include="..\..\Source\Network\Server\ServerFleetSerialization.cpp">
       <Filter>Game\Network\Server</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Network\Server\FleetNavigationController.cpp">

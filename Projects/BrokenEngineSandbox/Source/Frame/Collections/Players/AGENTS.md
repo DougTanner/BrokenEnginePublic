@@ -15,4 +15,4 @@ Player spaceships (one flagship + follower wingmen, all AI-driven). Uses `Collec
 - **AreaDamage no-op**: `PlayersPostRender::AreaDamage` is intentional — players take damage only from direct PostCollision hits, never splash.
 
 ## See Also
-- Parent collections: [../AGENTS.md](../AGENTS.md) (SOA, `Collection<T>`, PreCollision thread_local pattern, arrival grace, pending-tick countdown)
+- Parent collections: `../AGENTS.md` (SOA, `Collection<T>`, PreCollision thread_local pattern, arrival grace, pending-tick countdown)

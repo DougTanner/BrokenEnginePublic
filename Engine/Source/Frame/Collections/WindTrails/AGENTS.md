@@ -11,5 +11,5 @@ Directional wind-deposit quads: each trail emits one flat XY quad per rendered f
 - Whole pipeline early-outs when the wind setting is disabled; `ResetRenderState()` clears cached previous positions on world reset.
 
 ## See Also
-- [../AGENTS.md](../AGENTS.md) - Collection framework, Sync pattern, render-only previous-position statics, GPU three-phase render
-- [../WindRadials/AGENTS.md](../WindRadials/AGENTS.md) - Stationary sibling; same deposit shader and ping-pong scheme
+- `../AGENTS.md` - Collection framework, Sync pattern, render-only previous-position statics, GPU three-phase render
+- `../WindRadials/AGENTS.md` - Stationary sibling; same deposit shader and ping-pong scheme

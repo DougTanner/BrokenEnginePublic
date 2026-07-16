@@ -17,7 +17,7 @@ The assigned completion cleanup is correct and has no session-attributable findi
 - Read prior final-tree verification report `Temp/AgentReports/<GUID>-verify-changes.md` in full. It records PASS across V001-V014 with no unresolved finding, plan delta, or residual.
 - Compared the assigned group to fixed baseline `ca6f005addca80e8273cc7732e436fe351c1f71c`. `Order.md` removes exactly two lines: the completed priority row and the DataPacker File Groups entry that would otherwise name only `DataPacker/Refactor_ShaderDependencyCacheSplit.md`. The 53-line completed plan file is deleted. No other queue line changed.
 - Confirmed all eight implementation/project/documentation files retained the exact blob identities recorded by the passing final verifier. `DiagnosticReporter.{h,cpp}` still exist; `MessageBoxW` has one DataPacker source owner; the reporter schema, monotonic linked-worktree mark, and proof-point call remain present.
-- Caller supplied queue-lock ownership/release as process evidence. This file-backed session audit did not re-query AgentCli coordination state.
+- Caller supplied queue-lock ownership/release as process evidence. This file-backed session audit did not re-query WorktreeCli coordination state.
 
 ## Assigned cleanup findings
 

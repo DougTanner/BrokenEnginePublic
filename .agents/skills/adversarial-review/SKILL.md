@@ -22,24 +22,15 @@ applies.
 
 ## Inputs (from caller)
 
-Implementation/affected-code report compact-envelope identities (`REPORT`,
-`REPORT_SHA256`) plus indexed changed-region, residual, and focus-area IDs,
-exact evidence locators, and dependencies; the plan document or intent summary;
-the approved risk tier and concrete Tier-3 triggers, or the exact unresolved
-failure hypothesis that authorized this review; and `ReportPath` when delegated.
-Invoke `Read-AgentReportSection.ps1` once per
-exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md)
-consumption contract rather than requiring pasted full reports. If invoked
-directly with no briefing, reconstruct the change set from conversation history.
+Implementation handoff with changed regions, residuals, and focus areas; the
+plan document or intent summary; and the approved risk tier and concrete Tier-3
+trigger or exact unresolved failure hypothesis. If invoked directly with no
+briefing, reconstruct the change set from conversation history.
 
 ## Reporting Mode
 
-When delegated, require `ReportPath` and follow
-[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
-review in the existing Output schema, verify it, and return only the compact
-envelope. Index every finding, API-verification request, and residual. A missing
-or unwritable delegated report blocks the review. A direct invocation without
-`ReportPath` keeps the existing full inline output.
+Return the bounded falsification result inline. It is not a final-evidence
+gate.
 
 ## Method
 

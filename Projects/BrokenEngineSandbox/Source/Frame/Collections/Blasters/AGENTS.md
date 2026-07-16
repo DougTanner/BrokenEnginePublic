@@ -19,4 +19,4 @@ Player-fired blasters are created during the Spawn phase after collision and fir
 The fire-and-forget muzzle one-shot is emitted at the weapon firing site (Players/Spaceships combat code), not inside `Spawn(SpawnInfo&)` — cross-cell `TransferRequest` re-spawns route through the same overload, and audio there would retrigger the muzzle cue on every cell handoff. (The terrain-impact one-shot, by contrast, fires from `PostCollision` since impacts are not re-spawned.)
 
 ## See Also
-- Parent collections: [../AGENTS.md](../AGENTS.md)
+- Parent collections: `../AGENTS.md`

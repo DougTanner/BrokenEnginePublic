@@ -123,7 +123,7 @@ TextureManager::TextureManager()
 	// Slot-0 island placeholders. Format-matched to the bindless arrays; values chosen so
 	// sampling slot 0 has no visible effect (ocean-bottom elevation submerged below the water,
 	// mid-gray color, up-vector normals, full-bright AO).
-	CreatePlaceholderTexture(mIslandPlaceholderElevation, "IslandPlaceholderElevation", 0, VK_FORMAT_R16_SFLOAT, 1, VK_IMAGE_VIEW_TYPE_2D,
+	CreatePlaceholderTexture(mIslandPlaceholderElevation, "IslandPlaceholderElevation", 0, shaders::keElevationFormat, 1, VK_IMAGE_VIEW_TYPE_2D,
 	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
 	{
 		// Ocean-bottom, matching the elevation RTT clear (RenderTargetTextures.cpp) and the
@@ -756,7 +756,7 @@ void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBar
 		.textureFlags = {},
 		.name = "LightingBlurIntermediate",
 		.flags = 0,
-		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.format = shaders::keCombineFormat,
 		.extent = VkExtent3D {uiWidth, uiHeight, 1},
 		.mipLevels = 1,
 		.arrayLayers = 1,
@@ -774,7 +774,7 @@ void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBar
 		.textureFlags = {},
 		.name = "LightingBlurResult",
 		.flags = 0,
-		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.format = shaders::keCombineFormat,
 		.extent = VkExtent3D {uiWidth, uiHeight, 1},
 		.mipLevels = 1,
 		.arrayLayers = 1,
@@ -814,14 +814,14 @@ void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBar
 
 	// Horizontal pass: source → intermediate
 	rIntermediate.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadWrite);
-	rBlurH.RecordCompute(0, vkCommandBuffer, (uiWidth + 7) / 8, (uiHeight + 7) / 8, 1, {std::bit_cast<float>(iWidth), std::bit_cast<float>(iHeight), fSigma, fPackedW});
+	rBlurH.RecordCompute(0, vkCommandBuffer, (uiWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, (uiHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, 1, {std::bit_cast<float>(iWidth), std::bit_cast<float>(iHeight), fSigma, fPackedW});
 
 	// Transition intermediate: storage write → shader read for V pass sampler
 	rIntermediate.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 
 	// Vertical pass: intermediate → result
 	rResult.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
-	rBlurV.RecordCompute(0, vkCommandBuffer, (uiWidth + 7) / 8, (uiHeight + 7) / 8, 1, {std::bit_cast<float>(iWidth), std::bit_cast<float>(iHeight), fSigma, fPackedW});
+	rBlurV.RecordCompute(0, vkCommandBuffer, (uiWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, (uiHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, 1, {std::bit_cast<float>(iWidth), std::bit_cast<float>(iHeight), fSigma, fPackedW});
 
 	// Transition result back to shader read for bindless sampling
 	rResult.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);

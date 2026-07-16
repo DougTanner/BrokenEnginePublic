@@ -26,4 +26,4 @@ Fully GPU-resident particle system — compute spawn and physics stages plus ins
 
 ## See Also
 
-- [../AGENTS.md](../AGENTS.md) - Shared includes, scalar block layout, bindless texture and descriptor set conventions
+- `../AGENTS.md` - Shared includes, scalar block layout, bindless texture and descriptor set conventions

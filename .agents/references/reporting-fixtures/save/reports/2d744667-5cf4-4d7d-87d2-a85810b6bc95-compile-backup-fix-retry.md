@@ -9,7 +9,7 @@ Plan/intent: Retry BrokenEngineSandbox Debug client and server compilation after
 
 # Overall status
 
-PASS. BrokenEngineSandbox Debug client and server both compiled successfully through foreground serialized AgentCli builds. Both builds rebuilt `Engine/Source/File/FileManager.cpp`, returned exit code 0, emitted no warnings or errors, and left the Shared data identity unchanged.
+PASS. BrokenEngineSandbox Debug client and server both compiled successfully through foreground serialized WorktreeCli builds. Both builds rebuilt `Engine/Source/File/FileManager.cpp`, returned exit code 0, emitted no warnings or errors, and left the Shared data identity unchanged.
 
 # Lifecycle and provisioning
 
@@ -17,8 +17,8 @@ PASS. BrokenEngineSandbox Debug client and server both compiled successfully thr
 - Session worktree: `<WORKTREE>`
 - Paths canonical and distinct: yes
 - Shared Git common directory: `<USER_HOME>/Documents/BrokenEnginePublic/.git`
-- Wrapper AgentCli session owner: `<GUID>`
-- AgentCli executable: `<WORKTREE>\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe`
+- Wrapper WorktreeCli session owner: `<GUID>`
+- WorktreeCli executable: `<WORKTREE>\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe`
 - Direct PowerShell 7 provisioning before compilation: success (`Shared worktree dependencies validated`).
 - Authorized retry property: `/p:PreBuildEventUseInBuild=false`.
 - No tracked infrastructure or source edits were made by this compile task.
@@ -74,14 +74,14 @@ Texture.pack | 1018005952 | 99E220274235A4681F5293650033A1CE5187F0DA9B8DBD9BAD99
 - Status: success
 - Exit code: 0
 - Solution: `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.sln`
-- Invocation: serialized foreground AgentCli build, Debug|x64, Shared data properties, `/p:PreBuildEventUseInBuild=false`, clang-tidy and code analysis disabled, minimal verbosity.
+- Invocation: serialized foreground WorktreeCli build, Debug|x64, Shared data properties, `/p:PreBuildEventUseInBuild=false`, clang-tidy and code analysis disabled, minimal verbosity.
 - Warning lines involving changed files: none.
 - Error lines: none.
 
 Exact build output:
 
 ```text
-AgentCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln
+WorktreeCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln
 MSBuild version 18.7.8+1ac568fee for .NET Framework
 
   FileManager.cpp
@@ -93,14 +93,14 @@ MSBuild version 18.7.8+1ac568fee for .NET Framework
 - Status: success
 - Exit code: 0
 - Solution: `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandboxServer.sln`
-- Invocation: serialized foreground AgentCli build, Debug|x64, Shared data properties, `/p:PreBuildEventUseInBuild=false`, clang-tidy and code analysis disabled, minimal verbosity.
+- Invocation: serialized foreground WorktreeCli build, Debug|x64, Shared data properties, `/p:PreBuildEventUseInBuild=false`, clang-tidy and code analysis disabled, minimal verbosity.
 - Warning lines involving changed files: none.
 - Error lines: none.
 
 Exact build output:
 
 ```text
-AgentCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln
+WorktreeCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln
 MSBuild version 18.7.8+1ac568fee for .NET Framework
 
   FileManager.cpp

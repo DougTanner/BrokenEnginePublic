@@ -19,7 +19,7 @@ Result: NEEDS_ACTION
 
 ### F002 — PowerShell plan's Critical-files interface list omits its required ledger parser edit
 
-`Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:19` — mode 5 — the plan's Context, Design, and Acceptance now correctly require a runtime-selective change in `Read-AgentCliLedger` for `ConvertFrom-Json -DateKind String`, but the Critical-files entry names only `Get-AgentCliRepositoryIdentity`. The same module is in scope, yet the interface-level scope summary remains half-updated and can route implementation/review only to the hash function despite the second independently required edit — **small**. Name both `Get-AgentCliRepositoryIdentity` and `Read-AgentCliLedger` in the module entry.
+`Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:19` — mode 5 — the plan's Context, Design, and Acceptance now correctly require a runtime-selective change in `Read-WorktreeCliLedger` for `ConvertFrom-Json -DateKind String`, but the Critical-files entry names only `Get-WorktreeCliRepositoryIdentity`. The same module is in scope, yet the interface-level scope summary remains half-updated and can route implementation/review only to the hash function despite the second independently required edit — **small**. Name both `Get-WorktreeCliRepositoryIdentity` and `Read-WorktreeCliLedger` in the module entry.
 
 ## Pre-existing residuals
 
@@ -41,7 +41,7 @@ Result: NEEDS_ACTION
 - Resolve residual R001: the stale AgentHarness6 sentence is gone from `Order.md:24`; R001 records the pre-existing body references outside that accepted row-only fix.
 - Mode 1: no assigned CRC/simulation edits; not applicable. Replay plans explicitly preserve sim order/content and version boundaries.
 - Mode 2: parsed 85 executable rows and 2 reference rows against 87 plan/reference files. Missing row files: 0; duplicate rows: 0; label/link mismatches: 0; executable/reference orphans: 0. F001 is the one assigned File Group membership residue.
-- Mode 3: all three new plans and the surviving GameBase plan were read whole; current `SyncReplayTick`, `SaveLoadReplay`, `SyncActiveFrames`, `CurrentFrame`, and `AgentCliSessionExclusion.psm1` support their actionable claims. No AGENTS.md/CLAUDE.md pair was created by this queue group.
+- Mode 3: all three new plans and the surviving GameBase plan were read whole; current `SyncReplayTick`, `SaveLoadReplay`, `SyncActiveFrames`, `CurrentFrame`, and `WorktreeCliSessionExclusion.psm1` support their actionable claims. No AGENTS.md/CLAUDE.md pair was created by this queue group.
 - Mode 4: all late queue fixes, the selected-plan deletion, the GameBase warning removal, and the three new files were read in their final form. No guard/project-affinity work belongs to this group.
 - Mode 5: all three new plans retain required headings and coherent core designs. F001 and F002 are the remaining whole-file coherence issues.
 - Mode 6: follow-up candidates C001-C003 remain as live, scored plans with rows; replay ordering, FileManager overlap, GameSaveLoad overlap, and conditional Network/Server overlap are preserved. R001-R002 are pre-existing global stale references found by the requested stale-reference check.
@@ -52,7 +52,7 @@ Result: NEEDS_ACTION
 ## Stable decision index
 
 - F001 | small | Documents/Plans/Order.md:161 | Remove stale `ImGuiManager.cpp` from the Release File Group heading after its nonexistent overlap was removed.
-- F002 | small | Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:19 | Add `Read-AgentCliLedger` to the Critical-files interface scope alongside `Get-AgentCliRepositoryIdentity`.
+- F002 | small | Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:19 | Add `Read-WorktreeCliLedger` to the Critical-files interface scope alongside `Get-WorktreeCliRepositoryIdentity`.
 - R001 | pre-existing small | Documents/Plans/Network/AgentTransportConcurrentCommands.md:40; Documents/Features/Agent/AgentQueryGlobalState.md:36 | Replace/remove two references to nonexistent AgentHarness6 plan.
 - R002 | pre-existing small | Documents/Plans/Network/ClientDisconnectModalFeedback.md:5 | Restate current disconnect behavior without deleted reconnect-plan provenance.
 

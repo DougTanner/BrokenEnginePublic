@@ -26,7 +26,7 @@ For A/B, weigh: where the fleet-cap fact is authoritatively known, whether respa
 
 ## Critical files
 
-- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerBroadcaster.cpp` — `BuildFrameInputs` mint site (Option B; waiting-spawn loop still at `:32-50`, unaffected so far). NOTE: `Network/DeadMachinerySweep.md` has landed and removed the `mPendingPlayerDestroys` destroy loop from this function; `Agent/AgentHarness3_FrameQueriesAndInjection.md` has landed and added an agent-injection block at `:65-93`; `Network/AuditSweepQuickWins.md` renames `mSpawns`→`mBroadcastStatusChanges` in the same function and has not landed — re-verify all citations in this function against current source before executing.
+- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerBroadcaster.cpp` — `BuildFrameInputs` mint site (Option B; waiting-spawn loop still at `:32-50`, unaffected so far). NOTE: `Network/DeadMachinerySweep.md` has landed and removed the `mPendingPlayerDestroys` destroy loop from this function; `Agent/AgentHarness3_FrameQueriesAndInjection.md` has landed and added an agent-injection block at `:65-93`; the already-landed audit renamed `mSpawns` to `mBroadcastStatusChanges` in the same function — re-verify all citations in this function against current source before executing.
 - `Projects/BrokenEngineSandbox/Source/Network/Server/ServerClientManager.cpp` — `mClientsWaitingForSpawn` enqueue / `QueueSpawnForClient` (Option A); `FinalizeNewClients` owned/authorized recording (`:226-227`).
 - `Projects/BrokenEngineSandbox/Source/Network/Server/ServerFleetManager.cpp` — `OnPlayerSpawned` cap (`:292`, the existing roster bound); `LookupFleetWantedCoord` (fleet-state read for an enqueue-time gate).
 

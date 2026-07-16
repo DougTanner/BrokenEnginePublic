@@ -44,7 +44,7 @@ The approved plan, implementation X001-X005, propagation report, late-fix X001/X
 ## Residuals
 
 - R001 — `Projects/BrokenEngineSandbox/Source/Save/GameSaveLoad.cpp:326` — **structural, already routed to step 11** — replay persistence still lacks a set-level generation commit/invalidation mechanism; a failed manifest write can leave the old manifest loadable beside newly committed coordinate/metadata files, producing a mixed-generation replay.
-- R002 — `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj:155` and server mirror `BrokenEngineSandboxServer.vcxproj:153` — **structural/infrastructure, already routed to step 11** — pre-build uses Windows PowerShell 5.1 while imported `.agents/scripts/AgentCliSessionExclusion.psm1:15` calls `SHA256.HashData`; builds required direct PowerShell 7 provisioning plus disabling the redundant hook.
+- R002 — `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj:155` and server mirror `BrokenEngineSandboxServer.vcxproj:153` — **structural/infrastructure, already routed to step 11** — pre-build uses Windows PowerShell 5.1 while imported `.agents/scripts/WorktreeCliSessionExclusion.psm1:15` calls `SHA256.HashData`; builds required direct PowerShell 7 provisioning plus disabling the redundant hook.
 
 Files changed: none
 Functions/regions touched: none

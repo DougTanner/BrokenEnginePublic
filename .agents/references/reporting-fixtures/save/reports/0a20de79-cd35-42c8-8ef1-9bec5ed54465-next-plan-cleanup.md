@@ -68,7 +68,7 @@ Result: PASS
 - X001 | applied | Documents/Plans/Order.md; Documents/Plans/Save/ServerSaveFailureReporting.md | Removed completed selected row and plan file.
 - X002 | applied | Documents/Plans/Order.md | Retained and corrected GameSaveLoad File Group for three live plans while preserving step-11 queue additions.
 - X003 | applied | Documents/Plans/Engine/Architecture_GameBaseDeadVirtuals.md | Pruned stale selected-plan coordination warning; preserved substantive follow-up context.
-- H001 | handoff | AgentCli row claim | Finalization must retain and later owner-unclaim row token <GUID> only after verified landing.
+- H001 | handoff | WorktreeCli row claim | Finalization must retain and later owner-unclaim row token <GUID> only after verified landing.
 
 ## Residuals
 

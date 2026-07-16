@@ -16,10 +16,10 @@ layout (set = 1, binding = 1) uniform sampler2D historyR;
 layout (set = 1, binding = 2) uniform sampler2D historyG;
 layout (set = 1, binding = 3) uniform sampler2D historyB;
 layout (set = 1, binding = 4) uniform sampler2D historyAmbient;
-layout (set = 1, binding = 5, rgba8) uniform image2D combineImageR;
-layout (set = 1, binding = 6, rgba8) uniform image2D combineImageG;
-layout (set = 1, binding = 7, rgba8) uniform image2D combineImageB;
-layout (set = 1, binding = 8, rgba8) uniform image2D combineImageAmbient;
+layout (set = 1, binding = 5, rgba8) uniform image2D combineImageR; // keCombineFormat
+layout (set = 1, binding = 6, rgba8) uniform image2D combineImageG; // keCombineFormat
+layout (set = 1, binding = 7, rgba8) uniform image2D combineImageB; // keCombineFormat
+layout (set = 1, binding = 8, rgba8) uniform image2D combineImageAmbient; // keCombineFormat
 
 // Temporal accumulation: blend the freshly-combined lighting (in place) with the previous frame's result,
 // reprojected into the current texel grid by world position. While the texel-ramp rescales the grid this

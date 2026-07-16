@@ -570,9 +570,7 @@ void GameBase::Render()
 			// Still deferred (minimized / off-screen): this branch loops every frame with no vkQueuePresentKHR to
 			// throttle it, so pace it to the sim tick's remaining time (game::kTickNs minus this iteration's elapsed
 			// wall time) — the minimized loop holds ~32 Hz instead of busy-spinning a core and re-issuing a
-			// vkGetPhysicalDeviceSurfaceCapabilitiesKHR per spin. Tick-matched, not below: staying AT tick rate keeps
-			// client acks pacing server broadcasts, avoiding the below-tick-rate jitter-estimator inflation
-			// (Network/JitterMeasurementLowFpsSkew.md). Mirrors ServerSessionBase::WaitForTick's high-resolution
+			// vkGetPhysicalDeviceSurfaceCapabilitiesKHR per spin. Mirrors ServerSessionBase::WaitForTick's high-resolution
 			// waitable timer minus its precision spin (nothing minimized needs sub-ms accuracy).
 			if (mMinimizedThrottleTimer == nullptr)
 			{

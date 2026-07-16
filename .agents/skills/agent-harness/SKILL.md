@@ -1,18 +1,18 @@
 ---
 name: agent-harness
-description: Drive the Broken Engine client/server for automated verification — launch the two executables with an agent command channel, then send JSON commands via AgentCli to control the sim, drive the UI, and read back scene/UI/log/screenshot state. Use only for runtime-observable acceptance criteria or when the user asks to run the game, set up a scenario, drive menus/HUD, capture a screenshot, describe the rendered scene, or run replay determinism. ALSO use when a plan's Verification section explicitly asks to launch, drive, query, or screenshot the client or server.
+description: Drive the Broken Engine client/server for automated verification — launch the two executables with an agent command channel, then send JSON commands via AgentHarness to control the sim, drive the UI, and read back scene/UI/log/screenshot state. Use only for runtime-observable acceptance criteria or when the user asks to run the game, set up a scenario, drive menus/HUD, capture a screenshot, describe the rendered scene, or run replay determinism. ALSO use when a plan's Verification section explicitly asks to launch, drive, query, or screenshot the client or server.
 allowed-tools: [PowerShell]
 ---
 
 # Agent Interaction Harness
 
-The harness lets an agent run and control the running game headlessly. Each executable (`--agent-port N`) opens a loopback TCP JSON command channel on `127.0.0.1:N`. AgentCli sends one length-prefixed JSON request and prints the JSON response. The **server** is a headless dev instance of the authoritative sim; the **client** renders and drives the UI. (Production servers are Azure-hosted — a local "Server" is only a dev instance.)
+The harness lets an agent run and control the running game headlessly. Each executable (`--agent-port N`) opens a loopback TCP JSON command channel on `127.0.0.1:N`. AgentHarness sends one length-prefixed JSON request and prints the JSON response. The **server** is a headless dev instance of the authoritative sim; the **client** renders and drives the UI. (Production servers are Azure-hosted — a local "Server" is only a dev instance.)
 
 Convention: **server on port 27100, client on port 27101.** `$ROOT` below is the absolute adopted worktree.
 
 ## Private-LAN firewall (opt-in)
 
-The AgentCli TCP command channels stay on `127.0.0.1` and need no firewall exception. Only use this workflow when a requested scenario explicitly requires a client on another machine or private Wi-Fi to reach the server's all-interface UDP game listener (27015) and discovery listener (27016). Cross-machine launches must omit `--loopback-only`; ordinary same-machine harness runs include it and neither need nor inspect this rule.
+The AgentHarness TCP command channels stay on `127.0.0.1` and need no firewall exception. Only use this workflow when a requested scenario explicitly requires a client on another machine or private Wi-Fi to reach the server's all-interface UDP game listener (27015) and discovery listener (27016). Cross-machine launches must omit `--loopback-only`; ordinary same-machine harness runs include it and neither need nor inspect this rule.
 
 Firewall changes are operator-driven. Never run these blocks automatically, request elevation, disable the firewall or notifications, change a network category, or add an executable-path/Public-profile rule. To opt in, the operator opens an **elevated PowerShell** and runs this exact-name, idempotent install block:
 
@@ -48,37 +48,37 @@ Microsoft generally recommends an app allowance instead of opening a port, but a
 
 References: [firewall allowance risks](https://support.microsoft.com/en-us/windows/security/firewall/risks-of-allowing-apps-through-windows-firewall), [Windows Firewall rule guidance](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules), [`New-NetFirewallRule`](https://learn.microsoft.com/en-us/powershell/module/netsecurity/new-netfirewallrule?view=windowsserver2025-ps), [`Get-NetFirewallRule`](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule?view=windowsserver2025-ps), [`MSFT_NetFirewallRule.EnforcementStatus`](https://learn.microsoft.com/en-us/windows/win32/fwp/wmi/wfascimprov/msft-netfirewallrule), [`MSFT_NetFirewallProfile.AllowLocalFirewallRules`](https://learn.microsoft.com/en-us/windows/win32/fwp/wmi/wfascimprov/msft-netfirewallprofile), and [Developer Mode settings](https://learn.microsoft.com/en-us/windows/advanced-settings/developer-mode).
 
-## AgentCli setup
+## AgentHarness setup
 
-Require the live wrapper-held AgentCli session claim, provision the worktree, then use `$ROOT\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe`. If exclusive maintenance is active, wrapper admission waits up to 660 seconds before the session starts:
+Require the live wrapper-held WorktreeCli session claim, provision the worktree, then use `$ROOT\Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe`. If exclusive maintenance is active, wrapper admission waits up to 660 seconds before the session starts:
 
 ```powershell
-if ([string]::IsNullOrWhiteSpace($env:BROKEN_ENGINE_AGENTCLI_SESSION_OWNER)) { throw 'Live wrapper AgentCli session claim is required.' }
+if ([string]::IsNullOrWhiteSpace($env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER)) { throw 'Live wrapper WorktreeCli session claim is required.' }
 & "$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot $ROOT
 if ($LASTEXITCODE -ne 0) { throw "Worktree provisioning failed: $LASTEXITCODE" }
-$AgentCli = Join-Path $ROOT 'Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe'
-if (-not (Test-Path -LiteralPath $AgentCli -PathType Leaf)) { throw "AgentCli is missing: '$AgentCli'." }
+$AgentHarness = Join-Path $ROOT 'Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe'
+if (-not (Test-Path -LiteralPath $AgentHarness -PathType Leaf)) { throw "AgentHarness is missing: '$AgentHarness'." }
 ```
 
-If the executable is missing, stop. Routine harness work never builds AgentCli or writes through the shared Output link; `/compile` owns the explicitly authorized primary-maintenance workflow.
+If either tool executable is missing, stop. Routine harness work never builds AgentHarness or writes through either shared Output link; `/compile` owns the explicitly authorized primary-maintenance workflow.
 
 ## Claiming the harness (do this first)
 
 Only one session may drive the fixed harness ports. Generate an owner token once, keep it for the entire verification, and claim the unified harness key before launching or sending commands:
 
 ```powershell
-$Owner = & $AgentCli lock token
+$Owner = & $AgentHarness lock token
 $Session = '<short task label>'
-& $AgentCli lock claim --domain harness --key default --owner $Owner --session $Session --worktree $ROOT
+& $AgentHarness lock claim --key default --owner $Owner --session $Session --worktree $ROOT
 $ClaimExit = $LASTEXITCODE
 if ($ClaimExit -eq 2) {
-	& $AgentCli lock status --domain harness --key default
+	& $AgentHarness lock status --key default
 	throw 'Harness is owned by another session'
 }
 if ($ClaimExit -ne 0) { throw "Harness claim failed: $ClaimExit" }
 ```
 
-Report the successful claim metadata verbatim. Hold the claim across rebuild/relaunch cycles. Every socket command must pass `--owner $Owner`; AgentCli refreshes the heartbeat only when that token still owns the harness key. After the first command, compare `lock status` before/after and confirm `heartbeatAt` advanced.
+Report the successful claim metadata verbatim. Hold the claim across rebuild/relaunch cycles. Every socket command must pass `--owner $Owner`; AgentHarness refreshes the heartbeat only when that token still owns the harness key. After the first command, compare `lock status` before/after and confirm `heartbeatAt` advanced.
 
 If claim returns exit code `2`, read `lock status`. A heartbeat older than five minutes is the only stale criterion. A fresh claim is not stealable and its processes must not be disturbed. For a stale claim:
 
@@ -90,8 +90,8 @@ The old-owner `quit` commands may refresh `heartbeatAt`; that is takeover cleanu
 
 ```powershell
 $OldOwner = '<owner from lock status>'
-$Owner = & $AgentCli lock token
-& $AgentCli lock steal --domain harness --key default --expect $OldOwner --owner $Owner --session $Session --worktree $ROOT
+$Owner = & $AgentHarness lock token
+& $AgentHarness lock steal --key default --expect $OldOwner --owner $Owner --session $Session --worktree $ROOT
 if ($LASTEXITCODE -ne 0) { throw 'Harness ownership changed during takeover' }
 ```
 
@@ -99,7 +99,7 @@ At session end, complete this mandatory release checklist:
 
 1. Send `quit` to both executables with `--owner $Owner`; the server autosaves.
 2. Verify `Get-Process BrokenEngineSandbox* -ErrorAction SilentlyContinue` returns nothing. Do this after every crashed, reaped, or abandoned launch attempt too.
-3. Run `& $AgentCli lock release --domain harness --key default --owner $Owner`; report exit code `0` verbatim.
+3. Run `& $AgentHarness lock release --key default --owner $Owner`; report exit code `0` verbatim.
 
 An owner mismatch is a hard stop; never remove coordination state manually.
 
@@ -131,15 +131,15 @@ Bad `--agent-port` (outside `[1,65535]`) aborts startup. A mangled `--windowed` 
 
 Before rebuilding/relinking, **send `quit` to any running instance** (the server autosaves on exit) — a live `.exe` also holds its file locked and blocks the linker. The single-instance mutex is server-only: launching a second server with `--agent-port` set logs a `kError` and exits cleanly instead of popping a modal dialog (a duplicate **client** fails fast on the agent bind). So a stale instance means your new one exits — always `quit` first, or confirm the port is free.
 
-## AgentCli invocation
+## AgentHarness invocation
 
-Use the current-checkout AgentCli and always pass the harness owner. Prefer stdin mode (trailing `-`) to avoid quoting JSON; use forward slashes in JSON Windows paths.
+Use the current-checkout AgentHarness and always pass the harness owner. Prefer stdin mode (trailing `-`) to avoid quoting JSON; use forward slashes in JSON Windows paths.
 
 ```powershell
-'{"cmd":"status"}' | & $AgentCli --owner $Owner --port 27100 -
+'{"cmd":"status"}' | & $AgentHarness --owner $Owner --port 27100 -
 ```
 
-Argument form also works: `& $AgentCli --owner $Owner --port 27100 '{"cmd":"ping"}'`. Optional `--timeout-ms N` (default 15000, max 600000) bounds the response wait; raise it for deferred client commands.
+Argument form also works: `& $AgentHarness --owner $Owner --port 27100 '{"cmd":"ping"}'`. Optional `--timeout-ms N` (default 15000, max 600000) bounds the response wait; raise it for deferred client commands.
 
 **Exit codes:** `0` = response parsed and `"ok":true`; `2` = parsed and `"ok":false` (a command error — read `.error`); `1` = transport/usage failure (connect failed, timeout, malformed args — message on stderr). Always read stdout (the full JSON) regardless of exit code.
 
@@ -223,7 +223,7 @@ params: `{"coord":[x,y](active,required),"count":int [0,256](required),"isFlagsh
 
 ### Client-only
 
-Client input/capture commands are **deferred**: they complete over several frames, and the channel serves one request at a time — a concurrent AgentCli call simply queues and waits (it does not error), so size `--timeout-ms` to cover any command already in flight.
+Client input/capture commands are **deferred**: they complete over several frames, and the channel serves one request at a time — a concurrent AgentHarness call simply queues and waits (it does not error), so size `--timeout-ms` to cover any command already in flight.
 
 **`screenshot`** — capture the live window to a downscaled image.
 params: `{"path"?,"maxWidth"?:1568,"format"?:"jpg"(default)|"png","quality"?:80 [1,100]}`. Default `path` lands in `%LOCALAPPDATA%\Temp\Screenshots\agent_N.jpg`. If the client is minimized, the command restores it with `SW_SHOWNOACTIVATE`, waits for `ExtentSettled()`, captures, then re-minimizes it with `SW_SHOWMINNOACTIVE` before responding. An initially visible client remains visible. **Errors** if `kbScreenshots` is compiled out; an already-visible client fast-fails if swapchain recreation is deferred. `result`: capture info (saved path etc.).
@@ -288,9 +288,9 @@ Only the focused fleet exposes a `members` list; spaceship units carry no id (`g
 
 ## Process verification report
 
-For process verification of runtime-observable acceptance criteria, require a caller-assigned absolute
-`ReportPath` under the session worktree's `Temp/AgentReports/` and follow
-[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
+For process verification of runtime-observable acceptance criteria, return the
+criterion verdicts and decisive observations inline. A final-evidence gate may
+later record the accepted harness result once.
 Run the plan's applicable runtime Verification steps when present; otherwise
 derive the smallest live checks covering only runtime-observable acceptance
 criteria. Static, documentation, project-membership, and compile-only criteria
@@ -315,8 +315,7 @@ Residuals:
 - <failed criterion, setup limitation, or none>
 ```
 
-Write the complete process verification report to `ReportPath`, then return
-only the shared compact indexed envelope. Keep every criterion verdict and
+Return the complete process verification report inline. Keep every criterion verdict and
 blocked requirement in the index. Direct harness use outside delegated process
 verification retains its normal inline command results.
 
@@ -332,7 +331,7 @@ verification retains its normal inline command results.
 - **Focus/injection interleaving:** client focus state is logged — if a scripted action depends on which window/fleet is focused, read `get_logs` (or `describe_ui` `focused` flags) to confirm state before acting.
 - **Replay commands require `kbDebugInput`** — they error on builds without it (on in Debug, off in Profile/Release).
 - **Keep the claim warm during long soaks:** the claim becomes stealable after a five-minute heartbeat gap. Poll `status`/`get_logs` at least every few minutes with `--owner $Owner`. Never leave a background poll loop running beyond the session.
-- **Port in use:** if a command can't connect (AgentCli exit 1, "connect failed"), a prior instance is likely still running and holding the port/mutex. `quit` it (or confirm it exited) before relaunching — a duplicate launch exits itself.
+- **Port in use:** if a command can't connect (AgentHarness exit 1, "connect failed"), a prior instance is likely still running and holding the port/mutex. `quit` it (or confirm it exited) before relaunching — a duplicate launch exits itself.
 
 ## Missing capability? Extend the harness
 

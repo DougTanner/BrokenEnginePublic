@@ -1,6 +1,6 @@
 ---
 name: create-follow-up-plans
-description: Converts proven pre-existing or out-of-scope C++ Code Change Process residuals into concise, evidence-backed follow-up plans under `Documents/Plans/<area>/`, then submits structured AgentCli add/update requests. Do not route an in-scope acceptance failure out of the active change. Also use when asked to queue review findings without duplicating existing plans.
+description: Converts proven pre-existing or out-of-scope C++ Code Change Process residuals into concise, evidence-backed follow-up plans under `Documents/Plans/<area>/`, then submits structured WorktreeCli add/update requests. Do not route an in-scope acceptance failure out of the active change. Also use when asked to queue review findings without duplicating existing plans.
 allowed-tools: [Read, Write, Edit, Glob, Grep, PowerShell]
 ---
 
@@ -12,13 +12,11 @@ Turn eligible proven pre-existing or out-of-scope residuals into executable debt
 
 Require the caller to provide:
 
-- source report compact-envelope identities (`REPORT`, `REPORT_SHA256`) plus stable IDs, exact evidence locators, and dependencies for unresolved findings and residuals, including originating process stage; invoke `Read-AgentReportSection.ps1` once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) consumption contract;
-- supporting evidence and affected symbols/files loaded from those indexed report sections;
+- direct finding/residual evidence, including originating process stage and affected symbols/files;
 - the current plan or intent summary and the acceptance criterion each item prevents;
 - prior reviewer conclusions, user decisions, and related residuals;
 - session changed-file list when overlap with the active change matters.
-- for a delegated call, an absolute caller-assigned `ReportPath` under the session worktree's `Temp/AgentReports/`.
-- a wrapper-created worktree with a live AgentCli session claim; this skill never creates a worktree or initializes an independent exclusion domain.
+- a wrapper-created worktree with a live WorktreeCli session claim; this skill never creates a worktree or initializes an independent exclusion domain.
 
 If a required fact is absent, inspect the repository and originating plan before proceeding. Do not invent evidence or intended behavior. Report items that still cannot be grounded as residuals instead of creating speculative plans.
 
@@ -26,7 +24,7 @@ If a required fact is absent, inspect the repository and originating plan before
 
 ### 1. Load planning rules
 
-Read `Documents/AGENTS.md` and `Documents/Plans/AGENTS.md` completely. Follow their current plan shape, scoring anchors, structured dependency rules, and Coordination policy; they are authoritative if this skill drifts. Run `plan order validate --repo <canonical-git-common-dir> --worktree <session-worktree>` and require its JSON result to report `ok: true` before preparing a mutation. AgentCli is the only executable-row parser; do not parse or edit either `Order.md` directly.
+Read `Documents/AGENTS.md` and `Documents/Plans/AGENTS.md` completely. Follow their current plan shape, scoring anchors, structured dependency rules, and Coordination policy; they are authoritative if this skill drifts. Run `plan order validate --repo <canonical-git-common-dir> --worktree <session-worktree>` and require its JSON result to report `ok: true` before preparing a mutation. WorktreeCli is the only executable-row parser; do not parse or edit either `Order.md` directly.
 
 Use `Documents/Plans/` only for refactors, bug fixes, hardening, and structural debt. If an item's purpose is a new engine capability, do not disguise it as debt: report that classification conflict for the main agent to resolve.
 
@@ -43,11 +41,11 @@ Reject stale, disproven, already-fixed, purely stylistic, or evidence-free candi
 
 ### 3. Reconcile duplicates before writing
 
-Search all live plan files using the affected symbols, files, root-cause terms, intended outcome, and standard `## Coordination` sections. Use the successful AgentCli validation result as the executable-row inventory and source of each existing row's `rowSha256`; do not derive row state from Markdown.
+Search all live plan files using the affected symbols, files, root-cause terms, intended outcome, and standard `## Coordination` sections. Use the successful WorktreeCli validation result as the executable-row inventory and source of each existing row's `rowSha256`; do not derive row state from Markdown.
 
 - Treat an existing plan as a duplicate when it owns the same root cause and implementation boundary, even if its title differs. Map the residual to that plan and create nothing.
-- If an existing plan owns the root cause but omits a necessary acceptance gap, prepare replacement plan bytes plus replacement row fields/dependencies for an AgentCli `update` request. Do not overwrite the live plan before the transaction succeeds.
-- AgentCli checks row claims and expected hashes under both queue locks. A claimed target or hash conflict produces zero repository mutation; report the returned owner/conflict evidence and do not retry by editing files or rows directly. Claim metadata exists only in AgentCli coordination state, never in `Order.md` or a plan file.
+- If an existing plan owns the root cause but omits a necessary acceptance gap, prepare replacement plan bytes plus replacement row fields/dependencies for an WorktreeCli `update` request. Do not overwrite the live plan before the transaction succeeds.
+- WorktreeCli checks row claims and expected hashes under both queue locks. A claimed target or hash conflict produces zero repository mutation; report the returned owner/conflict evidence and do not retry by editing files or rows directly. Claim metadata exists only in WorktreeCli coordination state, never in `Order.md` or a plan file.
 - Create a new plan when the work has an independent root cause or can be executed and accepted independently.
 
 ### 4. Group related residuals
@@ -74,7 +72,7 @@ Do not prescribe unsupported implementation details. Do not add unit tests. Requ
 
 ### 6. Build and submit the structured mutation
 
-Finish evidence adjudication, plan drafting, scoring, grouping, semantic duplicate checks, and Coordination decisions before invoking AgentCli. Set `$AgentCli` to the current checkout's provisioned `Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe`; if it is missing, stop and report that explicitly authorized primary maintenance through `/compile` is required. Resolve `git rev-parse --git-common-dir` to a canonical absolute path and generate one owner with `lock token`.
+Finish evidence adjudication, plan drafting, scoring, grouping, semantic duplicate checks, and Coordination decisions before invoking WorktreeCli. Set `$WorktreeCli` to the current checkout's provisioned `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe`; if it is missing, stop and report that explicitly authorized primary maintenance through `/compile` is required. Resolve `git rev-parse --git-common-dir` to a canonical absolute path and generate one owner with `lock token`.
 
 Score each plan from the canonical anchors in `Documents/AGENTS.md`:
 
@@ -83,7 +81,7 @@ Score each plan from the canonical anchors in `Documents/AGENTS.md`:
 - choose the informal `Tier` consistent with the plan's size and risk;
 - write a one-line `Notes` cell describing the concrete outcome and important exposure.
 
-For new plans, write the final plan files first, then create a unique schema-version `1` JSON request beneath the session worktree's `Temp/` with `operation: "add"` and prerequisite-first `sequences`. Each entry supplies `queue`, normalized repository-relative `plan`, `tier`, `effort`, `impact`, `risks`, `notes`, and optional `dependsOn`; AgentCli computes Score and adds the immediate-predecessor edge within each sequence. Put independent plans in separate sequences and name already-live prerequisites explicitly. Invoke:
+For new plans, write the final plan files first, then create a unique schema-version `1` JSON request beneath the session worktree's `Temp/` with `operation: "add"` and prerequisite-first `sequences`. Each entry supplies `queue`, normalized repository-relative `plan`, `tier`, `effort`, `impact`, `risks`, `notes`, and optional `dependsOn`; WorktreeCli computes Score and adds the immediate-predecessor edge within each sequence. Put independent plans in separate sequences and name already-live prerequisites explicitly. Invoke:
 
 ```text
 plan order add --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>
@@ -95,7 +93,7 @@ For existing-plan extensions, write each proposed replacement beneath `Temp/`, h
 plan order update --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>
 ```
 
-AgentCli publishes all entries or none; never copy staged bytes over a live plan yourself.
+WorktreeCli publishes all entries or none; never copy staged bytes over a live plan yourself.
 
 Directional prerequisites exist only in `dependsOn`. Mandatory nondirectional constraints (`never interleave`, joint resolution, alone execution, or protocol/version/CRC/replay/`.pack`/`kiVersion` batching) require reciprocal standard `## Coordination` sections in every affected live plan. Include every existing counterpart in one atomic update request; if any counterpart is claimed or changed, accept the zero-mutation failure and report exact evidence. Ordinary warning-only overlap may remain one-sided in plan prose and does not block queue mutation.
 
@@ -103,12 +101,9 @@ Require the add/update receipt to identify every intended plan and successful qu
 
 ## Report
 
-Follow [`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
-For a delegated call, require `ReportPath`; after successful queue unlock,
-write this complete report there and return only the compact indexed envelope.
-Keep lock-release state, created/updated paths, unqueued items, and blockers
-visible in the envelope. With no delegated `ReportPath`, retain the complete
-inline report. Never report completion while holding the queue lock:
+After successful queue unlock, return this complete report inline. Keep
+lock-release state, created/updated paths, unqueued items, and blockers visible.
+Never report completion while holding the queue lock:
 
 ```text
 Created:
@@ -120,7 +115,7 @@ Updated existing:
 Duplicate mappings:
 - <residual> -> <existing plan path, or none>
 
-AgentCli receipt:
+WorktreeCli receipt:
 - <add/update request path and exact receipt identity>
 - <structured dependencies and Coordination updates, or none>
 

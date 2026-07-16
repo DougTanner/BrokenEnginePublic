@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\AgentHarness.cpp" />
+    <ClCompile Include="..\..\HarnessLockCommands.cpp" />
+    <ClCompile Include="..\..\..\ToolCommon\CoordinationStore.cpp" />
+    <ClCompile Include="..\..\..\ToolCommon\ToolCliCommon.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\HarnessLockCommands.h" />
+    <ClInclude Include="..\..\..\ToolCommon\CoordinationStore.h" />
+    <ClInclude Include="..\..\..\ToolCommon\ToolCliCommon.h" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals"><VCProjectVersion>16.0</VCProjectVersion><ProjectGuid>{82f739b8-9da7-4c3d-bc14-b7a7d76d017a}</ProjectGuid><RootNamespace>AgentHarness</RootNamespace><WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset><CharacterSet>MultiByte</CharacterSet></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset><CharacterSet>MultiByte</CharacterSet><WholeProgramOptimization>true</WholeProgramOptimization></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><OutDir>$(ProjectDir)Output\</OutDir><IntDir>$(ProjectDir)Build\$(Configuration)\</IntDir><TargetName>$(ProjectName).$(Configuration)</TargetName><LinkIncremental>false</LinkIncremental></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><OutDir>$(ProjectDir)Output\</OutDir><IntDir>$(ProjectDir)Build\$(Configuration)\</IntDir><TargetName>$(ProjectName)</TargetName><LinkIncremental>false</LinkIncremental></PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile><WarningLevel>Level4</WarningLevel><Optimization>Disabled</Optimization><SDLCheck>true</SDLCheck><ConformanceMode>false</ConformanceMode><LanguageStandard>stdcpp23</LanguageStandard><AdditionalIncludeDirectories>$(ProjectDir)\..\..\..\ToolCommon;$(ProjectDir)\..\..\..\..\ThirdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><TreatWarningAsError>false</TreatWarningAsError><MultiProcessorCompilation>true</MultiProcessorCompilation><PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;BT_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions><RuntimeTypeInfo>false</RuntimeTypeInfo><AdditionalOptions>/Zc:__cplusplus /Zc:preprocessor /bigobj %(AdditionalOptions)</AdditionalOptions><DebugInformationFormat>ProgramDatabase</DebugInformationFormat><RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary></ClCompile>
+    <Link><SubSystem>Console</SubSystem><AdditionalDependencies>bcrypt.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile><WarningLevel>Level4</WarningLevel><Optimization>MaxSpeed</Optimization><SDLCheck>true</SDLCheck><ConformanceMode>false</ConformanceMode><LanguageStandard>stdcpp23</LanguageStandard><AdditionalIncludeDirectories>$(ProjectDir)\..\..\..\ToolCommon;$(ProjectDir)\..\..\..\..\ThirdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><TreatWarningAsError>false</TreatWarningAsError><MultiProcessorCompilation>true</MultiProcessorCompilation><PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;BT_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions><RuntimeTypeInfo>false</RuntimeTypeInfo><AdditionalOptions>/Zc:__cplusplus /Zc:preprocessor /bigobj %(AdditionalOptions)</AdditionalOptions><InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion><IntrinsicFunctions>true</IntrinsicFunctions><FavorSizeOrSpeed>Speed</FavorSizeOrSpeed><FunctionLevelLinking>true</FunctionLevelLinking><BasicRuntimeChecks>Default</BasicRuntimeChecks><RuntimeLibrary>MultiThreaded</RuntimeLibrary><DebugInformationFormat>ProgramDatabase</DebugInformationFormat></ClCompile>
+    <Link><SubSystem>Console</SubSystem><OptimizeReferences>true</OptimizeReferences><EnableCOMDATFolding>true</EnableCOMDATFolding><LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration><AdditionalDependencies>bcrypt.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

@@ -10,4 +10,4 @@ Radial repulsion force fields for entity separation (anti-stacking), owned by ga
 - **ApplyClampedPush** (`Pushers.h`): inline impulse that caps the velocity component in push direction, preventing stacking beyond caller-supplied max. General helper — game code also uses it for non-pusher impulses (terrain-normal push).
 
 ## See Also
-- [../AGENTS.md](../AGENTS.md) - Collection<T>, SOA, Sync pattern, file splitting
+- `../AGENTS.md` - Collection<T>, SOA, Sync pattern, file splitting

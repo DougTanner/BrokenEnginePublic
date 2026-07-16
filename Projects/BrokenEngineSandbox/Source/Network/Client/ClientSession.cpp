@@ -48,6 +48,24 @@ ClientSession::~ClientSession()
 	}
 }
 
+template <typename TLogFunction, typename... TArgs>
+void ClientSession::SendGameRequest(GamePacketType ePacketType, const TLogFunction& rLogFunction, const TArgs&... rArgs)
+{
+	if (!CanSend())
+	{
+		return;
+	}
+
+	std::optional<common::LogTickScope> optionalTickScope;
+	if (common::gpThreadLocal->miLogTickCounter < 0)
+	{
+		optionalTickScope.emplace(gpGame->TickCounter());
+	}
+
+	rLogFunction();
+	mpClientNetwork->SendSimplePacket(ePacketType, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, rArgs...);
+}
+
 std::chrono::nanoseconds ClientSession::ComputeClockCorrectionNs(int64_t iPreReconcileTick)
 {
 	std::chrono::nanoseconds correction = ClientSessionBase::ComputeClockCorrectionNs(iPreReconcileTick, kTickNs);
@@ -113,7 +131,6 @@ void ClientSession::PollNetwork()
 
 	mpDataReceiver->ApplyReceivedStaticData();
 	mpDataReceiver->ApplyReceivedFullStates();
-	UpdateSubscriptions();
 	mpDataReceiver->ApplyReceivedUpdates();
 }
 
@@ -202,7 +219,7 @@ void ClientSession::Reconcile()
 		// Heap: reconciliation deserialization and map operations
 		ScopedSuppressAllocationTracking suppress;
 		int64_t iCurrentTick = gpGame->TickCounter();
-		if (mpClientNetwork != nullptr && !IsStalled())
+		if (mpClientNetwork != nullptr)
 		{
 			ReconcileDesyncInfo desyncInfo = mpReconciler->Run();
 			if (desyncInfo.bDesync)
@@ -391,110 +408,50 @@ void ClientSession::ClearSubscriptionState()
 
 void ClientSession::SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles, float fNavigationDelay)
 {
-	if (!CanSend())
+	SendGameRequest(GamePacketType::kClientUpdatePlayerRequest, [&]
 	{
-		return;
-	}
-
-	std::optional<common::LogTickScope> optionalTickScope;
-	if (common::gpThreadLocal->miLogTickCounter < 0)
-	{
-		optionalTickScope.emplace(gpGame->TickCounter());
-	}
-
-	LOG(kNetwork, kVerbose, "ClientSession::SendUpdatePlayerRequest GlobalPlayer: {} Missiles: {} NavDelay: {}", iGlobalPlayerId, bUseMissiles, common::Wb(fNavigationDelay, 3));
-
-	mpClientNetwork->SendSimplePacket(GamePacketType::kClientUpdatePlayerRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iGlobalPlayerId, static_cast<uint8_t>(bUseMissiles ? 1 : 0), fNavigationDelay);
+		LOG(kNetwork, kVerbose, "ClientSession::SendUpdatePlayerRequest GlobalPlayer: {} Missiles: {} NavDelay: {}", iGlobalPlayerId, bUseMissiles, common::Wb(fNavigationDelay, 3));
+	}, iGlobalPlayerId, static_cast<uint8_t>(bUseMissiles ? 1 : 0), fNavigationDelay);
 }
 
 void ClientSession::SendCreateFleetRequest()
 {
-	if (!CanSend())
+	SendGameRequest(GamePacketType::kClientCreateFleetRequest, []
 	{
-		return;
-	}
-
-	std::optional<common::LogTickScope> optionalTickScope;
-	if (common::gpThreadLocal->miLogTickCounter < 0)
-	{
-		optionalTickScope.emplace(gpGame->TickCounter());
-	}
-
-	LOG(kNetwork, kDebug, "ClientSession::SendCreateFleetRequest");
-
-	mpClientNetwork->SendSimplePacket(GamePacketType::kClientCreateFleetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
+		LOG(kNetwork, kDebug, "ClientSession::SendCreateFleetRequest");
+	});
 }
 
 void ClientSession::SendDeleteFleetRequest(int64_t iFleetIndex)
 {
-	if (!CanSend())
+	SendGameRequest(GamePacketType::kClientDeleteFleetRequest, [&]
 	{
-		return;
-	}
-
-	std::optional<common::LogTickScope> optionalTickScope;
-	if (common::gpThreadLocal->miLogTickCounter < 0)
-	{
-		optionalTickScope.emplace(gpGame->TickCounter());
-	}
-
-	LOG(kNetwork, kDebug, "ClientSession::SendDeleteFleetRequest Fleet: {}", iFleetIndex);
-
-	mpClientNetwork->SendSimplePacket(GamePacketType::kClientDeleteFleetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iFleetIndex);
+		LOG(kNetwork, kDebug, "ClientSession::SendDeleteFleetRequest Fleet: {}", iFleetIndex);
+	}, iFleetIndex);
 }
 
 void ClientSession::SendSpawnIntoFleetRequest(int64_t iFleetIndex)
 {
-	if (!CanSend())
+	SendGameRequest(GamePacketType::kClientSpawnIntoFleetRequest, [&]
 	{
-		return;
-	}
-
-	std::optional<common::LogTickScope> optionalTickScope;
-	if (common::gpThreadLocal->miLogTickCounter < 0)
-	{
-		optionalTickScope.emplace(gpGame->TickCounter());
-	}
-
-	LOG(kNetwork, kDebug, "ClientSession::SendSpawnIntoFleetRequest Fleet: {}", iFleetIndex);
-
-	mpClientNetwork->SendSimplePacket(GamePacketType::kClientSpawnIntoFleetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iFleetIndex);
+		LOG(kNetwork, kDebug, "ClientSession::SendSpawnIntoFleetRequest Fleet: {}", iFleetIndex);
+	}, iFleetIndex);
 }
 
 void ClientSession::SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemberIndex)
 {
-	if (!CanSend())
+	SendGameRequest(GamePacketType::kClientRespawnInFleetRequest, [&]
 	{
-		return;
-	}
-
-	std::optional<common::LogTickScope> optionalTickScope;
-	if (common::gpThreadLocal->miLogTickCounter < 0)
-	{
-		optionalTickScope.emplace(gpGame->TickCounter());
-	}
-
-	LOG(kNetwork, kDebug, "ClientSession::SendRespawnInFleetRequest Fleet: {} Member: {}", iFleetIndex, iMemberIndex);
-
-	mpClientNetwork->SendSimplePacket(GamePacketType::kClientRespawnInFleetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iFleetIndex, iMemberIndex);
+		LOG(kNetwork, kDebug, "ClientSession::SendRespawnInFleetRequest Fleet: {} Member: {}", iFleetIndex, iMemberIndex);
+	}, iFleetIndex, iMemberIndex);
 }
 
 void ClientSession::SendFleetNavigationDelayRequest(int64_t iFleetIndex, float fDelay)
 {
-	if (!CanSend())
+	SendGameRequest(GamePacketType::kClientFleetNavigationDelay, [&]
 	{
-		return;
-	}
-
-	std::optional<common::LogTickScope> optionalTickScope;
-	if (common::gpThreadLocal->miLogTickCounter < 0)
-	{
-		optionalTickScope.emplace(gpGame->TickCounter());
-	}
-
-	LOG(kNetwork, kDebug, "ClientSession::SendFleetNavigationDelayRequest Fleet: {} Delay: {}", iFleetIndex, common::Wb(fDelay, 3));
-
-	mpClientNetwork->SendSimplePacket(GamePacketType::kClientFleetNavigationDelay, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iFleetIndex, fDelay);
+		LOG(kNetwork, kDebug, "ClientSession::SendFleetNavigationDelayRequest Fleet: {} Delay: {}", iFleetIndex, common::Wb(fDelay, 3));
+	}, iFleetIndex, fDelay);
 }
 
 #endif // BT_CLIENT

@@ -6,6 +6,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$workflowModule = Join-Path $PSScriptRoot 'FinalizeWorkflowCommon.psm1'
+$artifactStore = Join-Path $PSScriptRoot 'AgentArtifactStore.psm1'
+Import-Module $workflowModule -Force
+Import-Module $artifactStore -Force -DisableNameChecking
 
 function Get-CanonicalPath([string] $Path) {
 	return [IO.Path]::GetFullPath($Path).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
@@ -38,21 +42,12 @@ if ($startLine -gt [int]::MaxValue -or $endLine -gt [int]::MaxValue -or $startLi
 	throw "Range is invalid or unsupported: '$Range'."
 }
 
-$gitRootText = @(& git -C (Get-Location).Path rev-parse --show-toplevel 2>&1)
-if ($LASTEXITCODE -ne 0 -or $gitRootText.Count -ne 1) {
-	throw "Cannot resolve the current Git worktree: $($gitRootText -join '; ')."
-}
-$worktree = Get-CanonicalPath $gitRootText[0].Trim()
-$reportRoot = Get-CanonicalPath (Join-Path $worktree 'Temp\AgentReports')
-$canonicalReport = Get-CanonicalPath $ReportPath
-$relative = [IO.Path]::GetRelativePath($reportRoot, $canonicalReport)
-if ([IO.Path]::IsPathRooted($relative) -or $relative -eq '..' -or $relative.StartsWith("..$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::Ordinal) -or $relative.StartsWith("..$([IO.Path]::AltDirectorySeparatorChar)", [StringComparison]::Ordinal)) {
-	throw "ReportPath is not contained by '$reportRoot': '$canonicalReport'."
-}
+$worktree = (Get-FinalizeGitIdentity (Get-Location).Path 'Report reader worktree').Worktree
+$canonicalReport = Assert-AgentArtifactPath -Worktree $worktree -Path $ReportPath
 if (-not (Test-Path -LiteralPath $canonicalReport -PathType Leaf)) {
 	throw "Report does not exist as a file: '$canonicalReport'."
 }
-Assert-NoReparsePoint -Root $worktree -Leaf $canonicalReport
+Assert-NoReparsePoint -Root ([IO.Path]::GetDirectoryName($canonicalReport)) -Leaf $canonicalReport
 
 $bytes = [IO.File]::ReadAllBytes($canonicalReport)
 $actualHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()

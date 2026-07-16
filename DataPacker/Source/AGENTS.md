@@ -8,7 +8,7 @@ The vcxproj provisions ThirdParty before linking and requires the prebuilt confi
 
 `Main.cpp` orchestrates legacy-intermediate migration, Scene and Island pre-export (including Gaea baking), IBL cubemap convolution, remaining asset exports, generated headers, and ThirdParty attribution collection. Every asset type runs even after an earlier failure. Each type's job failures become one structured aggregate diagnostic, and failed temporary outputs are discarded without replacing prior outputs.
 
-The Gaea bake is separate from `ExportJob`: version-specific archetype handling stays in `ExportJobs/Island/GaeaArchetype.{h,cpp}`, while route orchestration, region processing, and shoreline subdivision remain version-agnostic. Each route patches a temporary archetype under `%TEMP%/DataPacker/<project>/Gaea/Islands/...`; source `.terrain` files are never mutated. Cache ownership and island chunk consumption are documented in [ExportJobs/AGENTS.md](ExportJobs/AGENTS.md).
+The Gaea bake is separate from `ExportJob`: version-specific archetype handling stays in `ExportJobs/Island/GaeaArchetype.{h,cpp}`, while route orchestration, region processing, and shoreline subdivision remain version-agnostic. Each route patches a temporary archetype under `%TEMP%/DataPacker/<project>/Gaea/Islands/...`; source `.terrain` files are never mutated. Cache ownership and island chunk consumption are documented in `ExportJobs/AGENTS.md`.
 
 Island elevation is meters-absolute. Archetype Sea level and `Island.json` elevation scale place the beach at engine Z 0; DataPacker validates the resulting sea floor against `common::kfSeaBottomMeters`. Auto-crop removes only deepest-water pixels and retains the landmass plus shallow-water coastline halo. The runtime applies no per-island height or water-depth multiplier.
 
@@ -40,4 +40,4 @@ Each asset type produces a `.manifest`, `.pack`, and generated CRC header. DataP
 
 ## See Also
 
-- [ExportJobs/AGENTS.md](ExportJobs/AGENTS.md) - Asset processors and chunk/cache rules
+- `ExportJobs/AGENTS.md` - Asset processors and chunk/cache rules

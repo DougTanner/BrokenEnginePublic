@@ -11,4 +11,4 @@ Trackable world positions for missile guidance, referenced by stable ID.
 - **Alignment filtering**: Each entry stores an alignment so `Frame::GetMissileTarget` can reject entries that can't collide with the seeker's (same-team rejection).
 
 ## See Also
-- Parent collections: [../AGENTS.md](../AGENTS.md)
+- Parent collections: `../AGENTS.md`

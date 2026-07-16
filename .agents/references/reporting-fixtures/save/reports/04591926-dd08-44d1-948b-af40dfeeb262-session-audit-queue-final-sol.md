@@ -41,7 +41,7 @@ Result: NEEDS_ACTION
 - Replay dependency and File Groups are coherent: recorded-coordinate policy precedes generation atomicity; GameSaveLoad names both replay plans plus direct-load work; FileManager names atomicity conditionally; server managers name the recorded-coordinate policy conditionally.
 - The completed selected plan file and row are absent. Its stale `Architecture_GameBaseDeadVirtuals.md` warning was removed, the GameSaveLoad File Group no longer names it, and no `ServerSaveFailureReporting` reference remains under `Documents/Plans`.
 - All three step-11 follow-ups and their rows remain present and actionable. Current `SyncReplayTick`, `SaveLoadReplay`, `SyncActiveFrames`, `CurrentFrame`, the PowerShell module, and six vcxproj pre-build commands substantiate their stated root causes and edit boundaries.
-- AgentCli row status still retains the deleted selected-row claim under owner `<GUID>`, session `next-plan`, plan `save\serversavefailurereporting.md`, and this exact worktree. The claimant process is no longer running, but claim age/process liveness is warning-only under the queue contract; finalization still owns release. Queue status is not held.
+- WorktreeCli row status still retains the deleted selected-row claim under owner `<GUID>`, session `next-plan`, plan `save\serversavefailurereporting.md`, and this exact worktree. The claimant process is no longer running, but claim age/process liveness is warning-only under the queue contract; finalization still owns release. Queue status is not held.
 - `git diff --check -- Documents/Plans` passes.
 
 ## Failure-mode checklist

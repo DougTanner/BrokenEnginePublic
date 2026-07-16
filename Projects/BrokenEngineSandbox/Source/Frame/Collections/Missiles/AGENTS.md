@@ -17,4 +17,4 @@ Guided homing missiles with area-of-effect damage. Each missile owns a client-on
 - **Engine sound + muzzle one-shot**: Each missile carries one looping engine voice on the Sounds collection (synced to the missile each frame via `Sync`). The launch cue is a fire-and-forget `gpAudioManager->PlayOneShot3d` fired once at the muzzle in `PlayersPostRender::SpawnMissiles` (Players/PlayersCombat.cpp) — not tracked in the Sounds collection, so cross-cell `TransferRequest` re-spawns do not retrigger it.
 
 ## See Also
-- Parent collections: [../AGENTS.md](../AGENTS.md)
+- Parent collections: `../AGENTS.md`

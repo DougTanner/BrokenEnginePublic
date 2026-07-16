@@ -148,6 +148,11 @@ bool Client::SendSubscribe(GridCoord coord)
 
 void Client::SendUnsubscribe(int64_t iSlot)
 {
+	if (!CanSend())
+	{
+		return;
+	}
+
 	mCoordSlots.at(iSlot).eState = CoordSubscriptionState::kUnsubscribing;
 	SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(iSlot));
 }

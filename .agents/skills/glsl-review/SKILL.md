@@ -17,12 +17,8 @@ Sibling to `/repo-code-review` — that skill covers C++; this one covers shader
 
 ### 1. Identify Modified Shaders
 
-When delegated, require each supplied implementation/affected-code report's
-`REPORT` and `REPORT_SHA256` plus shader changed-region and focus-area IDs,
-exact evidence locators, and dependencies. Invoke `Read-AgentReportSection.ps1`
-once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md)
-consumption contract. When invoked directly, scan the conversation for shader
-files edited in this session — any `.vert`,
+Use the implementation handoff or conversation history to identify shader files
+edited in this session — any `.vert`,
 `.frag`, `.comp`, `.geom`, `.tesc`, `.tese`, `.mesh`, `.task`, ray-tracing
 stages (`.rgen` etc.), `.glsl`, and shared headers under
 `Engine/Data/Shaders/**/*.h` or `Projects/*/Data/Shaders/**/*.h`. Include
@@ -31,12 +27,7 @@ stages (`.rgen` etc.), `.glsl`, and shared headers under
 
 For each modified file, focus the review on the *changed* regions, but always skim the whole file for nearby interactions that the change may have broken.
 
-When invoked as a subagent, also require `ReportPath` and follow
-[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
-review in the existing Output Format, verify it, and return only the compact
-envelope. Index every finding, API-verification request, and residual. A missing
-or unwritable delegated report blocks the review. A direct invocation without
-`ReportPath` keeps the existing full inline output.
+Return concise inline findings. Shader review is not a final-evidence gate.
 
 ---
 

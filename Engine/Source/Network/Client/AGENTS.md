@@ -45,6 +45,6 @@ Pipeline RTT seeded from the handshake wall-clock delta, then refined from a cli
 
 ## See Also
 
-- Parent: [../AGENTS.md](../AGENTS.md)
+- Parent: `../AGENTS.md`
 - Game session + reconciliation: [Projects/BrokenEngineSandbox/Source/Network/Client/AGENTS.md](../../../../Projects/BrokenEngineSandbox/Source/Network/Client/AGENTS.md)
 - [Network.md](../../../../Documents/Architecture/Network.md)

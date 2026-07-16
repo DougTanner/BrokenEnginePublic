@@ -29,5 +29,5 @@ Both compact surviving tile indices into the indirect dispatch buffer. The .comp
 
 ## See Also
 
-- [../AGENTS.md](../AGENTS.md) - Shared includes and shader-wide conventions
-- [../Wind/AGENTS.md](../Wind/AGENTS.md) - Wind velocity field that drives smoke displacement; reads smoke's world-area
+- `../AGENTS.md` - Shared includes and shader-wide conventions
+- `../Wind/AGENTS.md` - Wind velocity field that drives smoke displacement; reads smoke's world-area

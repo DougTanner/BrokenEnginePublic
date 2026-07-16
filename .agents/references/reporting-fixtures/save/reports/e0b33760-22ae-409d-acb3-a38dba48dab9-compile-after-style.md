@@ -9,7 +9,7 @@ Plan/intent: Build BrokenEngineSandbox Debug client and server after style-only 
 
 # Overall status
 
-PASS. Both required Debug builds completed synchronously through the worktree AgentCli serialized build driver. No errors or changed-file warnings were emitted. Shared data remained byte-identical from the initial snapshot through both builds.
+PASS. Both required Debug builds completed synchronously through the worktree WorktreeCli serialized build driver. No errors or changed-file warnings were emitted. Shared data remained byte-identical from the initial snapshot through both builds.
 
 # Lifecycle and provisioning
 
@@ -19,9 +19,9 @@ PASS. Both required Debug builds completed synchronously through the worktree Ag
 - BRANCH: `codex/<GUID>`
 - SESSION_OWNER: `<GUID>`
 - Common Git directory: `<USER_HOME>\Documents\BrokenEnginePublic\.git`
-- AgentCli: `<WORKTREE>\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe`
+- WorktreeCli: `<WORKTREE>\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe`
 - ROOT and PRIMARY canonicalized to distinct paths and resolved to the same Git common directory.
-- Live wrapper AgentCli session owner was nonempty and matched supplied provenance.
+- Live wrapper WorktreeCli session owner was nonempty and matched supplied provenance.
 - Direct `pwsh -NoProfile -File ...\Provision-WorktreeThirdParty.ps1 -RepositoryRoot <ROOT>` provisioning succeeded: `Shared worktree dependencies validated ... using primary '<USER_HOME>\Documents\BrokenEnginePublic'.`
 - Assigned report path was inside `<ROOT>\Temp\AgentReports` and absent before work began.
 
@@ -108,7 +108,7 @@ Status: success (exit code 0).
 Decisive output:
 
 ```text
-AgentCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln
+WorktreeCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln
 MSBuild version 18.7.8+1ac568fee for .NET Framework
 
   FileManager.cpp
@@ -127,7 +127,7 @@ Status: success (exit code 0).
 Decisive output:
 
 ```text
-AgentCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln
+WorktreeCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln
 MSBuild version 18.7.8+1ac568fee for .NET Framework
 
   FileManager.cpp

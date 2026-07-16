@@ -32,6 +32,6 @@ Every file here is `BT_SERVER`-wrapped and server-vcxproj-only: `ServerSessionBa
 
 ## See Also
 
-- Parent: [../AGENTS.md](../AGENTS.md)
+- Parent: `../AGENTS.md`
 - Game session: [Projects/BrokenEngineSandbox/Source/Network/Server/AGENTS.md](../../../../Projects/BrokenEngineSandbox/Source/Network/Server/AGENTS.md)
 - [Network.md](../../../../Documents/Architecture/Network.md)

@@ -14,7 +14,7 @@ namespace game
 
 #if defined(BT_SERVER)
 
-void ServerClientManager::QueueSpawnForClient(int64_t iClientId, engine::GridCoord spawnCoord, int64_t iFleetIndex, int64_t iMemberIndex)
+void ServerClientManager::QueueSpawnForClient(int64_t iClientId, const engine::ClientGuid& rClientGuid, int64_t iFleetIndex, int64_t iMemberIndex)
 {
 	// A queued spawn revives the client: clear its dead/processed state unconditionally, matching ProcessSpawnRequests.
 	mDeadClientIds.erase(iClientId);
@@ -28,7 +28,7 @@ void ServerClientManager::QueueSpawnForClient(int64_t iClientId, engine::GridCoo
 	});
 	if (!bAlreadyQueued)
 	{
-		mClientsWaitingForSpawn.push_back({iClientId, spawnCoord, iFleetIndex, iMemberIndex});
+		mClientsWaitingForSpawn.push_back({iClientId, rClientGuid, iFleetIndex, iMemberIndex});
 	}
 }
 
@@ -52,7 +52,7 @@ void ServerClientManager::ProcessSpawnRequests()
 			mProcessedClientIds.erase(rRequest.iClientId);
 			if (!std::ranges::contains(mClientsWaitingForSpawn, rRequest.iClientId, &ClientSpawnInfo::iClientId))
 			{
-				mClientsWaitingForSpawn.push_back({rRequest.iClientId, engine::kOriginCoord});
+				mClientsWaitingForSpawn.push_back({rRequest.iClientId, pClient->clientGuid});
 			}
 		}
 	}
@@ -228,7 +228,7 @@ void ServerClientManager::FinalizeNewClients()
 
 				// Associate with fleet if this spawn was fleet-triggered
 				const ClientSpawnInfo& rSpawnInfo = mClientsWaitingForSpawn.at(i);
-				gpServerSession->mpFleetManager->OnPlayerSpawned(iClientId, rSpawnInfo, globalPlayerId);
+				gpServerSession->mpFleetManager->OnPlayerSpawned(iClientId, pClient->clientGuid, rSpawnInfo, globalPlayerId);
 			}
 		}
 	}

@@ -16,10 +16,8 @@ allowed-tools: [Read, Write, Edit, Grep, Glob, PowerShell]
 
 Add new files to, or verify existing files against, the MSBuild project files. Two modes — infer from the invocation:
 
-For a delegated call, require a caller-assigned absolute `ReportPath` under the
-session worktree's `Temp/AgentReports/` and follow
-[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
-With no delegated `ReportPath`, retain inline reporting.
+For a delegated call, use concise inline reporting. Project-membership work is
+not a final-evidence gate.
 
 - **Add** — wire the given files into the correct project(s) and filters.
 - **Remove** — remove deleted files from every project and filter file that references them.
@@ -51,9 +49,8 @@ Read `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md` first �
 
 ## Report
 
-For a delegated call, write the complete report to `ReportPath` and return only
-the shared compact indexed envelope. Keep any affinity conflict requiring user
-resolution visible in that envelope. One line per file — never echo XML:
+Return the complete report inline. Keep any
+affinity conflict requiring user resolution visible. One line per file — never echo XML:
 
 ```
 <path> — client|server|both|DataPacker — filter <Filter\Path> — added|verified|NOTE <detail>|FAIL <what's wrong>

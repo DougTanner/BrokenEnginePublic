@@ -782,7 +782,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 		pMutex.reset(hMutex);
 		if (GetLastError() == ERROR_ALREADY_EXISTS)
 		{
-			// An agent-launched instance must never block on a modal dialog — fail fast so AgentCli sees the exit.
+			// An agent-launched instance must never block on a modal dialog — fail fast so AgentHarness sees the exit.
 			if (engine::gLaunchOptions.iAgentPort != 0)
 			{
 				LOG(kDefault, kError, "Another instance is already running; --agent-port launch aborting");

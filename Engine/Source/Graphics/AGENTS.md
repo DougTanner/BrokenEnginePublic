@@ -59,7 +59,7 @@ The completing half is a client render-loop skip in `GameBase::Render`: while a 
 
 ## See Also
 
-- [Managers/AGENTS.md](Managers/AGENTS.md) - Vulkan manager singletons and initialization order
-- [Objects/AGENTS.md](Objects/AGENTS.md) - RAII wrappers for Vulkan resources
-- [Render/AGENTS.md](Render/AGENTS.md) - Per-subsystem uniform buffer population
-- [Debug/AGENTS.md](Debug/AGENTS.md) - Wireframe debug visualization (`kbDebugRender`-gated)
+- `Managers/AGENTS.md` - Vulkan manager singletons and initialization order
+- `Objects/AGENTS.md` - RAII wrappers for Vulkan resources
+- `Render/AGENTS.md` - Per-subsystem uniform buffer population
+- `Debug/AGENTS.md` - Wireframe debug visualization (`kbDebugRender`-gated)

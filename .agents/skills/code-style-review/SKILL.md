@@ -12,20 +12,11 @@ Reviews C++ files edited in this conversation and fixes style violations per `Do
 
 ### 1. Identify Modified Files
 
-If invoked as a subagent, require each supplied implementation/affected-code
-report's `REPORT` and `REPORT_SHA256` plus changed-file/touched-region IDs,
-exact evidence locators, and dependencies. Invoke `Read-AgentReportSection.ps1`
-once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md)
-consumption contract instead of requiring pasted reports. Otherwise list all
-`.cpp` and `.h` files you edited in this conversation (check your Edit/Write
-tool calls). Apply fixes only to line ranges that were modified.
+List all `.cpp` and `.h` files identified by the implementation handoff or
+edited in this conversation. Apply fixes only to line ranges that were
+modified.
 
-When invoked as a subagent, also require `ReportPath` and follow
-[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
-review in the existing Report schema, verify it, and return only the compact
-envelope. Index every applied fix, routed reference, and residual. A missing or
-unwritable delegated report blocks review and auto-fix work. A direct invocation
-without `ReportPath` keeps the existing full inline output.
+Return concise inline results. Style review is not a final-evidence gate.
 
 ### 2. Read the Style Guide
 

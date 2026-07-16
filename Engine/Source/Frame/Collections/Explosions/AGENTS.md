@@ -16,4 +16,4 @@ Composite explosion effects spawning lights, puffs, smoke trails, wind radials, 
 - **`SyncExplosionTrail` is deliberately not in the header**: defined in `Explosions.cpp` and shared with the other two `.cpp` files via repeated local forward declarations — visibility narrowing, not an oversight
 
 ## See Also
-- [../AGENTS.md](../AGENTS.md) - Collection\<T\>, SOA, Controller pattern, file-splitting convention
+- `../AGENTS.md` - Collection\<T\>, SOA, Controller pattern, file-splitting convention

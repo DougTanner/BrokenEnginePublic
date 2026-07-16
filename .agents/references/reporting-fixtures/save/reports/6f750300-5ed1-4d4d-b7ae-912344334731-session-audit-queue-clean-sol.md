@@ -26,7 +26,7 @@ Result: NEEDS_ACTION
 - The replay ordering fixes are present and coherent: `Order.md:139` makes `RecordedCoordReplayStopPolicy` a prerequisite of `ReplayGenerationCommitAtomicity`; both plan bodies mirror the lifetime-versus-set-commit split; the GameSaveLoad group repeats the required order.
 - The conditional FileManager participation for replay atomicity is present at `Order.md:159` and matches the plan's conditional Critical-files scope.
 - Both replay plans now describe current persistence behavior directly; no `ServerSaveFailureReporting` reference remains under `Documents/Plans`.
-- PowerShell 5.1 scope covers `SHA256.HashData`, `Convert.ToHexString`, and runtime-selective `ConvertFrom-Json -DateKind String`; Critical files now names both `Get-AgentCliRepositoryIdentity` and `Read-AgentCliLedger`.
+- PowerShell 5.1 scope covers `SHA256.HashData`, `Convert.ToHexString`, and runtime-selective `ConvertFrom-Json -DateKind String`; Critical files now names both `Get-WorktreeCliRepositoryIdentity` and `Read-WorktreeCliLedger`.
 - The obsolete `Architecture_LibraryReplacement`, GameBase/pause conflict, false GameBase/Main File Group, `ServerLocalTimescaleBroadcastGap`, and assigned Plans-side `AgentHarness6_SceneDescriptionAndDocs` references are absent. GameBase/pause ownership now says no ordering constraint and no shared edit sites.
 - The Release File Group heading now matches its body (`PackChunks.cpp`, `ProfileManagerBase.cpp` only).
 - The deleted selected plan and row are absent, with no references in Dependencies or File Groups. F001 is the only incomplete textual residue of the accepted AgentHarness6 cleanup; F002 is the remaining assigned-group File Group omission.
@@ -36,7 +36,7 @@ Result: NEEDS_ACTION
 - Parsed 85 executable rows and 2 reference rows against 87 indexed plan/reference files: zero missing targets, duplicate rows, link/label mismatches, score-arithmetic failures, descending-score violations, or orphan files.
 - The three new rows are live exactly once and correctly scored/placed: PowerShell 5.1 Score -1; both replay plans Score 2. All three new files retain Context, Design, Critical files, Out of scope, Acceptance criteria, and Notes.
 - Current code substantiates the new plans' central evidence: `SyncReplayTick` still writes/loads fixed replay components and calls throwing `CurrentFrame(rCoord)` at stop; `SyncActiveFrames` removes inactive coordinate frames; `CurrentFrame` uses `mCoordFrames.at`; the PowerShell module still contains all three 5.1-incompatible calls; all six vcxproj consumers invoke `powershell.exe`; and AgentCommandServer remains single-in-flight through its response wait/deferred-poll early return.
-- AgentCli queue status is `{"held":false}`. The deleted selected-row claim remains owned by `<GUID>`, session `next-plan`, plan `save\serversavefailurereporting.md`, in this exact worktree; no release, steal, or owner/worktree drift occurred.
+- WorktreeCli queue status is `{"held":false}`. The deleted selected-row claim remains owned by `<GUID>`, session `next-plan`, plan `save\serversavefailurereporting.md`, in this exact worktree; no release, steal, or owner/worktree drift occurred.
 - `git diff --check -- Documents/Plans` passes. The three untracked new plan files have no trailing whitespace. No claim metadata, scratch files, or changelog debris was introduced in the assigned repository group.
 
 ## Failure-mode checklist

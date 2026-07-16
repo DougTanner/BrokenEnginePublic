@@ -12,5 +12,5 @@ Shaders for the `DebugRender` system, rendering wireframe primitives (boxes, sph
 
 ## See Also
 
-- [../AGENTS.md](../AGENTS.md) - Parent shaders overview
-- [../../../Source/Graphics/Debug/AGENTS.md](../../../Source/Graphics/Debug/AGENTS.md) - C++ DebugRender system that drives these shaders
+- `../AGENTS.md` - Parent shaders overview
+- `../../../Source/Graphics/Debug/AGENTS.md` - C++ DebugRender system that drives these shaders

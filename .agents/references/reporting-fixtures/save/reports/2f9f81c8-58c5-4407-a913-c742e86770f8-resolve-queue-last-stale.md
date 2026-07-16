@@ -26,7 +26,7 @@ No code files changed.
 
 ### Queue Coordination
 
-- Revalidated the exact row, score fields, nonexistent target, and selected-plan claim while holding the canonical AgentCli queue lock.
+- Revalidated the exact row, score fields, nonexistent target, and selected-plan claim while holding the canonical WorktreeCli queue lock.
 - Mutation occurred under queue-lock owner `<GUID>`.
 - All lock attempts ended with unlock exit 0; final queue status is `{"held":false}`.
 - Selected row claim remains owned by `<GUID>`, session `next-plan`, in this worktree. No unclaim or steal occurred.

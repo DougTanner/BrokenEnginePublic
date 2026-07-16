@@ -1,9 +1,9 @@
 ---
 name: external-grill-plan
 description: >-
-  Interviews the user about a loaded plan to resolve ambiguities and fill gaps
-  before implementation. Invoke after a plan is loaded or created and before
-  any code changes. Walks
+  Interviews the user about a Tier-3 plan to resolve architectural ambiguities
+  before implementation. Do not invoke for Tier-1 or Tier-2 task-driven work.
+  Walks
   each decision branch with engine-specific questions (determinism,
   client/server, memory, threading, frame phases), recommending an answer for
   each from codebase exploration.
@@ -12,23 +12,24 @@ allowed-tools: [Read, Write, Grep, Glob, Edit, Agent, PowerShell, AskUserQuestio
 
 # Grill Plan
 
-Interview the user about every aspect of this plan until reaching shared understanding.
+Use this skill only when a Tier-3 execution card has a material unresolved
+decision that repository inspection cannot settle. Interview the user about
+only that decision until reaching shared understanding.
 
 ## Inputs
 
 - Plan file and explicit user intent
-- `/plan-audit` compact envelope identity (`REPORT`, `REPORT_SHA256`) plus accepted stable finding IDs, exact evidence locators, and dependencies, or none for direct invocation; invoke `Read-AgentReportSection.ps1` once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) consumption contract
+- Inline `/plan-audit` findings and accepted decisions, or none for direct invocation
 - Applicable repository instructions and known constraints
 - Approval state: `not-approved` or `approved`, plus any previously approved delta summary
 - Draft manager execution-control record, when available: fixed process baseline,
   proposed risk tier and triggers, required and conditional roles, and the initial
   acceptance-criterion matrix
-- For a delegated call, a caller-assigned absolute `ReportPath` under the session worktree's `Temp/AgentReports/`
 
 ## Rules
 - For each question, provide your recommended answer based on codebase exploration
 - If a question can be answered by exploring the codebase, explore it instead of asking
-- Batch independent decision points into one interaction; keep only genuinely dependent follow-ups for a later batch
+- Batch up to three independent decision points into one interaction; keep only genuinely dependent follow-ups for a later batch
 - Begin with the first concrete unresolved decision; do not preface the interview with a plan summary or restatement
 - Use adversarial thinking — actively try to find flaws, then provide concrete suggestions to fix them
 - Skip branches that are clearly irrelevant to the plan (e.g., don't probe determinism for a client-only UI change)
@@ -36,26 +37,22 @@ Interview the user about every aspect of this plan until reaching shared underst
 
 ## Workflow
 1. Read the plan file and any accepted audit findings from the current conversation context
-2. Validate and incorporate supplied findings, then identify all remaining decision points, ambiguities, and unstated assumptions — including the risk classification, role triggers, and initial acceptance matrix — and scan against the Decision-Point Taxonomy below; plans routinely leave these classes implicit
-3. Walk the decision tree in dependency order, batching every set of currently independent branches
-4. Ask the Closing Question (below) as the final interview question
+2. Validate and incorporate supplied findings, then identify only remaining material decision points that repository inspection cannot settle — including the risk classification, role triggers, and initial acceptance matrix — and scan them against the Decision-Point Taxonomy below. Do not turn optional improvements or possible future needs into decisions.
+3. Walk the decision tree in dependency order, batching up to three currently independent branches
+4. Run the Internal Closing Check below
 5. For a not-yet-approved plan, update the plan file with the resolved details, then immediately return control so the caller presents it for approval. For an approved plan, do not edit it: return an exact proposed delta and let main decide whether approval remains valid.
 
 ## Decision batching and UI
 
-- Prefer one multi-question UI interaction for all currently independent decisions. Give each question the codebase-backed recommendation and 2–3 mutually exclusive choices.
-- With Claude, use one `AskUserQuestion` call containing the independent questions supported by that UI.
+- Prefer one multi-question UI interaction for up to three currently independent decisions. Give each question the codebase-backed recommendation and 2–3 mutually exclusive choices.
+- With Claude, use one `AskUserQuestion` call containing at most three independent questions supported by that UI.
 - With Codex, use `request_user_input` when it is available, with up to three questions per call. If more than three independent decisions remain, send the minimum number of consecutive UI batches.
 - When Codex `request_user_input` is unavailable (including Default mode), batch independent decisions as concise open-ended plain-text prompts without lettered or multiple-choice options. State recommendations in prose when useful. Continue with reasonable assumptions for non-blocking decisions; ask only genuinely blocking questions, and keep those concise.
-- Keep dependent questions out of the current batch. Resolve their prerequisites first, then batch the newly unblocked questions. The Closing Question remains last because it depends on the resolved plan.
+- Keep dependent questions out of the current batch. Resolve their prerequisites first, then batch up to three newly unblocked questions.
 
-## Closing Question
+## Internal Closing Check
 
-After all branches are resolved but before updating a not-yet-approved plan file or returning an approved-plan delta, ask one final question:
-
-> "The biggest thing I think you may be missing about this situation is: \<X\>."
-
-Derive X by zooming out from the plan. Run these prompts and present the strongest hit:
+After all branches are resolved, do not ask a routine closing question. Run these prompts internally:
 
 1. Which queued plan (`Documents/Plans/Order.md` or `Documents/Features/Order.md`) shares these files/symbols — does this plan's shape contradict it or invalidate its citations?
 2. What adjacent system consumes the state this plan changes (collection members, manager outputs, shared headers), and does the plan account for it?
@@ -63,7 +60,7 @@ Derive X by zooming out from the plan. Run these prompts and present the stronge
 4. What invariant surface (CRC, `kiVersion`/`.pack` layout, network protocol, save/replay format, main-loop allocation tracking) does this touch that the plan never mentions?
 5. What does the plan assume about scale that the unbounded world breaks — uncapped entity counts, sparse-cell parallelism, kilometer-scale coordinate magnitudes?
 
-If nothing qualifies, say so and skip — do not invent one. If the user's answer changes anything, fold it into a not-yet-approved plan before the silent update; for an approved plan, include it in the exact proposed delta without editing.
+Surface a result only when current repository evidence establishes a concrete material decision the plan missed. Fold it into the next question batch; otherwise stop without inventing or reporting one.
 
 ## Decision-Point Taxonomy
 
@@ -77,7 +74,7 @@ Recurring ambiguity classes to scan for in Workflow step 2:
 - **Magic defaults** — sizes, thresholds, counts stated without justification, or needed but absent.
 - **Undeclared invariant exposure** — the edit touches CRC'd state, `kiVersion`/`.pack` layout, protocol, save/replay format, or allocation-tracked paths, but the plan never says so.
 - **Self-contradicting requirements** — two statements in the plan that cannot both hold (e.g., an "always/never" in one clause revoked by another); surface the contradiction and resolve it with the user, never pick one side silently.
-- **Cross-plan contradiction** — another queued plan touches the same files/symbols with an incompatible shape (also probed by Closing Question prompt 1).
+- **Cross-plan contradiction** — another queued plan touches the same files/symbols with an incompatible shape (also probed by Internal Closing Check prompt 1).
 - **Execution-control ambiguity** — the proposed tier lacks a concrete trigger,
   a role is unconditional without a matching file/risk trigger, or an acceptance
   criterion lacks a decisive check and expected result. Resolve the classification
@@ -144,12 +141,9 @@ Always probe these areas if the plan touches them:
 
 ## Completion Report
 
-After all decisions are resolved, follow
-[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
-For a delegated call, write this complete handoff to `ReportPath` and return its
-compact indexed envelope without ending the user turn. With no delegated
-`ReportPath`, return the handoff inline. Questions, recommendations, the closing
-question, and any material-delta approval remain live user interaction:
+Return this complete handoff inline. Questions, recommendations, any material
+decision surfaced by the internal closing check, and any material-delta
+approval remain live user interaction:
 
 ```text
 Plan delta: none | non-material | material

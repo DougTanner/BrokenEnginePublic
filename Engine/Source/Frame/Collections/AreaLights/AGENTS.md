@@ -11,4 +11,4 @@ Owner-driven quad lights producing two GPU outputs per light: a ground-projected
 - **Per-type render-time overrides**: visible intensity, lighting size, and lighting intensity each read an optional `Wrapper*` on the type (live UI tuning) falling back to the baked value; the per-light multiplier scales both intensities but never the size.
 
 ## See Also
-- [../AGENTS.md](../AGENTS.md) - `Collection<T>`, SOA, Sync pattern, GPU render phases, file-splitting conventions
+- `../AGENTS.md` - `Collection<T>`, SOA, Sync pattern, GPU render phases, file-splitting conventions

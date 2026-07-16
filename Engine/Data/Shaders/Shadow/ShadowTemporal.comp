@@ -12,7 +12,7 @@ layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
 };
 
 layout (set = 1, binding = 1) uniform sampler2D shadowHistorySampler;
-layout (set = 1, binding = 2, r16) uniform image2D shadowBlurTexture;
+layout (set = 1, binding = 2, r16) uniform image2D shadowBlurTexture; // keShadowFormat
 
 // Temporal accumulation: blend the freshly-blurred shadow (in place) with the previous frame's result,
 // reprojected into the current texel grid by world position. While the texel-ramp rescales the grid this

@@ -1,4 +1,4 @@
-AgentCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln
+WorktreeCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln
 MSBuild version 18.7.8+1ac568fee for .NET Framework
 
   Shared worktree dependencies validated for '<WORKTREE>' using primary '<USER_HOME>\Documents\BrokenEnginePublic'.

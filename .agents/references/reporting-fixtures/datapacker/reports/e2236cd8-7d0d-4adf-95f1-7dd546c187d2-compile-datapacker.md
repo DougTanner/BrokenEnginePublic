@@ -5,7 +5,7 @@ Fallback: none
 Paired-review diversity: N/A
 Worktree: <WORKTREE>
 Session-start baseline: ca6f005addca80e8273cc7732e436fe351c1f71c
-Plan/intent: Provision worktree ThirdParty and synchronously compile DataPacker Release only using current-checkout AgentCli and exact requested MSBuild properties; do not build AgentCli or execute DataPacker.
+Plan/intent: Provision worktree ThirdParty and synchronously compile DataPacker Release only using current-checkout WorktreeCli and exact requested MSBuild properties; do not build WorktreeCli or execute DataPacker.
 
 ## Lifecycle validation
 
@@ -14,7 +14,7 @@ Plan/intent: Provision worktree ThirdParty and synchronously compile DataPacker 
 - BASELINE: ca6f005addca80e8273cc7732e436fe351c1f71c
 - PRIMARY and ROOT: distinct canonical directories
 - Git common directory: <USER_HOME>\Documents\BrokenEnginePublic\.git
-- Live wrapper AgentCli session claim: present
+- Live wrapper WorktreeCli session claim: present
 - ReportPath containment and initial absence: passed
 
 ## Provisioning
@@ -27,10 +27,10 @@ Output:
 Shared worktree dependencies validated for '<WORKTREE>' using primary '<USER_HOME>\Documents\BrokenEnginePublic'.
 ```
 
-AgentCli executable:
+WorktreeCli executable:
 
 ```text
-<WORKTREE>\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe
+<WORKTREE>\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe
 ```
 
 ## Build
@@ -40,12 +40,12 @@ Configuration: Release
 Platform: x64
 Execution: synchronous foreground
 Final status: fail
-Final AgentCli exit status: 1
+Final WorktreeCli exit status: 1
 
 Command:
 
 ```text
-AgentCli.exe build <WORKTREE>\DataPacker\Platforms\VisualStudio2026\DataPacker.sln /p:Configuration=Release /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
+WorktreeCli.exe build <WORKTREE>\DataPacker\Platforms\VisualStudio2026\DataPacker.sln /p:Configuration=Release /p:Platform=x64 /p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false /verbosity:minimal
 ```
 
 Every error line verbatim:
@@ -75,4 +75,4 @@ The required DataPacker Release build failed before compilation because the MSBu
 Files changed: none
 Functions/regions touched: none
 Residuals:
-- R001: Required DataPacker Release build failed with AgentCli exit status 1; provisioning hook is incompatible with the Windows PowerShell runtime launched by MSBuild.
+- R001: Required DataPacker Release build failed with WorktreeCli exit status 1; provisioning hook is incompatible with the Windows PowerShell runtime launched by MSBuild.

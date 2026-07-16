@@ -20,4 +20,4 @@ AI-controlled enemy spaceships with health, weapons, freeze time, and per-instan
 - **Model swap site**: `kSpaceshipModel` in `SpaceshipsRender.cpp` is `#if 1`/`#if 0`-gated with a paired scale. `Spaceships.cpp` forward-declares it (client-only) for the animation-duration lookup.
 
 ## See Also
-- Parent collections: [../AGENTS.md](../AGENTS.md)
+- Parent collections: `../AGENTS.md`

@@ -18,4 +18,4 @@ GLSL shaders for instanced hex-shield rendering. Per-instance data (transform, n
 
 ## See Also
 
-- [../AGENTS.md](../AGENTS.md) — scalar block layout, bindless textures, multi-set descriptors, push-constant render modes, EWNS lighting render targets, and the `reflect(unit, unit)` unit-length identity (relied on in HexShield.frag).
+- `../AGENTS.md` — scalar block layout, bindless textures, multi-set descriptors, push-constant render modes, EWNS lighting render targets, and the `reflect(unit, unit)` unit-length identity (relied on in HexShield.frag).

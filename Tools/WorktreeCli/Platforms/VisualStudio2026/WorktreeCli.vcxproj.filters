@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="WorktreeCli"><UniqueIdentifier>{ef5649c1-00b7-4214-be92-ba4e44ff5e29}</UniqueIdentifier></Filter>
+    <Filter Include="ToolCommon"><UniqueIdentifier>{1a62f9e2-05e9-4d97-9d38-91b66cf6f283}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\WorktreeCli.cpp"><Filter>WorktreeCli</Filter></ClCompile>
+    <ClCompile Include="..\..\BuildCommand.cpp"><Filter>WorktreeCli</Filter></ClCompile>
+    <ClCompile Include="..\..\LandingLockCommands.cpp"><Filter>WorktreeCli</Filter></ClCompile>
+    <ClCompile Include="..\..\LandingLockLifecycle.cpp"><Filter>WorktreeCli</Filter></ClCompile>
+    <ClCompile Include="..\..\PlanCommands.cpp"><Filter>WorktreeCli</Filter></ClCompile>
+    <ClCompile Include="..\..\PlanOrderCommands.cpp"><Filter>WorktreeCli</Filter></ClCompile>
+    <ClCompile Include="..\..\..\ToolCommon\CoordinationStore.cpp"><Filter>ToolCommon</Filter></ClCompile>
+    <ClCompile Include="..\..\..\ToolCommon\ToolCliCommon.cpp"><Filter>ToolCommon</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\BuildCommand.h"><Filter>WorktreeCli</Filter></ClInclude>
+    <ClInclude Include="..\..\LandingLockCommands.h"><Filter>WorktreeCli</Filter></ClInclude>
+    <ClInclude Include="..\..\LandingLockLifecycle.h"><Filter>WorktreeCli</Filter></ClInclude>
+    <ClInclude Include="..\..\PlanCommands.h"><Filter>WorktreeCli</Filter></ClInclude>
+    <ClInclude Include="..\..\PlanOrderCommands.h"><Filter>WorktreeCli</Filter></ClInclude>
+    <ClInclude Include="..\..\..\ToolCommon\CoordinationStore.h"><Filter>ToolCommon</Filter></ClInclude>
+    <ClInclude Include="..\..\..\ToolCommon\ToolCliCommon.h"><Filter>ToolCommon</Filter></ClInclude>
+  </ItemGroup>
+</Project>

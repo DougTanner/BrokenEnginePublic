@@ -18,4 +18,4 @@ The client-only overlay's Frames and Network screens (and the ImPlot trend graph
 - `NetworkGraphs.cpp` is fully `#if defined(BT_CLIENT)`-wrapped, includes `Pch.h` itself, and must appear only in the client vcxproj. Its `SmoothedGetter` reaches into `common::Smoothed` internals — the ring capacity derives from `common::Smoothed<int64_t>::kiCapacity` rather than a hard-coded literal.
 
 ## See Also
-- Engine profiling base: [../../../../Engine/Source/Profile/AGENTS.md](../../../../Engine/Source/Profile/AGENTS.md)
+- Engine profiling base: `../../../../Engine/Source/Profile/AGENTS.md`

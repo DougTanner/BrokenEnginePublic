@@ -12,11 +12,8 @@ Two modes — infer from the invocation:
 - **Sync mode** (default) — invoked only when changed behavior alters a durable instruction, non-obvious invariant, subsystem boundary, or agent-memory contract, or when the user explicitly requests documentation. Targets only the affected directories; small, surgical edits. If no durable documentation fact changed, report no trigger and make no edits.
 - **Audit mode** — only when the user asks for an audit / report / grade / repo-wide improvement pass. Quality report first, then improvements after user approval.
 
-For a delegated call, require a caller-assigned absolute `ReportPath` under the
-session worktree's `Temp/AgentReports/` and follow
-[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
-Keep audit approval requests and decision-driving contradictions live. With no
-delegated `ReportPath`, retain inline reporting.
+For a delegated call, use concise inline reporting. Keep audit approval
+requests and decision-driving contradictions live.
 
 ---
 
@@ -28,7 +25,7 @@ incomplete. If none changed and the user did not explicitly request a docs
 edit, report no trigger and stop without scanning or editing the documentation
 tree.
 
-1. **Identify affected directories**: If invoked as a subagent, the caller should provide the list of changed files. Otherwise, derive the list from the top-level session's fixed session-start commit and cross-check it against Edit/Write/NotebookEdit calls. All subagents share that worktree and baseline; do not use a moving merge-base after primary-branch reconciliation, and do not use `git status` alone because it cannot distinguish the session's edits from newly integrated changes. If the baseline or session history is unavailable, ask the user for the file list. Update AGENTS.md only in the immediate directories containing those files (not parent directories unless their content directly changed).
+1. **Identify affected directories**: If invoked as a subagent, the caller should provide the list of changed files. Otherwise, use the session's explicit change list or derive it from the fixed session-start commit and cross-check it against Edit/Write/NotebookEdit calls. Do not use a moving merge-base after primary-branch reconciliation, and do not use `git status` alone because it cannot distinguish the session's edits from newly integrated changes. If neither source is available, inspect the files edited in the current task before asking the user. Update AGENTS.md only in the immediate directories containing those files (not parent directories unless their content directly changed).
    - **Hub drift**: if a hub AGENTS.md was modified this session (root, `Engine/Source`, `Common`, any `Collections` hub), also audit its immediate descendants for newly-stale duplicated content — leaves often carry pre-trim copies of hub wording.
 
 2. **Discover the existing AGENTS.md tree**: Before editing, Glob `**/AGENTS.md` (excluding `ThirdParty/`, `Documents/Plans/`, and the `Engine/Source/Graphics/Managers/*.AGENTS.md` linked docs — those are linked reference docs, not directory memory) so you know what sibling docs exist. This informs cross-linking and prevents creating a new AGENTS.md where a parent already covers the subsystem. The sibling `CLAUDE.md` stubs are not memory docs and won't match this glob.
@@ -181,7 +178,7 @@ Current models follow instructions well; aggressive emphasis causes over-trigger
 - State each rule exactly once across the whole AGENTS.md tree — restating for emphasis is duplication, not reinforcement.
 - Bold is for bullet lead-in labels, not for shouting.
 - Specificity beats volume: a precise rule naming the exact API outperforms an emphatic vague one.
-- Exception: the root `AGENTS.md` C++ Code Change Process section keeps full emphasis (IMPORTANT/YOU MUST) by explicit user decision — do not flag or soften it.
+- Use normal direct language for workflow instructions; reserve emphasis for a concrete safety boundary.
 
 ### DO: Focus on Purpose and Architecture
 - Document what classes/systems DO, not what members they HAVE
@@ -223,8 +220,7 @@ Readers should understand system architecture and responsibilities, not be able 
 
 ## Completion Report
 
-End sync and audit modes with the complete report below. For a delegated call,
-write it to `ReportPath` and return only the shared compact indexed envelope:
+End sync and audit modes with the complete inline report below:
 
 ```text
 Files changed:

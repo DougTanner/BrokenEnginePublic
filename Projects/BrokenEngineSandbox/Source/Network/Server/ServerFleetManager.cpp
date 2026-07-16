@@ -5,7 +5,7 @@
 #include "Frame/Collections/Players/Players.h"
 #include "Game.h"
 #include "Network/Server/ServerClientManager.h"
-#include "Network/Server/ServerFleetManagerUtils.h"
+#include "Network/Server/ServerFleetSerialization.h"
 #include "Network/Server/ServerSession.h"
 
 namespace game
@@ -21,18 +21,6 @@ constexpr size_t kiMaxFleetMembers = 16;
 ServerFleetManager::ServerFleetManager()
 {
 	mRandomEngine.TimeSeed();
-}
-
-engine::ClientGuid ServerFleetManager::FindGuidForClient(int64_t iClientId) const
-{
-	for (const auto& [rGuid, iId] : mGuidToClientId)
-	{
-		if (iId == iClientId)
-		{
-			return rGuid;
-		}
-	}
-	return {};
 }
 
 int64_t ServerFleetManager::FindClientIdForGuid(const engine::ClientGuid& rGuid) const
@@ -70,7 +58,7 @@ void ServerFleetManager::ProcessCreateFleetRequests()
 		rNewFleet.guid.uiLow = common::RandomNext(mRandomEngine);
 		mGuidToClientId.insert_or_assign(guid, rRequest.iClientId);
 		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessCreateFleetRequests Client: {} FleetCount: {} FleetGuid: ({},{})", rRequest.iClientId, mFleets.at(guid).size(), rNewFleet.guid.uiHigh, rNewFleet.guid.uiLow);
-		SendFleetSyncToClient(rRequest.iClientId);
+		SendFleetSyncToClient(rRequest.iClientId, guid);
 	}
 }
 
@@ -99,7 +87,7 @@ void ServerFleetManager::ProcessDeleteFleetRequests()
 
 		it->second.erase(it->second.begin() + rRequest.iFleetIndex);
 		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessDeleteFleetRequests Client: {} Fleet: {} FleetCount: {}", rRequest.iClientId, rRequest.iFleetIndex, it->second.size());
-		SendFleetSyncToClient(rRequest.iClientId);
+		SendFleetSyncToClient(rRequest.iClientId, guid);
 	}
 }
 
@@ -123,7 +111,7 @@ void ServerFleetManager::ProcessSpawnIntoFleetRequests()
 			continue;
 		}
 
-		gpServerSession->mpClientManager->QueueSpawnForClient(rRequest.iClientId, engine::kOriginCoord, rRequest.iFleetIndex, -1);
+		gpServerSession->mpClientManager->QueueSpawnForClient(rRequest.iClientId, guid, rRequest.iFleetIndex, -1);
 		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessSpawnIntoFleetRequests Client: {} Fleet: {}", rRequest.iClientId, rRequest.iFleetIndex);
 	}
 }
@@ -159,7 +147,7 @@ void ServerFleetManager::ProcessRespawnInFleetRequests()
 			continue;
 		}
 
-		gpServerSession->mpClientManager->QueueSpawnForClient(rRequest.iClientId, engine::kOriginCoord, rRequest.iFleetIndex, rRequest.iMemberIndex);
+		gpServerSession->mpClientManager->QueueSpawnForClient(rRequest.iClientId, guid, rRequest.iFleetIndex, rRequest.iMemberIndex);
 		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessRespawnInFleetRequests Client: {} Fleet: {} Member: {}", rRequest.iClientId, rRequest.iFleetIndex, rRequest.iMemberIndex);
 	}
 }
@@ -180,23 +168,17 @@ void ServerFleetManager::ProcessFlagshipUpdates()
 	mNavigation.ProcessFlagshipUpdates(mFleets);
 }
 
-void ServerFleetManager::SendFleetSyncToClient(int64_t iClientId)
+void ServerFleetManager::SendFleetSyncToClient(int64_t iClientId, const engine::ClientGuid& rClientGuid)
 {
-	engine::ClientGuid guid = FindGuidForClient(iClientId);
-	auto it = mFleets.find(guid);
+	auto it = mFleets.find(rClientGuid);
 	if (it != mFleets.end())
 	{
-		SendFleetSync(iClientId, it->second);
+		::game::SendFleetSync(iClientId, it->second);
 	}
 	else
 	{
-		SendFleetSync(iClientId, {});
+		::game::SendFleetSync(iClientId, {});
 	}
-}
-
-void ServerFleetManager::SendFleetSync(int64_t iClientId, const std::vector<Fleet>& rFleets)
-{
-	::game::SendFleetSync(iClientId, rFleets);
 }
 
 void ServerFleetManager::QueueCreateRequest(const PendingCreateFleetRequest& rRequest)
@@ -253,7 +235,7 @@ void ServerFleetManager::OnPlayerDeath(const engine::ClientGuid& rGuid, engine::
 				int64_t iClientId = FindClientIdForGuid(rGuid);
 				if (iClientId != 0)
 				{
-					SendFleetSyncToClient(iClientId);
+					SendFleetSyncToClient(iClientId, rGuid);
 				}
 				return;
 			}
@@ -261,7 +243,7 @@ void ServerFleetManager::OnPlayerDeath(const engine::ClientGuid& rGuid, engine::
 	}
 }
 
-void ServerFleetManager::OnPlayerSpawned(int64_t iClientId, const ClientSpawnInfo& rSpawnInfo, engine::global_id_t globalPlayerId)
+void ServerFleetManager::OnPlayerSpawned(int64_t iClientId, const engine::ClientGuid& rClientGuid, const ClientSpawnInfo& rSpawnInfo, engine::global_id_t globalPlayerId)
 {
 	if (rSpawnInfo.iFleetIndex < 0)
 	{
@@ -271,8 +253,7 @@ void ServerFleetManager::OnPlayerSpawned(int64_t iClientId, const ClientSpawnInf
 	// Heap: try_emplace fleet entry, fleet members vector grows, pending flagship update
 	ScopedSuppressAllocationTracking suppress;
 
-	engine::ClientGuid guid = FindGuidForClient(iClientId);
-	std::vector<Fleet>& rFleets = mFleets.try_emplace(guid).first->second;
+	std::vector<Fleet>& rFleets = mFleets.try_emplace(rClientGuid).first->second;
 	if (rSpawnInfo.iFleetIndex >= std::ssize(rFleets))
 	{
 		return;
@@ -297,7 +278,7 @@ void ServerFleetManager::OnPlayerSpawned(int64_t iClientId, const ClientSpawnInf
 		rFleet.members.push_back(FleetMember {globalPlayerId, true, engine::kOriginCoord});
 	}
 
-	SendFleetSyncToClient(iClientId);
+	SendFleetSyncToClient(iClientId, rClientGuid);
 
 	// Queue flagship update if this member is or becomes the Flagship
 	int64_t iThisMemberIndex = (rSpawnInfo.iMemberIndex >= 0)
@@ -311,7 +292,7 @@ void ServerFleetManager::OnPlayerSpawned(int64_t iClientId, const ClientSpawnInf
 		rFleet.iFlagshipIndex = iThisMemberIndex;
 		rFleet.wantedCoord = engine::kOriginCoord;
 		rFleet.fFrameChangeTimer = common::Random(rFleet.fNavigationDelay, mRandomEngine);
-		mNavigation.QueueFlagshipUpdate({.clientGuid = guid, .iFleetIndex = rSpawnInfo.iFleetIndex, .newWantedCoord = rFleet.wantedCoord});
+		mNavigation.QueueFlagshipUpdate({.clientGuid = rClientGuid, .iFleetIndex = rSpawnInfo.iFleetIndex, .newWantedCoord = rFleet.wantedCoord});
 	}
 }
 
@@ -371,7 +352,7 @@ void ServerFleetManager::OnClientConnected(int64_t iClientId, const engine::Clie
 			}
 		}
 	}
-	SendFleetSyncToClient(iClientId);
+	SendFleetSyncToClient(iClientId, rClientGuid);
 }
 
 void ServerFleetManager::OnClientDisconnected(const engine::ClientGuid& rClientGuid)
@@ -402,7 +383,7 @@ void ServerFleetManager::OnResetForLoad(int64_t iClientId, const engine::ClientG
 			ResetFleetForLoad(fleetIt->second.at(static_cast<size_t>(iFleet)), rClientGuid, iFleet, rOwnedIds, pClient);
 		}
 	}
-	SendFleetSyncToClient(iClientId);
+	SendFleetSyncToClient(iClientId, rClientGuid);
 }
 
 void ServerFleetManager::ResetFleetForLoad(Fleet& rFleet, const engine::ClientGuid& rClientGuid, int64_t iFleetIndex, const std::vector<engine::global_id_t>& rOwnedIds, const engine::ClientConnection* pClient)
@@ -440,10 +421,9 @@ void ServerFleetManager::ResetFleetForLoad(Fleet& rFleet, const engine::ClientGu
 	}
 }
 
-ServerFleetManager::FleetLookupResult ServerFleetManager::LookupFleetWantedCoord(int64_t iClientId, int64_t iFleetIndex, int64_t iMemberIndex)
+ServerFleetManager::FleetLookupResult ServerFleetManager::LookupFleetWantedCoord(const engine::ClientGuid& rClientGuid, int64_t iFleetIndex, int64_t iMemberIndex)
 {
-	engine::ClientGuid guid = FindGuidForClient(iClientId);
-	auto fleetIt = mFleets.find(guid);
+	auto fleetIt = mFleets.find(rClientGuid);
 	if (fleetIt == mFleets.end() || iFleetIndex >= std::ssize(fleetIt->second))
 	{
 		return {};
@@ -510,19 +490,6 @@ void ServerFleetManager::DetectDisconnectedPlayerDeaths()
 	}
 }
 
-void ServerFleetManager::WriteFleetData(std::fstream& rFileStream) const
-{
-	::game::WriteFleetData(rFileStream, mFleets, mRandomEngine);
-}
-
-void ServerFleetManager::ReadFleetData(std::fstream& rFileStream)
-{
-	// Heap: rebuild mFleets/mGuidToClientId from save stream
-	ScopedSuppressAllocationTracking suppress;
-
-	::game::ReadFleetData(rFileStream, mFleets, mGuidToClientId, mRandomEngine);
-}
-
 void ServerFleetManager::UpdateFleetNavigationDelay(const engine::ClientGuid& rGuid, int64_t iFleetIndex, float fDelay)
 {
 	auto fleetIt = mFleets.find(rGuid);
@@ -538,7 +505,7 @@ void ServerFleetManager::UpdateFleetNavigationDelay(const engine::ClientGuid& rG
 	int64_t iClientId = FindClientIdForGuid(rGuid);
 	if (iClientId != 0)
 	{
-		SendFleetSyncToClient(iClientId);
+		SendFleetSyncToClient(iClientId, rGuid);
 	}
 }
 

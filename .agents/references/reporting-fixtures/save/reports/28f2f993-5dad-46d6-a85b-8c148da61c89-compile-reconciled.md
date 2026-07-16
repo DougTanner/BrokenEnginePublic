@@ -5,11 +5,11 @@ Fallback: none
 Paired-review diversity: N/A
 Worktree: <WORKTREE>
 Session-start baseline: ca6f005addca80e8273cc7732e436fe351c1f71c
-Plan/intent: Reconciled finalization verification compile at HEAD 90f7ed3450b9318d89b3de74cb7e1271f12789ce using effective verification base 98b5272c0cb836b822cc5692484107768426b103; build BrokenEngineSandbox Debug client then server through AgentCli with the ordinary pre-build hook enabled.
+Plan/intent: Reconciled finalization verification compile at HEAD 90f7ed3450b9318d89b3de74cb7e1271f12789ce using effective verification base 98b5272c0cb836b822cc5692484107768426b103; build BrokenEngineSandbox Debug client then server through WorktreeCli with the ordinary pre-build hook enabled.
 
 # Overall result
 
-PASS. Worktree provisioning succeeded. BrokenEngineSandbox Debug client and server both built synchronously through the worktree AgentCli with exit code 0. The ordinary vcxproj pre-build hook remained enabled and succeeded for both targets. All 26 required Shared data identities remained byte-identical after each build. No non-Temp repository edits were present after the builds.
+PASS. Worktree provisioning succeeded. BrokenEngineSandbox Debug client and server both built synchronously through the worktree WorktreeCli with exit code 0. The ordinary vcxproj pre-build hook remained enabled and succeeded for both targets. All 26 required Shared data identities remained byte-identical after each build. No non-Temp repository edits were present after the builds.
 
 # Lifecycle validation
 
@@ -17,7 +17,7 @@ PASS. Worktree provisioning succeeded. BrokenEngineSandbox Debug client and serv
 - PRIMARY: `<USER_HOME>\Documents\BrokenEnginePublic`
 - ROOT and PRIMARY: canonical, absolute, distinct
 - Shared Git common directory: `<USER_HOME>\Documents\BrokenEnginePublic\.git`
-- Session owner: `<GUID>` (matched live `BROKEN_ENGINE_AGENTCLI_SESSION_OWNER`)
+- Session owner: `<GUID>` (matched live `BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER`)
 - Immutable session-start baseline: `ca6f005addca80e8273cc7732e436fe351c1f71c`
 - Reconciled parent/effective verification base: `98b5272c0cb836b822cc5692484107768426b103`
 - HEAD: `90f7ed3450b9318d89b3de74cb7e1271f12789ce`
@@ -41,7 +41,7 @@ Verbatim decisive output:
 Shared worktree dependencies validated for '<WORKTREE>' using primary '<USER_HOME>\Documents\BrokenEnginePublic'.
 ```
 
-AgentCli executable: `<WORKTREE>\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe` (634368 bytes)
+WorktreeCli executable: `<WORKTREE>\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` (634368 bytes)
 
 # Data mode selection
 
@@ -82,7 +82,7 @@ Status: success, exit code 0, foreground/synchronous completion in approximately
 Command:
 
 ```powershell
-& $AgentCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln" '/p:Configuration=Debug' '/p:Platform=x64' '/p:DataBuildMode=Shared' '/p:RunDataPacker=false' "/p:GameDataDirectory=$GameDataDirectory" "/p:GeneratedDataIncludeRoot=$GeneratedDataIncludeRoot" '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
+& $WorktreeCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln" '/p:Configuration=Debug' '/p:Platform=x64' '/p:DataBuildMode=Shared' '/p:RunDataPacker=false' "/p:GameDataDirectory=$GameDataDirectory" "/p:GeneratedDataIncludeRoot=$GeneratedDataIncludeRoot" '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
 ```
 
 `PreBuildEventUseInBuild=false` was not passed and the pre-build hook was not bypassed.
@@ -90,7 +90,7 @@ Command:
 Verbatim decisive output:
 
 ```text
-AgentCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln
+WorktreeCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln
 MSBuild version 18.7.8+1ac568fee for .NET Framework
   Shared worktree dependencies validated for '<WORKTREE>' using primary '<USER_HOME>\Documents\BrokenEnginePublic'.
   BrokenEngineSandbox.vcxproj -> <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandbox.Debug.exe
@@ -109,7 +109,7 @@ Status: success, exit code 0, foreground/synchronous completion in approximately
 Command:
 
 ```powershell
-& $AgentCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln" '/p:Configuration=Debug' '/p:Platform=x64' '/p:DataBuildMode=Shared' '/p:RunDataPacker=false' "/p:GameDataDirectory=$GameDataDirectory" "/p:GeneratedDataIncludeRoot=$GeneratedDataIncludeRoot" '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
+& $WorktreeCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln" '/p:Configuration=Debug' '/p:Platform=x64' '/p:DataBuildMode=Shared' '/p:RunDataPacker=false' "/p:GameDataDirectory=$GameDataDirectory" "/p:GeneratedDataIncludeRoot=$GeneratedDataIncludeRoot" '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
 ```
 
 `PreBuildEventUseInBuild=false` was not passed and the pre-build hook was not bypassed.
@@ -117,7 +117,7 @@ Command:
 Verbatim decisive output:
 
 ```text
-AgentCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln
+WorktreeCli: building <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln
 MSBuild version 18.7.8+1ac568fee for .NET Framework
   Shared worktree dependencies validated for '<WORKTREE>' using primary '<USER_HOME>\Documents\BrokenEnginePublic'.
   BrokenEngineSandboxServer.vcxproj -> <WORKTREE>\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\BrokenEngineSandboxServer.Debug.exe

@@ -15,7 +15,7 @@ Result: NEEDS_ACTION
 
 ### F001
 
-`Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:5` — mode 5 — the plan identifies only `SHA256.HashData` and `Convert.ToHexString` as PowerShell-7-only APIs, but the same target module calls `ConvertFrom-Json -DateKind String` at `.agents/scripts/AgentCliSessionExclusion.psm1:68`; Windows PowerShell 5.1.26100.8655 rejects `-DateKind`, and every live-ledger transition reaches `Read-AgentCliLedger` through `Invoke-LedgerTransition`, so the plan's specified two-API edit would merely advance ordinary pre-build provisioning to a second 5.1 failure and cannot satisfy its own acceptance criteria — **small**
+`Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:5` — mode 5 — the plan identifies only `SHA256.HashData` and `Convert.ToHexString` as PowerShell-7-only APIs, but the same target module calls `ConvertFrom-Json -DateKind String` at `.agents/scripts/WorktreeCliSessionExclusion.psm1:68`; Windows PowerShell 5.1.26100.8655 rejects `-DateKind`, and every live-ledger transition reaches `Read-WorktreeCliLedger` through `Invoke-LedgerTransition`, so the plan's specified two-API edit would merely advance ordinary pre-build provisioning to a second 5.1 failure and cannot satisfy its own acceptance criteria — **small**
 
 Evidence:
 
@@ -61,7 +61,7 @@ Evidence:
 - File Groups: the GameSaveLoad group retains exactly the two replay plans plus `DirectLoadTickClockRetention`; the game Network/Server group includes the recorded-coordinate conditional overlap. F003 covers the remaining new-plan integration omission.
 - Dependencies: no unrelated stale dependency names were introduced. F002 covers the unresolved relationship between the two new replay plans.
 - Follow-up evidence/actionability: mixed-generation replay, recorded-coordinate eviction, and PowerShell runtime mismatch are all reproduced in current source/runtime and are independently scoped. F001 and F002 cover the two plan-contract gaps.
-- Claim handoff: AgentCli row status still records owner `<GUID>`, plan `save\serversavefailurereporting.md`, and this exact worktree. No row-unclaim occurred and neither owner nor claim metadata leaked into repository documents. Claim age/process liveness is warning-only under the queue contract; finalization still owns release with the handed-off owner token.
+- Claim handoff: WorktreeCli row status still records owner `<GUID>`, plan `save\serversavefailurereporting.md`, and this exact worktree. No row-unclaim occurred and neither owner nor claim metadata leaked into repository documents. Claim age/process liveness is warning-only under the queue contract; finalization still owns release with the handed-off owner token.
 - Diff hygiene: `git diff --check -- Documents/Plans` passes. No scratch files or process debris were introduced in the audited repository group; `Temp/AgentReports` files are intentional coordination artifacts.
 
 ## Failure-mode checklist

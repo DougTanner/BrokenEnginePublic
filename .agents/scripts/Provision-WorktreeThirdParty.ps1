@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'AgentCliSessionExclusion.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'WorktreeCliSessionExclusion.psm1') -Force
 
 function Invoke-Git {
 	param([string[]] $Arguments)
@@ -175,12 +175,12 @@ $current = @($records | Where-Object { $_.Path.Equals($root, [StringComparison]:
 if ($current.Count -ne 1) { throw "RepositoryRoot is not a registered worktree: '$root'." }
 
 $transientClaim = $null
-$owner = $env:BROKEN_ENGINE_AGENTCLI_SESSION_OWNER
+$owner = $env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER
 if ([string]::IsNullOrWhiteSpace($owner)) {
 	$owner = [guid]::NewGuid().ToString()
-	$transientClaim = Register-AgentCliSession -RepositoryRoot $root -Owner $owner -Label 'transient provisioner' -Worktree $root -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed
+	$transientClaim = Register-WorktreeCliSession -RepositoryRoot $root -Owner $owner -Label 'transient provisioner' -Worktree $root -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed
 }
-else { Assert-AgentCliSessionOwner -RepositoryRoot $root -Owner $owner }
+else { Assert-WorktreeCliSessionOwner -RepositoryRoot $root -Owner $owner }
 
 try {
 
@@ -211,12 +211,19 @@ foreach ($configuration in @('Debug', 'Profile', 'Release')) {
 	$library = Join-Path $primaryOutput "ThirdParty.$configuration.lib"
 	if (-not (Test-Path -LiteralPath $library -PathType Leaf) -or (Get-Item -LiteralPath $library).Length -eq 0) { throw "Required primary library is missing or empty: '$library'." }
 }
-$agentCliOutputRelativeRoot = 'Tools/AgentCli/Platforms/VisualStudio2026/Output'
-$primaryAgentCliOutput = Join-Path $primaryRoot $agentCliOutputRelativeRoot
-Assert-PopulatedDirectory $primaryAgentCliOutput 'Primary AgentCli Output'
-$primaryAgentCli = Join-Path $primaryAgentCliOutput 'AgentCli.exe'
-if (-not (Test-Path -LiteralPath $primaryAgentCli -PathType Leaf) -or (Get-Item -LiteralPath $primaryAgentCli).Length -eq 0) {
-	throw "Required primary AgentCli executable is missing or empty: '$primaryAgentCli'."
+$worktreeCliOutputRelativeRoot = 'Tools/WorktreeCli/Platforms/VisualStudio2026/Output'
+$agentHarnessOutputRelativeRoot = 'Tools/AgentHarness/Platforms/VisualStudio2026/Output'
+$primaryWorktreeCliOutput = Join-Path $primaryRoot $worktreeCliOutputRelativeRoot
+$primaryAgentHarnessOutput = Join-Path $primaryRoot $agentHarnessOutputRelativeRoot
+Assert-PopulatedDirectory $primaryWorktreeCliOutput 'Primary WorktreeCli Output'
+Assert-PopulatedDirectory $primaryAgentHarnessOutput 'Primary AgentHarness Output'
+$primaryWorktreeCli = Join-Path $primaryWorktreeCliOutput 'WorktreeCli.exe'
+$primaryAgentHarness = Join-Path $primaryAgentHarnessOutput 'AgentHarness.exe'
+if (-not (Test-Path -LiteralPath $primaryWorktreeCli -PathType Leaf) -or (Get-Item -LiteralPath $primaryWorktreeCli).Length -eq 0) {
+	throw "Required primary WorktreeCli executable is missing or empty: '$primaryWorktreeCli'."
+}
+if (-not (Test-Path -LiteralPath $primaryAgentHarness -PathType Leaf) -or (Get-Item -LiteralPath $primaryAgentHarness).Length -eq 0) {
+	throw "Required primary AgentHarness executable is missing or empty: '$primaryAgentHarness'."
 }
 
 $linkFarmPlans = @()
@@ -241,14 +248,17 @@ foreach ($relativePath in $modulePaths) {
 
 if (-not $root.Equals($primaryRoot, [StringComparison]::OrdinalIgnoreCase)) {
 	$outputDestination = Join-Path $root $libraryRelativeRoot
-	$agentCliOutputDestination = Join-Path $root $agentCliOutputRelativeRoot
+	$worktreeCliOutputDestination = Join-Path $root $worktreeCliOutputRelativeRoot
+	$agentHarnessOutputDestination = Join-Path $root $agentHarnessOutputRelativeRoot
 	Assert-DirectoryLinkDestination $outputDestination $primaryOutput
-	Assert-DirectoryLinkDestination $agentCliOutputDestination $primaryAgentCliOutput
+	Assert-DirectoryLinkDestination $worktreeCliOutputDestination $primaryWorktreeCliOutput
+	Assert-DirectoryLinkDestination $agentHarnessOutputDestination $primaryAgentHarnessOutput
 	$createdArtifacts = [System.Collections.Generic.List[object]]::new()
 	try {
 		foreach ($plan in $linkFarmPlans) { Ensure-LinkFarm $plan.Destination $plan.Entries $createdArtifacts }
 		Ensure-DirectoryLink $outputDestination $primaryOutput $createdArtifacts
-		Ensure-DirectoryLink $agentCliOutputDestination $primaryAgentCliOutput $createdArtifacts
+		Ensure-DirectoryLink $worktreeCliOutputDestination $primaryWorktreeCliOutput $createdArtifacts
+		Ensure-DirectoryLink $agentHarnessOutputDestination $primaryAgentHarnessOutput $createdArtifacts
 	}
 	catch {
 		$applyError = $_
@@ -260,5 +270,5 @@ if (-not $root.Equals($primaryRoot, [StringComparison]::OrdinalIgnoreCase)) {
 Write-Host "Shared worktree dependencies validated for '$root' using primary '$primaryRoot'."
 }
 finally {
-	if ($null -ne $transientClaim) { Unregister-AgentCliSession -RepositoryRoot $root -Owner $owner }
+	if ($null -ne $transientClaim) { Unregister-WorktreeCliSession -RepositoryRoot $root -Owner $owner }
 }

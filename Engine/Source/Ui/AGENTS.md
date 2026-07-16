@@ -11,7 +11,7 @@ Runtime-adjustable parameter wrappers and ImGui-based screen classes.
 
 ## Architecture Notes
 
-Engine-scope wrappers split per Tweaks tab into `<Tab>WrappersBase.{h,cpp}` pairs (Pbr, Terrain, Water, Lighting, Shadow, SunMoon, Misc, Smoke, Wind, GraphicsSettings, SoundSettings). `WrapperBase.{h,cpp}` holds the `Wrapper` class plus internal-only globals bound to no UI surface. Game-specific wrappers live in the game `Ui/` directory under matching per-tab pairs. Curve types are `BT_CLIENT`-guarded because `ImVec2` is server-unavailable; everything else compiles into both builds — the server reads wrappers at defaults, no UI mutates them there. Within each pair, declaration order must match the slider order in the matching Tweaks section — ordering rules in [Screens/TweaksScreen/AGENTS.md](Screens/TweaksScreen/AGENTS.md).
+Engine-scope wrappers split per Tweaks tab into `<Tab>WrappersBase.{h,cpp}` pairs (Pbr, Terrain, Water, Lighting, Shadow, SunMoon, Misc, Smoke, Wind, GraphicsSettings, SoundSettings). `WrapperBase.{h,cpp}` holds the `Wrapper` class plus internal-only globals bound to no UI surface. Game-specific wrappers live in the game `Ui/` directory under matching per-tab pairs. Curve types are `BT_CLIENT`-guarded because `ImVec2` is server-unavailable; everything else compiles into both builds — the server reads wrappers at defaults, no UI mutates them there. Within each pair, declaration order must match the slider order in the matching Tweaks section — ordering rules in `Screens/TweaksScreen/AGENTS.md`.
 
 Wrapper headers are deliberately not aggregated into `Engine.h` (only `NetworkUiControl.h` is) — consumers include the specific `<Tab>WrappersBase.h` they need, so default-value edits don't recompile the world. Don't "fix" this by aggregating them.
 
@@ -23,4 +23,4 @@ The Lighting tab carries a deliberate A/B curve-tuning apparatus — `gCombineCu
 
 ## See Also
 
-- [Screens/AGENTS.md](Screens/AGENTS.md) - ImGui-based debug overlays
+- `Screens/AGENTS.md` - ImGui-based debug overlays

@@ -31,9 +31,8 @@ to the separate evidence domain.
 - Complete logical change (all paths), keeping code and documentation lenses distinct within the same audit
 - Functions/regions touched this session, attributed as implementation/propagation, review fixes, conditional-role edits, or reconciliation edits; if attribution is missing, treat every touched region as potentially late
 - The recorded trigger for this audit and, for an optional second audit, its non-overlapping evidence domain
-- Earlier report compact-envelope identities (`REPORT`, `REPORT_SHA256`) plus the indexed residual and focus-area IDs, exact evidence locators, and dependencies relevant to the logical change; invoke `Read-AgentReportSection.ps1` once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) consumption contract
+- Earlier inline residuals and focus areas relevant to the logical change
 - The plan document or intent summary
-- For a delegated call, a caller-assigned absolute `ReportPath` under the session worktree's `Temp/AgentReports/`
 
 If invoked directly with no caller briefing, reconstruct the complete logical change and touched regions from the conversation history's edits, and treat the residual list as empty.
 
@@ -48,15 +47,12 @@ Earlier roles each see a slice; these surface only when reading the finished who
 5. **Whole-file incoherence** — the file no longer reads as one design: logic duplicated between an old and a new path, a helper the session's edits made dead, a comment or ASSERT contradicting the new behavior, a `#include`/guard the edits made unnecessary.
 6. **Residual leakage** — every residual and focus area handed in is either resolved in current code or re-reported; never silently gone.
 7. **False completion** — earlier reports are claims, not evidence: for each accepted fix and each residual marked resolved, spot-check the change actually exists in current code.
-8. **Debris** — diagnostic `LOG`s left at kDebug/kVerbose from iteration, commented-out code, scratch/temp files introduced this session. `Temp/AgentReports/` artifacts conforming to the shared reporting contract are intentional process state, not debris. Changelog-style comments belong to repo-code-review §2d — don't double-report.
+8. **Debris** — diagnostic `LOG`s left at kDebug/kVerbose from iteration, commented-out code, scratch/temp files introduced this session. Global `%LOCALAPPDATA%\BrokenEngine\AgentReports\` artifacts conforming to the shared reporting contract are intentional process state, not debris. Changelog-style comments belong to repo-code-review §2d — don't double-report.
 
 ## Output
 
-For a delegated call, follow
-[`../../references/subagent-reporting.md`](../../references/subagent-reporting.md),
-write the complete output to `ReportPath`, and return only the compact indexed
-envelope. The caller must read every finding before deduplication and
-classification. With no delegated `ReportPath`, retain inline reporting.
+Return the complete output inline. The caller must read every finding before
+deduplication and classification.
 
 Per finding: `path:line`, failure-mode number, one-line description, fix size
 (**small** — dispatchable now | **structural** — blocks when it is an in-scope

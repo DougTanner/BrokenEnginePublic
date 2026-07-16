@@ -1,6 +1,6 @@
 ---
 name: repo-code-review
-description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, useless-ASSERT discipline, collection integrity, determinism, client/server guard scope and affinity. Use as the correctness review for C++ changes, when the user says "review my changes", "check my code", or "code review". Do not use for shader-only or non-C++ changes. Flags oversized files for /reduce-file. Logic and correctness only — formatting/style belongs to code-style-review.
+description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, useless-ASSERT discipline, collection integrity, determinism, client/server guard scope and affinity. Use as the correctness review for C++ changes, when the user says "review my changes", "check my code", or "code review". Do not use for shader-only or non-C++ changes. Triages size only when the change exposes a cohesive split. Logic and correctness only — formatting/style belongs to code-style-review.
 allowed-tools: [Read, Write, Grep, Glob, WebFetch, Bash, PowerShell]
 ---
 
@@ -19,25 +19,16 @@ reproducible after that focused check.
 
 ### 1. Identify Modified Code
 
-If invoked as a subagent, require each implementation/affected-code report's
-`REPORT` and `REPORT_SHA256` plus indexed changed-region/focus-area IDs, exact
-evidence locators, and dependencies. Invoke `Read-AgentReportSection.ps1` once
-per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md)
-consumption contract; those sections scope the §2c/§2d "added this session"
-checks without pasting full reports into the caller prompt. Otherwise review
-the conversation history to find all files that were edited during this
-session. Focus on:
+Use the implementation handoff and conversation history to find all files that
+were edited during this session. Focus on:
 - New functions/methods added
 - Modified logic in existing functions
 - New data structures or classes
 - Integration points where new code connects to existing systems
 
-When invoked as a subagent, also require `ReportPath` and follow
-[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
-review in the existing Output Format, verify it, and return only the compact
-envelope. Index every finding, API-verification request, and residual. A missing
-or unwritable delegated report blocks the review. A direct invocation without
-`ReportPath` keeps the existing full inline output.
+Return concise inline findings. A correctness review is not a final-evidence
+gate; findings, verification requests, and residuals are handed directly to
+the manager.
 
 ### 2. Review for General Bugs
 
@@ -175,8 +166,8 @@ Verify existing `common::` utilities are used instead of reimplementing. `Common
 ### 7. File Size Check
 
 For each modified `.cpp` file, run `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>` and check its `bt-token-v1` estimate (normalized UTF-8 bytes divided by four, rounded up; this is a deterministic size metric, not an exact model-token count):
-- **Over 10,000 bt-token-v1**: Always flag as **REQUIRED** — the file needs `/reduce-file` or an accepted cohesive exception. The caller routes flagged files to a follow-up plan in `Documents/Plans/`; reduction is never run inline during a review
-- **5,000-10,000 bt-token-v1**: Only flag as **RECOMMEND** if you identified a natural split point during the review (e.g., distinct responsibility groups, client/server code that could separate, utility functions that belong in a `*Utils` file). Do not flag files in this range that are cohesive and have no obvious split
+- **Over 10,000 bt-token-v1**: Record an observation only when the changed region adds a distinct responsibility or the review identifies a concrete cohesive split. Do not create a required follow-up merely because a one-line change touched an already-large file; that expands scope without improving the current change's correctness.
+- **5,000-10,000 bt-token-v1**: Record an observation only if you identified a natural split point during the review (e.g., distinct responsibility groups, client/server code that could separate, utility functions that belong in a `*Utils` file). Do not flag cohesive files with no split.
 - **Struct splitting**: Structs with static methods (e.g., SOA collections) can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). Classes must NOT be split this way — extract independent classes instead. See `/reduce-file` skill
 
 ### 8. Implementation Assessment
@@ -193,18 +184,16 @@ Evaluate the changes holistically:
 - **Workaround justification test** - A workaround that needs a paragraph-long comment to justify why it is OK is itself a required finding: the code is wrong — require fixing the underlying code, not accepting the justification.
 - **Function size**: Inspect modified functions around 500 bt-token-v1 and treat 1,000 bt-token-v1 as a soft maximum. Some functions are legitimately large; flag "function does too much" and recommend a split only when a natural responsibility boundary exists. Add `-StartLine <n> -EndLine <n>` to the measurement command for the inclusive function range.
 
-For micro-simplification opportunities (unnecessary intermediate variables, over-complicated expressions), recommend running `/simplify` on the changed files rather than listing them here — that skill owns surface-level simplification; duplication of existing repo logic is the §8 New-duplication check, not a `/simplify` punt. For nesting-depth / style complaints, `/code-style-review` owns those.
+Micro-simplification opportunities, nesting-depth preferences, and style complaints are outside this correctness review and are not findings. Duplication of existing repository logic remains the §8 New-duplication check; `/code-style-review` owns style.
 
 ### 9. Severity Prefixes
 
-Use these prefixes on findings so the author knows what blocks the change vs what is optional. Items without a prefix are **required** (must address):
+Report only findings that require action:
 
 - *(no prefix)* — Required change. Must address.
 - **Critical:** — Blocks the change. Data loss, broken functionality, determinism break, allocation tracker violation.
-- **Nit:** — Minor, optional. Author may ignore — naming preferences, micro-style.
-- **Optional:** / **Consider:** — Suggestion worth considering but not required.
 
-Marker equivalence: `✗` in Engine Pattern Issues = no-prefix (required); file-size `[REQUIRED]` = no-prefix; file-size `[RECOMMEND]` = **Optional:**. Use one scheme per finding, not both.
+File-size observations are informational rather than findings. They do not change PASS to NEEDS FIXES and do not trigger edits, retesting, re-review, or follow-up planning without a separate user request.
 
 ### 10. Honesty (Anti-Sycophancy)
 
@@ -216,7 +205,7 @@ Marker equivalence: `✗` in Engine Pattern Issues = no-prefix (required); file-
 Severity calibration — worked examples (severity comes from the invariant surface hit, not the code pattern):
 
 - Local `std::vector` in a once-at-startup load function: not a finding — the allocation tracker covers the main loop only. The same vector in a per-tick `Update()`: **Critical:** (tracker `DEBUG_BREAK()`).
-- `==` float compare in Interpolate-only visual code: **Consider:** — outside the CRC, cannot desync. The same compare gating a write to PostRender (CRC'd) state: **Critical:** — divergent rounding across machines is a desync source.
+- `==` float compare in Interpolate-only visual code: not a finding — outside the CRC, cannot desync. The same compare gating a write to PostRender (CRC'd) state: **Critical:** — divergent rounding across machines is a desync source.
 
 ### 11. API Verification
 
@@ -234,7 +223,9 @@ If WebFetch turns up nothing authoritative, mark the finding:
 
 ## Output Format
 
-Only include sections where issues were found. For sections with no issues, omit them entirely.
+Include issue sections only where findings exist. Include `File Size Observations`
+when a qualifying informational observation exists; it does not affect the
+recommendation. Omit empty sections.
 
 ```
 ## Code Review Results
@@ -248,11 +239,11 @@ Only include sections where issues were found. For sections with no issues, omit
 ### Engine Pattern Issues
 - ✗ [pattern name] - [details of what's wrong and how to fix]
 
-### File Size Warnings
-- file (N bt-token-v1) - [RECOMMEND / REQUIRED] `/reduce-file <path>`
+### File Size Observations
+- file (N bt-token-v1) - concrete split opportunity and `/reduce-file <path>`
 
 ### Implementation Issues
-- [Description of completeness, integration, minimality, or simplification concern]
+- [Description of required completeness, integration, or minimality issue]
 
 ### API Verification Requests
 - <api/symbol> — <spec URL> — <what to confirm, and which finding depends on it>

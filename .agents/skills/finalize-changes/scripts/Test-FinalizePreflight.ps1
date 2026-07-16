@@ -22,6 +22,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$workflowModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
+Import-Module $workflowModule -Force
 
 $result = [ordered]@{
 	schemaVersion = 'broken-engine-finalize-preflight/v1'
@@ -33,7 +35,7 @@ $result = [ordered]@{
 	identities = [ordered]@{ currentWorktree = $null; primaryWorktree = $null; gitCommonDirectory = $null; currentBranch = $null; primaryBranch = $null }
 	tips = [ordered]@{ baseline = $Baseline; comparisonBase = $ManifestComparisonBase; current = $null; primary = $null; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip }
 	manifest = [ordered]@{ expectedSha256 = $null; expectedCount = 0; actualSha256 = $null; actualCount = 0; equal = $false }
-	agentCli = [ordered]@{ outputPath = $null; outputLinkTarget = $null; path = $null; capabilityResult = 'not-checked'; requiredCapabilities = @() }
+	worktreeCli = [ordered]@{ outputPath = $null; outputLinkTarget = $null; path = $null; capabilityResult = 'not-checked'; requiredCapabilities = @() }
 	claim = [ordered]@{ classification = if ($Mode -eq 'primary-commit') { 'not-required' } else { 'not-checked' }; owner = $SessionOwner; worktree = $null; pid = $null; processStartUtc = $null; actualProcessStartUtc = $null }
 }
 $authoritativeSessionWorktree = $null
@@ -201,60 +203,23 @@ function Get-ExpectedManifest([string[]] $Sections) {
 }
 
 function Get-ActualManifest([string] $Worktree, [string] $ComparisonBase) {
-	$paths = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-	foreach ($arguments in @(
-		@('diff', '--name-only', '--no-renames', '-z', $ComparisonBase, '--'),
-		@('ls-files', '--others', '--exclude-standard', '-z')
-	)) {
-		$output = Invoke-Git $Worktree $arguments
-		foreach ($rawPath in $output.Split([char]0, [StringSplitOptions]::RemoveEmptyEntries)) {
-			$path = $rawPath.Replace('\', '/')
-			Assert-GitPath $path
-			[void]$paths.Add($path)
-		}
-	}
-	$ordered = [Collections.Generic.List[string]]::new()
-	foreach ($path in $paths) { $ordered.Add($path) }
-	$ordered.Sort([StringComparer]::Ordinal)
-	$rows = [Collections.Generic.List[string]]::new()
-	foreach ($path in $ordered) {
-		$absolute = Join-Path $Worktree ($path.Replace('/', [IO.Path]::DirectorySeparatorChar))
-		if (Test-Path -LiteralPath $absolute -PathType Leaf) {
-			$oid = (Invoke-Git $Worktree @('hash-object', "--path=$path", '--', $path)).Trim()
-			if ($oid -cnotmatch '^[0-9a-f]{40}$') { throw "git hash-object returned an invalid object id for '$path': '$oid'." }
-			$rows.Add($path + [char]9 + 'blob:' + $oid)
-		}
-		elseif (Test-Path -LiteralPath $absolute) { throw "Changed Git path is not a file or deletion: '$path'." }
-		else { $rows.Add($path + [char]9 + 'DELETED') }
-	}
-	return $rows.ToArray()
+	return @(Get-FinalizeManifestRows $Worktree $ComparisonBase)
 }
 
 function Get-WorktreeRecords([string] $Worktree) {
-	$records = [Collections.Generic.List[object]]::new()
-	$current = $null
-	$output = Invoke-Git $Worktree @('worktree', 'list', '--porcelain', '-z')
-	foreach ($field in $output.Split([char]0, [StringSplitOptions]::RemoveEmptyEntries)) {
-		if ($field.StartsWith('worktree ', [StringComparison]::Ordinal)) {
-			if ($null -ne $current) { $records.Add([pscustomobject]$current) }
-			$current = [ordered]@{ Path = $field.Substring(9); Head = $null; Branch = $null }
-		}
-		elseif ($null -ne $current -and $field.StartsWith('HEAD ', [StringComparison]::Ordinal)) { $current.Head = $field.Substring(5) }
-		elseif ($null -ne $current -and $field.StartsWith('branch refs/heads/', [StringComparison]::Ordinal)) { $current.Branch = $field.Substring(18) }
-	}
-	if ($null -ne $current) { $records.Add([pscustomobject]$current) }
-	return $records.ToArray()
+	return @(Get-FinalizeWorktreeRecords $Worktree)
 }
 
 try {
 	Assert-Input (@('session-landing', 'primary-commit') -ccontains $Mode) "Mode is invalid: '$Mode'."
-	Assert-Input (@('initial', 'after-lock', 'after-reconciliation', 'after-approval', 'pre-approval-lock-release', 'pre-mutation', 'post-mutation', 'pre-claim-release') -ccontains $Checkpoint) "Checkpoint is invalid: '$Checkpoint'."
+	Assert-Input (@('initial', 'after-reconciliation', 'pre-mutation', 'post-mutation') -ccontains $Checkpoint) "Checkpoint is invalid: '$Checkpoint'."
 	foreach ($value in @($CurrentWorktree, $PrimaryWorktree, $CurrentBranch, $PrimaryBranch, $Baseline, $ManifestComparisonBase, $VerificationReportPath, $VerificationReportSha256)) {
 		Assert-Input (-not [string]::IsNullOrWhiteSpace($value)) 'Required string inputs must not be empty.'
 	}
-	Assert-Input ($Baseline -cmatch '^[0-9a-f]{40}$') 'Baseline must be exactly 40 lowercase hexadecimal characters.'
-	Assert-Input ($VerificationReportSha256 -cmatch '^[0-9a-f]{64}$') 'VerificationReportSha256 must be exactly 64 lowercase hexadecimal characters.'
-	Assert-Input (@($ManifestRange).Count -gt 0) 'At least one exact manifest range is required.'
+Assert-Input ($Baseline -cmatch '^[0-9a-f]{40}$') 'Baseline must be exactly 40 lowercase hexadecimal characters.'
+Assert-Input ($VerificationReportSha256 -cmatch '^[0-9a-f]{64}$') 'VerificationReportSha256 must be exactly 64 lowercase hexadecimal characters.'
+$ManifestRange = @($ManifestRange | ForEach-Object { $_ -split ',', 0, [StringSplitOptions]::None })
+Assert-Input (@($ManifestRange).Count -gt 0) 'At least one exact manifest range is required.'
 	foreach ($range in @($ManifestRange)) { Assert-Input ($range -cmatch '^L[1-9][0-9]*-L[1-9][0-9]*$') "Manifest range has invalid grammar: '$range'." }
 	if ($Checkpoint -ne 'initial') {
 		Assert-Input ($ExpectedCurrentTip -cmatch '^[0-9a-f]{40}$') 'Later checkpoints require ExpectedCurrentTip.'
@@ -278,7 +243,7 @@ try {
 			BROKEN_ENGINE_PRIMARY_CHECKOUT = $PrimaryWorktree
 			BROKEN_ENGINE_TARGET_BRANCH = $PrimaryBranch
 			BROKEN_ENGINE_BASELINE = $Baseline
-			BROKEN_ENGINE_AGENTCLI_SESSION_OWNER = $SessionOwner
+			BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER = $SessionOwner
 		}
 		foreach ($entry in $provenance.GetEnumerator()) {
 			$actual = [Environment]::GetEnvironmentVariable($entry.Key)
@@ -341,8 +306,8 @@ try {
 	if (-not (Test-GitSuccess $currentIdentity @('rev-parse', '--verify', "$Baseline^{commit}"))) { Stop-Validation 'git.baseline-invalid' 'Baseline is not a commit in this repository.' }
 	if (-not (Test-GitSuccess $currentIdentity @('rev-parse', '--verify', "$ManifestComparisonBase^{commit}"))) { Stop-Validation 'git.comparison-base-invalid' 'ManifestComparisonBase is not a commit in this repository.' }
 	if (-not (Test-GitSuccess $currentIdentity @('merge-base', '--is-ancestor', $Baseline, $currentTip)) -or -not (Test-GitSuccess $primaryIdentity @('merge-base', '--is-ancestor', $Baseline, $primaryTip))) { Stop-Validation 'git.baseline-not-ancestor' 'Baseline is not an ancestor of both current and primary tips.' }
-	if ($Mode -eq 'session-landing' -and $Checkpoint -in @('after-reconciliation', 'after-approval', 'pre-mutation') -and -not (Test-GitSuccess $currentIdentity @('merge-base', '--is-ancestor', $primaryTip, $currentTip))) { Stop-Validation 'git.session-not-rebased' 'Primary tip is not an ancestor of the reconciled session tip.' }
-	if ($Mode -eq 'session-landing' -and $Checkpoint -in @('post-mutation', 'pre-claim-release') -and $currentTip -cne $primaryTip) { Stop-Validation 'git.post-landing-tip-mismatch' 'Primary and session tips differ after landing.' }
+	if ($Mode -eq 'session-landing' -and $Checkpoint -in @('after-reconciliation', 'pre-mutation') -and -not (Test-GitSuccess $currentIdentity @('merge-base', '--is-ancestor', $primaryTip, $currentTip))) { Stop-Validation 'git.session-not-rebased' 'Primary tip is not an ancestor of the reconciled session tip.' }
+	if ($Mode -eq 'session-landing' -and $Checkpoint -eq 'post-mutation' -and $currentTip -cne $primaryTip) { Stop-Validation 'git.post-landing-tip-mismatch' 'Primary and session tips differ after landing.' }
 	foreach ($worktree in @($currentIdentity, $primaryIdentity) | Select-Object -Unique) {
 		foreach ($marker in @('MERGE_HEAD', 'rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'BISECT_LOG', 'sequencer')) {
 			$markerPath = (Invoke-Git $worktree @('rev-parse', '--path-format=absolute', '--git-path', $marker)).Trim()
@@ -360,60 +325,60 @@ try {
 	}
 	if (-not $result.manifest.equal) { Stop-Validation 'manifest.mismatch' 'Current canonical manifest differs from the hash-bound verification manifest.' }
 
-	$relativeOutput = 'Tools\AgentCli\Platforms\VisualStudio2026\Output'
+	$relativeOutput = 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
 	$primaryOutput = Get-Item -LiteralPath (Join-Path $primaryIdentity $relativeOutput) -Force -ErrorAction Stop
-	if (-not $primaryOutput.PSIsContainer -or ($primaryOutput.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Stop-Validation 'agentcli.primary-output-invalid' 'Primary AgentCli Output must be an ordinary directory.' }
+	if (-not $primaryOutput.PSIsContainer -or ($primaryOutput.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Stop-Validation 'worktreecli.primary-output-invalid' 'Primary WorktreeCli Output must be an ordinary directory.' }
 	$selectedOutput = if ($Mode -eq 'session-landing') { Get-Item -LiteralPath (Join-Path $currentIdentity $relativeOutput) -Force -ErrorAction Stop } else { $primaryOutput }
-	if (-not $selectedOutput.PSIsContainer) { Stop-Validation 'agentcli.output-invalid' 'Selected AgentCli Output is not a directory.' }
+	if (-not $selectedOutput.PSIsContainer) { Stop-Validation 'worktreecli.output-invalid' 'Selected WorktreeCli Output is not a directory.' }
 	if ($Mode -eq 'session-landing') {
-		if (($selectedOutput.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) { Stop-Validation 'agentcli.output-not-link' 'Session AgentCli Output must be a directory link.' }
-		$linkTarget = Get-ReparseTargetIdentity $selectedOutput 'Session AgentCli Output'
-		$result.agentCli.outputLinkTarget = $linkTarget
-		if (-not $linkTarget.Equals((Get-RootPreservingFullPath $primaryOutput.FullName), [StringComparison]::OrdinalIgnoreCase)) { Stop-Validation 'agentcli.output-wrong-target' 'Session AgentCli Output does not target primary AgentCli Output.' }
+		if (($selectedOutput.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) { Stop-Validation 'worktreecli.output-not-link' 'Session WorktreeCli Output must be a directory link.' }
+		$linkTarget = Get-ReparseTargetIdentity $selectedOutput 'Session WorktreeCli Output'
+		$result.worktreeCli.outputLinkTarget = $linkTarget
+		if (-not $linkTarget.Equals((Get-RootPreservingFullPath $primaryOutput.FullName), [StringComparison]::OrdinalIgnoreCase)) { Stop-Validation 'worktreecli.output-wrong-target' 'Session WorktreeCli Output does not target primary WorktreeCli Output.' }
 	}
-	elseif (($selectedOutput.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Stop-Validation 'agentcli.primary-output-link' 'Primary commit mode requires an ordinary primary AgentCli Output directory.' }
-	$result.agentCli.outputPath = Get-RootPreservingFullPath $selectedOutput.FullName
-	$agentCliPath = Join-Path $selectedOutput.FullName 'AgentCli.exe'
-	if (-not (Test-Path -LiteralPath $agentCliPath -PathType Leaf)) { Stop-Validation 'agentcli.executable-missing' 'Selected AgentCli executable is missing; run authorized /compile primary maintenance.' }
-	$agentCliItem = Get-Item -LiteralPath $agentCliPath -Force
-	if (($agentCliItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or $agentCliItem.Length -eq 0) { Stop-Validation 'agentcli.executable-invalid' 'Selected AgentCli executable must be an ordinary nonempty file.' }
-	$result.agentCli.path = Get-RootPreservingFullPath $agentCliItem.FullName
+	elseif (($selectedOutput.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Stop-Validation 'worktreecli.primary-output-link' 'Primary commit mode requires an ordinary primary WorktreeCli Output directory.' }
+	$result.worktreeCli.outputPath = Get-RootPreservingFullPath $selectedOutput.FullName
+	$worktreeCliPath = Join-Path $selectedOutput.FullName 'WorktreeCli.exe'
+	if (-not (Test-Path -LiteralPath $worktreeCliPath -PathType Leaf)) { Stop-Validation 'worktreecli.executable-missing' 'Selected WorktreeCli executable is missing; run authorized /compile primary maintenance.' }
+	$worktreeCliItem = Get-Item -LiteralPath $worktreeCliPath -Force
+	if (($worktreeCliItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or $worktreeCliItem.Length -eq 0) { Stop-Validation 'worktreecli.executable-invalid' 'Selected WorktreeCli executable must be an ordinary nonempty file.' }
+	$result.worktreeCli.path = Get-RootPreservingFullPath $worktreeCliItem.FullName
 	$requiredHelp = [Collections.Generic.List[string]]::new()
 	$requiredCapabilities = [Collections.Generic.List[string]]::new()
-	$requiredHelp.Add('AgentCli.exe lock <token|claim|status|refresh|recover|release|steal> ...')
+	$requiredHelp.Add('WorktreeCli.exe lock <token|claim|status|refresh|recover|release|steal> ...')
 	$requiredCapabilities.Add('lock:token,claim,status,refresh,recover,release,steal')
 	if ($HasPlanRowClaim) {
-		$requiredHelp.Add('AgentCli.exe plan row status --repo COMMON-DIR --order PATH --plan PATH [--owner TOKEN]')
-		$requiredHelp.Add('AgentCli.exe plan row unclaim --repo COMMON-DIR --order PATH --plan PATH --owner TOKEN')
+		$requiredHelp.Add('WorktreeCli.exe plan row status --repo COMMON-DIR --order PATH --plan PATH [--owner TOKEN]')
+		$requiredHelp.Add('WorktreeCli.exe plan row unclaim --repo COMMON-DIR --order PATH --plan PATH --owner TOKEN')
 		$requiredCapabilities.Add('plan:row:status,unclaim')
 	}
 	if ($HasCompletedPlanClaim) {
-		$requiredHelp.Add('AgentCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH [--reapply]')
+		$requiredHelp.Add('WorktreeCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH [--reapply]')
 		$requiredCapabilities.Add('plan:order:complete:reapply')
 	}
 	if ($QueueChangingLanding) {
-		$requiredHelp.Add('AgentCli.exe plan queue lock --repo COMMON-DIR --order PATH --owner TOKEN --session TOKEN')
-		$requiredHelp.Add('AgentCli.exe plan queue status --repo COMMON-DIR --order PATH [--owner TOKEN]')
-		$requiredHelp.Add('AgentCli.exe plan queue unlock --repo COMMON-DIR --order PATH --owner TOKEN')
+		$requiredHelp.Add('WorktreeCli.exe plan queue lock --repo COMMON-DIR --order PATH --owner TOKEN --session TOKEN')
+		$requiredHelp.Add('WorktreeCli.exe plan queue status --repo COMMON-DIR --order PATH [--owner TOKEN]')
+		$requiredHelp.Add('WorktreeCli.exe plan queue unlock --repo COMMON-DIR --order PATH --owner TOKEN')
 		$requiredCapabilities.Add('plan:queue:lock,status,unlock')
 	}
-	$result.agentCli.requiredCapabilities = $requiredCapabilities.ToArray()
-	$help = Invoke-NativeText $agentCliItem.FullName @('--help') $currentIdentity
-	if ($help.ExitCode -ne 0) { Stop-Validation 'agentcli.help-failed' 'Selected AgentCli --help failed; run authorized /compile primary maintenance.' }
-	$result.agentCli.capabilityResult = 'fail'
-	foreach ($required in $requiredHelp) { if (-not $help.Stdout.Contains($required, [StringComparison]::Ordinal)) { Stop-Validation 'agentcli.capability-stale' "Selected AgentCli lacks finalization capability '$required'; run authorized /compile primary maintenance." } }
-	$result.agentCli.capabilityResult = 'pass'
+	$result.worktreeCli.requiredCapabilities = $requiredCapabilities.ToArray()
+	$help = Invoke-NativeText $worktreeCliItem.FullName @('--help') $currentIdentity
+	if ($help.ExitCode -ne 0) { Stop-Validation 'worktreecli.help-failed' 'Selected WorktreeCli --help failed; run authorized /compile primary maintenance.' }
+	$result.worktreeCli.capabilityResult = 'fail'
+	foreach ($required in $requiredHelp) { if (-not $help.Stdout.Contains($required, [StringComparison]::Ordinal)) { Stop-Validation 'worktreecli.capability-stale' "Selected WorktreeCli lacks finalization capability '$required'; run authorized /compile primary maintenance." } }
+	$result.worktreeCli.capabilityResult = 'pass'
 
 	if ($Mode -eq 'session-landing') {
-		$module = Join-Path $currentIdentity '.agents\scripts\AgentCliSessionExclusion.psm1'
+		$module = Join-Path $currentIdentity '.agents\scripts\WorktreeCliSessionExclusion.psm1'
 		Import-Module $module -Force
-		$classification = Get-AgentCliSessionClassification -RepositoryRoot $primaryIdentity -Owner $SessionOwner -Worktree $authoritativeSessionWorktree -WaitSeconds $parsedWaitSeconds
+		$classification = Get-WorktreeCliSessionClassification -RepositoryRoot $primaryIdentity -Owner $SessionOwner -Worktree $authoritativeSessionWorktree -WaitSeconds $parsedWaitSeconds
 		$result.claim.classification = $classification.Classification
 		$result.claim.worktree = $classification.ClaimWorktree
 		$result.claim.pid = $classification.ClaimPid
 		$result.claim.processStartUtc = $classification.ClaimProcessStartUtc
 		$result.claim.actualProcessStartUtc = $classification.ActualProcessStartUtc
-		if ($classification.Classification -cne 'expected-live') { Stop-Validation "claim.$($classification.Classification)" "Wrapper AgentCli session claim classified as '$($classification.Classification)'." }
+		if ($classification.Classification -cne 'expected-live') { Stop-Validation "claim.$($classification.Classification)" "Wrapper WorktreeCli session claim classified as '$($classification.Classification)'." }
 	}
 
 	Complete-Preflight 0 'pass' 'ok' 'Finalization preflight passed.'

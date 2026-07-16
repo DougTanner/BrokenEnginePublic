@@ -4,7 +4,7 @@
 
 Game frame state extending the engine base structs in `FrameBase.h` with collections for players, blasters, missiles, spaceships, and targets. Fixed timestep from `engine::kiTickRate`, phase-separated (FrameInterpolate, FramePostRender) for deterministic replay and shared-CRC validation. World-space cells are `Frame::kfCellWidth` × `kfCellHeight` engine units; each cell's deterministic island layout lives in `engine::FrameStaticData::islands` (built engine-side — see the engine frame docs), shared by client and server without broadcast. `Frame::kiVersion` adds `engine::kiNavDataVersion` and every collection's `kiVersion` to a game base constant; bumping any sub-version invalidates persisted frames.
 
-Frame purity constraint is documented in the parent ([../AGENTS.md](../AGENTS.md)) and must be respected here.
+Frame purity constraint is documented in the parent (`../AGENTS.md`) and must be respected here.
 
 See also: [Frame Update Pipeline](../../../../Documents/Architecture/FrameUpdatePipeline.md) — update this diagram if game frame phase ordering or participation changes.
 
@@ -28,5 +28,5 @@ See also: [Frame Update Pipeline](../../../../Documents/Architecture/FrameUpdate
 
 ## See Also
 
-- Engine base frame: [../../../../Engine/Source/Frame/AGENTS.md](../../../../Engine/Source/Frame/AGENTS.md)
-- Game object collections: [Collections/AGENTS.md](Collections/AGENTS.md)
+- Engine base frame: `../../../../Engine/Source/Frame/AGENTS.md`
+- Game object collections: `Collections/AGENTS.md`

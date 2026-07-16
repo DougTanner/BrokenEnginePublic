@@ -23,5 +23,5 @@ Row-major 3x4 packed into the per-instance layout. Box/Sphere/Circle use scale (
 
 ## See Also
 
-- [../Managers/AGENTS.md](../Managers/AGENTS.md) - BufferManager and PipelineManager
-- [../../../Data/Shaders/Debug/AGENTS.md](../../../Data/Shaders/Debug/AGENTS.md) - DebugRender shaders
+- `../Managers/AGENTS.md` - BufferManager and PipelineManager
+- `../../../Data/Shaders/Debug/AGENTS.md` - DebugRender shaders

@@ -12,6 +12,7 @@ namespace game
 
 struct Frame;
 struct ReceivedPlayerEvent;
+enum class GamePacketType : uint8_t;
 
 enum class SubscriptionChangeReason : uint8_t
 {
@@ -85,6 +86,9 @@ private:
 	// PollNetwork helpers
 	void ApplyPlayerEvent(const ReceivedPlayerEvent& rEvent);
 	void UpdatePlayerCoord(engine::global_id_t globalPlayerId, engine::GridCoord coord);
+
+	template <typename TLogFunction, typename... TArgs>
+	void SendGameRequest(GamePacketType ePacketType, const TLogFunction& rLogFunction, const TArgs&... rArgs);
 
 	// Subscription tracking
 	std::vector<engine::GridCoord> mDesiredCoords;

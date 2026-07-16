@@ -34,4 +34,4 @@ See also: [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePip
 
 ## See Also
 
-- [Collections/AGENTS.md](Collections/AGENTS.md) - SOA collection framework and engine-level collections
+- `Collections/AGENTS.md` - SOA collection framework and engine-level collections

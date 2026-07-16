@@ -5,7 +5,7 @@ Fallback: none
 Paired-review diversity: N/A
 Worktree: <WORKTREE>
 Session-start baseline: ca6f005addca80e8273cc7732e436fe351c1f71c
-Plan/intent: Provision required worktree dependencies, then compile DataPacker Release only through AgentCli with approved /p:PreBuildEventUseInBuild=false retry workaround; do not execute DataPacker or build AgentCli.
+Plan/intent: Provision required worktree dependencies, then compile DataPacker Release only through WorktreeCli with approved /p:PreBuildEventUseInBuild=false retry workaround; do not execute DataPacker or build WorktreeCli.
 
 # Lifecycle validation
 
@@ -14,7 +14,7 @@ PRIMARY: <USER_HOME>\Documents\BrokenEnginePublic
 ROOT: <WORKTREE>
 BASELINE: ca6f005addca80e8273cc7732e436fe351c1f71c
 PowerShell: Core 7.6.3
-Validation: PRIMARY and ROOT are distinct canonical Git worktrees sharing the same Git common directory; baseline commit resolved; live wrapper AgentCli session claim was present; required ReportPath was canonical, contained by ROOT\Temp\AgentReports, and absent before work.
+Validation: PRIMARY and ROOT are distinct canonical Git worktrees sharing the same Git common directory; baseline commit resolved; live wrapper WorktreeCli session claim was present; required ReportPath was canonical, contained by ROOT\Temp\AgentReports, and absent before work.
 
 # Top-level provisioning
 
@@ -26,8 +26,8 @@ Command:
 Output:
 Shared worktree dependencies validated for '<WORKTREE>' using primary '<USER_HOME>\Documents\BrokenEnginePublic'.
 
-AgentCli executable validated:
-<WORKTREE>\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe
+WorktreeCli executable validated:
+<WORKTREE>\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe
 
 # Build
 
@@ -35,22 +35,22 @@ Project: DataPacker
 Configuration: Release
 Platform: x64
 Final status: success
-AgentCli exit code: 0
+WorktreeCli exit code: 0
 Execution: synchronous foreground build
 DataPacker execution: not performed
-AgentCli build: not performed
+WorktreeCli build: not performed
 DataBuildMode: N/A (standalone DataPacker compile)
 GameDataDirectory: N/A
 GeneratedDataIncludeRoot: N/A
 
 Exact command:
-& $AgentCli build "$ROOT\DataPacker\Platforms\VisualStudio2026\DataPacker.sln" '/p:Configuration=Release' '/p:Platform=x64' '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal' '/p:PreBuildEventUseInBuild=false'
+& $WorktreeCli build "$ROOT\DataPacker\Platforms\VisualStudio2026\DataPacker.sln" '/p:Configuration=Release' '/p:Platform=x64' '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal' '/p:PreBuildEventUseInBuild=false'
 
 Approved retry property:
 /p:PreBuildEventUseInBuild=false
 
 Build output:
-AgentCli: building <WORKTREE>\DataPacker\Platforms\VisualStudio2026\DataPacker.sln
+WorktreeCli: building <WORKTREE>\DataPacker\Platforms\VisualStudio2026\DataPacker.sln
 MSBuild version 18.7.8+1ac568fee for .NET Framework
 
   Pch.cpp
@@ -97,7 +97,7 @@ MSBuild version 18.7.8+1ac568fee for .NET Framework
   Generating code
   Finished generating code
   DataPacker.vcxproj -> <WORKTREE>\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe
-AGENTCLI_BUILD_EXIT_CODE=0
+WORKTREECLI_BUILD_EXIT_CODE=0
 
 # Diagnostics
 

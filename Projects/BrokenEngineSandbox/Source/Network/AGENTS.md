@@ -7,7 +7,7 @@ Game-layer multiplayer orchestration. `ClientSession` and `ServerSession` extend
 ## Hub Conventions (children do not re-document these)
 
 - **Packet-type extension**: `GamePacketType` extends `engine::PacketType` starting at `kGamePacketStart`. Engine forwards these as opaque bytes. Enumerator order is the wire protocol — append only. Every new client→server `GamePacketType` needs a `GetGamePacketContract` row (size min/max, per-tick cap, debug gate if debug-only) and follows the full engine hub checklist ([Engine/Source/Network/AGENTS.md](../../../../Engine/Source/Network/AGENTS.md) → Network.md contract table).
-- **Debug-control packets**: a block of one-way client→server requests (quicksave/quickload/reset, replay record + playback, pause, timescale) plus a server timescale broadcast; debug-only. The client→server requests are decoded server-side (see [Server/AGENTS.md](Server/AGENTS.md)); the timescale broadcast is decoded client-side (see [Client/AGENTS.md](Client/AGENTS.md)). Their `GetGamePacketContract` rows are gated on `kbDebugInput` — on a `!kbDebugInput` server they resolve to the sentinel and are treated as contract violations (any handshaken client could otherwise reset/pause/re-speed the server).
+- **Debug-control packets**: a block of one-way client→server requests (quicksave/quickload/reset, replay record + playback, pause, timescale) plus a server timescale broadcast; debug-only. The client→server requests are decoded server-side (see `Server/AGENTS.md`); the timescale broadcast is decoded client-side (see `Client/AGENTS.md`). Their `GetGamePacketContract` rows are gated on `kbDebugInput` — on a `!kbDebugInput` server they resolve to the sentinel and are treated as contract violations (any handshaken client could otherwise reset/pause/re-speed the server).
 - **Type-byte stripping**: drained game packets arrive as (type, payload) pairs with the type byte already removed; payload size checks are post-strip.
 - **Raw-packet ownership**: `ParsePlayerEvents` leaves `rRawPackets` untouched and appends into a workbuffer arena (no heap); `ParseFleetSync` erases consumed entries (even when malformed) and heap-allocates — a successfully parsed sync replaces the caller's fleet vector wholesale (last valid sync wins; a malformed sync never clobbers an earlier valid one). A valid zero-fleet sync is a real applied result that leaves the vector empty, so the caller gates on the parse outcome, not on vector emptiness.
 - **Payload validation**: player-event parsing does per-branch size checks and skips short payloads (`continue`; unknown wire values `DEBUG_BREAK()` then skip); fleet-sync parsing validates via `engine::BoundedCursor` — a malformed payload is rejected whole (no partial application) and logged at `kNetwork`/`kWarning`.
@@ -28,8 +28,8 @@ Update both switches (`SerializeGroup` / `DeserializeStatusChangeBatch`), the co
 
 ## Subdirectories
 
-- [Client/AGENTS.md](Client/AGENTS.md) - `ClientSession` + reconciliation pipeline
-- [Server/AGENTS.md](Server/AGENTS.md) - `ServerSession` + fleet/transfer/broadcast/client managers
+- `Client/AGENTS.md` - `ClientSession` + reconciliation pipeline
+- `Server/AGENTS.md` - `ServerSession` + fleet/transfer/broadcast/client managers
 
 ## See Also
 

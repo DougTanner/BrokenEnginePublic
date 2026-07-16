@@ -23,7 +23,7 @@ Scope: non_structural
   - Verification: exact dependency language says the stop policy "must land before" atomicity; both plan files exist and have live rows; plan shape and queue-link checks pass.
 
 - Terra F001: FIXED
-  - Root cause: `Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md` named only `SHA256.HashData` and `Convert.ToHexString`, while `.agents/scripts/AgentCliSessionExclusion.psm1:68` also unconditionally uses `ConvertFrom-Json -DateKind String`. Windows PowerShell 5.1 lacks that parameter; unconditional removal would let PowerShell 7 materialize ISO timestamps as `DateTime`, violating strict string validation.
+  - Root cause: `Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md` named only `SHA256.HashData` and `Convert.ToHexString`, while `.agents/scripts/WorktreeCliSessionExclusion.psm1:68` also unconditionally uses `ConvertFrom-Json -DateKind String`. Windows PowerShell 5.1 lacks that parameter; unconditional removal would let PowerShell 7 materialize ISO timestamps as `DateTime`, violating strict string validation.
   - Change: extended Context, Design, and Acceptance at `Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:5,13,34` to require runtime-selective JSON parsing: `-DateKind String` where supported and plain conversion on 5.1, while retaining `Test-StrictString` / `Test-StrictUtcRoundTrip`. Updated only the row Notes text at `Documents/Plans/Order.md:19`; kept Effort 1, Impact 3, Risks 1, Score -1.
   - Verification: direct probes passed. Windows PowerShell reported `PLAIN_TYPE=System.String`, `HAS_DATEKIND=False`; PowerShell 7 reported `PLAIN_TYPE=System.DateTime`, `HAS_DATEKIND=True`, `DATEKIND_TYPE=System.String`. Both processes exited 0.
 
@@ -53,7 +53,7 @@ No code files changed by this assignment.
 
 ### Queue Coordination
 
-- Revalidated all three live plan files and rows plus the selected-row claim under the AgentCli queue lock before mutation.
+- Revalidated all three live plan files and rows plus the selected-row claim under the WorktreeCli queue lock before mutation.
 - All `Documents/Plans` mutations occurred while owner `<GUID>` held the canonical `Documents/Plans/Order.md` queue lock.
 - Every lock acquisition was released with unlock exit 0; final `plan queue status` reports `{"held":false}`.
 - Selected deleted-row claim remains owned by `<GUID>`, session `next-plan`, in the exact session worktree. No row unclaim/steal occurred.

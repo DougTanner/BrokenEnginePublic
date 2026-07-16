@@ -32,7 +32,7 @@ Conventions below are hub-owned; child AGENTS.mds document only deviations.
 
 **Arrival Grace Period**: Players and Spaceships arriving via StatusChange (transfer or spawn) get a 1-second `pfArrivalGracePeriods` timer. While > 0, other entities skip them in targeting and behavior scans — no chase/flee/fire, and missile homing (`kDestination`) is deferred until expiry. Collision and damage still apply normally — invulnerability would hide real physics interactions, and collisions are unlikely during the first second at the frame edge. The timer rides in `TransferData`; `SpawnTransfer` resets it to the full duration since each transfer is a new StatusChange clients must sync.
 
-**Pending Tick Countdown**: Delayed StatusChange activation via `uint8_t` countdown fields is documented at "Delayed StatusChange activation" in [../AGENTS.md](../AGENTS.md).
+**Pending Tick Countdown**: Delayed StatusChange activation via `uint8_t` countdown fields is documented at "Delayed StatusChange activation" in `../AGENTS.md`.
 
 **Flags Field Packing**: Multi-valued fields (nav direction, pending states) should be packed into the collection's `Flags` type using bit ranges and helper functions, rather than stored as separate SOA arrays. This reduces SOA field count and keeps related state together.
 
@@ -44,4 +44,4 @@ Conventions below are hub-owned; child AGENTS.mds document only deviations.
 
 ## See Also
 
-- Parent frame: [../AGENTS.md](../AGENTS.md) — tick pipeline phase order, two-tier collection dispatch (`FrameCollections.h` tuple helpers exclude Players), serialization/CRC protocol
+- Parent frame: `../AGENTS.md` — tick pipeline phase order, two-tier collection dispatch (`FrameCollections.h` tuple helpers exclude Players), serialization/CRC protocol

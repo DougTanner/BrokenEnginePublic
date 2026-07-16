@@ -8,7 +8,7 @@ namespace game
 struct ClientSpawnInfo
 {
 	int64_t iClientId = 0;
-	engine::GridCoord spawnCoord {};
+	engine::ClientGuid clientGuid {};
 	int64_t iFleetIndex = -1;
 	int64_t iMemberIndex = -1;
 };
@@ -17,7 +17,7 @@ class ServerClientManager
 {
 public:
 
-	void QueueSpawnForClient(int64_t iClientId, engine::GridCoord spawnCoord, int64_t iFleetIndex = -1, int64_t iMemberIndex = -1);
+	void QueueSpawnForClient(int64_t iClientId, const engine::ClientGuid& rClientGuid, int64_t iFleetIndex = -1, int64_t iMemberIndex = -1);
 	void ProcessSpawnRequests();
 	void NewClients();
 	void FinalizeNewClients();

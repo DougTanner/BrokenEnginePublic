@@ -4,5 +4,5 @@ Hub for engine-scope ImGui debug overlays. This directory holds no source itself
 
 ## See Also
 
-- [TweaksScreen/AGENTS.md](TweaksScreen/AGENTS.md) - `TweaksScreenBase` multi-section runtime parameter UI bound to Wrapper globals
-- [../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md](../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md) - Game menu screens and `game::TweaksScreen`
+- `TweaksScreen/AGENTS.md` - `TweaksScreenBase` multi-section runtime parameter UI bound to Wrapper globals
+- `../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md` - Game menu screens and `game::TweaksScreen`

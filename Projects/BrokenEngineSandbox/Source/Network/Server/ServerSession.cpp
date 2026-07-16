@@ -11,6 +11,7 @@
 #include "Network/Server/ServerBroadcaster.h"
 #include "Network/Server/ServerClientManager.h"
 #include "Network/Server/ServerFleetManager.h"
+#include "Network/Server/ServerFleetSerialization.h"
 #include "Network/Server/ServerTransferManager.h"
 
 namespace game
@@ -31,14 +32,7 @@ ServerSession::ServerSession()
 
 ServerSession::~ServerSession()
 {
-	mpClientManager.reset();
-	mpBroadcaster.reset();
-	mpTransferManager.reset();
-	mpFleetManager.reset();
-	if (gpServerSession == this)
-	{
-		gpServerSession = nullptr;
-	}
+	gpServerSession = nullptr;
 }
 
 void ServerSession::PrepareTick()
@@ -85,7 +79,7 @@ void ServerSession::BroadcastTick(int64_t iTick)
 		ScopedResumeAllocationTracking resume;
 		mpBroadcaster->BroadcastStatusChanges(iTick);
 	}
-	mpBroadcaster->ClearSpawns();
+	mpBroadcaster->ClearBroadcastStatusChanges();
 	SubscriptionUpdates();
 	engine::gpServer->Flush();
 }
@@ -679,12 +673,14 @@ bool ServerSession::TryRelinkClientForLoad(engine::ClientConnection& rClient, st
 
 void ServerSession::WriteFleetData(std::fstream& rFileStream) const
 {
-	mpFleetManager->WriteFleetData(rFileStream);
+	::game::WriteFleetData(rFileStream, mpFleetManager->mFleets, mpFleetManager->mRandomEngine);
 }
 
 void ServerSession::ReadFleetData(std::fstream& rFileStream)
 {
-	mpFleetManager->ReadFleetData(rFileStream);
+	// Heap: rebuild fleet maps from save stream
+	ScopedSuppressAllocationTracking suppress;
+	::game::ReadFleetData(rFileStream, mpFleetManager->mFleets, mpFleetManager->mGuidToClientId, mpFleetManager->mRandomEngine);
 }
 
 #endif // BT_SERVER

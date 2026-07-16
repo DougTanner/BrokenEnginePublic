@@ -20,7 +20,7 @@ void ServerBroadcaster::BuildFrameInputs()
 	ScopedSuppressAllocationTracking suppress;
 
 	gpGame->mFrameInputs.clear();
-	mSpawns.clear();
+	mBroadcastStatusChanges.clear();
 
 	// Initialize FrameInputs for all active coordinates
 	for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
@@ -38,15 +38,15 @@ void ServerBroadcaster::BuildFrameInputs()
 		uint8_t spawnPendingFleetTicks = 0;
 		if (rInfo.iFleetIndex >= 0)
 		{
-			ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rInfo.iClientId, rInfo.iFleetIndex, rInfo.iMemberIndex);
+			ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rInfo.clientGuid, rInfo.iFleetIndex, rInfo.iMemberIndex);
 			bIsFlagship = result.bIsFlagship;
 			spawnFleetWantedCoord = result.fleetWantedCoord;
 			spawnPendingFleetTicks = result.uiPendingFleetWantedCoordTicks;
 		}
 
 		StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer, .data = SpawnPlayerData{.iGlobalId = iGlobalId, .bIsFlagship = bIsFlagship, .fleetWantedCoord = spawnFleetWantedCoord, .uiPendingFleetWantedCoordTicks = spawnPendingFleetTicks}};
-		gpGame->mFrameInputs.try_emplace(rInfo.spawnCoord).first->second.statusChanges.push_back(spawnChange);
-		LOG(kNetwork, kVerbose, "ServerBroadcaster::BuildFrameInputs::kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{}) Flagship: {}", rInfo.iClientId, iGlobalId, rInfo.spawnCoord.x, rInfo.spawnCoord.y, bIsFlagship);
+		gpGame->mFrameInputs.try_emplace(engine::kOriginCoord).first->second.statusChanges.push_back(spawnChange);
+		LOG(kNetwork, kVerbose, "ServerBroadcaster::BuildFrameInputs::kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{}) Flagship: {}", rInfo.iClientId, iGlobalId, engine::kOriginCoord.x, engine::kOriginCoord.y, bIsFlagship);
 	}
 
 	// Inject weapon mode toggle StatusChanges
@@ -92,12 +92,12 @@ void ServerBroadcaster::BuildFrameInputs()
 		}
 	}
 
-	// Save StatusChanges for broadcasting (spawns only, transfers handled separately in HarvestTransfers)
+	// Save StatusChanges for broadcasting (transfers handled separately in HarvestTransfers)
 	for (const auto& [rCoord, rFrameInput] : gpGame->mFrameInputs)
 	{
 		if (!rFrameInput.statusChanges.empty())
 		{
-			mSpawns.insert_or_assign(rCoord, rFrameInput.statusChanges);
+			mBroadcastStatusChanges.insert_or_assign(rCoord, rFrameInput.statusChanges);
 		}
 	}
 
@@ -133,12 +133,12 @@ void ServerBroadcaster::BroadcastStatusChanges(int64_t iTick)
 			updateData.sharedCrc = gpGame->CurrentFrame(rCoord).postRender.sharedCrc;
 
 			int64_t iRunStart = std::ssize(statusChanges.Span<const StatusChange>());
-			auto spawnIt = mSpawns.find(rCoord);
-			if (spawnIt != mSpawns.end())
+			auto statusChangesIt = mBroadcastStatusChanges.find(rCoord);
+			if (statusChangesIt != mBroadcastStatusChanges.end())
 			{
-				for (const StatusChange& rSpawn : spawnIt->second)
+				for (const StatusChange& rStatusChange : statusChangesIt->second)
 				{
-					statusChanges.PushBack(rSpawn);
+					statusChanges.PushBack(rStatusChange);
 				}
 			}
 			auto transferIt = rTransfers.find(rCoord);
@@ -268,14 +268,14 @@ void ServerBroadcaster::ClearPendingRequests()
 	mPendingUpdatePlayerRequests.clear();
 }
 
-void ServerBroadcaster::ClearSpawns()
+void ServerBroadcaster::ClearBroadcastStatusChanges()
 {
-	mSpawns.clear();
+	mBroadcastStatusChanges.clear();
 }
 
 void ServerBroadcaster::ResetState()
 {
-	mSpawns.clear();
+	mBroadcastStatusChanges.clear();
 	mPendingUpdatePlayerRequests.clear();
 	// Drop any paused-deferred agent injection so a globalId minted against the pre-load game can't leak a stale
 	// StatusChange into freshly-loaded frames. Not cleared in ClearPendingRequests (runs before the agent Drain).

@@ -20,12 +20,12 @@ Result: NEEDS_ACTION
 ## Accepted-finding closure
 
 - Initial Sol F001 / Terra F002: closed. `Documents/Plans/Order.md:139,161` and `Documents/Plans/Save/ReplayGenerationCommitAtomicity.md:7,15,38,44` make `RecordedCoordReplayStopPolicy` a directional prerequisite and preserve independent end-frame versus set-commit scope.
-- Initial Terra F001: closed. `Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:5,11-15,19,33-36` covers both hash/hex APIs and runtime-selective `Read-AgentCliLedger` JSON parsing while preserving strict string/UTC validation; its Critical-files list names both required interfaces.
+- Initial Terra F001: closed. `Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md:5,11-15,19,33-36` covers both hash/hex APIs and runtime-selective `Read-WorktreeCliLedger` JSON parsing while preserving strict string/UTC validation; its Critical-files list names both required interfaces.
 - Initial Terra F003: closed. `Documents/Plans/Order.md:159` records `ReplayGenerationCommitAtomicity` as a conditional `FileManager.{h,cpp}` participant.
 - Initial Terra F004 and initial Sol R001: closed. No current `Documents/Plans` reference remains to deleted `ServerSaveFailureReporting.md` or `Architecture_LibraryReplacement.md`.
 - `<GUID>` Order-row stale-reference fix: closed at `Documents/Plans/Order.md:24`; the row retains its tier, score, position, and substantive decision summary.
 - Final Sol F001 and F003: closed. The obsolete GameBase/pause dependency and false GameBase/Main File Group are absent; `Documents/Plans/Engine/Architecture_GameBaseDeadVirtuals.md:6,13-14,46` states resolved, disjoint ownership using current behavior evidence without dropped-plan provenance.
-- Final Terra F001 and F002: closed. `Documents/Plans/Order.md:160` now names only the two live Release overlap families, and `PowerShell51ProvisioningCompatibility.md:19` names `Get-AgentCliRepositoryIdentity` plus `Read-AgentCliLedger`.
+- Final Terra F001 and F002: closed. `Documents/Plans/Order.md:160` now names only the two live Release overlap families, and `PowerShell51ProvisioningCompatibility.md:19` names `Get-WorktreeCliRepositoryIdentity` plus `Read-WorktreeCliLedger`.
 - Final Sol F002: not fully closed; F001 above records the surviving stale “cross-reference below” instruction and missing documentation target after the nonexistent plan line was removed.
 
 ## Queue and final-tree verification

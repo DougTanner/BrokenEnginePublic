@@ -17,7 +17,7 @@ Propagate the session's changes outward: find every location whose correctness d
 
 ## Inputs (from the caller's prompt)
 
-- Implementation report compact-envelope identities (`REPORT`, `REPORT_SHA256`) plus the indexed changed-region and affected-site-trigger IDs, exact evidence locators, and dependencies; invoke `Read-AgentReportSection.ps1` once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) consumption contract instead of requiring the caller to paste reports
+- Concise inline implementation handoff, including every changed region and affected-site trigger
 - Manager execution-control record bound to the fixed process baseline
 - Plan document path (or the caller's one-paragraph intent summary) — needed to judge mirrored-pattern edits and plan-scope residuals
 - Every affected-site trigger loaded from the supplied implementation reports —
@@ -25,16 +25,11 @@ Propagate the session's changes outward: find every location whose correctness d
   mandatory search target and report its resolution individually. When the
   implementation emitted none, main records `/update-affected-code: N/A` and
   does not invoke this skill.
-- `ReportPath` for this delegated step
 
 ## Reporting Mode
 
-This process step is delegated, so require `ReportPath` and follow
-[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
-report in the existing Report schema, verify it, and return only the compact
-envelope. Index every applied propagation, handed-off-item disposition, and
-residual. A missing or unwritable report blocks the sweep. If invoked directly
-without `ReportPath`, preserve the existing full inline report.
+Return the propagation handoff inline. A propagation sweep is not a final
+evidence gate; include each trigger disposition and residual directly.
 
 ## What to Search For
 

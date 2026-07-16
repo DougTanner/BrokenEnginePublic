@@ -81,11 +81,11 @@ Projects/BrokenEngineSandbox/Source/Save/GameSaveLoad.h	blob:1f973c417c97fe1f2f6
 ## V008 — PASS: reconciled client/server builds and ordinary provisioning hook
 
 - Exact check: `<GUID>-compile-reconciled.md` at exact HEAD/base.
-- Evidence: Debug client and server both built synchronously through AgentCli with exit 0, no errors, and no changed-file warnings. `PreBuildEventUseInBuild=false` was not supplied; the ordinary vcxproj PowerShell 5.1 provisioning hook executed successfully in both builds. All 26 Shared generated/packed data identities remained unchanged after each build.
+- Evidence: Debug client and server both built synchronously through WorktreeCli with exit 0, no errors, and no changed-file warnings. `PreBuildEventUseInBuild=false` was not supplied; the ordinary vcxproj PowerShell 5.1 provisioning hook executed successfully in both builds. All 26 Shared generated/packed data identities remained unchanged after each build.
 
 ## V009 — PASS: primary PowerShell completion is preserved and stale follow-up is absent
 
-- Exact check: compared `.agents/scripts/AgentCliSessionExclusion.psm1` between reconciled parent and HEAD; checked current planning tree and reconciled build.
+- Exact check: compared `.agents/scripts/WorktreeCliSessionExclusion.psm1` between reconciled parent and HEAD; checked current planning tree and reconciled build.
 - Evidence: module is byte-identical to parent and contains primary's PowerShell 5.1-compatible hashing, hex, JSON-date parsing, and replacement behavior. `Documents/Plans/Tools/PowerShell51ProvisioningCompatibility.md`, its row, and all planning references are absent. The ordinary-hook builds in V008 prove the primary implementation works; no session-owned compatibility residual remains.
 
 ## V010 — PASS: queue reconciliation and completed-plan cleanup
@@ -114,7 +114,7 @@ Projects/BrokenEngineSandbox/Source/Save/GameSaveLoad.h	blob:1f973c417c97fe1f2f6
 
 - Shared generated/packed data: `unchanged`; reconciled build proved 26/26 identities unchanged after both targets, and current hash recheck agrees with the report's canonical values.
 - Server and client AppData: `restored`; prior runtime H007 recorded byte/type/existence-identical snapshots after cleanup. No runtime was launched after reconciliation because all executable implementation blobs were unchanged.
-- Build/runtime processes: `restored`; current counts are zero for client, server, AgentCli, MSBuild, DataPacker, and devenv.
+- Build/runtime processes: `restored`; current counts are zero for client, server, WorktreeCli, MSBuild, DataPacker, and devenv.
 - Plans queue: `restored/unheld`.
 - Landing lock: `intentionally persisted under finalization owner contract` for owner `<GUID>`; not modified.
 - Selected deleted-row claim: `intentionally persisted under finalization owner contract` for owner `<GUID>`; not modified.

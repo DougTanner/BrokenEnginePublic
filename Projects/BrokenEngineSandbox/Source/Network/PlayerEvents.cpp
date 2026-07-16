@@ -1,3 +1,5 @@
+#include "Pch.h"
+
 #include "Network/PlayerEvents.h"
 
 #include "Network/NetworkCursor.h"
@@ -89,7 +91,7 @@ static bool ParseFleetSyncPayload(const std::vector<uint8_t>& rPayload, std::vec
 		{
 			return false;
 		}
-		Fleet& rFleet = rOutFleets.at(static_cast<size_t>(i));
+		Fleet& rFleet = rOutFleets[static_cast<size_t>(i)];
 		rFleet.guid.uiHigh = engine::ReadUint64(cursor.pCursor);
 		rFleet.guid.uiLow = engine::ReadUint64(cursor.pCursor);
 		int64_t iMemberCount = engine::ReadInt64(cursor.pCursor);
@@ -100,12 +102,19 @@ static bool ParseFleetSyncPayload(const std::vector<uint8_t>& rPayload, std::vec
 		{
 			return false;
 		}
+		// Empty fleets use the canonical index-0 sentinel; otherwise the index must name a member.
+		if (rFleet.iFlagshipIndex < 0 ||
+			(iMemberCount == 0 && rFleet.iFlagshipIndex != 0) ||
+			(iMemberCount > 0 && rFleet.iFlagshipIndex >= iMemberCount))
+		{
+			return false;
+		}
 		rFleet.members.resize(static_cast<size_t>(iMemberCount));
 		for (int64_t j = 0; j < iMemberCount; ++j)
 		{
 			int64_t iGlobalPlayerId = engine::ReadInt64(cursor.pCursor);
 			uint8_t uiAlive = engine::ReadUint8(cursor.pCursor);
-			rFleet.members.at(static_cast<size_t>(j)) = FleetMember {engine::global_id_t {iGlobalPlayerId}, uiAlive != 0};
+			rFleet.members[static_cast<size_t>(j)] = FleetMember {engine::global_id_t {iGlobalPlayerId}, uiAlive != 0};
 		}
 	}
 	return true;

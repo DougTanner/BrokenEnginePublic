@@ -28,8 +28,8 @@ Final project status:
 - ROOT and PRIMARY canonical paths are distinct.
 - Both checkouts resolve to Git common directory `<USER_HOME>/Documents/BrokenEnginePublic/.git`.
 - Baseline resolves exactly and is an ancestor of worktree HEAD.
-- Live wrapper claim: `BROKEN_ENGINE_AGENTCLI_SESSION_OWNER=<GUID>`.
-- AgentCli: `<WORKTREE>\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe` (present).
+- Live wrapper claim: `BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER=<GUID>`.
+- WorktreeCli: `<WORKTREE>\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` (present).
 - Direct required provisioning command completed with exit 0 before game builds.
 - Direct provisioning output: `Shared worktree dependencies validated for '<WORKTREE>' using primary '<USER_HOME>\Documents\BrokenEnginePublic'.`
 - After the failed pre-build hook and before retry, `ThirdParty.Debug.lib` was present and nonempty at 108313854 bytes.

@@ -34,7 +34,7 @@ The `Ui/` subdirectory has no AGENTS.md of its own; documented here:
 - **Multi-set descriptors**: Set 0 = global (UBOs, samplers, bindless textures), Set 1 = per-pipeline (SSBOs, combined image samplers), Set 2 = per-material (models only).
 - **Push-constant render modes**: Vertex shaders select camera/visible-area/shadow projection without separate pipeline permutations.
 - **Four-channel EWNS directional lighting**: RGB stored as separate render targets with EWNS directional weights. Rationale: directional and ambient EWNS samples are summed first, then passed together through the normal-weighted path so both contributions are normal-weighted consistently.
-- **World-space directional deposit**: *Light-source* deposit shaders compute EWNS direction weights from the fragment's world-space offset to the light's center using cos^2 lobe weighting, with an epsilon fallback to omnidirectional near the center. *Surface-normal* deposit shaders (e.g. `HexShieldLighting.frag`) instead project the blended center-normal's XY, with a zero-deposit epsilon fallback — see [Objects/AGENTS.md](Objects/AGENTS.md).
+- **World-space directional deposit**: *Light-source* deposit shaders compute EWNS direction weights from the fragment's world-space offset to the light's center using cos^2 lobe weighting, with an epsilon fallback to omnidirectional near the center. *Surface-normal* deposit shaders (e.g. `HexShieldLighting.frag`) instead project the blended center-normal's XY, with a zero-deposit epsilon fallback — see `Objects/AGENTS.md`.
 - **Unit-preserving identities (skip the redundant `normalize()`)**: `reflect(I, N)` is unit when both `I` and `N` are unit (and stays unit under a leading or single-axis sign flip); `cross(a, b)` is unit when `a`, `b` are unit and orthogonal. Callers that pre-normalize their inputs consume the result directly as a direction, saving one `rsqrt + 3 muls` per call site. The `Specular(...)` helper in `ShaderFunctions.h` relies on this (parameters typed as direction normals). Family-specific call sites are documented in the relevant child AGENTS.md (Water, Model, Objects, Particles).
 
 ## Known Issues
@@ -43,14 +43,14 @@ The `Ui/` subdirectory has no AGENTS.md of its own; documented here:
 
 ## See Also
 
-- [Debug/AGENTS.md](Debug/AGENTS.md)
-- [Lighting/AGENTS.md](Lighting/AGENTS.md)
-- [Quads/AGENTS.md](Quads/AGENTS.md)
-- [Model/AGENTS.md](Model/AGENTS.md)
-- [Objects/AGENTS.md](Objects/AGENTS.md)
-- [Particles/AGENTS.md](Particles/AGENTS.md)
-- [Shadow/AGENTS.md](Shadow/AGENTS.md)
-- [Smoke/AGENTS.md](Smoke/AGENTS.md)
-- [Terrain/AGENTS.md](Terrain/AGENTS.md)
-- [Water/AGENTS.md](Water/AGENTS.md)
-- [Wind/AGENTS.md](Wind/AGENTS.md)
+- `Debug/AGENTS.md`
+- `Lighting/AGENTS.md`
+- `Quads/AGENTS.md`
+- `Model/AGENTS.md`
+- `Objects/AGENTS.md`
+- `Particles/AGENTS.md`
+- `Shadow/AGENTS.md`
+- `Smoke/AGENTS.md`
+- `Terrain/AGENTS.md`
+- `Water/AGENTS.md`
+- `Wind/AGENTS.md`

@@ -16,4 +16,4 @@ Game-side localization and `game::`-scoped `engine::Wrapper` globals; ImGui scre
 
 ## See Also
 
-- [Screens/AGENTS.md](Screens/AGENTS.md) - Menus, HUD, TweaksScreen tabs
+- `Screens/AGENTS.md` - Menus, HUD, TweaksScreen tabs

@@ -86,7 +86,7 @@ namespace
 			TextureInfo
 			{
 				.name = name,
-				.format = VK_FORMAT_R16_SFLOAT,
+				.format = shaders::keElevationFormat,
 				.extent = {static_cast<uint32_t>(rTemplate.miHeightmapWidth), static_cast<uint32_t>(rTemplate.miHeightmapHeight), 1u},
 				.mipLevels = 1u,
 				.arrayLayers = 1u,

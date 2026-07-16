@@ -12,4 +12,4 @@ Client-only owner-driven smoke trail ribbons (Sync pattern): one quad per trail 
 - `Render()` carries an extra `uiFrameId` parameter solely so it is excluded from the auto-generated `InterpolateRenderTypes` walk (the same reason `WindTrails` carries it); the parameter itself is unused. Both are instead called directly from `RenderFrameMain()` with the per-frame ID
 
 ## See Also
-- [../AGENTS.md](../AGENTS.md) - Collection framework, Sync pattern, three-phase render convention
+- `../AGENTS.md` - Collection framework, Sync pattern, three-phase render convention

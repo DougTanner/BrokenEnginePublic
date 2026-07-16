@@ -16,8 +16,8 @@ layout (set = 0, binding = kiGlobalBindingMainUniform) uniform mainUniform
 };
 
 layout (set = 1, binding = 2) uniform sampler2D elevationTextureSampler;
-layout (set = 1, binding = 3, rgba16f) uniform writeonly image2D displacementImage;
-layout (set = 1, binding = 4, rgba16f) uniform writeonly image2D normalImage;
+layout (set = 1, binding = 3, rgba16f) uniform writeonly image2D displacementImage; // keWaterDisplacementFormat
+layout (set = 1, binding = 4, rgba16f) uniform writeonly image2D normalImage; // keWaterDisplacementFormat
 
 // Pre-computes the Gerstner wave displacement (Δx, Δy, Δz from camera-relative un-displaced position)
 // and Jacobian-derived flat-blended normal, so Water.vert can texelFetch a single sample per vertex

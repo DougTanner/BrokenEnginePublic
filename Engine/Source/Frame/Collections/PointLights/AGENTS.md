@@ -21,4 +21,4 @@ Interpolate `Update` runs per-frame controller keyframe animation (wrapper-scale
 
 ## See Also
 
-- [../AGENTS.md](../AGENTS.md) - `Collection<T>`, SOA layout, Sync and controller patterns, GPU render conventions
+- `../AGENTS.md` - `Collection<T>`, SOA layout, Sync and controller patterns, GPU render conventions

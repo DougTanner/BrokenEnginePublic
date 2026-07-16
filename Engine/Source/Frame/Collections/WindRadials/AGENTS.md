@@ -11,4 +11,4 @@ Client-only stationary wind-deposit splats — each radial deposits an outward i
 - Shares the A/B ping-pong wind-deposit indirect-count pattern with [WindTrails](../WindTrails/AGENTS.md); on quad-buffer resize `BeginRender` rewrites the SSBO descriptor on both pipelines
 
 ## See Also
-- [../AGENTS.md](../AGENTS.md) - Collection framework, Controller pattern, three-phase render
+- `../AGENTS.md` - Collection framework, Controller pattern, three-phase render

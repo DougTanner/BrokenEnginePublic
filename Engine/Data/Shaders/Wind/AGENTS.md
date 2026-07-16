@@ -31,6 +31,6 @@ Velocities are stored world-oriented (+Y = north); every conversion to/from UV s
 
 ## See Also
 
-- [../AGENTS.md](../AGENTS.md) - Parent shader directory overview
-- [../Smoke/AGENTS.md](../Smoke/AGENTS.md) - Sole consumer of the wind field; owns the shared area uniforms
+- `../AGENTS.md` - Parent shader directory overview
+- `../Smoke/AGENTS.md` - Sole consumer of the wind field; owns the shared area uniforms
 - [WindTrails](../../../Source/Frame/Collections/WindTrails/AGENTS.md) / [WindRadials](../../../Source/Frame/Collections/WindRadials/AGENTS.md) - Deposit-producing collections

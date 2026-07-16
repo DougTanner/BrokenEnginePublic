@@ -31,19 +31,13 @@ Require these inputs for implementation mode:
   concrete triggers, required and conditional roles, and the initial acceptance
   matrix;
 - applicable repository instructions;
-- source report compact-envelope identities (`REPORT`, `REPORT_SHA256`) plus indexed residual, handoff, and reviewer-focus IDs, exact evidence locators, and dependencies relevant to the slice; invoke `Read-AgentReportSection.ps1` once per exact range under the shared [`be-agent-report/v1`](../../references/subagent-reporting.md) consumption contract;
-- for a canonical plan containing either authority heading, the exact immutable source-scope packet identity and the successful `/plan-audit` report/result that independently verified that packet's path, SHA-256, canonical plan path, fixed baseline, tracked-source status and any claimed commit/blob identity, `S###` provenance, and the exact final D ID set, complete ledger, and approved-delta summary;
-- `ReportPath` when invoked in a delegated subagent.
+- concise caller summary of relevant findings, approved decisions, scope, and reviewer focus;
 
 ## Reporting Mode
 
-When delegated, require `ReportPath` and follow
-[`be-agent-report/v1`](../../references/subagent-reporting.md): write the full
-handoff in the existing Handoff Report schema, verify it, and return only the
-compact envelope. Index applied changes, affected-site triggers, reviewer focus areas,
-and residuals because each drives later process work. A missing or unwritable
-delegated report blocks implementation. A direct invocation without
-`ReportPath` keeps the existing full inline handoff.
+Return the Handoff Report inline. Preserve changed regions, affected-site
+triggers, reviewer focus areas, and residuals, but do not create an
+intermediate evidence artifact.
 
 If invoked directly after changes were already made, treat it as audit-only
 mode: derive the touched scope from the caller's change list, edit history, and
@@ -52,15 +46,9 @@ pre-existing worktree changes.
 
 ## Phase 1: Implement Assigned Work
 
-0. **Process activation and authority preflight.** Require evidence that the fixed
-   session baseline contains the landed commit that defines the supplied linear,
-   risk-tiered process. If it does not, follow the process contained by that
-   baseline or stop on ambiguity; never activate a newer working-tree process
-   definition mid-session. For `/next-plan` canonical plans, also apply this
-   authority check when the supplied canonical plan contains either
-   `## Provenance map` or `## Approved-delta ledger`; direct and legacy plans with
-   neither marker keep their existing behavior. First require both headings.
-   Require the exact source-scope packet identity and read the supplied successful `/plan-audit` report/result before trusting plan authority. It must explicitly establish that the same packet's path, SHA-256, canonical plan path, fixed baseline, tracked-source status and any claimed commit/blob identity, `S###` provenance, and the exact final D ID set, complete ledger, and approved-delta summary passed independent verification. Before any edit, stop and report a residual when that packet/audit evidence is absent, failed, mismatched, or identifies an unaudited packet; when the audit result's D IDs, ledger rows, or summary differ from the supplied final plan/summary (so a pre-grill `none` result cannot authorize a later D); when any `Delta requested C###` remains; when an execution step lacks exactly one matching `S###`/`P###`/`D###` provenance entry; when a `P###` mapping disagrees with its source/candidate; when a `D###` mapping disagrees with its candidate/ledger; or when the caller's approved-delta summary disagrees with the complete `D###` ledger (including literal `- none` for an empty ledger). `Follow-up pending` and Rejected candidates do not block unless they appear in execution.
+0. Confirm the user-approved execution card, risk trigger, scope, and acceptance
+   checks are still current. Stop only on a material contradiction or unresolved
+   decision; do not reconstruct provenance ledgers or report chains.
 1. Read the assigned plan items, applicable `AGENTS.md` files, and the current
    implementation before editing. Search for existing helpers and mirrored
    patterns so the change follows repository structure without duplicating
@@ -74,10 +62,8 @@ pre-existing worktree changes.
 4. Follow any specialist collection, shader, project, or subsystem skill whose
    trigger applies. Keep generated or mechanical edits within the same assigned
    scope.
-   When nested delegation is required, give Claude a self-contained fresh prompt
-   or set Codex `fork_turns:"none"`; both packets carry the fixed baseline,
-   approved plan/deltas, scope, report paths, and indexed relevant
-   residual/handoff chain.
+   When nested delegation is required, give it a concise self-contained scope,
+   approved decisions, and the relevant inline handoff.
 5. Verify the implementation in proportion to the slice. Run focused static
    checks needed to establish that the edit is internally coherent. Do not
    substitute these checks for the manager's targeted compile/static-check stage,

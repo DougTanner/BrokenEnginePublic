@@ -12,4 +12,4 @@ Client-only geodesic shield meshes with directional damage visualization. Fully 
 - **Type-registry colors**: `TypeRegistry<HexShieldsType>` holds the per-type-index main + lighting colors (packed ABGR uint32) and minimum intensity; both colors decode to float4 inside the render loop.
 
 ## See Also
-- [../AGENTS.md](../AGENTS.md) - Collection<T>, SOA, Sync pattern, file splitting conventions
+- `../AGENTS.md` - Collection<T>, SOA, Sync pattern, file splitting conventions

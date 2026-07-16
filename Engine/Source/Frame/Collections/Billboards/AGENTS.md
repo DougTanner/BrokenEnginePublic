@@ -10,4 +10,4 @@ Client-only screen-space UI indicators with offscreen-arrow handling. Owner-driv
 - `Add` rvalue-id overload is deleted to force callers to bind a persistent lvalue handle
 
 ## See Also
-- [../AGENTS.md](../AGENTS.md) - Collection framework, Sync/render-state patterns, owner-driven lifetime and transfer
+- `../AGENTS.md` - Collection framework, Sync/render-state patterns, owner-driven lifetime and transfer

@@ -1,46 +1,46 @@
 ---
 name: codex-review
 description: >-
-  Claude Code fallback for when Fable is unavailable or its limit is reached: run a
-  delegated reviewer/auditor role such as /plan-audit, /repo-code-review,
-  or /session-audit on Codex/Sol headless via `codex exec`, and return
-  its output in the target role's format. If Codex is also unavailable it reports
-  `CODEX-UNAVAILABLE: reason` so the caller uses Opus instead. Not for Codex —
-  under the Fable→Sol mapping Codex is already Sol, so it never calls this.
+  Claude Code fallback when Fable is unavailable: runs one assigned reviewer or
+  auditor role on Codex/Sol headless. Not for Codex itself, which is already the
+  Sol mapping.
 allowed-tools: [Read, Bash]
 ---
 
-# Codex Review (Fable-unavailable fallback → Sol)
+# Codex Review (Fable-unavailable fallback)
 
-Run a delegated reviewer/auditor role on **Codex/Sol** headless when Fable can't serve it. You are a thin driver: Codex performs the role using the same inputs and contract a Fable subagent would receive.
+Run one delegated reviewer or auditor role on Codex/Sol headless only when the
+normal Fable role is unavailable. This preserves role capability; it does not
+create a second opinion or a provenance chain.
 
-## Inputs (from caller)
-- `targetSkill` — the role's skill (e.g. `plan-audit`, `repo-code-review`, `session-audit`)
-- That role's normal inputs: changed-file list, touched regions, plan/intent, residuals/focus areas
-- Worktree path and changed-file baseline commit (derive if absent: worktree = current repo root; baseline = `HEAD`, because process reviews precede final reconciliation and landing)
-- Caller-assigned absolute `ReportPath` under the worktree's `Temp/AgentReports/`
+## Inputs
+
+- `targetSkill` — the assigned role, such as `plan-audit`, `repo-code-review`,
+  or `session-audit`
+- Its normal target: plan/intent, changed files and regions, and current
+  residuals or reviewer focus
+- Worktree and baseline (default to current repository root and `HEAD`)
 
 ## Method
-1. Assemble the review target into a scratch file (session scratchpad): for a code review, start with `git -C <worktree> diff <baseline> -- <changed files>`, then use `git -C <worktree> ls-files --others --exclude-standard -- <changed files>` and append each returned path plus its full contents. Never omit new files. For a plan/doc audit, include the file(s) the caller names.
-2. Write the prompt to a scratch file. Tell Codex to read and follow `<worktree>/.agents/skills/<targetSkill>/SKILL.md`, review only the supplied target, write its complete output to `ReportPath` per `<worktree>/.agents/references/subagent-reporting.md`, and emit only the compact indexed envelope.
-3. Run the helper:
-   `pwsh -File <worktree>/.codex/codex-review.ps1 -Worktree <worktree> -PromptFile <prompt> -OutFile <out>`
-   (Codex runs `gpt-5.6-sol` headless with bypass at xhigh; ~1–3 min. Don't tail its stdout.)
-4. Read `<out>`; verify the compact envelope is valid and `ReportPath` contains the target skill's complete output template and footer, coercing shape only (never invent findings). Return the envelope verbatim as your entire output.
 
-This fallback preserves role capability, not permission to duplicate reviews.
-Use it for the one role already selected by the risk-tiered process. Do not run
-another reviewer merely to manufacture profile diversity or consensus.
+1. Assemble only the target into a session scratch file. For code review, use
+   `git -C <worktree> diff <baseline> -- <changed files>` and append the full
+   contents of any named untracked files.
+2. Prompt Codex to read the selected skill, review only that target, and return
+   the selected role's normal concise inline result. It must not edit files.
+3. Run `pwsh -File <worktree>/.codex/codex-review.ps1 -Worktree <worktree>
+   -PromptFile <prompt> -OutFile <out>`.
+4. Read `<out>` and return it verbatim. Do not reshape findings or invent
+   evidence.
 
-## Fallback (never block the process)
-If the helper exits non-zero (127 = codex missing), `<out>` is empty/garbled,
-or the diff step fails, write a complete fallback report to `ReportPath` with
-`CODEX-UNAVAILABLE: <short reason>`, unchanged files/regions, and the reason as
-a residual. Return the shared compact envelope with `STATUS: BLOCKED`,
-`SUMMARY: CODEX-UNAVAILABLE: <short reason>`, and one indexed blocker. The
-caller recognizes that summary and runs the role on Opus with a new report
-path. Do not retry Codex more than once.
+## Fallback
+
+If the helper fails or returns unusable output, return
+`CODEX-UNAVAILABLE: <short reason>` with the unchanged target and residual.
+The caller may assign the one required role to Opus once. Do not retry Codex
+or add another reviewer for consensus.
 
 ## Notes
-- Findings only — never edit code (the target roles are findings-only; Codex runs read-only by instruction even though the sandbox is bypassed).
-- Billing: Codex bills the ChatGPT subscription, not metered API credits. Keep `OPENAI_API_KEY` out of your environment (see `.codex/codex-review.ps1`).
+
+- Findings only; never edit code.
+- A final-evidence gate records the final result once if one is active.

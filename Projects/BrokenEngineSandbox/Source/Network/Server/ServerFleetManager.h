@@ -47,8 +47,7 @@ public:
 	void TickFleetTimers();
 	void ProcessFlagshipUpdates();
 
-	void SendFleetSyncToClient(int64_t iClientId);
-	void SendFleetSync(int64_t iClientId, const std::vector<Fleet>& rFleets);
+	void SendFleetSyncToClient(int64_t iClientId, const engine::ClientGuid& rClientGuid);
 
 	void QueueCreateRequest(const PendingCreateFleetRequest& rRequest);
 	void QueueDeleteRequest(const PendingDeleteFleetRequest& rRequest);
@@ -57,7 +56,7 @@ public:
 	void ClearPendingRequests();
 
 	void OnPlayerDeath(const engine::ClientGuid& rGuid, engine::global_id_t globalId);
-	void OnPlayerSpawned(int64_t iClientId, const ClientSpawnInfo& rSpawnInfo, engine::global_id_t globalPlayerId);
+	void OnPlayerSpawned(int64_t iClientId, const engine::ClientGuid& rClientGuid, const ClientSpawnInfo& rSpawnInfo, engine::global_id_t globalPlayerId);
 	void OnPlayerTransferred(const engine::ClientGuid& rGuid, engine::global_id_t globalPlayerId, engine::GridCoord destination);
 	void OnClientConnected(int64_t iClientId, const engine::ClientGuid& rClientGuid);
 	void OnClientDisconnected(const engine::ClientGuid& rClientGuid);
@@ -69,12 +68,9 @@ public:
 		engine::GridCoord fleetWantedCoord {};
 		uint8_t uiPendingFleetWantedCoordTicks = 0;
 	};
-	FleetLookupResult LookupFleetWantedCoord(int64_t iClientId, int64_t iFleetIndex, int64_t iMemberIndex);
+	FleetLookupResult LookupFleetWantedCoord(const engine::ClientGuid& rClientGuid, int64_t iFleetIndex, int64_t iMemberIndex);
 
 	void UpdateFleetNavigationDelay(const engine::ClientGuid& rGuid, int64_t iFleetIndex, float fDelay);
-
-	void WriteFleetData(std::fstream& rFileStream) const;
-	void ReadFleetData(std::fstream& rFileStream);
 
 	void DetectDisconnectedPlayerDeaths();
 
@@ -83,7 +79,6 @@ public:
 	// ReadFleetData is authoritative there; use ClearPendingRequests() instead.
 	void ResetState();
 
-	engine::ClientGuid FindGuidForClient(int64_t iClientId) const;
 	int64_t FindClientIdForGuid(const engine::ClientGuid& rGuid) const;
 
 	// All fleets keyed by persistent ClientGuid (survives disconnect/reconnect)

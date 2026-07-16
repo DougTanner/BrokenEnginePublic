@@ -17,7 +17,7 @@ None.
 
 ## Latest-fix closure
 
-- Terra/Sol F001 is closed at `Documents/Plans/Network/AgentTransportConcurrentCommands.md:20,29`. Option A no longer contains the phantom “cross-reference below”; it names the existing `.agents/skills/agent-harness/SKILL.md` as the durable command-channel documentation owner, mirrors that path in Critical files, and requires `/validate-skill` after the future skill edit. The current agent-harness skill already owns the AgentCli command channel and states at line 226 that deferred client commands use a one-request-at-a-time channel, so the target is semantically appropriate. Option B and the A/B decision remain unchanged.
+- Terra/Sol F001 is closed at `Documents/Plans/Network/AgentTransportConcurrentCommands.md:20,29`. Option A no longer contains the phantom “cross-reference below”; it names the existing `.agents/skills/agent-harness/SKILL.md` as the durable command-channel documentation owner, mirrors that path in Critical files, and requires `/validate-skill` after the future skill edit. The current agent-harness skill already owns the AgentHarness command channel and states at line 226 that deferred client commands use a one-request-at-a-time channel, so the target is semantically appropriate. Option B and the A/B decision remain unchanged.
 - Paired Sol F002 is closed at `Documents/Plans/Order.md:161`. The GameSaveLoad File Group now names `Engine/Architecture_GameBaseDeadVirtuals.md` and its exact same-TU work, explicitly labels the overlap warning-only with no dependency, and preserves the independent stop-policy-before-atomicity prerequisite from `Order.md:139`.
 - The fresh fix touched only `AgentTransportConcurrentCommands.md:20,29` and `Order.md:161`; `.agents/skills/agent-harness/SKILL.md` itself remains unchanged, as intended for a future Option A execution.
 
@@ -25,7 +25,7 @@ None.
 
 - Replay ordering remains coherent across `Order.md:139,161` and `ReplayGenerationCommitAtomicity.md:7,15,38,44`: `RecordedCoordReplayStopPolicy` lands first, while end-frame lifetime and set-commit scopes remain independent.
 - Conditional replay atomicity participation in `FileManager.{h,cpp}` remains present at `Order.md:159` and matches the plan's Critical-files condition.
-- PowerShell follow-up scope remains complete: Context/Design/Acceptance cover the two hash/hex APIs plus runtime-selective `ConvertFrom-Json -DateKind String`, and Critical files names both `Get-AgentCliRepositoryIdentity` and `Read-AgentCliLedger`.
+- PowerShell follow-up scope remains complete: Context/Design/Acceptance cover the two hash/hex APIs plus runtime-selective `ConvertFrom-Json -DateKind String`, and Critical files names both `Get-WorktreeCliRepositoryIdentity` and `Read-WorktreeCliLedger`.
 - No assigned current file references deleted `ServerSaveFailureReporting.md`, `Architecture_LibraryReplacement.md`, `ServerLocalTimescaleBroadcastGap.md`, or `AgentHarness6_SceneDescriptionAndDocs.md`.
 - The obsolete GameBase/pause dependency and false GameBase/Main File Group remain absent; GameBase/pause ownership is disjoint and has no ordering constraint.
 - The Release static-analysis File Group heading remains aligned with its two live overlap families (`PackChunks.cpp`, `ProfileManagerBase.cpp`).
@@ -38,7 +38,7 @@ None.
 - The three new follow-up rows remain present exactly once with correct arithmetic and approximate placement: PowerShell Score -1; both replay plans Score 2.
 - Dependencies and File Groups retain the required story: stop policy precedes atomicity; GameSaveLoad includes both replay plans, direct-load work, and GameBase same-TU work; FileManager includes atomicity conditionally; server managers include stop policy conditionally.
 - Current source still substantiates the follow-up premises: `SyncReplayTick` publishes the manifest before writer/metadata completion and calls throwing `CurrentFrame(rCoord)` at stop; `SyncActiveFrames` erases inactive coordinate frames; the PowerShell module retains all three Windows PowerShell 5.1 incompatibilities; `AgentCommandServer` remains response-lockstep and returns early while a deferred poll is pending.
-- AgentCli queue status is `{"held":false}`. The deleted selected-row claim remains owned by `<GUID>`, session `next-plan`, plan `save\serversavefailurereporting.md`, in this exact worktree. No release, steal, owner drift, or worktree drift occurred; finalization still owns claim release.
+- WorktreeCli queue status is `{"held":false}`. The deleted selected-row claim remains owned by `<GUID>`, session `next-plan`, plan `save\serversavefailurereporting.md`, in this exact worktree. No release, steal, owner drift, or worktree drift occurred; finalization still owns claim release.
 - `git diff --check` passes. All three untracked follow-up plans have zero trailing-whitespace lines. Assigned status remains exactly three modified plans/index files, deletion of the completed plan, and the three new follow-up plans; no skill file or extra new-path artifact was modified.
 
 ## Failure-mode checklist

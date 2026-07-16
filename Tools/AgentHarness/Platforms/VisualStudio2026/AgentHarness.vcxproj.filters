@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup><Filter Include="AgentHarness"><UniqueIdentifier>{b34242cc-7b22-4909-b2d9-0e2d41af6b9b}</UniqueIdentifier></Filter><Filter Include="ToolCommon"><UniqueIdentifier>{c587e8c3-89d9-4c8b-b269-6c76e798aef8}</UniqueIdentifier></Filter></ItemGroup>
+  <ItemGroup><ClCompile Include="..\..\AgentHarness.cpp"><Filter>AgentHarness</Filter></ClCompile><ClCompile Include="..\..\HarnessLockCommands.cpp"><Filter>AgentHarness</Filter></ClCompile><ClCompile Include="..\..\..\ToolCommon\CoordinationStore.cpp"><Filter>ToolCommon</Filter></ClCompile><ClCompile Include="..\..\..\ToolCommon\ToolCliCommon.cpp"><Filter>ToolCommon</Filter></ClCompile></ItemGroup>
+  <ItemGroup><ClInclude Include="..\..\HarnessLockCommands.h"><Filter>AgentHarness</Filter></ClInclude><ClInclude Include="..\..\..\ToolCommon\CoordinationStore.h"><Filter>ToolCommon</Filter></ClInclude><ClInclude Include="..\..\..\ToolCommon\ToolCliCommon.h"><Filter>ToolCommon</Filter></ClInclude></ItemGroup>
+</Project>

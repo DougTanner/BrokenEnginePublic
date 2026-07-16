@@ -402,7 +402,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerSession.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerFleetManager.h" />
-    <ClInclude Include="..\..\Source\Network\Server\ServerFleetManagerUtils.h" />
+    <ClInclude Include="..\..\Source\Network\Server\ServerFleetSerialization.h" />
     <ClInclude Include="..\..\Source\Network\Server\FleetNavigationController.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerTransferManager.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerBroadcaster.h" />
@@ -521,7 +521,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerSession.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerFleetManager.cpp" />
-    <ClCompile Include="..\..\Source\Network\Server\ServerFleetManagerUtils.cpp" />
+    <ClCompile Include="..\..\Source\Network\Server\ServerFleetSerialization.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\FleetNavigationController.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerTransferManager.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerBroadcaster.cpp" />

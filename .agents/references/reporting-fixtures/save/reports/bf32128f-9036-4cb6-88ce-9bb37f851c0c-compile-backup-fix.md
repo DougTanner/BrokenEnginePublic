@@ -9,7 +9,7 @@ Plan/intent: Compile BrokenEngineSandbox Debug client and server after the Engin
 
 # Overall status
 
-FAIL. Both required AgentCli builds returned exit code 1 in the project provisioning pre-build step before C++ compilation. Direct worktree provisioning under PowerShell 7 succeeded before the builds, but each vcxproj invokes `powershell.exe`; that runtime rejected `[System.Security.Cryptography.SHA256]::HashData` in `.agents/scripts/Provision-WorktreeThirdParty.ps1`.
+FAIL. Both required WorktreeCli builds returned exit code 1 in the project provisioning pre-build step before C++ compilation. Direct worktree provisioning under PowerShell 7 succeeded before the builds, but each vcxproj invokes `powershell.exe`; that runtime rejected `[System.Security.Cryptography.SHA256]::HashData` in `.agents/scripts/Provision-WorktreeThirdParty.ps1`.
 
 # Lifecycle validation
 
@@ -17,8 +17,8 @@ FAIL. Both required AgentCli builds returned exit code 1 in the project provisio
 - Session worktree: `<WORKTREE>`
 - Paths are canonical and distinct: yes
 - Shared Git common directory: `<USER_HOME>/Documents/BrokenEnginePublic/.git`
-- Wrapper AgentCli session owner: `<GUID>`
-- AgentCli executable: `<WORKTREE>\Tools\AgentCli\Platforms\VisualStudio2026\Output\AgentCli.exe`
+- Wrapper WorktreeCli session owner: `<GUID>`
+- WorktreeCli executable: `<WORKTREE>\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe`
 - Pre-build provisioning: success (`Shared worktree dependencies validated`)
 
 # Data mode
@@ -71,7 +71,7 @@ Texture.pack | 1018005952 | 99E220274235A4681F5293650033A1CE5187F0DA9B8DBD9BAD99
 - Status: fail
 - Exit code: 1
 - Solution: `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.sln`
-- Invocation: serialized foreground `AgentCli build`, Debug|x64, Shared data properties, clang-tidy and code analysis disabled, minimal verbosity.
+- Invocation: serialized foreground `WorktreeCli build`, Debug|x64, Shared data properties, clang-tidy and code analysis disabled, minimal verbosity.
 - Warnings involving changed files: none observed.
 
 Verbatim decisive failure and error lines:
@@ -99,7 +99,7 @@ C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\
 - Status: fail
 - Exit code: 1
 - Solution: `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandboxServer.sln`
-- Invocation: serialized foreground `AgentCli build`, Debug|x64, Shared data properties, clang-tidy and code analysis disabled, minimal verbosity.
+- Invocation: serialized foreground `WorktreeCli build`, Debug|x64, Shared data properties, clang-tidy and code analysis disabled, minimal verbosity.
 - Warnings involving changed files: none observed.
 
 Verbatim decisive failure and error lines:

@@ -19,7 +19,7 @@ Server tick-orchestration gap surfaced by the Network audit, verified against cu
 1. **`ServerSession::PreTickNetwork` (`ServerSession.cpp:282`):** skip `mpBroadcaster->ClearPendingRequests()` while paused so `mPendingUpdatePlayerRequests` survives. (`mpFleetManager->ClearPendingRequests()` on the next line is a different queue family — network fleet CRUD requests refilled each poll — leave it as is.)
 2. **`ServerBroadcaster::BuildFrameInputs` (`ServerBroadcaster.cpp:17-113`):** cache `const bool bPaused = ...` once, then wrap the injection work in two `if (!bPaused)` blocks that preserve current statement order around the unconditional `TickFleetTimers()` (must keep running every cycle — it is `mfLastDeltaTime`-scaled and self-quiescent during pause, per `Server/AGENTS.md`):
    - Block 1 (before `TickFleetTimers`): the waiting-spawn loop (`:32-50`) and `ProcessUpdatePlayerRequests()`. NOTE (2026-07-09, unrelated to this drift-refresh's own plan): a "pending-destroy loop" this plan expected between the waiting-spawn loop and `ProcessUpdatePlayerRequests()` no longer exists in current source (removed by `Network/DeadMachinerySweep.md`, landed before this citation refresh) — re-verify this block's contents against current source before executing, line citations here are unreliable pending that.
-   - Block 2 (after `TickFleetTimers`): `ProcessFlagshipUpdates()`, the `mSpawns` save loop (`:96-102`), and the pre-spawn snapshot refresh (`:104-112`). Also confirm whether the AgentHarness3-added agent-injection block (`ServerBroadcaster.cpp:65-93`, gated on `gpGame->mfLastDeltaTime > 0.0f`) needs the same pause-deferral treatment this plan is designing, or is already handled by it — check before executing.
+   - Block 2 (after `TickFleetTimers`): `ProcessFlagshipUpdates()`, the `mBroadcastStatusChanges` save loop (`:96-102`), and the pre-spawn snapshot refresh (`:104-112`). Also confirm whether the AgentHarness3-added agent-injection block (`ServerBroadcaster.cpp:65-93`, gated on `gpGame->mfLastDeltaTime > 0.0f`) needs the same pause-deferral treatment this plan is designing, or is already handled by it — check before executing.
 
    Do **not** reorder `TickFleetTimers` relative to the spawn loop — spawns deliberately read the pre-timer-fire fleet `wantedCoord`. Skipping `ProcessFlagshipUpdates()` wholesale (rather than gating its internal `mPendingFlagshipUpdates.clear()` at `FleetNavigationController.cpp:181`) keeps the drain+clear pairing intact and leaves `FleetNavigationController` out of the diff. Skipping the spawn loop also resolves the id-minting rider below for free. Skipping the snapshot refresh is safe: its only consumer, `FinalizeNewClients`, runs from `BroadcastTick` (`ServerSession.cpp:78`) inside the per-tick loop, which never executes while paused.
 
@@ -39,7 +39,7 @@ Server tick-orchestration gap surfaced by the Network audit, verified against cu
 - `FleetNavigationController.cpp` — deliberately untouched (see fix rationale).
 - `GameSaveLoad::Quickload`/`Quicksave` and the `kResetFrame` fresh-game branch — owned by `Engine/Architecture_GameBaseDeadVirtuals.md` (deletion); see Context decision note.
 - Any wire/packet change.
-- The `ServerBroadcaster` role-split and `mSpawns` rename (`Network/AuditSweepQuickWins.md`).
+- The `ServerBroadcaster` role split; the already-landed `mBroadcastStatusChanges` rename is current naming, not scope.
 - The `mPendingPlayerDestroys` queue — removed by `Network/DeadMachinerySweep.md`; no longer relevant.
 
 ## Acceptance criteria

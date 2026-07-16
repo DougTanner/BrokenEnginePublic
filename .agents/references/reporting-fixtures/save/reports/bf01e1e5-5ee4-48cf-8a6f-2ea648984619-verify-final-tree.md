@@ -12,7 +12,7 @@ Verification: PASS
 # Worktree, lifecycle identity, and scope
 
 - `git rev-parse --show-toplevel` resolved to the adopted worktree above. `HEAD` is the supplied fixed baseline `ca6f005addca80e8273cc7732e436fe351c1f71c`, the branch is `codex/<GUID>`, and the primary checkout provenance is `<USER_HOME>\Documents\BrokenEnginePublic` on target branch `2.0.0`.
-- All authoritative wrapper provenance variables match the caller's inputs. `BROKEN_ENGINE_AGENTCLI_SESSION_OWNER` is `<GUID>`; a read-only exclusion-ledger query found exactly one live claim for that owner, PID 9380, in this exact worktree, with no maintenance owner.
+- All authoritative wrapper provenance variables match the caller's inputs. `BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER` is `<GUID>`; a read-only exclusion-ledger query found exactly one live claim for that owner, PID 9380, in this exact worktree, with no maintenance owner.
 - The executed plan is intentionally absent after successful completion cleanup. Its approved acceptance criteria were recovered from `Temp/AgentReports/<GUID>-verify-changes.md`, runtime report `Temp/AgentReports/<GUID>-agent-harness-step9.md`, the later review/fix chain, and the current implementation. The deletion is therefore a verified session change, not missing intent.
 - NUL-delimited inventory found 13 tracked baseline-diff paths and three untracked paths, normalized to 16 unique ordinally sorted paths. The only untracked repository files are the three expected live follow-up plans. The index is empty. No changed `.agents/skills/*/SKILL.md` exists, so `/validate-skill` is not applicable.
 - `git diff --check ca6f005addca80e8273cc7732e436fe351c1f71c --` exited 0 at final binding.
@@ -140,8 +140,8 @@ Projects/BrokenEngineSandbox/Source/Save/GameSaveLoad.h	sha256:5e39d6faf83b22e08
 ## V013 — PASS: queue/lock/process state is ready for finalization
 
 - Criterion/behavior: no queue, landing, or harness lock is held; the selected-row claim remains retained for finalization under the exact owner; no unexpected product/build processes remain.
-- Exact check: final AgentCli `plan queue status`, `plan row status`, landing/harness `lock status`, process query, and wrapper exclusion-ledger query.
-- Evidence: queue, landing, and harness statuses each return `{"held":false}` (AgentCli status convention exit 2 for unheld). Row status exits 0 and reports owner `<GUID>`, session `next-plan`, plan `save\serversavefailurereporting.md`, and this exact worktree. Claimant PID 48592 is no longer live, which is warning-only under the row-claim contract; finalization still owns owner-only release. No `BrokenEngineSandbox*`, `AgentCli`, `MSBuild`, `DataPacker`, or `devenv` process was running. The wrapper session claim remains intentionally live under owner `<GUID>`.
+- Exact check: final WorktreeCli `plan queue status`, `plan row status`, and landing `lock status`; AgentHarness harness `lock status`; process query; and wrapper exclusion-ledger query.
+- Evidence: queue, landing, and harness statuses each return `{"held":false}` (the WorktreeCli and AgentHarness status convention uses exit 2 for unheld). Row status exits 0 and reports owner `<GUID>`, session `next-plan`, plan `save\serversavefailurereporting.md`, and this exact worktree. Claimant PID 48592 is no longer live, which is warning-only under the row-claim contract; finalization still owns owner-only release. No `BrokenEngineSandbox*`, `WorktreeCli`, `AgentHarness`, `MSBuild`, `DataPacker`, or `devenv` process was running. The wrapper session claim remains intentionally live under owner `<GUID>`.
 
 ## V014 — PASS: touched non-worktree state is restored, unchanged, or intentionally retained
 

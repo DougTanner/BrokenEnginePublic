@@ -38,6 +38,9 @@ inline constexpr VkFormat keLightingFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 
 inline constexpr VkFormat keSmokeFormat = VK_FORMAT_R32_SFLOAT;
 inline constexpr VkFormat keWindFormat = VK_FORMAT_R16G16_SFLOAT;
+inline constexpr VkFormat keShadowFormat = VK_FORMAT_R16_UNORM;
+inline constexpr VkFormat keCombineFormat = VK_FORMAT_R8G8B8A8_UNORM;
+inline constexpr VkFormat keWaterDisplacementFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 
 struct vec2 : public XMFLOAT2
 {
@@ -118,9 +121,6 @@ struct VkDispatchIndirectCommand
 CONSTEXPR float kfPi = 3.141592654f;
 CONSTEXPR float kfEpsilon = 1e-6f;
 
-CONSTEXPR int kiLightingTextures = 11;
-CONSTEXPR int kiBillboardTexturesCount = 3;
-
 // Global Set-0 descriptor binding numbers. Single-sourced here (dual-language) so the C++ descriptor
 // layout/writes (TextureDescriptors) and every shader's layout(set = 0, binding = N) qualifier stay in
 // lockstep — a binding-number change in one place no longer silently mismatches the other. Binding 2 is
@@ -185,8 +185,6 @@ CONSTEXPR int kiShadowWindowMargin = 2 * kiShadowBlurRadius + 2;
 CONSTEXPR int kiComputeTileSize = 8;
 CONSTEXPR int kiOccupancyDilateGroupSize = 256;
 CONSTEXPR int kiParticleUpdateGroupSize = 32;
-
-CONSTEXPR int kiMaxAlphaMesh = 16;
 
 CONSTEXPR float kfAmbient = 0.05f;
 

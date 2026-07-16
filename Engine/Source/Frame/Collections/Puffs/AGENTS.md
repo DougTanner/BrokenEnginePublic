@@ -12,4 +12,4 @@ Client-only fire-and-forget smoke puffs: stationary axis-aligned quads animated 
 - Render: quads culled via `IsPointVisible` then projected to base height; params pack intensity twice (straight multiplier plus the `pow(.y, fSmokeIntensityFalloff)` input in `Smoke.frag`) and rotation
 
 ## See Also
-- [../AGENTS.md](../AGENTS.md) - Collection framework, Controller pattern
+- `../AGENTS.md` - Collection framework, Controller pattern

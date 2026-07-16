@@ -11,7 +11,7 @@ layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
 };
 
 layout (set = 1, binding = 1) uniform sampler2D objectShadowsBlurIntermediateSampler;
-layout (set = 1, binding = 2, r16) uniform writeonly image2D objectShadowsBlurTexture;
+layout (set = 1, binding = 2, r16) uniform writeonly image2D objectShadowsBlurTexture; // keShadowFormat
 
 void main()
 {

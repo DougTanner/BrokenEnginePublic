@@ -22,4 +22,4 @@ Both final textures are sampled by the Terrain/Water fragment shaders; Model sam
 
 ## See Also
 
-- [../AGENTS.md](../AGENTS.md) - Shared includes and cross-cutting shader conventions
+- `../AGENTS.md` - Shared includes and cross-cutting shader conventions
