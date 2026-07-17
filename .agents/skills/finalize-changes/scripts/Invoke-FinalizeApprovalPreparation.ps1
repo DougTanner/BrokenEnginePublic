@@ -1,3 +1,29 @@
+# Single pre-approval mutation and review-tool boundary for a session landing.
+# Invoked exactly once after reconciliation, completed-plan reapplication, affected
+# reverification, and any triggered session audit have produced the final clean
+# session tree, with the same identities, branches, baseline, manifest comparison
+# base, expected tips, verification report hash/ranges, capability switches, and
+# wrapper owner required by the final after-reconciliation preflight.
+#
+# The command validates the original candidate, collapses a linear multi-commit
+# session range to one deterministic tree-identical commit with the current primary
+# tip as its sole parent, atomically replaces only the expected session ref, rolls
+# back a replacement whose postconditions fail, reruns after-reconciliation
+# preflight against the final tip, and then opens SmartGit against the registered
+# primary checkout with --anchor-commit=<final-tip>. Callers never reconstruct its
+# Git or SmartGit commands inline.
+#
+# Success contract: exit 0, schema broken-engine-finalize-approval-preparation/v1,
+# status pass, code ok, final preflight PASS with manifest equality, and one
+# returned approvedSession tip — the only approval and landing candidate. The
+# tree/manifest identity checks preserve content-based evidence across a squash;
+# the returned tip replaces the pre-squash session tip in every approval-bound
+# field. SmartGit status unavailable/failed is non-blocking: the caller copies its
+# message and exact manualCommand into the approval response while keeping the
+# landing gate in force. -SkipSmartGit (carried-approval reruns) reports
+# smartGit.status: skipped and must not reopen the review tool the user already
+# saw. A preparation blocker leaves primary unchanged; if a replacement occurred,
+# rollback: restored-original is required before retrying from current state.
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory)][string] $CurrentWorktree,
@@ -16,6 +42,7 @@ param(
 	[switch] $HasPlanRowClaim,
 	[switch] $HasCompletedPlanClaim,
 	[switch] $QueueChangingLanding,
+	[switch] $SkipSmartGit,
 	[AllowEmptyString()][string] $FixtureSmartGitExecutable,
 	[ValidateSet('none', 'compare-and-swap', 'postcondition', 'final-dirty', 'smartgit-launch')][string] $FixtureFailure = 'none'
 )
@@ -23,6 +50,9 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $workflowModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
+if (-not (Test-Path -LiteralPath $workflowModule)) {
+	$workflowModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
+}
 Import-Module $workflowModule -Force
 
 $result = [ordered]@{
@@ -265,6 +295,12 @@ function ConvertTo-ProcessArgument([string] $Value)
 
 function Invoke-SmartGit([string] $ApprovedTip)
 {
+	if ($SkipSmartGit)
+	{
+		$result.smartGit.status = 'skipped'
+		$result.smartGit.message = 'SmartGit launch was skipped for a carried landing approval.'
+		return
+	}
 	$standardExecutable = 'C:\Program Files\SmartGit\bin\smartgit.exe'
 	$resolvedExecutable = $null
 	if ($script:HasFixtureSmartGitExecutable)

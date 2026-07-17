@@ -3,21 +3,50 @@
 namespace
 {
 
-class Sha1Hasher
+// Opening the provider per hash is expensive; one process-lifetime handle serves every hash (BCrypt
+// algorithm handles are thread-safe) and is deliberately never closed.
+BCRYPT_ALG_HANDLE GetSha256Algorithm()
+{
+	static BCRYPT_ALG_HANDLE spAlgorithm = []()
+	{
+		BCRYPT_ALG_HANDLE pAlgorithm = nullptr;
+		if (BCryptOpenAlgorithmProvider(&pAlgorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0)
+		{
+			throw std::runtime_error("Unable to initialize SHA-256");
+		}
+		return pAlgorithm;
+	}();
+	return spAlgorithm;
+}
+
+class Sha256Hasher
 {
 public:
 
+	Sha256Hasher()
+	{
+		if (BCryptCreateHash(GetSha256Algorithm(), &mpHash, nullptr, 0, nullptr, 0, 0) < 0)
+		{
+			throw std::runtime_error("Unable to initialize SHA-256");
+		}
+	}
+
+	~Sha256Hasher()
+	{
+		if (mpHash != nullptr)
+		{
+			BCryptDestroyHash(mpHash);
+		}
+	}
+
+	Sha256Hasher(const Sha256Hasher& rToCopy) = delete;
+	Sha256Hasher& operator=(const Sha256Hasher& rToCopy) = delete;
+
 	void Update(const std::byte* pBytes, size_t uiBytes)
 	{
-		muiTotalBytes += uiBytes;
-		for (size_t i = 0; i < uiBytes; ++i)
+		if (uiBytes > 0 && BCryptHashData(mpHash, reinterpret_cast<PUCHAR>(const_cast<std::byte*>(pBytes)), static_cast<ULONG>(uiBytes), 0) < 0)
 		{
-			mpBlock[muiBlockBytes++] = static_cast<uint8_t>(pBytes[i]);
-			if (muiBlockBytes == std::size(mpBlock))
-			{
-				ProcessBlock();
-				muiBlockBytes = 0;
-			}
+			throw std::runtime_error("Unable to hash fingerprint data");
 		}
 	}
 
@@ -28,110 +57,28 @@ public:
 
 	std::string Finish()
 	{
-		uint64_t uiBitCount = muiTotalBytes * 8;
-		mpBlock[muiBlockBytes++] = 0x80;
-		if (muiBlockBytes > 56)
+		uint8_t pDigest[32] {};
+		if (BCryptFinishHash(mpHash, pDigest, sizeof(pDigest), 0) < 0)
 		{
-			std::fill(mpBlock + muiBlockBytes, mpBlock + std::size(mpBlock), static_cast<uint8_t>(0));
-			ProcessBlock();
-			muiBlockBytes = 0;
+			throw std::runtime_error("Unable to finish fingerprint hash");
 		}
-		std::fill(mpBlock + muiBlockBytes, mpBlock + 56, static_cast<uint8_t>(0));
-		for (int64_t iByte = 0; iByte < 8; ++iByte)
-		{
-			mpBlock[63 - iByte] = static_cast<uint8_t>(uiBitCount >> (iByte * 8));
-		}
-		ProcessBlock();
-
 		std::string result;
-		result.reserve(40);
-		for (uint32_t uiWord : mpState)
+		result.reserve(64);
+		for (uint8_t uiByte : pDigest)
 		{
-			result += std::format("{:08x}", uiWord);
+			result += std::format("{:02x}", uiByte);
 		}
 		return result;
 	}
 
 private:
 
-	static uint32_t RotateLeft(uint32_t uiValue, uint32_t uiBits)
-	{
-		return (uiValue << uiBits) | (uiValue >> (32 - uiBits));
-	}
-
-	void ProcessBlock()
-	{
-		uint32_t puiWords[80] {};
-		for (int64_t iWord = 0; iWord < 16; ++iWord)
-		{
-			int64_t iByte = iWord * 4;
-			puiWords[iWord] = (static_cast<uint32_t>(mpBlock[iByte]) << 24) |
-				(static_cast<uint32_t>(mpBlock[iByte + 1]) << 16) |
-				(static_cast<uint32_t>(mpBlock[iByte + 2]) << 8) |
-				static_cast<uint32_t>(mpBlock[iByte + 3]);
-		}
-		for (int64_t iWord = 16; iWord < 80; ++iWord)
-		{
-			puiWords[iWord] = RotateLeft(puiWords[iWord - 3] ^ puiWords[iWord - 8] ^ puiWords[iWord - 14] ^ puiWords[iWord - 16], 1);
-		}
-
-		uint32_t uiA = mpState[0];
-		uint32_t uiB = mpState[1];
-		uint32_t uiC = mpState[2];
-		uint32_t uiD = mpState[3];
-		uint32_t uiE = mpState[4];
-		for (int64_t iRound = 0; iRound < 80; ++iRound)
-		{
-			uint32_t uiFunction = 0;
-			uint32_t uiConstant = 0;
-			if (iRound < 20)
-			{
-				uiFunction = (uiB & uiC) | ((~uiB) & uiD);
-				uiConstant = 0x5A827999;
-			}
-			else if (iRound < 40)
-			{
-				uiFunction = uiB ^ uiC ^ uiD;
-				uiConstant = 0x6ED9EBA1;
-			}
-			else if (iRound < 60)
-			{
-				uiFunction = (uiB & uiC) | (uiB & uiD) | (uiC & uiD);
-				uiConstant = 0x8F1BBCDC;
-			}
-			else
-			{
-				uiFunction = uiB ^ uiC ^ uiD;
-				uiConstant = 0xCA62C1D6;
-			}
-
-			uint32_t uiNext = RotateLeft(uiA, 5) + uiFunction + uiE + uiConstant + puiWords[iRound];
-			uiE = uiD;
-			uiD = uiC;
-			uiC = RotateLeft(uiB, 30);
-			uiB = uiA;
-			uiA = uiNext;
-		}
-
-		mpState[0] += uiA;
-		mpState[1] += uiB;
-		mpState[2] += uiC;
-		mpState[3] += uiD;
-		mpState[4] += uiE;
-	}
-
-	uint32_t mpState[5] { 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0 };
-	uint8_t mpBlock[64] {};
-	uint64_t muiTotalBytes = 0;
-	size_t muiBlockBytes = 0;
+	BCRYPT_HASH_HANDLE mpHash = nullptr;
 };
 
-std::string HashFileAsGitBlob(const std::filesystem::path& rPath, uintmax_t uiSize)
+std::string HashFileContents(const std::filesystem::path& rPath)
 {
-	Sha1Hasher hasher;
-	hasher.Update(std::format("blob {}", uiSize));
-	hasher.Update(std::string_view("\0", 1));
-
+	Sha256Hasher hasher;
 	std::fstream stream(rPath, std::ios::in | std::ios::binary);
 	std::vector<std::byte> buffer(64 * 1024);
 	while (stream)
@@ -146,33 +93,17 @@ std::string HashFileAsGitBlob(const std::filesystem::path& rPath, uintmax_t uiSi
 	return hasher.Finish();
 }
 
-std::optional<std::filesystem::path> FindExecutableOnPath(const wchar_t* pcExecutable)
-{
-	DWORD uiPathCharacters = SearchPathW(nullptr, pcExecutable, nullptr, 0, nullptr, nullptr);
-	while (uiPathCharacters != 0)
-	{
-		std::vector<wchar_t> path(uiPathCharacters);
-		DWORD uiWrittenCharacters = SearchPathW(nullptr, pcExecutable, nullptr, static_cast<DWORD>(path.size()), path.data(), nullptr);
-		if (uiWrittenCharacters == 0)
-		{
-			return std::nullopt;
-		}
-		if (uiWrittenCharacters < path.size())
-		{
-			return std::filesystem::path(std::wstring(path.data(), uiWrittenCharacters));
-		}
-		uiPathCharacters = uiWrittenCharacters;
-	}
-	return std::nullopt;
-}
-
 constexpr const char* kpcPersistentFingerprintMagic = "DataPackerInputFingerprint";
-constexpr int64_t kiPersistentFingerprintVersion = 1;
+constexpr int64_t kiPersistentFingerprintVersion = 2;
 constexpr uintmax_t kuiMaximumPersistentFingerprintBytes = 4 * 1024;
 
-bool IsSha1(const std::string& rFingerprint)
+constexpr const char* kpcFingerprintCacheMagic = "DataPackerFingerprintCache";
+constexpr int64_t kiFingerprintCacheVersion = 1;
+constexpr uintmax_t kuiMaximumFingerprintCacheBytes = 64 * 1024 * 1024;
+
+bool IsSha256(const std::string& rFingerprint)
 {
-	return rFingerprint.size() == 40 && std::ranges::all_of(rFingerprint, [](char cCharacter)
+	return rFingerprint.size() == 64 && std::ranges::all_of(rFingerprint, [](char cCharacter)
 	{
 		return (cCharacter >= '0' && cCharacter <= '9') || (cCharacter >= 'a' && cCharacter <= 'f');
 	});
@@ -180,9 +111,112 @@ bool IsSha1(const std::string& rFingerprint)
 
 }
 
-InputFingerprintCache::InputFingerprintCache(const std::filesystem::path& rRepositoryRoot)
+InputFingerprintCache::InputFingerprintCache(const std::filesystem::path& rCacheFile)
+: mCacheFile(rCacheFile)
 {
-	LoadGitIndex(rRepositoryRoot);
+	Load();
+}
+
+InputFingerprintCache::~InputFingerprintCache()
+{
+	try
+	{
+		Save();
+	}
+	catch (const std::exception& rException)
+	{
+		LOG(kDefault, kWarning, "Failed to save fingerprint cache \"{}\": {}", mCacheFile.string(), rException.what());
+	}
+}
+
+void InputFingerprintCache::Load()
+{
+	try
+	{
+		std::error_code cacheSizeError;
+		uintmax_t uiCacheSize = std::filesystem::file_size(mCacheFile, cacheSizeError);
+		if (cacheSizeError || uiCacheSize > kuiMaximumFingerprintCacheBytes)
+		{
+			return;
+		}
+		std::ifstream cacheStream(mCacheFile);
+		nlohmann::json cache;
+		cacheStream >> cache;
+		if (cache.at("magic") != kpcFingerprintCacheMagic || cache.at("version") != kiFingerprintCacheVersion)
+		{
+			return;
+		}
+		for (const nlohmann::json& rEntry : cache.at("entries"))
+		{
+			std::string fingerprint = rEntry.at("fingerprint").get<std::string>();
+			if (!IsSha256(fingerprint))
+			{
+				continue;
+			}
+			FileSnapshot snapshot
+			{
+				.uiSize = rEntry.at("size").get<uintmax_t>(),
+				.iLastWriteTime = rEntry.at("lastWriteTime").get<int64_t>(),
+				.iCreationTime = rEntry.at("creationTime").get<int64_t>(),
+				.iChangeTime = rEntry.at("changeTime").get<int64_t>(),
+				.uiFileId = rEntry.at("fileId").get<uint64_t>(),
+				.uiVolumeSerialNumber = rEntry.at("volumeSerialNumber").get<uint32_t>(),
+			};
+			mCachedFingerprints.insert_or_assign(rEntry.at("path").get<std::string>(), CachedFingerprint {.snapshot = snapshot, .fingerprint = std::move(fingerprint)});
+		}
+		LOG(kDefault, kDebug, "Loaded {} cached input fingerprints", mCachedFingerprints.size());
+	}
+	catch (const std::exception&)
+	{
+		// A missing or malformed cache falls back to content hashing.
+		mCachedFingerprints.clear();
+	}
+}
+
+void InputFingerprintCache::Save()
+{
+	if (!mbDirty)
+	{
+		return;
+	}
+	nlohmann::json entries = nlohmann::json::array();
+	for (const auto& [rKey, rCached] : mCachedFingerprints)
+	{
+		entries.push_back(nlohmann::json
+		{
+			{"path", rKey},
+			{"size", rCached.snapshot.uiSize},
+			{"lastWriteTime", rCached.snapshot.iLastWriteTime},
+			{"creationTime", rCached.snapshot.iCreationTime},
+			{"changeTime", rCached.snapshot.iChangeTime},
+			{"fileId", rCached.snapshot.uiFileId},
+			{"volumeSerialNumber", rCached.snapshot.uiVolumeSerialNumber},
+			{"fingerprint", rCached.fingerprint},
+		});
+	}
+	nlohmann::json cache
+	{
+		{"magic", kpcFingerprintCacheMagic},
+		{"version", kiFingerprintCacheVersion},
+		{"entries", std::move(entries)},
+	};
+	std::filesystem::path temporaryPath = mCacheFile;
+	temporaryPath += std::format(".{}.tmp", GetCurrentProcessId());
+	{
+		std::ofstream cacheStream(temporaryPath, std::ios::trunc);
+		cacheStream << cache.dump();
+		if (!cacheStream)
+		{
+			throw std::runtime_error(std::format("Failed to write fingerprint cache \"{}\"", temporaryPath.string()));
+		}
+	}
+	if (!MoveFileExW(temporaryPath.native().c_str(), mCacheFile.native().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+	{
+		DWORD uiError = GetLastError();
+		std::filesystem::remove(temporaryPath);
+		throw std::system_error(static_cast<int>(uiError), std::system_category(), std::format("Failed to publish fingerprint cache \"{}\"", mCacheFile.string()));
+	}
+	mbDirty = false;
 }
 
 std::string InputFingerprintCache::Get(const std::filesystem::path& rPath)
@@ -209,31 +243,17 @@ std::string InputFingerprintCache::GetUnlocked(const std::filesystem::path& rPat
 std::string InputFingerprintCache::GetFile(const std::filesystem::path& rPath)
 {
 	std::string key = PathKey(rPath);
-	for (;;)
+	FileSnapshot snapshot = Snapshot(rPath);
+	auto cachedIterator = mCachedFingerprints.find(key);
+	if (cachedIterator != mCachedFingerprints.end() && cachedIterator->second.snapshot == snapshot)
 	{
-		FileSnapshot snapshot = Snapshot(rPath);
-		auto cachedIterator = mCachedFingerprints.find(key);
-		if (cachedIterator != mCachedFingerprints.end() && cachedIterator->second.snapshot == snapshot)
-		{
-			return cachedIterator->second.fingerprint;
-		}
-
-		std::string fingerprint;
-		auto gitIterator = mGitIndex.find(key);
-		if (gitIterator != mGitIndex.end() && MatchesGitIndex(snapshot, gitIterator->second))
-		{
-			fingerprint = gitIterator->second.blobId;
-		}
-		else
-		{
-			fingerprint = HashFileAsGitBlob(rPath, snapshot.uiSize);
-		}
-		if (Snapshot(rPath) == snapshot)
-		{
-			mCachedFingerprints.insert_or_assign(key, CachedFingerprint {.snapshot = snapshot, .fingerprint = fingerprint});
-			return fingerprint;
-		}
+		return cachedIterator->second.fingerprint;
 	}
+
+	std::string fingerprint = HashFileContents(rPath);
+	mCachedFingerprints.insert_or_assign(key, CachedFingerprint {.snapshot = snapshot, .fingerprint = fingerprint});
+	mbDirty = true;
+	return fingerprint;
 }
 
 std::string InputFingerprintCache::GetPersistentFile(const std::filesystem::path& rPath)
@@ -241,88 +261,81 @@ std::string InputFingerprintCache::GetPersistentFile(const std::filesystem::path
 	std::filesystem::path metadataPath = rPath;
 	metadataPath += ".fingerprint.meta";
 	std::string key = PathKey(rPath);
-	for (;;)
+	FileSnapshot snapshot = Snapshot(rPath);
+	auto cachedIterator = mCachedFingerprints.find(key);
+	if (cachedIterator != mCachedFingerprints.end() && cachedIterator->second.snapshot == snapshot)
 	{
-		FileSnapshot snapshot = Snapshot(rPath);
-		auto cachedIterator = mCachedFingerprints.find(key);
-		if (cachedIterator != mCachedFingerprints.end() && cachedIterator->second.snapshot == snapshot)
-		{
-			return cachedIterator->second.fingerprint;
-		}
-
-		try
-		{
-			std::error_code metadataSizeError;
-			uintmax_t uiMetadataSize = std::filesystem::file_size(metadataPath, metadataSizeError);
-			if (metadataSizeError || uiMetadataSize > kuiMaximumPersistentFingerprintBytes)
-			{
-				throw std::runtime_error("Invalid fingerprint metadata size");
-			}
-			std::ifstream metadataStream(metadataPath);
-			nlohmann::json metadata;
-			metadataStream >> metadata;
-			FileSnapshot recordedSnapshot
-			{
-				.uiSize = metadata.at("size").get<uintmax_t>(),
-				.iLastWriteTime = metadata.at("lastWriteTime").get<int64_t>(),
-				.iCreationTime = metadata.at("creationTime").get<int64_t>(),
-				.iChangeTime = metadata.at("changeTime").get<int64_t>(),
-				.uiFileId = metadata.at("fileId").get<uint64_t>(),
-				.uiVolumeSerialNumber = metadata.at("volumeSerialNumber").get<uint32_t>(),
-			};
-			std::string fingerprint = metadata.at("fingerprint").get<std::string>();
-			if (metadata.at("magic") == kpcPersistentFingerprintMagic
-				&& metadata.at("version") == kiPersistentFingerprintVersion
-				&& IsSha1(fingerprint)
-				&& recordedSnapshot == snapshot
-				&& Snapshot(rPath) == snapshot)
-			{
-				mCachedFingerprints.insert_or_assign(key, CachedFingerprint {.snapshot = snapshot, .fingerprint = fingerprint});
-				return fingerprint;
-			}
-		}
-		catch (const std::exception&)
-		{
-			// Missing and malformed metadata both fall through to content hashing.
-		}
-
-		std::string fingerprint = HashFileAsGitBlob(rPath, snapshot.uiSize);
-		if (Snapshot(rPath) != snapshot)
-		{
-			continue;
-		}
-
-		nlohmann::json metadata
-		{
-			{"magic", kpcPersistentFingerprintMagic},
-			{"version", kiPersistentFingerprintVersion},
-			{"size", snapshot.uiSize},
-			{"lastWriteTime", snapshot.iLastWriteTime},
-			{"creationTime", snapshot.iCreationTime},
-			{"changeTime", snapshot.iChangeTime},
-			{"fileId", snapshot.uiFileId},
-			{"volumeSerialNumber", snapshot.uiVolumeSerialNumber},
-			{"fingerprint", fingerprint},
-		};
-		std::filesystem::path temporaryPath = metadataPath;
-		temporaryPath += std::format(".{}.tmp", GetCurrentProcessId());
-		{
-			std::ofstream metadataStream(temporaryPath, std::ios::trunc);
-			metadataStream << metadata.dump();
-			if (!metadataStream)
-			{
-				throw std::runtime_error(std::format("Failed to write fingerprint metadata \"{}\"", temporaryPath.string()));
-			}
-		}
-		if (!MoveFileExW(temporaryPath.native().c_str(), metadataPath.native().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
-		{
-			DWORD uiError = GetLastError();
-			std::filesystem::remove(temporaryPath);
-			throw std::system_error(static_cast<int>(uiError), std::system_category(), std::format("Failed to publish fingerprint metadata \"{}\"", metadataPath.string()));
-		}
-		mCachedFingerprints.insert_or_assign(key, CachedFingerprint {.snapshot = snapshot, .fingerprint = fingerprint});
-		return fingerprint;
+		return cachedIterator->second.fingerprint;
 	}
+
+	try
+	{
+		std::error_code metadataSizeError;
+		uintmax_t uiMetadataSize = std::filesystem::file_size(metadataPath, metadataSizeError);
+		if (metadataSizeError || uiMetadataSize > kuiMaximumPersistentFingerprintBytes)
+		{
+			throw std::runtime_error("Invalid fingerprint metadata size");
+		}
+		std::ifstream metadataStream(metadataPath);
+		nlohmann::json metadata;
+		metadataStream >> metadata;
+		FileSnapshot recordedSnapshot
+		{
+			.uiSize = metadata.at("size").get<uintmax_t>(),
+			.iLastWriteTime = metadata.at("lastWriteTime").get<int64_t>(),
+			.iCreationTime = metadata.at("creationTime").get<int64_t>(),
+			.iChangeTime = metadata.at("changeTime").get<int64_t>(),
+			.uiFileId = metadata.at("fileId").get<uint64_t>(),
+			.uiVolumeSerialNumber = metadata.at("volumeSerialNumber").get<uint32_t>(),
+		};
+		std::string fingerprint = metadata.at("fingerprint").get<std::string>();
+		if (metadata.at("magic") == kpcPersistentFingerprintMagic
+			&& metadata.at("version") == kiPersistentFingerprintVersion
+			&& IsSha256(fingerprint)
+			&& recordedSnapshot == snapshot)
+		{
+			mCachedFingerprints.insert_or_assign(key, CachedFingerprint {.snapshot = snapshot, .fingerprint = fingerprint});
+			mbDirty = true;
+			return fingerprint;
+		}
+	}
+	catch (const std::exception&)
+	{
+		// Missing and malformed metadata both fall through to content hashing.
+	}
+
+	std::string fingerprint = HashFileContents(rPath);
+	nlohmann::json metadata
+	{
+		{"magic", kpcPersistentFingerprintMagic},
+		{"version", kiPersistentFingerprintVersion},
+		{"size", snapshot.uiSize},
+		{"lastWriteTime", snapshot.iLastWriteTime},
+		{"creationTime", snapshot.iCreationTime},
+		{"changeTime", snapshot.iChangeTime},
+		{"fileId", snapshot.uiFileId},
+		{"volumeSerialNumber", snapshot.uiVolumeSerialNumber},
+		{"fingerprint", fingerprint},
+	};
+	std::filesystem::path temporaryPath = metadataPath;
+	temporaryPath += std::format(".{}.tmp", GetCurrentProcessId());
+	{
+		std::ofstream metadataStream(temporaryPath, std::ios::trunc);
+		metadataStream << metadata.dump();
+		if (!metadataStream)
+		{
+			throw std::runtime_error(std::format("Failed to write fingerprint metadata \"{}\"", temporaryPath.string()));
+		}
+	}
+	if (!MoveFileExW(temporaryPath.native().c_str(), metadataPath.native().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+	{
+		DWORD uiError = GetLastError();
+		std::filesystem::remove(temporaryPath);
+		throw std::system_error(static_cast<int>(uiError), std::system_category(), std::format("Failed to publish fingerprint metadata \"{}\"", metadataPath.string()));
+	}
+	mCachedFingerprints.insert_or_assign(key, CachedFingerprint {.snapshot = snapshot, .fingerprint = fingerprint});
+	mbDirty = true;
+	return fingerprint;
 }
 
 std::string InputFingerprintCache::GetDirectory(const std::filesystem::path& rPath)
@@ -340,7 +353,7 @@ std::string InputFingerprintCache::GetDirectory(const std::filesystem::path& rPa
 		return std::filesystem::relative(rLeft, rPath).generic_string() < std::filesystem::relative(rRight, rPath).generic_string();
 	});
 
-	Sha1Hasher hasher;
+	Sha256Hasher hasher;
 	for (const std::filesystem::path& rFile : files)
 	{
 		std::string relativePath = std::filesystem::relative(rFile, rPath).generic_string();
@@ -350,171 +363,6 @@ std::string InputFingerprintCache::GetDirectory(const std::filesystem::path& rPa
 		hasher.Update(std::string_view("\0", 1));
 	}
 	return hasher.Finish();
-}
-
-void InputFingerprintCache::LoadGitIndex(const std::filesystem::path& rRepositoryRoot)
-{
-	std::optional<std::filesystem::path> gitExecutable = FindExecutableOnPath(L"git.exe");
-	if (!gitExecutable)
-	{
-		LOG(kDefault, kDebug, "Git unavailable; hashing DataPacker inputs by content");
-		return;
-	}
-
-	auto LoadDirtyPaths = [&](std::unordered_set<std::string>& rDirtyPaths)
-	{
-		std::wstring parameters = L" -C \"" + rRepositoryRoot.native() + L"\" diff-files --name-only --ignore-submodules=all -z";
-		common::ExecutableResult result = common::RunExecutable(*gitExecutable, parameters);
-		if (result.miExitCode != 0)
-		{
-			return false;
-		}
-
-		size_t uiEntryStart = 0;
-		while (uiEntryStart < result.mOutput.size())
-		{
-			size_t uiEntryEnd = result.mOutput.find('\0', uiEntryStart);
-			if (uiEntryEnd == std::string::npos)
-			{
-				return false;
-			}
-			rDirtyPaths.emplace(PathKey(rRepositoryRoot / std::filesystem::path(std::string(result.mOutput.data() + uiEntryStart, uiEntryEnd - uiEntryStart))));
-			uiEntryStart = uiEntryEnd + 1;
-		}
-		return true;
-	};
-
-	std::unordered_set<std::string> dirtyPaths;
-	try
-	{
-		if (!LoadDirtyPaths(dirtyPaths))
-		{
-			return;
-		}
-	}
-	catch (const std::exception&)
-	{
-		return;
-	}
-
-	std::wstring parameters = L" -C \"" + rRepositoryRoot.native() + L"\" ls-files --stage --debug -z";
-	common::ExecutableResult result;
-	try
-	{
-		result = common::RunExecutable(*gitExecutable, parameters);
-	}
-	catch (const std::exception&)
-	{
-		LOG(kDefault, kDebug, "Git unavailable; hashing DataPacker inputs by content");
-		return;
-	}
-	if (result.miExitCode != 0)
-	{
-		LOG(kDefault, kDebug, "DataPacker inputs are outside a Git checkout; hashing by content");
-		return;
-	}
-
-	std::unordered_map<std::string, GitIndexEntry> gitIndex;
-	size_t uiEntryStart = 0;
-	while (uiEntryStart < result.mOutput.size())
-	{
-		size_t uiEntryEnd = result.mOutput.find('\0', uiEntryStart);
-		if (uiEntryEnd == std::string::npos)
-		{
-			return;
-		}
-		std::string_view entry(result.mOutput.data() + uiEntryStart, uiEntryEnd - uiEntryStart);
-		uiEntryStart = uiEntryEnd + 1;
-		size_t uiTab = entry.find('\t');
-		if (uiTab == std::string_view::npos)
-		{
-			return;
-		}
-		std::istringstream headerStream {std::string(entry.substr(0, uiTab))};
-		std::string mode;
-		std::string blobId;
-		int64_t iStage = -1;
-		headerStream >> mode >> blobId >> iStage;
-		if (!headerStream || blobId.size() != 40)
-		{
-			return;
-		}
-		size_t uiDebugEnd = result.mOutput.find("\tflags: ", uiEntryStart);
-		size_t uiNextHeaderEnd = result.mOutput.find('\0', uiEntryStart);
-		if (uiDebugEnd == std::string::npos || (uiNextHeaderEnd != std::string::npos && uiNextHeaderEnd < uiDebugEnd))
-		{
-			return;
-		}
-		uiDebugEnd = result.mOutput.find('\n', uiDebugEnd);
-		if (uiDebugEnd == std::string::npos)
-		{
-			return;
-		}
-		std::string debug(result.mOutput.data() + uiEntryStart, uiDebugEnd - uiEntryStart);
-		uiEntryStart = uiDebugEnd + 1;
-		if (iStage != 0 || (mode != "100644" && mode != "100755"))
-		{
-			continue;
-		}
-
-		int64_t iLastWriteTimeSeconds = 0;
-		int64_t iLastWriteTimeNanoseconds = 0;
-		int64_t iChangeTimeSeconds = 0;
-		int64_t iChangeTimeNanoseconds = 0;
-		uintmax_t uiSize = 0;
-		size_t uiChangeTime = debug.find("  ctime: ");
-		size_t uiModifiedTime = debug.find("\n  mtime: ");
-		size_t uiFileSize = debug.find("\n  size: ");
-		if (uiChangeTime == std::string::npos || uiModifiedTime == std::string::npos || uiFileSize == std::string::npos
-			|| std::sscanf(debug.c_str() + uiChangeTime, "  ctime: %lld:%lld", &iChangeTimeSeconds, &iChangeTimeNanoseconds) != 2
-			|| std::sscanf(debug.c_str() + uiModifiedTime, "\n  mtime: %lld:%lld", &iLastWriteTimeSeconds, &iLastWriteTimeNanoseconds) != 2
-			|| std::sscanf(debug.c_str() + uiFileSize, "\n  size: %llu", &uiSize) != 1)
-		{
-			return;
-		}
-
-		std::string key = PathKey(rRepositoryRoot / std::filesystem::path(std::string(entry.substr(uiTab + 1))));
-		gitIndex.emplace(std::move(key), GitIndexEntry
-		{
-			.blobId = std::move(blobId),
-			.uiSize = uiSize,
-			.iChangeTimeSeconds = iChangeTimeSeconds,
-			.iChangeTimeNanoseconds = iChangeTimeNanoseconds,
-			.iLastWriteTimeSeconds = iLastWriteTimeSeconds,
-			.iLastWriteTimeNanoseconds = iLastWriteTimeNanoseconds,
-		});
-	}
-
-	try
-	{
-		if (!LoadDirtyPaths(dirtyPaths))
-		{
-			return;
-		}
-	}
-	catch (const std::exception&)
-	{
-		return;
-	}
-	for (const std::string& rDirtyPath : dirtyPaths)
-	{
-		gitIndex.erase(rDirtyPath);
-	}
-	mGitIndex = std::move(gitIndex);
-	LOG(kDefault, kDebug, "Loaded {} Git input fingerprints", mGitIndex.size());
-}
-
-bool InputFingerprintCache::MatchesGitIndex(const FileSnapshot& rSnapshot, const GitIndexEntry& rGitEntry)
-{
-	constexpr int64_t kiWindowsEpochOffsetSeconds = 11'644'473'600;
-	constexpr int64_t kiFileTimeTicksPerSecond = 10'000'000;
-	int64_t iUnixTicks = rSnapshot.iLastWriteTime - kiWindowsEpochOffsetSeconds * kiFileTimeTicksPerSecond;
-	int64_t iUnixChangeTicks = rSnapshot.iCreationTime - kiWindowsEpochOffsetSeconds * kiFileTimeTicksPerSecond;
-	return rSnapshot.uiSize == rGitEntry.uiSize
-		&& iUnixTicks / kiFileTimeTicksPerSecond == rGitEntry.iLastWriteTimeSeconds
-		&& iUnixTicks % kiFileTimeTicksPerSecond * 100 == rGitEntry.iLastWriteTimeNanoseconds
-		&& iUnixChangeTicks / kiFileTimeTicksPerSecond == rGitEntry.iChangeTimeSeconds
-		&& iUnixChangeTicks % kiFileTimeTicksPerSecond * 100 == rGitEntry.iChangeTimeNanoseconds;
 }
 
 InputFingerprintCache::FileSnapshot InputFingerprintCache::Snapshot(const std::filesystem::path& rPath)

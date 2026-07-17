@@ -10,8 +10,8 @@ namespace
 {
 
 constexpr int64_t kiDependencyMetadataMagic = 0x53484445504D5431;
-constexpr int64_t kiDependencyMetadataVersion = 1;
-constexpr size_t kuiFingerprintCharacters = 40;
+constexpr int64_t kiDependencyMetadataVersion = 2;
+constexpr size_t kuiFingerprintCharacters = 64;
 
 struct CachedDependencyFingerprint
 {
@@ -230,7 +230,6 @@ std::optional<common::ChunkFlags_t> ExportShader::Handles(const std::filesystem:
 
 bool ExportShader::CheckDirty(const std::filesystem::path& rPackFile)
 {
-	mCheckedDependencyFingerprints.clear();
 	if (ExportJob::CheckDirty(rPackFile))
 	{
 		return true;
@@ -257,12 +256,6 @@ bool ExportShader::CheckDirty(const std::filesystem::path& rPackFile)
 			mbDirty = true;
 			return mbDirty;
 		}
-		mCheckedDependencyFingerprints.emplace_back(DependencyFingerprint
-		{
-			.iInputRoot = rDependency.iInputRoot,
-			.relativePath = rDependency.relativePath,
-			.fingerprint = rDependency.fingerprint,
-		});
 	}
 
 	return mbDirty;
@@ -466,19 +459,6 @@ void ExportShader::CaptureDependencies()
 	}
 }
 
-bool ExportShader::AreCachedInputsStable() const
-{
-	for (const DependencyFingerprint& rDependency : mCheckedDependencyFingerprints)
-	{
-		std::filesystem::path dependencyPath = gpFileManager->mpInputDirectories[rDependency.iInputRoot] / rDependency.relativePath;
-		if (!std::filesystem::exists(dependencyPath) || gpFileManager->GetFingerprint(dependencyPath) != rDependency.fingerprint)
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
 void ExportShader::UpdateCacheMetadata()
 {
 	std::filesystem::path temporaryPath = mDependencyMetadataFile;
@@ -490,12 +470,6 @@ void ExportShader::UpdateCacheMetadata()
 	stream.write(reinterpret_cast<const char*>(&iCount), sizeof(iCount));
 	for (const DependencyFingerprint& rDependency : mDependencyFingerprints)
 	{
-		std::filesystem::path dependencyPath = gpFileManager->mpInputDirectories[rDependency.iInputRoot] / rDependency.relativePath;
-		std::string currentFingerprint = gpFileManager->GetFingerprint(dependencyPath);
-		if (currentFingerprint != rDependency.fingerprint)
-		{
-			throw std::runtime_error(std::format("Shader dependency changed while exporting \"{}\"", dependencyPath.string()));
-		}
 		std::string relativePath = rDependency.relativePath.generic_string();
 		int64_t iPathCharacters = static_cast<int64_t>(relativePath.size());
 		stream.write(reinterpret_cast<const char*>(&rDependency.iInputRoot), sizeof(rDependency.iInputRoot));

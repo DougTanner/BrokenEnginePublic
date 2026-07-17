@@ -63,6 +63,139 @@ namespace toolcli
 		mhHandle = hHandle;
 	}
 
+	std::optional<ProcessResult> RunProcess(const std::filesystem::path* pExecutable, const std::vector<std::wstring>& rArguments, const RunProcessOptions& rOptions)
+	{
+		Handle hJob;
+		if (rOptions.bKillOnJobClose)
+		{
+			hJob.Reset(::CreateJobObjectW(nullptr, nullptr));
+			if (!hJob.IsValid())
+			{
+				if (rOptions.bReportFailures)
+				{
+					FailWindows("create process job");
+				}
+				return std::nullopt;
+			}
+			JOBOBJECT_EXTENDED_LIMIT_INFORMATION jobInformation {};
+			jobInformation.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+			if (::SetInformationJobObject(hJob.Get(), JobObjectExtendedLimitInformation, &jobInformation, sizeof(jobInformation)) == FALSE)
+			{
+				if (rOptions.bReportFailures)
+				{
+					FailWindows("configure process job");
+				}
+				return std::nullopt;
+			}
+		}
+
+		SECURITY_ATTRIBUTES pipeAttributes { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
+		Handle hPipeRead;
+		Handle hPipeWrite;
+		if (rOptions.bCaptureOutput)
+		{
+			HANDLE hRawRead = INVALID_HANDLE_VALUE;
+			HANDLE hRawWrite = INVALID_HANDLE_VALUE;
+			if (::CreatePipe(&hRawRead, &hRawWrite, &pipeAttributes, 0) == FALSE)
+			{
+				if (rOptions.bReportFailures)
+				{
+					FailWindows("create output pipe");
+				}
+				return std::nullopt;
+			}
+			hPipeRead.Reset(hRawRead);
+			hPipeWrite.Reset(hRawWrite);
+			if (::SetHandleInformation(hPipeRead.Get(), HANDLE_FLAG_INHERIT, 0) == FALSE)
+			{
+				if (rOptions.bReportFailures)
+				{
+					FailWindows("configure output pipe");
+				}
+				return std::nullopt;
+			}
+		}
+
+		STARTUPINFOW startupInfo {};
+		startupInfo.cb = sizeof(startupInfo);
+		startupInfo.dwFlags = STARTF_USESTDHANDLES;
+		startupInfo.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
+		startupInfo.hStdOutput = rOptions.bCaptureOutput ? hPipeWrite.Get() : ::GetStdHandle(STD_OUTPUT_HANDLE);
+		startupInfo.hStdError = rOptions.bCaptureOutput && rOptions.bMergeStdError ? hPipeWrite.Get() : ::GetStdHandle(STD_ERROR_HANDLE);
+		PROCESS_INFORMATION processInformation {};
+		std::wstring commandLine = BuildCommandLine(rArguments);
+		const DWORD uiCreationFlags = (rOptions.bNoWindow ? CREATE_NO_WINDOW : 0) | (rOptions.bKillOnJobClose ? CREATE_SUSPENDED : 0);
+		if (::CreateProcessW(pExecutable != nullptr ? pExecutable->c_str() : nullptr, commandLine.data(), nullptr, nullptr, TRUE, uiCreationFlags, nullptr, nullptr, &startupInfo, &processInformation) == FALSE)
+		{
+			if (rOptions.bReportFailures)
+			{
+				FailWindows("launch process");
+			}
+			return std::nullopt;
+		}
+		Handle hProcess(processInformation.hProcess);
+		Handle hThread(processInformation.hThread);
+		if (rOptions.bKillOnJobClose)
+		{
+			if (::AssignProcessToJobObject(hJob.Get(), hProcess.Get()) == FALSE)
+			{
+				if (rOptions.bReportFailures)
+				{
+					FailWindows("assign process to job");
+				}
+				::TerminateProcess(hProcess.Get(), ERROR_PROCESS_ABORTED);
+				return std::nullopt;
+			}
+			if (::ResumeThread(hThread.Get()) == static_cast<DWORD>(-1))
+			{
+				if (rOptions.bReportFailures)
+				{
+					FailWindows("start process");
+				}
+				::TerminateProcess(hProcess.Get(), ERROR_PROCESS_ABORTED);
+				return std::nullopt;
+			}
+		}
+		hThread.Reset();
+		hPipeWrite.Reset();
+
+		ProcessResult result;
+		if (rOptions.bCaptureOutput)
+		{
+			char pBuffer[4096] {};
+			DWORD uiRead = 0;
+			while (::ReadFile(hPipeRead.Get(), pBuffer, sizeof(pBuffer), &uiRead, nullptr) != FALSE && uiRead != 0)
+			{
+				result.output.append(pBuffer, uiRead);
+			}
+		}
+		::WaitForSingleObject(hProcess.Get(), INFINITE);
+		if (::GetExitCodeProcess(hProcess.Get(), &result.uiExitCode) == FALSE)
+		{
+			if (rOptions.bReportFailures)
+			{
+				FailWindows("read process exit code");
+			}
+			return std::nullopt;
+		}
+		return result;
+	}
+
+	std::optional<std::string> RunGit(const std::vector<std::wstring>& rArguments)
+	{
+		std::vector<std::wstring> arguments { L"git.exe" };
+		arguments.insert(arguments.end(), rArguments.begin(), rArguments.end());
+		RunProcessOptions options;
+		options.bMergeStdError = true;
+		options.bNoWindow = true;
+		std::optional<ProcessResult> result = RunProcess(nullptr, arguments, options);
+		if (!result || result->uiExitCode != 0)
+		{
+			return std::nullopt;
+		}
+		return std::move(result->output);
+	}
+
 	void SetToolName(std::string_view name)
 	{
 		sToolName = name;

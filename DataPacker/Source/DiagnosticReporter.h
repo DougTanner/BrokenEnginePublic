@@ -9,14 +9,6 @@ enum class Severity
 	kWarning,
 };
 
-enum class Operation
-{
-	kExportJobs,
-	kTopLevelStandardException,
-	kTopLevelUnknownException,
-	kMaterializeOutput,
-};
-
 enum class ButtonContract
 {
 	kOk,
@@ -45,18 +37,10 @@ struct ExportFailure
 struct Record
 {
 	Severity eSeverity = Severity::kError;
-	Operation eOperation = Operation::kTopLevelStandardException;
 	std::string title;
 	std::string message;
 	ButtonContract eButtons = ButtonContract::kOk;
 	ModalIcon eIcon = ModalIcon::kNone;
-	std::optional<std::filesystem::path> sourcePath;
-	std::optional<std::filesystem::path> destinationPath;
-	std::optional<uint64_t> uiRequiredBytes;
-	std::optional<uint64_t> uiAvailableBytes;
-	std::optional<uint64_t> uiTotalBytes;
-	std::optional<uint64_t> uiProjectedBytes;
-	std::optional<DWORD> uiWin32Error;
 	std::vector<ExportFailure> exportFailures;
 };
 

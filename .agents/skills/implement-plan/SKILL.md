@@ -3,7 +3,7 @@ name: implement-plan
 description: >-
   Implement an assigned slice of an approved Broken Engine plan, then audit the
   implementation's assumptions in the same context before handing it off. Use
-  for C++ Code Change Process implementation subagents, including disjoint
+  for C++ Change Workflow implementation subagents, including disjoint
   plan slices. Also use after making changes when asked "audit your
   assumptions", "what are you least confident about", or "what did you not
   verify"; in that case run the audit phase against the changes already made.
@@ -26,10 +26,11 @@ Require these inputs for implementation mode:
 
 - final approved plan document and explicit approved-delta summary (`none` is valid);
 - assigned plan items and allowed file scope;
-- session worktree and fixed session-start commit;
-- manager execution-control record bound to that fixed baseline: risk tier and
-  concrete triggers, required and conditional roles, and the initial acceptance
-  matrix;
+- the working checkout — a session worktree and fixed session-start commit for
+  wrapper/queue sessions, the user-supplied checkout otherwise;
+- manager execution-control record when one exists (Tier 3, queue,
+  reconciliation, and landing work): risk tier and concrete triggers, required
+  and conditional roles, and the initial acceptance matrix;
 - applicable repository instructions;
 - concise caller summary of relevant findings, approved decisions, scope, and reviewer focus;
 
@@ -48,7 +49,7 @@ pre-existing worktree changes.
 
 0. Confirm the user-approved execution card, risk trigger, scope, and acceptance
    checks are still current. Stop only on a material contradiction or unresolved
-   decision; do not reconstruct provenance ledgers or report chains.
+   decision.
 1. Read the assigned plan items, applicable `AGENTS.md` files, and the current
    implementation before editing. Search for existing helpers and mirrored
    patterns so the change follows repository structure without duplicating
@@ -75,7 +76,8 @@ pre-existing worktree changes.
    regions touched. Emit an affected-site trigger for every sweep handoff or
    signature, identity, semantics, layout, client/server guard-affinity, or
    mirrored-pattern change. Name the symbol/pattern and search scope. If none
-   applies, emit explicit `none` so main records `/update-affected-code: N/A`.
+   applies, emit explicit `none`; `/update-affected-code` still runs for any
+   code change and verifies that absence.
 7. For checks that touch ignored or non-worktree state, follow the owning
    subsystem contract and report the exact path, owner/serialization mechanism,
    expected persistence, and outcome. This includes worktree build outputs,

@@ -382,8 +382,8 @@ void MainThread(HINSTANCE hinstance)
 #endif
 
 		// Input
-		game::MenuInput menuInput {};
 #if defined(BT_CLIENT)
+		game::MenuInput menuInput {};
 		pGame->ProcessInput(bLostFocus, menuInput);
 		if (pGame->mGameFlags & engine::GameFlags::kQuit) [[unlikely]]
 		{
@@ -396,7 +396,7 @@ void MainThread(HINSTANCE hinstance)
 #if defined(BT_CLIENT)
 		pGame->ClientUpdate();
 #else
-		pGame->ServerUpdate(menuInput);
+		pGame->ServerUpdate();
 #endif // BT_CLIENT
 
 #if defined(BT_CLIENT)

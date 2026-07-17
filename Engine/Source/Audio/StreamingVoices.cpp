@@ -31,6 +31,9 @@ void StreamingVoices::Play(common::crc_t uiAudioCrc)
 	// These outlive the call (persist until fade-out completes), so workbuffer/pre-alloc won't work.
 	ScopedSuppressAllocationTracking suppress;
 
+	// An explicit track supersedes any pending transition retry.
+	muiRetryTrackCrc = 0;
+
 	if (mpCurrentStream != nullptr)
 	{
 		TransitionCurrentToPrevious();
@@ -62,12 +65,15 @@ void StreamingVoices::CheckTrackTransition()
 
 	if (mGetNextTrack && (mpCurrentStream == nullptr || mpCurrentStream->ShouldTransition()))
 	{
-		common::crc_t uiNextTrackCrc = mGetNextTrack();
+		// A failed CreateStream (voice allocation) must not consume another playlist entry: retry the
+		// same track next call instead of advancing past it.
+		common::crc_t uiNextTrackCrc = muiRetryTrackCrc != 0 ? muiRetryTrackCrc : mGetNextTrack();
 		if (mpCurrentStream != nullptr)
 		{
 			TransitionCurrentToPrevious();
 		}
 		CreateStream(uiNextTrackCrc);
+		muiRetryTrackCrc = mpCurrentStream == nullptr ? uiNextTrackCrc : 0;
 	}
 }
 
@@ -155,6 +161,8 @@ void StreamingVoices::Clear(bool bNullVoicesBeforeDestroy)
 	mpCurrentStream.reset();
 	mPreviousStreams.clear();
 	mStreamsToDestroy.clear();
+	// Post-clear playback restarts from the next-track callback, not a stale retry.
+	muiRetryTrackCrc = 0;
 }
 
 // Deliberately off-contract: no mFillWorker.Wait(), no mMutex. Safe because the fill worker

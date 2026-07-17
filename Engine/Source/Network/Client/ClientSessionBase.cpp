@@ -180,12 +180,12 @@ void ClientSessionBase::UnsubscribeStaleCoords(std::span<const GridCoord> desire
 				mpClientNetwork->CancelSubscription(i);
 				game::gpGame->mCoordFrames.erase(unsubCoord);
 			}
-		else
-		{
-			mpClientNetwork->SendUnsubscribe(i);
-			// rSlots aliases Client::mCoordSlots. SendUnsubscribe leaves the slot active when the connection
-			// cannot send, so retain its state check before dropping the local frame data.
-			if (rSlots.at(i).eState == CoordSubscriptionState::kUnsubscribing)
+			else
+			{
+				mpClientNetwork->SendUnsubscribe(i);
+				// rSlots aliases Client::mCoordSlots. SendUnsubscribe leaves the slot active when the connection
+				// cannot send, so retain its state check before dropping the local frame data.
+				if (rSlots.at(i).eState == CoordSubscriptionState::kUnsubscribing)
 				{
 					game::gpGame->mCoordFrames.erase(unsubCoord);
 				}

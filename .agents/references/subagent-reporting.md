@@ -20,7 +20,7 @@ second opinion, or a focused correction/retest.
 
 ## Final-evidence gate
 
-Queue mutation, reconciliation, and primary landing each use one verifier-owned
+Each final-evidence gate (root `AGENTS.md` definition) uses one verifier-owned
 immutable report under `%LOCALAPPDATA%/BrokenEngine/AgentReports/<repository-hash>/`.
 `/verify-changes` allocates the path through `New-AgentReportPath.ps1` and calls
 [`Write-AgentVerificationReport.ps1`](../scripts/Write-AgentVerificationReport.ps1)
@@ -51,11 +51,3 @@ consume the returned range through
 [`Read-AgentReportSection.ps1`](../scripts/Read-AgentReportSection.ps1), using
 that one global report path and hash. Intermediate delegates never produce compact
 envelopes, hashes, IDs, dependency graphs, or evidence locators.
-
-Record a selected profile or runtime only when host metadata attests it. When
-the host cannot attest selection, omit model-diversity bookkeeping rather than
-claiming configuration or prompts as execution evidence.
-
-One orchestration wait or user-update interval is at most 60 seconds. Poll
-expiry is not a job failure and does not shorten a valid build, lock, or tool
-deadline.

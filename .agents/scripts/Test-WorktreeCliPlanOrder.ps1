@@ -495,6 +495,43 @@ try {
 		Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'C.md' 'owner-c'
 	}
 
+	Invoke-Case 'corrupt row claim is skipped with a diagnostic, still blocks its row, and recovers by deletion' {
+		$rows = @(
+			New-Row 'Documents/Plans/A.md'
+			New-Row 'Documents/Plans/B.md' 'Small' 2 2 1
+		)
+		$fixture = New-FixtureRepository 'corrupt-claim' $rows @()
+		$session = Add-Worktree $fixture 'session'
+		$claim = Invoke-ClaimNext $fixture $session 'corrupt-owner' 'plans' 0
+		Assert-Equal $claim.Json.plan 'Documents/Plans/A.md' 'Setup claim selected the wrong row.'
+		$keyParts = ([string] $claim.Json.logicalKey) -split "`n"
+		Assert-Equal $keyParts.Count 3 'Claim logicalKey did not contain repository, order, and plan segments.'
+		$queueHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($script:Utf8.GetBytes($keyParts[0..1] -join "`n"))).ToLowerInvariant()
+		$rowHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($script:Utf8.GetBytes($keyParts -join "`n"))).ToLowerInvariant()
+		$claimPath = Join-Path $env:LOCALAPPDATA "BrokenEngineLocks\plan-row\$queueHash\$rowHash.lock"
+		Assert-True (Test-Path -LiteralPath $claimPath) 'Computed row claim path does not exist.'
+		[IO.File]::SetAttributes($claimPath, [IO.FileAttributes]::Normal)
+		Set-RawFile $claimPath ([byte[]](0xff, 0x7b, 0x67, 0x61, 0x72, 0x62))
+		$b = Invoke-ClaimNext $fixture $session 'skip-owner' 'plans' 0
+		Assert-Equal $b.Json.plan 'Documents/Plans/B.md' 'Snapshot validation did not skip the corrupt claim.'
+		Assert-True ($b.Result.Stderr.IndexOf($claimPath, [StringComparison]::OrdinalIgnoreCase) -ge 0) 'Skip diagnostic did not name the corrupt claim path.'
+		$blocked = Invoke-ClaimNext $fixture $session 'retry-owner' 'plans' 2 'Documents/Plans/A.md'
+		Assert-Equal $blocked.Json.reason 'explicit-plan-blocked-or-missing' 'Corrupt claim did not block its own row.'
+		Assert-True ([bool] $blocked.Json.blockers[0].claimed) 'Corrupt claim was not reported as a claimed blocker.'
+		$list = Invoke-WorktreeCli @('plan', 'queue', 'list', '--repo', $fixture.Common, '--order', 'Documents/Plans/Order.md') 0
+		$snapshot = ConvertFrom-AgentJson $list
+		Assert-Equal @($snapshot.claims).Count 1 'Queue list did not skip exactly the corrupt claim.'
+		Assert-True ($list.Stderr.IndexOf($claimPath, [StringComparison]::OrdinalIgnoreCase) -ge 0) 'Queue list diagnostic did not name the corrupt claim path.'
+		$unclaim = Invoke-Process -FilePath $script:Executable -Arguments @('plan', 'row', 'unclaim', '--repo', $fixture.Common, '--order', 'Documents/Plans/Order.md', '--plan', 'A.md', '--owner', 'corrupt-owner')
+		Assert-Equal $unclaim.ExitCode 1 'Row unclaim of the corrupt claim did not fail.'
+		Assert-True ($unclaim.Stderr.IndexOf($claimPath, [StringComparison]::OrdinalIgnoreCase) -ge 0) 'Row unclaim failure did not name the corrupt claim path.'
+		Remove-Item -LiteralPath $claimPath -Force
+		$recovered = Invoke-ClaimNext $fixture $session 'recovered-owner' 'plans' 0 'Documents/Plans/A.md'
+		Assert-Equal $recovered.Json.plan 'Documents/Plans/A.md' 'Deleting the corrupt claim file did not recover the row.'
+		Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'A.md' 'recovered-owner'
+		Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'B.md' 'skip-owner'
+	}
+
 	Invoke-Case 'complete prunes edges, reapplies idempotently, and rolls back exact bytes' {
 		$rows = @(
 			New-Row 'Documents/Plans/A.md'

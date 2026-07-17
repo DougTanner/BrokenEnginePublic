@@ -24,11 +24,21 @@ namespace toolcli::coordination
 	{
 	public:
 		explicit Guard(const std::filesystem::path& rPath);
+		~Guard();
+
+		Guard(const Guard&) = delete;
+		Guard& operator=(const Guard&) = delete;
 
 		[[nodiscard]] bool IsValid() const;
+		[[nodiscard]] bool TimedOut() const;
+		[[nodiscard]] DWORD LastError() const;
+		// "timed out" for contention, otherwise the acquisition's Windows error.
+		[[nodiscard]] std::string FailureReason() const;
 
 	private:
 		Handle mhFile;
+		std::filesystem::path mPath;
+		DWORD muiLastError = ERROR_SUCCESS;
 	};
 
 	std::string CurrentUtcTimestamp();

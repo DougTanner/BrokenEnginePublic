@@ -29,7 +29,8 @@ public:
 		}
 
 		bool bExpected = false;
-		ASSERT(mbDispatchActive.compare_exchange_strong(bExpected, true, std::memory_order_acq_rel));
+		bool bWasInactive = mbDispatchActive.compare_exchange_strong(bExpected, true, std::memory_order_acq_rel);
+		ASSERT(bWasInactive);
 		ScopedLambda dispatchActiveGuard([this]()
 		{
 			mbDispatchActive.store(false, std::memory_order_release);

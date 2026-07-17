@@ -18,8 +18,6 @@ public:
 
 	GameSaveLoad(engine::GameBase& rGameBase);
 
-	void Quicksave(const game::MenuInput& rMenuInput);
-	bool Quickload(const game::MenuInput& rMenuInput);
 	bool ServerSave();
 	bool ServerLoad();
 	bool ServerSave(const std::filesystem::path& rFilename); // appdata-relative; caller validates the bare filename

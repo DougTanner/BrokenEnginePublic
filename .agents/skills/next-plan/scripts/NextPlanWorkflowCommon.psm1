@@ -1,7 +1,12 @@
 Set-StrictMode -Version Latest
 
 $script:NextPlanUtf8 = [Text.UTF8Encoding]::new($false, $true)
+# $PSScriptRoot is the logical invocation path; under the .claude\skills symlink mirror the three-level
+# hop leaves the repository's .agents tree, so fall back to the canonical .agents\scripts from the root.
 $sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
+if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'FinalizeWorkflowCommon.psm1'))) {
+	$sharedScripts = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts'
+}
 Import-Module (Join-Path $sharedScripts 'FinalizeWorkflowCommon.psm1') -Force
 Import-Module (Join-Path $sharedScripts 'AgentArtifactStore.psm1') -Force -DisableNameChecking
 Import-Module (Join-Path $sharedScripts 'WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
@@ -58,8 +63,11 @@ function Get-NextPlanContext([switch] $RequireCleanSession, [switch] $RequireCle
 	if ($worktree.Branch -cne $sessionBranch -or $primary.Branch -cne $targetBranch) {
 		throw (New-NextPlanStateBlocker 'Wrapper branch identities do not match the attached Git branches.')
 	}
-	if ($worktree.Head -cne $baseline -or (-not $AllowPrimaryAdvance -and $primary.Head -cne $baseline)) {
-		throw (New-NextPlanStateBlocker 'Session or primary HEAD moved from the wrapper baseline.')
+	if ($worktree.Head -cne $baseline) {
+		throw (New-NextPlanStateBlocker 'Session worktree HEAD moved from the wrapper baseline. If a primary-advance recovery re-baselined this session, re-supply the recovered BROKEN_ENGINE_BASELINE on this invocation; otherwise the session state is inconsistent with the wrapper.')
+	}
+	if (-not $AllowPrimaryAdvance -and $primary.Head -cne $baseline) {
+		throw (New-NextPlanStateBlocker 'Primary HEAD advanced from the wrapper baseline. This is recoverable in place: run the next-plan primary-advance recovery (fast-forward/rebase the session onto the primary tip, re-baseline BROKEN_ENGINE_BASELINE, unclaim and re-claim the row, regenerate receipts), then continue.')
 	}
 	if ($RequireCleanSession -and -not [string]::IsNullOrEmpty((Invoke-FinalizeGit $worktree.Worktree @('status', '--porcelain=v1', '--untracked-files=normal')))) {
 		throw (New-NextPlanStateBlocker 'Session worktree is not clean.')

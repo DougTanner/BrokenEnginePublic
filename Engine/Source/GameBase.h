@@ -141,18 +141,13 @@ public:
 	GameBase();
 	virtual ~GameBase();
 
-	virtual void Reset() = 0;
-	virtual bool ShouldTrapCursor() = 0;
 #if defined(BT_CLIENT)
+	virtual bool ShouldTrapCursor() = 0;
 	virtual bool ShouldUseCrosshair() = 0;
 	virtual bool ShouldShowInGameUi() = 0;
-#endif
-	virtual std::filesystem::path QuicksaveFile() = 0;
-	virtual std::filesystem::path ReplayFile() = 0;
 	virtual void ProcessMenuInput(const game::MenuInput& rMenuInput) = 0;
 
 	void ProcessInput(bool bLostFocus, game::MenuInput& rMenuInput);
-#if defined(BT_CLIENT)
 	void ClientUpdate();
 	void Render();
 	float AdvanceRenderClock(double dT, bool bPaused, bool bHaveInterpolationWindow, double dSimDeltaSeconds);
@@ -160,7 +155,7 @@ public:
 	void ResetRenderClock();
 #endif // BT_CLIENT
 #if defined(BT_SERVER)
-	void ServerUpdate(const game::MenuInput& rMenuInput);
+	void ServerUpdate();
 #endif // BT_SERVER
 
 	uint16_t GenerateFrameId() { return muiNextFrameId++; }

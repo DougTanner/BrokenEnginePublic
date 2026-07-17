@@ -8,7 +8,7 @@ Cost anatomy (why 841 µs despite tiny textures): the spread textures are small 
 
 **Relationship to `Graphics/WindowedLightingShadowDispatch.md`** (live, overlapping): that plan windows the *footprint* — indirect compute dispatch for combine/temporal/shadow and a dynamic scissor for deposit/spread — removing the off-window passthrough work. For spread specifically the off-window fragments are already a cheap 3-fetch passthrough via the in-shader early-out, so the scissor recovers only ~5–10% of the 841 µs; the in-window gather that dominates is untouched by windowing. This plan adds the orthogonal mechanism: **content gating** (don't run the gather at all when there is nothing to gather) and optionally **rate gating** (refresh at half rate). Both plans edit `CommandBufferRecordMain::RecordLightingSpreadPipeline` and `LightingUniforms.cpp` — **co-schedule in one session or land sequentially with citation refresh; never interleave**. The cadence item reuses the combine/temporal `vkCmdDispatchIndirect` conversion that plan introduces (whichever lands first implements it).
 
-Also live nearby: `Graphics/Architecture_ShadowLightingUniformDedup.md` (extracts the temporal-area latch this plan's cadence item gates — resolve latch-gating placement together if co-scheduled).
+The cadence item gates the shared `TemporalAreaLatch` now defined in `Engine/Source/Graphics/Render/Render.h`; keep the refresh decision and the `LightingUniforms.cpp` latch advance in one place.
 
 ## Design
 
@@ -31,7 +31,7 @@ Expected saving: idle scene ~**650–750 µs** of the 841 (residual = 40 render-
 Refresh the spread→combine→temporal chain every N frames; skip frames freeze the combine textures at the last refreshed lighting:
 
 - Skip frame: spread `instanceCount = 0` (as item 1) **and** combine + temporal indirect dispatch group counts = 0 (requires the `vkCmdDispatchIndirect` conversion from `WindowedLightingShadowDispatch`; if this plan lands first, convert those two dispatches here the same way). Combine textures then hold the previous refresh's output (the spread clears wipe textures nobody reads that frame); the recorded history copies re-copy unchanged data (benign) — or, if the windowing plan's temporal-writes-history option landed, history is simply not rewritten (also correct).
-- Refresh frame: everything normal. The `f4LightingAreaPrevious` temporal latch must be advanced only on refresh frames so reprojection maps into the area the history was actually rendered with (matters only while the texel ramp is rescaling during a zoom; interacts with `Architecture_ShadowLightingUniformDedup`'s `TemporalAreaLatch` extraction — keep the gate in one place).
+- Refresh frame: everything normal. The `f4LightingAreaPrevious` `TemporalAreaLatch` must be advanced only on refresh frames so reprojection maps into the area the history was actually rendered with (matters only while the texel ramp is rescaling during a zoom); keep the gate in one place.
 - New wrapper `gLightingUpdateCadence` (`LightingWrappersBase`, snap step 1, range 1–4, **default 1 = off**) + `TweaksScreenLighting` slider "Update Cadence" via the existing `TweaksSliderMap` pattern. Deposit keeps running every frame (cheap, 42 µs incl. clear); deposits on skip frames are unconsumed — a light flash shorter than the cadence is dropped (at 120 fps / cadence 2 that is a sub-8 ms flash; unlikely visible, but the reason default stays 1 until A/B'd).
 
 Expected saving at cadence 2: ~**(841 + 24 + 18) / 2 ≈ 440 µs average** — and unlike item 1 it also pays off in combat.

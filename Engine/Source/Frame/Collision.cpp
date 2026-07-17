@@ -27,26 +27,20 @@ struct CollisionCandidate
 	XMVECTOR vecPositionB {};
 };
 
-static thread_local int64_t siCandidateCount = 0;
-static thread_local int64_t siPendingResultCount = 0;
-
 struct CollisionEventScratch
 {
 	std::vector<CollisionCandidate> candidates;
 	std::vector<PendingCollisionResult> pendingResults;
+	int64_t iCandidateCount = 0;
+	int64_t iPendingResultCount = 0;
 };
 
 static CollisionEventScratch& GetCollisionEventScratch()
 {
-	static thread_local CollisionEventScratch* spScratch = nullptr;
-	if (spScratch == nullptr)
-	{
-		// Heap: function-local TLS defers non-trivial construction until allocator startup is complete.
-		ScopedSuppressAllocationTracking suppress;
-		static thread_local CollisionEventScratch sScratch;
-		spScratch = &sScratch;
-	}
-	return *spScratch;
+	// Function-local TLS defers construction until first use; default construction is allocation-free
+	// (empty vectors), so it is safe even before allocator startup completes. Growth sites suppress tracking.
+	static thread_local CollisionEventScratch sScratch;
+	return sScratch;
 }
 
 // Zone range for spatial partitioning
@@ -369,14 +363,14 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 		ScopedSuppressAllocationTracking suppress;
 		rScratch.candidates.resize(kiCollisionCandidatePreallocate);
 	}
-	siCandidateCount = 0;
+	rScratch.iCandidateCount = 0;
 	if (rScratch.pendingResults.empty())
 	{
 		// Heap: one-time per-thread pre-allocation; retained for later ticks.
 		ScopedSuppressAllocationTracking suppress;
 		rScratch.pendingResults.resize(kiCollisionResultPreallocate);
 	}
-	siPendingResultCount = 0;
+	rScratch.iPendingResultCount = 0;
 
 	// Process all layer pair zones
 	for (int64_t i = 0; i < siLayerPairCount; ++i)
@@ -384,14 +378,14 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 		CollideLayerPair(rAlignments, sLayerPairZones.at(static_cast<size_t>(i)));
 	}
 
-	std::sort(rScratch.candidates.begin(), rScratch.candidates.begin() + siCandidateCount, [](const CollisionCandidate& rLeftCandidate, const CollisionCandidate& rRightCandidate)
+	std::sort(rScratch.candidates.begin(), rScratch.candidates.begin() + rScratch.iCandidateCount, [](const CollisionCandidate& rLeftCandidate, const CollisionCandidate& rRightCandidate)
 	{
 		return std::tie(rLeftCandidate.fTimeOfImpact, rLeftCandidate.uiLayerA, rLeftCandidate.iObjectA, rLeftCandidate.uiLayerB, rLeftCandidate.iObjectB) <
 		       std::tie(rRightCandidate.fTimeOfImpact, rRightCandidate.uiLayerA, rRightCandidate.iObjectA, rRightCandidate.uiLayerB, rRightCandidate.iObjectB);
 	});
 
 	// Commit accepted candidates into retained pending-result scratch.
-	for (int64_t i = 0; i < siCandidateCount; ++i)
+	for (int64_t i = 0; i < rScratch.iCandidateCount; ++i)
 	{
 		CommitCandidate(rScratch.candidates.at(static_cast<size_t>(i)));
 	}
@@ -400,7 +394,7 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 	AllocateResultStorage();
 
 	// Pass 1: Count results per key
-	for (int64_t i = 0; i < siPendingResultCount; ++i)
+	for (int64_t i = 0; i < rScratch.iPendingResultCount; ++i)
 	{
 		const PendingCollisionResult& rPending = rScratch.pendingResults.at(static_cast<size_t>(i));
 		int64_t iSpanIndex = sLayerBaseOffsets[static_cast<size_t>(rPending.iLayerIndex)] + rPending.iObjectIndex;
@@ -439,7 +433,7 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 	siResultEntryCount = iTotalResults;
 
 	// Pass 2: Fill results at their assigned offsets
-	for (int64_t i = 0; i < siPendingResultCount; ++i)
+	for (int64_t i = 0; i < rScratch.iPendingResultCount; ++i)
 	{
 		const PendingCollisionResult& rPending = rScratch.pendingResults.at(static_cast<size_t>(i));
 		int64_t iSpanIndex = sLayerBaseOffsets[static_cast<size_t>(rPending.iLayerIndex)] + rPending.iObjectIndex;
@@ -486,15 +480,15 @@ void Collision::AllocateResultStorage()
 static void XM_CALLCONV RecordCollision(const CollisionCandidate& rCandidate, FXMVECTOR vecSelfPosition, int64_t iSelf, size_t uiSelfLayer, CollisionLayer& rOtherLayer, int64_t iOther, size_t uiOtherLayer)
 {
 	CollisionEventScratch& rScratch = GetCollisionEventScratch();
-	if (siPendingResultCount >= static_cast<int64_t>(rScratch.pendingResults.size())) [[unlikely]]
+	if (rScratch.iPendingResultCount >= static_cast<int64_t>(rScratch.pendingResults.size())) [[unlikely]]
 	{
-		LOG(kDefault, kWarning, "Collision: pendingResults overflow (count: {}, capacity: {}). Increase kiCollisionResultPreallocate in Collision.h", siPendingResultCount, rScratch.pendingResults.size());
+		LOG(kDefault, kWarning, "Collision: pendingResults overflow (count: {}, capacity: {}). Increase kiCollisionResultPreallocate in Collision.h", rScratch.iPendingResultCount, rScratch.pendingResults.size());
 		DEBUG_BREAK();
 		// Heap: rare growth when accepted result count exceeds pre-allocation.
 		ScopedSuppressAllocationTracking suppress;
-		rScratch.pendingResults.resize(siPendingResultCount * 2);
+		rScratch.pendingResults.resize(rScratch.iPendingResultCount * 2);
 	}
-	rScratch.pendingResults.at(static_cast<size_t>(siPendingResultCount)) =
+	rScratch.pendingResults.at(static_cast<size_t>(rScratch.iPendingResultCount)) =
 	{
 		.iLayerIndex = static_cast<int64_t>(uiSelfLayer),
 		.iObjectIndex = iSelf,
@@ -510,7 +504,7 @@ static void XM_CALLCONV RecordCollision(const CollisionCandidate& rCandidate, FX
 			.vecOtherVelocity = rOtherLayer.pVecVelocities != nullptr ? rOtherLayer.pVecVelocities[iOther] : XMVectorZero(),
 		},
 	};
-	++siPendingResultCount;
+	++rScratch.iPendingResultCount;
 }
 
 void Collision::CommitCandidate(const CollisionCandidate& rCandidate)
@@ -612,15 +606,15 @@ static void TestAndCollectPair(const Alignments& rAlignments, CollisionLayer& rL
 	}
 
 	CollisionEventScratch& rScratch = GetCollisionEventScratch();
-	if (siCandidateCount >= static_cast<int64_t>(rScratch.candidates.size())) [[unlikely]]
+	if (rScratch.iCandidateCount >= static_cast<int64_t>(rScratch.candidates.size())) [[unlikely]]
 	{
-		LOG(kDefault, kWarning, "Collision: candidates overflow (count: {}, capacity: {}). Increase kiCollisionCandidatePreallocate in Collision.h", siCandidateCount, rScratch.candidates.size());
+		LOG(kDefault, kWarning, "Collision: candidates overflow (count: {}, capacity: {}). Increase kiCollisionCandidatePreallocate in Collision.h", rScratch.iCandidateCount, rScratch.candidates.size());
 		DEBUG_BREAK();
 		// Heap: rare growth when candidate count exceeds pre-allocation.
 		ScopedSuppressAllocationTracking suppress;
-		rScratch.candidates.resize(siCandidateCount * 2);
+		rScratch.candidates.resize(rScratch.iCandidateCount * 2);
 	}
-	rScratch.candidates.at(static_cast<size_t>(siCandidateCount)) =
+	rScratch.candidates.at(static_cast<size_t>(rScratch.iCandidateCount)) =
 	{
 		.fTimeOfImpact = fTimeOfImpact,
 		.uiLayerA = uiLayerA,
@@ -631,7 +625,7 @@ static void TestAndCollectPair(const Alignments& rAlignments, CollisionLayer& rL
 		.vecPositionA = vecImpactA,
 		.vecPositionB = vecImpactB,
 	};
-	++siCandidateCount;
+	++rScratch.iCandidateCount;
 }
 
 void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones)

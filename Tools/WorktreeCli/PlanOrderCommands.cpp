@@ -167,48 +167,6 @@ namespace toolcli
 			return coordination::HashSha256(value);
 		}
 
-		std::optional<std::string> RunGit(const std::vector<std::wstring>& rArguments)
-		{
-			SECURITY_ATTRIBUTES securityAttributes { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
-			HANDLE hRawRead = INVALID_HANDLE_VALUE;
-			HANDLE hRawWrite = INVALID_HANDLE_VALUE;
-			if (::CreatePipe(&hRawRead, &hRawWrite, &securityAttributes, 0) == FALSE)
-			{
-				return std::nullopt;
-			}
-			Handle hRead(hRawRead);
-			Handle hWrite(hRawWrite);
-			::SetHandleInformation(hRead.Get(), HANDLE_FLAG_INHERIT, 0);
-			std::vector<std::wstring> arguments { L"git.exe" };
-			arguments.insert(arguments.end(), rArguments.begin(), rArguments.end());
-			std::wstring commandLine = BuildCommandLine(arguments);
-			STARTUPINFOW startupInfo {};
-			startupInfo.cb = sizeof(startupInfo);
-			startupInfo.dwFlags = STARTF_USESTDHANDLES;
-			startupInfo.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
-			startupInfo.hStdOutput = hWrite.Get();
-			startupInfo.hStdError = hWrite.Get();
-			PROCESS_INFORMATION processInformation {};
-			if (::CreateProcessW(nullptr, commandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &startupInfo, &processInformation) == FALSE)
-			{
-				return std::nullopt;
-			}
-			Handle hProcess(processInformation.hProcess);
-			Handle hThread(processInformation.hThread);
-			hWrite.Reset();
-			std::string output;
-			char pBuffer[4096] {};
-			DWORD uiRead = 0;
-			while (::ReadFile(hRead.Get(), pBuffer, sizeof(pBuffer), &uiRead, nullptr) != FALSE && uiRead != 0)
-			{
-				output.append(pBuffer, uiRead);
-			}
-			::WaitForSingleObject(hProcess.Get(), INFINITE);
-			DWORD uiExitCode = 1;
-			::GetExitCodeProcess(hProcess.Get(), &uiExitCode);
-			return uiExitCode == 0 ? std::optional<std::string>(std::move(output)) : std::nullopt;
-		}
-
 		bool ParseArguments(int iArgumentCount, wchar_t* pArgumentValues[], Arguments& rArguments)
 		{
 			for (int i = 4; i < iArgumentCount; ++i)
@@ -410,34 +368,10 @@ namespace toolcli
 			return true;
 		}
 
-		bool HasReparseTraversal(const std::filesystem::path& rRoot, const std::filesystem::path& rTarget)
+		bool IsLexicallyContained(const std::filesystem::path& rRoot, const std::filesystem::path& rTarget)
 		{
-			std::error_code error;
-			const DWORD uiRootAttributes = ::GetFileAttributesW(rRoot.c_str());
-			if (uiRootAttributes == INVALID_FILE_ATTRIBUTES || (uiRootAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
-			{
-				return true;
-			}
 			const std::filesystem::path relative = rTarget.lexically_relative(rRoot);
-			if (relative.empty() || relative.native().starts_with(L".."))
-			{
-				return true;
-			}
-			std::filesystem::path current = rRoot;
-			for (const std::filesystem::path& rPart : relative)
-			{
-				current /= rPart;
-				if (!std::filesystem::exists(current, error))
-				{
-					return false;
-				}
-				const DWORD uiAttributes = ::GetFileAttributesW(current.c_str());
-				if (uiAttributes == INVALID_FILE_ATTRIBUTES || (uiAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
-				{
-					return true;
-				}
-			}
-			return false;
+			return !relative.empty() && !relative.native().starts_with(L"..");
 		}
 
 		std::optional<std::filesystem::path> ResolveContainedPath(const std::wstring& rRoot, const std::wstring& rRelative, bool bRequireExisting)
@@ -458,7 +392,7 @@ namespace toolcli
 			}
 			const std::filesystem::path root(rRoot);
 			const std::filesystem::path target = (root / rRelative).lexically_normal();
-			if (HasReparseTraversal(root, target))
+			if (!IsLexicallyContained(root, target))
 			{
 				return std::nullopt;
 			}
@@ -870,7 +804,7 @@ namespace toolcli
 				indexed.insert(rPlan);
 				const std::filesystem::path path = std::filesystem::path(rWorktree) / Utf8ToWide(rPlan);
 				std::error_code error;
-				if (!std::filesystem::is_regular_file(path, error) || error || HasReparseTraversal(rWorktree, path))
+				if (!std::filesystem::is_regular_file(path, error) || error || !IsLexicallyContained(rWorktree, path))
 				{
 					AddDiagnostic(rState, pRow->source, pRow->iLine, "missing-plan-file", "executable row does not resolve to a safe regular plan file");
 				}
@@ -885,7 +819,7 @@ namespace toolcli
 				}
 				std::error_code error;
 				const std::filesystem::path path = std::filesystem::path(rWorktree) / Utf8ToWide(rReference);
-				if (!std::filesystem::is_regular_file(path, error) || error || HasReparseTraversal(rWorktree, path))
+				if (!std::filesystem::is_regular_file(path, error) || error || !IsLexicallyContained(rWorktree, path))
 				{
 					AddDiagnostic(rState, rReference, 0, "missing-reference", "reference document does not resolve to a safe regular file");
 				}
@@ -1032,6 +966,11 @@ namespace toolcli
 				rMetadata.contains("order") && rMetadata["order"].is_string() && rMetadata["order"].get<std::string>() == WideToUtf8(rQueue.normalizedOrder);
 		}
 
+		void ReportInvalidClaim(const std::filesystem::path& rPath)
+		{
+			Fail("plan row claim is unreadable or invalid (delete the file to recover): " + WideToUtf8(rPath.wstring()));
+		}
+
 		bool ValidateClaimSnapshot(const QueueLocator& rQueue)
 		{
 			const std::optional<std::string> queueHash = Sha256(WideToUtf8(rQueue.locator.logicalKey));
@@ -1058,14 +997,14 @@ namespace toolcli
 				nlohmann::json metadata;
 				if (!coordination::ReadMetadata(it->path(), metadata) || !metadata.contains("plan") || !metadata["plan"].is_string())
 				{
-					Fail("plan row metadata is unreadable or invalid");
-					return false;
+					ReportInvalidClaim(it->path());
+					continue;
 				}
 				const std::optional<std::wstring> plan = coordination::NormalizeRepositoryRelativeKey(Utf8ToWide(metadata["plan"].get<std::string>()));
 				if (!plan)
 				{
-					Fail("plan row metadata is unreadable or invalid");
-					return false;
+					ReportInvalidClaim(it->path());
+					continue;
 				}
 				const std::wstring rowKey = rQueue.locator.logicalKey + L"\n" + *plan;
 				const std::optional<std::string> expectedHash = Sha256(WideToUtf8(rowKey));
@@ -1075,8 +1014,8 @@ namespace toolcli
 					!metadata.contains("order") || !metadata["order"].is_string() || metadata["order"].get<std::string>() != WideToUtf8(rQueue.normalizedOrder) ||
 					metadata["plan"].get<std::string>() != WideToUtf8(*plan))
 				{
-					Fail("plan row metadata is unreadable or invalid");
-					return false;
+					ReportInvalidClaim(it->path());
+					continue;
 				}
 			}
 			if (error)
@@ -1117,8 +1056,8 @@ namespace toolcli
 					coordination::Guard guard(rQueue.guardPath);
 					if (!guard.IsValid())
 					{
-						Fail("timed out acquiring plan queue guard");
-						return FailAcquire("guard-timeout");
+						Fail("could not acquire plan queue guard (" + guard.FailureReason() + ")");
+						return FailAcquire(guard.TimedOut() ? "guard-timeout" : "guard-error");
 					}
 					std::error_code error;
 					const bool bExists = std::filesystem::exists(rQueue.locator.path, error);
@@ -1136,7 +1075,7 @@ namespace toolcli
 						nlohmann::json existing;
 						if (!coordination::ReadMetadata(rQueue.locator.path, existing) || !ValidateQueueMetadata(existing, rQueue))
 						{
-							Fail("plan queue metadata is unreadable or invalid");
+							Fail("plan queue metadata is unreadable or invalid (delete the file to recover): " + WideToUtf8(rQueue.locator.path.wstring()));
 							return FailAcquire("invalid-existing-lock");
 						}
 						return FailAcquire("already-locked");
@@ -1167,7 +1106,7 @@ namespace toolcli
 					auto guard = std::make_unique<coordination::Guard>(rQueue.guardPath);
 					if (!guard->IsValid())
 					{
-						results.push_back(LockResult(rQueue, false, "guard-timeout"));
+						results.push_back(LockResult(rQueue, false, guard->TimedOut() ? "guard-timeout" : "guard-error"));
 						coordination::PrintMetadata({ { "conflict", "queue-ownership-lost" }, { "locks", std::move(results) } });
 						return false;
 					}
@@ -1198,7 +1137,7 @@ namespace toolcli
 					}
 					coordination::Guard guard(rQueue.guardPath);
 					bool bReleased = false;
-					std::string reason = "guard-timeout";
+					std::string reason = guard.TimedOut() ? "guard-timeout" : "guard-error";
 					if (guard.IsValid())
 					{
 						nlohmann::json metadata;
@@ -1330,7 +1269,7 @@ namespace toolcli
 			}
 			const std::optional<std::filesystem::path> path = ResolveContainedPath(rWorktree, rArguments.request, true);
 			std::string bytes;
-			if (!path || HasReparseTraversal(std::filesystem::path(rWorktree) / L"Temp", *path) || !ReadBoundedFile(*path, kuiMaximumRequestBytes, bytes) || !IsStrictUtf8(bytes))
+			if (!path || !IsLexicallyContained(std::filesystem::path(rWorktree) / L"Temp", *path) || !ReadBoundedFile(*path, kuiMaximumRequestBytes, bytes) || !IsStrictUtf8(bytes))
 			{
 				Fail("request is not a safe bounded strict-UTF-8 file beneath Temp");
 				return false;
@@ -1494,10 +1433,6 @@ namespace toolcli
 			{
 				return true;
 			}
-			if (!coordination::ReadMetadata(*path, rMetadata))
-			{
-				return false;
-			}
 			const std::wstring order = coordination::NormalizeRepositoryRelativeKey(Utf8ToWide(rQueue.path)).value();
 			const std::optional<std::wstring> plan = ClaimPlanKey(rQueue, rPlan);
 			if (!plan)
@@ -1505,9 +1440,17 @@ namespace toolcli
 				return false;
 			}
 			const coordination::Locator locator { L"plan-row", rRepository + L"\n" + order + L"\n" + *plan, *path };
-			return coordination::ValidateMetadataEnvelope(rMetadata, locator) && rMetadata.contains("repository") && rMetadata["repository"].is_string() && rMetadata["repository"].get<std::string>() == WideToUtf8(rRepository) &&
+			const bool bValid = coordination::ReadMetadata(*path, rMetadata) &&
+				coordination::ValidateMetadataEnvelope(rMetadata, locator) && rMetadata.contains("repository") && rMetadata["repository"].is_string() && rMetadata["repository"].get<std::string>() == WideToUtf8(rRepository) &&
 				rMetadata.contains("order") && rMetadata["order"].is_string() && rMetadata["order"].get<std::string>() == WideToUtf8(order) &&
 				rMetadata.contains("plan") && rMetadata["plan"].is_string() && rMetadata["plan"].get<std::string>() == WideToUtf8(*plan);
+			if (!bValid)
+			{
+				// An unreadable claim still blocks its own row; only enumeration-wide validation skips it.
+				ReportInvalidClaim(*path);
+				rMetadata = { { "invalid", true }, { "path", WideToUtf8(path->wstring()) } };
+			}
+			return true;
 		}
 
 		bool IsClaimOwnedByRequester(const nlohmann::json& rClaim, const Arguments& rArguments, const std::wstring& rWorktree)
@@ -1591,16 +1534,6 @@ namespace toolcli
 			{
 				return kiExitStateConflict;
 			}
-			nlohmann::json lockedRequest;
-			std::vector<AddSequence> lockedSequences;
-			std::set<std::string> lockedAdded;
-			if (!ReadJsonRequest(rArguments, rWorktree, lockedRequest) || lockedRequest != request || !ParseAddRequest(lockedRequest, lockedSequences, lockedAdded))
-			{
-				coordination::PrintMetadata({ { "conflict", "add-request-changed-after-lock" } });
-				return kiExitStateConflict;
-			}
-			sequences = std::move(lockedSequences);
-			added = std::move(lockedAdded);
 			QueueState state;
 			if (!LoadQueueState(rWorktree, rArguments, std::nullopt, std::nullopt, added, state))
 			{
@@ -1747,7 +1680,7 @@ namespace toolcli
 				const std::optional<std::filesystem::path> stagedPath = ResolveContainedPath(rWorktree, Utf8ToWide(stagedContent), true);
 				std::string originalPlan;
 				std::string replacementPlan;
-				if (!planPath || !stagedPath || !stagedIdentity.starts_with("Temp/") || HasReparseTraversal(std::filesystem::path(rWorktree) / L"Temp", *stagedPath) ||
+				if (!planPath || !stagedPath || !stagedIdentity.starts_with("Temp/") || !IsLexicallyContained(std::filesystem::path(rWorktree) / L"Temp", *stagedPath) ||
 					!ReadBoundedFile(*planPath, kuiMaximumPlanBytes, originalPlan) || !ReadBoundedFile(*stagedPath, kuiMaximumPlanBytes, replacementPlan) || !IsStrictUtf8(replacementPlan))
 				{
 					Fail("update plan or staged content is unsafe, oversized, or invalid UTF-8");

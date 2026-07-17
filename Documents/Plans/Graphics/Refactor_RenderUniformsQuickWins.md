@@ -40,7 +40,7 @@ Source: /external-refactor-clean on Engine/Source (recursive). Graphics root + R
 - `Engine/Data/Shaders/ShaderLayoutsBase.h` (if the dead End fields are dropped)
 
 ## Out of scope
-- The shadow/lighting area-snapping + temporal-latch dedup (`Architecture_ShadowLightingUniformDedup.md` — same files, land in one session or refresh)
+- The shared shadow/lighting area-snapping and temporal-latch helpers in `Engine/Source/Graphics/Render/Render.h`
 - `fWaterZOffsetTemp` "DT: TEMP" chain (water in-flight this session — decision deferred to the water work)
 - Monitor-refresh-rate per-monitor lookup (observation only; consumer impact unassessed)
 - Gerstner bank per-frame recompute (verified partially necessary; below action bar)

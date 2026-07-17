@@ -1,17 +1,19 @@
 ---
 name: verify-changes
 description: >-
-  Verify Tier-3, queue, reconciliation, and landing changes with a final-tree
-  acceptance ledger and manifest. Tier-1 and Tier-2 work uses proportionate
-  direct checks and an inline completion summary instead.
+  Verify final-evidence-gate changes — queue mutation or completion,
+  reconciliation, requested primary commit or landing, shared build/bootstrap
+  work, or Tier-3 integration — with a final-tree acceptance ledger and
+  manifest. Work without such a gate uses proportionate direct checks and an
+  inline completion summary instead.
 allowed-tools: [Read, Grep, Glob, Agent, "Bash(git diff *)", "Bash(git status *)", "Bash(git ls-files *)", "Bash(git hash-object *)", PowerShell]
 ---
 
 # Verify Changes
 
-Use this skill only for a final-evidence gate: queue mutation or completion,
-reconciliation, or requested landing. Tier 1, Tier 2, and Tier 3 work without
-one of those gates reports its direct checks, changed files, and residuals
+Use this skill only when a final-evidence gate (root `AGENTS.md` definition)
+applies. Work without such a gate — any tier — reports its direct checks,
+changed files, and residuals
 inline without a final-tree ledger or manifest. Completed `/next-plan` routes
 also follow the [canonical execution-gate
 contract](../next-plan/references/execution-gates.md).
@@ -26,14 +28,15 @@ Require:
   risk tier and concrete triggers, required and conditional roles, triggered-role
   dispositions, and the initial acceptance matrix
 - For a delegated call, an absolute caller-assigned `ReportPath` allocated by
-  [`New-AgentReportPath.ps1`](../../scripts/New-AgentReportPath.ps1) beneath
+  [`New-AgentReportPath.ps1`](../../../.agents/scripts/New-AgentReportPath.ps1) beneath
   `%LOCALAPPDATA%\BrokenEngine\AgentReports\<repository-hash>`
 - Accumulated inline implementation, review, hygiene, build, and residual handoffs with their decisive checks
 - Every WorktreeCli `plan order add`, `update`, or `complete` receipt relevant to the final tree, including the request/plan identity, queue hashes, unlock results, owner/session identity, and `--reapply` disposition when present
 - For a completed `/next-plan` route, its immutable completion receipt path and
-  lowercase SHA-256. The chain validator derives the authoritative
-  presentation and approval receipt identities and requires the authoritative
-  `session-landing` finalization mode; caller restatements are not substitutes.
+  lowercase SHA-256. The receipt chain is validated exactly once per queue run,
+  by `/finalize-changes` per the [canonical
+  contract](../next-plan/references/execution-gates.md); this skill records the
+  completion receipt identity without re-running the validator.
 
 If lifecycle identity or required evidence is missing or ambiguous, return `BLOCKED`; do not rediscover a movable baseline or invent acceptance criteria.
 Block when any handoff shows an unapproved plan delta. Only main may apply an exact user-approved delta before verification.
@@ -41,16 +44,10 @@ Block when any handoff shows an unapproved plan delta. Only main may apply an ex
 ## Workflow
 
 1. Require the current checkout to be the adopted worktree and the supplied baseline to be its fixed session-start commit. Inventory the final diff from that baseline, including untracked files.
-   For a completed `/next-plan` route, run
-   [`Test-NextPlanReceiptChain.ps1`](../next-plan/scripts/Test-NextPlanReceiptChain.ps1)
-   with only `-CompletionReceiptPath` and `-CompletionReceiptSha256`. Require exit `0`,
-   `broken-engine-next-plan-receipt-chain-result/v1`, `status: pass`,
-   `workflowTerminal: false`, and `nextAction: finalize-changes`. Exit `2` is a
-   deterministic blocker and exit `1` is malformed input or internal failure;
-   neither may be reconstructed or waived. A missing completion receipt or
-   hash is `BLOCKED`. Use only the validator-returned `presentationReceipt`,
-   `approvalReceipt`, `completionReceipt`, and `finalizationMode` thereafter.
-   Require that validated mode to be `session-landing`.
+   For a completed `/next-plan` route, require the immutable completion receipt
+   path and lowercase SHA-256; a missing receipt or hash is `BLOCKED`. Do not
+   run the chain validator — `/finalize-changes` validates the receipt chain
+   exactly once and derives the authoritative `session-landing` mode.
 2. Build a ledger from the final approved plan plus approved-delta summary, the
    execution-control record, every changed behavior visible in the diff, every
    supplied plan-order receipt, and every test obligation or residual in supplied
@@ -61,11 +58,11 @@ Block when any handoff shows an unapproved plan delta. Only main may apply an ex
    the row names the distinct independent signal it adds. Documentation, skill,
    tooling, and configuration changes require the strongest applicable static or
    functional check; they do not receive an automatic runtime skip.
-   A completed `/next-plan` ledger must record the validator's PASS result and
-   authoritative `finalizationMode`, plus the canonical path and lowercase
-   SHA-256 for its returned presentation, approval, and completion receipts.
-   Any mismatch with a caller-supplied receipt identity or mode makes the
-   ledger non-passing.
+   A completed `/next-plan` ledger must record the completion receipt's
+   canonical path and lowercase SHA-256 and the expected `session-landing`
+   finalization mode; `/finalize-changes` validates the full receipt chain
+   against that identity. A mismatch with a caller-supplied receipt identity
+   makes the ledger non-passing.
    When the manifest contains a changed `.agents/skills/*/SKILL.md`, invoke `/validate-skill` once for each changed skill and record its complete decisive result. That shared workflow is the only skill-validation contract: do not substitute a client-installed validator or abbreviated frontmatter check. Require `Validation: PASS`; `FAIL`, `BLOCKED`, `INVALID`, `SETUP_ERROR`, result/exit mismatch, or inability to run the validator makes the ledger non-passing.
 3. Apply the approved tier as a ceiling on exploratory work, never as permission
    to weaken a criterion:
@@ -99,7 +96,7 @@ Block when any handoff shows an unapproved plan delta. Only main may apply an ex
    Record every touched non-worktree state as `unchanged`, `intentionally persisted under owner contract`, `restored`, or `residual`, with exact path, owning contract/serialization mechanism, and evidence.
 7. When the final tree changes an executable plan file or either queue, or carries a WorktreeCli add/update/complete receipt, set `$WorktreeCli` to the current checkout's provisioned `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe`. In a session worktree, run `plan order validate --repo <canonical-git-common-dir> --worktree <session-worktree>` and require exit `0`, JSON `ok: true`, and no diagnostics. A completed-plan row claim remains intentionally owner-held until finalization/landing: record its owner-qualified `ownedByRequester: true` status, not an absence expectation. When calling the row API directly, use the plan key relative to the selected `Order.md` directory. For an explicitly user-authorized primary commit, the owned `complete` receipt is the pre-commit decisive queue check: require its success, exact plan identity, queue hashes, and unlock results, then record clean-primary validation and owner-unclaim as mandatory `/finalize-changes` guards. Do not run the public validator against the dirty primary or call that guard a skipped acceptance item. Otherwise record `plan-order validation: not triggered — no queue or executable-plan change`; do not run it merely because another repository file changed.
 8. Create the immutable final report through
-	[`Write-AgentVerificationReport.ps1`](../../scripts/Write-AgentVerificationReport.ps1).
+	[`Write-AgentVerificationReport.ps1`](../../../.agents/scripts/Write-AgentVerificationReport.ps1).
    Allocate the fresh report path through `New-AgentReportPath.ps1`, then pass
    it with the adopted worktree, fixed baseline,
 	phase-appropriate manifest comparison base, plan/intent, and complete
@@ -133,16 +130,16 @@ complete result inline:
 - Ledger entries: criterion/behavior, decisive check, expected result, independent
   signal for any duplicate (otherwise `none`), status, and exact evidence
 - Session `plan order validate` result, or the primary-commit finalization obligation, plus every relevant add/update/complete receipt including exact queue hashes/unlock disposition
-- For a completed `/next-plan` route, receipt-chain validator PASS,
-  authoritative finalization mode, and exact presentation, approval, and
-  completion receipt paths/hashes
+- For a completed `/next-plan` route, the exact completion receipt path and
+  SHA-256 and the expected `session-landing` finalization mode
 - Fix/retest rounds and repository mutations, or `none`
 - Failed, blocked, skipped, or unverified items, or `none`
 - Residuals: blocker or `none` (always last)
 
 The one final report identifies the complete authoritative changed-file manifest
 and PASS ledger. `/finalize-changes` consumes only the exact ranges it needs
-from that report and independently revalidates any recorded `/next-plan`
-receipt chain; intermediate roles provide no report chain.
+from that report and performs the single receipt-chain validation for any
+recorded `/next-plan` completion receipt; intermediate roles provide no report
+chain.
 
 On a non-passing result, use `Verification: BLOCKED` and preserve each actual item status and evidence in the blocker list. Never emit a final-tree manifest as verified when it was generated before the last mutation.

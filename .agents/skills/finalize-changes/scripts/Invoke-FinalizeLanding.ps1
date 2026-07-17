@@ -1,3 +1,51 @@
+# Exclusive owner of the post-approval session-landing transaction: every lock,
+# queue, Git, cleanup, and row-release action. Callers pass the exact
+# approval-covered session commit, the current/primary identities and expected tips
+# from the final reconciliation preflight, report path/hash and returned manifest
+# range, wrapper owner/session label, and any retained row-claim locator; for a
+# completed-plan claim, also the exact latest WorktreeCli `plan order complete`
+# receipt JSON — the executor requires its owner, removed plan, and both
+# queue-byte hashes to match landed primary before unclaiming. None of these
+# operations may be assembled as inline PowerShell by a caller.
+#
+# Transaction: re-runs preflight, derives the canonical Git common directory and
+# queue-changing scope from the manifest, claims the PC-global landing lock and
+# (for a queue-changing landing) the Plans/Features queue locks in canonical path
+# order, refreshes owner-only leases around every mutation, proves primary is an
+# ancestor with no commits to replay (`git merge-base --is-ancestor`, empty
+# rev-lists, no multi-parent commits), advances primary with `git rebase
+# <approved-session-commit>` (a pure fast-forward ref advance), performs
+# post-mutation preflight, writes the commit-keyed global landing artifact before
+# row release, reverses owner-held queue locks in reverse canonical order,
+# conditionally releases the landing lock, and releases a verified row claim.
+#
+# Universal acquired-lock safe-stop rule (owned here): on any cancellation,
+# blocker, or failure after the first queue-lock acquisition attempt — partial
+# acquisition, ownership failure, identity/ancestry/cleanliness failure,
+# pre/post-mutation failure, Git failure, or the normal unlock path — visit the
+# successfully acquired queue locators once in reverse canonical order, owner-check
+# each, unlock only records still owned by the landing owner, and prove each
+# locator absent. Never unlock an absent, foreign-owned, or unverifiable record;
+# retain and report anything that cannot be proven released. Only after every
+# acquired queue is proven released may the landing claim follow the
+# clear-worktree release/active-retain rule.
+#
+# Result contract: broken-engine-finalize-landing/v1 JSON; exit 0 before the
+# caller reports LANDED; exit 2 may report a post-advance blocker but still
+# carries the authoritative lock-cleanup state. If the artifact write fails after
+# the Git advance, the executor reports the landed-but-blocked artifact residual,
+# releases its locks, and retains the row claim; after restoring artifact-store
+# access, callers retry only with -ArtifactOnly and both expected tips equal to
+# the landed session commit — it reruns post-mutation validation, writes the
+# artifact, and releases retained ownership without another Git mutation.
+#
+# -ValidateOnly runs every input-shape and binding check — parameters, Git
+# identity/ancestry state, receipt fields and queue hashes against the expected
+# post-landing tree (the session worktree), verification report, artifact-writer
+# reachability, and the read-only pre-mutation preflight — without claiming any
+# lock or mutating anything; it reports status 'validated' with exit 0.
+# CompletedPlanReceipt accepts either the WorktreeCli completion receipt JSON
+# content or a path to a file containing it.
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory)][string] $CurrentWorktree,
@@ -19,13 +67,17 @@ param(
 	[string] $PlanOrder,
 	[string] $Plan,
 	[string] $CompletedPlanReceipt,
-	[switch] $ArtifactOnly
+	[switch] $ArtifactOnly,
+	[switch] $ValidateOnly
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $commonModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
+if (-not (Test-Path -LiteralPath $commonModule)) {
+	$commonModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
+}
 Import-Module $commonModule -Force
 
 $result = [ordered]@{
@@ -289,7 +341,7 @@ function Get-FileSha256([string] $Path) {
 	return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([IO.File]::ReadAllBytes($Path))).ToLowerInvariant()
 }
 
-function Assert-CompletedPlanReceipt {
+function Assert-CompletedPlanReceipt([string] $TreeRoot) {
 	if (-not $HasCompletedPlanClaim) { return }
 	try { $receipt = $CompletedPlanReceipt | ConvertFrom-Json -Depth 16 -ErrorAction Stop }
 	catch { Throw-Landing 1 'input.completed-receipt-invalid' 'CompletedPlanReceipt is not one WorktreeCli completion JSON object.' }
@@ -303,9 +355,9 @@ function Assert-CompletedPlanReceipt {
 		$receipt.plansOrderSha256 -cnotmatch '^[0-9a-f]{64}$' -or $receipt.featuresOrderSha256 -cnotmatch '^[0-9a-f]{64}$') {
 		Throw-Landing 2 'completed-receipt.mismatch' 'Completed-plan receipt does not bind this owner, plan, and queue state.'
 	}
-	$plansOrder = Join-Path $script:PrimaryIdentity.Worktree 'Documents\Plans\Order.md'
-	$featuresOrder = Join-Path $script:PrimaryIdentity.Worktree 'Documents\Features\Order.md'
-	$completedPlan = Join-Path $script:PrimaryIdentity.Worktree ($expectedPlan.Replace('/', [IO.Path]::DirectorySeparatorChar))
+	$plansOrder = Join-Path $TreeRoot 'Documents\Plans\Order.md'
+	$featuresOrder = Join-Path $TreeRoot 'Documents\Features\Order.md'
+	$completedPlan = Join-Path $TreeRoot ($expectedPlan.Replace('/', [IO.Path]::DirectorySeparatorChar))
 	if ((Get-FileSha256 $plansOrder) -cne $receipt.plansOrderSha256 -or (Get-FileSha256 $featuresOrder) -cne $receipt.featuresOrderSha256 -or (Test-Path -LiteralPath $completedPlan)) {
 		Throw-Landing 2 'completed-receipt.tree-mismatch' 'Landed primary queue bytes or completed-plan deletion differ from the verified receipt.'
 	}
@@ -314,6 +366,9 @@ function Assert-CompletedPlanReceipt {
 
 function Write-LandingArtifact {
 	$writer = Join-Path $PSScriptRoot '..\..\..\scripts\Write-AgentLandingArtifact.ps1'
+	if (-not (Test-Path -LiteralPath $writer)) {
+		$writer = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\Write-AgentLandingArtifact.ps1'
+	}
 	$client = if ([string]::IsNullOrWhiteSpace($env:BROKEN_ENGINE_AGENT_CLIENT)) { 'unknown' } else { $env:BROKEN_ENGINE_AGENT_CLIENT }
 	$arguments = [Collections.Generic.List[string]]::new()
 	foreach ($argument in @(
@@ -344,7 +399,7 @@ function Write-LandingArtifact {
 }
 
 function Complete-LandedState {
-	Assert-CompletedPlanReceipt
+	Assert-CompletedPlanReceipt $script:PrimaryIdentity.Worktree
 	Release-PlanRowClaim
 	$registration = Test-FinalizeWorktreeRegistration $script:PrimaryIdentity.Worktree $script:CurrentIdentity.Worktree $CurrentBranch $ApprovedSessionCommit
 	if (-not $registration.Registered) { Throw-Landing 2 'session.registration-invalid' $registration.Message }
@@ -363,8 +418,17 @@ try {
 	if ($ApprovedSessionCommit -cnotmatch '^[0-9a-f]{40}$' -or $ExpectedCurrentTip -cnotmatch '^[0-9a-f]{40}$' -or $ExpectedPrimaryTip -cnotmatch '^[0-9a-f]{40}$') {
 		Throw-Landing 1 'input.commit-invalid' 'Approved and expected commits must be lowercase 40-character object IDs.'
 	}
+	if ($ValidateOnly -and $ArtifactOnly) { Throw-Landing 1 'input.mode-conflict' 'ValidateOnly and ArtifactOnly are mutually exclusive.' }
 	if ($HasCompletedPlanClaim -and -not $HasPlanRowClaim) { Throw-Landing 1 'input.completed-claim-invalid' 'HasCompletedPlanClaim requires HasPlanRowClaim.' }
 	if ($HasCompletedPlanClaim -and [string]::IsNullOrWhiteSpace($CompletedPlanReceipt)) { Throw-Landing 1 'input.completed-receipt-required' 'HasCompletedPlanClaim requires CompletedPlanReceipt.' }
+	if (-not [string]::IsNullOrWhiteSpace($CompletedPlanReceipt) -and -not $CompletedPlanReceipt.TrimStart().StartsWith('{', [StringComparison]::Ordinal)) {
+		$receiptPath = Get-FinalizeRootPreservingFullPath $CompletedPlanReceipt
+		if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
+			Throw-Landing 1 'input.completed-receipt-path' "CompletedPlanReceipt is neither inline JSON nor an existing receipt file: '$receiptPath'."
+		}
+		try { $CompletedPlanReceipt = [Text.UTF8Encoding]::new($false, $true).GetString([IO.File]::ReadAllBytes($receiptPath)) }
+		catch { Throw-Landing 1 'input.completed-receipt-path' "CompletedPlanReceipt file is not strict UTF-8 text: '$receiptPath'." }
+	}
 	if ($HasPlanRowClaim -and ([string]::IsNullOrWhiteSpace($PlanOrder) -or [string]::IsNullOrWhiteSpace($Plan))) {
 		Throw-Landing 1 'input.plan-claim-invalid' 'Plan row release requires PlanOrder and Plan.'
 	}
@@ -389,7 +453,34 @@ try {
 	$manifestRows = @(Get-FinalizeManifestRows $script:CurrentIdentity.Worktree $ManifestComparisonBase)
 	$queueChanging = Test-QueueChangingManifest $manifestRows
 	$result.locks.queueChanging = $queueChanging
-	if ($ArtifactOnly) {
+	if ($ValidateOnly) {
+		Assert-PrimaryAdvanceState
+		Assert-CompletedPlanReceipt $script:CurrentIdentity.Worktree
+		$writer = Join-Path $PSScriptRoot '..\..\..\scripts\Write-AgentLandingArtifact.ps1'
+		if (-not (Test-Path -LiteralPath $writer)) {
+			$writer = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\Write-AgentLandingArtifact.ps1'
+		}
+		if (-not (Test-Path -LiteralPath $writer -PathType Leaf)) { Throw-Landing 2 'artifact.writer-missing' 'Landing artifact writer script was not found.' }
+		$storeModule = Join-Path (Split-Path -Parent $writer) 'AgentArtifactStore.psm1'
+		Import-Module $storeModule -Force -DisableNameChecking
+		$result.artifact.path = Get-AgentLandingArtifactPath -Worktree $script:CurrentIdentity.Worktree -Commit $ApprovedSessionCommit
+		$preflight = Invoke-Preflight 'pre-mutation' $ExpectedCurrentTip $ExpectedPrimaryTip $queueChanging
+		if ($preflight.tips.current -cne $ApprovedSessionCommit) { Throw-Landing 2 'approval.session-tip-changed' 'Session tip is not the explicit user-approved commit.' }
+		$result.identities.currentWorktree = [string] $preflight.identities.currentWorktree
+		$result.identities.primaryWorktree = [string] $preflight.identities.primaryWorktree
+		$result.identities.gitCommonDirectory = [string] $preflight.identities.gitCommonDirectory
+		if ($HasPlanRowClaim) {
+			$response = Invoke-FinalizeNativeText ([string] $preflight.worktreeCli.path) @('plan', 'row', 'status', '--repo', $result.identities.gitCommonDirectory, '--order', $PlanOrder, '--plan', $script:PlanRowKey, '--owner', $SessionOwner) $script:CurrentIdentity.Worktree
+			$status = Get-JsonResponse $response 'plan row status'
+			if ($response.ExitCode -ne 0 -or -not $status.ownedByRequester) {
+				Throw-Landing 2 'plan-row.not-owned' 'Plan-row claim is absent or not owned by the session owner.'
+			}
+		}
+		$result.status = 'validated'
+		$result.code = 'ok'
+		$result.message = 'All landing inputs and bindings validated; no lock was claimed and nothing was mutated.'
+	}
+	elseif ($ArtifactOnly) {
 		if ($ExpectedCurrentTip -cne $ApprovedSessionCommit -or $ExpectedPrimaryTip -cne $ApprovedSessionCommit) {
 			Throw-Landing 1 'artifact.retry-input-mismatch' 'Artifact retry requires ExpectedCurrentTip and ExpectedPrimaryTip to equal the landed commit.'
 		}
@@ -472,4 +563,4 @@ if ($script:LandingClaimed -or -not $result.cleanup.queueReleaseComplete) {
 	if ($result.status -eq 'error') { $result.code = 'cleanup.' + $result.code }
 }
 [Console]::Out.Write(($result | ConvertTo-Json -Depth 12 -Compress))
-exit $(if ($result.status -eq 'landed') { 0 } elseif ($result.status -eq 'blocked') { 2 } else { 1 })
+exit $(if ($result.status -in @('landed', 'validated')) { 0 } elseif ($result.status -eq 'blocked') { 2 } else { 1 })

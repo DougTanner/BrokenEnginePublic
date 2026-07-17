@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,6 +34,25 @@ namespace toolcli
 	private:
 		HANDLE mhHandle = INVALID_HANDLE_VALUE;
 	};
+
+	struct ProcessResult
+	{
+		DWORD uiExitCode = ERROR_GEN_FAILURE;
+		std::string output;
+	};
+
+	struct RunProcessOptions
+	{
+		bool bCaptureOutput = true;
+		bool bMergeStdError = false;
+		bool bKillOnJobClose = false;
+		bool bNoWindow = false;
+		bool bReportFailures = false;
+	};
+
+	// pExecutable may be null to search PATH using the first argument.
+	std::optional<ProcessResult> RunProcess(const std::filesystem::path* pExecutable, const std::vector<std::wstring>& rArguments, const RunProcessOptions& rOptions);
+	std::optional<std::string> RunGit(const std::vector<std::wstring>& rArguments);
 
 	void SetToolName(std::string_view name);
 	int PrintOwnerToken();

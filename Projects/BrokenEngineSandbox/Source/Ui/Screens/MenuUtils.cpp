@@ -257,7 +257,8 @@ bool MenuButton(const char* pcLabel, const ImVec2& vSize, float& rfHoverAnim, bo
 	// EnableNav: InvisibleButton defaults to ImGuiItemFlags_NoNav, which would skip keyboard/gamepad navigation
 	bool bPressed = ImGui::InvisibleButton(pcLabel, vButtonSize, ImGuiButtonFlags_EnableNav);
 	bool bHovered = ImGui::IsItemHovered() || ImGui::IsItemFocused(); // Focus term keeps keyboard/gamepad nav visible
-	rfHoverAnim += ((bHovered ? 1.0f : 0.0f) - rfHoverAnim) * common::ExponentialInterpolant(kfHoverAnimRate, ImGui::GetIO().DeltaTime);
+	// io.DeltaTime is uncapped wall-clock time; a long UI hitch pushes the interpolant past 1 and overshoots.
+	rfHoverAnim += ((bHovered ? 1.0f : 0.0f) - rfHoverAnim) * std::min(common::ExponentialInterpolant(kfHoverAnimRate, ImGui::GetIO().DeltaTime), 1.0f);
 
 	const MenuChrome& rChrome = GetMenuChrome();
 	ImVec2 vMin = ImGui::GetItemRectMin();

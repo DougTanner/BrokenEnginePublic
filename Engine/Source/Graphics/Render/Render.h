@@ -12,6 +12,73 @@ struct FrameInterpolate;
 namespace engine
 {
 
+struct WorldSizedTexelArea
+{
+	XMFLOAT4 f4Area {};
+	float fAspect = 0.0f;
+	float fTanHalfFov = 0.0f;
+	float fWorldTexelX = 0.0f;
+	float fWorldTexelY = 0.0f;
+	float fFullWidth = 0.0f;
+	float fFullHeight = 0.0f;
+
+	XMFLOAT2 ComputeVisibleArea(float fEyeHeight) const
+	{
+		return {2.0f * fEyeHeight * fAspect * fTanHalfFov, 2.0f * fEyeHeight * fTanHalfFov};
+	}
+};
+
+inline WorldSizedTexelArea XM_CALLCONV ComputeWorldSizedTexelArea(float fHeadroomMultiplier, float fTexelEyeHeight, float fTextureWidth, float fTextureHeight, float fAspect, float fFov, FXMVECTOR vecCameraPosition)
+{
+	float fTanHalfFov = std::tan(0.5f * XMConvertToRadians(fFov / fAspect));
+	float fWorldTexelX = (2.0f * fHeadroomMultiplier * fAspect * fTanHalfFov / fTextureWidth) * fTexelEyeHeight;
+	float fWorldTexelY = (2.0f * fHeadroomMultiplier * fTanHalfFov / fTextureHeight) * fTexelEyeHeight;
+	float fFullWidth = fTextureWidth * fWorldTexelX;
+	float fFullHeight = fTextureHeight * fWorldTexelY;
+	XMFLOAT4A f4CameraPosition {};
+	XMStoreFloat4A(&f4CameraPosition, vecCameraPosition);
+	int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPosition.x - fFullWidth * 0.5f) / fWorldTexelX));
+	int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPosition.y + fFullHeight * 0.5f) / fWorldTexelY));
+	float fLeft = static_cast<float>(iLeftTexel) * fWorldTexelX;
+	float fTop = static_cast<float>(iTopTexel) * fWorldTexelY;
+	return WorldSizedTexelArea {
+		.f4Area = {fLeft, fTop, fLeft + fFullWidth, fTop - fFullHeight},
+		.fAspect = fAspect,
+		.fTanHalfFov = fTanHalfFov,
+		.fWorldTexelX = fWorldTexelX,
+		.fWorldTexelY = fWorldTexelY,
+		.fFullWidth = fFullWidth,
+		.fFullHeight = fFullHeight,
+	};
+}
+
+struct TemporalAreaLatch
+{
+	bool bInitialized = false;
+	XMFLOAT4 f4PreviousArea {};
+
+	float Update(const XMFLOAT4& rf4CurrentArea, bool& rbReset, float fBlend, XMFLOAT4& rf4PreviousArea)
+	{
+		if (rbReset)
+		{
+			rbReset = false;
+			bInitialized = false;
+		}
+
+		float fResolvedBlend = fBlend;
+		if (!bInitialized)
+		{
+			f4PreviousArea = rf4CurrentArea;
+			bInitialized = true;
+			fResolvedBlend = 1.0f;
+		}
+
+		rf4PreviousArea = f4PreviousArea;
+		f4PreviousArea = rf4CurrentArea;
+		return fResolvedBlend;
+	}
+};
+
 void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime);
 void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord);
 

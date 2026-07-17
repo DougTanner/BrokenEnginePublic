@@ -1,6 +1,6 @@
 ---
 name: agent-harness
-description: Drive the Broken Engine client/server for automated verification — launch the two executables with an agent command channel, then send JSON commands via AgentHarness to control the sim, drive the UI, and read back scene/UI/log/screenshot state. Use only for runtime-observable acceptance criteria or when the user asks to run the game, set up a scenario, drive menus/HUD, capture a screenshot, describe the rendered scene, or run replay determinism. ALSO use when a plan's Verification section explicitly asks to launch, drive, query, or screenshot the client or server.
+description: Drive the Broken Engine client/server for automated verification — launch both executables with an agent command channel and send JSON commands to control the sim, drive the UI, and read back scene/UI/log/screenshot state. Use for runtime-observable acceptance criteria, replay determinism, or whenever the user or a plan's Verification section asks to launch, drive, query, or screenshot the game.
 allowed-tools: [PowerShell]
 ---
 
@@ -50,17 +50,16 @@ References: [firewall allowance risks](https://support.microsoft.com/en-us/windo
 
 ## AgentHarness setup
 
-Require the live wrapper-held WorktreeCli session claim, provision the worktree, then use `$ROOT\Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe`. If exclusive maintenance is active, wrapper admission waits up to 660 seconds before the session starts:
+Provision the checkout, then use `$ROOT\Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe`. Wrapper sessions run under the wrapper-held WorktreeCli session claim (`BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER`); non-worktree checkouts (typically the parent/primary checkout) may proceed without one — when that variable is empty, the provisioner registers a transient WorktreeCli session for the provisioning step automatically. If exclusive maintenance is active, admission waits up to 660 seconds before the session starts:
 
 ```powershell
-if ([string]::IsNullOrWhiteSpace($env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER)) { throw 'Live wrapper WorktreeCli session claim is required.' }
 & "$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot $ROOT
 if ($LASTEXITCODE -ne 0) { throw "Worktree provisioning failed: $LASTEXITCODE" }
 $AgentHarness = Join-Path $ROOT 'Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe'
 if (-not (Test-Path -LiteralPath $AgentHarness -PathType Leaf)) { throw "AgentHarness is missing: '$AgentHarness'." }
 ```
 
-If either tool executable is missing, stop. Routine harness work never builds AgentHarness or writes through either shared Output link; `/compile` owns the explicitly authorized primary-maintenance workflow.
+If either tool executable is missing, stop. Routine harness work never builds AgentHarness or writes through either shared Output link; `/compile` owns the gated AgentTools candidate/promotion workflow.
 
 ## Claiming the harness (do this first)
 
@@ -337,5 +336,5 @@ verification retains its normal inline command results.
 
 If a verification step needs an interaction the harness can't do — a missing command, param, result field, queryable state, or scripted-input primitive — **do not** fake it with fragile workarounds (pixel-guessing, log-scraping for state a query should expose) and do not silently skip the verification. Instead:
 
-1. **Preferred: build it.** Additions are cheap and follow existing patterns — shared commands in `Projects/BrokenEngineSandbox/Source/Agent/AgentCommands.cpp`, server commands/queries in `AgentCommandsServer*.cpp`, client commands in `AgentCommandsClient.cpp` (deferred capture/input via `AgentCommandServer::DeferResponse`), input primitives in `Engine/Source/Agent/AgentInput.cpp`, scene fields in `AgentScene.cpp`. Route through the C++ Code Change Process; update this skill's command reference in the same session.
+1. **Preferred: build it.** Additions are cheap and follow existing patterns — shared commands in `Projects/BrokenEngineSandbox/Source/Agent/AgentCommands.cpp`, server commands/queries in `AgentCommandsServer*.cpp`, client commands in `AgentCommandsClient.cpp` (deferred capture/input via `AgentCommandServer::DeferResponse`), input primitives in `Engine/Source/Agent/AgentInput.cpp`, scene fields in `AgentScene.cpp`. Route through the C++ Change Workflow; update this skill's command reference in the same session.
 2. **Otherwise: remain blocked.** If the extension is out of scope right now, keep the current verification `BLOCKED` and forbid landing until either the capability is built and its check passes, or the user explicitly revises the plan's scope or acceptance criteria and the revised criterion is verified. A follow-up plan may record the missing capability, but it does not waive the current verification gate.

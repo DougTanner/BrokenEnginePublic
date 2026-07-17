@@ -59,6 +59,12 @@ script deliberately refuses force removal, branch force-deletion, stale-lock
 recovery, global pruning, snapshot-ref deletion, and cleanup outside the two
 wrapper roots.
 
+A retained worktree reported as `locked: Live claude/codex session ...` belongs
+to a running wrapper session — its lock is placed at session creation and
+released when the wrapper exits. Never unlock or remove it while that session
+may be alive; if a crash orphaned the lock, only the user confirms the session
+is dead and runs `git worktree unlock` before the next cleanup pass.
+
 ## Report
 
 Return the script's complete report, including:

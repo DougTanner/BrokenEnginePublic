@@ -130,6 +130,28 @@ bool RunExportJobs()
 	// already set in that case so the comparison is moot).
 	bDirty |= iManifestChunkCount != static_cast<int64_t>(exportJobs.size());
 
+	// Each job commits its .meta fingerprint at export time on a worker thread, but the pack/manifest
+	// rename below happens later on this thread — a kill in that window leaves every fingerprint clean
+	// while the published pack is stale, and nothing above compares the two. A fingerprint newer than
+	// the published pack therefore dirties the aggregate; the jobs themselves stay clean, so the pack
+	// is reassembled from the cached chunks without re-exporting.
+	if (!bDirty)
+	{
+		std::error_code packError;
+		std::filesystem::file_time_type packTime = std::filesystem::last_write_time(packFile, packError);
+		for (const std::unique_ptr<T>& rpExportJob : exportJobs)
+		{
+			std::error_code metadataError;
+			std::filesystem::file_time_type metadataTime = std::filesystem::last_write_time(rpExportJob->mCacheMetadataFile, metadataError);
+			if (packError || metadataError || packTime < metadataTime)
+			{
+				LOG(kDefault, kDebug, "Pack file \"{}\" is older than fingerprint \"{}\"", packFile.string(), rpExportJob->mCacheMetadataFile.string());
+				bDirty = true;
+				break;
+			}
+		}
+	}
+
 	if (!bDirty)
 	{
 		return true;
@@ -234,7 +256,6 @@ bool RunExportJobs()
 		diagnostic::Record record
 		{
 			.eSeverity = diagnostic::Severity::kError,
-			.eOperation = diagnostic::Operation::kExportJobs,
 			.title = "Data Packer - Export Failed",
 			.message = "One or more export jobs failed",
 			.eButtons = diagnostic::ButtonContract::kOk,
@@ -434,7 +455,6 @@ int main(int argc, char* argv[])
 			diagnostic::Record record
 			{
 				.eSeverity = diagnostic::Severity::kError,
-				.eOperation = diagnostic::Operation::kTopLevelStandardException,
 				.title = "Data Packer - std::exception",
 				.message = message,
 				.eButtons = diagnostic::ButtonContract::kOk,
@@ -447,7 +467,6 @@ int main(int argc, char* argv[])
 			diagnostic::Record record
 			{
 				.eSeverity = diagnostic::Severity::kError,
-				.eOperation = diagnostic::Operation::kTopLevelUnknownException,
 				.title = "Data Packer - Unknown exception",
 				.message = "Unknown non-standard exception escaped DataPacker",
 				.eButtons = diagnostic::ButtonContract::kOk,

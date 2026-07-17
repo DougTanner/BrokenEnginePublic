@@ -29,14 +29,14 @@ GameBase::~GameBase()
 #endif // BT_CLIENT
 }
 
-void GameBase::ProcessInput([[maybe_unused]] bool bLostFocus, game::MenuInput& rMenuInput)
-{
 #if defined(BT_CLIENT)
+void GameBase::ProcessInput(bool bLostFocus, game::MenuInput& rMenuInput)
+{
 	game::gpInput->UpdateMenuInput(bLostFocus, rMenuInput);
 	game::gpInput->UpdateCameraInput();
-#endif
 	ProcessMenuInput(rMenuInput);
 }
+#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 void GameBase::ClientUpdate()
@@ -120,23 +120,17 @@ void GameBase::ClientUpdate()
 #endif // BT_CLIENT
 
 #if defined(BT_SERVER)
-void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
+void GameBase::ServerUpdate()
 {
 	common::LogTickScope logTickScope(miTickCounter);
 
 	game::gpServerSession->PreTickNetwork();
 
-	// Drain agent commands with the debug-control packets, before Quickload/SaveLoadReplay/PrepareActiveSet so
+	// Drain agent commands with the debug-control packets, before SaveLoadReplay/PrepareActiveSet so
 	// flag-setting commands are consumed the same update and injected StatusChanges enter the broadcast snapshot.
 	if (gpAgentCommandServer != nullptr) [[unlikely]]
 	{
 		gpAgentCommandServer->Drain();
-	}
-
-	if (game::gpGame->mGameSaveLoad.Quickload(rMenuInput)) [[unlikely]]
-	{
-		game::gpGame->ComputeActiveSet();
-		return;
 	}
 
 	game::gpGame->mGameSaveLoad.SaveLoadReplay();
@@ -197,7 +191,6 @@ void GameBase::ServerUpdate(const game::MenuInput& rMenuInput)
 	}
 
 	game::gpGame->mGameSaveLoad.TickAutosave();
-	game::gpGame->mGameSaveLoad.Quicksave(rMenuInput);
 }
 #endif // BT_SERVER
 

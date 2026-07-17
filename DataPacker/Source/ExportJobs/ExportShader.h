@@ -22,7 +22,6 @@ protected:
 
 	void Export() override;
 	void CleanupOnFailure() override;
-	bool AreCachedInputsStable() const override;
 	void UpdateCacheMetadata() override;
 
 	std::vector<std::filesystem::path> mIntermediateFiles;
@@ -45,6 +44,5 @@ private:
 
 	std::filesystem::path mDependencyFile;
 	std::filesystem::path mDependencyMetadataFile;
-	std::vector<DependencyFingerprint> mCheckedDependencyFingerprints;
 	std::vector<DependencyFingerprint> mDependencyFingerprints;
 };

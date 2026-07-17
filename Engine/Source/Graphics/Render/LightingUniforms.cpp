@@ -27,47 +27,20 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout)
 	float fLightingTextureWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width);
 	float fLightingTextureHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height);
 
-	float fAspect = gpSwapchainManager->mfAspectRatio;
-	float fTanHalfFov = std::tan(0.5f * XMConvertToRadians(gFov.Get() / fAspect));
-	float fWorldTexelX = (2.0f * game::Camera::kfLightingHeadroomMultiplier * fAspect * fTanHalfFov / fLightingTextureWidth) * game::gpCamera->mfLightingTexelEyeHeight;
-	float fWorldTexelY = (2.0f * game::Camera::kfLightingHeadroomMultiplier * fTanHalfFov / fLightingTextureHeight) * game::gpCamera->mfLightingTexelEyeHeight;
-	float fFullWidth = fLightingTextureWidth * fWorldTexelX;
-	float fFullHeight = fLightingTextureHeight * fWorldTexelY;
-	XMFLOAT4A f4CameraPosition {};
-	XMStoreFloat4A(&f4CameraPosition, game::gpCamera->mVecPosition);
-	int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPosition.x - fFullWidth * 0.5f) / fWorldTexelX));
-	int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPosition.y + fFullHeight * 0.5f) / fWorldTexelY));
-	float fLeft = static_cast<float>(iLeftTexel) * fWorldTexelX;
-	float fTop = static_cast<float>(iTopTexel) * fWorldTexelY;
-	rGlobalLayout.f4LightingArea = {fLeft, fTop, fLeft + fFullWidth, fTop - fFullHeight};
+	WorldSizedTexelArea area = ComputeWorldSizedTexelArea(game::Camera::kfLightingHeadroomMultiplier, game::gpCamera->mfLightingTexelEyeHeight, fLightingTextureWidth, fLightingTextureHeight, gpSwapchainManager->mfAspectRatio, gFov.Get(), game::gpCamera->mVecPosition);
+	rGlobalLayout.f4LightingArea = area.f4Area;
 
 	// Temporal accumulation: feed the previous frame's lighting area so LightingTemporal.comp can reproject the
 	// history into the current grid (mirror of the shadow previous-area latch). First frame: previous == current and
 	// blend forced to 1.0 (pure current) so the uninitialized history textures are never shown; that frame's copy
 	// seeds valid history. Once-per-frame latch (RenderFrameGlobal runs once per frame).
-	static bool sbPreviousLightingAreaInitialized = false;
-	static XMFLOAT4 sf4PreviousLightingArea {};
-	if (gbLightingTemporalReset)
-	{
-		// A Graphics recreate (device-lost / settings) rebuilt the lighting history textures with undefined contents
-		// while these statics survived. Re-arm the first-frame guard so this frame blends pure-current and re-seeds history.
-		gbLightingTemporalReset = false;
-		sbPreviousLightingAreaInitialized = false;
-	}
-	if (!sbPreviousLightingAreaInitialized)
-	{
-		sf4PreviousLightingArea = rGlobalLayout.f4LightingArea;
-		sbPreviousLightingAreaInitialized = true;
-		rGlobalLayout.fLightingTemporalBlend = 1.0f;
-	}
-	else
-	{
-		rGlobalLayout.fLightingTemporalBlend = gLightingTemporalBlend.Get();
-	}
-	rGlobalLayout.f4LightingAreaPrevious = sf4PreviousLightingArea;
-	sf4PreviousLightingArea = rGlobalLayout.f4LightingArea;
+	// A Graphics recreate (device-lost / settings) rebuilt the lighting history textures with undefined contents while
+	// this static survived. The reset re-arms the first-frame guard so this frame blends pure-current and re-seeds history.
+	static TemporalAreaLatch sTemporalAreaLatch {};
+	rGlobalLayout.fLightingTemporalBlend = sTemporalAreaLatch.Update(rGlobalLayout.f4LightingArea, gbLightingTemporalReset, gLightingTemporalBlend.Get(), rGlobalLayout.f4LightingAreaPrevious);
 
-	// Edge-fade tile grid (feeds LightingDepositEdgeFade), recomputed from the bumped deposit resolution.
+	// Edge-fade denominator, deliberately floored unlike smoke/wind's ceil-based full-coverage dispatch grids.
+	// The minimum of one keeps the denominator nonzero if a device clamp produces a sub-tile texture extent.
 	rGlobalLayout.uiLightTilesX = std::max(1u, static_cast<uint32_t>(fLightingTextureWidth) / shaders::kiComputeTileSize);
 	rGlobalLayout.uiLightTilesY = std::max(1u, static_cast<uint32_t>(fLightingTextureHeight) / shaders::kiComputeTileSize);
 
@@ -78,14 +51,13 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout)
 	// active pass), so report both the start-pass and end-pass windows.
 	giLightingDepositPixelsX = static_cast<int64_t>(fLightingTextureWidth);
 	giLightingDepositPixelsY = static_cast<int64_t>(fLightingTextureHeight);
-	float fVisibleWidthNow = 2.0f * game::gpCamera->mfCameraEyeHeight * fAspect * fTanHalfFov;
-	float fVisibleHeightNow = 2.0f * game::gpCamera->mfCameraEyeHeight * fTanHalfFov;
+	XMFLOAT2 f2VisibleAreaNow = area.ComputeVisibleArea(game::gpCamera->mfCameraEyeHeight);
 	auto SpreadActivePixels = [&](int64_t iPass, int64_t& riActivePixelsX, int64_t& riActivePixelsY)
 	{
 		float fSpreadTextureWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.width);
 		float fSpreadTextureHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.height);
-		riActivePixelsX = std::min(static_cast<int64_t>(std::lround(fVisibleWidthNow * fSpreadTextureWidth / fFullWidth)), static_cast<int64_t>(fSpreadTextureWidth));
-		riActivePixelsY = std::min(static_cast<int64_t>(std::lround(fVisibleHeightNow * fSpreadTextureHeight / fFullHeight)), static_cast<int64_t>(fSpreadTextureHeight));
+		riActivePixelsX = std::min(static_cast<int64_t>(std::lround(f2VisibleAreaNow.x * fSpreadTextureWidth / area.fFullWidth)), static_cast<int64_t>(fSpreadTextureWidth));
+		riActivePixelsY = std::min(static_cast<int64_t>(std::lround(f2VisibleAreaNow.y * fSpreadTextureHeight / area.fFullHeight)), static_cast<int64_t>(fSpreadTextureHeight));
 	};
 	int64_t iLastSpreadPass = static_cast<int64_t>(gSpreadPassCount.Get()) - 1; // Wrapper range [1, kiMaxSpreadPasses] -> index in [0, kiMaxSpreadPasses - 1]
 	SpreadActivePixels(0, giLightingSpreadStartActivePixelsX, giLightingSpreadStartActivePixelsY);

@@ -1,6 +1,6 @@
 ---
 name: create-follow-up-plans
-description: Converts proven pre-existing or out-of-scope C++ Code Change Process residuals into concise, evidence-backed follow-up plans under `Documents/Plans/<area>/`, then submits structured WorktreeCli add/update requests. Do not route an in-scope acceptance failure out of the active change. Also use when asked to queue review findings without duplicating existing plans.
+description: Converts proven pre-existing or out-of-scope C++ Change Workflow residuals into concise, evidence-backed follow-up plans under `Documents/Plans/<area>/`, then submits structured WorktreeCli add/update requests. Do not route an in-scope acceptance failure out of the active change. Also use when asked to queue review findings without duplicating existing plans.
 allowed-tools: [Read, Write, Edit, Glob, Grep, PowerShell]
 ---
 

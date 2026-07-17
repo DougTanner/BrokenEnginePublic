@@ -512,10 +512,12 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 #endif
 }
 
+#if defined(BT_CLIENT)
 bool Game::ShouldTrapCursor()
 {
 	return !InMainMenu();
 }
+#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 bool Game::ShouldUseCrosshair()
@@ -570,6 +572,7 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 	Reset();
 }
 
+#if defined(BT_CLIENT)
 void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 {
 	if (rMenuInput.flags & MenuInputFlags::kQuit || (rMenuInput.flags & MenuInputFlags::kPauseMenu && InMainMenu()))
@@ -674,6 +677,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	}
 #endif // BT_CLIENT
 }
+#endif // BT_CLIENT
 
 #if defined(BT_CLIENT)
 void Game::CaptureClientStateAndSaveIfChanged()
@@ -735,11 +739,11 @@ void Game::InitFramePostRender(Frame& rFrame)
 	rFrame.postRender.alignments = mAlignments;
 }
 
+#if defined(BT_CLIENT)
 void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 {
 	if constexpr (kbDebugInput)
 	{
-#if defined(BT_CLIENT)
 		if (engine::gpClient != nullptr)
 		{
 			if (rMenuInput.flags & MenuInputFlags::kQuicksave)
@@ -763,7 +767,6 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 				engine::gpClient->SendSimplePacket(GamePacketType::kClientResetRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
 			}
 		}
-#endif // defined(BT_CLIENT)
 
 		if (rMenuInput.flags & MenuInputFlags::kMenuTweaks)
 		{
@@ -774,7 +777,6 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 		{
 			engine::gDebugTexture.Toggle();
 		}
-#if defined(BT_CLIENT)
 		if (rMenuInput.flags & MenuInputFlags::kDebugTextureNext)
 		{
 			float fNext = engine::gDebugTextureIndex.Get() + 1.0f;
@@ -793,29 +795,20 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			}
 			engine::gDebugTextureIndex.Set(fPrev);
 		}
-#endif
 
 		if (rMenuInput.flags & MenuInputFlags::kSlowTime)
 		{
-#if defined(BT_CLIENT)
 			if (engine::gpClient != nullptr)
 			{
 				engine::gpClient->SendSimplePacket(GamePacketType::kClientTimespeedRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(0));
 			}
-#else
-			mTimeStep.DecreaseTimeScale();
-#endif
 		}
 		else if (rMenuInput.flags & MenuInputFlags::kSpeedUpTime)
 		{
-#if defined(BT_CLIENT)
 			if (engine::gpClient != nullptr)
 			{
 				engine::gpClient->SendSimplePacket(GamePacketType::kClientTimespeedRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(1));
 			}
-#else
-			mTimeStep.IncreaseTimeScale();
-#endif
 		}
 
 		if (mTimeStep.mbTimeScaleChanged)
@@ -825,9 +818,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 
 			if (mTimeStep.miTimeMultiply == 1 && mTimeStep.miTimeDivide == 1)
 			{
-#if defined(BT_CLIENT)
 				engine::gpImGuiManager->UpdateTextArea(engine::kTextDebug, "");
-#endif
 			}
 			else
 			{
@@ -844,16 +835,13 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 					common::gpThreadLocal->mWorkbuffer.Append(mTimeStep.miTimeDivide);
 					common::gpThreadLocal->mWorkbuffer.Append("x");
 				}
-#if defined(BT_CLIENT)
 				engine::gpImGuiManager->UpdateTextArea(engine::kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
-#endif
 			}
 		}
 
 		if (rMenuInput.flags & MenuInputFlags::kTogglePauseFrame)
 		{
 			mGameFlags.Toggle(engine::GameFlags::kPaused);
-#if defined(BT_CLIENT)
 			if (engine::gpClient != nullptr)
 			{
 				engine::gpClient->SendSimplePacket(GamePacketType::kClientPauseRequest, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>((mGameFlags & engine::GameFlags::kPaused) ? 1 : 0));
@@ -866,12 +854,8 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			{
 				engine::gpImGuiManager->UpdateTextArea(engine::kTextDebug, "");
 			}
-#else
-			LOG(kDefault, kDebug, "Server paused: {}", static_cast<bool>(mGameFlags & engine::GameFlags::kPaused));
-#endif
 		}
 
-#if defined(BT_CLIENT)
 		if (rMenuInput.flags & MenuInputFlags::kConnectLocal && InMainMenu())
 		{
 			if (gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered)
@@ -903,9 +887,9 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 				engine::gpIslandTerrain->AcquireTextureSlot(rPlacement.islandCrc);
 			}
 		}
-#endif
 	}
 }
+#endif // BT_CLIENT
 
 void Game::RestoreReplayMeta(const ReplayMeta& rMeta)
 {

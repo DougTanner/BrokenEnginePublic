@@ -1,10 +1,9 @@
 ---
 name: plan-audit
 description: >-
-  Adversarially audit a Tier-3 implementation plan before /external-grill-plan
-  only when its execution card retains a material scope, architecture, or
-  acceptance ambiguity. Do not add it to decision-complete plans or Tier-1 or
-  Tier-2 task-driven changes.
+  Adversarially audit a Tier-2 or Tier-3 implementation plan before
+  implementation; for Tier 3 it runs before /external-grill-plan. Do not add it
+  to Tier-1 mechanical changes.
   Runs inside one delegated Fable reviewer; findings only, with no plan/code
   edits, user interview, or further delegation.
 allowed-tools: [Read, Grep, Glob, PowerShell]
@@ -13,23 +12,24 @@ disallowed-tools: [Agent, Edit, Bash, AskUserQuestion]
 
 # Plan Audit
 
-Use this skill only when a Tier-3 execution card has a material scope,
-architecture, or acceptance ambiguity. Assume the supplied plan is flawed,
-verify it against the current repository, and return only concrete findings and
-improvement suggestions for the calling session to resolve through
-`/external-grill-plan` when user input is actually needed. It inherits the
-[canonical `/next-plan` execution-gate
-contract](../next-plan/references/execution-gates.md): the audit is conditional,
-findings-only work and does not create an approval gate.
+Use this skill for every Tier-2 and Tier-3 change; Tier-1 mechanical work
+skips it. Assume the supplied plan is flawed, verify it against the current
+repository, and return only concrete findings and improvement suggestions for
+the calling session to resolve when user input is actually needed — through
+`/external-grill-plan` for Tier 3, or directly with the user for Tier 2. The
+audit is findings-only work and never creates an approval gate; a `/next-plan`
+invocation additionally follows the [canonical execution-gate
+contract](../next-plan/references/execution-gates.md).
 
 ## Inputs
 
-- Complete current plan, execution card, and fixed session baseline
+- Complete current plan
+- Execution card, fixed session baseline, and manager execution-control record
+  when they exist (Tier 3, queue, reconciliation, and landing work); an
+  ordinary Tier-2 session supplies none
 - User intent and applicable repository instructions
 - Relevant repository paths and every cited code region
 - Accumulated constraints or known residuals
-- Current manager execution-control record: risk tier and concrete triggers,
-  required and conditional roles, and the initial acceptance-criterion matrix
 
 ## Reporting Mode
 
@@ -50,13 +50,8 @@ not final evidence; its finding summary is the next role's input.
    with current repository evidence. Report any mismatch as a finding for the
    calling session; do not manufacture authority artifacts or another approval
    gate.
-7. Audit the execution-control proposal. Escalate to the highest applicable tier:
-   Tier 1 for mechanical documentation/style/project-membership or local
-   behavior-preserving work with no public signature or invariant exposure;
-   Tier 2 for one subsystem's scoped behavior without determinism/CRC, wire,
-   serialization/save/replay, threading, trust-boundary, or shared-coordination
-   exposure; Tier 3 for any excluded Tier-2 surface, all-session build/bootstrap
-   coordination, or independently owned subsystem integration. Verify that every
+7. Audit the execution-control proposal against the risk-tier definitions in
+   root `AGENTS.md`, classifying at the highest applicable tier. Verify that every
    concrete trigger is named, required and conditional roles fit the actual file
    types and risks, and each acceptance criterion has an initially decisive check
    and expected result, with a named independent signal for any duplicate check.
@@ -65,7 +60,7 @@ not final evidence; its finding summary is the next role's input.
    changed C++ or shader-adjacent logic needs its correctness contract. A reviewer
    may recommend escalation with evidence but may not silently lower the tier.
 
-Do not edit the plan or code, interview the user, or spawn another agent. The calling session owns judgment and passes accepted findings into `/external-grill-plan`.
+Do not edit the plan or code, interview the user, or spawn another agent. The calling session owns judgment and passes accepted findings into `/external-grill-plan` for Tier 3, or resolves them with the user directly for Tier 2.
 
 ## Output
 

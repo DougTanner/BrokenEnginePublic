@@ -4,7 +4,8 @@ class InputFingerprintCache
 {
 public:
 
-	InputFingerprintCache(const std::filesystem::path& rRepositoryRoot);
+	InputFingerprintCache(const std::filesystem::path& rCacheFile);
+	~InputFingerprintCache();
 
 	std::string Get(const std::filesystem::path& rPath);
 	std::string GetPersistent(const std::filesystem::path& rPath);
@@ -29,27 +30,18 @@ private:
 		std::string fingerprint;
 	};
 
-	struct GitIndexEntry
-	{
-		std::string blobId;
-		uintmax_t uiSize = 0;
-		int64_t iChangeTimeSeconds = 0;
-		int64_t iChangeTimeNanoseconds = 0;
-		int64_t iLastWriteTimeSeconds = 0;
-		int64_t iLastWriteTimeNanoseconds = 0;
-	};
-
 	std::string GetUnlocked(const std::filesystem::path& rPath);
 	std::string GetFile(const std::filesystem::path& rPath);
 	std::string GetPersistentFile(const std::filesystem::path& rPath);
 	std::string GetDirectory(const std::filesystem::path& rPath);
-	void LoadGitIndex(const std::filesystem::path& rRepositoryRoot);
+	void Load();
+	void Save();
 
 	static FileSnapshot Snapshot(const std::filesystem::path& rPath);
-	static bool MatchesGitIndex(const FileSnapshot& rSnapshot, const GitIndexEntry& rGitEntry);
 	static std::string PathKey(const std::filesystem::path& rPath);
 
+	std::filesystem::path mCacheFile;
+	bool mbDirty = false;
 	std::mutex mMutex;
 	std::unordered_map<std::string, CachedFingerprint> mCachedFingerprints;
-	std::unordered_map<std::string, GitIndexEntry> mGitIndex;
 };

@@ -27,24 +27,9 @@ void GameSaveLoad::ResetStreams()
 	mReplayReaders.clear();
 }
 
-void GameSaveLoad::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
-{
-	// Heap: fstream and Frame serialization (stream must stay open across the full write so push/pop
-	//   lifecycle doesn't apply, and SOA collection data must persist in the Frame after deserialization)
-	ScopedSuppressAllocationTracking suppress;
-
-	if constexpr (kbDebugInput)
-	{
-		if (rMenuInput.flags & game::MenuInputFlags::kQuicksave)
-		{
-			WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, mrGameBase.QuicksaveFile(), game::gpGame->mClientGridCoord);
-		}
-	}
-}
-
 bool GameSaveLoad::ServerSave()
 {
-	return ServerSave(mrGameBase.QuicksaveFile());
+	return ServerSave(game::gpGame->QuicksaveFile());
 }
 
 bool GameSaveLoad::ServerSave(const std::filesystem::path& rFilename)
@@ -55,7 +40,7 @@ bool GameSaveLoad::ServerSave(const std::filesystem::path& rFilename)
 
 bool GameSaveLoad::ServerLoad()
 {
-	return ServerLoad(mrGameBase.QuicksaveFile());
+	return ServerLoad(game::gpGame->QuicksaveFile());
 }
 
 bool GameSaveLoad::ServerLoad(const std::filesystem::path& rFilename)
@@ -68,7 +53,7 @@ bool GameSaveLoad::ServerLoad(const std::filesystem::path& rFilename)
 		return false;
 	}
 
-	mrGameBase.Reset();
+	game::gpGame->Reset();
 	game::gpGame->SetClientGridCoord(loadedClientGridCoord);
 	game::gpServerSession->ResetClientsForLoad();
 	game::gpServerSession->ComputeActiveSet();
@@ -82,7 +67,7 @@ void GameSaveLoad::ServerReset()
 
 	game::gpGame->CreateNewFrame(game::GameFlags::kGame);
 	mrGameBase.SetNextGlobalId(1);
-	mrGameBase.Reset();
+	game::gpGame->Reset();
 	// Fresh-game wipe of fleet manager state. Load path leaves mFleets populated by ReadFleetData;
 	// fresh-game has no save to restore from, so explicitly clear before ResetClientsForLoad runs.
 	game::gpServerSession->mpFleetManager->ResetState();
@@ -123,56 +108,6 @@ bool GameSaveLoad::Autoload()
 
 	game::gpGame->SetClientGridCoord(loadedClientGridCoord);
 	return true;
-}
-
-bool GameSaveLoad::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
-{
-	// Heap: fstream and Frame deserialization allocate vectors for variable-size SOA collections.
-	//   Stream must stay open across the read, and collection data must persist in the Frame afterward
-	ScopedSuppressAllocationTracking suppress;
-
-	if constexpr (kbDebugInput)
-	{
-		if (rMenuInput.flags & game::MenuInputFlags::kQuickload || rMenuInput.flags & game::MenuInputFlags::kResetFrame)
-		{
-			engine::GridCoord loadedClientGridCoord {};
-			bool bQuickloaded = false;
-
-			if (rMenuInput.flags & game::MenuInputFlags::kQuickload)
-			{
-				if (!ReadGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, mrGameBase.QuicksaveFile(), loadedClientGridCoord))
-				{
-					game::gpGame->CreateNewFrame(game::GameFlags::kGame);
-				}
-				else
-				{
-					bQuickloaded = true;
-				}
-			}
-			else
-			{
-				game::gpGame->CreateNewFrame(game::GameFlags::kGame);
-			}
-
-			mrGameBase.Reset();
-
-			if (bQuickloaded)
-			{
-				game::gpGame->SetClientGridCoord(loadedClientGridCoord);
-				game::gpServerSession->ResetClientsForLoad();
-			}
-			else
-			{
-				// Fresh-game (kResetFrame without kQuickload) wipe of fleet manager state. No ReadFleetData ran,
-				// so mFleets must be cleared explicitly before any reconnect re-walks it.
-				game::gpServerSession->mpFleetManager->ResetState();
-			}
-
-			return true;
-		}
-	}
-
-	return false;
 }
 
 void GameSaveLoad::SaveLoadReplay()
@@ -237,7 +172,7 @@ void GameSaveLoad::SaveLoadReplay()
 					return;
 				}
 
-				mrGameBase.Reset();
+				game::gpGame->Reset();
 
 				// Create one DifferenceStreamReader per recorded coord
 				for (const engine::GridCoord& rCoord : recordedCoords)

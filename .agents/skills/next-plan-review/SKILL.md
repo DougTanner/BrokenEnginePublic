@@ -1,6 +1,6 @@
 ---
 name: next-plan-review
-description: Review the latest landed `/next-plan` execution from its Git commit and producing Claude Code or Codex CLI transcript. Use when the user asks to assess the C++ Change Workflow, plan-execution quality, review or testing sufficiency, token efficiency, worktree/rebase friction, or elapsed time, and wants prioritized process-improvement recommendations.
+description: Review the latest landed `/next-plan` execution from its Git commit and session transcript. Use when the user wants prioritized process-improvement recommendations on plan-execution quality, review/testing sufficiency, token efficiency, or workflow friction.
 disable-model-invocation: true
 user-invocable: true
 argument-hint: "[commit-ish]"
@@ -24,7 +24,7 @@ to modify the commit under review.
    `.agents/skills/next-plan/SKILL.md`; otherwise a later process edit can be
    mistaken for a requirement that did not exist.
    Read the commit-keyed global landing artifact through
-   [`Find-AgentLandingArtifact.ps1`](../../scripts/Find-AgentLandingArtifact.ps1)
+   [`Find-AgentLandingArtifact.ps1`](../../../.agents/scripts/Find-AgentLandingArtifact.ps1)
    when it exists. Treat its report and transcript locators as leads, not proof:
    independently validate the report hash/ranges and transcript evidence below.
 2. For a Codex CLI session, run

@@ -8,33 +8,6 @@ namespace attribution
 
 namespace
 {
-using ScopedHandle = std::unique_ptr<void, decltype(&CloseHandle)>;
-struct SourceIdentity
-{
-	uint64_t uiVolumeSerial = 0;
-	FILE_ID_128 mFileId {};
-	uint64_t uiSize = 0;
-	FILETIME mLastWrite {};
-};
-
-SourceIdentity GetIdentity(const std::filesystem::path& rPath)
-{
-	ScopedHandle file(CreateFileW(rPath.native().c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr), CloseHandle);
-	FILE_ID_INFO idInfo {};
-	FILE_BASIC_INFO basicInfo {};
-	FILE_STANDARD_INFO standardInfo {};
-	if (file.get() == nullptr || file.get() == INVALID_HANDLE_VALUE || !GetFileInformationByHandleEx(file.get(), FileIdInfo, &idInfo, sizeof(idInfo)) || !GetFileInformationByHandleEx(file.get(), FileBasicInfo, &basicInfo, sizeof(basicInfo)) || !GetFileInformationByHandleEx(file.get(), FileStandardInfo, &standardInfo, sizeof(standardInfo)))
-	{
-		throw std::runtime_error(std::format("Unable to snapshot attribution source: {}", rPath.string()));
-	}
-	return {.uiVolumeSerial = idInfo.VolumeSerialNumber, .mFileId = idInfo.FileId, .uiSize = static_cast<uint64_t>(standardInfo.EndOfFile.QuadPart), .mLastWrite = {basicInfo.LastWriteTime.LowPart, static_cast<DWORD>(basicInfo.LastWriteTime.HighPart)}};
-}
-
-bool IdentityEqual(const SourceIdentity& rLeft, const SourceIdentity& rRight)
-{
-	return rLeft.uiVolumeSerial == rRight.uiVolumeSerial && std::memcmp(&rLeft.mFileId, &rRight.mFileId, sizeof(FILE_ID_128)) == 0 && rLeft.uiSize == rRight.uiSize && CompareFileTime(&rLeft.mLastWrite, &rRight.mLastWrite) == 0;
-}
-
 bool PathLess(const std::filesystem::path& rLeft, const std::filesystem::path& rRight)
 {
 	int iResult = CompareStringOrdinal(rLeft.native().c_str(), -1, rRight.native().c_str(), -1, TRUE);
@@ -48,37 +21,15 @@ bool IsReparsePoint(const std::filesystem::path& rPath)
 }
 }
 
-void CopyThirdPartyLicenses(bool bRecomputed)
+void CopyThirdPartyLicenses()
 {
 	std::filesystem::path thirdPartyDirectory = gpFileManager->mThirdPartyDirectory;
 	std::filesystem::path attributionDirectory = gpFileManager->GetAttributionDirectory();
-	std::vector<std::pair<std::filesystem::path, SourceIdentity>> inventory;
-	for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(thirdPartyDirectory))
-	{
-		std::filesystem::file_status status = rEntry.symlink_status();
-		if (IsReparsePoint(rEntry.path()) || status.type() == std::filesystem::file_type::symlink)
-		{
-			throw std::runtime_error(std::format("Unsupported ThirdParty reparse point: {}", rEntry.path().string()));
-		}
-		if (std::filesystem::is_regular_file(status))
-		{
-			inventory.emplace_back(rEntry.path(), GetIdentity(rEntry.path()));
-		}
-		else if (!std::filesystem::is_directory(status))
-		{
-			throw std::runtime_error(std::format("Unsupported ThirdParty entry: {}", rEntry.path().string()));
-		}
-	}
-	std::sort(inventory.begin(), inventory.end(), [](const std::pair<std::filesystem::path, SourceIdentity>& rLeft, const std::pair<std::filesystem::path, SourceIdentity>& rRight)
-	{
-		return PathLess(rLeft.first, rRight.first);
-	});
 	struct PendingCopy
 	{
 		std::filesystem::path mSource;
 		std::filesystem::path mDestination;
 		std::string mLibraryName;
-		SourceIdentity mIdentity;
 	};
 	std::vector<PendingCopy> pendingCopies;
 
@@ -86,7 +37,7 @@ void CopyThirdPartyLicenses(bool bRecomputed)
 	{
 		if (!std::filesystem::exists(rDestination) || std::filesystem::last_write_time(rSourceFile) > std::filesystem::last_write_time(rDestination))
 		{
-			pendingCopies.push_back({.mSource = rSourceFile, .mDestination = rDestination, .mLibraryName = rLibraryName, .mIdentity = GetIdentity(rSourceFile)});
+			pendingCopies.push_back({.mSource = rSourceFile, .mDestination = rDestination, .mLibraryName = rLibraryName});
 		}
 	};
 
@@ -194,58 +145,14 @@ void CopyThirdPartyLicenses(bool bRecomputed)
 	{
 		throw diagnostic::AlreadyReportedError("Attribution materialization cancelled");
 	}
-	std::vector<std::pair<std::filesystem::path, SourceIdentity>> currentInventory;
-	for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(thirdPartyDirectory))
-	{
-		std::filesystem::file_status status = rEntry.symlink_status();
-		if (IsReparsePoint(rEntry.path()) || status.type() == std::filesystem::file_type::symlink)
-		{
-			throw std::runtime_error(std::format("Unsupported ThirdParty reparse point: {}", rEntry.path().string()));
-		}
-		if (std::filesystem::is_regular_file(status))
-		{
-			currentInventory.emplace_back(rEntry.path(), GetIdentity(rEntry.path()));
-		}
-		else if (!std::filesystem::is_directory(status))
-		{
-			throw std::runtime_error(std::format("Unsupported ThirdParty entry: {}", rEntry.path().string()));
-		}
-	}
-	std::sort(currentInventory.begin(), currentInventory.end(), [](const std::pair<std::filesystem::path, SourceIdentity>& rLeft, const std::pair<std::filesystem::path, SourceIdentity>& rRight)
-	{
-		return PathLess(rLeft.first, rRight.first);
-	});
-	bool bInventoryChanged = inventory.size() != currentInventory.size();
-	for (size_t uiIndex = 0; !bInventoryChanged && uiIndex < inventory.size(); ++uiIndex)
-	{
-		bInventoryChanged = inventory.at(uiIndex).first != currentInventory.at(uiIndex).first || !IdentityEqual(inventory.at(uiIndex).second, currentInventory.at(uiIndex).second);
-	}
-	if (bInventoryChanged)
-	{
-		if (bRecomputed)
-		{
-			throw std::runtime_error("Attribution sources changed twice during discovery");
-		}
-		CopyThirdPartyLicenses(true);
-		return;
-	}
 	LOG(kDefault, kDebug, "\nCopying ThirdParty attribution files");
 	ScopedLogIndent scopedLogIndent;
 	for (const PendingCopy& rPending : pendingCopies)
 	{
-		if (!std::filesystem::is_regular_file(rPending.mSource) || !IdentityEqual(GetIdentity(rPending.mSource), rPending.mIdentity))
-		{
-			throw std::runtime_error(std::format("Attribution source changed during discovery: {}", rPending.mSource.string()));
-		}
 		std::filesystem::create_directories(rPending.mDestination.parent_path());
 		std::filesystem::copy_file(rPending.mSource, rPending.mDestination, std::filesystem::copy_options::overwrite_existing);
 		LOG(kDefault, kDebug, "Copied: {}/{}", rPending.mLibraryName, rPending.mSource.filename().string());
 	}
-}
-
-void CopyThirdPartyLicenses()
-{
-	CopyThirdPartyLicenses(false);
 }
 
 }

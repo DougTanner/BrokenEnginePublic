@@ -4,7 +4,7 @@
 
 Server tick-orchestration gap surfaced by the Network audit, verified against current control flow: requests injected/drained while the server is paused (`iFullTicks == 0`) are silently lost because `BuildFrameInputs` wipes `mFrameInputs` every `ServerUpdate` and no tick consumes them while paused. Does not touch the wire format.
 
-**Decision (2026-07-03):** the former item (b) — completing the local debug-menu fresh-game path (`kResetFrame` without `kQuickload` in `GameSaveLoad::Quickload`, GameSaveLoad.cpp:152-157) — is **dropped as moot**. That branch is unreachable on the server build: the `MenuInput` passed to `ServerUpdate` is always default-constructed (`Main.cpp:270-284`; `ProcessInput` runs only under `BT_CLIENT`), so `kResetFrame`/`kQuickload`/`kQuicksave` are never set. `Engine/Architecture_GameBaseDeadVirtuals.md` **owns deleting** that whole path (`GameSaveLoad::Quicksave`/`Quickload(MenuInput)` bodies + declarations, and the `ServerUpdate` call sites); after that deletion the only fresh-game entry point is `GameSaveLoad::ServerReset()` (GameSaveLoad.cpp:66-78), which already runs the complete sequence (`CreateNewFrame` → `SetNextGlobalId(1)` → `Reset` → `ResetState` → `ResetClientsForLoad` → `ComputeActiveSet`). This plan must NOT touch `GameSaveLoad::Quickload` — if it executes before the GameBase plan, leave the dead branch alone. A shared `FreshGameReset()` helper is likewise dropped (YAGNI: one caller remains).
+**Decision (2026-07-03):** the former item (b) — completing the local debug-menu fresh-game path (`kResetFrame` without `kQuickload` in `GameSaveLoad::Quickload`) — is **dropped as moot**. That branch was unreachable on the server build: the `MenuInput` passed to `ServerUpdate` is always default-constructed (`ProcessInput` runs only under `BT_CLIENT`), so `kResetFrame`/`kQuickload`/`kQuicksave` are never set. That whole path (`GameSaveLoad::Quicksave`/`Quickload(MenuInput)` bodies + declarations, and the `ServerUpdate` call sites) **has been deleted**; the only fresh-game entry point is now `GameSaveLoad::ServerReset()`, which already runs the complete sequence (`CreateNewFrame` → `SetNextGlobalId(1)` → `Reset` → `ResetState` → `ResetClientsForLoad` → `ComputeActiveSet`). `GameSaveLoad::Quickload` no longer exists, so this plan touches none of it. A shared `FreshGameReset()` helper is likewise dropped (YAGNI: one caller remains).
 
 ## Design
 
@@ -37,7 +37,7 @@ Server tick-orchestration gap surfaced by the Network audit, verified against cu
 - The `mFrameInputs` wipe itself and the "advance sim-time by `mfLastDeltaTime` not `kfDeltaTime`" rule (`Server/AGENTS.md`) — correct and untouched; this plan only stops draining request queues into the doomed map while paused.
 - Reworking the new-subscription / resync persist-until-served queues — they are the model, not the target.
 - `FleetNavigationController.cpp` — deliberately untouched (see fix rationale).
-- `GameSaveLoad::Quickload`/`Quicksave` and the `kResetFrame` fresh-game branch — owned by `Engine/Architecture_GameBaseDeadVirtuals.md` (deletion); see Context decision note.
+- `GameSaveLoad::Quickload`/`Quicksave` and the `kResetFrame` fresh-game branch — already deleted (`GameSaveLoad::Quicksave`/`Quickload` removed); see Context decision note.
 - Any wire/packet change.
 - The `ServerBroadcaster` role split; the already-landed `mBroadcastStatusChanges` rename is current naming, not scope.
 - The `mPendingPlayerDestroys` queue — removed by `Network/DeadMachinerySweep.md`; no longer relevant.
@@ -48,12 +48,8 @@ Server tick-orchestration gap surfaced by the Network audit, verified against cu
 - Flagship updates queued while paused (e.g. re-queued by a load that lands on a paused cycle, or by fleet spawn/death bookkeeping) are not dropped.
 - No global ids are minted for waiting spawns during paused cycles.
 
-## Coordination
-
-- `Documents/Plans/Engine/Architecture_GameBaseDeadVirtuals.md`: mandatory reciprocal joint resolution of fresh-game reset semantics; preserve the decision that removal of the server MenuInput/Quickload path makes this plan's fresh-game reset item moot.
-
 ## Notes
 
 - **Invariant exposure.** Server tick-orchestration semantics (when request queues are drained relative to the pause gate). No wire-format change, no CRC/`kiVersion`/determinism-math change. Gameplay-visible → needs playtest.
 - **Decision (2026-07-03) — gate granularity:** resolved to the two-block `BuildFrameInputs` guard + one gated clear in `PreTickNetwork` (design above). Rationale: one cached flag and two contiguous blocks beat four scattered per-site gates; it keeps `TickFleetTimers` unconditional, avoids splitting `ProcessFlagshipUpdates`' drain from its clear, and covers the spawn-id rider without extra code.
-- **Decision (2026-07-03) — fresh-game reset / `FreshGameReset()` helper:** dropped as moot; see Context. Cross-plan ownership: `Engine/Architecture_GameBaseDeadVirtuals.md` owns all `GameSaveLoad::Quicksave`/`Quickload` edits; this plan owns all `ServerBroadcaster.cpp`/`ServerSession.cpp` pause-gating edits. No shared edit sites remain between the two plans.
+- **Decision (2026-07-03) — fresh-game reset / `FreshGameReset()` helper:** dropped as moot; see Context. The `GameSaveLoad::Quicksave`/`Quickload` path has been deleted; this plan owns all `ServerBroadcaster.cpp`/`ServerSession.cpp` pause-gating edits.

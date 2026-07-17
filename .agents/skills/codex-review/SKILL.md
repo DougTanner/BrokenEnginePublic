@@ -5,6 +5,7 @@ description: >-
   auditor role on Codex/Sol headless. Not for Codex itself, which is already the
   Sol mapping.
 allowed-tools: [Read, Bash]
+disable-model-invocation: true
 ---
 
 # Codex Review (Fable-unavailable fallback)

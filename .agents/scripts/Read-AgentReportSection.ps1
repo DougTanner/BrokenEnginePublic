@@ -11,10 +11,6 @@ $artifactStore = Join-Path $PSScriptRoot 'AgentArtifactStore.psm1'
 Import-Module $workflowModule -Force
 Import-Module $artifactStore -Force -DisableNameChecking
 
-function Get-CanonicalPath([string] $Path) {
-	return [IO.Path]::GetFullPath($Path).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-}
-
 function Assert-NoReparsePoint([string] $Root, [string] $Leaf) {
 	$current = $Leaf
 	while (-not $current.Equals($Root, [StringComparison]::OrdinalIgnoreCase)) {

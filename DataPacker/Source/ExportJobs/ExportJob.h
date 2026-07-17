@@ -45,13 +45,11 @@ protected:
 	virtual void Export() = 0;
 	virtual void CleanupOnFailure() {}
 	virtual std::string GetInputFingerprint() const;
-	virtual bool AreCachedInputsStable() const { return true; }
 	virtual void UpdateCacheMetadata() {}
 
 	std::tuple<common::ChunkHeader*, std::span<std::byte>> AllocateHeaderAndData(int64_t iDataSize);
 
 	std::vector<std::byte> mHeaderAndData;
-	std::string mCheckedInputFingerprint;
 };
 
 template <typename T>

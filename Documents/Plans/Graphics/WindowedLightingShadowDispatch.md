@@ -47,7 +47,7 @@ Off-window texels are no longer written and hold stale data from prior frames / 
 - `Engine/Source/Graphics/Managers/CommandBufferRecordMain.cpp` — combine/temporal dispatch (`:414-417`, `:441-442`) → indirect; deposit + spread `vkCmdSetScissor`; remove the 4 history `RecordCopyImageFrom` calls if the temporal-writes-history option lands.
 - `Engine/Data/Shaders/Shadow/Shadow.comp`, `ShadowBlurH/V.comp`, `ShadowTemporal.comp` — invocation min-texel offset; temporal optionally writes history.
 - `Engine/Data/Shaders/Lighting/LightCombine.comp`, `LightingTemporal.comp` — invocation min-texel offset; temporal optionally writes the four history images.
-- `Engine/Source/Graphics/Render/GlobalUniforms.cpp` (shadow + `PopulateLightingParameters`) — write the per-pass indirect dispatch group counts (window+margin / tile) and any min-texel offset uniform.
+- `Engine/Source/Graphics/Render/GlobalUniforms.cpp` (shadow) and `LightingUniforms.cpp` (`PopulateLightingParameters`) — write the per-pass indirect dispatch group counts (window+margin / tile) and any min-texel offset uniform while preserving the shared area/latch helpers in `Render.h`.
 - `Engine/Source/Graphics/Managers/RenderTargetTexturesLighting.cpp` — add `STORAGE` usage to the four lighting history textures if the temporal pass writes them directly.
 - `Engine/Data/Shaders/ShaderLayoutsBase.h` — any new window-offset uniform fields.
 
@@ -70,7 +70,7 @@ Off-window texels are no longer written and hold stale data from prior frames / 
 ## Coordination
 
 - `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
-- `Documents/Plans/Graphics/Architecture_ShadowLightingUniformDedup.md` and `Documents/Plans/Graphics/LightingSpreadEmptySkipCadence.md`: never interleave their shared GlobalUniforms/LightingUniforms/recording-region edits; land sequentially with citation refresh.
+- `Documents/Plans/Graphics/LightingSpreadEmptySkipCadence.md`: never interleave the shared LightingUniforms/recording-region edits; land sequentially with citation refresh.
 
 ## Notes
 

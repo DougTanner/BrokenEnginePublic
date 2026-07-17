@@ -51,7 +51,8 @@ float HudScreen::UpdateSlideAndGetEdgeX(SlidePanelState& rState, ImVec2 vAnchor,
 		return fOffscreenX;
 	}
 
-	rState.fOpenness += (fTarget - rState.fOpenness) * common::ExponentialInterpolant(kfSlideRate, rIo.DeltaTime);
+	// rIo.DeltaTime is uncapped wall-clock time; a long UI hitch pushes the interpolant past 1 and overshoots.
+	rState.fOpenness += (fTarget - rState.fOpenness) * std::min(common::ExponentialInterpolant(kfSlideRate, rIo.DeltaTime), 1.0f);
 
 	// At openness=1 the on-screen anchor edge sits at vAnchor.x (offset by size to flip pivot side).
 	const float fOnscreenX = (fSidePivotSign > 0.0f) ? (vAnchor.x - rState.vLastSize.x) : (vAnchor.x + rState.vLastSize.x);

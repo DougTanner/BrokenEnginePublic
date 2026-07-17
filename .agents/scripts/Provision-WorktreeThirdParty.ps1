@@ -7,25 +7,15 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'AgentScriptCommon.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'WorktreeCliSessionExclusion.psm1') -Force
-
-function Invoke-Git {
-	param([string[]] $Arguments)
-	$output = & git @Arguments 2>&1
-	if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $output" }
-	return $output
-}
-
-function Get-CanonicalPath([string] $Path) {
-	return [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
-}
 
 function Get-LinkTarget([System.IO.FileSystemInfo] $Item) {
 	$target = $Item.Target
 	if ($target -is [array]) { $target = $target[0] }
 	if ([string]::IsNullOrWhiteSpace($target)) { throw "Unable to read link target for '$($Item.FullName)'." }
 	if (-not [System.IO.Path]::IsPathRooted($target)) { $target = Join-Path $Item.Parent.FullName $target }
-	return Get-CanonicalPath $target
+	return Get-AgentCanonicalPath $target
 }
 
 function Assert-PopulatedDirectory([string] $Path, [string] $Description) {
@@ -39,7 +29,7 @@ function Assert-PopulatedDirectory([string] $Path, [string] $Description) {
 }
 
 function Assert-DirectoryLinkDestination([string] $Destination, [string] $Target) {
-	$expected = Get-CanonicalPath $Target
+	$expected = Get-AgentCanonicalPath $Target
 	$item = Get-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
 	if ($null -eq $item) { return }
 	if (-not $item.PSIsContainer) {
@@ -58,7 +48,7 @@ function Assert-DirectoryLinkDestination([string] $Destination, [string] $Target
 }
 
 function Ensure-DirectoryLink([string] $Destination, [string] $Target, [System.Collections.Generic.List[object]] $CreatedArtifacts) {
-	$expected = Get-CanonicalPath $Target
+	$expected = Get-AgentCanonicalPath $Target
 	$item = Get-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
 	if ($null -ne $item) {
 		if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { return }
@@ -71,20 +61,22 @@ function Ensure-DirectoryLink([string] $Destination, [string] $Target, [System.C
 	New-Item -ItemType SymbolicLink -Path $Destination -Target $expected | Out-Null
 }
 
-function Get-LinkFarmEntries([string] $Source, [string] $RelativePath) {
+function Get-LinkFarmEntries([string] $Source, [string] $RelativePath, [switch] $SkipNestedScan) {
 	$entries = @()
 	foreach ($item in (Get-ChildItem -LiteralPath $Source -Force | Where-Object { $_.Name -ne '.git' })) {
 		if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
 			throw "Primary submodule '$RelativePath' has unsupported top-level reparse point '$($item.FullName)'."
 		}
 		if ($item.PSIsContainer) {
-			$nestedGit = Get-ChildItem -LiteralPath $item.FullName -Force -Recurse -Filter '.git' | Select-Object -First 1
-			if ($nestedGit) {
-				throw "Primary submodule '$RelativePath' directory '$($item.Name)' exposes nested Git metadata '$($nestedGit.FullName)'."
-			}
-			$nestedReparsePoint = Get-ChildItem -LiteralPath $item.FullName -Force -Recurse -Attributes ReparsePoint | Select-Object -First 1
-			if ($nestedReparsePoint) {
-				throw "Primary submodule '$RelativePath' directory '$($item.Name)' contains unsupported reparse point '$($nestedReparsePoint.FullName)'."
+			if (-not $SkipNestedScan) {
+				$nestedGit = Get-ChildItem -LiteralPath $item.FullName -Force -Recurse -Filter '.git' | Select-Object -First 1
+				if ($nestedGit) {
+					throw "Primary submodule '$RelativePath' directory '$($item.Name)' exposes nested Git metadata '$($nestedGit.FullName)'."
+				}
+				$nestedReparsePoint = Get-ChildItem -LiteralPath $item.FullName -Force -Recurse -Attributes ReparsePoint | Select-Object -First 1
+				if ($nestedReparsePoint) {
+					throw "Primary submodule '$RelativePath' directory '$($item.Name)' contains unsupported reparse point '$($nestedReparsePoint.FullName)'."
+				}
 			}
 			$entries += [PSCustomObject]@{ Name = $item.Name; Source = $item.FullName; IsDirectory = $true }
 		}
@@ -113,7 +105,7 @@ function Assert-LinkFarmDestination([string] $Destination, [object[]] $Entries) 
 			throw "Submodule provisioning entry must be a $kind link: '$($item.FullName)'."
 		}
 		$actual = Get-LinkTarget $item
-		$expectedTarget = Get-CanonicalPath $entry.Source
+		$expectedTarget = Get-AgentCanonicalPath $entry.Source
 		if (-not $actual.Equals($expectedTarget, [StringComparison]::OrdinalIgnoreCase)) {
 			throw "Provisioning link '$($item.FullName)' targets '$actual'; expected '$expectedTarget'."
 		}
@@ -129,7 +121,7 @@ function Ensure-LinkFarm([string] $Destination, [object[]] $Entries, [System.Col
 		$target = Join-Path $Destination $entry.Name
 		if ($null -ne (Get-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue)) { continue }
 		$CreatedArtifacts.Add([PSCustomObject]@{ Action = 'RemovePath'; Path = $target })
-		New-Item -ItemType SymbolicLink -Path $target -Target (Get-CanonicalPath $entry.Source) | Out-Null
+		New-Item -ItemType SymbolicLink -Path $target -Target (Get-AgentCanonicalPath $entry.Source) | Out-Null
 	}
 }
 
@@ -148,7 +140,7 @@ function Undo-ProvisioningArtifacts([System.Collections.Generic.List[object]] $C
 }
 
 function Get-GitlinkPin([string] $CheckoutRoot, [string] $RelativePath, [string] $Description) {
-	$treeEntries = @(Invoke-Git @('-C', $CheckoutRoot, 'ls-tree', 'HEAD', '--', $RelativePath))
+	$treeEntries = @(Invoke-AgentGit @('-C', $CheckoutRoot, 'ls-tree', 'HEAD', '--', $RelativePath))
 	if ($treeEntries.Count -ne 1) { throw "$Description has no unique tree entry for '$RelativePath'." }
 	$parts = $treeEntries[0] -split '\s+', 4
 	if ($parts.Count -ne 4 -or $parts[0] -ne '160000' -or $parts[1] -ne 'commit' -or [string]::IsNullOrWhiteSpace($parts[2])) {
@@ -157,18 +149,18 @@ function Get-GitlinkPin([string] $CheckoutRoot, [string] $RelativePath, [string]
 	return $parts[2]
 }
 
-$root = Get-CanonicalPath $RepositoryRoot
+$root = Get-AgentCanonicalPath $RepositoryRoot
 if (-not [System.IO.Path]::IsPathRooted($RepositoryRoot)) { throw 'RepositoryRoot must be absolute.' }
-$topLevel = Get-CanonicalPath (@(Invoke-Git @('-C', $root, 'rev-parse', '--show-toplevel'))[0].Trim())
+$topLevel = Get-AgentCanonicalPath (@(Invoke-AgentGit @('-C', $root, 'rev-parse', '--show-toplevel'))[0].Trim())
 if (-not $topLevel.Equals($root, [StringComparison]::OrdinalIgnoreCase)) { throw "RepositoryRoot is not the repository root: '$root'." }
 
-$commonDir = Get-CanonicalPath (@(Invoke-Git @('-C', $root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))[0].Trim())
+$commonDir = Get-AgentCanonicalPath (@(Invoke-AgentGit @('-C', $root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))[0].Trim())
 $records = @(); $record = $null
-foreach ($line in (Invoke-Git @('-C', $root, 'worktree', 'list', '--porcelain'))) {
-	if ($line -match '^worktree (.+)$') { if ($record) { $records += $record }; $record = @{ Path = Get-CanonicalPath $Matches[1] } }
+foreach ($line in (Invoke-AgentGit @('-C', $root, 'worktree', 'list', '--porcelain'))) {
+	if ($line -match '^worktree (.+)$') { if ($record) { $records += $record }; $record = @{ Path = Get-AgentCanonicalPath $Matches[1] } }
 }
 if ($record) { $records += $record }
-$primary = @($records | Where-Object { (Get-CanonicalPath (Join-Path $_.Path '.git')).Equals($commonDir, [StringComparison]::OrdinalIgnoreCase) })
+$primary = @($records | Where-Object { (Get-AgentCanonicalPath (Join-Path $_.Path '.git')).Equals($commonDir, [StringComparison]::OrdinalIgnoreCase) })
 if ($primary.Count -ne 1) { throw "Expected exactly one primary checkout; found $($primary.Count)." }
 $primaryRoot = $primary[0].Path
 $current = @($records | Where-Object { $_.Path.Equals($root, [StringComparison]::OrdinalIgnoreCase) })
@@ -185,19 +177,18 @@ else { Assert-WorktreeCliSessionOwner -RepositoryRoot $root -Owner $owner }
 try {
 
 $modulePaths = @()
-foreach ($line in (Invoke-Git @('-C', $root, 'config', '--file', (Join-Path $root '.gitmodules'), '--get-regexp', '^submodule\..*\.path$'))) {
+foreach ($line in (Invoke-AgentGit @('-C', $root, 'config', '--file', (Join-Path $root '.gitmodules'), '--get-regexp', '^submodule\..*\.path$'))) {
 	$parts = $line -split '\s+', 2
 	if ($parts.Count -eq 2) { $modulePaths += $parts[1].Trim() }
 }
-if ($modulePaths.Count -ne 20) { throw "Expected 20 submodule paths; found $($modulePaths.Count)." }
-$thirdPartyRoot = Get-CanonicalPath (Join-Path $root 'ThirdParty')
+$thirdPartyRoot = Get-AgentCanonicalPath (Join-Path $root 'ThirdParty')
 $thirdPartyPrefix = $thirdPartyRoot + [System.IO.Path]::DirectorySeparatorChar
 $seenModulePaths = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($relativePath in $modulePaths) {
 	if ([System.IO.Path]::IsPathRooted($relativePath) -or ($relativePath -split '[/\\]') -contains '..' -or ($relativePath -split '[/\\]') -contains '.') {
 		throw "Submodule path must be a direct relative path without traversal: '$relativePath'."
 	}
-	$canonicalModulePath = Get-CanonicalPath (Join-Path $root $relativePath)
+	$canonicalModulePath = Get-AgentCanonicalPath (Join-Path $root $relativePath)
 	if (-not $canonicalModulePath.StartsWith($thirdPartyPrefix, [StringComparison]::OrdinalIgnoreCase)) {
 		throw "Submodule path escapes ThirdParty: '$relativePath'."
 	}
@@ -226,21 +217,39 @@ if (-not (Test-Path -LiteralPath $primaryAgentHarness -PathType Leaf) -or (Get-I
 	throw "Required primary AgentHarness executable is missing or empty: '$primaryAgentHarness'."
 }
 
-$linkFarmPlans = @()
+$pinRecords = @()
 foreach ($relativePath in $modulePaths) {
 	$source = Join-Path $primaryRoot $relativePath
 	Assert-PopulatedDirectory $source "Primary submodule '$relativePath'"
 	$primaryPin = Get-GitlinkPin $primaryRoot $relativePath 'Primary checkout'
 	$currentPin = Get-GitlinkPin $root $relativePath 'Current worktree'
-	$sourceHead = @(Invoke-Git @('-C', $source, 'rev-parse', 'HEAD'))[0].Trim()
+	$sourceHead = @(Invoke-AgentGit @('-C', $source, 'rev-parse', 'HEAD'))[0].Trim()
 	if ([string]::IsNullOrWhiteSpace($primaryPin) -or $primaryPin -ne $currentPin -or $primaryPin -ne $sourceHead) {
-		throw "Submodule '$relativePath' pin mismatch (primary=$primaryPin, worktree=$currentPin, source=$sourceHead)."
+		throw "Submodule '$relativePath' pin mismatch (primary=$primaryPin, worktree=$currentPin, source=$sourceHead). If the primary checkout updated this submodule after this worktree was created, rebase the worktree onto the primary tip so the pins agree: git -C '$root' rebase <primary-branch>."
 	}
-	$sourceStatus = @(Invoke-Git @('-C', $source, 'status', '--porcelain', '--untracked-files=all'))
+	$sourceStatus = @(Invoke-AgentGit @('-C', $source, 'status', '--porcelain', '--untracked-files=all'))
 	if ($sourceStatus.Count -ne 0) { throw "Primary submodule '$relativePath' has local changes: $($sourceStatus -join '; ')." }
-	$entries = @(Get-LinkFarmEntries $source $relativePath)
+	$pinRecords += [PSCustomObject]@{ RelativePath = $relativePath; Source = $source; Pin = $primaryPin }
+}
+
+# A stamp recording the exact current pins says the last successful full provisioning saw these same pins;
+# combined with the unconditional pin and status checks above, a matching stamp may skip the recursive
+# nested-metadata scans (accepting that a git-invisible filesystem mutation inside a pinned primary
+# submodule goes undetected until the pins change). Any mismatch or read failure falls back to the full
+# scan, and the stamp is rewritten only after a successful full provisioning.
+$stampPath = Join-Path $root 'Temp\ProvisionedThirdPartyPins.txt'
+$stampText = (@($pinRecords | ForEach-Object { "$($_.RelativePath)=$($_.Pin)" }) -join "`n") + "`n"
+$skipNestedScan = $false
+if (-not $root.Equals($primaryRoot, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $stampPath -PathType Leaf)) {
+	try { $skipNestedScan = [IO.File]::ReadAllText($stampPath).Replace("`r", '') -ceq $stampText }
+	catch { $skipNestedScan = $false }
+}
+
+$linkFarmPlans = @()
+foreach ($record in $pinRecords) {
+	$entries = @(Get-LinkFarmEntries $record.Source $record.RelativePath -SkipNestedScan:$skipNestedScan)
 	if (-not $root.Equals($primaryRoot, [StringComparison]::OrdinalIgnoreCase)) {
-		$destination = Join-Path $root $relativePath
+		$destination = Join-Path $root $record.RelativePath
 		Assert-LinkFarmDestination $destination $entries
 		$linkFarmPlans += [PSCustomObject]@{ Destination = $destination; Entries = $entries }
 	}
@@ -265,6 +274,14 @@ if (-not $root.Equals($primaryRoot, [StringComparison]::OrdinalIgnoreCase)) {
 		try { Undo-ProvisioningArtifacts $createdArtifacts }
 		catch { throw "Provisioning failed: $applyError Rollback also failed: $_" }
 		throw $applyError
+	}
+	if (-not $skipNestedScan) {
+		# The stamp is a pure optimization; never fail successful provisioning over it.
+		try {
+			New-Item -ItemType Directory -Path (Join-Path $root 'Temp') -Force | Out-Null
+			[IO.File]::WriteAllText($stampPath, $stampText)
+		}
+		catch { Write-Warning "Unable to write the provisioning pin stamp '$stampPath', so the next run repeats the full scan: $_" }
 	}
 }
 Write-Host "Shared worktree dependencies validated for '$root' using primary '$primaryRoot'."

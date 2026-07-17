@@ -36,8 +36,8 @@ $transcript = [ordered]@{ status = 'not-collected'; candidates = @() }
 if ($Client -eq 'codex') {
 	$finder = Join-Path $PSScriptRoot '..\skills\next-plan-review\scripts\Find-AgentSessionTranscript.ps1'
 	$finderResult = & $finder -Commit $commitHash -RepositoryRoot $identity.Worktree
-	if ($LASTEXITCODE -ne 0) { throw "Transcript finder failed with exit code $LASTEXITCODE." }
 	$finderJson = $finderResult | ConvertFrom-Json -Depth 32 -ErrorAction Stop
+	if ($finderJson.schema -cne 'broken-engine-codex-transcript-candidates/v1') { throw "Transcript finder returned an unexpected schema: '$($finderJson.schema)'." }
 	$transcript.status = if (@($finderJson.candidates).Count -gt 0) { 'candidate-found' } else { 'blocked' }
 	$transcript.candidates = @($finderJson.candidates)
 }
@@ -45,7 +45,10 @@ if ($Client -eq 'codex') {
 $artifactPath = Get-AgentLandingArtifactPath -Worktree $identity.Worktree -Commit $commitHash
 if (Test-Path -LiteralPath $artifactPath -PathType Leaf) {
 	$existing = & (Join-Path $PSScriptRoot 'Find-AgentLandingArtifact.ps1') -RepositoryRoot $identity.Worktree -Commit $commitHash
-	if ($LASTEXITCODE -ne 0) { throw "Existing landing artifact validation failed with exit code $LASTEXITCODE." }
+	$existingJson = $existing | ConvertFrom-Json -Depth 32 -ErrorAction Stop
+	if ($existingJson.schema -cne 'broken-engine-agent-landing-artifact-lookup/v1' -or $existingJson.status -cne 'found' -or $existingJson.commit -cne $commitHash) {
+		throw "Existing landing artifact validation did not bind commit '$commitHash': '$artifactPath'."
+	}
 	[pscustomobject]@{ schema = 'broken-engine-agent-landing-artifact-write/v1'; status = 'exists'; artifactPath = $artifactPath; commit = $commitHash } | ConvertTo-Json -Depth 8
 	exit 0
 }

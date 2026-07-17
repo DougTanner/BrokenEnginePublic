@@ -12,9 +12,10 @@ allowed-tools: [Read, Write, Grep, Glob, Edit, Agent, PowerShell, AskUserQuestio
 
 # Grill Plan
 
-Use this skill only when a Tier-3 execution card has a material unresolved
-decision that repository inspection cannot settle. Interview the user about
-only that decision until reaching shared understanding.
+Use this skill for every Tier-3 change, after `/plan-audit`. Interview the
+user about each material unresolved decision that repository inspection cannot
+settle until reaching shared understanding. If no material decision survives
+codebase exploration, report that and return without asking questions.
 
 ## Inputs
 

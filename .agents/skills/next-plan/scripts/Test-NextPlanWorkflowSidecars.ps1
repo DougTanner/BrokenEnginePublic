@@ -154,8 +154,20 @@ try {
 	Remove-Item -LiteralPath $sessionOutput -Force
 	New-Item -ItemType Junction -Path $sessionOutput -Target $primaryOutput | Out-Null
 
+	# Primary advancing before the claim blocks the strict claim gate, then recovers in place:
+	# fast-forward the session and re-baseline BROKEN_ENGINE_BASELINE, then claim normally.
+	Set-Utf8File (Join-Path $primary 'Documents/PrimaryAdvance.txt') "advanced`n"
+	Invoke-Git $primary @('add','--all') | Out-Null
+	Invoke-Git $primary @('commit','-m','fixture pre-claim primary advance') | Out-Null
+	$advancedTip = Invoke-Git $primary @('rev-parse','HEAD')
+	$advanceBlocked = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Queue','plans','-Plan',$plan) 2
+	Assert-True ($advanceBlocked.code -ceq 'claim.context-conflict') 'A pre-claim primary advance was not a deterministic claim blocker.'
+	Invoke-Git $script:session @('rebase',$advancedTip) | Out-Null
+	$env:BROKEN_ENGINE_BASELINE = $advancedTip
+
 	$claim = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Queue','plans','-Plan',$plan) 0
 	Assert-True ($claim.status -ceq 'pass' -and $claim.claim.plan -ceq $plan) 'Claim result did not bind the selected plan.'
+	Assert-True ($claim.claim.primaryCommit -ceq $advancedTip) 'Recovered claim did not bind the advanced primary tip.'
 	$executionCardPath = Join-Path $script:session 'Temp/execution-card.md'
 	$executionCardText = "- Goal: exercise the next-plan sidecars.`n- Acceptance: exact artifacts and retained claim.`n"
 	Set-Utf8File $executionCardPath $executionCardText
@@ -184,6 +196,12 @@ try {
 		$rendered += $read.Stdout
 	}
 	Assert-True ($rendered.Contains('## Complete resolved plan', [StringComparison]::Ordinal)) 'Presentation ranges omitted the complete plan section.'
+
+	# Primary advancing mid-workflow is tolerated: the session keeps working at its baseline
+	# without rebasing, and approval, completion, and the receipt chain below all succeed.
+	Set-Utf8File (Join-Path $primary 'Documents/PrimaryAdvance.txt') "advanced again`n"
+	Invoke-Git $primary @('add','--all') | Out-Null
+	Invoke-Git $primary @('commit','-m','fixture mid-workflow primary advance') | Out-Null
 
 	Set-Utf8File $executionCardPath "$executionCardText- changed after presentation`n"
 	$changedCard = Invoke-Sidecar 'Confirm-NextPlanApproval.ps1' @('-PresentationReceiptPath',$presentation.receipt.path,'-PresentationReceiptSha256',$presentation.receipt.sha256) 2
@@ -238,7 +256,7 @@ try {
 	[pscustomobject]@{
 		schemaVersion = 'broken-engine-next-plan-sidecar-fixtures/v1'
 		status = 'pass'
-		cases = @('missing environment rejection','invalid worktree rejection','live exclusion-ledger binding','wrong Output rejection','wrapper-derived claim','primary-commit rejection','outside-Temp card rejection','immutable ranged presentation','changed-card rejection','changed-plan rejection','approval binding','post-approval changed-card rejection','completion conflict','post-approval plan rejection','closure scan and retained-claim completion','receipt-chain validation','tamper rejection','mode-chain rejection')
+		cases = @('missing environment rejection','invalid worktree rejection','live exclusion-ledger binding','wrong Output rejection','pre-claim primary-advance blocker','in-place pre-claim recovery','wrapper-derived claim','primary-commit rejection','outside-Temp card rejection','immutable ranged presentation','mid-workflow primary-advance tolerance','changed-card rejection','changed-plan rejection','approval binding','post-approval changed-card rejection','completion conflict','post-approval plan rejection','closure scan and retained-claim completion','receipt-chain validation','tamper rejection','mode-chain rejection')
 	} | ConvertTo-Json -Depth 5
 }
 finally {

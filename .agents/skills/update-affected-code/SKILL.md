@@ -5,26 +5,26 @@ description: >-
   implementation didn't touch — call sites of changed signatures or semantics,
   mirrored client/server or per-collection patterns that must stay in sync, and
   stale references in comments or shared C++/GLSL headers. Invoke during the
-  Implement and propagate stage when implementation emits a sweep handoff or a
-  signature, identity, semantics, layout, guard-affinity, or mirrored-pattern
-  trigger. Search-and-update only — no refactoring, style fixes, or scope expansion.
+  Implement and propagate stage after any code change; documentation, skill,
+  and script changes do not trigger it. Search-and-update only — no
+  refactoring, style fixes, or scope expansion.
 allowed-tools: [Read, Write, Grep, Glob, Edit, Bash]
 ---
 
 # Update Affected Code
 
-Propagate the session's changes outward: find every location whose correctness depends on the modified code and update it. Designed to run as a Sonnet subagent briefed by the caller.
+Propagate the session's changes outward: find every location whose correctness depends on the modified code and update it. Designed to run as an Opus subagent briefed by the caller — propagation edits real code and needs judgment.
 
 ## Inputs (from the caller's prompt)
 
 - Concise inline implementation handoff, including every changed region and affected-site trigger
-- Manager execution-control record bound to the fixed process baseline
+- Manager execution-control record when one exists (Tier 3, queue, reconciliation, and landing work)
 - Plan document path (or the caller's one-paragraph intent summary) — needed to judge mirrored-pattern edits and plan-scope residuals
 - Every affected-site trigger loaded from the supplied implementation reports —
   treat each sweep/signature/identity/semantics/layout/guard/mirror item as a
   mandatory search target and report its resolution individually. When the
-  implementation emitted none, main records `/update-affected-code: N/A` and
-  does not invoke this skill.
+  implementation emitted none, verify that absence with a targeted search of
+  the changed regions and report `no affected sites` with the searches run.
 
 ## Reporting Mode
 

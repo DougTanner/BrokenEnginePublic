@@ -72,6 +72,9 @@ try {
 	}
 
 	$closureScript = Join-Path $PSScriptRoot '..\..\..\scripts\Find-PlanClosureReferences.ps1'
+	if (-not (Test-Path -LiteralPath $closureScript)) {
+		$closureScript = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\Find-PlanClosureReferences.ps1'
+	}
 	$closureResponse = Invoke-NextPlanProcess (Join-Path $PSHOME 'pwsh.exe') @('-NoLogo','-NoProfile','-File',$closureScript,'-Worktree',$context.Worktree,'-Baseline',$context.Baseline,'-CompletedPlan',$plan) $context.Worktree
 	$closure = ConvertFrom-NextPlanProcessJson $closureResponse 'plan closure scan'
 	if ($closureResponse.ExitCode -ne 0) { throw 'Plan closure scan failed.' }

@@ -4,7 +4,7 @@ Asset-specific processors that convert raw files into cached binary chunks. One 
 
 ## ExportJob Pipeline
 
-Abstract base owns dirty-checking and cache I/O; derived classes implement `Export()` and optionally override `CheckDirty()` / `CleanupOnFailure()`, `GetInputFingerprint()` for composite inputs, `AreCachedInputsStable()` for clean-read validation, or `UpdateCacheMetadata()` for job-specific metadata committed with a successful export.
+Abstract base owns dirty-checking and cache I/O; derived classes implement `Export()` and optionally override `CheckDirty()` / `CleanupOnFailure()`, `GetInputFingerprint()` for composite inputs, or `UpdateCacheMetadata()` for job-specific metadata committed with a successful export.
 
 - **Cache layout**: `%TEMP%/DataPacker/<project>` stores `.chunk` files (magic + version + `ChunkHeader` + aligned data) beside versioned `.meta` input fingerprints. The primary fingerprint is removed before mutating a chunk and rewritten only after derived metadata commits, so any interrupted write remains dirty. Legacy timestamp `.txt` metadata is upgraded only when its timestamp still matches the current input; otherwise the job exports normally.
 - **Version convention**: `GetVersion()` returns `ExportJob::Version(N)` (folds in `sizeof(common::ChunkHeader)`) so header-layout changes auto-invalidate caches. Scene and Model also fold in the `sizeof` of each `common::` payload struct they serialize, so payload size changes auto-dirty caches; same-size reorders still need the raw `N` bumped by hand (the `DataFile.h` static_assert beside each struct names the owning job). `ExportShader` passes `Version(15 + VK_HEADER_VERSION)` to force re-export on SDK upgrades.

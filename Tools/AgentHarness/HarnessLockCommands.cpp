@@ -144,7 +144,7 @@ namespace toolcli
 		Guard guard(locator->path.wstring() + L".guard");
 		if (!guard.IsValid())
 		{
-			Fail("timed out acquiring lock transition guard");
+			Fail("could not acquire lock transition guard (" + guard.FailureReason() + ")");
 			return kiExitFailure;
 		}
 

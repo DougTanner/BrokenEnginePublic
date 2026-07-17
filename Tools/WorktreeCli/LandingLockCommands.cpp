@@ -19,7 +19,6 @@ namespace toolcli
 		using coordination::FormatUtcTimestamp;
 		using coordination::Guard;
 		using coordination::HasOwner;
-		using coordination::JsonIntegerEquals;
 		using coordination::Locator;
 		using coordination::ParseUtcTimestamp;
 		using coordination::PrintMetadata;
@@ -163,7 +162,7 @@ namespace toolcli
 		Guard guard(locator->path.wstring() + L".guard");
 		if (!guard.IsValid())
 		{
-			Fail("timed out acquiring lock transition guard");
+			Fail("could not acquire lock transition guard (" + guard.FailureReason() + ")");
 			return kiExitFailure;
 		}
 
@@ -288,30 +287,9 @@ namespace toolcli
 			return kiExitOk;
 		}
 
-		if (metadata.contains("schemaVersion") && JsonIntegerEquals(metadata["schemaVersion"], landing::kiLandingLeaseSchemaVersion))
-		{
-			PrintMetadata(landing::LandingStatus(metadata, *locator));
-			return kiExitStateConflict;
-		}
-		if (!metadata.contains("schemaVersion") || (!JsonIntegerEquals(metadata["schemaVersion"], 1) && !JsonIntegerEquals(metadata["schemaVersion"], 2)))
-		{
-			PrintMetadata(landing::LandingStatus(metadata, *locator));
-			return kiExitStateConflict;
-		}
-		if (!landing::IsValidLeaseDuration(iLeaseSeconds))
-		{
-			Fail("legacy landing steal requires --lease-seconds in the range 60..86400");
-			return kiExitFailure;
-		}
-
-		metadata = landing::NewLandingMetadata(*locator, owner, session, worktree, iLeaseSeconds);
-		if (!WriteMetadataAtomic(locator->path, metadata))
-		{
-			FailWindows("replace lock metadata");
-			return kiExitFailure;
-		}
-		PrintMetadata(metadata);
-		return kiExitOk;
+		// steal: a lease-based landing lock is never stolen; recover is the expired-lease takeover.
+		PrintMetadata(landing::LandingStatus(metadata, *locator));
+		return kiExitStateConflict;
 	}
 
 }

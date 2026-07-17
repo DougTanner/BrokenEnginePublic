@@ -2,9 +2,10 @@
 .SYNOPSIS
 	Run a Broken Engine review skill on Codex (Sol) headless and capture its findings.
 
-	Claude Code falls back here when Fable is unavailable or over limit (AGENTS.md global model-fallback
-	rule): it runs a delegated reviewer/auditor role on Codex/Sol instead of Fable. Codex never invokes
-	this — under the Fable->Sol mapping it is already Sol. Driven by the /codex-review skill.
+	Claude Code falls back here when Fable is unavailable or over limit: it runs a delegated
+	reviewer/auditor role on Codex/Sol instead of Fable. Codex never invokes this — under the
+	Fable->Sol mapping it is already Sol. Driven by the /codex-review skill, which owns the fallback
+	trigger.
 
 .NOTES
 	Auth/billing: Codex uses ChatGPT sign-in by default -> ChatGPT subscription quota, NOT metered

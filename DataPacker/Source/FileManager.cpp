@@ -143,72 +143,6 @@ void EstablishOutputDestinationParent(const std::filesystem::path& rDestination)
 	}
 }
 
-struct FileSnapshot
-{
-	uint64_t uiVolumeSerial = 0;
-	FILE_ID_128 mFileId {};
-	uint64_t uiSize = 0;
-	FILETIME mLastWrite {};
-};
-
-FileSnapshot SnapshotFile(const std::filesystem::path& rPath)
-{
-	ScopedHandle file(CreateFileW(rPath.native().c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr), CloseHandle);
-	if (file.get() == nullptr || file.get() == INVALID_HANDLE_VALUE)
-	{
-		throw std::runtime_error(std::format("Unable to snapshot output file: {}", rPath.string()));
-	}
-	FILE_ID_INFO idInfo {};
-	FILE_BASIC_INFO basicInfo {};
-	FILE_STANDARD_INFO standardInfo {};
-	if (!GetFileInformationByHandleEx(file.get(), FileIdInfo, &idInfo, sizeof(idInfo)) || !GetFileInformationByHandleEx(file.get(), FileBasicInfo, &basicInfo, sizeof(basicInfo)) || !GetFileInformationByHandleEx(file.get(), FileStandardInfo, &standardInfo, sizeof(standardInfo)))
-	{
-		throw std::runtime_error(std::format("Unable to query output file identity: {}", rPath.string()));
-	}
-	return {.uiVolumeSerial = idInfo.VolumeSerialNumber, .mFileId = idInfo.FileId, .uiSize = static_cast<uint64_t>(standardInfo.EndOfFile.QuadPart), .mLastWrite = {basicInfo.LastWriteTime.LowPart, static_cast<DWORD>(basicInfo.LastWriteTime.HighPart)}};
-}
-
-bool SnapshotEqual(const FileSnapshot& rLeft, const FileSnapshot& rRight)
-{
-	return rLeft.uiVolumeSerial == rRight.uiVolumeSerial && std::memcmp(&rLeft.mFileId, &rRight.mFileId, sizeof(FILE_ID_128)) == 0 && rLeft.uiSize == rRight.uiSize && CompareFileTime(&rLeft.mLastWrite, &rRight.mLastWrite) == 0;
-}
-
-std::vector<uint8_t> HashFile(const std::filesystem::path& rPath)
-{
-	BCRYPT_ALG_HANDLE pAlgorithm = nullptr;
-	BCRYPT_HASH_HANDLE pHash = nullptr;
-	std::vector<uint8_t> result(32);
-	if (BCryptOpenAlgorithmProvider(&pAlgorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0 || BCryptCreateHash(pAlgorithm, &pHash, nullptr, 0, nullptr, 0, 0) < 0)
-	{
-		if (pAlgorithm != nullptr)
-		{
-			BCryptCloseAlgorithmProvider(pAlgorithm, 0);
-		}
-		throw std::runtime_error("Unable to initialize SHA-256");
-	}
-	std::ifstream stream(rPath, std::ios::binary);
-	std::vector<char> buffer(64 * 1024);
-	while (stream)
-	{
-		stream.read(buffer.data(), buffer.size());
-		if (stream.gcount() > 0 && BCryptHashData(pHash, reinterpret_cast<PUCHAR>(buffer.data()), static_cast<ULONG>(stream.gcount()), 0) < 0)
-		{
-			BCryptDestroyHash(pHash);
-			BCryptCloseAlgorithmProvider(pAlgorithm, 0);
-			throw std::runtime_error("Unable to hash output file");
-		}
-	}
-	if (stream.bad() || BCryptFinishHash(pHash, result.data(), static_cast<ULONG>(result.size()), 0) < 0)
-	{
-		BCryptDestroyHash(pHash);
-		BCryptCloseAlgorithmProvider(pAlgorithm, 0);
-		throw std::runtime_error("Unable to finish output hash");
-	}
-	BCryptDestroyHash(pHash);
-	BCryptCloseAlgorithmProvider(pAlgorithm, 0);
-	return result;
-}
-
 bool IsRecognizedLinkRaw(const std::filesystem::path& rLink, const std::filesystem::path& rExpected)
 {
 	ScopedHandle link(CreateFileW(rLink.native().c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr), CloseHandle);
@@ -316,7 +250,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	mGaeaCacheDirectory = mTempDirectory / "Gaea";
 	std::filesystem::create_directories(mGaeaCacheDirectory);
 
-	mpInputFingerprintCache = std::make_unique<InputFingerprintCache>(mpInputDirectories[0].parent_path().parent_path());
+	mpInputFingerprintCache = std::make_unique<InputFingerprintCache>(mTempDirectory / "InputFingerprints.cache");
 
 	LOG(kDefault, kDebug, "Output directory: \"{}\"", mOutputDirectory.string());
 }
@@ -484,7 +418,6 @@ FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rR
 		return EnsureLocalResult::kMaterialized;
 	}
 	std::vector<std::filesystem::path> files;
-	std::vector<FileSnapshot> snapshots;
 	uint64_t uiAllocation = 0;
 	DWORD uiSectorsPerCluster = 0;
 	DWORD uiBytesPerSector = 0;
@@ -505,7 +438,6 @@ FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rR
 		if (rEntry.is_regular_file())
 		{
 			files.push_back(rEntry.path());
-			snapshots.push_back(SnapshotFile(rEntry.path()));
 			uint64_t uiSize = rEntry.file_size();
 			uiAllocation = AddChecked(uiAllocation, AddChecked(uiSize, uiClusterBytes - 1) / uiClusterBytes * uiClusterBytes);
 		}
@@ -527,14 +459,10 @@ FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rR
 		diagnostic::Record record
 		{
 			.eSeverity = diagnostic::Severity::kError,
-			.eOperation = diagnostic::Operation::kMaterializeOutput,
 			.title = "Data Packer - std::exception",
-			.message = std::format("GetDiskFreeSpaceExW failed (Win32 {})", uiError),
+			.message = std::format("GetDiskFreeSpaceExW failed for \"{}\" (Win32 {})", rRoot.mDestination.string(), uiError),
 			.eButtons = diagnostic::ButtonContract::kOk,
 			.eIcon = diagnostic::ModalIcon::kNone,
-			.sourcePath = rRoot.mSource,
-			.destinationPath = rRoot.mDestination,
-			.uiWin32Error = uiError,
 		};
 		diagnostic::Report(record);
 		throw diagnostic::AlreadyReportedError(record.message);
@@ -572,51 +500,9 @@ FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rR
 			std::filesystem::create_directories(destination.parent_path());
 			std::filesystem::copy_file(rSource, destination);
 			std::filesystem::last_write_time(destination, std::filesystem::last_write_time(rSource));
-			if (HashFile(rSource) != HashFile(destination) || !SnapshotEqual(snapshots.at(uiIndex), SnapshotFile(rSource)))
-			{
-				throw std::runtime_error(std::format("Copied output verification failed: {}", rSource.string()));
-			}
-		}
-		std::vector<std::filesystem::path> finalFiles;
-		for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(rRoot.mSource))
-		{
-			DWORD uiAttributes = GetFileAttributesW(rEntry.path().native().c_str());
-			if (uiAttributes == INVALID_FILE_ATTRIBUTES || (uiAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
-			{
-				throw std::runtime_error(std::format("Nested output reparse point rejected: {}", rEntry.path().string()));
-			}
-			std::filesystem::file_status status = rEntry.symlink_status();
-			if (std::filesystem::is_regular_file(status))
-			{
-				finalFiles.push_back(rEntry.path());
-			}
-			else if (!std::filesystem::is_directory(status))
-			{
-				throw std::runtime_error(std::format("Unsupported output entry: {}", rEntry.path().string()));
-			}
-		}
-		std::sort(finalFiles.begin(), finalFiles.end(), [&rRoot](const std::filesystem::path& rLeft, const std::filesystem::path& rRight)
-		{
-			return PathLess(std::filesystem::relative(rLeft, rRoot.mSource), std::filesystem::relative(rRight, rRoot.mSource));
-		});
-		if (finalFiles.size() != order.size())
-		{
-			throw std::runtime_error("Output source inventory changed during materialization");
-		}
-		for (size_t uiPosition = 0; uiPosition < order.size(); ++uiPosition)
-		{
-			size_t uiIndex = order.at(uiPosition);
-			if (std::filesystem::relative(finalFiles.at(uiPosition), rRoot.mSource) != std::filesystem::relative(files.at(uiIndex), rRoot.mSource) || !SnapshotEqual(SnapshotFile(finalFiles.at(uiPosition)), snapshots.at(uiIndex)))
-			{
-				throw std::runtime_error("Output source inventory changed during materialization");
-			}
 		}
 		if (rRoot.meState == OutputRootState::kRecognizedPrimaryLink)
 		{
-			if (!IsRecognizedLinkRaw(rRoot.mDestination, rRoot.mSource))
-			{
-				throw std::runtime_error("Output link changed during materialization");
-			}
 			std::filesystem::remove(rRoot.mDestination);
 		}
 		std::filesystem::rename(staging, rRoot.mDestination);

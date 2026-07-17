@@ -20,7 +20,7 @@ The four current call sites pass positive rates and the fixed positive simulatio
 
 ## Out of scope
 
-- Further changes to the already-hardened `common::ExponentialInterpolant`, which maps non-positive/NaN scaled time to `0.0f`, positive infinity to `1.0f`, and clamps finite results to `[0, 1]`.
+- Further changes to `common::ExponentialInterpolant`, which uses the unclamped Padé form; every sim caller stays at scaled time ≤ 0.625 and the two uncapped-DeltaTime UI call sites clamp the interpolant locally.
 - Replacing the Padé (1,1) approximation or changing ordinary finite positive decay results.
 - Retuning rates, timestep behavior, or any existing call site.
 - Adding tests or changing replay, CRC, wire, save, `.pack`, or `kiVersion` formats.

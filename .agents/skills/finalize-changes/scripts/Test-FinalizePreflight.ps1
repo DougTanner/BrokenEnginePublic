@@ -1,3 +1,24 @@
+# Canonical read-only identity, Git-state, manifest, WorktreeCli, and wrapper-claim
+# preflight for finalization. Invoked at initial, after-reconciliation (when bytes or
+# the primary tip changed), pre-mutation, and post-mutation checkpoints with the
+# phase-appropriate ManifestComparisonBase (the rebased primary parent after
+# reconciliation).
+#
+# Capability profile: pass -HasPlanRowClaim only when finalization owns a row claim,
+# -HasCompletedPlanClaim when its receipt needs session `complete --reapply` or
+# primary-commit release, and -QueueChangingLanding only for a session landing whose
+# approved manifest changes an executable queue or plan file. Session mode requires
+# BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER and the wrapper's authoritative provenance
+# variables to match; primary mode requires neither wrapper provenance nor a session
+# claim. Keep the same capability profile across every checkpoint of one run.
+#
+# Consumes only the authoritative manifest and PASS-ledger ranges through
+# Read-AgentReportSection.ps1 and preserves the exact-PASS gate. Emits one
+# broken-engine-finalize-preflight/v1 JSON object: exit 0 with status pass is the only
+# success; exit 2 is a reported deterministic blocker; exit 1 is malformed input or
+# unreadable/internal state. Callers never reconstruct a failed check ad hoc and never
+# search another WorktreeCli path — a missing, empty, wrong-target, or capability-stale
+# executable requires explicitly authorized /compile primary maintenance.
 [CmdletBinding()]
 param(
 	[string] $Mode,
@@ -23,6 +44,9 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $workflowModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
+if (-not (Test-Path -LiteralPath $workflowModule)) {
+	$workflowModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
+}
 Import-Module $workflowModule -Force
 
 $result = [ordered]@{

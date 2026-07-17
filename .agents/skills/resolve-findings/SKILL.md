@@ -3,7 +3,7 @@ name: resolve-findings
 description: >-
   Resolve an explicitly accepted review finding, compile failure, runtime
   failure, or post-fix verification assignment within the Broken Engine C++
-  Code Change Process. Use this skill for delegated fix work after the main
+  Change Workflow. Use this skill for delegated fix work after the main
   agent has adjudicated a finding or supplied concrete failure evidence, and
   for focused verification of fixed regions. Confirms root cause
   before editing, stays inside the assigned scope, verifies each fix, and

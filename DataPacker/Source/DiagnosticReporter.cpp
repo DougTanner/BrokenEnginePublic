@@ -6,56 +6,7 @@ namespace diagnostic
 namespace
 {
 
-inline constexpr size_t kuiPayloadFragmentBytes = 4 * 1024;
 std::atomic<bool> sbValidatedLinkedWorktree = false;
-std::atomic<uint64_t> suiNextRecordIdentifier = 1;
-
-static_assert(kuiPayloadFragmentBytes * 6 + 1024 < common::kiLogBufferSize);
-
-const char* OperationName(Operation eOperation)
-{
-	switch (eOperation)
-	{
-		case Operation::kExportJobs:
-			return "export_jobs";
-		case Operation::kTopLevelStandardException:
-			return "top_level_std_exception";
-		case Operation::kTopLevelUnknownException:
-			return "top_level_unknown_exception";
-		case Operation::kMaterializeOutput:
-			return "materialize_output";
-	}
-	std::unreachable();
-}
-
-const char* SeverityName(Severity eSeverity)
-{
-	return eSeverity == Severity::kError ? "error" : "warning";
-}
-
-const char* ButtonContractName(ButtonContract eButtons)
-{
-	return eButtons == ButtonContract::kOk ? "ok" : "ok_cancel";
-}
-
-const char* ModalIconName(ModalIcon eIcon)
-{
-	switch (eIcon)
-	{
-		case ModalIcon::kNone:
-			return "none";
-		case ModalIcon::kError:
-			return "error";
-		case ModalIcon::kWarning:
-			return "warning";
-	}
-	std::unreachable();
-}
-
-const char* ButtonResultName(ButtonResult eResult)
-{
-	return eResult == ButtonResult::kAcknowledged ? "acknowledged" : "cancelled";
-}
 
 std::string PathToUtf8(const std::filesystem::path& rPath)
 {
@@ -139,120 +90,6 @@ std::string BuildModalText(const Record& rRecord)
 	return text;
 }
 
-std::vector<std::string_view> SplitPayload(const std::string& rPayload)
-{
-	std::vector<std::string_view> parts;
-	parts.reserve(rPayload.size() / kuiPayloadFragmentBytes + (rPayload.size() % kuiPayloadFragmentBytes != 0));
-	for (size_t i = 0; i < rPayload.size();)
-	{
-		size_t uiEnd = (std::min)(i + kuiPayloadFragmentBytes, rPayload.size());
-		while (uiEnd < rPayload.size() && uiEnd > i && (static_cast<unsigned char>(rPayload[uiEnd]) & 0xc0) == 0x80)
-		{
-			--uiEnd;
-		}
-		parts.emplace_back(rPayload.data() + i, uiEnd - i);
-		i = uiEnd;
-	}
-	return parts;
-}
-
-void LogLine(Severity eSeverity, const std::string& rLine)
-{
-	if (eSeverity == Severity::kError)
-	{
-		LOG(kDefault, kError, "{}", rLine);
-	}
-	else
-	{
-		LOG(kDefault, kWarning, "{}", rLine);
-	}
-}
-
-void EmitRecord(const Record& rRecord, uint64_t uiRecordIdentifier, std::string_view outcome)
-{
-	nlohmann::json record
-	{
-		{"version", 1},
-		{"record_id", uiRecordIdentifier},
-		{"category", "DataPacker"},
-		{"severity", SeverityName(rRecord.eSeverity)},
-		{"log_level", SeverityName(rRecord.eSeverity)},
-		{"operation", OperationName(rRecord.eOperation)},
-		{"title", NormalizeUtf8(rRecord.title)},
-		{"message", NormalizeUtf8(rRecord.message)},
-		{"buttons", ButtonContractName(rRecord.eButtons)},
-		{"icon", ModalIconName(rRecord.eIcon)},
-		{"outcome", outcome},
-	};
-	if (rRecord.sourcePath)
-	{
-		record["source_path"] = PathToUtf8(*rRecord.sourcePath);
-	}
-	if (rRecord.destinationPath)
-	{
-		record["destination_path"] = PathToUtf8(*rRecord.destinationPath);
-	}
-	if (rRecord.uiRequiredBytes)
-	{
-		record["required_bytes"] = *rRecord.uiRequiredBytes;
-	}
-	if (rRecord.uiAvailableBytes)
-	{
-		record["available_bytes"] = *rRecord.uiAvailableBytes;
-	}
-	if (rRecord.uiTotalBytes)
-	{
-		record["total_bytes"] = *rRecord.uiTotalBytes;
-	}
-	if (rRecord.uiProjectedBytes)
-	{
-		record["projected_bytes"] = *rRecord.uiProjectedBytes;
-	}
-	if (rRecord.uiWin32Error)
-	{
-		record["win32_error"] = *rRecord.uiWin32Error;
-	}
-	if (!rRecord.exportFailures.empty())
-	{
-		record["export_failures"] = nlohmann::json::array();
-		for (const ExportFailure& rFailure : rRecord.exportFailures)
-		{
-			nlohmann::json failure {{"message", NormalizeUtf8(rFailure.message)}};
-			if (rFailure.assetPath)
-			{
-				failure["asset_path"] = PathToUtf8(*rFailure.assetPath);
-			}
-			record["export_failures"].push_back(std::move(failure));
-		}
-	}
-
-	const std::string payload = record.dump();
-	const std::vector<std::string_view> parts = SplitPayload(payload);
-	for (size_t i = 0; i < parts.size(); ++i)
-	{
-		nlohmann::json envelope
-		{
-			{"record_id", uiRecordIdentifier},
-			{"part", i + 1},
-			{"parts", parts.size()},
-			{"payload", std::string(parts.at(i))},
-		};
-		LogLine(rRecord.eSeverity, std::format("DATAPACKER_DIAGNOSTIC_V1 {}", envelope.dump()));
-	}
-}
-
-void EmitResult(const Record& rRecord, uint64_t uiRecordIdentifier, ButtonResult eResult)
-{
-	nlohmann::json result
-	{
-		{"version", 1},
-		{"record_id", uiRecordIdentifier},
-		{"operation", OperationName(rRecord.eOperation)},
-		{"outcome", ButtonResultName(eResult)},
-	};
-	LogLine(rRecord.eSeverity, std::format("DATAPACKER_DIAGNOSTIC_RESULT_V1 {}", result.dump()));
-}
-
 } // namespace
 
 void MarkValidatedLinkedWorktree()
@@ -262,13 +99,18 @@ void MarkValidatedLinkedWorktree()
 
 ButtonResult Report(const Record& rRecord)
 {
-	const bool bNoninteractive = sbValidatedLinkedWorktree.load(std::memory_order_acquire);
-	const ButtonResult eForcedResult = rRecord.eButtons == ButtonContract::kOk ? ButtonResult::kAcknowledged : ButtonResult::kCancelled;
-	const uint64_t uiRecordIdentifier = suiNextRecordIdentifier.fetch_add(1, std::memory_order_relaxed);
-	EmitRecord(rRecord, uiRecordIdentifier, bNoninteractive ? ButtonResultName(eForcedResult) : "pending");
-	if (bNoninteractive)
+	const std::string text = BuildModalText(rRecord);
+	if (rRecord.eSeverity == Severity::kError)
 	{
-		return eForcedResult;
+		LOG(kDefault, kError, "{}: {}", rRecord.title, text);
+	}
+	else
+	{
+		LOG(kDefault, kWarning, "{}: {}", rRecord.title, text);
+	}
+	if (sbValidatedLinkedWorktree.load(std::memory_order_acquire))
+	{
+		return rRecord.eButtons == ButtonContract::kOk ? ButtonResult::kAcknowledged : ButtonResult::kCancelled;
 	}
 
 	fflush(stdout);
@@ -286,11 +128,9 @@ ButtonResult Report(const Record& rRecord)
 			break;
 	}
 	const std::wstring title = Utf8ToWide(NormalizeUtf8(rRecord.title));
-	const std::wstring message = Utf8ToWide(BuildModalText(rRecord));
+	const std::wstring message = Utf8ToWide(text);
 	const int iResult = MessageBoxW(nullptr, message.c_str(), title.c_str(), uiFlags);
-	const ButtonResult eResult = rRecord.eButtons == ButtonContract::kOk || iResult == IDOK ? ButtonResult::kAcknowledged : ButtonResult::kCancelled;
-	EmitResult(rRecord, uiRecordIdentifier, eResult);
-	return eResult;
+	return rRecord.eButtons == ButtonContract::kOk || iResult == IDOK ? ButtonResult::kAcknowledged : ButtonResult::kCancelled;
 }
 
 DiskSpaceDecision ReportMaterializationDiskSpace(uint64_t uiAllocation, uint64_t uiAvailable, uint64_t uiTotal, const std::filesystem::path& rSource, const std::filesystem::path& rDestination)
@@ -302,16 +142,10 @@ DiskSpaceDecision ReportMaterializationDiskSpace(uint64_t uiAllocation, uint64_t
 		Record record
 		{
 			.eSeverity = Severity::kError,
-			.eOperation = Operation::kMaterializeOutput,
 			.title = "DataPacker - Insufficient Disk Space",
-			.message = std::format("Insufficient disk space. Required: {} bytes. Available: {} bytes.", uiRequired, uiAvailable),
+			.message = std::format("Insufficient disk space copying \"{}\" to \"{}\". Required: {} bytes. Available: {} bytes.", rSource.string(), rDestination.string(), uiRequired, uiAvailable),
 			.eButtons = ButtonContract::kOk,
 			.eIcon = ModalIcon::kError,
-			.sourcePath = rSource,
-			.destinationPath = rDestination,
-			.uiRequiredBytes = uiRequired,
-			.uiAvailableBytes = uiAvailable,
-			.uiTotalBytes = uiTotal,
 		};
 		Report(record);
 		return DiskSpaceDecision::kFailed;
@@ -324,17 +158,10 @@ DiskSpaceDecision ReportMaterializationDiskSpace(uint64_t uiAllocation, uint64_t
 		Record record
 		{
 			.eSeverity = Severity::kWarning,
-			.eOperation = Operation::kMaterializeOutput,
 			.title = "DataPacker - Low Disk Space",
-			.message = std::format("Copy-on-write needs approximately {} bytes. Available: {} bytes. Projected remaining: {} bytes.", uiAllocation, uiAvailable, uiProjected),
+			.message = std::format("Copy-on-write of \"{}\" to \"{}\" needs approximately {} bytes. Available: {} bytes. Projected remaining: {} bytes.", rSource.string(), rDestination.string(), uiAllocation, uiAvailable, uiProjected),
 			.eButtons = ButtonContract::kOkCancel,
 			.eIcon = ModalIcon::kWarning,
-			.sourcePath = rSource,
-			.destinationPath = rDestination,
-			.uiRequiredBytes = uiAllocation,
-			.uiAvailableBytes = uiAvailable,
-			.uiTotalBytes = uiTotal,
-			.uiProjectedBytes = uiProjected,
 		};
 		return Report(record) == ButtonResult::kAcknowledged ? DiskSpaceDecision::kProceed : DiskSpaceDecision::kCancelled;
 	}

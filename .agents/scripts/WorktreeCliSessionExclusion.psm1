@@ -1,20 +1,15 @@
 Set-StrictMode -Version Latest
 
+Import-Module (Join-Path $PSScriptRoot 'AgentScriptCommon.psm1')
+
 $script:LedgerVersion = 1
 $script:DefaultWaitSeconds = 660
 
-function Get-CanonicalPath([string] $Path) {
-	$full = [System.IO.Path]::GetFullPath($Path)
-	$root = [System.IO.Path]::GetPathRoot($full)
-	if ($full.Length -gt $root.Length) { return $full.TrimEnd('\', '/') }
-	return $full
-}
-
 function Get-WorktreeCliRepositoryIdentity([string] $RepositoryRoot) {
-	$root = Get-CanonicalPath $RepositoryRoot
+	$root = Get-AgentCanonicalPath $RepositoryRoot
 	$common = @(& git -C $root rev-parse --path-format=absolute --git-common-dir 2>&1)
 	if ($LASTEXITCODE -ne 0 -or $common.Count -ne 1) { throw "Unable to resolve Git common directory for '$root': $($common -join '; ')." }
-	$common = Get-CanonicalPath $common[0].Trim()
+	$common = Get-AgentCanonicalPath $common[0].Trim()
 	$sha256 = [Security.Cryptography.SHA256]::Create()
 	try { $sha = $sha256.ComputeHash([Text.Encoding]::UTF8.GetBytes($common.ToUpperInvariant())) } finally { $sha256.Dispose() }
 	$hash = [BitConverter]::ToString($sha).Replace('-', '').ToLowerInvariant()
@@ -60,7 +55,7 @@ function Test-StrictClaim($Claim, $Identity, $Owners) {
 	if ($names.Count -ne 6 -or $missingNames.Count -ne 0) { return $false }
 	$ownerGuid = [guid]::Empty
 	if (-not [guid]::TryParseExact($Claim.owner, 'D', [ref]$ownerGuid) -or $ownerGuid.ToString() -cne $Claim.owner) { return $false }
-	try { if ((Get-CanonicalPath $Claim.worktree) -cne $Claim.worktree) { return $false } } catch { return $false }
+	try { if ((Get-AgentCanonicalPath $Claim.worktree) -cne $Claim.worktree) { return $false } } catch { return $false }
 	return (Test-StrictString $Claim.owner) -and (Test-StrictPid $Claim.pid) -and (Test-StrictUtcRoundTrip $Claim.processStartUtc) -and
 		(Test-StrictString $Claim.label) -and (Test-StrictString $Claim.repository) -and
 		$Claim.repository.Equals($Identity.Repository, [StringComparison]::OrdinalIgnoreCase) -and
@@ -154,7 +149,7 @@ function Invoke-LedgerReadOnly($Identity, [scriptblock] $Action, [DateTime] $Dea
 function New-Claim([string] $Owner, [string] $Label, [string] $Repository, [string] $Worktree) {
 	return [pscustomobject]@{
 		owner = $Owner; pid = $PID; processStartUtc = Get-ProcessStartUtc $PID; label = $Label
-		repository = $Repository; worktree = Get-CanonicalPath $Worktree
+		repository = $Repository; worktree = Get-AgentCanonicalPath $Worktree
 	}
 }
 
@@ -223,14 +218,14 @@ function Get-WorktreeCliSessionClassification {
 		throw "WorktreeCli session owner must be a canonical lowercase GUID: '$Owner'."
 	}
 	$identity = Get-WorktreeCliRepositoryIdentity $RepositoryRoot
-	$expectedWorktree = Get-CanonicalPath $Worktree
+	$expectedWorktree = Get-AgentCanonicalPath $Worktree
 	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
 	return Invoke-LedgerReadOnly $identity {
 		param($ledger)
 		$claims = if ($null -eq $ledger) { @() } else { @($ledger.sessions) }
 		$ownerMatches = @($claims | Where-Object { $_.owner -ceq $Owner })
-		$worktreeMatches = @($claims | Where-Object { (Get-CanonicalPath $_.worktree).Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase) })
-		$claim = @($ownerMatches | Where-Object { (Get-CanonicalPath $_.worktree).Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase) })
+		$worktreeMatches = @($claims | Where-Object { (Get-AgentCanonicalPath $_.worktree).Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase) })
+		$claim = @($ownerMatches | Where-Object { (Get-AgentCanonicalPath $_.worktree).Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase) })
 		$classification = 'absent'
 		$decisive = $null
 		if ($claim.Count -eq 1) {
@@ -332,6 +327,40 @@ function Exit-WorktreeCliMaintenance([string] $RepositoryRoot, [string] $Owner, 
 	}
 }
 
+# Runs a short action while holding the ledger mutex with no maintenance claim
+# and no registered sessions other than the caller's own cooperating session (its
+# live claim consents and must not self-block, e.g. a landing session promoting
+# AgentTools it just landed). The mutex blocks concurrent registrations and
+# maintenance transitions for the action's duration; the ledger bytes are never
+# changed, so the maintenance-excludes-sessions schema invariant holds throughout.
+function Invoke-WorktreeCliExclusiveOperation {
+	[CmdletBinding()] param([string] $RepositoryRoot, [string] $Label, [scriptblock] $Action,
+		[string] $CooperatingSessionOwner, [int] $WaitSeconds = $script:DefaultWaitSeconds)
+	$identity = Get-WorktreeCliRepositoryIdentity $RepositoryRoot
+	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
+	# Distinct name: inside the transition scriptblock, dynamic scoping would resolve
+	# $Action to Invoke-LedgerTransition's own parameter instead of the caller's.
+	$exclusiveAction = $Action
+	do {
+		$outcome = Invoke-LedgerTransition $identity {
+			param($ledger)
+			if ($null -eq $ledger) { throw 'WorktreeCli exclusion ledger is not initialized.' }
+			$blocking = @($ledger.sessions | Where-Object { [string]::IsNullOrWhiteSpace($CooperatingSessionOwner) -or $_.owner -ne $CooperatingSessionOwner })
+			if ($null -ne $ledger.maintenance -or $blocking.Count -ne 0) {
+				$owners = @($blocking | ForEach-Object { "$($_.owner):$($_.label):$($_.worktree)" }) -join ', '
+				$maintenanceOwner = if ($null -eq $ledger.maintenance) { 'none' } else { "$($ledger.maintenance.owner):$($ledger.maintenance.label)" }
+				Write-Host "Waiting for WorktreeCli sessions [$owners] or maintenance [$maintenanceOwner] to clear for '$Label'."
+				return [pscustomobject]@{ Ran = $false; Value = $null }
+			}
+			return [pscustomobject]@{ Ran = $true; Value = (& $exclusiveAction) }
+		} $deadline
+		if ($outcome.Ran) { return $outcome.Value }
+		if ([DateTime]::UtcNow -ge $deadline) { throw "Timed out after $WaitSeconds seconds waiting for exclusive WorktreeCli operation '$Label'." }
+		$remainingMilliseconds = [Math]::Max(0, [Math]::Floor(($deadline - [DateTime]::UtcNow).TotalMilliseconds))
+		if ($remainingMilliseconds -gt 0) { Start-Sleep -Milliseconds ([Math]::Min(5000, $remainingMilliseconds)) }
+	} while ($true)
+}
+
 if (-not ('BrokenEngine.TrackedProcess' -as [type])) {
 	Add-Type -TypeDefinition @'
 using System;
@@ -404,7 +433,7 @@ function Invoke-WorktreeCliTrackedProcess {
 	[CmdletBinding()] param([Parameter(Mandatory)][string] $Executable, [string[]] $ArgumentList = @(), [string] $WorkingDirectory = (Get-Location).Path)
 	$application = (Get-Item -LiteralPath $Executable -ErrorAction Stop).FullName
 	$parts = @((ConvertTo-WindowsCommandLineArgument $application)) + @($ArgumentList | ForEach-Object { ConvertTo-WindowsCommandLineArgument ([string]$_) })
-	return [BrokenEngine.TrackedProcess]::Run($application, ($parts -join ' '), (Get-CanonicalPath $WorkingDirectory))
+	return [BrokenEngine.TrackedProcess]::Run($application, ($parts -join ' '), (Get-AgentCanonicalPath $WorkingDirectory))
 }
 
-Export-ModuleMember -Function Get-WorktreeCliRepositoryIdentity,Get-WorktreeCliExclusionStatus,Get-WorktreeCliSessionClassification,Register-WorktreeCliSession,Assert-WorktreeCliSessionOwner,Unregister-WorktreeCliSession,Enter-WorktreeCliMaintenance,Exit-WorktreeCliMaintenance,Invoke-WorktreeCliTrackedProcess
+Export-ModuleMember -Function Get-WorktreeCliRepositoryIdentity,Get-WorktreeCliExclusionStatus,Get-WorktreeCliSessionClassification,Register-WorktreeCliSession,Assert-WorktreeCliSessionOwner,Unregister-WorktreeCliSession,Enter-WorktreeCliMaintenance,Exit-WorktreeCliMaintenance,Invoke-WorktreeCliExclusiveOperation,Invoke-WorktreeCliTrackedProcess

@@ -114,9 +114,6 @@ using namespace std::chrono_literals;
 
 // Windows
 #include <windows.h>
-#include <bcrypt.h>
-#include <winioctl.h>
-#pragma comment(lib, "bcrypt.lib")
 
 #include <corecrt_math.h>
 #include <corecrt_math_defines.h>
@@ -298,6 +295,11 @@ inline constexpr bool XmIsInf(float fValue)
 // .cpp/.h files. The library *implementation* units stay in the Prebuilts/Source/DataPacker unity .cpp's by
 // necessity. Config defines/pragmas not covered by the global warning span above travel with their header.
 #if defined(BT_DATA_PACKER)
+	// Windows tool-only dependencies: BCrypt content hashing and reparse-point FSCTL queries (FileManager)
+	#include <bcrypt.h>
+	#include <winioctl.h>
+	#pragma comment(lib, "bcrypt.lib")
+
 	// bc7enc_rdo - BCn encode/decode (consumption only; RGBCX/implementation defined in the Prebuilts unity .cpp)
 	#include "bc7enc_rdo/bc7decomp.h"
 	#include "bc7enc_rdo/rdo_bc_encoder.h"

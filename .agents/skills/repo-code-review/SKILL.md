@@ -147,7 +147,7 @@ vcxproj membership/filter mechanics belong to the conditional
 affinity only:
 
 - Flag the required affinity (client-only / server-only) of any file created this session that is fully wrapped in `#if defined(BT_CLIENT)` / `BT_SERVER`, and any existing file that gained or lost a file-wide guard (its membership must change).
-- Exception: guardless engine files may be client-only by design via client-vcxproj membership + the `Engine.h` BT_CLIENT aggregation span (root `AGENTS.md` → Client/Server Targets) — check before flagging.
+- Exception: guardless engine files may be client-only by design via client-vcxproj membership + the `Engine.h` BT_CLIENT aggregation span (root `AGENTS.md` → Directory Structure) — check before flagging.
 
 ### 5. Verify Determinism (Replay-Sensitive Code)
 

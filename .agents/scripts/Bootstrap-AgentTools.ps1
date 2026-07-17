@@ -6,27 +6,17 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'AgentScriptCommon.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'WorktreeCliSessionExclusion.psm1') -Force
 
-function Invoke-Git {
-	param([string[]] $Arguments)
-	$output = & git @Arguments 2>&1
-	if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $output" }
-	return $output
-}
-
-function Get-CanonicalPath([string] $Path) {
-	return [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
-}
-
 if (-not [System.IO.Path]::IsPathRooted($RepositoryRoot)) { throw 'RepositoryRoot must be absolute.' }
-$root = Get-CanonicalPath $RepositoryRoot
-$topLevel = Get-CanonicalPath (@(Invoke-Git @('-C', $root, 'rev-parse', '--show-toplevel'))[0].Trim())
+$root = Get-AgentCanonicalPath $RepositoryRoot
+$topLevel = Get-AgentCanonicalPath (@(Invoke-AgentGit @('-C', $root, 'rev-parse', '--show-toplevel'))[0].Trim())
 if (-not $topLevel.Equals($root, [StringComparison]::OrdinalIgnoreCase)) { throw "RepositoryRoot is not the repository root: '$root'." }
 $gitDirectory = Get-Item -LiteralPath (Join-Path $root '.git') -Force -ErrorAction Stop
 if (-not $gitDirectory.PSIsContainer -or ($gitDirectory.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "RepositoryRoot is not the primary checkout: '$root'." }
-$commonDir = Get-CanonicalPath (@(Invoke-Git @('-C', $root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))[0].Trim())
-if (-not $commonDir.Equals((Get-CanonicalPath $gitDirectory.FullName), [StringComparison]::OrdinalIgnoreCase)) { throw "RepositoryRoot is not the primary checkout: '$root'." }
+$commonDir = Get-AgentCanonicalPath (@(Invoke-AgentGit @('-C', $root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))[0].Trim())
+if (-not $commonDir.Equals((Get-AgentCanonicalPath $gitDirectory.FullName), [StringComparison]::OrdinalIgnoreCase)) { throw "RepositoryRoot is not the primary checkout: '$root'." }
 
 $owner = $env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER
 if ([string]::IsNullOrWhiteSpace($owner)) { throw 'AgentTools bootstrap requires a live wrapper session claim.' }
@@ -40,8 +30,29 @@ foreach ($output in @($worktreeCliOutput, $agentHarnessOutput)) {
 }
 $worktreeCli = Join-Path $worktreeCliOutput 'WorktreeCli.exe'
 $agentHarness = Join-Path $agentHarnessOutput 'AgentHarness.exe'
+$stampPath = Join-Path $worktreeCliOutput 'AgentToolsSourceStamp.txt'
+function Get-AgentToolsSourceStamp {
+	# The stamp check is warning-only; a rev-parse failure must never block session start.
+	try { return (@(Invoke-AgentGit @('-C', $root, 'rev-parse', 'HEAD:Tools/WorktreeCli', 'HEAD:Tools/AgentHarness', 'HEAD:Tools/ToolCommon')) -join "`n") }
+	catch { return $null }
+}
 if ((Test-Path -LiteralPath $worktreeCli -PathType Leaf) -and (Test-Path -LiteralPath $agentHarness -PathType Leaf)) {
 	& (Join-Path $PSScriptRoot 'Test-AgentToolsCapabilities.ps1') -WorktreeCliExecutable $worktreeCli -AgentHarnessExecutable $agentHarness | Out-Null
+	$currentStamp = Get-AgentToolsSourceStamp
+	if ($null -eq $currentStamp) {
+		Write-Warning "Unable to compute the AgentTools source stamp from primary HEAD, so Tools source drift cannot be checked."
+	}
+	elseif (-not (Test-Path -LiteralPath $stampPath -PathType Leaf)) {
+		Write-Warning "Prebuilt AgentTools have no source stamp, so Tools source drift cannot be detected. Refresh via candidate production and session-landing promotion: .agents\skills\compile\scripts\New-AgentToolsCandidate.ps1 then .agents\skills\finalize-changes\scripts\Invoke-AgentToolsPromotion.ps1."
+	}
+	else {
+		$recordedStamp = $null
+		try { $recordedStamp = [IO.File]::ReadAllText($stampPath).Trim().Replace("`r", '') }
+		catch { Write-Warning "Unable to read the AgentTools source stamp '$stampPath', so Tools source drift cannot be checked." }
+		if ($null -ne $recordedStamp -and $recordedStamp -cne $currentStamp) {
+			Write-Warning "Prebuilt AgentTools are STALE: source under Tools/WorktreeCli, Tools/AgentHarness, or Tools/ToolCommon changed since they were built. Rebuild via candidate production and session-landing promotion: .agents\skills\compile\scripts\New-AgentToolsCandidate.ps1 then .agents\skills\finalize-changes\scripts\Invoke-AgentToolsPromotion.ps1."
+		}
+	}
 	Write-Host "Primary AgentTools already available at '$worktreeCli' and '$agentHarness'."
 	return
 }
@@ -72,6 +83,8 @@ try {
 		if ($exitCode -ne 0) { throw "AgentTools bootstrap build failed for '$solution' with exit code $exitCode." }
 	}
 	& (Join-Path $PSScriptRoot 'Test-AgentToolsCapabilities.ps1') -WorktreeCliExecutable $worktreeCli -AgentHarnessExecutable $agentHarness | Out-Null
+	$builtStamp = Get-AgentToolsSourceStamp
+	if ($null -ne $builtStamp) { [IO.File]::WriteAllText($stampPath, $builtStamp + "`n") }
 	Write-Host "Built primary AgentTools at '$worktreeCli' and '$agentHarness'."
 }
 finally {

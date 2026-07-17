@@ -165,10 +165,15 @@ namespace toolcli
 			}
 			if (rbExists && (!coordination::ReadMetadata(rLocator.path, rMetadata) || !ValidateMetadata(rMetadata, rLocator, rPlanLocator, pPlan)))
 			{
-				Fail("plan coordination metadata is unreadable or invalid");
+				Fail("plan coordination metadata is unreadable or invalid (delete the file to recover): " + WideToUtf8(rLocator.path.wstring()));
 				return false;
 			}
 			return true;
+		}
+
+		void ReportInvalidClaim(const std::filesystem::path& rPath)
+		{
+			Fail("plan row claim is unreadable or invalid (delete the file to recover): " + WideToUtf8(rPath.wstring()));
 		}
 
 		bool EnumerateClaims(const PlanLocator& rLocator, const std::wstring& rRequester, nlohmann::json& rClaims)
@@ -194,14 +199,14 @@ namespace toolcli
 				if (!coordination::ReadMetadata(it->path(), metadata) ||
 					!metadata.contains("plan") || !metadata["plan"].is_string())
 				{
-					Fail("plan row metadata is unreadable or invalid");
-					return false;
+					ReportInvalidClaim(it->path());
+					continue;
 				}
 				std::optional<std::wstring> plan = coordination::NormalizeRepositoryRelativeKey(Utf8ToWide(metadata["plan"].get<std::string>()));
 				if (!plan)
 				{
-					Fail("plan row metadata is unreadable or invalid");
-					return false;
+					ReportInvalidClaim(it->path());
+					continue;
 				}
 				const std::wstring rowKey = rLocator.queue.logicalKey + L"\n" + *plan;
 				coordination::Locator expected
@@ -213,8 +218,8 @@ namespace toolcli
 				std::optional<std::string> expectedHash = coordination::HashSha256(WideToUtf8(rowKey));
 				if (!expectedHash || it->path().filename() != Utf8ToWide(*expectedHash + ".lock") || !ValidateMetadata(metadata, expected, rLocator, &*plan))
 				{
-					Fail("plan row metadata is unreadable or invalid");
-					return false;
+					ReportInvalidClaim(it->path());
+					continue;
 				}
 				metadata["ownedByRequester"] = !rRequester.empty() && coordination::HasOwner(metadata, rRequester);
 				claims.push_back(std::move(metadata));
@@ -285,7 +290,7 @@ namespace toolcli
 			coordination::Guard guard(rLocator.guardPath);
 			if (!guard.IsValid())
 			{
-				Fail("timed out acquiring plan queue guard");
+				Fail("could not acquire plan queue guard (" + guard.FailureReason() + ")");
 				return kiExitFailure;
 			}
 			bool bExists = false;
@@ -402,7 +407,7 @@ namespace toolcli
 			coordination::Guard guard(rLocator.guardPath);
 			if (!guard.IsValid())
 			{
-				Fail("timed out acquiring plan queue guard");
+				Fail("could not acquire plan queue guard (" + guard.FailureReason() + ")");
 				return kiExitFailure;
 			}
 			if (rVerb == L"claim" || rVerb == L"steal")

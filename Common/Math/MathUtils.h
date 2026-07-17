@@ -202,15 +202,7 @@ constexpr float ExponentialDecay(float fDecayRate, float fDeltaTime)
 constexpr float ExponentialInterpolant(float fRate, float fDeltaTime)
 {
 	float fScaledTime = fRate * fDeltaTime;
-	if (!(fScaledTime > 0.0f))
-	{
-		return 0.0f;
-	}
-	if (std::isinf(fScaledTime))
-	{
-		return 1.0f;
-	}
-	return std::clamp((2.0f * fScaledTime) / (2.0f + fScaledTime), 0.0f, 1.0f);
+	return (2.0f * fScaledTime) / (2.0f + fScaledTime);
 }
 
 struct SinCos

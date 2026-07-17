@@ -22,7 +22,8 @@ namespace toolcli::coordination
 		constexpr DWORD kuiGuardWaitMilliseconds = 10'000;
 	}
 
-	Guard::Guard(const std::filesystem::path& rPath)
+	Guard::Guard(const std::filesystem::path& rPath) :
+		mPath(rPath)
 	{
 		const std::chrono::steady_clock::time_point endTime = std::chrono::steady_clock::now() + std::chrono::milliseconds(kuiGuardWaitMilliseconds);
 		do
@@ -32,7 +33,9 @@ namespace toolcli::coordination
 			{
 				return;
 			}
-			if (::GetLastError() != ERROR_SHARING_VIOLATION && ::GetLastError() != ERROR_LOCK_VIOLATION)
+			muiLastError = ::GetLastError();
+			// ERROR_ACCESS_DENIED covers the delete-pending window while a releasing holder unlinks the guard file.
+			if (muiLastError != ERROR_SHARING_VIOLATION && muiLastError != ERROR_LOCK_VIOLATION && muiLastError != ERROR_ACCESS_DENIED)
 			{
 				return;
 			}
@@ -41,9 +44,34 @@ namespace toolcli::coordination
 		while (std::chrono::steady_clock::now() < endTime);
 	}
 
+	Guard::~Guard()
+	{
+		if (mhFile.IsValid())
+		{
+			mhFile.Reset();
+			// Best effort: a waiter that reopened the guard first keeps it alive and deletes it on its own release.
+			::DeleteFileW(mPath.c_str());
+		}
+	}
+
 	bool Guard::IsValid() const
 	{
 		return mhFile.IsValid();
+	}
+
+	bool Guard::TimedOut() const
+	{
+		return muiLastError == ERROR_SHARING_VIOLATION || muiLastError == ERROR_LOCK_VIOLATION;
+	}
+
+	DWORD Guard::LastError() const
+	{
+		return muiLastError;
+	}
+
+	std::string Guard::FailureReason() const
+	{
+		return TimedOut() ? "timed out" : "Windows error " + std::to_string(muiLastError);
 	}
 
 	std::string CurrentUtcTimestamp()

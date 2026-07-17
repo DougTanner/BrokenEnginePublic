@@ -92,6 +92,8 @@ std::tuple<common::ChunkHeader*, std::span<std::byte>> ExportJob::AllocateHeader
 
 bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 {
+	// The pack is not inspected per job: RunExportJobs compares the published pack's timestamp against
+	// every clean job's .meta fingerprint, so an export killed before the pack rename stays dirty there.
 	(void)rPackFile;
 
 	// Clean export?
@@ -129,7 +131,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 		return mbDirty;
 	}
 
-	mCheckedInputFingerprint = GetInputFingerprint();
+	std::string inputFingerprint = GetInputFingerprint();
 	std::optional<std::string> cachedFingerprint = ReadFingerprintMetadata(mCacheMetadataFile);
 	if (!cachedFingerprint.has_value() && std::filesystem::exists(mLastModifiedTimeFile))
 	{
@@ -139,14 +141,14 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 		int64_t iCurrentLastModifiedTime = std::filesystem::last_write_time(mInputPath).time_since_epoch().count();
 		if (legacyStream && iLegacyLastModifiedTime == iCurrentLastModifiedTime)
 		{
-			WriteFingerprintMetadata(mCacheMetadataFile, mCheckedInputFingerprint);
+			WriteFingerprintMetadata(mCacheMetadataFile, inputFingerprint);
 			std::filesystem::remove(mLastModifiedTimeFile);
-			cachedFingerprint = mCheckedInputFingerprint;
+			cachedFingerprint = inputFingerprint;
 			LOG(kDefault, kDebug, "Upgraded legacy cache metadata \"{}\"", mCacheMetadataFile.string());
 		}
 	}
 
-	if (!cachedFingerprint.has_value() || cachedFingerprint.value() != mCheckedInputFingerprint)
+	if (!cachedFingerprint.has_value() || cachedFingerprint.value() != inputFingerprint)
 	{
 		LOG(kDefault, kDebug, "Input fingerprint changed for \"{}\"", mInputPath.string());
 		mbDirty = true;
@@ -162,12 +164,6 @@ std::vector<std::byte>& ExportJob::RunExport()
 	common::ThreadLocal threadLocal(4 * 1024, miId, false);
 	ScopedLogIndent scopedLogIndentOuter;
 	ScopedLogIndent scopedLogIndentInner;
-	std::string inputFingerprintBeforeExport = GetInputFingerprint();
-	if (!mbDirty && (inputFingerprintBeforeExport != mCheckedInputFingerprint || !AreCachedInputsStable()))
-	{
-		LOG(kDefault, kDebug, "Input or dependency changed after dirty checking \"{}\"; re-exporting", mInputPath.string());
-		mbDirty = true;
-	}
 
 	// Load cached chunk file
 	if (!mbDirty)
@@ -185,23 +181,13 @@ std::vector<std::byte>& ExportJob::RunExport()
 		// discard the cache and fall through to a full dirty re-export rather than shipping the zeroed bytes.
 		if (fileStream.good() && fileStream.gcount() == static_cast<std::streamsize>(mHeaderAndData.size()))
 		{
-			std::string inputFingerprintAfterRead = GetInputFingerprint();
-			if (inputFingerprintAfterRead == inputFingerprintBeforeExport && AreCachedInputsStable())
-			{
-				return mHeaderAndData;
-			}
-
-			LOG(kDefault, kDebug, "Input changed while reading cached chunk for \"{}\"; re-exporting", mInputPath.string());
-			inputFingerprintBeforeExport = std::move(inputFingerprintAfterRead);
-			mbDirty = true;
+			return mHeaderAndData;
 		}
-		else
-		{
-			LOG(kDefault, kWarning, "Cached chunk file \"{}\" is truncated ({} of {} bytes read); re-exporting", mChunkFile.string(), fileStream.gcount(), mHeaderAndData.size());
-			mbDirty = true;
-		}
+		LOG(kDefault, kWarning, "Cached chunk file \"{}\" is truncated ({} of {} bytes read); re-exporting", mChunkFile.string(), fileStream.gcount(), mHeaderAndData.size());
+		mbDirty = true;
 	}
 
+	std::string inputFingerprint = GetInputFingerprint();
 	try
 	{
 		Export();
@@ -210,11 +196,6 @@ std::vector<std::byte>& ExportJob::RunExport()
 	{
 		CleanupOnFailure();
 		throw;
-	}
-	if (GetInputFingerprint() != inputFingerprintBeforeExport)
-	{
-		CleanupOnFailure();
-		throw std::runtime_error(std::format("Input changed while exporting \"{}\"", mInputPath.string()));
 	}
 
 	std::filesystem::path relativeFile = mRelativeDirectory;
@@ -243,7 +224,7 @@ std::vector<std::byte>& ExportJob::RunExport()
 	VERIFY_SUCCESS(fileStream.good());
 
 	UpdateCacheMetadata();
-	WriteFingerprintMetadata(mCacheMetadataFile, inputFingerprintBeforeExport);
+	WriteFingerprintMetadata(mCacheMetadataFile, inputFingerprint);
 
 	return mHeaderAndData;
 }

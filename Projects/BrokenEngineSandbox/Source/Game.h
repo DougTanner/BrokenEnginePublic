@@ -53,9 +53,13 @@ public:
 	Game();
 	~Game() override;
 
-	void Reset() override;
-	bool ShouldTrapCursor() override;
+	void Reset();
+	std::filesystem::path QuicksaveFile()
+	{
+		return std::filesystem::path("ServerQuicksave.save");
+	}
 #if defined(BT_CLIENT)
+	bool ShouldTrapCursor() override;
 	bool ShouldUseCrosshair() override;
 	bool ShouldShowInGameUi() override;
 #endif
@@ -68,7 +72,9 @@ public:
 		return mGameFlags & engine::GameFlags::kMainMenu;
 	}
 
+#if defined(BT_CLIENT)
 	void ProcessMenuInput(const MenuInput& rMenuInput) override;
+#endif
 
 	// Multi-frame grid
 	void ComputeActiveSet();
@@ -165,16 +171,6 @@ public:
 
 private:
 
-	std::filesystem::path QuicksaveFile() override
-	{
-		return std::filesystem::path("ServerQuicksave.save");
-	}
-
-	std::filesystem::path ReplayFile() override
-	{
-		return std::filesystem::path("F7.replay");
-	}
-
 #if defined(BT_CLIENT)
 	static constexpr common::crc_t mMenuMusicPlaylist[4] {data::kAudioMusicdoodlewavCrc, data::kAudioMusicMandatoryOvertimewavCrc, data::kAudioMusicsong18wavCrc, data::kAudioMusicTyhosibzzzzwavCrc};
 	static constexpr common::crc_t mGameMusicPlaylist[4] {data::kAudioMusicS31UnexpectedTroublewavCrc, data::kAudioMusicS31HighAlertwavCrc, data::kAudioMusicS31OnPatrolwavCrc, data::kAudioMusicS31TheGearsofProgresswavCrc};
@@ -212,7 +208,9 @@ public:
 #endif
 
 	void InitFramePostRender(Frame& rFrame);
+#if defined(BT_CLIENT)
 	void ProcessDebugInput(const MenuInput& rMenuInput);
+#endif
 
 private:
 };

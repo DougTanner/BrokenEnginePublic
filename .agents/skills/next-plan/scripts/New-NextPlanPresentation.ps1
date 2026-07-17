@@ -30,7 +30,7 @@ function Complete-Presentation([int] $ExitCode, [string] $Status, [string] $Code
 try {
 	Import-Module (Join-Path $PSScriptRoot 'NextPlanWorkflowCommon.psm1') -Force -DisableNameChecking
 	if ($FinalizationMode -cne 'session-landing') { throw 'FinalizationMode must be session-landing for /next-plan.' }
-	$context = Get-NextPlanContext -RequireCleanPrimary
+	$context = Get-NextPlanContext -RequireCleanPrimary -AllowPrimaryAdvance
 	$claimArtifact = Read-NextPlanJsonArtifact $context.Worktree $ClaimReceiptPath $ClaimReceiptSha256 'broken-engine-next-plan-claim/v1'
 	$claim = $claimArtifact.Value
 	foreach ($field in @('owner','session','worktree','primary','commonDirectory','sessionBranch','targetBranch','baseline')) {

@@ -236,53 +236,24 @@ static void PopulateShadowArea(shaders::GlobalLayout& rGlobalLayout, float fShad
 	// f4ShadowArea is the full footprint, camera-centered and snapped to the current texel grid (integer-texel pan).
 	// The base texel derives from the analytic straight-down frustum width (gFov/aspect), never the snapped
 	// render-area width, so it stays bit-stable at a settled height.
-	float fAspect = gpSwapchainManager->mfAspectRatio;
-	float fTanHalfFov = std::tan(0.5f * XMConvertToRadians(gFov.Get() / fAspect));
-	float fWorldTexelX = (2.0f * game::Camera::kfShadowHeadroomMultiplier * fAspect * fTanHalfFov / fShadowTextureSizeWidth) * game::gpCamera->mfShadowTexelEyeHeight;
-	float fWorldTexelY = (2.0f * game::Camera::kfShadowHeadroomMultiplier * fTanHalfFov / fShadowTextureSizeHeight) * game::gpCamera->mfShadowTexelEyeHeight;
-	float fFullWidth = fShadowTextureSizeWidth * fWorldTexelX;
-	float fFullHeight = fShadowTextureSizeHeight * fWorldTexelY;
-	XMFLOAT4A f4CameraPosition {};
-	XMStoreFloat4A(&f4CameraPosition, game::gpCamera->mVecPosition);
-	int64_t iLeftTexel = static_cast<int64_t>(std::floor((f4CameraPosition.x - fFullWidth * 0.5f) / fWorldTexelX));
-	int64_t iTopTexel = static_cast<int64_t>(std::floor((f4CameraPosition.y + fFullHeight * 0.5f) / fWorldTexelY));
-	float fLeft = static_cast<float>(iLeftTexel) * fWorldTexelX;
-	float fTop = static_cast<float>(iTopTexel) * fWorldTexelY;
-	rGlobalLayout.f4ShadowArea = {fLeft, fTop, fLeft + fFullWidth, fTop - fFullHeight};
+	WorldSizedTexelArea area = ComputeWorldSizedTexelArea(game::Camera::kfShadowHeadroomMultiplier, game::gpCamera->mfShadowTexelEyeHeight, fShadowTextureSizeWidth, fShadowTextureSizeHeight, gpSwapchainManager->mfAspectRatio, gFov.Get(), game::gpCamera->mVecPosition);
+	rGlobalLayout.f4ShadowArea = area.f4Area;
 
 	// Temporal accumulation: feed the previous frame's shadow area so ShadowTemporal.comp can reproject the
 	// history into the current grid (mirrors the smoke/wind previous-area latch). First frame: previous ==
 	// current and blend forced to 1.0 (pure current) so the uninitialized history texture is never shown; that
 	// frame's copy seeds valid history. Once-per-frame latch (RenderFrameGlobal runs once per frame).
-	static bool sbPreviousShadowAreaInitialized = false;
-	static XMFLOAT4 sf4PreviousShadowArea {};
-	if (gbShadowTemporalReset)
-	{
-		// A Graphics recreate (device-lost / settings) rebuilt mShadowHistoryTexture with undefined contents while
-		// these statics survived. Re-arm the first-frame guard so this frame blends pure-current and re-seeds history.
-		gbShadowTemporalReset = false;
-		sbPreviousShadowAreaInitialized = false;
-	}
-	if (!sbPreviousShadowAreaInitialized)
-	{
-		sf4PreviousShadowArea = rGlobalLayout.f4ShadowArea;
-		sbPreviousShadowAreaInitialized = true;
-		rGlobalLayout.fShadowTemporalBlend = 1.0f;
-	}
-	else
-	{
-		rGlobalLayout.fShadowTemporalBlend = gShadowTemporalBlend.Get();
-	}
-	rGlobalLayout.f4ShadowAreaPrevious = sf4PreviousShadowArea;
-	sf4PreviousShadowArea = rGlobalLayout.f4ShadowArea;
+	// A Graphics recreate (device-lost / settings) rebuilt mShadowHistoryTexture with undefined contents while
+	// this static survived. The reset re-arms the first-frame guard so this frame blends pure-current and re-seeds history.
+	static TemporalAreaLatch sTemporalAreaLatch {};
+	rGlobalLayout.fShadowTemporalBlend = sTemporalAreaLatch.Update(rGlobalLayout.f4ShadowArea, gbShadowTemporalReset, gShadowTemporalBlend.Get(), rGlobalLayout.f4ShadowAreaPrevious);
 
 	// Centered visible window (texels) from the live eye height — only this region is ray-marched. With the texel grid
 	// tracking live height at all heights, the window is constant on-screen at a settled height; the min() against the
 	// texture extent only caps the transient when a fast zoom-out outruns the ramp (overflow reads no-shadow via the border).
-	float fVisibleWidthNow = 2.0f * game::gpCamera->mfCameraEyeHeight * fAspect * fTanHalfFov;
-	float fVisibleHeightNow = 2.0f * game::gpCamera->mfCameraEyeHeight * fTanHalfFov;
-	int64_t iShadowSubWidth = std::min(static_cast<int64_t>(std::llround(fVisibleWidthNow / fWorldTexelX)), static_cast<int64_t>(fShadowTextureSizeWidth));
-	int64_t iShadowSubHeight = std::min(static_cast<int64_t>(std::llround(fVisibleHeightNow / fWorldTexelY)), static_cast<int64_t>(fShadowTextureSizeHeight));
+	XMFLOAT2 f2VisibleAreaNow = area.ComputeVisibleArea(game::gpCamera->mfCameraEyeHeight);
+	int64_t iShadowSubWidth = std::min(static_cast<int64_t>(std::llround(f2VisibleAreaNow.x / area.fWorldTexelX)), static_cast<int64_t>(fShadowTextureSizeWidth));
+	int64_t iShadowSubHeight = std::min(static_cast<int64_t>(std::llround(f2VisibleAreaNow.y / area.fWorldTexelY)), static_cast<int64_t>(fShadowTextureSizeHeight));
 	int64_t iShadowMinX = (static_cast<int64_t>(fShadowTextureSizeWidth) - iShadowSubWidth) / 2;
 	int64_t iShadowMinY = (static_cast<int64_t>(fShadowTextureSizeHeight) - iShadowSubHeight) / 2;
 	rGlobalLayout.iShadowVisibleMinX = static_cast<int32_t>(iShadowMinX);
@@ -292,8 +263,8 @@ static void PopulateShadowArea(shaders::GlobalLayout& rGlobalLayout, float fShad
 	giShadowActivePixelsX = iShadowSubWidth;
 	giShadowActivePixelsY = iShadowSubHeight;
 
-	rfWorldTexelX = fWorldTexelX;
-	rfFullWidth = fFullWidth;
+	rfWorldTexelX = area.fWorldTexelX;
+	rfFullWidth = area.fFullWidth;
 }
 
 static void PopulateShadowSunExtension(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fWorldTexelX, float fFullWidth, float fShadowElevationTextureSizeWidth, float fShadowTextureSizeWidth)

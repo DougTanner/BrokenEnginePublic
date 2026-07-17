@@ -23,6 +23,12 @@ std::string PathToUtf8(const std::filesystem::path& rPath)
 bool IsWindowsReservedDeviceBasename(std::string_view utf8)
 {
 	std::string basename(utf8.substr(0, utf8.find('.')));
+	// Win32 strips trailing spaces and dots from a final path component, so "NUL " or "NUL ." still
+	// resolves to the device.
+	while (!basename.empty() && (basename.back() == ' ' || basename.back() == '.'))
+	{
+		basename.pop_back();
+	}
 	for (char& rCharacter : basename)
 	{
 		if (rCharacter >= 'a' && rCharacter <= 'z')
@@ -117,9 +123,7 @@ void CommandTimescale(const nlohmann::json& rParams, nlohmann::json& rResult)
 
 void CommandSave(const nlohmann::json& rParams, nlohmann::json& rResult)
 {
-	// QuicksaveFile() overrides the GameBase virtual privately in game::Game, so read the default name via the base's
-	// static type, then feed it to the path overload (identical to the no-arg ServerSave(), which forwards QuicksaveFile()).
-	std::filesystem::path file = rParams.contains("file") ? BareFilenameParam(rParams.at("file")) : static_cast<engine::GameBase&>(*gpGame).QuicksaveFile();
+	std::filesystem::path file = rParams.contains("file") ? BareFilenameParam(rParams.at("file")) : gpGame->QuicksaveFile();
 	if (!gpGame->mGameSaveLoad.ServerSave(file))
 	{
 		throw std::runtime_error("save failed to write '" + PathToUtf8(file) + "'");
@@ -129,8 +133,7 @@ void CommandSave(const nlohmann::json& rParams, nlohmann::json& rResult)
 
 void CommandLoad(const nlohmann::json& rParams, nlohmann::json& rResult)
 {
-	// See CommandSave: QuicksaveFile() is private on game::Game; read the default via the base ref, then use the path overload.
-	std::filesystem::path file = rParams.contains("file") ? BareFilenameParam(rParams.at("file")) : static_cast<engine::GameBase&>(*gpGame).QuicksaveFile();
+	std::filesystem::path file = rParams.contains("file") ? BareFilenameParam(rParams.at("file")) : gpGame->QuicksaveFile();
 
 	bool bResetToFresh = false;
 	if (!gpGame->mGameSaveLoad.ServerLoad(file))

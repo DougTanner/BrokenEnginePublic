@@ -33,8 +33,6 @@ static thread_local std::vector<float> sCollisionDamages;
 
 struct BlasterCollisionIntervalScratch
 {
-	std::vector<XMVECTOR> startPositions;
-	std::vector<XMVECTOR> endPositions;
 	std::vector<float> startTimes;
 	std::vector<float> endTimes;
 	std::vector<float> maxTimes;
@@ -252,8 +250,6 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	sCollisionFlags.resize(uiCount);
 	sCollisionRadii.resize(uiCount);
 	sCollisionDamages.resize(uiCount);
-	rCollisionScratch.startPositions.resize(uiCount);
-	rCollisionScratch.endPositions.resize(uiCount);
 	rCollisionScratch.startTimes.resize(uiCount);
 	rCollisionScratch.endTimes.resize(uiCount);
 	rCollisionScratch.maxTimes.resize(uiCount);
@@ -263,20 +259,13 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		size_t uiIndex = static_cast<size_t>(i);
-		sCollisionFlags.at(static_cast<size_t>(i)) = engine::CollisionFlags::kDestroyOnCollide;
+		sCollisionFlags.at(uiIndex) = engine::CollisionFlags::kDestroyOnCollide;
 		sCollisionRadii.at(uiIndex) = kfBlasterCollisionRadius;
 		sCollisionDamages.at(uiIndex) = kfBlasterDamage;
-		rCollisionScratch.startPositions.at(uiIndex) = i < rPreviousInterpolate.iCount ? rPreviousInterpolate.pVecPositions[i] : rCurrentInterpolate.pVecPositions[i];
-		rCollisionScratch.endPositions.at(uiIndex) = rCurrentInterpolate.pVecPositions[i];
 		rCollisionScratch.startTimes.at(uiIndex) = 0.0f;
 		rCollisionScratch.endTimes.at(uiIndex) = 1.0f;
-	}
-
-	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
-	{
-		size_t uiIndex = static_cast<size_t>(i);
-		rCollisionScratch.terrainHits.at(uiIndex) = TracePointAgainstTerrain(rStaticData, rCollisionScratch.startPositions.at(uiIndex), rCollisionScratch.endPositions.at(uiIndex), rCollisionScratch.startTimes.at(uiIndex), 1.0f);
-		rCollisionScratch.boundaryHits.at(uiIndex) = TracePointToFrameExit(rStaticData.vecArea, rCollisionScratch.startPositions.at(uiIndex), rCollisionScratch.endPositions.at(uiIndex), rCollisionScratch.startTimes.at(uiIndex), 1.0f);
+		rCollisionScratch.terrainHits.at(uiIndex) = TracePointAgainstTerrain(rStaticData, rPreviousInterpolate.pVecPositions[i], rCurrentInterpolate.pVecPositions[i], 0.0f, 1.0f);
+		rCollisionScratch.boundaryHits.at(uiIndex) = TracePointToFrameExit(rStaticData.vecArea, rPreviousInterpolate.pVecPositions[i], rCurrentInterpolate.pVecPositions[i], 0.0f, 1.0f);
 		float fMaxTime = std::numeric_limits<float>::max();
 		if (rCollisionScratch.terrainHits.at(uiIndex).bHit)
 		{
@@ -291,8 +280,8 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 
 	suiCollisionLayerIndex = engine::Collision::AddLayer(
 	{
-		.pVecStartPositions = rCollisionScratch.startPositions.data(),
-		.pVecEndPositions = rCollisionScratch.endPositions.data(),
+		.pVecStartPositions = rPreviousInterpolate.pVecPositions,
+		.pVecEndPositions = rCurrentInterpolate.pVecPositions,
 		.pfStartTimes = rCollisionScratch.startTimes.data(),
 		.pfEndTimes = rCollisionScratch.endTimes.data(),
 		.pfMaxTimes = rCollisionScratch.maxTimes.data(),

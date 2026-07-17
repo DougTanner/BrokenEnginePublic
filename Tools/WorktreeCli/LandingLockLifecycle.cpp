@@ -19,51 +19,6 @@ namespace toolcli::landing
 	{
 		constexpr int64_t kiMinimumLeaseSeconds = 60;
 		constexpr int64_t kiMaximumLeaseSeconds = 86'400;
-
-		std::optional<std::string> RunGit(const std::vector<std::wstring>& rArguments)
-		{
-			SECURITY_ATTRIBUTES securityAttributes { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
-			Handle hRead;
-			Handle hWrite;
-			HANDLE hRawRead = INVALID_HANDLE_VALUE;
-			HANDLE hRawWrite = INVALID_HANDLE_VALUE;
-			if (::CreatePipe(&hRawRead, &hRawWrite, &securityAttributes, 0) == FALSE)
-			{
-				return std::nullopt;
-			}
-			hRead.Reset(hRawRead);
-			hWrite.Reset(hRawWrite);
-			::SetHandleInformation(hRead.Get(), HANDLE_FLAG_INHERIT, 0);
-
-			std::vector<std::wstring> arguments { L"git.exe" };
-			arguments.insert(arguments.end(), rArguments.begin(), rArguments.end());
-			std::wstring commandLine = BuildCommandLine(arguments);
-			STARTUPINFOW startupInfo {};
-			startupInfo.cb = sizeof(startupInfo);
-			startupInfo.dwFlags = STARTF_USESTDHANDLES;
-			startupInfo.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
-			startupInfo.hStdOutput = hWrite.Get();
-			startupInfo.hStdError = hWrite.Get();
-			PROCESS_INFORMATION processInformation {};
-			if (::CreateProcessW(nullptr, commandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &startupInfo, &processInformation) == FALSE)
-			{
-				return std::nullopt;
-			}
-			Handle hProcess(processInformation.hProcess);
-			Handle hThread(processInformation.hThread);
-			hWrite.Reset();
-			std::string output;
-			char pBuffer[4096] {};
-			DWORD uiRead = 0;
-			while (::ReadFile(hRead.Get(), pBuffer, sizeof(pBuffer), &uiRead, nullptr) != FALSE && uiRead != 0)
-			{
-				output.append(pBuffer, uiRead);
-			}
-			::WaitForSingleObject(hProcess.Get(), INFINITE);
-			DWORD uiExitCode = 1;
-			::GetExitCodeProcess(hProcess.Get(), &uiExitCode);
-			return uiExitCode == 0 ? std::optional<std::string>(std::move(output)) : std::nullopt;
-		}
 	}
 
 	bool IsValidLeaseDuration(int64_t iLeaseSeconds)

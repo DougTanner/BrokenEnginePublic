@@ -7,6 +7,8 @@ Broken Engine is an open source C++23 Vulkan game engine for Windows. It uses da
 
 The game Kinetic Storm runs on Broken Engine and is currently available on Steam: https://store.steampowered.com/app/2154430/Kinetic_Storm/?utm_source=github
 
+Setting up a new machine? [Documents/FreshMachineSetup.md](Documents/FreshMachineSetup.md) sequences the full bootstrap (Developer Mode → clone → primary ThirdParty builds → data export → first wrapper run); the sections below hold the per-tool details.
+
 ## Prerequisites
 
 - Vulkan SDK - 1.4.328.1 - https://vulkan.lunarg.com/sdk/home#windows

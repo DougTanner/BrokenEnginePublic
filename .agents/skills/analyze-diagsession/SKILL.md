@@ -6,7 +6,7 @@ allowed-tools: [Read, Bash, PowerShell, Grep, Glob, Agent]
 
 # Analyze .diagsession CPU Profiles
 
-Deliverable: a hotspot report (per-process shares, interpreted) and scored plan files registered through WorktreeCli for each actionable optimization. Plan *execution* is out of scope — that belongs to the C++ Code Change Process / `/next-plan`.
+Deliverable: a hotspot report (per-process shares, interpreted) and scored plan files registered through WorktreeCli for each actionable optimization. Plan *execution* is out of scope — that belongs to the C++ Change Workflow / `/next-plan`.
 
 ## Scripts vs subagents (who does what)
 

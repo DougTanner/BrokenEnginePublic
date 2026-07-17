@@ -48,8 +48,6 @@ inline bool AabbsOverlap2D(const ConvexHull2D& rA, const ConvexHull2D& rB)
 	    && rA.f2AabbMin.y < rB.f2AabbMax.y && rB.f2AabbMin.y < rA.f2AabbMax.y;
 }
 
-inline bool IsPolygonCcw(const XMFLOAT2* pVertices, int32_t iVertexCount);
-
 // Separating Axis Theorem for two CCW convex polygons. True iff they share interior area; edge-
 // touching returns false so placement can pack hulls flush without registering overlap. Scale-
 // invariant (axes are un-normalized edge normals). Deterministic: fixed axis order (A's edges then
@@ -57,10 +55,6 @@ inline bool IsPolygonCcw(const XMFLOAT2* pVertices, int32_t iVertexCount);
 inline bool ConvexHullsOverlap(const ConvexHull2D& rA, const ConvexHull2D& rB)
 {
 	if (!AabbsOverlap2D(rA, rB))
-	{
-		return false;
-	}
-	if (!IsPolygonCcw(rA.pVertices, rA.iVertexCount) || !IsPolygonCcw(rB.pVertices, rB.iVertexCount))
 	{
 		return false;
 	}
@@ -75,10 +69,6 @@ inline bool ConvexHullsOverlap(const ConvexHull2D& rA, const ConvexHull2D& rB)
 			// Outward normal of the CCW edge (v1 - v0) is (edge.y, -edge.x).
 			float fAxisX = rV1.y - rV0.y;
 			float fAxisY = rV0.x - rV1.x;
-			if (fAxisX == 0.0f && fAxisY == 0.0f)
-			{
-				continue;
-			}
 
 			float fMinA = std::numeric_limits<float>::max();
 			float fMaxA = std::numeric_limits<float>::lowest();

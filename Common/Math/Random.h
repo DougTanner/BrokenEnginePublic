@@ -14,10 +14,9 @@ struct RandomEngine
 
 	RandomEngine(uint32_t uiSeed);
 
-	template <typename T> requires std::same_as<std::remove_cvref_t<T>, uint64_t>
-	explicit RandomEngine(T&& uiSeed)
+	explicit RandomEngine(uint64_t uiSeed)
 	{
-		Seed(static_cast<uint64_t>(uiSeed));
+		Seed(uiSeed);
 	}
 
 	// NOT deterministic — never seed a simulation engine from this without broadcasting/recording the resulting seed

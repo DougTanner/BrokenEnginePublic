@@ -25,7 +25,7 @@ function Complete-Approval([int] $ExitCode, [string] $Status, [string] $Code, [s
 
 try {
 	Import-Module (Join-Path $PSScriptRoot 'NextPlanWorkflowCommon.psm1') -Force -DisableNameChecking
-	$context = Get-NextPlanContext -RequireCleanPrimary
+	$context = Get-NextPlanContext -RequireCleanPrimary -AllowPrimaryAdvance
 	$presentationReceiptArtifact = Read-NextPlanJsonArtifact $context.Worktree $PresentationReceiptPath $PresentationReceiptSha256 'broken-engine-next-plan-presentation/v1'
 	$presentationReceipt = $presentationReceiptArtifact.Value
 	if ([string]$presentationReceipt.finalizationMode -cne 'session-landing') {

@@ -540,7 +540,7 @@ void ImGuiManager::UpdateTextArea(TextAreas eTextArea, std::string_view characte
 	ASSERT(characters.size() < TextArea::kiMaxChars);
 
 	TextArea& rTextArea = mTextAreas[eTextArea];
-	rTextArea.iCharacterCount = std::min(static_cast<int64_t>(characters.size()), TextArea::kiMaxChars);
+	rTextArea.iCharacterCount = static_cast<int64_t>(characters.size());
 	std::memcpy(rTextArea.pcText, characters.data(), rTextArea.iCharacterCount);
 }
 
