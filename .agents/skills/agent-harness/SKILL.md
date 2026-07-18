@@ -198,6 +198,9 @@ params: `{"faster":bool(required)}`. `result`: `{"numerator","denominator"}`
 params: `{"coord":[x,y](required)}`. Errors if the coord has no loaded/ready frame.
 `result`: `{"players":{"count"},"spaceships":{"count"},"missiles":{"count"},"blasters":{"count"},"targets":{"count"}}`
 
+**`query_profile`** — every raw CPU profile timer and counter row, including zero-valued rows hidden by the Profile UI.
+No params. `result`: `{"timers":[{"index","name","currentUs","averageUs","maxUs","allocations","threads"}],"counters":[{"index","name","count"}]}`. Timer rows are read under the profile timer mutex; the command is intended for server profiling verification rather than player-facing display.
+
 **`query_players`** — player rows for one cell.
 params: `{"coord":[x,y](required),"offset"?:0,"limit"?:256}`.
 `result`: `{"total","players":[{"index","uuid","globalId","pos":[x,y,z],"dir":[x,y,z],"armor","shield","flags":<int bitfield>,"alignment"}]}`
@@ -336,5 +339,5 @@ verification retains its normal inline command results.
 
 If a verification step needs an interaction the harness can't do — a missing command, param, result field, queryable state, or scripted-input primitive — **do not** fake it with fragile workarounds (pixel-guessing, log-scraping for state a query should expose) and do not silently skip the verification. Instead:
 
-1. **Preferred: build it.** Additions are cheap and follow existing patterns — shared commands in `Projects/BrokenEngineSandbox/Source/Agent/AgentCommands.cpp`, server commands/queries in `AgentCommandsServer*.cpp`, client commands in `AgentCommandsClient.cpp` (deferred capture/input via `AgentCommandServer::DeferResponse`), input primitives in `Engine/Source/Agent/AgentInput.cpp`, scene fields in `AgentScene.cpp`. Route through the C++ Change Workflow; update this skill's command reference in the same session.
+1. **Preferred: build it.** Additions are cheap and follow existing patterns — shared commands in `Projects/BrokenEngineSandbox/Source/Agent/AgentCommands.cpp`, server commands/queries in `AgentCommandsServer*.cpp`, client commands in `AgentCommandsClient.cpp` (deferred capture/input via `AgentCommandServer::DeferResponse`), input primitives in `Engine/Source/Agent/AgentInput.cpp`, scene fields in `AgentScene.cpp`. Route through the Change Workflow; update this skill's command reference in the same session.
 2. **Otherwise: remain blocked.** If the extension is out of scope right now, keep the current verification `BLOCKED` and forbid landing until either the capability is built and its check passes, or the user explicitly revises the plan's scope or acceptance criteria and the revised criterion is verified. A follow-up plan may record the missing capability, but it does not waive the current verification gate.

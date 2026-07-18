@@ -136,7 +136,7 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 	}
 }
 
-void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSignalFence)
+void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex)
 {
 	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
@@ -170,13 +170,12 @@ void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSi
 		.pSignalSemaphores = vkSignalSemaphores,
 	};
 	gpProfileManager->CpuStart(kCpuTimerSubmitImage);
-	// Fence reset/signal split: this resets mVkFence but submits with VK_NULL_HANDLE whenever bSignalFence
-	// is false — which is ALWAYS, from the sole caller SubmitMainCommandBuffer (Graphics.cpp passes false).
+	// Fence reset/signal split: Main resets mVkFence but submits with VK_NULL_HANDLE.
 	// The fence is (re-)signaled by the inseparable following UI submit (ImGuiManager::Submit submits with
 	// mVkFence); SubmitMainCommandBuffer is always followed by SubmitUiCommandBuffer (Graphics.cpp). Keep
 	// that pairing intact — Main resets the fence here, the following UI submit signals it.
 	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
-	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
+	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
 	gpProfileManager->CpuStop(kCpuTimerSubmitImage);
 
 	// mParticleSyncVkSemaphore (signaled above via vkSignalSemaphores) is waited by the NEXT frame's
@@ -187,19 +186,19 @@ void CommandBufferManager::SubmitMainToQueue(int64_t iFramebufferIndex, bool bSi
 	mbParticleSemaphoreSignaled = true;
 }
 
-void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bool bSignalFence)
+void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex)
 {
 	if constexpr (kbRenderThread)
 	{
-		mSubmitMain.Wake([this, iFramebufferIndex, bSignalFence]()
+		mSubmitMain.Wake([this, iFramebufferIndex]()
 		{
 			mSubmitGlobal.Wait();
-			SubmitMainToQueue(iFramebufferIndex, bSignalFence);
+			SubmitMainToQueue(iFramebufferIndex);
 		});
 	}
 	else
 	{
-		SubmitMainToQueue(iFramebufferIndex, bSignalFence);
+		SubmitMainToQueue(iFramebufferIndex);
 	}
 }
 

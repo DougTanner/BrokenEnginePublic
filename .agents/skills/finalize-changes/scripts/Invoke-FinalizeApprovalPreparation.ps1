@@ -1,29 +1,25 @@
-# Single pre-approval mutation and review-tool boundary for a session landing.
-# Invoked exactly once after reconciliation, completed-plan reapplication, affected
-# reverification, and any triggered session audit have produced the final clean
-# session tree, with the same identities, branches, baseline, manifest comparison
-# base, expected tips, verification report hash/ranges, capability switches, and
-# wrapper owner required by the final after-reconciliation preflight.
+# Single pre-approval mutation boundary for a session landing.
+# Invoked once per landing after reconciliation has produced the final clean
+# session tree, with the same identities, branches, baseline, expected tips,
+# capability switches, and wrapper owner required by the structural preflight.
 #
 # The command validates the original candidate, collapses a linear multi-commit
 # session range to one deterministic tree-identical commit with the current primary
 # tip as its sole parent, atomically replaces only the expected session ref, rolls
-# back a replacement whose postconditions fail, reruns after-reconciliation
-# preflight against the final tip, and then opens SmartGit against the registered
-# primary checkout with --anchor-commit=<final-tip>. Callers never reconstruct its
-# Git or SmartGit commands inline.
+# back a replacement whose postconditions fail, and reruns the structural
+# preflight against the final tip. Callers never reconstruct its Git commands
+# inline. The review window opens later: Show-FinalizeApprovalReview.ps1 owns the
+# SmartGit launch and workflow step 4 calls it last, once the returned tip is bound
+# into a fully staged landing.
 #
 # Success contract: exit 0, schema broken-engine-finalize-approval-preparation/v1,
-# status pass, code ok, final preflight PASS with manifest equality, and one
-# returned approvedSession tip — the only approval and landing candidate. The
-# tree/manifest identity checks preserve content-based evidence across a squash;
-# the returned tip replaces the pre-squash session tip in every approval-bound
-# field. SmartGit status unavailable/failed is non-blocking: the caller copies its
-# message and exact manualCommand into the approval response while keeping the
-# landing gate in force. -SkipSmartGit (carried-approval reruns) reports
-# smartGit.status: skipped and must not reopen the review tool the user already
-# saw. A preparation blocker leaves primary unchanged; if a replacement occurred,
-# rollback: restored-original is required before retrying from current state.
+# status pass, code ok, final preflight PASS, and one returned approvedSession
+# tip — the approval and landing candidate. The tree identity checks preserve
+# content across a squash; the returned tip replaces the pre-squash session tip in
+# every approval-bound field. A later primary advance does not rerun this script —
+# rebase the approved candidate directly. A preparation blocker leaves primary
+# unchanged; if a replacement occurred, rollback: restored-original is required
+# before retrying from current state.
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory)][string] $CurrentWorktree,
@@ -31,20 +27,12 @@ param(
 	[Parameter(Mandatory)][string] $CurrentBranch,
 	[Parameter(Mandatory)][string] $PrimaryBranch,
 	[Parameter(Mandatory)][string] $Baseline,
-	[Parameter(Mandatory)][string] $ManifestComparisonBase,
 	[Parameter(Mandatory)][string] $ExpectedCurrentTip,
 	[Parameter(Mandatory)][string] $ExpectedPrimaryTip,
-	[Parameter(Mandatory)][string] $VerificationReportPath,
-	[Parameter(Mandatory)][string] $VerificationReportSha256,
-	[Parameter(Mandatory)][string[]] $ManifestRange,
 	[Parameter(Mandatory)][string] $SessionOwner,
 	[string] $WaitSeconds = '60',
 	[switch] $HasPlanRowClaim,
-	[switch] $HasCompletedPlanClaim,
-	[switch] $QueueChangingLanding,
-	[switch] $SkipSmartGit,
-	[AllowEmptyString()][string] $FixtureSmartGitExecutable,
-	[ValidateSet('none', 'compare-and-swap', 'postcondition', 'final-dirty', 'smartgit-launch')][string] $FixtureFailure = 'none'
+	[ValidateSet('none', 'compare-and-swap', 'postcondition', 'final-dirty')][string] $FixtureFailure = 'none'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -78,14 +66,6 @@ $result = [ordered]@{
 		initial = $null
 		final = $null
 	}
-	smartGit = [ordered]@{
-		status = 'not-run'
-		executable = $null
-		arguments = @()
-		manualCommand = $null
-		processId = $null
-		message = $null
-	}
 }
 
 $script:CurrentIdentity = $null
@@ -94,7 +74,6 @@ $script:SessionRef = $null
 $script:OriginalTip = $ExpectedCurrentTip
 $script:ReplacementTip = $null
 $script:RefUpdated = $false
-$script:HasFixtureSmartGitExecutable = $PSBoundParameters.ContainsKey('FixtureSmartGitExecutable')
 
 function Complete-Preparation([int] $ExitCode, [string] $Status, [string] $Code, [string] $Message)
 {
@@ -146,24 +125,17 @@ function Invoke-Preflight([string] $CurrentTip)
 		'-CurrentBranch', $CurrentBranch,
 		'-PrimaryBranch', $PrimaryBranch,
 		'-Baseline', $Baseline,
-		'-ManifestComparisonBase', $ManifestComparisonBase,
 		'-ExpectedCurrentTip', $CurrentTip,
-		'-ExpectedPrimaryTip', $ExpectedPrimaryTip,
-		'-VerificationReportPath', $VerificationReportPath,
-		'-VerificationReportSha256', $VerificationReportSha256,
-		'-ManifestRange'
+		'-ExpectedPrimaryTip', $ExpectedPrimaryTip
 	))
 	{
 		$arguments.Add($argument)
 	}
-	$arguments.Add(($ManifestRange -join ','))
 	foreach ($argument in @('-SessionOwner', $SessionOwner, '-WaitSeconds', $WaitSeconds))
 	{
 		$arguments.Add($argument)
 	}
 	if ($HasPlanRowClaim) { $arguments.Add('-HasPlanRowClaim') }
-	if ($HasCompletedPlanClaim) { $arguments.Add('-HasCompletedPlanClaim') }
-	if ($QueueChangingLanding) { $arguments.Add('-QueueChangingLanding') }
 
 	$response = Invoke-FinalizeNativeText 'pwsh.exe' $arguments.ToArray() $CurrentWorktree
 	$preflightResult = Get-JsonResponse $response 'Finalization preflight'
@@ -279,91 +251,14 @@ function Restore-OriginalRef
 	$result.tips.approvedSession = $script:OriginalTip
 }
 
-function ConvertTo-PowerShellLiteral([string] $Value)
-{
-	return "'" + $Value.Replace("'", "''") + "'"
-}
-
-function ConvertTo-ProcessArgument([string] $Value)
-{
-	if ($Value.Contains('"', [StringComparison]::Ordinal))
-	{
-		throw 'SmartGit arguments cannot contain a double quote.'
-	}
-	return '"' + $Value + '"'
-}
-
-function Invoke-SmartGit([string] $ApprovedTip)
-{
-	if ($SkipSmartGit)
-	{
-		$result.smartGit.status = 'skipped'
-		$result.smartGit.message = 'SmartGit launch was skipped for a carried landing approval.'
-		return
-	}
-	$standardExecutable = 'C:\Program Files\SmartGit\bin\smartgit.exe'
-	$resolvedExecutable = $null
-	if ($script:HasFixtureSmartGitExecutable)
-	{
-		$resolvedExecutable = $FixtureSmartGitExecutable
-	}
-	elseif (Test-Path -LiteralPath $standardExecutable -PathType Leaf)
-	{
-		$resolvedExecutable = $standardExecutable
-	}
-	else
-	{
-		$command = Get-Command smartgit.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-		if ($null -ne $command)
-		{
-			$resolvedExecutable = $command.Source
-		}
-	}
-
-	$arguments = @('--log', $script:PrimaryIdentity, "--anchor-commit=$ApprovedTip")
-	$manualExecutable = if ([string]::IsNullOrWhiteSpace($resolvedExecutable)) { $standardExecutable } else { $resolvedExecutable }
-	$result.smartGit.arguments = $arguments
-	$result.smartGit.manualCommand = ((@('&', (ConvertTo-PowerShellLiteral $manualExecutable)) + @($arguments | ForEach-Object { ConvertTo-PowerShellLiteral $_ })) -join ' ')
-	if ([string]::IsNullOrWhiteSpace($resolvedExecutable) -or -not (Test-Path -LiteralPath $resolvedExecutable -PathType Leaf))
-	{
-		$result.smartGit.status = 'unavailable'
-		$result.smartGit.message = 'SmartGit executable was not found.'
-		return
-	}
-
-	$result.smartGit.executable = [IO.Path]::GetFullPath($resolvedExecutable)
-	try
-	{
-		if ($FixtureFailure -ceq 'smartgit-launch')
-		{
-			throw 'Fixture forced a SmartGit launch failure.'
-		}
-		$processArguments = @($arguments | ForEach-Object { ConvertTo-ProcessArgument $_ })
-		$process = Start-Process -FilePath $result.smartGit.executable -ArgumentList $processArguments -PassThru
-		$result.smartGit.status = 'opened'
-		$result.smartGit.processId = $process.Id
-		$result.smartGit.message = 'SmartGit was opened for the approval candidate.'
-		$process.Dispose()
-	}
-	catch
-	{
-		$result.smartGit.status = 'failed'
-		$result.smartGit.message = $_.Exception.Message
-	}
-}
-
 try
 {
-	foreach ($hash in @($Baseline, $ManifestComparisonBase, $ExpectedCurrentTip, $ExpectedPrimaryTip))
+	foreach ($hash in @($Baseline, $ExpectedCurrentTip, $ExpectedPrimaryTip))
 	{
 		Assert-Input ($hash -cmatch '^[0-9a-f]{40}$') 'Commit inputs must be exactly 40 lowercase hexadecimal characters.'
 	}
-	Assert-Input ($VerificationReportSha256 -cmatch '^[0-9a-f]{64}$') 'VerificationReportSha256 must be exactly 64 lowercase hexadecimal characters.'
 	Assert-Input ($SessionOwner -cmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') 'SessionOwner must be a canonical lowercase GUID.'
-	Assert-Input (@($ManifestRange).Count -gt 0) 'At least one manifest range is required.'
-	Assert-Input (-not $HasCompletedPlanClaim -or $HasPlanRowClaim) 'HasCompletedPlanClaim requires HasPlanRowClaim.'
-	Assert-Input ($ManifestComparisonBase -ceq $ExpectedPrimaryTip) 'Approval preparation requires ManifestComparisonBase to equal the expected primary tip.'
-	if ($FixtureFailure -cne 'none' -or $PSBoundParameters.ContainsKey('FixtureSmartGitExecutable'))
+	if ($FixtureFailure -cne 'none')
 	{
 		Assert-Input ($env:BROKEN_ENGINE_FINALIZE_APPROVAL_PREPARATION_FIXTURE -ceq '1') 'Fixture-only inputs require the finalization preparation fixture environment.'
 	}
@@ -442,9 +337,9 @@ try
 	}
 
 	$result.preflight.final = Invoke-Preflight $result.tips.approvedSession
-	if ($result.preflight.final.tips.current -cne $result.tips.approvedSession -or $result.preflight.final.tips.primary -cne $ExpectedPrimaryTip -or -not $result.preflight.final.manifest.equal)
+	if ($result.preflight.final.tips.current -cne $result.tips.approvedSession -or $result.preflight.final.tips.primary -cne $ExpectedPrimaryTip)
 	{
-		Throw-Preparation 2 'preflight.final-identity-mismatch' 'Final preflight did not bind the approved session tip, primary tip, and verified manifest.'
+		Throw-Preparation 2 'preflight.final-identity-mismatch' 'Final preflight did not bind the approved session tip and primary tip.'
 	}
 	if ($FixtureFailure -ceq 'final-dirty')
 	{
@@ -455,7 +350,6 @@ try
 		Throw-Preparation 2 'git.session-dirty-after-preflight' 'Session worktree or index changed during final approval preparation.'
 	}
 
-	Invoke-SmartGit $result.tips.approvedSession
 	Complete-Preparation 0 'pass' 'ok' 'Approval candidate is prepared and bound to final preflight.'
 }
 catch

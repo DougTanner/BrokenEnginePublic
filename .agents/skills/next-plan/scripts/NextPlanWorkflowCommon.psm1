@@ -31,7 +31,7 @@ function Get-NextPlanEnvironmentValue([string] $Name) {
 	return $value
 }
 
-function Get-NextPlanContext([switch] $RequireCleanSession, [switch] $RequireCleanPrimary, [switch] $AllowPrimaryAdvance) {
+function Get-NextPlanContext([switch] $AllowPrimaryAdvance) {
 	try {
 	if ((Get-NextPlanEnvironmentValue 'BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE') -cne 'session') {
 		throw 'The wrapper admission mode is not session.'
@@ -67,15 +67,8 @@ function Get-NextPlanContext([switch] $RequireCleanSession, [switch] $RequireCle
 		throw (New-NextPlanStateBlocker 'Session worktree HEAD moved from the wrapper baseline. If a primary-advance recovery re-baselined this session, re-supply the recovered BROKEN_ENGINE_BASELINE on this invocation; otherwise the session state is inconsistent with the wrapper.')
 	}
 	if (-not $AllowPrimaryAdvance -and $primary.Head -cne $baseline) {
-		throw (New-NextPlanStateBlocker 'Primary HEAD advanced from the wrapper baseline. This is recoverable in place: run the next-plan primary-advance recovery (fast-forward/rebase the session onto the primary tip, re-baseline BROKEN_ENGINE_BASELINE, unclaim and re-claim the row, regenerate receipts), then continue.')
+		throw (New-NextPlanStateBlocker 'Primary HEAD advanced from the wrapper baseline. This is recoverable in place: run the next-plan primary-advance recovery (fast-forward/rebase the session onto the primary tip, re-baseline BROKEN_ENGINE_BASELINE), then continue.')
 	}
-	if ($RequireCleanSession -and -not [string]::IsNullOrEmpty((Invoke-FinalizeGit $worktree.Worktree @('status', '--porcelain=v1', '--untracked-files=normal')))) {
-		throw (New-NextPlanStateBlocker 'Session worktree is not clean.')
-	}
-	if ($RequireCleanPrimary -and -not [string]::IsNullOrEmpty((Invoke-FinalizeGit $primary.Worktree @('status', '--porcelain=v1', '--untracked-files=normal')))) {
-		throw (New-NextPlanStateBlocker 'Primary checkout is not clean.')
-	}
-
 	$classification = Get-WorktreeCliSessionClassification -RepositoryRoot $worktree.Worktree -Owner $owner -Worktree $worktree.Worktree
 	if ($classification.Classification -cne 'expected-live') {
 		throw (New-NextPlanStateBlocker "Wrapper WorktreeCli session classification is '$($classification.Classification)', expected 'expected-live'.")
@@ -115,7 +108,7 @@ function Get-NextPlanContext([switch] $RequireCleanSession, [switch] $RequireCle
 	foreach ($capability in @(
 		'WorktreeCli.exe plan order validate --repo COMMON-DIR --worktree CHECKOUT',
 		'WorktreeCli.exe plan order claim-next --repo COMMON-DIR --primary-worktree CHECKOUT --worktree CHECKOUT --branch TARGET --owner TOKEN --session TOKEN --queue <plans|features>',
-		'WorktreeCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH [--reapply]'
+		'WorktreeCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH'
 	)) {
 		if (-not $helpResponse.Stdout.Contains($capability, [StringComparison]::Ordinal)) {
 			throw (New-NextPlanStateBlocker "Provisioned WorktreeCli help is missing '$capability'.")
@@ -177,29 +170,6 @@ function Write-NextPlanJsonArtifact([string] $Worktree, [string] $Purpose, $Valu
 	return Write-NextPlanArtifact -Worktree $Worktree -Purpose $Purpose -Extension 'json' -Bytes $script:NextPlanUtf8.GetBytes($text)
 }
 
-function Read-NextPlanJsonArtifact([string] $Worktree, [string] $Path, [string] $ExpectedSha256, [string] $ExpectedSchema) {
-	if ($ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Expected artifact SHA-256 is malformed.' }
-	$canonical = Assert-AgentArtifactPath -Worktree $Worktree -Path $Path
-	if (-not (Test-Path -LiteralPath $canonical -PathType Leaf)) { throw "Artifact does not exist: '$canonical'." }
-	$bytes = [IO.File]::ReadAllBytes($canonical)
-	$actual = Get-NextPlanSha256 $bytes
-	if ($actual -cne $ExpectedSha256) { throw "Artifact SHA-256 mismatch: expected $ExpectedSha256, actual $actual." }
-	try { $value = $script:NextPlanUtf8.GetString($bytes) | ConvertFrom-Json -Depth 100 -ErrorAction Stop }
-	catch { throw "Artifact is not strict UTF-8 JSON: $($_.Exception.Message)" }
-	if ($value.schemaVersion -cne $ExpectedSchema) { throw "Artifact schema mismatch: expected '$ExpectedSchema'." }
-	return [pscustomobject]@{ Path = $canonical; Sha256 = $actual; Value = $value }
-}
-
-function Read-NextPlanArtifact([string] $Worktree, [string] $Path, [string] $ExpectedSha256) {
-	if ($ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Expected artifact SHA-256 is malformed.' }
-	$canonical = Assert-AgentArtifactPath -Worktree $Worktree -Path $Path
-	if (-not (Test-Path -LiteralPath $canonical -PathType Leaf)) { throw "Artifact does not exist: '$canonical'." }
-	$bytes = [IO.File]::ReadAllBytes($canonical)
-	$actual = Get-NextPlanSha256 $bytes
-	if ($actual -cne $ExpectedSha256) { throw "Artifact SHA-256 mismatch: expected $ExpectedSha256, actual $actual." }
-	return [pscustomobject]@{ Path = $canonical; Sha256 = $actual; Bytes = $bytes }
-}
-
 function Assert-NextPlanRepositoryPath([string] $Worktree, [string] $Path, [string] $Label) {
 	$full = Get-FinalizeRootPreservingFullPath $Path
 	$relative = [IO.Path]::GetRelativePath($Worktree, $full)
@@ -208,17 +178,6 @@ function Assert-NextPlanRepositoryPath([string] $Worktree, [string] $Path, [stri
 	}
 	$existing = Get-FinalizeExistingWindowsIdentity $full $Label
 	if (-not $existing.Equals($full, [StringComparison]::OrdinalIgnoreCase)) { throw "$Label uses a reparse point." }
-	return $full
-}
-
-function Assert-NextPlanTempPath([string] $Worktree, [string] $Path, [string] $Label) {
-	$full = Assert-NextPlanRepositoryPath $Worktree $Path $Label
-	$temp = Assert-NextPlanRepositoryPath $Worktree (Join-Path $Worktree 'Temp') 'Worktree Temp directory'
-	$relative = [IO.Path]::GetRelativePath($temp, $full)
-	if ([IO.Path]::IsPathRooted($relative) -or $relative -eq '..' -or
-		$relative.StartsWith("..$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::Ordinal)) {
-		throw "$Label must be contained by the worktree Temp directory."
-	}
 	return $full
 }
 
@@ -235,51 +194,4 @@ function Get-NextPlanRowIdentity([string] $Order, [string] $Plan) {
 	return $rowPlan
 }
 
-function Test-NextPlanOnlyAllowedPreCodeChanges([string] $Worktree, [string] $Baseline, [string] $Plan) {
-	$changed = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-	foreach ($arguments in @(
-		@('diff', '--name-only', '--no-renames', '-z', $Baseline, '--'),
-		@('ls-files', '--others', '--exclude-standard', '-z')
-	)) {
-		foreach ($path in (Invoke-FinalizeGit $Worktree $arguments).Split([char]0, [StringSplitOptions]::RemoveEmptyEntries)) {
-			[void]$changed.Add($path.Replace('\', '/'))
-		}
-	}
-	$unexpected = @($changed | Where-Object { $_ -cne $Plan } | Sort-Object)
-	return [pscustomobject]@{ Allowed = $unexpected.Count -eq 0; Changed = @($changed | Sort-Object); Unexpected = $unexpected }
-}
-
-function Get-NextPlanPresentationRanges([string[]] $Lines) {
-	$ranges = [Collections.Generic.List[string]]::new()
-	if ($Lines.Count -eq 0) { throw 'Presentation must contain at least one line.' }
-	$start = 1
-	$bytes = 0
-	for ($index = 0; $index -lt $Lines.Count; ++$index) {
-		$lineBytes = $script:NextPlanUtf8.GetByteCount($Lines[$index] + "`n")
-		if ($lineBytes -gt 16384) { throw "Presentation line $($index + 1) exceeds 16 KiB." }
-		if ($bytes -ne 0 -and ($bytes + $lineBytes) -gt 16384) {
-			$ranges.Add("L$start-L$index")
-			$start = $index + 1
-			$bytes = 0
-		}
-		$bytes += $lineBytes
-	}
-	$ranges.Add("L$start-L$($Lines.Count)")
-	return $ranges.ToArray()
-}
-
-function Get-NextPlanPresentationRangesFromBytes([byte[]] $Bytes) {
-	if ($Bytes.Length -eq 0 -or $Bytes[$Bytes.Length - 1] -ne 10) { throw 'Presentation must end with LF.' }
-	try { $text = $script:NextPlanUtf8.GetString($Bytes) }
-	catch [Text.DecoderFallbackException] { throw 'Presentation is not strict UTF-8.' }
-	if ($text.Contains("`r", [StringComparison]::Ordinal)) { throw 'Presentation must use LF line endings.' }
-	$body = $text.Substring(0, $text.Length - 1)
-	return Get-NextPlanPresentationRanges $body.Split("`n")
-}
-
-function Get-NextPlanManifest([string] $Worktree, [string] $Baseline) {
-	$rows = @(Get-FinalizeManifestRows $Worktree $Baseline)
-	return [pscustomobject]@{ Rows = $rows; Sha256 = Get-FinalizeManifestSha256 $rows }
-}
-
-Export-ModuleMember -Function New-NextPlanStateBlocker,Test-NextPlanStateBlocker,Get-NextPlanContext,Invoke-NextPlanProcess,ConvertFrom-NextPlanProcessJson,Get-NextPlanSha256,Get-NextPlanFileSha256,Write-NextPlanArtifact,Write-NextPlanJsonArtifact,Read-NextPlanJsonArtifact,Read-NextPlanArtifact,Assert-NextPlanRepositoryPath,Assert-NextPlanTempPath,Assert-NextPlanGitPath,Get-NextPlanRowIdentity,Test-NextPlanOnlyAllowedPreCodeChanges,Get-NextPlanPresentationRanges,Get-NextPlanPresentationRangesFromBytes,Get-NextPlanManifest
+Export-ModuleMember -Function New-NextPlanStateBlocker,Test-NextPlanStateBlocker,Get-NextPlanContext,Invoke-NextPlanProcess,ConvertFrom-NextPlanProcessJson,Get-NextPlanSha256,Get-NextPlanFileSha256,Write-NextPlanArtifact,Write-NextPlanJsonArtifact,Assert-NextPlanRepositoryPath,Assert-NextPlanGitPath,Get-NextPlanRowIdentity

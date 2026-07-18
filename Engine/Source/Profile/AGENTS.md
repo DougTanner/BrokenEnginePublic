@@ -4,9 +4,9 @@ CPU/GPU performance profiling, boot-time measurement, and in-game overlay. Engin
 
 ## Architecture
 
-Base holds engine-level counter/timer arrays; game derived adds project-specific arrays. Virtual dispatch routes by index, with game enums encoding the engine offset so call sites need no arithmetic.
+Base holds engine-level counter/timer arrays and stores pointers to the game arrays/name tables supplied by the derived constructor. Non-virtual base accessors route the combined index space, with game enums encoding the engine offset so call sites need no arithmetic. The base constructor only stores derived-array addresses: it must not dereference them before derived members finish construction.
 
-All recording and update entry points are wrapped in `if constexpr (kbProfiling)` for zero overhead when disabled. The visibility-cadence tick (`TickVisibilityCadence`), the CPU text formatters (`FormatCpuTimersText`/`FormatCpuCountersText`), and the virtual timer/counter accessors are deliberately left unwrapped so the server's GDI display still renders them (showing zeros when profiling is off).
+All recording and update entry points are wrapped in `if constexpr (kbProfiling)` for zero overhead when disabled. The visibility-cadence tick (`TickVisibilityCadence`), the CPU text formatters (`FormatCpuTimersText`/`FormatCpuCountersText`), and the CPU timer/counter accessors are deliberately left unwrapped so the server's GDI display can format the rows; zero-valued UI rows remain hidden, while the server agent's raw profile query returns every row.
 
 GPU timing, the `VkQueryPool`, and the ImGui text-area output are client-only; CPU timers, counters, boot timers, and the CPU text-formatting free functions compile in both builds — the server's GDI display reuses them by calling `UpdateProfileText()`, which runs the shared prefix (`SmoothCpuTimers()` + the per-frame allocation latch/reset) and skips its `BT_CLIENT`-gated GPU-timer and overlay-formatting work. The base also carries mimalloc memory stats (gated `BT_SERVER`) written and read only by that server display.
 
@@ -30,7 +30,7 @@ CPU timers latch into their smoothing rings once per render frame via `SmoothCpu
 
 `ToggleProfileText()` cycles through fixed screens (off / CPU / GPU / Frames / Network); each transition clears the ImGui-owned profile text areas to prevent stale content. The FPS header renders in CPU and GPU modes; the CPU screen adds asset-chunk memory stats, the GPU screen adds per-pass dynamic-resolution annotations (shadow window, lighting spread, terrain elevation, water LOD grid) and VMA memory stats. Frames/Network are game-owned via a `FormatGameScreens` override. Client-only ImPlot graphs render alongside the text overlay.
 
-Display visibility is synchronized and sticky: `TickVisibilityCadence()` is the shared driver, re-evaluating every row's cached visibility flag (`ProfileRowFlags::kVisible`) together only on a ~2s boundary, so all rows (CPU timers, CPU counters, GPU timers) flip at once and every show/hide lasts at least ~2s. Displayed numbers stay live each frame; `ToggleProfileText()` resets the clock so a switched-to screen re-evaluates immediately.
+Display visibility is synchronized and sticky: `TickVisibilityCadence()` is the shared driver, re-evaluating every row's cached visibility flag (`ProfileRowFlags::kVisible`) together only on a ~2s boundary, so all rows (CPU timers, CPU counters, GPU timers) flip at once and every show/hide lasts at least ~2s. Zero-valued rows stay hidden in the UI; the server agent `query_profile` returns every raw CPU timer/counter row, including zero values. Displayed numbers stay live each frame; `ToggleProfileText()` resets the clock so a switched-to screen re-evaluates immediately.
 
 ## CSV Dump
 
@@ -40,7 +40,7 @@ When the game defines `kbProfilingDump` true (client-only), every GPU timer, CPU
 
 The FPS header reads a game-specific CPU timer enum by name to report total frame time. The contiguous index space (game enums starting at `kEngineCpuCounterCount` / `kEngineCpuTimerCount`) is documented game-side; the position contract (first game enumerator == engine count) is compile-enforced engine-side by `static_assert` so an omitted game-enum initializer fails the build instead of misrouting game indices into the engine arrays.
 
-Display names live in deduced-extent namespace name tables (one per counter/timer enum), each guarded by a `static_assert` that its extent equals the enum count — a dropped or extra name is a compile error instead of a silently misaligned overlay row. The structs carry only runtime state; names are read through virtual accessors that route engine/game indices the same way the counter/timer accessors do (GPU/boot names read their engine tables directly). The game project mirrors the convention with its own guarded tables.
+Display names live in deduced-extent namespace name tables (one per counter/timer enum), each guarded by a `static_assert` that its extent equals the enum count — a dropped or extra name is a compile error instead of a silently misaligned overlay row. The structs carry only runtime state; base accessors route engine/game indices through the stored game table pointers (GPU/boot names read their engine tables directly). The game project mirrors the convention with its own guarded tables.
 
 The overlay also reads `game::gpCamera` directly (via the game `Graphics/Camera.h` include) — camera height in the FPS header, visible-area LOD for the GPU screen's water annotation. Sanctioned engine→game reads; noted here only so the game couplings are discoverable.
 

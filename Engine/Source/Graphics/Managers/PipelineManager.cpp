@@ -761,9 +761,6 @@ void PipelineManager::CreateDebugRenderPipelines()
 		return;
 	}
 
-	using enum DescriptorFlags;
-	using enum PipelineFlags;
-
 	struct DebugRenderPipelineEntry
 	{
 		Pipelines ePipeline;

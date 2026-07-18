@@ -16,7 +16,7 @@ public:
 	void RecordCommandBuffer(int64_t iFramebuffer);
 
 	void SubmitGlobalCommandBuffer(int64_t iFramebufferIndex);
-	void SubmitMainCommandBuffer(int64_t iFramebufferIndex, bool bSignalFence);
+	void SubmitMainCommandBuffer(int64_t iFramebufferIndex);
 	void SubmitUiCommandBuffer(int64_t iFramebufferIndex);
 
 	std::vector<CommandBuffers> mPerFramebufferCommandBuffers;
@@ -32,7 +32,7 @@ public:
 private:
 
 	void SubmitGlobalToQueue(int64_t iFramebufferIndex);
-	void SubmitMainToQueue(int64_t iFramebufferIndex, bool bSignalFence);
+	void SubmitMainToQueue(int64_t iFramebufferIndex);
 };
 
 inline CommandBufferManager* gpCommandBufferManager = nullptr;

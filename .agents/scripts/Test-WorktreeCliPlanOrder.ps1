@@ -9,6 +9,10 @@ $ErrorActionPreference = 'Stop'
 $script:Executable = (Get-Item -LiteralPath $Executable -Force -ErrorAction Stop).FullName
 $script:RepositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $script:FixtureRoot = Join-Path $script:RepositoryRoot "Temp/WorktreeCliPlanOrderFixtures/$([Guid]::NewGuid().ToString('N'))"
+# The plan queue tables live in the machine-local store under %LOCALAPPDATA%\BrokenEngineLocks;
+# each fixture repo gets its own scratch LOCALAPPDATA so its queue store, queue locks, and row
+# claims are isolated and cleaned with the fixture tree. Restored in the finally block.
+$script:OriginalLocalAppData = $env:LOCALAPPDATA
 $script:Failures = [Collections.Generic.List[string]]::new()
 $script:Passed = [Collections.Generic.List[string]]::new()
 $script:Claims = [Collections.Generic.List[object]]::new()
@@ -161,7 +165,8 @@ function New-FixtureRepository(
 	[object[]] $FeaturesRows = @(),
 	[string] $PlansNewline = "`n",
 	[string] $FeaturesNewline = "`n",
-	[hashtable] $PlanContents = @{}
+	[hashtable] $PlanContents = @{},
+	[switch] $NoOrderFiles
 ) {
 	$primary = Join-Path $script:FixtureRoot "$Name/primary"
 	[IO.Directory]::CreateDirectory($primary) | Out-Null
@@ -170,10 +175,14 @@ function New-FixtureRepository(
 	Invoke-Git $primary @('config', 'user.name', 'WorktreeCli Fixture') | Out-Null
 	Invoke-Git $primary @('config', 'core.autocrlf', 'false') | Out-Null
 	Invoke-Git $primary @('config', 'core.eol', 'lf') | Out-Null
-	Set-Utf8File (Join-Path $primary 'Documents/Plans/Order.md') (Get-OrderText 'Plans' $PlansRows $PlansNewline 'Reference.md')
-	Set-Utf8File (Join-Path $primary 'Documents/Features/Order.md') (Get-OrderText 'Features' $FeaturesRows $FeaturesNewline 'Reference.txt')
-	Set-Utf8File (Join-Path $primary 'Documents/Plans/Reference.md') "# Plans reference$PlansNewline"
-	Set-Utf8File (Join-Path $primary 'Documents/Features/Reference.txt') "Features reference$FeaturesNewline"
+	# Deep session worktrees push fixture git operations past MAX_PATH; git rebase stats its '<sha>...<sha>' range as a path.
+	Invoke-Git $primary @('config', 'core.longpaths', 'true') | Out-Null
+	if (-not $NoOrderFiles) {
+		Set-Utf8File (Join-Path $primary 'Documents/Plans/Order.md') (Get-OrderText 'Plans' $PlansRows $PlansNewline 'Reference.md')
+		Set-Utf8File (Join-Path $primary 'Documents/Features/Order.md') (Get-OrderText 'Features' $FeaturesRows $FeaturesNewline 'Reference.txt')
+		Set-Utf8File (Join-Path $primary 'Documents/Plans/Reference.md') "# Plans reference$PlansNewline"
+		Set-Utf8File (Join-Path $primary 'Documents/Features/Reference.txt') "Features reference$FeaturesNewline"
+	}
 	Set-Utf8File (Join-Path $primary 'Documents/Plans/AGENTS.md') '# Plans instructions'
 	Set-Utf8File (Join-Path $primary 'Documents/Plans/CLAUDE.md') '@AGENTS.md'
 	Set-Utf8File (Join-Path $primary 'Documents/Features/AGENTS.md') '# Features instructions'
@@ -185,7 +194,25 @@ function New-FixtureRepository(
 	Invoke-Git $primary @('add', '--all') | Out-Null
 	Invoke-Git $primary @('commit', '-m', 'fixture baseline') | Out-Null
 	$common = Invoke-Git $primary @('rev-parse', '--path-format=absolute', '--git-common-dir')
-	return [pscustomobject]@{ Primary = $primary; Common = [IO.Path]::GetFullPath($common); Branch = 'main'; Name = $Name }
+	# Isolate the machine-local queue store per fixture, then seed it from the tracked Order.md files.
+	$localAppData = Join-Path (Join-Path $script:FixtureRoot $Name) 'localappdata'
+	[IO.Directory]::CreateDirectory($localAppData) | Out-Null
+	$env:LOCALAPPDATA = $localAppData
+	$fixture = [pscustomobject]@{ Primary = $primary; Common = [IO.Path]::GetFullPath($common); Branch = 'main'; Name = $Name; LocalAppData = $localAppData }
+	Invoke-WorktreeCli @('plan', 'order', 'init', '--repo', $fixture.Common, '--worktree', $primary) 0 | Out-Null
+	return $fixture
+}
+
+function Get-FixtureStoreDirectory($Fixture) {
+	$root = Join-Path $Fixture.LocalAppData 'BrokenEngineLocks/plan-queue-state'
+	$directories = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue)
+	Assert-Equal $directories.Count 1 "Expected exactly one plan-queue-state repo directory for fixture '$($Fixture.Name)'."
+	return $directories[0].FullName
+}
+
+function Get-StoreOrderPath($Fixture, [string] $Queue) {
+	$fileName = if ($Queue -ceq 'Plans') { 'Plans-Order.md' } else { 'Features-Order.md' }
+	return Join-Path (Get-FixtureStoreDirectory $Fixture) $fileName
 }
 
 function Add-Worktree($Fixture, [string] $Name) {
@@ -294,181 +321,156 @@ function Clear-TrackedQueueLocks {
 	}
 }
 
-function Assert-Diagnostic([string] $Name, [scriptblock] $Mutation, [string[]] $Codes) {
-	$fixture = New-FixtureRepository -Name "diagnostic-$Name" -PlansRows @((New-Row 'Documents/Plans/A.md')) -FeaturesRows @((New-Row 'Documents/Features/F.md'))
-	& $Mutation $fixture.Primary
-	$first = Get-Validation $fixture $fixture.Primary 2
-	$second = Get-Validation $fixture $fixture.Primary 2
-	Assert-Equal $first.Result.Stdout $second.Result.Stdout "$Name diagnostics were not byte-deterministic."
-	$actualCodes = @($first.Json.diagnostics.code)
-	foreach ($code in $Codes) { Assert-True ($actualCodes -ccontains $code) "$Name did not diagnose '$code'; got '$($actualCodes -join ', ')'." }
-}
-
 $executableItem = Get-Item -LiteralPath $script:Executable -Force
 if ($executableItem.PSIsContainer -or ($executableItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $executableItem.Length -eq 0) {
 	throw "WorktreeCli executable must be a nonempty ordinary file: '$script:Executable'."
 }
-$help = Invoke-WorktreeCli @('--help') 0
+$help = Invoke-Process -FilePath $script:Executable -Arguments @('--help')
+if ($help.ExitCode -ne 0) { throw "WorktreeCli --help exited $($help.ExitCode)." }
 Assert-True $help.Stdout.Contains('WorktreeCli.exe plan order validate', [StringComparison]::Ordinal) 'WorktreeCli does not advertise plan order; build it before running this fixture.'
+Assert-True $help.Stdout.Contains('WorktreeCli.exe plan order init', [StringComparison]::Ordinal) 'WorktreeCli does not advertise plan order init; build the machine-local queue store binary before running this fixture.'
 
 [IO.Directory]::CreateDirectory($script:FixtureRoot) | Out-Null
 try {
-	Invoke-Case 'validate both queues, references, Unicode, newline preservation, and deterministic JSON' {
+	Invoke-Case 'init seeds the machine-local store from tracked Order.md files' {
 		$plans = @(
 			New-Row 'Documents/Plans/Zeta.md' 'Small' 10 1 1 @() 'approximate order | is allowed'
 			New-Row 'Documents/Plans/Alpha.md' 'Small' 2 3 1 @('Documents/Features/Foundation.txt') 'depends cross-queue'
 		)
 		$features = @(New-Row 'Documents/Features/Foundation.txt' 'Architectural' 5 4 3 @() 'naive cafe')
-		$fixture = New-FixtureRepository 'validate-valid' $plans $features "`r`n" "`n" @{ 'Documents/Plans/Alpha.md' = "# Café 漢字`r`n" }
-		$plansBefore = [IO.File]::ReadAllBytes((Join-Path $fixture.Primary 'Documents/Plans/Order.md'))
-		$featuresBefore = [IO.File]::ReadAllBytes((Join-Path $fixture.Primary 'Documents/Features/Order.md'))
-		$first = Get-Validation $fixture $fixture.Primary
-		$second = Get-Validation $fixture $fixture.Primary
-		Assert-True $first.Json.ok 'Valid fixture did not validate.'
-		Assert-Equal $first.Result.Stdout $second.Result.Stdout 'Valid JSON output was not deterministic.'
-		Assert-Equal @($first.Json.rows).Count 3 'Valid fixture row count differs.'
-		Assert-Bytes (Join-Path $fixture.Primary 'Documents/Plans/Order.md') $plansBefore 'Validate mutated Plans.'
-		Assert-Bytes (Join-Path $fixture.Primary 'Documents/Features/Order.md') $featuresBefore 'Validate mutated Features.'
+		$fixture = New-FixtureRepository 'init-seed' $plans $features "`r`n" "`n" @{ 'Documents/Plans/Alpha.md' = "# Café 漢字`r`n" }
+		$treePlans = [IO.File]::ReadAllBytes((Join-Path $fixture.Primary 'Documents/Plans/Order.md'))
+		$treeFeatures = [IO.File]::ReadAllBytes((Join-Path $fixture.Primary 'Documents/Features/Order.md'))
+		Assert-Bytes (Get-StoreOrderPath $fixture 'Plans') $treePlans 'init did not seed the Plans store byte-for-byte from the tracked Order.md.'
+		Assert-Bytes (Get-StoreOrderPath $fixture 'Features') $treeFeatures 'init did not seed the Features store byte-for-byte from the tracked Order.md.'
+		# init reads the store, not the tree; validate resolves rows from the store and plan files under the worktree.
+		$validation = Get-Validation $fixture $fixture.Primary
+		Assert-True $validation.Json.ok 'Seeded store did not validate.'
+		Assert-Equal @($validation.Json.rows).Count 3 'Seeded store row count differs.'
+		# Idempotent re-init keeps an existing non-empty store without --force: exit 0, alreadyInitialized, no mutation.
+		$reinit = Invoke-Process -FilePath $script:Executable -Arguments @('plan', 'order', 'init', '--repo', $fixture.Common, '--worktree', $fixture.Primary)
+		Assert-Equal $reinit.ExitCode 0 'Idempotent re-init of a non-empty store should exit 0.'
+		Assert-True (($reinit.Stdout | ConvertFrom-Json).alreadyInitialized) 'Idempotent re-init did not report alreadyInitialized.'
+		Assert-Bytes (Get-StoreOrderPath $fixture 'Plans') $treePlans 'Idempotent re-init mutated the Plans store.'
 	}
 
-	Invoke-Case 'validate negative diagnostics' {
-		Assert-Diagnostic 'orphan' { param($root) Set-Utf8File (Join-Path $root 'Documents/Plans/Orphan.md') '# orphan' } @('orphan-plan')
-		Assert-Diagnostic 'missing' { param($root) Remove-Item -LiteralPath (Join-Path $root 'Documents/Plans/A.md') -Force } @('missing-plan-file')
-		Assert-Diagnostic 'duplicate' { param($root) $path=Join-Path $root 'Documents/Plans/Order.md'; $text=[IO.File]::ReadAllText($path); $rows=@($text -split "`n" | Where-Object { $_.StartsWith('| [A.md](A.md) ', [StringComparison]::Ordinal) }); $row=$rows[0].TrimEnd([char] "`r"); Set-Utf8File $path ($text.Replace("$row`n", "$row`n$row`n")) } @('duplicate-plan')
-		Assert-Diagnostic 'score' { param($root) $path=Join-Path $root 'Documents/Plans/Order.md'; $text=[IO.File]::ReadAllText($path); Set-Utf8File $path ($text.Replace('| 2 | 3 | 1 | 0 |', '| 2 | 3 | 1 | 99 |')) } @('invalid-score')
-		Assert-Diagnostic 'malformed' { param($root) $path=Join-Path $root 'Documents/Plans/Order.md'; $text=[IO.File]::ReadAllText($path); Set-Utf8File $path ($text.Replace('| [A.md](A.md) | Small | 2 | 3 | 1 | 0 | - | fixture |', '| malformed |')) } @('malformed-row')
-		Assert-Diagnostic 'unsafe' { param($root) $path=Join-Path $root 'Documents/Plans/Order.md'; $text=[IO.File]::ReadAllText($path); Set-Utf8File $path ($text.Replace('[A.md](A.md)', '[Escape.md](../Escape.md)')) } @('invalid-plan-path')
-		Assert-Diagnostic 'missing-dependency' { param($root) $path=Join-Path $root 'Documents/Plans/Order.md'; $text=[IO.File]::ReadAllText($path); Set-Utf8File $path ($text.Replace('| - | fixture |', '| Documents/Features/Missing.md | fixture |')) } @('missing-dependency')
-		Assert-Diagnostic 'duplicate-dependency' { param($root) $path=Join-Path $root 'Documents/Plans/Order.md'; $text=[IO.File]::ReadAllText($path); Set-Utf8File $path ($text.Replace('| - | fixture |', '| Documents/Features/F.md; Documents/Features/F.md | fixture |')) } @('duplicate-dependency')
-		Assert-Diagnostic 'self-dependency' { param($root) $path=Join-Path $root 'Documents/Plans/Order.md'; $text=[IO.File]::ReadAllText($path); Set-Utf8File $path ($text.Replace('| - | fixture |', '| Documents/Plans/A.md | fixture |')) } @('self-dependency')
-		Assert-Diagnostic 'cycle' { param($root) foreach($relative in @('Documents/Plans/Order.md','Documents/Features/Order.md')) { $path=Join-Path $root $relative; $text=[IO.File]::ReadAllText($path); $dependency=if($relative.StartsWith('Documents/Plans')){'Documents/Features/F.md'}else{'Documents/Plans/A.md'}; Set-Utf8File $path ($text.Replace('| - | fixture |', "| $dependency | fixture |")) } } @('dependency-cycle')
-		Assert-Diagnostic 'reference-overlap' { param($root) $path=Join-Path $root 'Documents/Plans/Order.md'; $text=[IO.File]::ReadAllText($path); Set-Utf8File $path ($text.Replace('[Reference.md](Reference.md)', '[A.md](A.md)')) } @('reference-overlap')
-		Assert-Diagnostic 'missing-reference' { param($root) Remove-Item -LiteralPath (Join-Path $root 'Documents/Plans/Reference.md') -Force } @('missing-reference')
-		Assert-Diagnostic 'invalid-utf8' { param($root) $path=Join-Path $root 'Documents/Plans/Order.md'; Set-RawFile $path ([byte[]](0xff,0xfe,0xfd)) } @('invalid-utf8')
+	Invoke-Case 'init on an empty repository writes an empty-template store that validates' {
+		$fixture = New-FixtureRepository -Name 'init-empty' -NoOrderFiles
+		Assert-True (Test-Path -LiteralPath (Get-StoreOrderPath $fixture 'Plans')) 'init did not create an empty Plans store.'
+		Assert-True (Test-Path -LiteralPath (Get-StoreOrderPath $fixture 'Features')) 'init did not create an empty Features store.'
+		$validation = Get-Validation $fixture $fixture.Primary
+		Assert-True $validation.Json.ok 'Empty-template store did not validate.'
+		Assert-Equal @($validation.Json.rows).Count 0 'Empty-template store reported rows.'
 	}
 
-	Invoke-Case 'add independent sequences and prerequisite chains atomically' {
-		$live = New-Row 'Documents/Features/Live.txt'
-		$fixture = New-FixtureRepository 'add' @() @($live) "`r`n" "`n"
+	Invoke-Case 'validate returns ok with an orphan-plan reported as a non-blocking notice' {
+		$fixture = New-FixtureRepository 'orphan-notice' @((New-Row 'Documents/Plans/A.md')) @()
+		Set-Utf8File (Join-Path $fixture.Primary 'Documents/Plans/Orphan.md') '# orphan'
+		$first = Get-Validation $fixture $fixture.Primary 0
+		$second = Get-Validation $fixture $fixture.Primary 0
+		Assert-Equal $first.Result.Stdout $second.Result.Stdout 'Orphan-notice validate was not byte-deterministic.'
+		Assert-True $first.Json.ok 'Orphan-only validate did not report ok:true.'
+		Assert-Equal @($first.Json.diagnostics).Count 0 'Orphan plan produced a blocking diagnostic.'
+		Assert-True (@($first.Json.notices.code) -ccontains 'orphan-plan') "Orphan plan was not reported as a notice; got '$(@($first.Json.notices.code) -join ', ')'."
+	}
+
+	Invoke-Case 'add sequences publish to the store and re-add is retry-idempotent' {
+		$fixture = New-FixtureRepository 'add-idempotent' @() @((New-Row 'Documents/Features/Live.txt'))
+		# Migration mirror: the queue tables are machine-local post-init, so drop the tracked Order.md files from the
+		# tree before branching the session — production sessions never carry an in-tree Order.md.
+		Invoke-Git $fixture.Primary @('rm', '--quiet', '--', 'Documents/Plans/Order.md', 'Documents/Features/Order.md') | Out-Null
+		Invoke-Git $fixture.Primary @('commit', '-m', 'migrate order files out of the tree') | Out-Null
 		$session = Add-Worktree $fixture 'session'
 		foreach ($entry in @(
 			@('Documents/Plans/First.md', "# First café`r`n"),
 			@('Documents/Features/Second.txt', "Second 漢字`n"),
-			@('Documents/Plans/Third.md', "# Third`n"),
-			@('Documents/Plans/Independent.md', "# Independent`n")
+			@('Documents/Plans/Third.md', "# Third`n")
 		)) { Set-Utf8File (Join-Path $session $entry[0]) $entry[1] }
+		# ConvertTo-Json collapses a single-element outer array, so force the one sequence to
+		# serialize as sequences:[[...]] with the unary array operator.
 		$request = @{
-			schemaVersion = 1; operation = 'add'; sequences = @(
-				@(
-					@{ queue='plans'; plan='Documents/Plans/First.md'; tier='Small'; effort=4; impact=3; risks=1; notes='first | pipe'; dependsOn=@('Documents/Features/Live.txt') },
-					@{ queue='features'; plan='Documents/Features/Second.txt'; tier='Medium'; effort=5; impact=3; risks=2; notes='second'; dependsOn=@() },
-					@{ queue='plans'; plan='Documents/Plans/Third.md'; tier='Large'; effort=7; impact=4; risks=2; notes='third'; dependsOn=@() }
-				),
-				@(@{ queue='plans'; plan='Documents/Plans/Independent.md'; tier='Small'; effort=1; impact=2; risks=1; notes='independent'; dependsOn=@() })
+			schemaVersion = 1; operation = 'add'; sequences = ,@(
+				@{ queue='plans'; plan='Documents/Plans/First.md'; tier='Small'; effort=4; impact=3; risks=1; notes='first | pipe'; dependsOn=@('Documents/Features/Live.txt') },
+				@{ queue='features'; plan='Documents/Features/Second.txt'; tier='Medium'; effort=5; impact=3; risks=2; notes='second'; dependsOn=@() },
+				@{ queue='plans'; plan='Documents/Plans/Third.md'; tier='Large'; effort=7; impact=4; risks=2; notes='third'; dependsOn=@() }
 			)
 		}
 		$requestPath = Write-Request $session 'add' $request
-		$result = Invoke-WorktreeCli ((Get-OrderArguments $fixture 'add' $session) + @('--owner','add-owner','--session','add-session','--request',$requestPath)) 0
-		$json = ConvertFrom-AgentJson $result
+		$addArguments = (Get-OrderArguments $fixture 'add' $session) + @('--owner','add-owner','--session','add-session','--request',$requestPath)
+		$json = ConvertFrom-AgentJson (Invoke-WorktreeCli $addArguments 0)
 		Assert-True ($json.handled -and $json.operation -ceq 'add') 'Add receipt is malformed.'
-		Assert-Equal @($json.unlockResults).Count 2 'Add receipt omitted queue unlock results.'
-		Assert-Equal $json.unlockResults[0].order 'Documents/Plans/Order.md' 'Queues were not released in reverse canonical order.'
-		Assert-Equal $json.unlockResults[1].order 'Documents/Features/Order.md' 'Queues were not released in reverse canonical order.'
-		Assert-True ($json.unlockResults[0].released -and $json.unlockResults[1].released) 'Add did not release both queue locks.'
-		$expectedPlans = @(
-			New-Row 'Documents/Plans/First.md' 'Small' 4 3 1 @('Documents/Features/Live.txt') 'first | pipe'
-			New-Row 'Documents/Plans/Third.md' 'Large' 7 4 2 @('Documents/Features/Second.txt') 'third'
-			New-Row 'Documents/Plans/Independent.md' 'Small' 1 2 1 @() 'independent'
-		)
-		$expectedFeatures = @(
-			$live
-			New-Row 'Documents/Features/Second.txt' 'Medium' 5 3 2 @('Documents/Plans/First.md') 'second'
-		)
-		Assert-Bytes (Join-Path $session 'Documents/Plans/Order.md') $script:Utf8.GetBytes((Get-OrderText 'Plans' $expectedPlans "`r`n" 'Reference.md')) 'Add Plans bytes differ.'
-		Assert-Bytes (Join-Path $session 'Documents/Features/Order.md') $script:Utf8.GetBytes((Get-OrderText 'Features' $expectedFeatures "`n" 'Reference.txt')) 'Add Features bytes differ.'
-		Assert-True (Get-Validation $fixture $session).Json.ok 'Added graph did not validate.'
+		# add writes the machine-local store, never the worktree tree.
+		Assert-True (-not (Test-Path -LiteralPath (Join-Path $session 'Documents/Plans/Order.md'))) 'Add created an in-tree Order.md.'
+		$afterAdd = Get-Validation $fixture $session
+		Assert-True $afterAdd.Json.ok 'Added graph did not validate.'
+		Assert-Equal @($afterAdd.Json.rows | Where-Object plan -CEQ 'Documents/Plans/First.md').Count 1 'Add did not publish the First row.'
 
-		$plansBefore = [IO.File]::ReadAllBytes((Join-Path $session 'Documents/Plans/Order.md'))
-		$featuresBefore = [IO.File]::ReadAllBytes((Join-Path $session 'Documents/Features/Order.md'))
-		Set-Utf8File (Join-Path $session 'Temp/malformed.json') '{broken'
-		Invoke-WorktreeCli ((Get-OrderArguments $fixture 'add' $session) + @('--owner','bad-owner','--session','bad-session','--request','Temp/malformed.json')) 1 | Out-Null
-		Assert-Bytes (Join-Path $session 'Documents/Plans/Order.md') $plansBefore 'Malformed add mutated Plans.'
-		Assert-Bytes (Join-Path $session 'Documents/Features/Order.md') $featuresBefore 'Malformed add mutated Features.'
+		# Identical re-add of the same request is skipped: it succeeds and does not duplicate rows.
+		$storeBefore = [IO.File]::ReadAllBytes((Get-StoreOrderPath $fixture 'Plans'))
+		Invoke-WorktreeCli $addArguments 0 | Out-Null
+		Assert-Bytes (Get-StoreOrderPath $fixture 'Plans') $storeBefore 'Idempotent re-add mutated the Plans store.'
+		$afterReadd = Get-Validation $fixture $session
+		Assert-Equal @($afterReadd.Json.rows | Where-Object plan -CEQ 'Documents/Plans/First.md').Count 1 'Idempotent re-add duplicated the First row.'
+
+		# A mismatched duplicate (same plan identity, different row data) is rejected without mutation.
+		$mismatch = @{ schemaVersion = 1; operation = 'add'; sequences = ,@(@{ queue='plans'; plan='Documents/Plans/First.md'; tier='Large'; effort=9; impact=1; risks=3; notes='mismatched'; dependsOn=@() }) }
+		$mismatchPath = Write-Request $session 'add-mismatch' $mismatch
+		$mismatchResult = Invoke-Process -FilePath $script:Executable -Arguments ((Get-OrderArguments $fixture 'add' $session) + @('--owner','mismatch-owner','--session','mismatch-session','--request',$mismatchPath))
+		Assert-True ($mismatchResult.ExitCode -ne 0) 'A mismatched duplicate add did not error.'
+		Assert-Bytes (Get-StoreOrderPath $fixture 'Plans') $storeBefore 'Mismatched duplicate add mutated the Plans store.'
 	}
 
-	Invoke-Case 'update opaque bytes and reject a claimed multi-update counterpart' {
+	Invoke-Case 'update replaces plan bytes and the store row, and rejects a claimed target with zero mutation' {
 		$rows = @(
 			New-Row 'Documents/Plans/A.md'
 			New-Row 'Documents/Plans/B.md'
 		)
 		$fixture = New-FixtureRepository 'update' $rows @()
 		$session = Add-Worktree $fixture 'session'
-		$stagedA = "# Updated café`r`nline two`r`n"
-		Set-Utf8File (Join-Path $session 'Temp/A.md') $stagedA
+
+		# Successful update: replace A's plan bytes and its store row from a Temp/-staged replacement.
+		$staged = "# Updated café`r`nline two`r`n"
+		Set-Utf8File (Join-Path $session 'Temp/A.md') $staged
+		$rowHashBefore = Get-RowHash $fixture $session 'Documents/Plans/A.md'
 		$request = @{ schemaVersion=1; operation='update'; updates=@(@{
-			plan='Documents/Plans/A.md'; expectedPlanSha256=(Get-Sha256 (Join-Path $session 'Documents/Plans/A.md')); expectedRowSha256=(Get-RowHash $fixture $session 'Documents/Plans/A.md'); stagedContent='Temp/A.md'
+			plan='Documents/Plans/A.md'; expectedPlanSha256=(Get-Sha256 (Join-Path $session 'Documents/Plans/A.md')); expectedRowSha256=$rowHashBefore; stagedContent='Temp/A.md'
 			tier='Medium'; effort=6; impact=4; risks=2; notes='updated | opaque'; dependsOn=@('Documents/Plans/B.md')
 		}) }
 		$requestPath = Write-Request $session 'update-a' $request
 		$json = ConvertFrom-AgentJson (Invoke-WorktreeCli ((Get-OrderArguments $fixture 'update' $session) + @('--owner','update-owner','--session','update-session','--request',$requestPath)) 0)
 		Assert-True ($json.handled -and $json.operation -ceq 'update') 'Update receipt is malformed.'
-		Assert-Bytes (Join-Path $session 'Documents/Plans/A.md') $script:Utf8.GetBytes($stagedA) 'Opaque update bytes changed.'
+		Assert-Bytes (Join-Path $session 'Documents/Plans/A.md') $script:Utf8.GetBytes($staged) 'Update did not replace the worktree plan bytes.'
+		Assert-True ((Get-RowHash $fixture $session 'Documents/Plans/A.md') -cne $rowHashBefore) 'Update did not persist the new row to the store.'
 
+		# A target row claimed by a peer is rejected without mutating the store or the plan bytes.
 		Invoke-RowClaim $fixture 'Documents/Plans/Order.md' 'B.md' 'counterpart-owner' 'counterpart-session' $session
 		try {
-			$plansBefore = [IO.File]::ReadAllBytes((Join-Path $session 'Documents/Plans/Order.md'))
-			$aBefore = [IO.File]::ReadAllBytes((Join-Path $session 'Documents/Plans/A.md'))
+			$storeBefore = [IO.File]::ReadAllBytes((Get-StoreOrderPath $fixture 'Plans'))
 			$bBefore = [IO.File]::ReadAllBytes((Join-Path $session 'Documents/Plans/B.md'))
-			Set-Utf8File (Join-Path $session 'Temp/A2.md') "# A2`n"
-			Set-Utf8File (Join-Path $session 'Temp/B2.md') "# B2`n"
-			$blocked = @{ schemaVersion=1; operation='update'; updates=@(
-				@{ plan='Documents/Plans/A.md'; expectedPlanSha256=(Get-Sha256 (Join-Path $session 'Documents/Plans/A.md')); expectedRowSha256=(Get-RowHash $fixture $session 'Documents/Plans/A.md'); stagedContent='Temp/A2.md'; tier='Small'; effort=2; impact=3; risks=1; notes='A2'; dependsOn=@() },
-				@{ plan='Documents/Plans/B.md'; expectedPlanSha256=(Get-Sha256 (Join-Path $session 'Documents/Plans/B.md')); expectedRowSha256=(Get-RowHash $fixture $session 'Documents/Plans/B.md'); stagedContent='Temp/B2.md'; tier='Small'; effort=2; impact=3; risks=1; notes='B2'; dependsOn=@() }
-			) }
-			$blockedPath = Write-Request $session 'blocked-update' $blocked
+			Set-Utf8File (Join-Path $session 'Temp/B.md') "# B updated`n"
+			$blocked = @{ schemaVersion=1; operation='update'; updates=@(@{
+				plan='Documents/Plans/B.md'; expectedPlanSha256=(Get-Sha256 (Join-Path $session 'Documents/Plans/B.md')); expectedRowSha256=(Get-RowHash $fixture $session 'Documents/Plans/B.md'); stagedContent='Temp/B.md'
+				tier='Small'; effort=2; impact=3; risks=1; notes='B'; dependsOn=@()
+			}) }
+			$blockedPath = Write-Request $session 'update-b-blocked' $blocked
 			$conflict = ConvertFrom-AgentJson (Invoke-WorktreeCli ((Get-OrderArguments $fixture 'update' $session) + @('--owner','blocked-owner','--session','blocked-session','--request',$blockedPath)) 2)
-			Assert-Equal $conflict.conflict 'claimed' 'Claimed counterpart did not report claimed conflict.'
-			Assert-Bytes (Join-Path $session 'Documents/Plans/Order.md') $plansBefore 'Claimed counterpart changed Order.'
-			Assert-Bytes (Join-Path $session 'Documents/Plans/A.md') $aBefore 'Claimed counterpart partially updated A.'
-			Assert-Bytes (Join-Path $session 'Documents/Plans/B.md') $bBefore 'Claimed counterpart partially updated B.'
+			Assert-Equal $conflict.conflict 'claimed' 'Claimed target did not report a claimed conflict.'
+			Assert-Bytes (Get-StoreOrderPath $fixture 'Plans') $storeBefore 'Claimed-target update mutated the store.'
+			Assert-Bytes (Join-Path $session 'Documents/Plans/B.md') $bBefore 'Claimed-target update mutated the plan bytes.'
 		}
 		finally { Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'B.md' 'counterpart-owner' }
 	}
 
-	Invoke-Case 'update permits only the exact selected-plan claimant' {
-		$fixture = New-FixtureRepository 'claimed-update' @(New-Row 'Documents/Plans/A.md') @()
+	Invoke-Case 'claim-next succeeds with a dirty session worktree' {
+		$fixture = New-FixtureRepository 'claim-dirty' @((New-Row 'Documents/Plans/A.md')) @()
 		$session = Add-Worktree $fixture 'session'
-		$peer = Add-Worktree $fixture 'peer'
-		$claim = Invoke-ClaimNext $fixture $session 'amend-owner' 'plans' 0
-		Assert-Equal $claim.Json.plan 'Documents/Plans/A.md' 'Claim selected the wrong plan for amendment.'
-
-		$staged = "# Amended`n"
-		Set-Utf8File (Join-Path $session 'Temp/A-amended.md') $staged
-		$request = @{ schemaVersion=1; operation='update'; updates=@(@{
-			plan='Documents/Plans/A.md'; expectedPlanSha256=(Get-Sha256 (Join-Path $session 'Documents/Plans/A.md')); expectedRowSha256=(Get-RowHash $fixture $session 'Documents/Plans/A.md'); stagedContent='Temp/A-amended.md'
-			tier='Small'; effort=2; impact=3; risks=1; notes='amended by claimant'; dependsOn=@()
-		}) }
-		$requestPath = Write-Request $session 'claimed-update' $request
-		$json = ConvertFrom-AgentJson (Invoke-WorktreeCli ((Get-OrderArguments $fixture 'update' $session) + @('--owner','amend-owner','--session','session-amend-owner','--request',$requestPath)) 0)
-		Assert-True ($json.handled -and $json.operation -ceq 'update') 'Claimant update receipt is malformed.'
-		Assert-Bytes (Join-Path $session 'Documents/Plans/A.md') $script:Utf8.GetBytes($staged) 'Claimant update did not replace the plan bytes.'
-		$status = ConvertFrom-AgentJson (Invoke-WorktreeCli @('plan','row','status','--repo',$fixture.Common,'--order','Documents/Plans/Order.md','--plan','A.md','--owner','amend-owner') 0)
-		Assert-True $status.ownedByRequester 'Claimant update released the selected row claim.'
-
-		$sessionBefore = [IO.File]::ReadAllBytes((Join-Path $session 'Documents/Plans/A.md'))
-		$wrongSession = Invoke-WorktreeCli ((Get-OrderArguments $fixture 'update' $session) + @('--owner','amend-owner','--session','other-session','--request',$requestPath)) 2
-		Assert-Equal (ConvertFrom-AgentJson $wrongSession).conflict 'claimed' 'Different session bypassed the selected row claim.'
-		Assert-Bytes (Join-Path $session 'Documents/Plans/A.md') $sessionBefore 'Different session changed claimant plan bytes.'
-
-		Set-Utf8File (Join-Path $peer 'Temp/A-peer.md') "# Peer`n"
-		$peerRequest = @{ schemaVersion=1; operation='update'; updates=@(@{
-			plan='Documents/Plans/A.md'; expectedPlanSha256=(Get-Sha256 (Join-Path $peer 'Documents/Plans/A.md')); expectedRowSha256=(Get-RowHash $fixture $peer 'Documents/Plans/A.md'); stagedContent='Temp/A-peer.md'
-			tier='Small'; effort=2; impact=3; risks=1; notes='peer'; dependsOn=@()
-		}) }
-		$peerRequestPath = Write-Request $peer 'claimed-update-peer' $peerRequest
-		$wrongWorktree = Invoke-WorktreeCli ((Get-OrderArguments $fixture 'update' $peer) + @('--owner','amend-owner','--session','session-amend-owner','--request',$peerRequestPath)) 2
-		Assert-Equal (ConvertFrom-AgentJson $wrongWorktree).conflict 'claimed' 'Different worktree bypassed the selected row claim.'
-		Assert-True (Get-Validation $fixture $peer).Json.ok 'Different worktree update changed queue state.'
+		# Dirty the tree with unrelated changes; the queue is machine-local, so the clean-tree gate is gone.
+		Set-Utf8File (Join-Path $session 'Dirty.txt') "unstaged untracked change`n"
+		Set-Utf8File (Join-Path $session 'Documents/Plans/Reference.md') "# changed reference`n"
+		$claim = Invoke-ClaimNext $fixture $session 'dirty-owner' 'plans' 0
+		Assert-Equal $claim.Json.plan 'Documents/Plans/A.md' 'Dirty-tree claim selected the wrong plan.'
+		Assert-True $claim.Json.claimed 'Dirty-tree claim did not create a row claim.'
+		Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'A.md' 'dirty-owner'
 	}
 
 	Invoke-Case 'claim concurrency, claimed prerequisite blocking, and owner mismatch' {
@@ -487,10 +489,10 @@ try {
 		Assert-True (@($blocked.Json.blockers[0].dependencies) -ccontains 'Documents/Plans/A.md') 'Dependent blocker omitted its prerequisite.'
 		$c = Invoke-ClaimNext $fixture $two 'owner-c' 'plans' 0
 		Assert-Equal $c.Json.plan 'Documents/Plans/C.md' 'Automatic claim did not skip blocked rows.'
-		$plansBefore = [IO.File]::ReadAllBytes((Join-Path $one 'Documents/Plans/Order.md'))
+		$storeBefore = [IO.File]::ReadAllBytes((Get-StoreOrderPath $fixture 'Plans'))
 		$mismatch = ConvertFrom-AgentJson (Invoke-WorktreeCli ((Get-OrderArguments $fixture 'complete' $one) + @('--owner','wrong-owner','--session','wrong-session','--plan','Documents/Plans/A.md')) 2)
 		Assert-Equal $mismatch.conflict 'owner-mismatch' 'Complete owner mismatch was not reported.'
-		Assert-Bytes (Join-Path $one 'Documents/Plans/Order.md') $plansBefore 'Owner mismatch mutated Order.'
+		Assert-Bytes (Get-StoreOrderPath $fixture 'Plans') $storeBefore 'Owner mismatch mutated the store.'
 		Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'A.md' 'owner-a'
 		Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'C.md' 'owner-c'
 	}
@@ -532,42 +534,29 @@ try {
 		Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'B.md' 'skip-owner'
 	}
 
-	Invoke-Case 'complete prunes edges, reapplies idempotently, and rolls back exact bytes' {
+	Invoke-Case 'complete tolerates an already-deleted plan file and leaves other plan files untouched' {
 		$rows = @(
 			New-Row 'Documents/Plans/A.md'
 			New-Row 'Documents/Plans/B.md' 'Small' 2 3 1 @('Documents/Plans/A.md')
 		)
-		$fixture = New-FixtureRepository 'complete' $rows @()
+		$fixture = New-FixtureRepository 'complete-absent' $rows @()
 		$session = Add-Worktree $fixture 'session'
 		Invoke-RowClaim $fixture 'Documents/Plans/Order.md' 'A.md' 'complete-owner' 'complete-session' $session
+		# Phase 1 already git-rm'd the plan file in the session; complete runs against the store with the file absent.
+		Invoke-Git $session @('rm', '--', 'Documents/Plans/A.md') | Out-Null
+		$bPath = Join-Path $session 'Documents/Plans/B.md'
+		$bBefore = [IO.File]::ReadAllBytes($bPath)
 		$result = ConvertFrom-AgentJson (Invoke-WorktreeCli ((Get-OrderArguments $fixture 'complete' $session) + @('--owner','complete-owner','--session','complete-session','--plan','Documents/Plans/A.md')) 0)
-		Assert-True ($result.handled -and -not $result.reapply) 'Complete receipt is malformed.'
-		Assert-True (-not (Test-Path -LiteralPath (Join-Path $session 'Documents/Plans/A.md'))) 'Complete retained the plan file.'
-		$expected = Get-OrderText 'Plans' @(New-Row 'Documents/Plans/B.md') "`n" 'Reference.md'
-		Assert-Bytes (Join-Path $session 'Documents/Plans/Order.md') $script:Utf8.GetBytes($expected) 'Complete did not prune exact row/edge bytes.'
-		$beforeReapply = [IO.File]::ReadAllBytes((Join-Path $session 'Documents/Plans/Order.md'))
-		$reapply = ConvertFrom-AgentJson (Invoke-WorktreeCli ((Get-OrderArguments $fixture 'complete' $session) + @('--owner','complete-owner','--session','complete-session','--plan','Documents/Plans/A.md','--reapply')) 0)
-		Assert-True $reapply.reapply 'Reapply receipt did not identify reapply.'
-		Assert-Bytes (Join-Path $session 'Documents/Plans/Order.md') $beforeReapply 'Reapply was not byte-idempotent.'
+		Assert-True $result.handled 'Complete with an absent plan file did not succeed.'
+		Assert-Bytes $bPath $bBefore 'Complete deleted or modified an unrelated plan file.'
+		$validation = Get-Validation $fixture $session
+		Assert-True $validation.Json.ok 'Post-completion validate did not report ok.'
+		Assert-Equal @($validation.Json.rows | Where-Object plan -CEQ 'Documents/Plans/A.md').Count 0 'Complete did not remove the row from the store.'
+		Assert-Equal @($validation.Json.rows | Where-Object plan -CEQ 'Documents/Plans/B.md').Count 1 'Complete pruned an unrelated row.'
 		Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'A.md' 'complete-owner'
-
-		$rollbackFixture = New-FixtureRepository 'complete-rollback' $rows @()
-		$rollbackSession = Add-Worktree $rollbackFixture 'session'
-		Invoke-RowClaim $rollbackFixture 'Documents/Plans/Order.md' 'A.md' 'rollback-owner' 'rollback-session' $rollbackSession
-		$plansBefore = [IO.File]::ReadAllBytes((Join-Path $rollbackSession 'Documents/Plans/Order.md'))
-		$featuresPath = Join-Path $rollbackSession 'Documents/Features/Order.md'
-		$featuresBefore = [IO.File]::ReadAllBytes($featuresPath)
-		$planBefore = [IO.File]::ReadAllBytes((Join-Path $rollbackSession 'Documents/Plans/A.md'))
-		[IO.File]::SetAttributes($featuresPath, [IO.FileAttributes]::ReadOnly)
-		try { Invoke-WorktreeCli ((Get-OrderArguments $rollbackFixture 'complete' $rollbackSession) + @('--owner','rollback-owner','--session','rollback-session','--plan','Documents/Plans/A.md')) 1 | Out-Null }
-		finally { [IO.File]::SetAttributes($featuresPath, [IO.FileAttributes]::Normal) }
-		Assert-Bytes (Join-Path $rollbackSession 'Documents/Plans/Order.md') $plansBefore 'Rollback did not restore Plans bytes.'
-		Assert-Bytes $featuresPath $featuresBefore 'Rollback changed Features bytes.'
-		Assert-Bytes (Join-Path $rollbackSession 'Documents/Plans/A.md') $planBefore 'Rollback deleted the plan file.'
-		Invoke-RowUnclaim $rollbackFixture 'Documents/Plans/Order.md' 'A.md' 'rollback-owner'
 	}
 
-	Invoke-Case 'stale session cannot reclaim after completion lands' {
+	Invoke-Case 'stale session cannot reclaim after a completion lands' {
 		$fixture = New-FixtureRepository -Name 'stale' -PlansRows @((New-Row 'Documents/Plans/A.md'), (New-Row 'Documents/Plans/B.md')) -FeaturesRows @()
 		$worker = Add-Worktree $fixture 'worker'
 		$stale = Add-Worktree $fixture 'stale'
@@ -575,11 +564,13 @@ try {
 		Assert-True $a.Json.claimed 'Worker did not claim A.'
 		$preLanding = Invoke-ClaimNext $fixture $stale 'prelanding-owner' 'plans' 2 'Documents/Plans/A.md'
 		Assert-Equal $preLanding.Json.reason 'explicit-plan-blocked-or-missing' 'Pre-landing peer did not observe the live claim.'
-		Invoke-WorktreeCli ((Get-OrderArguments $fixture 'complete' $worker) + @('--owner','landing-owner','--session','landing-session','--plan','Documents/Plans/A.md')) 0 | Out-Null
-		Invoke-Git $worker @('add', '--all') | Out-Null
+		# Phase 1 deletes the plan file in the worker; the completion then lands by advancing primary.
+		Invoke-Git $worker @('rm', '--', 'Documents/Plans/A.md') | Out-Null
 		Invoke-Git $worker @('commit', '-m', 'complete A') | Out-Null
 		$completedCommit = Invoke-Git $worker @('rev-parse', 'HEAD')
 		Invoke-Git $fixture.Primary @('merge', '--ff-only', $completedCommit) | Out-Null
+		# Phase 2 removes the row from the store against the advanced primary, then releases the claim.
+		Invoke-WorktreeCli @('plan', 'order', 'complete', '--repo', $fixture.Common, '--worktree', $fixture.Primary, '--owner', 'landing-owner', '--session', 'landing-session', '--plan', 'Documents/Plans/A.md') 0 | Out-Null
 		Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'A.md' 'landing-owner'
 		$staleResult = Invoke-ClaimNext $fixture $stale 'stale-owner' 'plans' 2
 		Assert-Equal $staleResult.Json.reason 'stale-session' 'Old worktree was not rejected as stale.'
@@ -590,114 +581,74 @@ try {
 		$missing = Invoke-ClaimNext $fixture $current 'missing-owner' 'plans' 2 'Documents/Plans/A.md'
 		Assert-Equal $missing.Json.reason 'explicit-plan-blocked-or-missing' 'Completed plan was resurrected.'
 	}
-
-	Invoke-Case 'finalize landing holds landing then queues across primary advance and unwinds failures' {
-		foreach ($injection in @('pre-advance', 'post-advance')) {
-			$fixture = New-FixtureRepository "finalize-$injection" @(New-Row 'Documents/Plans/A.md') @()
-			$advance = Add-Worktree $fixture 'advance'
-			Set-Utf8File (Join-Path $advance 'Documents/Plans/B.md') "# B`n"
-			Set-Utf8File (Join-Path $advance 'Documents/Plans/Order.md') (Get-OrderText 'Plans' @((New-Row 'Documents/Plans/A.md'), (New-Row 'Documents/Plans/B.md')) "`n" 'Reference.md')
-			Invoke-Git $advance @('add', '--all') | Out-Null
-			Invoke-Git $advance @('commit', '-m', 'queue-changing advance') | Out-Null
-			$verifiedCommit = Invoke-Git $advance @('rev-parse', 'HEAD')
-			$baselineCommit = Invoke-Git $fixture.Primary @('rev-parse', 'HEAD')
-			$observer = Add-Worktree $fixture 'observer'
-			$owner = "finalize-$injection-owner"
-			$session = "finalize-$injection-session"
-			$events = [Collections.Generic.List[string]]::new()
-			$acquiredQueues = [Collections.Generic.List[string]]::new()
-			$landingHeld = $false
-			$caughtInjection = $false
-			try {
-				Invoke-WorktreeCli @('lock','claim','--repo',$fixture.Common,'--owner',$owner,'--session',$session,'--worktree',$advance,'--lease-seconds','3600') 0 | Out-Null
-				$landingHeld = $true
-				$events.Add('claim-landing')
-				$landingStatus = ConvertFrom-AgentJson (Invoke-WorktreeCli @('lock','status','--repo',$fixture.Common) 0)
-				Assert-Equal $landingStatus.owner $owner 'Landing lock owner mismatch before queue acquisition.'
-
-				foreach ($order in @('Documents/Features/Order.md', 'Documents/Plans/Order.md')) {
-					Invoke-QueueLock $fixture $order $owner $session $advance | Out-Null
-					$acquiredQueues.Add($order)
-					$events.Add("claim-$order")
-					$status = ConvertFrom-AgentJson (Invoke-WorktreeCli @('plan','queue','status','--repo',$fixture.Common,'--order',$order,'--owner',$owner) 0)
-					Assert-True ($status.owner -ceq $owner -and $status.ownedByRequester) "Queue '$order' was not owned after acquisition."
-				}
-
-				$claimArguments = @('plan','order','claim-next','--repo',$fixture.Common,'--primary-worktree',$fixture.Primary,'--worktree',$observer,'--branch',$fixture.Branch,'--owner',"observer-$injection",'--session',"observer-$injection",'--queue','plans')
-				$blockedBefore = ConvertFrom-AgentJson (Invoke-WorktreeCli $claimArguments 2)
-				Assert-Equal $blockedBefore.reason 'already-locked' 'Concurrent claim-next was not excluded before primary ref advance.'
-				$events.Add('claim-next-blocked-before')
-				if ($injection -ceq 'pre-advance') { throw 'injected pre-advance failure' }
-
-				Invoke-Git $fixture.Primary @('rebase', $verifiedCommit) | Out-Null
-				$events.Add('advance-primary')
-				$staleAfter = ConvertFrom-AgentJson (Invoke-WorktreeCli $claimArguments 2)
-				Assert-Equal $staleAfter.reason 'stale-session' 'Post-advance observer was not rejected as stale.'
-				$events.Add('claim-next-stale-after')
-				throw 'injected post-advance failure'
-			}
-			catch {
-				Assert-Equal $_.Exception.Message "injected $injection failure" 'Finalize fixture failed for a reason other than the injected failure.'
-				$caughtInjection = $true
-			}
-			finally {
-				for ($index = $acquiredQueues.Count - 1; $index -ge 0; --$index) {
-					$order = $acquiredQueues[$index]
-					$status = ConvertFrom-AgentJson (Invoke-WorktreeCli @('plan','queue','status','--repo',$fixture.Common,'--order',$order,'--owner',$owner) 0)
-					Assert-True ($status.owner -ceq $owner -and $status.ownedByRequester) "Queue '$order' changed owner before safe-stop."
-					Invoke-QueueUnlock $fixture $order $owner
-					$events.Add("release-$order")
-				}
-				if ($landingHeld) {
-					$landingStatus = ConvertFrom-AgentJson (Invoke-WorktreeCli @('lock','status','--repo',$fixture.Common) 0)
-					Assert-Equal $landingStatus.owner $owner 'Landing lock changed owner before safe-stop.'
-					Invoke-WorktreeCli @('lock','release','--repo',$fixture.Common,'--owner',$owner) 0 | Out-Null
-					$events.Add('release-landing')
-				}
-			}
-
-			Assert-True $caughtInjection "The $injection injection was not exercised."
-			$expectedEvents = if ($injection -ceq 'pre-advance') {
-				@('claim-landing','claim-Documents/Features/Order.md','claim-Documents/Plans/Order.md','claim-next-blocked-before','release-Documents/Plans/Order.md','release-Documents/Features/Order.md','release-landing')
-			} else {
-				@('claim-landing','claim-Documents/Features/Order.md','claim-Documents/Plans/Order.md','claim-next-blocked-before','advance-primary','claim-next-stale-after','release-Documents/Plans/Order.md','release-Documents/Features/Order.md','release-landing')
-			}
-			Assert-Equal ($events -join '|') ($expectedEvents -join '|') "The $injection lock/ref event order was incorrect."
-			foreach ($order in @('Documents/Features/Order.md', 'Documents/Plans/Order.md')) {
-				$status = ConvertFrom-AgentJson (Invoke-WorktreeCli @('plan','queue','status','--repo',$fixture.Common,'--order',$order) 2)
-				Assert-True (-not $status.held) "The $injection safe-stop retained queue '$order'."
-			}
-			$landingStatus = ConvertFrom-AgentJson (Invoke-WorktreeCli @('lock','status','--repo',$fixture.Common) 2)
-			Assert-True (-not $landingStatus.held) "The $injection safe-stop retained the landing lock."
-			$expectedPrimary = if ($injection -ceq 'pre-advance') { $baselineCommit } else { $verifiedCommit }
-			Assert-Equal (Invoke-Git $fixture.Primary @('rev-parse', 'HEAD')) $expectedPrimary "The $injection primary ref result was incorrect."
-
-			if ($injection -ceq 'post-advance') {
-				$current = Add-Worktree $fixture 'current'
-				$currentClaim = Invoke-ClaimNext $fixture $current 'post-advance-current-owner' 'plans' 0
-				Assert-Equal $currentClaim.Json.plan 'Documents/Plans/A.md' 'Post-advance claim-next did not return the public canonical plan identity.'
-				Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'A.md' 'post-advance-current-owner'
-			}
-		}
+	Invoke-Case 'torn complete heals a dangling cross-queue dependency edge on rerun' {
+		# Cross-queue dependent F (features) depends on X (plans).
+		$fixture = New-FixtureRepository 'torn-complete' @((New-Row 'Documents/Plans/X.md')) @((New-Row 'Documents/Features/F.txt' 'Small' 2 3 1 @('Documents/Plans/X.md')))
+		Invoke-RowClaim $fixture 'Documents/Plans/Order.md' 'X.md' 'complete-owner' 'complete-session' $fixture.Primary
+		# Simulate a torn phase-2 completion crash artifact: X's row is gone from the Plans store bytes while
+		# X's owner claim survives. Direct store byte edits are allowed here to model the crash artifact.
+		$plansStore = Get-StoreOrderPath $fixture 'Plans'
+		$torn = ([IO.File]::ReadAllText($plansStore, $script:Utf8) -split "`n" | Where-Object { -not $_.StartsWith('| [X.md](X.md) |', [StringComparison]::Ordinal) }) -join "`n"
+		[IO.File]::WriteAllText($plansStore, $torn, $script:Utf8)
+		# The dangling edge (F depends on the now-absent X) is a blocking diagnostic until the rerun heals it.
+		$tornValidation = Get-Validation $fixture $fixture.Primary 2
+		Assert-True (@($tornValidation.Json.diagnostics.code) -ccontains 'missing-dependency') 'Torn store did not surface the dangling dependency.'
+		# Rerun complete X: exempts the dangling-edge diagnostic, strips the edge, tolerates the absent row.
+		$result = ConvertFrom-AgentJson (Invoke-WorktreeCli ((Get-OrderArguments $fixture 'complete' $fixture.Primary) + @('--owner','complete-owner','--session','complete-session','--plan','Documents/Plans/X.md')) 0)
+		Assert-True $result.handled 'Torn complete rerun did not heal.'
+		$healed = Get-Validation $fixture $fixture.Primary
+		Assert-True $healed.Json.ok 'Healed queue did not validate ok:true (dangling edge survived).'
+		Assert-Equal @($healed.Json.rows | Where-Object plan -CEQ 'Documents/Features/F.txt').Count 1 'Healed queue lost the dependent row.'
+		Invoke-RowUnclaim $fixture 'Documents/Plans/Order.md' 'X.md' 'complete-owner'
 	}
 
-	Invoke-Case 'queue-lock contention fails without repository mutation' {
-		$fixture = New-FixtureRepository 'contention' @(New-Row 'Documents/Plans/A.md') @()
+	Invoke-Case 'torn cross-queue add heals a half-written store on rerun' {
+		$fixture = New-FixtureRepository 'torn-add' @() @()
 		$session = Add-Worktree $fixture 'session'
-		$plansBefore = [IO.File]::ReadAllBytes((Join-Path $session 'Documents/Plans/Order.md'))
-		$featuresBefore = [IO.File]::ReadAllBytes((Join-Path $session 'Documents/Features/Order.md'))
-		Invoke-QueueLock $fixture 'Documents/Plans/Order.md' 'blocker-owner' 'blocker-session' $session | Out-Null
-		try {
-			$arguments = @('plan', 'order', 'claim-next', '--repo', $fixture.Common, '--primary-worktree', $fixture.Primary, '--worktree', $session, '--branch', $fixture.Branch, '--owner', 'contended-claim', '--session', 'contended-session', '--queue', 'plans')
-			$claim = ConvertFrom-AgentJson (Invoke-WorktreeCli $arguments 2)
-			Assert-Equal $claim.reason 'already-locked' 'Contended claim did not report the held queue lock.'
-			$featuresStatus = ConvertFrom-AgentJson (Invoke-WorktreeCli @('plan','queue','status','--repo',$fixture.Common,'--order','Documents/Features/Order.md') 2)
-			Assert-True (-not $featuresStatus.held) 'Partial acquisition failure retained the earlier Features queue lock.'
-		}
-		finally { Invoke-QueueUnlock $fixture 'Documents/Plans/Order.md' 'blocker-owner' }
-		Assert-Bytes (Join-Path $session 'Documents/Plans/Order.md') $plansBefore 'Contention mutated Plans.'
-		Assert-Bytes (Join-Path $session 'Documents/Features/Order.md') $featuresBefore 'Contention mutated Features.'
+		Set-Utf8File (Join-Path $session 'Documents/Features/Q.txt') "Q predecessor`n"
+		Set-Utf8File (Join-Path $session 'Documents/Plans/P.md') "# P dependent`n"
+		# Sequence: features predecessor Q then plans dependent P, so P gains Q as an implicit predecessor edge.
+		$request = @{ schemaVersion=1; operation='add'; sequences = ,@(
+			@{ queue='features'; plan='Documents/Features/Q.txt'; tier='Small'; effort=2; impact=3; risks=1; notes='predecessor'; dependsOn=@() },
+			@{ queue='plans'; plan='Documents/Plans/P.md'; tier='Small'; effort=2; impact=3; risks=1; notes='dependent'; dependsOn=@() }
+		) }
+		$requestPath = Write-Request $session 'torn-add' $request
+		$addArguments = (Get-OrderArguments $fixture 'add' $session) + @('--owner','add-owner','--session','add-session','--request',$requestPath)
+		# Capture the empty Features store, run the full add (WorktreeCli renders P's dependency edge), then simulate
+		# a torn add where only the Plans half was written: restore Features to its pre-add bytes so Q is absent.
+		# Direct store byte edits are allowed here to model the crash artifact.
+		$featuresEmpty = [IO.File]::ReadAllBytes((Get-StoreOrderPath $fixture 'Features'))
+		Invoke-WorktreeCli $addArguments 0 | Out-Null
+		[IO.File]::WriteAllBytes((Get-StoreOrderPath $fixture 'Features'), $featuresEmpty)
+		$tornValidation = Get-Validation $fixture $session 2
+		Assert-True (@($tornValidation.Json.diagnostics.code) -ccontains 'missing-dependency') 'Torn add store did not surface the dangling dependency.'
+		# Rerun the SAME add request: exempts missing-dependency/duplicate-plan for the request plans and rewrites both halves.
+		$result = ConvertFrom-AgentJson (Invoke-WorktreeCli $addArguments 0)
+		Assert-True ($result.handled -and $result.operation -ceq 'add') 'Torn add rerun did not heal.'
+		$healed = Get-Validation $fixture $session
+		Assert-True $healed.Json.ok 'Healed add queue did not validate ok:true.'
+		Assert-Equal @($healed.Json.rows | Where-Object plan -CEQ 'Documents/Plans/P.md').Count 1 'Healed add is missing the plans dependent.'
+		Assert-Equal @($healed.Json.rows | Where-Object plan -CEQ 'Documents/Features/Q.txt').Count 1 'Healed add is missing the features predecessor.'
 	}
+
+	Invoke-Case 'init --force refuses while a plan-queue lock is held and leaves the store unchanged' {
+		$fixture = New-FixtureRepository 'init-locked' @((New-Row 'Documents/Plans/A.md')) @()
+		$plansBefore = [IO.File]::ReadAllBytes((Get-StoreOrderPath $fixture 'Plans'))
+		$featuresBefore = [IO.File]::ReadAllBytes((Get-StoreOrderPath $fixture 'Features'))
+		Invoke-QueueLock $fixture 'Documents/Plans/Order.md' 'lock-owner' 'lock-session' $fixture.Primary | Out-Null
+		try {
+			$refused = Invoke-Process -FilePath $script:Executable -Arguments @('plan', 'order', 'init', '--repo', $fixture.Common, '--worktree', $fixture.Primary, '--force')
+			Assert-Equal $refused.ExitCode 2 'init --force did not refuse with a state conflict while the queue was locked.'
+			Assert-True ($refused.Stderr.IndexOf('queue mutation in flight', [StringComparison]::OrdinalIgnoreCase) -ge 0) 'init refusal did not report the in-flight queue mutation.'
+			Assert-Bytes (Get-StoreOrderPath $fixture 'Plans') $plansBefore 'Refused init mutated the Plans store.'
+			Assert-Bytes (Get-StoreOrderPath $fixture 'Features') $featuresBefore 'Refused init mutated the Features store.'
+		}
+		finally { Invoke-QueueUnlock $fixture 'Documents/Plans/Order.md' 'lock-owner' }
+		# With the lock released, init --force reseeds from the unchanged tree Order.md to identical bytes.
+		Invoke-WorktreeCli @('plan', 'order', 'init', '--repo', $fixture.Common, '--worktree', $fixture.Primary, '--force') 0 | Out-Null
+		Assert-Bytes (Get-StoreOrderPath $fixture 'Plans') $plansBefore 'Reseed after unlock changed the Plans store.'
+	}
+
 }
 finally {
 	Clear-TrackedQueueLocks
@@ -710,6 +661,8 @@ finally {
 			Write-Warning "Could not release tracked row claim '$($claim.Plan)' for '$($claim.Owner)': $($_.Exception.Message)"
 		}
 	}
+	if ($null -eq $script:OriginalLocalAppData) { [Environment]::SetEnvironmentVariable('LOCALAPPDATA', $null) }
+	else { $env:LOCALAPPDATA = $script:OriginalLocalAppData }
 	if (Test-Path -LiteralPath $script:FixtureRoot) {
 		Get-ChildItem -LiteralPath $script:FixtureRoot -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
 			if (-not $_.PSIsContainer -and ($_.Attributes -band [IO.FileAttributes]::ReadOnly)) { $_.Attributes = [IO.FileAttributes]::Normal }

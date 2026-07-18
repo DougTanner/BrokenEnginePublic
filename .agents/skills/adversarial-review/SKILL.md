@@ -49,6 +49,7 @@ surfaces include:
 - Determinism: float-op ordering, RNG draw-count changes, phase placement (Update vs PostRender), anything CRC'd
 - Edge paths: empty input, first/last tick, count==0/1/max, failed I/O, client-only vs server-only build reachability
 - Interactions the implementer wouldn't have tested: the change plus an existing feature, save/load round-trip, cell transfer
+- Newly legal states: code elsewhere that assumed a configuration impossible which the change now legitimizes (e.g. a fallback path behind a deleted `ASSERT(false)`), traced under the now-legal state within the authorized trace scope
 
 Scale trace depth to the authorized risk trigger: a one-line fix in isolated
 code does not warrant sweeping every subsystem; a semantics change to a shared

@@ -3,7 +3,7 @@ name: implement-plan
 description: >-
   Implement an assigned slice of an approved Broken Engine plan, then audit the
   implementation's assumptions in the same context before handing it off. Use
-  for C++ Change Workflow implementation subagents, including disjoint
+  for Change Workflow implementation subagents, including disjoint
   plan slices. Also use after making changes when asked "audit your
   assumptions", "what are you least confident about", or "what did you not
   verify"; in that case run the audit phase against the changes already made.

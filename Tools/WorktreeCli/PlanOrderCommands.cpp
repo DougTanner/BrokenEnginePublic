@@ -31,6 +31,9 @@ namespace toolcli
 		constexpr std::wstring_view kPlansOrderDefault = L"Documents/Plans/Order.md";
 		constexpr std::wstring_view kFeaturesOrderDefault = L"Documents/Features/Order.md";
 		constexpr std::string_view kTableHeader = "| Plan | Tier | Effort | Impact | Risks | Score | Depends On | Notes |";
+		constexpr std::string_view kTableSeparator = "|------|------|--------|--------|-------|-------|------------|-------|";
+		constexpr std::wstring_view kPlansStoreFile = L"Plans-Order.md";
+		constexpr std::wstring_view kFeaturesStoreFile = L"Features-Order.md";
 
 		struct Arguments
 		{
@@ -45,7 +48,7 @@ namespace toolcli
 			std::wstring request;
 			std::wstring plansOrder = std::wstring(kPlansOrderDefault);
 			std::wstring featuresOrder = std::wstring(kFeaturesOrderDefault);
-			bool bReapply = false;
+			bool bForce = false;
 		};
 
 		struct Diagnostic
@@ -90,6 +93,9 @@ namespace toolcli
 			std::unordered_map<std::string, Row*> byPlan;
 			std::vector<std::string> sortedPlans;
 			std::vector<Diagnostic> diagnostics;
+			// Informational findings (orphan-plan) that never affect ok/exit; a session's newly written plan files
+			// and a fresh empty store legitimately have unlisted plan documents until rows publish at landing.
+			std::vector<Diagnostic> notices;
 		};
 
 		struct WorktreeInfo
@@ -172,9 +178,9 @@ namespace toolcli
 			for (int i = 4; i < iArgumentCount; ++i)
 			{
 				const std::wstring_view argument = pArgumentValues[i];
-				if (argument == L"--reapply")
+				if (argument == L"--force")
 				{
-					rArguments.bReapply = true;
+					rArguments.bForce = true;
 					continue;
 				}
 				std::wstring* pDestination = nullptr;
@@ -468,6 +474,11 @@ namespace toolcli
 		void AddDiagnostic(QueueState& rState, std::string path, int iLine, std::string code, std::string message)
 		{
 			rState.diagnostics.push_back({ std::move(path), iLine, std::move(code), std::move(message) });
+		}
+
+		void AddNotice(QueueState& rState, std::string path, int iLine, std::string code, std::string message)
+		{
+			rState.notices.push_back({ std::move(path), iLine, std::move(code), std::move(message) });
 		}
 
 		std::vector<std::string> SplitRowCells(std::string_view line)
@@ -856,7 +867,7 @@ namespace toolcli
 					}
 					if (!indexed.contains(identity) && !references.contains(identity))
 					{
-						AddDiagnostic(rState, identity, 0, "orphan-plan", "plan-like document is neither executable nor reference-only");
+						AddNotice(rState, identity, 0, "orphan-plan", "plan-like document is neither executable nor reference-only");
 					}
 				}
 				if (error)
@@ -866,7 +877,23 @@ namespace toolcli
 			}
 		}
 
-		bool LoadQueueState(const std::wstring& rWorktree, const Arguments& rArguments, const std::optional<std::string>& rPlansBytes, const std::optional<std::string>& rFeaturesBytes, const std::set<std::string>& rIgnoredOrphans, QueueState& rState)
+		std::optional<std::filesystem::path> QueueStoreDirectory(const std::wstring& rRepository)
+		{
+			const std::optional<std::string> hash = Sha256(WideToUtf8(rRepository));
+			std::filesystem::path localApplicationData = GetLocalApplicationDataPath();
+			if (!hash || localApplicationData.empty())
+			{
+				return std::nullopt;
+			}
+			return localApplicationData / L"BrokenEngineLocks" / L"plan-queue-state" / Utf8ToWide(*hash);
+		}
+
+		std::string EmptyQueueTemplate(std::string_view title)
+		{
+			return "# " + std::string(title) + "\n\n## Plans\n\n" + std::string(kTableHeader) + "\n" + std::string(kTableSeparator) + "\n";
+		}
+
+		bool LoadQueueState(const std::wstring& rRepository, const std::wstring& rWorktree, const Arguments& rArguments, const std::optional<std::string>& rPlansBytes, const std::optional<std::string>& rFeaturesBytes, const std::set<std::string>& rIgnoredOrphans, QueueState& rState)
 		{
 			const std::optional<std::wstring> plansKey = coordination::NormalizeRepositoryRelativeKey(rArguments.plansOrder);
 			const std::optional<std::wstring> featuresKey = coordination::NormalizeRepositoryRelativeKey(rArguments.featuresOrder);
@@ -879,39 +906,40 @@ namespace toolcli
 			rState.features.path = ToRepositoryPath(rArguments.featuresOrder);
 			rState.plans.directory = rState.plans.path.substr(0, rState.plans.path.find_last_of('/'));
 			rState.features.directory = rState.features.path.substr(0, rState.features.path.find_last_of('/'));
-			const std::optional<std::filesystem::path> plansPath = ResolveContainedPath(rWorktree, rArguments.plansOrder, true);
-			const std::optional<std::filesystem::path> featuresPath = ResolveContainedPath(rWorktree, rArguments.featuresOrder, true);
-			if (!plansPath || !featuresPath)
+			const std::optional<std::filesystem::path> storeDirectory = QueueStoreDirectory(rRepository);
+			if (!storeDirectory)
 			{
-				Fail("order paths do not resolve safely beneath the worktree");
+				Fail("could not resolve the machine-local plan queue store path");
 				return false;
 			}
 			if (rPlansBytes)
 			{
 				rState.plans.bytes = *rPlansBytes;
 			}
-			else if (!ReadBoundedFile(*plansPath, kuiMaximumOrderBytes, rState.plans.bytes))
+			else if (!ReadBoundedFile(ExtendedLengthPath(*storeDirectory / kPlansStoreFile), kuiMaximumOrderBytes, rState.plans.bytes))
 			{
-				Fail("could not read Plans Order file within the size bound");
+				Fail("could not read the machine-local Plans queue within the size bound (run plan order init)");
 				return false;
 			}
 			if (rFeaturesBytes)
 			{
 				rState.features.bytes = *rFeaturesBytes;
 			}
-			else if (!ReadBoundedFile(*featuresPath, kuiMaximumOrderBytes, rState.features.bytes))
+			else if (!ReadBoundedFile(ExtendedLengthPath(*storeDirectory / kFeaturesStoreFile), kuiMaximumOrderBytes, rState.features.bytes))
 			{
-				Fail("could not read Features Order file within the size bound");
+				Fail("could not read the machine-local Features queue within the size bound (run plan order init)");
 				return false;
 			}
 			ParseQueue(rState.plans, rState);
 			ParseQueue(rState.features, rState);
 			ValidateGraph(rState);
 			ValidateFiles(rWorktree, rState, rIgnoredOrphans);
-			std::sort(rState.diagnostics.begin(), rState.diagnostics.end(), [](const Diagnostic& rLeft, const Diagnostic& rRight)
+			const auto byPathLineCode = [](const Diagnostic& rLeft, const Diagnostic& rRight)
 			{
 				return std::tie(rLeft.path, rLeft.iLine, rLeft.code, rLeft.message) < std::tie(rRight.path, rRight.iLine, rRight.code, rRight.message);
-			});
+			};
+			std::sort(rState.diagnostics.begin(), rState.diagnostics.end(), byPathLineCode);
+			std::sort(rState.notices.begin(), rState.notices.end(), byPathLineCode);
 			return true;
 		}
 
@@ -922,13 +950,18 @@ namespace toolcli
 			{
 				diagnostics.push_back({ { "path", rDiagnostic.path }, { "line", rDiagnostic.iLine }, { "code", rDiagnostic.code }, { "message", rDiagnostic.message } });
 			}
+			nlohmann::json notices = nlohmann::json::array();
+			for (const Diagnostic& rNotice : rState.notices)
+			{
+				notices.push_back({ { "path", rNotice.path }, { "line", rNotice.iLine }, { "code", rNotice.code }, { "message", rNotice.message } });
+			}
 			nlohmann::json rows = nlohmann::json::array();
 			for (const std::string& rPlan : rState.sortedPlans)
 			{
 				Row* pRow = rState.byPlan.at(rPlan);
 				rows.push_back({ { "plan", rPlan }, { "queue", pRow->source }, { "rowSha256", Sha256(pRow->rowBytes).value_or("") } });
 			}
-			coordination::PrintMetadata({ { "ok", rState.diagnostics.empty() }, { "diagnostics", std::move(diagnostics) }, { "rows", std::move(rows) } });
+			coordination::PrintMetadata({ { "ok", rState.diagnostics.empty() }, { "diagnostics", std::move(diagnostics) }, { "notices", std::move(notices) }, { "rows", std::move(rows) } });
 		}
 
 		struct QueueLocator
@@ -1145,7 +1178,7 @@ namespace toolcli
 						{
 							reason = "metadata-or-owner-mismatch";
 						}
-						else if (::DeleteFileW(rQueue.locator.path.c_str()) != FALSE)
+						else if (::DeleteFileW(ExtendedLengthPath(rQueue.locator.path).c_str()) != FALSE)
 						{
 							bReleased = true;
 							reason = "released";
@@ -1424,7 +1457,7 @@ namespace toolcli
 				return false;
 			}
 			std::error_code error;
-			rbExists = std::filesystem::exists(*path, error);
+			rbExists = std::filesystem::exists(ExtendedLengthPath(*path), error);
 			if (error)
 			{
 				return false;
@@ -1460,6 +1493,88 @@ namespace toolcli
 				rClaim.contains("worktree") && rClaim["worktree"].is_string() && rClaim["worktree"].get<std::string>() == WideToUtf8(rWorktree);
 		}
 
+		bool RowValuesEqual(const Row& rLeft, const Row& rRight)
+		{
+			return rLeft.tier == rRight.tier && rLeft.iEffort == rRight.iEffort && rLeft.iImpact == rRight.iImpact &&
+				rLeft.iRisks == rRight.iRisks && rLeft.notes == rRight.notes && rLeft.dependencies == rRight.dependencies;
+		}
+
+		bool CollectClaimedPlans(const std::wstring& rRepository, QueueState& rState, std::set<std::string>& rClaimedPlans)
+		{
+			for (QueueFile* pQueue : { &rState.plans, &rState.features })
+			{
+				for (const Row& rRow : pQueue->rows)
+				{
+					bool bClaimExists = false;
+					nlohmann::json claim;
+					if (!ReadClaim(rRepository, *pQueue, rRow.plan, bClaimExists, claim))
+					{
+						Fail("could not enumerate plan row claims for the queue");
+						return false;
+					}
+					if (bClaimExists)
+					{
+						rClaimedPlans.insert(rRow.plan);
+					}
+				}
+			}
+			return true;
+		}
+
+		const std::string* PlanForRowDiagnostic(const QueueState& rState, const Diagnostic& rDiagnostic)
+		{
+			for (const QueueFile* pQueue : { &rState.plans, &rState.features })
+			{
+				for (const Row& rRow : pQueue->rows)
+				{
+					if (rRow.source == rDiagnostic.path && rRow.iLine == rDiagnostic.iLine)
+					{
+						return &rRow.plan;
+					}
+				}
+			}
+			return nullptr;
+		}
+
+		// orphan-plan is a notice, never a diagnostic, so it never reaches this gate; a missing-plan-file for a currently
+		// claimed row is an in-flight completion; complete ignores diagnostics attributed to its own target and the
+		// dependent-edge tear its rerun heals; add ignores the missing-dependency/duplicate tears its rerun rewrites.
+		// Everything else (parse/graph/unrelated file) still blocks.
+		bool HasBlockingDiagnostics(const QueueState& rState, const std::set<std::string>& rClaimedPlans, const std::string* pTargetPlan, const std::set<std::string>& rRequestPlans = {})
+		{
+			for (const Diagnostic& rDiagnostic : rState.diagnostics)
+			{
+				const std::string* pRowPlan = PlanForRowDiagnostic(rState, rDiagnostic);
+				const std::string* pAttributed = pRowPlan != nullptr ? pRowPlan : (rDiagnostic.iLine == 0 ? &rDiagnostic.path : nullptr);
+				if (pTargetPlan != nullptr && pAttributed != nullptr && *pAttributed == *pTargetPlan)
+				{
+					continue;
+				}
+				if (rDiagnostic.code == "missing-plan-file" && pRowPlan != nullptr && rClaimedPlans.contains(*pRowPlan))
+				{
+					continue;
+				}
+				// Torn cross-queue complete: the rerun strips X's dependency edges, healing a dependent row left
+				// referencing the just-removed target X by a half-applied write.
+				if (rDiagnostic.code == "missing-dependency" && pTargetPlan != nullptr && pRowPlan != nullptr && !rState.byPlan.contains(*pTargetPlan))
+				{
+					const std::unordered_map<std::string, Row*>::const_iterator it = rState.byPlan.find(*pRowPlan);
+					if (it != rState.byPlan.end() && std::find(it->second->dependencies.begin(), it->second->dependencies.end(), *pTargetPlan) != it->second->dependencies.end())
+					{
+						continue;
+					}
+				}
+				// Torn cross-queue add: the rerun rewrites both queues, so a missing-dependency/duplicate-plan attributed
+				// to a plan in the current request is the other half of a half-applied add and heals on retry.
+				if ((rDiagnostic.code == "missing-dependency" || rDiagnostic.code == "duplicate-plan") && pAttributed != nullptr && rRequestPlans.contains(*pAttributed))
+				{
+					continue;
+				}
+				return true;
+			}
+			return false;
+		}
+
 		std::optional<bool> HasInProgressGitOperation(const std::wstring& rWorktree)
 		{
 			for (const std::wstring_view name : { L"MERGE_HEAD", L"rebase-merge", L"rebase-apply", L"CHERRY_PICK_HEAD", L"REVERT_HEAD", L"BISECT_LOG", L"sequencer" })
@@ -1484,13 +1599,38 @@ namespace toolcli
 			return false;
 		}
 
-		int RunValidate(const Arguments& rArguments, const std::wstring& rWorktree, bool bPrimary)
+		int RunValidate(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree, bool bPrimary)
 		{
 			QueueState state;
-			if (!LoadQueueState(rWorktree, rArguments, std::nullopt, std::nullopt, {}, state))
+			if (!LoadQueueState(rRepository, rWorktree, rArguments, std::nullopt, std::nullopt, {}, state))
 			{
 				return kiExitFailure;
 			}
+			std::set<std::string> claimedPlans;
+			if (!CollectClaimedPlans(rRepository, state, claimedPlans))
+			{
+				return kiExitFailure;
+			}
+			// A missing-plan-file for a row held by a live claim is the transient post-advance/pre-phase-2 window (or a
+			// crashed session); surface it as a non-blocking notice so it never reds out a later landing's validate.
+			std::vector<Diagnostic> blocking;
+			for (Diagnostic& rDiagnostic : state.diagnostics)
+			{
+				const std::string* pRowPlan = PlanForRowDiagnostic(state, rDiagnostic);
+				if (rDiagnostic.code == "missing-plan-file" && pRowPlan != nullptr && claimedPlans.contains(*pRowPlan))
+				{
+					state.notices.push_back(std::move(rDiagnostic));
+				}
+				else
+				{
+					blocking.push_back(std::move(rDiagnostic));
+				}
+			}
+			state.diagnostics = std::move(blocking);
+			std::sort(state.notices.begin(), state.notices.end(), [](const Diagnostic& rLeft, const Diagnostic& rRight)
+			{
+				return std::tie(rLeft.path, rLeft.iLine, rLeft.code, rLeft.message) < std::tie(rRight.path, rRight.iLine, rRight.code, rRight.message);
+			});
 			if (bPrimary)
 			{
 				const std::optional<std::string> status = RunGit({ L"-C", rWorktree, L"status", L"--porcelain=v1", L"--untracked-files=normal" });
@@ -1499,16 +1639,9 @@ namespace toolcli
 				{
 					AddDiagnostic(state, ".", 0, "git-authority-unverifiable", "primary checkout Git authority could not be verified");
 				}
-				else
+				else if (*operation)
 				{
-					if (!status->empty())
-					{
-						AddDiagnostic(state, ".", 0, "dirty-primary", "primary checkout contains tracked or untracked changes");
-					}
-					if (*operation)
-					{
-						AddDiagnostic(state, ".", 0, "git-operation-in-progress", "primary checkout has an in-progress Git operation");
-					}
+					AddDiagnostic(state, ".", 0, "git-operation-in-progress", "primary checkout has an in-progress Git operation");
 				}
 				std::sort(state.diagnostics.begin(), state.diagnostics.end(), [](const Diagnostic& rLeft, const Diagnostic& rRight)
 				{
@@ -1517,6 +1650,129 @@ namespace toolcli
 			}
 			PrintValidation(state);
 			return state.diagnostics.empty() ? kiExitOk : kiExitStateConflict;
+		}
+
+		int RunInit(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree)
+		{
+			const std::optional<std::filesystem::path> storeDirectory = QueueStoreDirectory(rRepository);
+			if (!storeDirectory)
+			{
+				Fail("could not resolve the machine-local plan queue store path");
+				return kiExitFailure;
+			}
+			// Serialize against add/update/complete/claim-next, which guard store writes with the per-queue commit guards
+			// (QueueLocks::AcquireCommitGuards) rather than a store-local guard, so init --force cannot interleave with a
+			// mutator's store write and drop rows.
+			std::vector<QueueLocator> queueGuards;
+			for (const std::wstring* pOrder : { &rArguments.plansOrder, &rArguments.featuresOrder })
+			{
+				std::optional<QueueLocator> locator = MakeQueueLocator(rRepository, *pOrder);
+				if (!locator)
+				{
+					Fail("could not resolve the plan queue guard");
+					return kiExitFailure;
+				}
+				queueGuards.push_back(std::move(*locator));
+			}
+			std::sort(queueGuards.begin(), queueGuards.end(), [](const QueueLocator& rLeft, const QueueLocator& rRight) { return rLeft.locator.logicalKey < rRight.locator.logicalKey; });
+			std::vector<std::unique_ptr<coordination::Guard>> guards;
+			for (const QueueLocator& rQueue : queueGuards)
+			{
+				if (!coordination::EnsureParentDirectory(rQueue.locator.path))
+				{
+					FailWindows("create plan queue directory");
+					return kiExitFailure;
+				}
+				std::unique_ptr<coordination::Guard> guard = std::make_unique<coordination::Guard>(rQueue.guardPath);
+				if (!guard->IsValid())
+				{
+					Fail("could not acquire plan queue guard (" + guard->FailureReason() + ")");
+					return kiExitStateConflict;
+				}
+				guards.push_back(std::move(guard));
+				// A mutator's QueueLocks::Acquire writes the lock metadata file and holds it until Release — spanning its
+				// read->commit window that init's momentary guard does not. Reseeding now would be overwritten from the
+				// mutator's pre-reseed read, so refuse (both seeded and --force paths) rather than lose rows.
+				std::error_code lockError;
+				const bool bLocked = std::filesystem::exists(ExtendedLengthPath(rQueue.locator.path), lockError);
+				if (lockError)
+				{
+					Fail("could not inspect the plan queue lock");
+					return kiExitFailure;
+				}
+				if (bLocked)
+				{
+					Fail("queue mutation in flight; retry after it completes");
+					return kiExitStateConflict;
+				}
+			}
+			if (!coordination::EnsureParentDirectory(*storeDirectory / kPlansStoreFile))
+			{
+				FailWindows("create plan queue store directory");
+				return kiExitFailure;
+			}
+			struct StoreSeed
+			{
+				std::wstring_view storeName;
+				const std::wstring* pWorktreeRelative;
+				std::string_view title;
+			};
+			const StoreSeed seeds[] =
+			{
+				{ kPlansStoreFile, &rArguments.plansOrder, "Plan Execution Order" },
+				{ kFeaturesStoreFile, &rArguments.featuresOrder, "Feature Execution Order" },
+			};
+			nlohmann::json files = nlohmann::json::array();
+			bool bAllPresent = true;
+			for (const StoreSeed& rSeed : seeds)
+			{
+				const std::filesystem::path storePath = *storeDirectory / rSeed.storeName;
+				const std::filesystem::path extendedStorePath = ExtendedLengthPath(storePath);
+				std::error_code existsError;
+				const bool bExists = std::filesystem::exists(extendedStorePath, existsError);
+				if (existsError)
+				{
+					Fail("could not inspect the machine-local queue store file");
+					return kiExitFailure;
+				}
+				if (bExists && !rArguments.bForce)
+				{
+					// Present store: keep it. An unreadable/oversized existing file is a hard error, never a silent reseed.
+					std::string existing;
+					if (!ReadBoundedFile(extendedStorePath, kuiMaximumOrderBytes, existing))
+					{
+						Fail("existing machine-local queue store file is unreadable or oversized (use --force to reseed)");
+						return kiExitFailure;
+					}
+					if (!existing.empty())
+					{
+						files.push_back({ { "store", WideToUtf8(storePath.wstring()) }, { "action", "kept" }, { "sha256", Sha256(existing).value_or("") } });
+						continue;
+					}
+				}
+				// Absent, present-but-empty, or --force: seed.
+				bAllPresent = false;
+				std::string bytes;
+				std::string action;
+				const std::optional<std::filesystem::path> source = ResolveContainedPath(rWorktree, *rSeed.pWorktreeRelative, true);
+				if (source && ReadBoundedFile(*source, kuiMaximumOrderBytes, bytes) && IsStrictUtf8(bytes))
+				{
+					action = "seeded-from-worktree";
+				}
+				else
+				{
+					bytes = EmptyQueueTemplate(rSeed.title);
+					action = "seeded-empty";
+				}
+				if (!WriteBytesAtomic(extendedStorePath, bytes))
+				{
+					FailWindows("write machine-local queue store file");
+					return kiExitFailure;
+				}
+				files.push_back({ { "store", WideToUtf8(storePath.wstring()) }, { "action", action }, { "sha256", Sha256(bytes).value_or("") } });
+			}
+			coordination::PrintMetadata({ { "schemaVersion", 1 }, { "operation", "init" }, { "handled", true }, { "alreadyInitialized", bAllPresent && !rArguments.bForce }, { "force", rArguments.bForce }, { "files", std::move(files) } });
+			return kiExitOk;
 		}
 
 		int RunAdd(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree)
@@ -1535,11 +1791,16 @@ namespace toolcli
 				return kiExitStateConflict;
 			}
 			QueueState state;
-			if (!LoadQueueState(rWorktree, rArguments, std::nullopt, std::nullopt, added, state))
+			if (!LoadQueueState(rRepository, rWorktree, rArguments, std::nullopt, std::nullopt, added, state))
 			{
 				return kiExitFailure;
 			}
-			if (!state.diagnostics.empty())
+			std::set<std::string> claimedPlans;
+			if (!CollectClaimedPlans(rRepository, state, claimedPlans))
+			{
+				return kiExitFailure;
+			}
+			if (HasBlockingDiagnostics(state, claimedPlans, nullptr, added))
 			{
 				PrintValidation(state);
 				return kiExitStateConflict;
@@ -1550,9 +1811,9 @@ namespace toolcli
 				for (auto& [rQueueName, rRow] : rSequence)
 				{
 					QueueFile* pQueue = QueueForName(state, rQueueName);
-					if (pQueue == nullptr || QueueForPlan(state, rRow.plan) != pQueue || state.byPlan.contains(rRow.plan))
+					if (pQueue == nullptr || QueueForPlan(state, rRow.plan) != pQueue)
 					{
-						Fail("add entry queue/path is inconsistent or duplicates an executable row");
+						Fail("add entry queue/path is inconsistent");
 						return kiExitStateConflict;
 					}
 					const std::optional<std::filesystem::path> planPath = ResolveContainedPath(rWorktree, Utf8ToWide(rRow.plan), true);
@@ -1574,6 +1835,18 @@ namespace toolcli
 					{
 						rRow.dependencies.push_back(predecessor);
 					}
+					const std::unordered_map<std::string, Row*>::iterator existing = state.byPlan.find(rRow.plan);
+					if (existing != state.byPlan.end())
+					{
+						// Retry idempotency: an identical row already present is skipped; a differing duplicate is an error.
+						if (!RowValuesEqual(*existing->second, rRow))
+						{
+							coordination::PrintMetadata({ { "conflict", "duplicate-row-mismatch" }, { "plan", rRow.plan } });
+							return kiExitStateConflict;
+						}
+						predecessor = rRow.plan;
+						continue;
+					}
 					rRow.source = pQueue->path;
 					pQueue->rows.push_back(std::move(rRow));
 					predecessor = pQueue->rows.back().plan;
@@ -1582,19 +1855,25 @@ namespace toolcli
 			std::string plansBytes = RenderQueue(state.plans);
 			std::string featuresBytes = RenderQueue(state.features);
 			QueueState prospective;
-			if (!LoadQueueState(rWorktree, rArguments, plansBytes, featuresBytes, {}, prospective))
+			if (!LoadQueueState(rRepository, rWorktree, rArguments, plansBytes, featuresBytes, added, prospective))
 			{
 				return kiExitFailure;
 			}
-			if (!prospective.diagnostics.empty())
+			if (HasBlockingDiagnostics(prospective, claimedPlans, nullptr, added))
 			{
 				PrintValidation(prospective);
 				return kiExitStateConflict;
 			}
+			const std::optional<std::filesystem::path> storeDirectory = QueueStoreDirectory(rRepository);
+			if (!storeDirectory)
+			{
+				Fail("could not resolve the machine-local plan queue store path");
+				return kiExitFailure;
+			}
 			std::vector<FileChange> changes
 			{
-				{ std::filesystem::path(rWorktree) / rArguments.plansOrder, state.plans.bytes, plansBytes },
-				{ std::filesystem::path(rWorktree) / rArguments.featuresOrder, state.features.bytes, featuresBytes },
+				{ ExtendedLengthPath(*storeDirectory / kPlansStoreFile), state.plans.bytes, plansBytes },
+				{ ExtendedLengthPath(*storeDirectory / kFeaturesStoreFile), state.features.bytes, featuresBytes },
 			};
 			std::vector<std::unique_ptr<coordination::Guard>> commitGuards;
 			if (!locks.AcquireCommitGuards(commitGuards))
@@ -1634,11 +1913,16 @@ namespace toolcli
 				return kiExitStateConflict;
 			}
 			QueueState state;
-			if (!LoadQueueState(rWorktree, rArguments, std::nullopt, std::nullopt, {}, state))
+			if (!LoadQueueState(rRepository, rWorktree, rArguments, std::nullopt, std::nullopt, {}, state))
 			{
 				return kiExitFailure;
 			}
-			if (!state.diagnostics.empty())
+			std::set<std::string> claimedPlans;
+			if (!CollectClaimedPlans(rRepository, state, claimedPlans))
+			{
+				return kiExitFailure;
+			}
+			if (HasBlockingDiagnostics(state, claimedPlans, nullptr))
 			{
 				PrintValidation(state);
 				return kiExitStateConflict;
@@ -1699,18 +1983,24 @@ namespace toolcli
 			const std::string plansBytes = RenderQueue(state.plans);
 			const std::string featuresBytes = RenderQueue(state.features);
 			QueueState prospective;
-			if (!LoadQueueState(rWorktree, rArguments, plansBytes, featuresBytes, {}, prospective))
+			if (!LoadQueueState(rRepository, rWorktree, rArguments, plansBytes, featuresBytes, {}, prospective))
 			{
 				return kiExitFailure;
 			}
-			if (!prospective.diagnostics.empty())
+			if (HasBlockingDiagnostics(prospective, claimedPlans, nullptr))
 			{
 				PrintValidation(prospective);
 				return kiExitStateConflict;
 			}
+			const std::optional<std::filesystem::path> storeDirectory = QueueStoreDirectory(rRepository);
+			if (!storeDirectory)
+			{
+				Fail("could not resolve the machine-local plan queue store path");
+				return kiExitFailure;
+			}
 			std::vector<FileChange> changes;
-			changes.push_back({ std::filesystem::path(rWorktree) / rArguments.plansOrder, state.plans.bytes, plansBytes });
-			changes.push_back({ std::filesystem::path(rWorktree) / rArguments.featuresOrder, state.features.bytes, featuresBytes });
+			changes.push_back({ ExtendedLengthPath(*storeDirectory / kPlansStoreFile), state.plans.bytes, plansBytes });
+			changes.push_back({ ExtendedLengthPath(*storeDirectory / kFeaturesStoreFile), state.features.bytes, featuresBytes });
 			changes.insert(changes.end(), std::make_move_iterator(planChanges.begin()), std::make_move_iterator(planChanges.end()));
 			std::vector<std::unique_ptr<coordination::Guard>> commitGuards;
 			if (!locks.AcquireCommitGuards(commitGuards))
@@ -1743,12 +2033,6 @@ namespace toolcli
 			return bUnlocked ? kiExitOk : kiExitStateConflict;
 		}
 
-		bool IsCleanWorktree(const std::wstring& rWorktree)
-		{
-			const std::optional<std::string> status = RunGit({ L"-C", rWorktree, L"status", L"--porcelain=v1", L"--untracked-files=normal" });
-			return status && status->empty();
-		}
-
 		WorktreeInfo* FindWorktree(std::vector<WorktreeInfo>& rListing, const std::wstring& rPath)
 		{
 			for (WorktreeInfo& rInfo : rListing)
@@ -1778,7 +2062,7 @@ namespace toolcli
 				return kiExitStateConflict;
 			}
 			TrimLineEnd(*targetHead);
-			if (!IsCleanWorktree(rPrimary) || !IsCleanWorktree(rWorktree) || pPrimaryInfo->head != *targetHead || pSessionInfo->head != *targetHead)
+			if (pPrimaryInfo->head != *targetHead || pSessionInfo->head != *targetHead)
 			{
 				coordination::PrintMetadata({ { "claimed", false }, { "reason", "stale-session" }, { "primaryCommit", *targetHead }, { "sessionCommit", pSessionInfo->head } });
 				return kiExitStateConflict;
@@ -1790,17 +2074,22 @@ namespace toolcli
 			}
 			const std::optional<std::string> lockedPrimaryHead = RunGit({ L"-C", rPrimary, L"rev-parse", L"HEAD" });
 			const std::optional<std::string> lockedSessionHead = RunGit({ L"-C", rWorktree, L"rev-parse", L"HEAD" });
-			if (!lockedPrimaryHead || !lockedSessionHead || Trim(*lockedPrimaryHead) != *targetHead || Trim(*lockedSessionHead) != *targetHead || !IsCleanWorktree(rPrimary) || !IsCleanWorktree(rWorktree))
+			if (!lockedPrimaryHead || !lockedSessionHead || Trim(*lockedPrimaryHead) != *targetHead || Trim(*lockedSessionHead) != *targetHead)
 			{
 				coordination::PrintMetadata({ { "claimed", false }, { "reason", "stale-session-after-lock" }, { "primaryCommit", *targetHead } });
 				return kiExitStateConflict;
 			}
 			QueueState state;
-			if (!LoadQueueState(rPrimary, rArguments, std::nullopt, std::nullopt, {}, state))
+			if (!LoadQueueState(rRepository, rPrimary, rArguments, std::nullopt, std::nullopt, {}, state))
 			{
 				return kiExitFailure;
 			}
-			if (!state.diagnostics.empty())
+			std::set<std::string> claimedPlans;
+			if (!CollectClaimedPlans(rRepository, state, claimedPlans))
+			{
+				return kiExitFailure;
+			}
+			if (HasBlockingDiagnostics(state, claimedPlans, nullptr))
 			{
 				PrintValidation(state);
 				return kiExitStateConflict;
@@ -1819,6 +2108,7 @@ namespace toolcli
 				nlohmann::json claim;
 				if (!ReadClaim(rRepository, *pQueue, rRow.plan, bClaimExists, claim))
 				{
+					Fail("could not read a plan row claim while selecting an eligible row");
 					return kiExitFailure;
 				}
 				if (bClaimExists || !rRow.dependencies.empty())
@@ -1850,12 +2140,14 @@ namespace toolcli
 			const std::optional<std::filesystem::path> claimPath = ClaimPath(rRepository, *pQueue, pSelected->plan);
 			if (!claimPath || !coordination::EnsureParentDirectory(*claimPath))
 			{
+				Fail("could not resolve or create the plan row claim path");
 				return kiExitFailure;
 			}
 			const std::wstring order = coordination::NormalizeRepositoryRelativeKey(Utf8ToWide(pQueue->path)).value();
 			const std::optional<std::wstring> plan = ClaimPlanKey(*pQueue, pSelected->plan);
 			if (!plan)
 			{
+				Fail("could not derive the plan row claim key");
 				return kiExitFailure;
 			}
 			const coordination::Locator locator { L"plan-row", rRepository + L"\n" + order + L"\n" + *plan, *claimPath };
@@ -1875,6 +2167,7 @@ namespace toolcli
 			nlohmann::json currentClaim;
 			if (!ReadClaim(rRepository, *pQueue, pSelected->plan, bClaimExists, currentClaim))
 			{
+				Fail("could not re-read the plan row claim before commit");
 				return kiExitFailure;
 			}
 			if (bClaimExists)
@@ -1884,6 +2177,7 @@ namespace toolcli
 			}
 			if (!coordination::WriteMetadataAtomic(*claimPath, metadata))
 			{
+				FailWindows("write plan row claim");
 				return kiExitFailure;
 			}
 			commitGuards.clear();
@@ -1913,7 +2207,7 @@ namespace toolcli
 				return kiExitStateConflict;
 			}
 			QueueState state;
-			if (!LoadQueueState(rWorktree, rArguments, std::nullopt, std::nullopt, {}, state))
+			if (!LoadQueueState(rRepository, rWorktree, rArguments, std::nullopt, std::nullopt, {}, state))
 			{
 				return kiExitFailure;
 			}
@@ -1933,18 +2227,16 @@ namespace toolcli
 				coordination::PrintMetadata({ { "conflict", "owner-mismatch" }, { "plan", *normalizedPlan }, { "claim", bClaimExists ? claim : nlohmann::json { { "held", false } } } });
 				return kiExitStateConflict;
 			}
-			const bool bRowExists = state.byPlan.contains(*normalizedPlan);
-			const std::filesystem::path planPath = std::filesystem::path(rWorktree) / Utf8ToWide(*normalizedPlan);
-			std::error_code error;
-			const bool bFileExists = std::filesystem::is_regular_file(planPath, error) && !error;
-			if (bFileExists && !ResolveContainedPath(rWorktree, Utf8ToWide(*normalizedPlan), true))
+			// Tolerate an already-absent target row or plan file (crash-recovery / post-landing completion); block only on
+			// unrelated structural or file diagnostics. orphan-plan and claimed-row missing files never block.
+			std::set<std::string> claimedPlans;
+			if (!CollectClaimedPlans(rRepository, state, claimedPlans))
 			{
-				Fail("complete target plan file does not resolve safely beneath the worktree");
 				return kiExitFailure;
 			}
-			if (!rArguments.bReapply && (!state.diagnostics.empty() || !bRowExists || !bFileExists))
+			if (HasBlockingDiagnostics(state, claimedPlans, &*normalizedPlan))
 			{
-				coordination::PrintMetadata({ { "conflict", "complete-precondition" }, { "plan", *normalizedPlan }, { "rowExists", bRowExists }, { "fileExists", bFileExists } });
+				PrintValidation(state);
 				return kiExitStateConflict;
 			}
 			for (QueueFile* pCandidate : { &state.plans, &state.features })
@@ -1963,29 +2255,26 @@ namespace toolcli
 			const std::string plansBytes = RenderQueue(state.plans);
 			const std::string featuresBytes = RenderQueue(state.features);
 			QueueState prospective;
-			if (!LoadQueueState(rWorktree, rArguments, plansBytes, featuresBytes, { *normalizedPlan }, prospective))
+			if (!LoadQueueState(rRepository, rWorktree, rArguments, plansBytes, featuresBytes, { *normalizedPlan }, prospective))
 			{
 				return kiExitFailure;
 			}
-			if (!prospective.diagnostics.empty())
+			if (HasBlockingDiagnostics(prospective, claimedPlans, &*normalizedPlan))
 			{
 				PrintValidation(prospective);
 				return kiExitStateConflict;
 			}
+			const std::optional<std::filesystem::path> storeDirectory = QueueStoreDirectory(rRepository);
+			if (!storeDirectory)
+			{
+				Fail("could not resolve the machine-local plan queue store path");
+				return kiExitFailure;
+			}
 			std::vector<FileChange> changes
 			{
-				{ std::filesystem::path(rWorktree) / rArguments.plansOrder, state.plans.bytes, plansBytes },
-				{ std::filesystem::path(rWorktree) / rArguments.featuresOrder, state.features.bytes, featuresBytes },
+				{ ExtendedLengthPath(*storeDirectory / kPlansStoreFile), state.plans.bytes, plansBytes },
+				{ ExtendedLengthPath(*storeDirectory / kFeaturesStoreFile), state.features.bytes, featuresBytes },
 			};
-			std::string originalPlan;
-			if (bFileExists)
-			{
-				if (!ReadBoundedFile(planPath, kuiMaximumPlanBytes, originalPlan))
-				{
-					return kiExitFailure;
-				}
-				changes.push_back({ planPath, originalPlan, std::nullopt });
-			}
 			std::vector<std::unique_ptr<coordination::Guard>> commitGuards;
 			if (!locks.AcquireCommitGuards(commitGuards))
 			{
@@ -2010,8 +2299,8 @@ namespace toolcli
 			nlohmann::json unlockResults;
 			const bool bUnlocked = locks.Release(unlockResults);
 			coordination::PrintMetadata({
-				{ "schemaVersion", 1 }, { "operation", "complete" }, { "handled", true }, { "reapply", rArguments.bReapply }, { "plan", *normalizedPlan },
-				{ "claimOwner", claim["owner"] }, { "claimPrimaryCommit", claim.value("primaryCommit", "") }, { "removedPlanSha256", bFileExists ? Sha256(originalPlan).value_or("") : "" },
+				{ "schemaVersion", 1 }, { "operation", "complete" }, { "handled", true }, { "plan", *normalizedPlan },
+				{ "claimOwner", claim["owner"] }, { "claimPrimaryCommit", claim.value("primaryCommit", "") },
 				{ "plansOrderSha256", Sha256(plansBytes).value_or("") }, { "featuresOrderSha256", Sha256(featuresBytes).value_or("") }, { "unlockResults", std::move(unlockResults) }
 			});
 			return bUnlocked ? kiExitOk : kiExitStateConflict;
@@ -2022,11 +2311,11 @@ namespace toolcli
 	{
 		if (iArgumentCount < 4)
 		{
-			Fail("plan order requires validate, add, update, claim-next, or complete");
+			Fail("plan order requires init, validate, add, update, claim-next, or complete");
 			return kiExitFailure;
 		}
 		const std::wstring verb = ToLowerInvariant(pArgumentValues[3]);
-		if (verb != L"validate" && verb != L"add" && verb != L"update" && verb != L"claim-next" && verb != L"complete")
+		if (verb != L"init" && verb != L"validate" && verb != L"add" && verb != L"update" && verb != L"claim-next" && verb != L"complete")
 		{
 			Fail("unknown plan order verb");
 			return kiExitFailure;
@@ -2044,9 +2333,13 @@ namespace toolcli
 		{
 			return kiExitFailure;
 		}
+		if (verb == L"init")
+		{
+			return RunInit(arguments, repository, worktree);
+		}
 		if (verb == L"validate")
 		{
-			return RunValidate(arguments, worktree, !listing.empty() && listing.front().path == worktree);
+			return RunValidate(arguments, repository, worktree, !listing.empty() && listing.front().path == worktree);
 		}
 		if (verb == L"add")
 		{

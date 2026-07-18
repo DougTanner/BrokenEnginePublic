@@ -24,9 +24,9 @@ Saves the current plan-mode plan from the user's home `.claude/plans/` directory
 
 4. **Handle collisions**: If the target file already exists, ask the user whether to overwrite or pick a new name. Do not silently overwrite.
 
-5. **Score and dependencies**: Read the destination tree's AGENTS.md (`Documents/Plans/AGENTS.md` or `Documents/Features/AGENTS.md`) and the canonical scoring anchors in `Documents/AGENTS.md`. Decide `tier`, `effort`, `impact`, `risks`, and a one-line `notes` summary. Identify any directional prerequisites as normalized repository-relative plan identities in `dependsOn`. Do not parse or edit either `Order.md` and do not encode mandatory nondirectional constraints as dependencies. If the new plan creates or changes such a constraint, stop and route it to the atomic multi-plan workflow that can update reciprocal `## Coordination` sections and every existing counterpart together.
+5. **Score and dependencies**: Read the destination tree's AGENTS.md (`Documents/Plans/AGENTS.md` or `Documents/Features/AGENTS.md`) and the canonical scoring anchors in `Documents/AGENTS.md`. Decide `tier`, `effort`, `impact`, `risks`, and a one-line `notes` summary. Identify any directional prerequisites as normalized repository-relative plan identities in `dependsOn`. Do not edit a queue row directly (the queue is machine-local state) and do not encode mandatory nondirectional constraints as dependencies. If the new plan creates or changes such a constraint, its reciprocal `## Coordination` sections are plan-body prose edited directly: update every existing counterpart in the same change set. A race with a concurrent counterpart edit resolves as a merge conflict at landing, not a queue failure.
 
-6. **Save the plan**: Write the plan content to `<tree>/<area>/<filename>` before queue insertion. The plan file is intentionally prospective session state until its add request succeeds and the session eventually lands.
+6. **Save the plan**: Write the plan content to `<tree>/<area>/<filename>` before queue insertion. On a wrapper session the plan file and its staged row are prospective session state until the session lands; on the user's own checkout (worktree == primary) the add publishes immediately.
 
 7. **Create the add request**: Write a uniquely named JSON request beneath the current session worktree's `Temp/`. Use schema version 1 and exactly one independent sequence containing one entry:
 
@@ -55,6 +55,6 @@ Saves the current plan-mode plan from the user's home `.claude/plans/` directory
    plan order add --repo <common-dir> --worktree <checkout> --owner <token> --session <label> --request <Temp repo-rel> [--plans-order ...] [--features-order ...]
    ```
 
-   Let WorktreeCli validate both queues, compute the score, acquire the existing queue locks, and add the row. Never edit an executable Order row directly. If add fails, report its exact diagnostics and leave the plan plus request as retryable session orphans; do not claim the plan was indexed and do not try to repair `Order.md` by hand.
+   Let WorktreeCli validate both queues, compute the score, acquire the existing queue locks, and write the row into the machine-local queue store. Never edit an executable queue row directly. On the user's own checkout this add publishes immediately; in a wrapper session the staged request instead publishes at landing (finalize submits it post-advance), so an unlanded session leaves the plan and request as retryable orphans. If add fails, report its exact diagnostics and leave the plan plus request as retryable orphans; do not claim the plan was indexed and do not try to repair a queue row by hand.
 
 9. **Report**: Confirm the saved repository-relative path, request path, destination queue, scoring inputs, dependencies, and WorktreeCli add receipt.

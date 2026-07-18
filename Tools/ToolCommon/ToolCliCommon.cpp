@@ -11,6 +11,14 @@ namespace toolcli
 	namespace
 	{
 		std::string sToolName = "ToolCli";
+
+		void ReportProcessFailure(const RunProcessOptions& rOptions, std::string_view operation)
+		{
+			if (rOptions.failureSink)
+			{
+				rOptions.failureSink(std::string(operation) + " failed (Windows error " + std::to_string(::GetLastError()) + ")");
+			}
+		}
 	}
 
 	Handle::Handle(HANDLE hHandle) :
@@ -71,20 +79,14 @@ namespace toolcli
 			hJob.Reset(::CreateJobObjectW(nullptr, nullptr));
 			if (!hJob.IsValid())
 			{
-				if (rOptions.bReportFailures)
-				{
-					FailWindows("create process job");
-				}
+				ReportProcessFailure(rOptions, "create process job");
 				return std::nullopt;
 			}
 			JOBOBJECT_EXTENDED_LIMIT_INFORMATION jobInformation {};
 			jobInformation.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
 			if (::SetInformationJobObject(hJob.Get(), JobObjectExtendedLimitInformation, &jobInformation, sizeof(jobInformation)) == FALSE)
 			{
-				if (rOptions.bReportFailures)
-				{
-					FailWindows("configure process job");
-				}
+				ReportProcessFailure(rOptions, "configure process job");
 				return std::nullopt;
 			}
 		}
@@ -98,20 +100,14 @@ namespace toolcli
 			HANDLE hRawWrite = INVALID_HANDLE_VALUE;
 			if (::CreatePipe(&hRawRead, &hRawWrite, &pipeAttributes, 0) == FALSE)
 			{
-				if (rOptions.bReportFailures)
-				{
-					FailWindows("create output pipe");
-				}
+				ReportProcessFailure(rOptions, "create output pipe");
 				return std::nullopt;
 			}
 			hPipeRead.Reset(hRawRead);
 			hPipeWrite.Reset(hRawWrite);
 			if (::SetHandleInformation(hPipeRead.Get(), HANDLE_FLAG_INHERIT, 0) == FALSE)
 			{
-				if (rOptions.bReportFailures)
-				{
-					FailWindows("configure output pipe");
-				}
+				ReportProcessFailure(rOptions, "configure output pipe");
 				return std::nullopt;
 			}
 		}
@@ -127,10 +123,7 @@ namespace toolcli
 		const DWORD uiCreationFlags = (rOptions.bNoWindow ? CREATE_NO_WINDOW : 0) | (rOptions.bKillOnJobClose ? CREATE_SUSPENDED : 0);
 		if (::CreateProcessW(pExecutable != nullptr ? pExecutable->c_str() : nullptr, commandLine.data(), nullptr, nullptr, TRUE, uiCreationFlags, nullptr, nullptr, &startupInfo, &processInformation) == FALSE)
 		{
-			if (rOptions.bReportFailures)
-			{
-				FailWindows("launch process");
-			}
+			ReportProcessFailure(rOptions, "launch process");
 			return std::nullopt;
 		}
 		Handle hProcess(processInformation.hProcess);
@@ -139,19 +132,13 @@ namespace toolcli
 		{
 			if (::AssignProcessToJobObject(hJob.Get(), hProcess.Get()) == FALSE)
 			{
-				if (rOptions.bReportFailures)
-				{
-					FailWindows("assign process to job");
-				}
+				ReportProcessFailure(rOptions, "assign process to job");
 				::TerminateProcess(hProcess.Get(), ERROR_PROCESS_ABORTED);
 				return std::nullopt;
 			}
 			if (::ResumeThread(hThread.Get()) == static_cast<DWORD>(-1))
 			{
-				if (rOptions.bReportFailures)
-				{
-					FailWindows("start process");
-				}
+				ReportProcessFailure(rOptions, "start process");
 				::TerminateProcess(hProcess.Get(), ERROR_PROCESS_ABORTED);
 				return std::nullopt;
 			}
@@ -162,20 +149,29 @@ namespace toolcli
 		ProcessResult result;
 		if (rOptions.bCaptureOutput)
 		{
-			char pBuffer[4096] {};
+			char pBuffer[65536] {};
 			DWORD uiRead = 0;
-			while (::ReadFile(hPipeRead.Get(), pBuffer, sizeof(pBuffer), &uiRead, nullptr) != FALSE && uiRead != 0)
+			// A zero-byte write by the child completes ReadFile with TRUE/0; only a broken pipe is EOF.
+			while (::ReadFile(hPipeRead.Get(), pBuffer, sizeof(pBuffer), &uiRead, nullptr) != FALSE)
 			{
-				result.output.append(pBuffer, uiRead);
+				if (uiRead == 0)
+				{
+					continue;
+				}
+				if (rOptions.outputSink)
+				{
+					rOptions.outputSink(pBuffer, uiRead);
+				}
+				else
+				{
+					result.output.append(pBuffer, uiRead);
+				}
 			}
 		}
 		::WaitForSingleObject(hProcess.Get(), INFINITE);
 		if (::GetExitCodeProcess(hProcess.Get(), &result.uiExitCode) == FALSE)
 		{
-			if (rOptions.bReportFailures)
-			{
-				FailWindows("read process exit code");
-			}
+			ReportProcessFailure(rOptions, "read process exit code");
 			return std::nullopt;
 		}
 		return result;
@@ -337,6 +333,20 @@ namespace toolcli
 		}
 		value.resize(uiWritten);
 		return std::filesystem::path(value);
+	}
+
+	std::filesystem::path ExtendedLengthPath(std::filesystem::path path)
+	{
+		// Coordination and queue-store files nest hashed directories under LOCALAPPDATA and, in deep CI/fixture
+		// trees, can exceed MAX_PATH. std::filesystem applies the extended-length prefix internally, but the raw
+		// Win32 file APIs (CreateFileW/MoveFileExW/DeleteFileW) and ifstream do not — prefix absolute drive paths.
+		path.make_preferred();
+		const std::wstring& rNative = path.native();
+		if (rNative.size() < 2 || rNative.front() == L'\\' || !path.is_absolute())
+		{
+			return path;
+		}
+		return std::filesystem::path(L"\\\\?\\" + rNative);
 	}
 
 	std::wstring ToLowerInvariant(std::wstring value)

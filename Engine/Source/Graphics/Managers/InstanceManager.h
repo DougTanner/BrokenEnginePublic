@@ -57,7 +57,6 @@ public:
 	VkFormat mDepthVkFormat = VK_FORMAT_UNDEFINED;
 
 	std::vector<const char*> mValidationLayers;
-	bool mbFoundKhronosValidation = false;
 	VkDebugUtilsMessengerEXT mVkDebugUtilsMessengerEXT = nullptr;
 
 	RENDERDOC_API_1_6_0* mpRenderDocApi = nullptr;
@@ -65,7 +64,6 @@ public:
 private:
 
 	void ReadLayerProperties();
-	void SelectPhysicalDevice();
 	void SelectBestPhysicalDevice();
 	void ValidatePhysicalDeviceCapabilities();
 	void SelectQueueFamilies();

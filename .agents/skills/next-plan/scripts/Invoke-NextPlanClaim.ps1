@@ -35,7 +35,7 @@ try {
 			throw "Plan does not belong to queue '$Queue'."
 		}
 	}
-	$context = Get-NextPlanContext -RequireCleanSession -RequireCleanPrimary
+	$context = Get-NextPlanContext
 	$validate = Invoke-NextPlanProcess $context.WorktreeCli @('plan','order','validate','--repo',$context.CommonDirectory,'--worktree',$context.Primary) $context.Worktree
 	$validateJson = ConvertFrom-NextPlanProcessJson $validate 'plan order validate'
 	if ($validate.ExitCode -ne 0 -or -not $validateJson.ok) {

@@ -32,7 +32,7 @@ void AppendBytes(common::Workbuffer& rWorkbuffer, int64_t iBytes)
 ProfileManager* gpProfileManager = nullptr;
 
 ProfileManager::ProfileManager()
-: ProfileManagerBase()
+: ProfileManagerBase(mGameCpuCounters, mGameCpuTimers, kGameCpuCounterNames, kGameCpuTimerNames, kGameCpuCounterCount, kGameCpuTimerCount)
 {
 	ASSERT(gpProfileManager == nullptr);
 
@@ -50,36 +50,6 @@ ProfileManager::~ProfileManager()
 	{
 		gpProfileManager = nullptr;
 	}
-}
-
-engine::CpuCounter& ProfileManager::GetCpuCounter(int64_t iIndex)
-{
-	return iIndex < engine::kEngineCpuCounterCount ? mEngineCpuCounters[iIndex] : mGameCpuCounters[iIndex - engine::kEngineCpuCounterCount];
-}
-
-engine::CpuTimer& ProfileManager::GetCpuTimer(int64_t iIndex)
-{
-	return iIndex < engine::kEngineCpuTimerCount ? mEngineCpuTimers[iIndex] : mGameCpuTimers[iIndex - engine::kEngineCpuTimerCount];
-}
-
-std::string_view ProfileManager::GetCpuCounterName(int64_t iIndex)
-{
-	return iIndex < engine::kEngineCpuCounterCount ? engine::kEngineCpuCounterNames[iIndex] : kGameCpuCounterNames[iIndex - engine::kEngineCpuCounterCount];
-}
-
-std::string_view ProfileManager::GetCpuTimerName(int64_t iIndex)
-{
-	return iIndex < engine::kEngineCpuTimerCount ? engine::kEngineCpuTimerNames[iIndex] : kGameCpuTimerNames[iIndex - engine::kEngineCpuTimerCount];
-}
-
-int64_t ProfileManager::GetCpuCounterCount() const
-{
-	return kGameCpuCounterCount;
-}
-
-int64_t ProfileManager::GetCpuTimerCount() const
-{
-	return kGameCpuTimerCount;
 }
 
 #if defined(BT_CLIENT)

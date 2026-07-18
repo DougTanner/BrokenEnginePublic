@@ -649,9 +649,8 @@ void BufferManager::DestroyWindHierarchicalBuffers()
 	mWindActiveTileBufferSize = 0;
 }
 
-static void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<std::byte>& rVertices)
+static void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, uint32_t* puiIndices, std::byte* pVertices)
 {
-	uint32_t* puiIndices = rIndices.data();
 	for (int64_t j = 0; j < iMeshY - 1; ++j)
 	{
 		for (int64_t i = 0; i < iMeshX - 1; ++i)
@@ -667,7 +666,7 @@ static void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<ui
 		}
 	}
 
-	float* pfVertices = reinterpret_cast<float*>(rVertices.data());
+	float* pfVertices = reinterpret_cast<float*>(pVertices);
 	float fQuadWidthX = 1.0f / static_cast<float>(iMeshX - 1);
 	float fQuadWidthY = 1.0f / static_cast<float>(iMeshY - 1);
 	for (int64_t j = 0; j < iMeshY; ++j)
@@ -687,13 +686,11 @@ static void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<ui
 // populate per-LOD draw params. LOD k has each-dim quad count / 2^k (total / 4^k). Each LOD's
 // indices reference vertex indices starting from 0 within its own LOD; the per-LOD `iVertexOffset`
 // is supplied to vkCmdDrawIndexedIndirect via the indirect command's `vertexOffset` field at draw time.
-static void BuildLodConcatMesh(int64_t iLod0QuadX, int64_t iLod0QuadY,
-                               std::array<BufferManager::VisibleAreaMeshLod, BufferManager::kiVisibleAreaLodCount>& rLods,
-                               std::vector<uint32_t>& rIndices, std::vector<std::byte>& rVertices)
+static void BuildLodConcatMesh(int64_t iLod0QuadX, int64_t iLod0QuadY, BufferManager::VisibleAreaMeshLod* pLods, std::vector<uint32_t>& rIndices, std::vector<std::byte>& rVertices)
 {
 	int64_t iTotalIndices = 0;
 	int64_t iTotalVertices = 0;
-	for (int iLod = 0; iLod < BufferManager::kiVisibleAreaLodCount; ++iLod)
+	for (int64_t iLod = 0; iLod < BufferManager::kiVisibleAreaLodCount; ++iLod)
 	{
 		int64_t iQuadX = std::max<int64_t>(1, iLod0QuadX >> iLod);
 		int64_t iQuadY = std::max<int64_t>(1, iLod0QuadY >> iLod);
@@ -706,21 +703,16 @@ static void BuildLodConcatMesh(int64_t iLod0QuadX, int64_t iLod0QuadY,
 
 	int64_t iIndexCursor = 0;
 	int64_t iVertexCursor = 0;
-	for (int iLod = 0; iLod < BufferManager::kiVisibleAreaLodCount; ++iLod)
+	for (int64_t iLod = 0; iLod < BufferManager::kiVisibleAreaLodCount; ++iLod)
 	{
 		int64_t iQuadX = std::max<int64_t>(1, iLod0QuadX >> iLod);
 		int64_t iQuadY = std::max<int64_t>(1, iLod0QuadY >> iLod);
 		int64_t iIdxCount  = 6 * iQuadX * iQuadY;
 		int64_t iVertCount = (iQuadX + 1) * (iQuadY + 1);
 
-		std::vector<uint32_t> lodIndices(iIdxCount);
-		std::vector<std::byte> lodVertices(2 * sizeof(float) * iVertCount);
-		CreateVisibleAreaMesh(iQuadX + 1, iQuadY + 1, lodIndices, lodVertices);
+		CreateVisibleAreaMesh(iQuadX + 1, iQuadY + 1, rIndices.data() + iIndexCursor, rVertices.data() + iVertexCursor * 2 * sizeof(float));
 
-		std::memcpy(rIndices.data() + iIndexCursor, lodIndices.data(), iIdxCount * sizeof(uint32_t));
-		std::memcpy(rVertices.data() + iVertexCursor * 2 * sizeof(float), lodVertices.data(), lodVertices.size());
-
-		rLods[iLod] =
+		pLods[iLod] =
 		{
 			.iIndexOffset  = iIndexCursor,
 			.iIndexCount   = iIdxCount,

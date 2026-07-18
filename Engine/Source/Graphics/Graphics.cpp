@@ -249,7 +249,7 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unord
 
 	gpImGuiManager->Prepare(iCommandBuffer);
 
-	gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);
+	gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer);
 
 	gpCommandBufferManager->SubmitUiCommandBuffer(iCommandBuffer);
 

@@ -54,7 +54,7 @@ void CommandBufferRecordMain::Record(int64_t iFramebuffer)
 		.pNext = nullptr,
 		.renderPass = gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass,
 		.framebuffer = gpTextureManager->mRenderTargetTextures.mLightingVkFramebuffer,
-		.renderArea = {.offset = {0, 0}, .extent = {static_cast<uint32_t>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width), static_cast<uint32_t>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height)}},
+		.renderArea = {.offset = {0, 0}, .extent = {gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height}},
 		.clearValueCount = static_cast<uint32_t>(std::size(pClearValues)),
 		.pClearValues = pClearValues,
 	};

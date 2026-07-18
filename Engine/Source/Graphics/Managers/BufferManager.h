@@ -89,7 +89,7 @@ public:
 	// vertexOffset) — no command-buffer re-record on LOD change. (Water only — terrain draws
 	// per-island Gaea2 Mesher-baked meshes on each IslandTemplate in CommandBufferRecordMain instead.
 	// miVisibleAreaLod still drives camera-snap math via CameraBase.)
-	static constexpr int kiVisibleAreaLodCount = 4;
+	static constexpr int64_t kiVisibleAreaLodCount = 4;
 	struct VisibleAreaMeshLod
 	{
 		int64_t iIndexOffset;   // First index for this LOD inside the concat index region
@@ -98,7 +98,7 @@ public:
 		int64_t iQuadCountX;    // For visible-area snap math
 		int64_t iQuadCountY;
 	};
-	std::array<VisibleAreaMeshLod, kiVisibleAreaLodCount> mWaterMeshLods {};
+	VisibleAreaMeshLod mWaterMeshLods[kiVisibleAreaLodCount] {};
 	Buffer mWaterMeshBuffer;
 
 	Buffer mDebugBoxVertexBuffer;

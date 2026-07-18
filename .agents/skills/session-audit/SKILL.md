@@ -48,6 +48,7 @@ Earlier roles each see a slice; these surface only when reading the finished who
 6. **Residual leakage** — every residual and focus area handed in is either resolved in current code or re-reported; never silently gone.
 7. **False completion** — earlier reports are claims, not evidence: for each accepted fix and each residual marked resolved, spot-check the change actually exists in current code.
 8. **Debris** — diagnostic `LOG`s left at kDebug/kVerbose from iteration, commented-out code, scratch/temp files introduced this session. Global `%LOCALAPPDATA%\BrokenEngine\AgentReports\` artifacts conforming to the shared reporting contract are intentional process state, not debris. Changelog-style comments belong to repo-code-review §2d — don't double-report.
+9. **Claimed-plan stale citations (exclusion)** — stale line-citations inside a claimed plan file slated for completion-deletion are not findings; execution carries citation corrections in the execution card and never edits the claimed plan file.
 
 ## Output
 

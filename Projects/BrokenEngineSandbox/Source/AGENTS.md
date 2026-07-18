@@ -32,7 +32,7 @@ Frame update code is purely functional: it relies only on explicit function para
 
 ## Subdirectories
 
-- [Agent/](Agent/) - JSON command dispatcher, compiled on both sides and activated by `kbAgent`. Shared commands cover process/log control. Client commands drive capture, UI/input automation, scene queries, and settled window state through engine agent facilities; server commands drive sim/save/replay control, StatusChange injection, and Frame queries. Server save/load `file` values are appdata-relative trust boundaries: require a non-empty bare filename with no embedded NUL, separators, `..`, `:`, or Windows reserved device basename. Client capture `path` values deliberately accept full paths. Replay commands throw when `kbDebugInput` is disabled.
+- [Agent/](Agent/) - JSON command dispatcher, compiled on both sides and activated by `kbAgent`. Shared commands cover process/log control. Client commands drive capture, UI/input automation, scene queries, and settled window state through engine agent facilities; server commands drive sim/save/replay control, StatusChange injection, Frame queries, and raw profile queries. Server save/load `file` values are appdata-relative trust boundaries: require a non-empty bare filename with no embedded NUL, separators, `..`, `:`, or Windows reserved device basename. Client capture `path` values deliberately accept full paths. Replay commands throw when `kbDebugInput` is disabled.
 - [Frame/](Frame/AGENTS.md) - Game state, physics tick pipeline, SOA collections
 - [Graphics/](Graphics/AGENTS.md) - Camera controller
 - [Input/](Input/AGENTS.md) - Keyboard/mouse and gamepad input pipeline

@@ -37,15 +37,10 @@ struct SpaceshipCollisionIntervalScratch
 
 static SpaceshipCollisionIntervalScratch& GetSpaceshipCollisionIntervalScratch()
 {
-	static thread_local SpaceshipCollisionIntervalScratch* spScratch = nullptr;
-	if (spScratch == nullptr)
-	{
-		// Heap: function-local TLS defers non-trivial construction until allocator startup is complete.
-		ScopedSuppressAllocationTracking suppress;
-		static thread_local SpaceshipCollisionIntervalScratch sScratch;
-		spScratch = &sScratch;
-	}
-	return *spScratch;
+	// Function-local TLS defers construction until first use; default construction is allocation-free
+	// (empty vectors), so it is safe even before allocator startup completes. Growth sites suppress tracking.
+	static thread_local SpaceshipCollisionIntervalScratch sScratch;
+	return sScratch;
 }
 
 // Shared type indices (defined in Spaceships.cpp, set during Register())

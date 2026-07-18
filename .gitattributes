@@ -1,0 +1,26 @@
+# Line-ending policy. Keep in sync with .editorconfig.
+# Git stores all text as LF and every checkout materializes LF, so agent
+# tools, Visual Studio, and fresh worktrees produce identical bytes. This
+# keeps WorktreeCli's raw-byte plan comparison (PlanOrderCommands.cpp
+# claim-next) deterministic across checkouts.
+* text=auto eol=lf
+
+# Binaries: never normalize. text=auto already auto-detects these; the
+# explicit marks are belt-and-suspenders covering every tracked binary type.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.tga       binary
+*.ktx       binary
+*.wav       binary
+*.otf       binary
+*.bin       binary
+*.docx      binary
+*.MODEL     binary
+*.PreExport binary
+# Data-packer intermediate texture/model assets (uppercase, underscored).
+*.BC4_UNORM_BLOCK     binary
+*.BC5_UNORM_BLOCK     binary
+*.BC7_UNORM_BLOCK     binary
+*.R16G16B16A16_SFLOAT binary
+*.GLTF_MODEL          binary

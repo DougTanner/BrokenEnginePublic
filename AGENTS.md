@@ -18,13 +18,14 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 - Main session is manager; subagents execute work to keep main context clean
 - Give subagents only the instructions and context their task needs; they return a concise, clearly defined response
 - Subagent-to-subagent handoffs go through temporary files; return only the file paths to the parent session
-- Create one file-backed final acceptance ledger only when a final-evidence gate (defined in the C++ Change Workflow below) applies; format: [.agents/references/subagent-reporting.md](.agents/references/subagent-reporting.md)
+- Return one inline acceptance table only when a final-evidence gate (defined in the Change Workflow below) applies; format: [.agents/references/subagent-reporting.md](.agents/references/subagent-reporting.md)
 - Isolated worktrees and session claims are required only for queue selection or mutation, shared build/bootstrap coordination, or landing. Ordinary work uses the user-supplied checkout and preserves unrelated changes.
 - Live sessions hold a `git worktree lock`; retained worktrees are removed only by the manual `/cleanup-worktrees` skill or explicit user direction — never recreate its effect with raw Git or filesystem commands.
 
 ### When to use each model
 
-For ChatGPT Codex: Fable -> Sol, Opus -> Terra, Sonnet -> Luna
+For ChatGPT Codex: Fable -> gpt-5.6-sol, Opus -> gpt-5.6-terra, Sonnet -> gpt-5.6-luna
+	Temp Note: Codex does not currently expose model names for subagents, so we are using gpt-5.6-sol high (which currently is picked up by all subagents)
 
 Fable: Planning, Code & Session Reviews
 Opus: Writing Code & Documentation
@@ -32,18 +33,19 @@ Sonnet: Code/Web search, Builds, Large-file/log filtering, Style Review
 	- Search and filtering roles return direct quotes, file:line references, or links — never summaries
 	- Build roles invoke `/compile` and return status plus decisive errors or warnings
 
-## IMPORTANT: C++ Change Workflow (YOU MUST follow this when making code changes)
+## IMPORTANT: Change Workflow (YOU MUST follow this when changing anything tracked in this repository)
+
+This workflow governs every tracked artifact — C++, shaders, PowerShell and other scripts, skills, plans, and documentation. Artifact-specific routing lives inside the individual steps; a change is never outside this workflow merely because it is not C++. Where a step names artifact types, an artifact it does not name is an unrouted case: resolve it per the ambiguity rule below, never by treating the step as inapplicable.
 
 The user's request is implementation authority for Tier 1 and Tier 2 changes; agents classify the work, make the smallest complete change, run proportionate checks, and report changed files, decisive checks, and residuals. Do not require a user approval round-trip, wrapper session, report artifact, final manifest, or landing workflow unless a final-evidence gate applies.
 
 Definitions used throughout this workflow:
 
 - **Execution card** — the short pre-implementation record of goal, out-of-scope boundary, tier trigger, affected interfaces/invariants, acceptance checks, and roles.
-- **Final-evidence gate** — the `/verify-changes` immutable acceptance ledger plus `/finalize-changes` path required for queue mutation or completion, reconciliation, requested primary commit or landing, shared build/bootstrap work, or Tier-3 integration. Any `/next-plan` claim uses it regardless of tier — "Tier 1 and Tier 2 authorize implementation" governs approval, not finalization.
-- **Objective-terminal** — the session state where every recorded stage is complete or explicitly user-deferred with a verified receipt in the live plan queue.
-- **Reconciliation** — `/finalize-changes` rebasing the verified session branch onto the current primary tip, then reverifying affected checks before landing.
-- **Receipt** — an immutable JSON record with a SHA-256 identity proving a queue or approval transition (claim, presentation, approval, completion).
-- **Queue row** — one plan entry in a `Documents/Plans/Order.md` or `Documents/Features/Order.md` queue; WorktreeCli is its sole parser and mutator.
+- **Final-evidence gate** — the `/verify-changes` acceptance table plus `/finalize-changes` path required for queue mutation or completion, reconciliation, requested primary commit or landing, shared build/bootstrap work, or Tier-3 integration. Any `/next-plan` claim uses it regardless of tier — "Tier 1 and Tier 2 authorize implementation" governs approval, not finalization.
+- **Objective-terminal** — the session state where every recorded stage is complete or explicitly user-deferred with a queued row in the live plan queue.
+- **Reconciliation** — `/finalize-changes` rebasing the verified session branch onto the current primary tip; a conflict-free rebase needs no re-verification, and conflicts route through the overlap check.
+- **Queue row** — one plan entry in the machine-local WorktreeCli queue (stored under `%LOCALAPPDATA%\BrokenEngineLocks\plan-queue-state\`, identified by the `Documents/Plans/Order.md` / `Documents/Features/Order.md` logical strings); the plan files it references live in the repo. WorktreeCli is the queue's sole parser and mutator.
 - **Wrapper session** — a session started through `.claude/claude-worktree.sh` or `.codex/codex-worktree.ps1`, owning an isolated worktree and a live WorktreeCli session claim.
 
 ### Risk tiers
@@ -58,7 +60,7 @@ A reviewer may escalate the tier when the changed bytes expose a higher-risk sur
 
 ### 1. Approve and classify
 
-At session start, pin the process baseline. Record the complete user objective, every approved stage and deliverable with its disposition, risk tier/triggers, roles, and one check per criterion or grounded invariant. For a final-evidence gate, persist this execution control before implementation and bind its hash in the final ledger. Tier 1 and Tier 2 authorize implementation; Tier 3, queue, reconciliation, and landing work also gets a short execution card.
+At session start, pin the process baseline. Record the complete user objective, every approved stage and deliverable with its disposition, risk tier/triggers, roles, and one check per criterion or grounded invariant. Tier 1 and Tier 2 authorize implementation; Tier 3, queue, reconciliation, and landing work also gets a short execution card.
 
 ### 2. Plan review
 
@@ -66,7 +68,7 @@ Tier 2+ starts from a plan: load a plan file or enter plan mode to create one; t
 
 ### 3. Implement and propagate
 
-Opus subagents implement the smallest complete change, then run `/update-affected-code` for any code change (not documentation, skills, or scripts), updating only required affected sites.
+Opus subagents implement the smallest complete change, then run `/update-affected-code` for any code change (not documentation, skills, or scripts), updating only required affected sites. Exception: in a review-fix wave, a single-function fix with no signature or contract change self-scans affected sites, spawning `/update-affected-code` only for candidates outside its assigned scope (mechanics: `/resolve-findings`).
 
 ### 4. Run targeted pre-review checks
 
@@ -74,11 +76,11 @@ Run the smallest applicable static checks and affected-target compilation before
 
 ### 5. Review and resolve correctness
 
-Run one fresh domain review — changed C++: `/repo-code-review`; changed shaders: `/glsl-review`; Tier-1 non-C++: direct coherence. Tier 3 adds `/adversarial-review`, which any tier may also run for one concrete unresolved reachable hypothesis. Adjudicate evidence once; accepted fixes re-review and retest only affected regions, and a second wave needs a reproducible blocker.
+Run one fresh domain review — changed C++: `/repo-code-review`; changed shaders: `/glsl-review`; Tier-1 non-C++: direct coherence; any other changed artifact at Tier 2+ (scripts, skills, plans, documentation): fresh-eyes coherence review by a Fable subagent against the changed bytes — that reviewer fixes and self-verifies sub-semantic issues (meaning-preserving wording, formatting) in the same pass; only semantic findings route through separate resolve/verify steps. Every changed artifact type gets exactly one domain review — a change spanning two types runs each type's review — and no artifact type falls through this list unreviewed. Tier 3 adds `/adversarial-review`, which any tier may also run for one concrete unresolved reachable hypothesis. Adjudicate evidence once; accepted fixes re-review and retest only affected regions, and a second wave needs a reproducible blocker.
 
 ### 6. Apply conditional hygiene
 
-Run `/code-style-review` only for changed C++, `/update-claude-docs` only for durable instruction or invariant drift, and `/update-vcxproj` only for added or removed files or whole-file client/server affinity changes.
+Run `/code-style-review` only for changed C++, `/validate-skill` only for a changed `.agents/skills/*/SKILL.md`, `/update-claude-docs` only for durable instruction or invariant drift, and `/update-vcxproj` only for added or removed files or whole-file client/server affinity changes.
 
 ### 7. Verify the acceptance matrix
 
@@ -86,15 +88,17 @@ Map every approved criterion and declared invariant to a decisive check, naming 
 
 ### 8. Reconcile, audit when triggered, and finalize
 
-When a final-evidence gate applies, create the immutable ledger and `/verify-changes` manifest. Run one `/session-audit` only for late semantic fixes, reconciliation changes or invalidated assumptions, Tier-3 cross-file integration, or contract-significant regions unseen by review.
+When a final-evidence gate applies, produce the `/verify-changes` acceptance table. Run one `/session-audit` only for late semantic fixes, manual conflict resolutions or invalidated assumptions, Tier-3 cross-file integration, or contract-significant regions unseen by review.
 
-Queue work normally uses a registered session worktree. `/finalize-changes` owns commit, landing, and claim release — including the explicitly user-authorized `primary-commit` route — and a session landing still needs final approval before advancing its parent. WorktreeCli is the sole row parser and mutator; validate before queue selection or mutation, after queue-changing landing, and after primary completion.
+Queue work normally uses a registered session worktree. `/finalize-changes` owns commit, landing, and claim release — including the explicitly user-authorized `primary-commit` route — and a session landing still needs final approval before advancing its parent. WorktreeCli is the sole row parser and mutator; validate before queue selection or mutation, after a landing that changes plan files, and after primary completion.
 
-Landing and claim release complete only a repository stage. Continue the next recorded stage in the same session or present its approval gate. The session is objective-terminal only when every stage is complete or each unfinished stage was explicitly deferred by the user and has a verified receipt in the live plan queue.
+Landing and claim release complete only a repository stage. Continue the next recorded stage in the same session or present its approval gate. The session is objective-terminal only when every stage is complete or each unfinished stage was explicitly deferred by the user and has a queued row in the live plan queue.
 
 ### Convergence
 
 Once a stage's required checks pass, stop changing it: advance to the next stage, approval gate, blocker, or objective-terminal state without adding untriggered tests, reviews, or process steps. This convergence rule never shortens a valid build, lock, or harness deadline.
+
+Convergence applies only to steps this workflow routes and does not trigger. An artifact type or case a step does not route is an ambiguity, not an untriggered step: surface it and resolve it with the user before proceeding. Silence in a step is never permission to skip it, and never grounds to call a review or check "untriggered."
 
 ## Directives
 

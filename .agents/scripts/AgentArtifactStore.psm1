@@ -53,14 +53,4 @@ function New-AgentArtifactPath([string] $Worktree, [string] $Purpose, [string] $
 	return Assert-AgentArtifactPath -Worktree $Worktree -Path $path
 }
 
-function New-AgentReportPath([string] $Worktree, [string] $Purpose) {
-	return New-AgentArtifactPath -Worktree $Worktree -Purpose $Purpose -Extension 'md'
-}
-
-function Get-AgentLandingArtifactPath([string] $Worktree, [string] $Commit) {
-	if ($Commit -cnotmatch '^[0-9a-f]{40}$') { throw "Commit must be a lowercase 40-character object ID: '$Commit'." }
-	$root = Ensure-AgentArtifactRoot $Worktree
-	return Join-Path $root ("landing-$Commit.json")
-}
-
-Export-ModuleMember -Function Get-AgentArtifactRoot,Ensure-AgentArtifactRoot,Assert-AgentArtifactPath,New-AgentArtifactPath,New-AgentReportPath,Get-AgentLandingArtifactPath
+Export-ModuleMember -Function Get-AgentArtifactRoot,Ensure-AgentArtifactRoot,Assert-AgentArtifactPath,New-AgentArtifactPath

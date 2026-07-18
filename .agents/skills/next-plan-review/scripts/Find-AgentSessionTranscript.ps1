@@ -6,6 +6,17 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Resolve-RipgrepPath {
+	$onPath = (Get-Command rg -ErrorAction SilentlyContinue).Source
+	if (-not [string]::IsNullOrWhiteSpace($onPath)) { return $onPath }
+	$codexBin = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin\*\rg.exe'
+	$bundled = Get-ChildItem -Path $codexBin -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+	if ($null -ne $bundled) { return $bundled.FullName }
+	throw "ripgrep not found: no 'rg' on PATH and no rg.exe under '$codexBin'."
+}
+
+$ripgrepPath = Resolve-RipgrepPath
+
 function Invoke-Git([string[]] $Arguments) {
 	$output = @(& git -C $RepositoryRoot @Arguments 2>&1)
 	if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join '; ')" }
@@ -86,7 +97,7 @@ foreach ($root in $roots) {
 	$rgArguments = @('--files-with-matches', '--ignore-case', '--fixed-strings', '--glob', '*.jsonl', '-e', $commitHash, '-e', $shortHash)
 	if (-not [string]::IsNullOrWhiteSpace($commitSubject)) { $rgArguments += @('-e', $commitSubject) }
 	$rgArguments += @('--', $root)
-	$matchingPaths = @(& rg @rgArguments 2>$null)
+	$matchingPaths = @(& $ripgrepPath @rgArguments 2>$null)
 	$rgExitCode = $LASTEXITCODE
 	if ($rgExitCode -gt 1) { throw "rg Codex transcript search failed beneath '$root' with exit code $rgExitCode." }
 

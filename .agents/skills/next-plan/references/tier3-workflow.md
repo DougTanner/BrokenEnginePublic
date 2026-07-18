@@ -14,7 +14,8 @@ Write a short current-state card before implementation with the root
 `AGENTS.md` execution-card fields; for Tier 3 the trigger must be concrete and
 each acceptance check names its expected observation.
 
-Refresh stale source citations only where the plan depends on them. Search for
+Never edit the claimed plan file during execution; carry materially stale
+source-citation corrections in the execution card instead. Search for
 an affected mirrored pattern only when the intended change alters a signature,
 identity, semantics, layout, guard scope, or named invariant.
 

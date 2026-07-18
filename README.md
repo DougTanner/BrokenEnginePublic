@@ -31,8 +31,8 @@ Setting up a new machine? [Documents/FreshMachineSetup.md](Documents/FreshMachin
 	- With Developer Mode on, clone with `git -c core.symlinks=true clone --recurse-submodules <repository-url>`
 	- Or use "git submodule init" & "git submodule update" after cloning
 	- If you already cloned without Developer Mode, enable it, open a new terminal (so the new privilege takes effect), then enable symlinks for that clone with `git config core.symlinks true` before restoring the link with `git checkout -- .claude/skills`
-- Optionally run `git config --global core.safecrlf false` to suppress warnings about automatic line-ending conversions.
-	- Example: `LF will be replaced by CRLF the next time Git touches it`
+- Line endings are LF, enforced by the tracked `.gitattributes` (`* text=auto eol=lf`), so `core.autocrlf` no longer affects checkouts and no LF/CRLF conversion warnings occur.
+	- If you cloned before `.gitattributes` existed, refresh an existing clone's working tree to LF with `git add --renormalize .` then `git checkout-index -a -f` (clean tree required).
 
 ## Windows Shell Tools
 

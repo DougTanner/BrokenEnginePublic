@@ -111,8 +111,7 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 	// ~area/quadSize, so quadSize must be bit-stable across consecutive frames).
 	XMFLOAT4 f4RawAreaIn = f4RenderVisibleArea;
 
-	int iLod = std::clamp(static_cast<int>(std::floor(std::log2(std::max(fEyeDistance, kfMinEyeHeight) / kfMinEyeHeight) * 0.5f)),
-	                      0, BufferManager::kiVisibleAreaLodCount - 1);
+	int iLod = std::clamp(static_cast<int>(std::floor(std::log2(std::max(fEyeDistance, kfMinEyeHeight) / kfMinEyeHeight) * 0.5f)), 0, static_cast<int>(BufferManager::kiVisibleAreaLodCount) - 1);
 	// LOD hysteresis: refuse to flip back across the shared boundary if eye distance is still
 	// near it. Boundaries are at kfMinEyeHeight * 4^L; 5% band absorbs FP rounding around
 	// asymptotic settling.

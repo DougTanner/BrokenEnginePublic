@@ -6,6 +6,7 @@
 #include "Game.h"
 #include "Network/Server/ServerBroadcaster.h"
 #include "Network/Server/ServerClientManager.h"
+#include "Profile/ProfileManager.h"
 
 namespace game
 {
@@ -204,6 +205,40 @@ void CommandReplayPlay([[maybe_unused]] const nlohmann::json& rParams, [[maybe_u
 		gpGame->mGameFlags.Set(engine::GameFlags::kLoadReplay);
 		rResult["pending"] = true;
 	}
+}
+
+void CommandQueryProfile([[maybe_unused]] const nlohmann::json& rParams, nlohmann::json& rResult)
+{
+	nlohmann::json timers = nlohmann::json::array();
+	{
+		std::lock_guard lock(gpProfileManager->mCpuTimerMutex);
+		for (int64_t i = 0; i < gpProfileManager->GetCpuTimerCount(); ++i)
+		{
+			engine::CpuTimer& rTimer = gpProfileManager->GetCpuTimer(i);
+			nlohmann::json timer;
+			timer["index"] = i;
+			timer["name"] = std::string(gpProfileManager->GetCpuTimerName(i));
+			timer["currentUs"] = rTimer.smoothedMicroseconds.Current();
+			timer["averageUs"] = rTimer.smoothedMicroseconds.Average();
+			timer["maxUs"] = rTimer.smoothedMicroseconds.Max();
+			timer["allocations"] = rTimer.smoothedAllocations.Current();
+			timer["threads"] = rTimer.iThreads;
+			timers.push_back(std::move(timer));
+		}
+	}
+	rResult["timers"] = std::move(timers);
+
+	nlohmann::json counters = nlohmann::json::array();
+	for (int64_t i = 0; i < gpProfileManager->GetCpuCounterCount(); ++i)
+	{
+		engine::CpuCounter& rCounter = gpProfileManager->GetCpuCounter(i);
+		nlohmann::json counter;
+		counter["index"] = i;
+		counter["name"] = std::string(gpProfileManager->GetCpuCounterName(i));
+		counter["count"] = rCounter.iCount;
+		counters.push_back(std::move(counter));
+	}
+	rResult["counters"] = std::move(counters);
 }
 
 } // namespace
@@ -442,6 +477,11 @@ bool ExecuteAgentCommandServer(std::string_view cmd, const nlohmann::json& rPara
 	if (cmd == "query_collection")
 	{
 		CommandQueryCollection(rParams, rResult);
+		return true;
+	}
+	if (cmd == "query_profile")
+	{
+		CommandQueryProfile(rParams, rResult);
 		return true;
 	}
 	if (cmd == "inject_status_changes")

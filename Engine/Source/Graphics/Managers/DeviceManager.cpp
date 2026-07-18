@@ -14,10 +14,28 @@ DeviceManager::DeviceManager()
 	ScopedBootTimer scopedBootTimer(kBootTimerDeviceManager);
 
 	// Query available device extensions
-	uint32_t uiExtensionCount = 0;
-	vkEnumerateDeviceExtensionProperties(gpInstanceManager->mVkPhysicalDevice, nullptr, &uiExtensionCount, nullptr);
-	std::vector<VkExtensionProperties> availableExtensions(uiExtensionCount);
-	vkEnumerateDeviceExtensionProperties(gpInstanceManager->mVkPhysicalDevice, nullptr, &uiExtensionCount, availableExtensions.data());
+	std::vector<VkExtensionProperties> availableExtensions;
+	VkResult eVkResult = VK_INCOMPLETE;
+	while (eVkResult == VK_INCOMPLETE)
+	{
+		uint32_t uiExtensionCount = 0;
+		eVkResult = vkEnumerateDeviceExtensionProperties(gpInstanceManager->mVkPhysicalDevice, nullptr, &uiExtensionCount, nullptr);
+		if (eVkResult != VK_SUCCESS && eVkResult != VK_INCOMPLETE)
+		{
+			CHECK_VK(eVkResult);
+		}
+
+		availableExtensions.resize(uiExtensionCount);
+		eVkResult = vkEnumerateDeviceExtensionProperties(gpInstanceManager->mVkPhysicalDevice, nullptr, &uiExtensionCount, availableExtensions.data());
+		if (eVkResult != VK_SUCCESS && eVkResult != VK_INCOMPLETE)
+		{
+			CHECK_VK(eVkResult);
+		}
+		if (eVkResult == VK_SUCCESS)
+		{
+			availableExtensions.resize(uiExtensionCount);
+		}
+	}
 
 	// Build device extension list
 	std::vector<const char*> deviceExtensions;
@@ -243,7 +261,6 @@ DeviceManager::DeviceManager()
 	}
 	else
 	{
-		ASSERT(false);
 		vkGetDeviceQueue(mVkDevice, static_cast<uint32_t>(gpInstanceManager->miPresentQueueFamilyIndex), 0, &mPresentVkQueue);
 		VkName(VK_OBJECT_TYPE_QUEUE, mPresentVkQueue, "Present");
 	}
@@ -318,14 +335,28 @@ DeviceManager::~DeviceManager()
 	if constexpr (kbVulkanPipelineCache)
 	{
 		size_t uiDataSize = 0;
-		vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, nullptr);
-		std::vector<uint8_t> cacheData(uiDataSize);
-		vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, cacheData.data());
-		static_cast<void>(gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, "pipeline.cache", [&](std::fstream& rStream)
+		VkResult eVkResult = vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, nullptr);
+		if (eVkResult == VK_SUCCESS)
 		{
-			rStream.write(reinterpret_cast<const char*>(cacheData.data()), static_cast<std::streamsize>(uiDataSize));
-		}));
-		LOG(kGraphics, kDebug, "Saved pipeline cache ({} bytes)", uiDataSize);
+			std::vector<uint8_t> cacheData(uiDataSize);
+			eVkResult = vkGetPipelineCacheData(mVkDevice, mVkPipelineCache, &uiDataSize, cacheData.data());
+			if (eVkResult == VK_SUCCESS)
+			{
+				static_cast<void>(gpFileManager->WriteFileAtomically({FileFlags::kAppDataDirectory, FileFlags::kWrite}, "pipeline.cache", [&](std::fstream& rStream)
+				{
+					rStream.write(reinterpret_cast<const char*>(cacheData.data()), static_cast<std::streamsize>(uiDataSize));
+				}));
+				LOG(kGraphics, kDebug, "Saved pipeline cache ({} bytes)", uiDataSize);
+			}
+			else
+			{
+				LOG(kGraphics, kWarning, "Skipping pipeline cache save: vkGetPipelineCacheData returned {}", string_VkResult(eVkResult));
+			}
+		}
+		else
+		{
+			LOG(kGraphics, kWarning, "Skipping pipeline cache save: vkGetPipelineCacheData returned {}", string_VkResult(eVkResult));
+		}
 		vkDestroyPipelineCache(mVkDevice, mVkPipelineCache, nullptr);
 	}
 

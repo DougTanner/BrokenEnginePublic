@@ -20,7 +20,6 @@ This is the authoritative schema for `.agents/skills/*/SKILL.md`. It intentional
 | `description` | yes | text scalar or `>-` | Nonempty; at most 1,024 characters |
 | `when_to_use` | no | text scalar or `>-` | Nonempty; combined with `description` at most 1,536 characters |
 | `allowed-tools` | no | flow list | String items |
-| `disallowed-tools` | no | flow list | String items |
 | `paths` | no | flow list | Nonempty string items |
 | `argument-hint` | no | text scalar | Nonempty |
 | `disable-model-invocation` | no | boolean | Exact `true` or `false` |
@@ -32,6 +31,8 @@ This is the authoritative schema for `.agents/skills/*/SKILL.md`. It intentional
 | `shell` | no | enum | `bash` or `powershell` |
 
 `arguments` and `hooks` are deliberately unsupported. Extend this schema and validator together when a repository skill first needs either field.
+
+`disallowed-tools` is banned outright, not merely unsupported. It removes tools from the *invoking* context for the remainder of the turn, so a skill written for a delegated reviewer strips the caller's own delegation, editing, and user-interview ability when invoked inline — silently, and without leaving the caller a way to ask about it. State a skill's tool bounds in its body instead. Note that omitting a tool from `allowed-tools` restricts nothing; that field only pre-approves.
 
 ## Scalar and list forms
 

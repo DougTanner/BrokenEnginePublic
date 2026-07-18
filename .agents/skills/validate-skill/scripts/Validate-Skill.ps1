@@ -553,9 +553,9 @@ try
 	}
 	else
 	{
-		$allowedKeys = @('name', 'description', 'when_to_use', 'allowed-tools', 'disallowed-tools', 'paths', 'argument-hint', 'disable-model-invocation', 'user-invocable', 'context', 'agent', 'model', 'effort', 'shell')
+		$allowedKeys = @('name', 'description', 'when_to_use', 'allowed-tools', 'paths', 'argument-hint', 'disable-model-invocation', 'user-invocable', 'context', 'agent', 'model', 'effort', 'shell')
 		$textKeys = @('name', 'description', 'when_to_use', 'argument-hint', 'agent', 'model')
-		$listKeys = @('allowed-tools', 'disallowed-tools', 'paths')
+		$listKeys = @('allowed-tools', 'paths')
 		$booleanKeys = @('disable-model-invocation', 'user-invocable')
 		for ($i = 1; $i -lt $lines.Count; $i++)
 		{

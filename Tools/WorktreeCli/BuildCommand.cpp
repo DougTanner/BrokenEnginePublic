@@ -87,86 +87,8 @@ namespace toolcli
 			RunProcessOptions options;
 			options.bCaptureOutput = bCaptureOutput;
 			options.bKillOnJobClose = true;
-			options.bReportFailures = true;
+			options.failureSink = Fail;
 			return RunProcess(&rExecutable, rArguments, options);
-		}
-
-		struct JobProcess
-		{
-			Handle hJob;
-			Handle hProcess;
-		};
-
-		std::optional<JobProcess> LaunchJobProcess(const std::filesystem::path& rExecutable, const std::vector<std::wstring>& rArguments, HANDLE hStdOutput, HANDLE hStdError)
-		{
-			Handle hJob(::CreateJobObjectW(nullptr, nullptr));
-			if (!hJob.IsValid())
-			{
-				FailBuildWindows("create build job");
-				return std::nullopt;
-			}
-			JOBOBJECT_EXTENDED_LIMIT_INFORMATION jobInformation {};
-			jobInformation.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-			if (::SetInformationJobObject(hJob.Get(), JobObjectExtendedLimitInformation, &jobInformation, sizeof(jobInformation)) == FALSE)
-			{
-				FailBuildWindows("configure build job");
-				return std::nullopt;
-			}
-
-			STARTUPINFOW startupInfo {};
-			startupInfo.cb = sizeof(startupInfo);
-			startupInfo.dwFlags = STARTF_USESTDHANDLES;
-			startupInfo.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
-			startupInfo.hStdOutput = hStdOutput;
-			startupInfo.hStdError = hStdError;
-			PROCESS_INFORMATION processInformation {};
-			std::wstring commandLine = BuildCommandLine(rArguments);
-			if (::CreateProcessW(rExecutable.c_str(), commandLine.data(), nullptr, nullptr, TRUE, CREATE_SUSPENDED, nullptr, nullptr, &startupInfo, &processInformation) == FALSE)
-			{
-				FailBuildWindows("launch process");
-				return std::nullopt;
-			}
-			Handle hProcess(processInformation.hProcess);
-			Handle hThread(processInformation.hThread);
-			if (::AssignProcessToJobObject(hJob.Get(), hProcess.Get()) == FALSE)
-			{
-				FailBuildWindows("assign process to build job");
-				::TerminateProcess(hProcess.Get(), ERROR_PROCESS_ABORTED);
-				return std::nullopt;
-			}
-			if (::ResumeThread(hThread.Get()) == static_cast<DWORD>(-1))
-			{
-				FailBuildWindows("start process");
-				::TerminateProcess(hProcess.Get(), ERROR_PROCESS_ABORTED);
-				return std::nullopt;
-			}
-			return JobProcess
-			{
-				.hJob = std::move(hJob),
-				.hProcess = std::move(hProcess),
-			};
-		}
-
-		bool CreateOutputPipe(Handle& rhPipeRead, Handle& rhPipeWrite)
-		{
-			SECURITY_ATTRIBUTES pipeAttributes {};
-			pipeAttributes.nLength = sizeof(pipeAttributes);
-			pipeAttributes.bInheritHandle = TRUE;
-			HANDLE hRead = INVALID_HANDLE_VALUE;
-			HANDLE hWrite = INVALID_HANDLE_VALUE;
-			if (::CreatePipe(&hRead, &hWrite, &pipeAttributes, 0) == FALSE)
-			{
-				FailBuildWindows("create output pipe");
-				return false;
-			}
-			rhPipeRead.Reset(hRead);
-			rhPipeWrite.Reset(hWrite);
-			if (::SetHandleInformation(rhPipeRead.Get(), HANDLE_FLAG_INHERIT, 0) == FALSE)
-			{
-				FailBuildWindows("configure output pipe");
-				return false;
-			}
-			return true;
 		}
 
 		class RetainedLog
@@ -267,14 +189,35 @@ namespace toolcli
 				size_t uiStart = 0;
 				for (size_t uiIndex = mCarry.find('\n', 0); uiIndex != std::string::npos; uiIndex = mCarry.find('\n', uiStart))
 				{
-					ParseLine(std::string_view(mCarry).substr(uiStart, uiIndex - uiStart));
+					// A set skip flag means this segment is the tail of a dropped oversized line.
+					if (mbSkipLine)
+					{
+						mbSkipLine = false;
+					}
+					else
+					{
+						ParseLine(std::string_view(mCarry).substr(uiStart, uiIndex - uiStart));
+					}
 					uiStart = uiIndex + 1;
 				}
 				mCarry.erase(0, uiStart);
+				// ParseLine already skips lines over the cap, so dropping an oversized unterminated
+				// carry loses no line that would have been parsed.
+				if (mCarry.size() > kuiMaxDiagnosticLineLength)
+				{
+					mbSkipLine = true;
+					mCarry.clear();
+				}
 			}
 
 			void Finish()
 			{
+				if (mbSkipLine)
+				{
+					mCarry.clear();
+					mbSkipLine = false;
+					return;
+				}
 				if (!mCarry.empty())
 				{
 					ParseLine(mCarry);
@@ -370,48 +313,30 @@ namespace toolcli
 			std::unordered_set<std::string> mSeenDiagnostics;
 			nlohmann::json mDiagnostics = nlohmann::json::array();
 			bool mbTruncated = false;
+			bool mbSkipLine = false;
 		};
 
 		// Launches MSBuild with stdout and stderr bound to one pipe so the retained log
 		// preserves the observed read order of the combined stream.
 		std::optional<DWORD> RunMsBuildToLog(const std::filesystem::path& rExecutable, const std::vector<std::wstring>& rArguments, RetainedLog& rLog, DiagnosticParser& rParser)
 		{
-			Handle hPipeRead;
-			Handle hPipeWrite;
-			if (!CreateOutputPipe(hPipeRead, hPipeWrite))
+			RunProcessOptions options;
+			options.bCaptureOutput = true;
+			options.bMergeStdError = true;
+			options.bKillOnJobClose = true;
+			options.failureSink = FailBuild;
+			options.outputSink = [&rLog, &rParser](const char* pData, size_t uiSize)
 			{
-				return std::nullopt;
-			}
-
-			std::optional<JobProcess> process = LaunchJobProcess(rExecutable, rArguments, hPipeWrite.Get(), hPipeWrite.Get());
-			if (!process)
-			{
-				return std::nullopt;
-			}
-			hPipeWrite.Reset();
-
-			char pBuffer[65536] {};
-			DWORD uiRead = 0;
-			// A zero-byte write by the child completes ReadFile with TRUE/0; only a broken pipe is EOF.
-			while (::ReadFile(hPipeRead.Get(), pBuffer, sizeof(pBuffer), &uiRead, nullptr) != FALSE)
-			{
-				if (uiRead == 0)
-				{
-					continue;
-				}
-				rLog.Write(pBuffer, uiRead);
-				rParser.Consume(pBuffer, uiRead);
-			}
+				rLog.Write(pData, uiSize);
+				rParser.Consume(pData, uiSize);
+			};
+			std::optional<ProcessResult> result = RunProcess(&rExecutable, rArguments, options);
 			rParser.Finish();
-
-			::WaitForSingleObject(process->hProcess.Get(), INFINITE);
-			DWORD uiExitCode = ERROR_GEN_FAILURE;
-			if (::GetExitCodeProcess(process->hProcess.Get(), &uiExitCode) == FALSE)
+			if (!result)
 			{
-				FailBuildWindows("read process exit code");
 				return std::nullopt;
 			}
-			return uiExitCode;
+			return result->uiExitCode;
 		}
 
 		std::optional<std::filesystem::path> FindMsBuild()

@@ -1,7 +1,12 @@
+# Completion phase 1 (in-session): verify the wrapper owner still holds the selected
+# plan row, run the closure scan for lingering live references, then delete the plan
+# file as an ordinary tracked deletion (`git rm`). The queue row stays claimed and is
+# removed post-landing by Invoke-FinalizeLanding.ps1 (`plan order complete`); this
+# script never runs `plan order complete` or `plan order validate` and performs no
+# post-deletion row checks. -Plan is the repository-relative plan path being completed.
 [CmdletBinding()]
 param(
-	[string] $ApprovalReceiptPath,
-	[string] $ApprovalReceiptSha256
+	[string] $Plan
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,7 +19,6 @@ $result = [ordered]@{
 	message = 'Completion did not run.'
 	workflowTerminal = $false
 	nextAction = 'finalize-changes'
-	receipt = $null
 	closure = $null
 	completion = $null
 }
@@ -30,38 +34,15 @@ function Complete-Workflow([int] $ExitCode, [string] $Status, [string] $Code, [s
 try {
 	Import-Module (Join-Path $PSScriptRoot 'NextPlanWorkflowCommon.psm1') -Force -DisableNameChecking
 	$context = Get-NextPlanContext -AllowPrimaryAdvance
-	$approvalArtifact = Read-NextPlanJsonArtifact $context.Worktree $ApprovalReceiptPath $ApprovalReceiptSha256 'broken-engine-next-plan-approval/v1'
-	$approval = $approvalArtifact.Value
-	if ([string]$approval.finalizationMode -cne 'session-landing') {
-		Complete-Workflow 2 'blocked' 'completion.mode-invalid' 'The /next-plan approval mode is not session-landing.'
-	}
-	foreach ($field in @('owner','session','worktree','primary','commonDirectory','sessionBranch','targetBranch','baseline')) {
-		$expected = [string]$context.($field.Substring(0,1).ToUpperInvariant() + $field.Substring(1))
-		if ([string]$approval.$field -cne $expected) {
-			Complete-Workflow 2 'blocked' 'completion.provenance-changed' "Approval field '$field' no longer matches wrapper provenance."
-		}
-	}
-	$plan = [string]$approval.plan
-	$order = [string]$approval.order
+	$plan = $Plan.Replace('\', '/')
+	Assert-NextPlanGitPath $plan
+	$order = if ($plan.StartsWith('Documents/Plans/', [StringComparison]::Ordinal)) { 'Documents/Plans/Order.md' }
+		elseif ($plan.StartsWith('Documents/Features/', [StringComparison]::Ordinal)) { 'Documents/Features/Order.md' }
+		else { throw "Plan '$plan' does not belong to a known queue." }
 	$rowPlan = Get-NextPlanRowIdentity $order $plan
-	if ($rowPlan -cne [string]$approval.rowPlan) { throw 'Approval row identity is malformed.' }
-	$approvedCardPath = [string]$approval.executionCard.path
-	if (-not (Test-Path -LiteralPath $approvedCardPath -PathType Leaf)) {
-		Complete-Workflow 2 'blocked' 'completion.execution-card-changed' 'The approved execution card no longer exists.'
-	}
-	$cardPath = Assert-NextPlanTempPath $context.Worktree $approvedCardPath 'Execution card'
-	$currentCardSha = Get-NextPlanFileSha256 $cardPath
-	if ($currentCardSha -cne [string]$approval.executionCard.sha256) {
-		Complete-Workflow 2 'blocked' 'completion.execution-card-changed' 'The execution-card bytes changed after approval.'
-	}
 	$expectedPlanPath = Join-Path $context.Worktree $plan
 	if (-not (Test-Path -LiteralPath $expectedPlanPath -PathType Leaf)) {
-		Complete-Workflow 2 'blocked' 'completion.plan-changed' 'The selected plan no longer exists.'
-	}
-	$planPath = Assert-NextPlanRepositoryPath $context.Worktree $expectedPlanPath 'Selected plan'
-	$currentPlanSha = Get-NextPlanFileSha256 $planPath
-	if ($currentPlanSha -cne [string]$approval.planSha256) {
-		Complete-Workflow 2 'blocked' 'completion.plan-changed' 'The selected plan bytes changed after approval.'
+		Complete-Workflow 2 'blocked' 'completion.plan-missing' 'The selected plan no longer exists.'
 	}
 
 	$rowResponse = Invoke-NextPlanProcess $context.WorktreeCli @('plan','row','status','--repo',$context.CommonDirectory,'--order',$order,'--plan',$rowPlan,'--owner',$context.Owner) $context.Worktree
@@ -78,76 +59,20 @@ try {
 	$closureResponse = Invoke-NextPlanProcess (Join-Path $PSHOME 'pwsh.exe') @('-NoLogo','-NoProfile','-File',$closureScript,'-Worktree',$context.Worktree,'-Baseline',$context.Baseline,'-CompletedPlan',$plan) $context.Worktree
 	$closure = ConvertFrom-NextPlanProcessJson $closureResponse 'plan closure scan'
 	if ($closureResponse.ExitCode -ne 0) { throw 'Plan closure scan failed.' }
-	$owningRowPrefix = "| [$rowPlan]($rowPlan) |"
-	$unresolvedHits = @($closure.hits | Where-Object {
-		-not (([string]$_.path).Equals($order, [StringComparison]::OrdinalIgnoreCase) -and ([string]$_.text).StartsWith($owningRowPrefix, [StringComparison]::Ordinal))
-	})
+	# The queue table is machine-local, so no in-tree Order.md owning-row hit needs excluding; any
+	# remaining hit is a genuine live reference to the completed plan.
+	$unresolvedHits = @($closure.hits)
 	$result.closure = [ordered]@{ scan = $closure; unresolvedHits = $unresolvedHits }
 	if ($unresolvedHits.Count -ne 0) {
 		Complete-Workflow 2 'blocked' 'completion.closure-references' 'Live Plans/Features references to the completed plan remain.'
 	}
 
-	$completeResponse = Invoke-NextPlanProcess $context.WorktreeCli @(
-		'plan','order','complete','--repo',$context.CommonDirectory,'--worktree',$context.Worktree,
-		'--owner',$context.Owner,'--session',$context.Session,'--plan',$plan
-	) $context.Worktree
-	$complete = ConvertFrom-NextPlanProcessJson $completeResponse 'plan order complete'
-	$result.completion = $complete
-	if ($completeResponse.ExitCode -eq 2 -and -not ($complete.PSObject.Properties.Name -ccontains 'handled' -and $complete.handled)) {
-		Complete-Workflow 2 'blocked' 'completion.conflict' 'WorktreeCli rejected completion because queue state changed.'
+	$removeResponse = Invoke-NextPlanProcess 'git.exe' @('-C',$context.Worktree,'rm','--',$plan) $context.Worktree
+	if ($removeResponse.ExitCode -ne 0) {
+		throw "git rm of the completed plan failed: $($removeResponse.Stdout.Trim())$($removeResponse.Stderr.Trim())"
 	}
-	if ($completeResponse.ExitCode -eq 1 -or -not ($complete.PSObject.Properties.Name -ccontains 'handled') -or -not $complete.handled) {
-		throw 'WorktreeCli did not complete the selected plan.'
-	}
-	if ($complete.claimOwner -cne $context.Owner -or $complete.plan -cne $plan) {
-		throw 'WorktreeCli completion receipt does not match approval provenance.'
-	}
-	if ([string]$complete.removedPlanSha256 -cne [string]$approval.planSha256) {
-		throw 'WorktreeCli removed plan bytes do not match the approval receipt.'
-	}
-
-	$validateResponse = Invoke-NextPlanProcess $context.WorktreeCli @('plan','order','validate','--repo',$context.CommonDirectory,'--worktree',$context.Worktree) $context.Worktree
-	$validation = ConvertFrom-NextPlanProcessJson $validateResponse 'plan order validate'
-	if ($validateResponse.ExitCode -eq 1) { throw 'WorktreeCli plan-order validation failed.' }
-	if ($validateResponse.ExitCode -eq 2 -or -not $validation.ok) {
-		Complete-Workflow 2 'blocked' 'completion.validation-failed' 'Completed session queue validation failed.'
-	}
-	$postRowResponse = Invoke-NextPlanProcess $context.WorktreeCli @('plan','row','status','--repo',$context.CommonDirectory,'--order',$order,'--plan',$rowPlan,'--owner',$context.Owner) $context.Worktree
-	$postRow = ConvertFrom-NextPlanProcessJson $postRowResponse 'post-completion plan row status'
-	if ($postRowResponse.ExitCode -eq 1) { throw 'WorktreeCli post-completion plan-row status failed.' }
-	if ($postRowResponse.ExitCode -eq 2 -or -not $postRow.ownedByRequester -or $postRow.owner -cne $context.Owner) {
-		Complete-Workflow 2 'blocked' 'completion.claim-not-retained' 'Completion did not retain the owner-held plan-row claim.'
-	}
-	$receiptValue = [ordered]@{
-		schemaVersion = 'broken-engine-next-plan-completion/v1'
-		owner = $context.Owner
-		session = $context.Session
-		worktree = $context.Worktree
-		primary = $context.Primary
-		commonDirectory = $context.CommonDirectory
-		sessionBranch = $context.SessionBranch
-		targetBranch = $context.TargetBranch
-		baseline = $context.Baseline
-		finalizationMode = [string]$approval.finalizationMode
-		plan = $plan
-		order = $order
-		rowPlan = $rowPlan
-		planSha256 = $currentPlanSha
-		executionCard = [ordered]@{ path = $cardPath; sha256 = $currentCardSha }
-		approvalReceipt = [ordered]@{ path = $approvalArtifact.Path; sha256 = $approvalArtifact.Sha256 }
-		closure = [ordered]@{ scan = $closure; unresolvedHits = $unresolvedHits }
-		worktreeCliReceipt = $complete
-		validation = $validation
-		postCompletionClaim = $postRow
-		workflowTerminal = $false
-		nextAction = 'finalize-changes'
-	}
-	$receiptArtifact = Write-NextPlanJsonArtifact $context.Worktree 'next-plan-completion' $receiptValue
-	$result.receipt = [ordered]@{ path = $receiptArtifact.Path; sha256 = $receiptArtifact.Sha256; bytes = $receiptArtifact.Bytes }
-	if ($completeResponse.ExitCode -eq 0) {
-		Complete-Workflow 0 'pass' 'ok' 'Plan completion is verified and finalization is the mandatory next action.'
-	}
-	Complete-Workflow 2 'blocked' 'completion.unlock-failed' 'Plan completion is verified, but WorktreeCli reported a queue-unlock failure.'
+	$result.completion = [ordered]@{ planFileDeleted = $true; plan = $plan; rowPlan = $rowPlan; order = $order }
+	Complete-Workflow 0 'pass' 'ok' 'Plan file deleted; the row is removed post-landing and finalization is the mandatory next action.'
 }
 catch {
 	if (Get-Command Test-NextPlanStateBlocker -ErrorAction SilentlyContinue) {

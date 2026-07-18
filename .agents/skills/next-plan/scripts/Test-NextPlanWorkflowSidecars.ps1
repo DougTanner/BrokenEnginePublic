@@ -12,6 +12,9 @@ $artifactRoot = $null
 $sessionRegistration = $null
 $owner = $null
 $originalEnvironment = @{}
+# LOCALAPPDATA is restored separately (after Unregister-WorktreeCliSession), so the disposable
+# session ledger in the scratch store is still reachable at cleanup time.
+$originalLocalAppData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
 $environmentNames = @(
 	'BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE','BROKEN_ENGINE_WORKTREE_PATH','BROKEN_ENGINE_WORKTREECLI_SESSION_WORKTREE',
 	'BROKEN_ENGINE_PRIMARY_CHECKOUT','BROKEN_ENGINE_SESSION_BRANCH','BROKEN_ENGINE_TARGET_BRANCH','BROKEN_ENGINE_BASELINE',
@@ -100,14 +103,24 @@ try {
 	Set-Utf8File (Join-Path $primary 'Documents/Features/Reference.md') "# Features reference`n"
 	Invoke-Git $primary @('add','--all') | Out-Null
 	Invoke-Git $primary @('commit','-m','fixture baseline') | Out-Null
-	Invoke-Git $primary @('worktree','add','-b','codex/fixture-session',$script:session,'HEAD') | Out-Null
-	$baseline = Invoke-Git $primary @('rev-parse','HEAD')
 	$common = [IO.Path]::GetFullPath((Invoke-Git $primary @('rev-parse','--path-format=absolute','--git-common-dir')))
+	# The plan queue is machine-local under %LOCALAPPDATA%\BrokenEngineLocks; isolate it (and the
+	# session-exclusion ledger) in a scratch directory so this fixture never touches the real store.
+	$env:LOCALAPPDATA = Join-Path $fixtureRoot 'localappdata'
+	[IO.Directory]::CreateDirectory($env:LOCALAPPDATA) | Out-Null
 	$primaryOutput = Join-Path $primary 'Tools/WorktreeCli/Platforms/VisualStudio2026/Output'
 	$sessionOutput = Join-Path $script:session 'Tools/WorktreeCli/Platforms/VisualStudio2026/Output'
 	[IO.Directory]::CreateDirectory($primaryOutput) | Out-Null
 	$primaryExecutable = Join-Path $primaryOutput 'WorktreeCli.exe'
 	Copy-Item -LiteralPath (Get-Item -LiteralPath $Executable -Force).FullName -Destination $primaryExecutable
+	# Seed the machine-local store from the tracked Order.md files, then remove the in-tree queue tables
+	# (mirrors the one-time migration) so the session models a post-migration checkout with no Order.md.
+	$init = Invoke-Process $primaryExecutable @('plan','order','init','--repo',$common,'--worktree',$primary) $primary
+	Assert-True ($init.ExitCode -eq 0) "plan order init failed: $($init.Stdout)$($init.Stderr)"
+	Invoke-Git $primary @('rm','--','Documents/Plans/Order.md','Documents/Features/Order.md') | Out-Null
+	Invoke-Git $primary @('commit','-m','remove in-tree queue tables (machine-local migration)') | Out-Null
+	Invoke-Git $primary @('worktree','add','-b','codex/fixture-session',$script:session,'HEAD') | Out-Null
+	$baseline = Invoke-Git $primary @('rev-parse','HEAD')
 	[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($sessionOutput)) | Out-Null
 	New-Item -ItemType Junction -Path $sessionOutput -Target $primaryOutput | Out-Null
 	$fixtureExecutable = Join-Path $sessionOutput 'WorktreeCli.exe'
@@ -165,98 +178,37 @@ try {
 	Invoke-Git $script:session @('rebase',$advancedTip) | Out-Null
 	$env:BROKEN_ENGINE_BASELINE = $advancedTip
 
+	# The claim gate no longer requires clean trees: dirty the session first, then claim successfully.
+	Set-Utf8File (Join-Path $script:session 'Dirty.txt') "uncommitted work tolerated by the relaxed claim gate`n"
 	$claim = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Queue','plans','-Plan',$plan) 0
 	Assert-True ($claim.status -ceq 'pass' -and $claim.claim.plan -ceq $plan) 'Claim result did not bind the selected plan.'
 	Assert-True ($claim.claim.primaryCommit -ceq $advancedTip) 'Recovered claim did not bind the advanced primary tip.'
-	$executionCardPath = Join-Path $script:session 'Temp/execution-card.md'
-	$executionCardText = "- Goal: exercise the next-plan sidecars.`n- Acceptance: exact artifacts and retained claim.`n"
-	Set-Utf8File $executionCardPath $executionCardText
-	$primaryMode = Invoke-Sidecar 'New-NextPlanPresentation.ps1' @(
-		'-ClaimReceiptPath',$claim.receipt.path,'-ClaimReceiptSha256',$claim.receipt.sha256,
-		'-ExecutionCardPath',$executionCardPath,'-FinalizationMode','primary-commit'
-	) 1
-	Assert-True ($primaryMode.code -ceq 'presentation.failed') '/next-plan accepted unreachable primary-commit mode.'
-	$outsideTemp = Invoke-Sidecar 'New-NextPlanPresentation.ps1' @(
-		'-ClaimReceiptPath',$claim.receipt.path,'-ClaimReceiptSha256',$claim.receipt.sha256,
-		'-ExecutionCardPath',(Join-Path $script:session $plan),'-FinalizationMode','session-landing'
-	) 1
-	Assert-True ($outsideTemp.code -ceq 'presentation.failed') '/next-plan accepted an execution card outside Temp.'
-	$presentation = Invoke-Sidecar 'New-NextPlanPresentation.ps1' @(
-		'-ClaimReceiptPath',$claim.receipt.path,'-ClaimReceiptSha256',$claim.receipt.sha256,
-		'-ExecutionCardPath',$executionCardPath,'-FinalizationMode','session-landing'
-	) 0
-	Assert-True (@($presentation.presentation.ranges).Count -ge 1) 'Presentation did not publish complete ranges.'
-	$rendered = ''
-	foreach ($range in @($presentation.presentation.ranges)) {
-		$read = Invoke-Process (Join-Path $PSHOME 'pwsh.exe') @(
-			'-NoLogo','-NoProfile','-File',(Join-Path $repositoryRoot '.agents/scripts/Read-AgentReportSection.ps1'),
-			'-ReportPath',$presentation.presentation.path,'-ExpectedSha256',$presentation.presentation.sha256,'-Range',$range
-		) $script:session
-		if ($read.ExitCode -ne 0) { throw "Presentation range read failed: $($read.Stderr)" }
-		$rendered += $read.Stdout
-	}
-	Assert-True ($rendered.Contains('## Complete resolved plan', [StringComparison]::Ordinal)) 'Presentation ranges omitted the complete plan section.'
 
 	# Primary advancing mid-workflow is tolerated: the session keeps working at its baseline
-	# without rebasing, and approval, completion, and the receipt chain below all succeed.
+	# without rebasing, and completion below succeeds.
 	Set-Utf8File (Join-Path $primary 'Documents/PrimaryAdvance.txt') "advanced again`n"
 	Invoke-Git $primary @('add','--all') | Out-Null
 	Invoke-Git $primary @('commit','-m','fixture mid-workflow primary advance') | Out-Null
 
-	Set-Utf8File $executionCardPath "$executionCardText- changed after presentation`n"
-	$changedCard = Invoke-Sidecar 'Confirm-NextPlanApproval.ps1' @('-PresentationReceiptPath',$presentation.receipt.path,'-PresentationReceiptSha256',$presentation.receipt.sha256) 2
-	Assert-True ($changedCard.code -ceq 'approval.execution-card-changed') 'Changed execution card was not rejected at approval.'
-	Set-Utf8File $executionCardPath $executionCardText
-
-	Add-Content -LiteralPath (Join-Path $script:session $plan) -Value 'post-presentation change'
-	$rejected = Invoke-Sidecar 'Confirm-NextPlanApproval.ps1' @('-PresentationReceiptPath',$presentation.receipt.path,'-PresentationReceiptSha256',$presentation.receipt.sha256) 2
-	Assert-True ($rejected.code -ceq 'approval.precode-manifest-changed' -or $rejected.code -ceq 'approval.plan-changed') 'Changed plan was not rejected at approval.'
-	Invoke-Git $script:session @('restore','--',$plan) | Out-Null
-	$approval = Invoke-Sidecar 'Confirm-NextPlanApproval.ps1' @('-PresentationReceiptPath',$presentation.receipt.path,'-PresentationReceiptSha256',$presentation.receipt.sha256) 0
-	Assert-True ($approval.status -ceq 'pass') 'Exact presentation was not approved.'
-
+	# Phase 1 completion is git-rm-only: it stages the plan-file deletion but leaves the queue row and
+	# owner-held claim in place (the row is removed post-landing by Invoke-FinalizeLanding.ps1).
 	Set-Utf8File (Join-Path $script:session 'Source/Implemented.txt') "implemented`n"
-	Set-Utf8File $executionCardPath "$executionCardText- changed after approval`n"
-	$postApprovalCard = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-ApprovalReceiptPath',$approval.receipt.path,'-ApprovalReceiptSha256',$approval.receipt.sha256) 2
-	Assert-True ($postApprovalCard.code -ceq 'completion.execution-card-changed') 'Changed post-approval execution card was not a deterministic completion blocker.'
-	Set-Utf8File $executionCardPath $executionCardText
-	Add-Content -LiteralPath (Join-Path $script:session 'Documents/Plans/Order.md') -Value '| [TestPlan.md](TestPlan.md) | Small | 1 | 2 | 1 | 0 | - | conflicting duplicate |'
-	$completionConflict = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-ApprovalReceiptPath',$approval.receipt.path,'-ApprovalReceiptSha256',$approval.receipt.sha256) 2
-	Assert-True ($completionConflict.code -ceq 'completion.conflict') 'A WorktreeCli completion state conflict did not return exit 2.'
-	Invoke-Git $script:session @('restore','--','Documents/Plans/Order.md') | Out-Null
-	Add-Content -LiteralPath (Join-Path $script:session $plan) -Value 'post-approval change'
-	$postApprovalPlan = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-ApprovalReceiptPath',$approval.receipt.path,'-ApprovalReceiptSha256',$approval.receipt.sha256) 2
-	Assert-True ($postApprovalPlan.code -ceq 'completion.plan-changed') 'Changed post-approval plan was not a deterministic completion blocker.'
-	Invoke-Git $script:session @('restore','--',$plan) | Out-Null
-	$completion = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-ApprovalReceiptPath',$approval.receipt.path,'-ApprovalReceiptSha256',$approval.receipt.sha256) 0
+	$completion = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-Plan',$plan) 0
 	Assert-True (-not $completion.workflowTerminal -and $completion.nextAction -ceq 'finalize-changes') 'Completion incorrectly became a terminal workflow result.'
 	Assert-True (-not (Test-Path -LiteralPath (Join-Path $script:session $plan))) 'Completion retained the selected plan file.'
+	$stagedDeletion = Invoke-Git $script:session @('status','--porcelain','--',$plan)
+	Assert-True ($stagedDeletion.StartsWith('D', [StringComparison]::Ordinal)) 'Completion did not stage the plan-file deletion.'
 	$rowStatus = ConvertFrom-SingleJson (Invoke-Process $fixtureExecutable @('plan','row','status','--repo',$common,'--order','Documents/Plans/Order.md','--plan','TestPlan.md','--owner',$owner) $script:session) 0 'post-completion row status'
 	Assert-True ($rowStatus.ownedByRequester) 'Completion did not retain the owner-held row claim.'
-
-	$chain = Invoke-Sidecar 'Test-NextPlanReceiptChain.ps1' @('-CompletionReceiptPath',$completion.receipt.path,'-CompletionReceiptSha256',$completion.receipt.sha256) 0
-	Assert-True ($chain.finalizationMode -ceq 'session-landing' -and -not $chain.workflowTerminal -and $chain.nextAction -ceq 'finalize-changes') 'Receipt chain did not return authoritative finalization state.'
-	$currentCardSha = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([IO.File]::ReadAllBytes($executionCardPath))).ToLowerInvariant()
-	Assert-True ($chain.executionCard.sha256 -ceq $currentCardSha) 'Receipt chain did not validate the current execution card.'
-	$presentationBytes = [IO.File]::ReadAllBytes($presentation.presentation.path)
-	[IO.File]::WriteAllBytes($presentation.presentation.path, $presentationBytes + [byte[]](10))
-	$tamperedChain = Invoke-Sidecar 'Test-NextPlanReceiptChain.ps1' @('-CompletionReceiptPath',$completion.receipt.path,'-CompletionReceiptSha256',$completion.receipt.sha256) 2
-	Assert-True ($tamperedChain.code -ceq 'chain.artifact-invalid') 'Tampered presentation artifact was not rejected.'
-	[IO.File]::WriteAllBytes($presentation.presentation.path, $presentationBytes)
-	$completionBytes = [IO.File]::ReadAllBytes($completion.receipt.path)
-	$changedCompletion = $utf8.GetString($completionBytes) | ConvertFrom-Json -Depth 100
-	$changedCompletion.finalizationMode = 'primary-commit'
-	$changedCompletionBytes = $utf8.GetBytes(($changedCompletion | ConvertTo-Json -Depth 100 -Compress) + "`n")
-	[IO.File]::WriteAllBytes($completion.receipt.path, $changedCompletionBytes)
-	$changedCompletionSha = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($changedCompletionBytes)).ToLowerInvariant()
-	$modeChain = Invoke-Sidecar 'Test-NextPlanReceiptChain.ps1' @('-CompletionReceiptPath',$completion.receipt.path,'-CompletionReceiptSha256',$changedCompletionSha) 2
-	Assert-True ($modeChain.code -ceq 'chain.provenance-mismatch') 'A split finalization-mode chain was not rejected.'
-	[IO.File]::WriteAllBytes($completion.receipt.path, $completionBytes)
+	$postCompleteValidation = ConvertFrom-SingleJson (Invoke-Process $fixtureExecutable @('plan','order','validate','--repo',$common,'--worktree',$primary) $primary) 0 'post-completion validate'
+	Assert-True (@($postCompleteValidation.rows | Where-Object plan -CEQ $plan).Count -eq 1) 'Completion removed the queue row; row removal must wait for landing.'
+	$missingPlan = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-Plan',$plan) 2
+	Assert-True ($missingPlan.code -ceq 'completion.plan-missing') 'A completed (missing) plan was not a deterministic completion blocker.'
 
 	[pscustomobject]@{
 		schemaVersion = 'broken-engine-next-plan-sidecar-fixtures/v1'
 		status = 'pass'
-		cases = @('missing environment rejection','invalid worktree rejection','live exclusion-ledger binding','wrong Output rejection','pre-claim primary-advance blocker','in-place pre-claim recovery','wrapper-derived claim','primary-commit rejection','outside-Temp card rejection','immutable ranged presentation','mid-workflow primary-advance tolerance','changed-card rejection','changed-plan rejection','approval binding','post-approval changed-card rejection','completion conflict','post-approval plan rejection','closure scan and retained-claim completion','receipt-chain validation','tamper rejection','mode-chain rejection')
+		cases = @('missing environment rejection','invalid worktree rejection','live exclusion-ledger binding','wrong Output rejection','machine-local store seed via init','pre-claim primary-advance blocker','in-place pre-claim recovery','relaxed clean-tree claim gate','wrapper-derived claim','mid-workflow primary-advance tolerance','git-rm-only completion with retained row','missing-plan rejection')
 	} | ConvertTo-Json -Depth 5
 }
 finally {
@@ -271,4 +223,6 @@ finally {
 	}
 	if ($null -ne $artifactRoot -and (Test-Path -LiteralPath $artifactRoot)) { Remove-Item -LiteralPath $artifactRoot -Recurse -Force }
 	if (Test-Path -LiteralPath $fixtureRoot) { Remove-Item -LiteralPath $fixtureRoot -Recurse -Force }
+	if ($null -eq $originalLocalAppData) { [Environment]::SetEnvironmentVariable('LOCALAPPDATA', $null) }
+	else { $env:LOCALAPPDATA = $originalLocalAppData }
 }

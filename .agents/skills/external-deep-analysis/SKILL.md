@@ -71,7 +71,7 @@ Source: /external-architecture-review on <target path>. <Why this group matters.
 - <pre-stage any single open decision for /external-grill-plan>
 ```
 
-Name the interface being changed, not just `path:line` — symbol names survive line drift, and `/next-plan` relies on them to refresh citations at execution time. Include a rough effort estimate per item: `[~5m]`, `[~15m]`, `[~30m]`, `[~1h]`.
+Name the interface being changed, not just `path:line` — symbol names survive line drift, and `/next-plan` execution locates code by symbol identity (carrying any stale-citation corrections in the execution card rather than editing the claimed plan file). Include a rough effort estimate per item: `[~5m]`, `[~15m]`, `[~30m]`, `[~1h]`.
 
 Keep plans focused — one plan per logical group (e.g., `Architecture_IncludeGraph.md`, `Architecture_LayerViolations.md`, `Architecture_CollectionCohesion.md`, `Architecture_LibraryReplacement.md`). Only create a plan if there are concrete changes to make. If a plan would exceed 15 items, split it by subdirectory or file group.
 

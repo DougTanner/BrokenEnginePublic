@@ -6,7 +6,7 @@ allowed-tools: [Read, Bash, PowerShell, Grep, Glob, Agent]
 
 # Analyze .diagsession CPU Profiles
 
-Deliverable: a hotspot report (per-process shares, interpreted) and scored plan files registered through WorktreeCli for each actionable optimization. Plan *execution* is out of scope — that belongs to the C++ Change Workflow / `/next-plan`.
+Deliverable: a hotspot report (per-process shares, interpreted) and scored plan files registered through WorktreeCli for each actionable optimization. Plan *execution* is out of scope — that belongs to the Change Workflow / `/next-plan`.
 
 ## Scripts vs subagents (who does what)
 
@@ -46,7 +46,7 @@ The config is embedded in the module names in the trace (`BrokenEngineSandbox.De
 | Marker in profile | Meaning |
 |---|---|
 | `__CheckForDebuggerJustMyCode` | `/JMC` — should be **absent** (Debug sets `SupportJustMyCode=false`); reappearance = config regression |
-| `RtlEnter/LeaveCriticalSection` + `std::_Lockit`, `_Debug_lt_pred`, `_Iterator_base12` | `_ITERATOR_DEBUG_LEVEL=2` machinery — should be mostly **absent** (Debug pins level 1); reappearance = a vcxproj lost the define |
+| `RtlEnter/LeaveCriticalSection` + `std::_Lockit`, `_Debug_lt_pred`, `_Iterator_base12` | Iterator-debug machinery — should be entirely **absent** (Debug pins level 0); any of it reappearing = a vcxproj lost the `_ITERATOR_DEBUG_LEVEL=0` define. `_Iterator_base12` means any level > 0 leaked in; `_Lockit`/`_Debug_lt_pred` mean level 2 specifically |
 | `_RTC_CheckStackVars` | `/RTC` — deliberate, keep |
 | `VkLayer_khronos_validation.dll` | Vulkan validation (`kbVulkanDebugLayers`) — deliberate in Debug, accepted cost; do not plan its removal |
 | `MoveSmall4/8`, `memset_repstos` | CRT memcpy/memset helpers, not codebase symbols |

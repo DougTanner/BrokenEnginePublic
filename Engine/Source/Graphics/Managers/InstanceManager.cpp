@@ -378,7 +378,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	};
 	CHECK_VK(vkCreateWin32SurfaceKHR(mVkInstance, &vkWin32SurfaceCreateInfoKHR, nullptr, &mVkSurfaceKHR));
 
-	SelectPhysicalDevice();
+	SelectBestPhysicalDevice();
+	ValidatePhysicalDeviceCapabilities();
 	SelectQueueFamilies();
 	SelectSurfaceFormat();
 	SelectDepthFormat();
@@ -396,12 +397,6 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			ASSERT(false);
 		}
 	}
-}
-
-void InstanceManager::SelectPhysicalDevice()
-{
-	SelectBestPhysicalDevice();
-	ValidatePhysicalDeviceCapabilities();
 }
 
 void InstanceManager::SelectBestPhysicalDevice()
@@ -516,12 +511,9 @@ void InstanceManager::ValidatePhysicalDeviceCapabilities()
 	{
 		ASSERT(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderSubgroupClock == VK_TRUE);
 		ASSERT(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderDeviceClock == VK_TRUE);
-	}
-	ASSERT(mVkPhysicalDeviceFeatures2.features.textureCompressionBC == VK_TRUE);
-	if constexpr (kbShaderRealtimeClock)
-	{
 		ASSERT(mVkPhysicalDeviceFeatures2.features.shaderInt64 == VK_TRUE);
 	}
+	ASSERT(mVkPhysicalDeviceFeatures2.features.textureCompressionBC == VK_TRUE);
 #if !defined(ENABLE_32_BIT_BOOL)
 	ASSERT(mVkPhysicalDevice16BitStorageFeatures.storageBuffer16BitAccess == VK_TRUE);
 	ASSERT(mVkPhysicalDevice16BitStorageFeatures.uniformAndStorageBuffer16BitAccess == VK_TRUE);
@@ -603,6 +595,11 @@ void InstanceManager::SelectQueueFamilies()
 				break;
 			}
 		}
+	}
+
+	if (miTransferQueueFamilyIndex == miPresentQueueFamilyIndex && miPresentQueueFamilyIndex != miGraphicsQueueFamilyIndex)
+	{
+		miTransferQueueFamilyIndex = miGraphicsQueueFamilyIndex;
 	}
 
 	// Vulkan spec allows graphics/compute families to support transfer without advertising VK_QUEUE_TRANSFER_BIT, so the
@@ -746,11 +743,6 @@ void InstanceManager::ReadLayerProperties()
 	for (const VkLayerProperties& rVkLayerProperties : instanceLayerProperties)
 	{
 		LOG(kGraphics, kInfo, "  {} {}.{}", rVkLayerProperties.layerName, VK_VERSION_PATCH(rVkLayerProperties.specVersion), rVkLayerProperties.implementationVersion);
-
-		if (std::strcmp(rVkLayerProperties.layerName, kpcKhronosValidation) == 0)
-		{
-			mbFoundKhronosValidation = true;
-		}
 
 		for (size_t i = 0; i < std::size(kppcValidationLayers); ++i)
 		{

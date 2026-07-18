@@ -31,15 +31,10 @@ struct MissileCollisionIntervalScratch
 
 static MissileCollisionIntervalScratch& GetMissileCollisionIntervalScratch()
 {
-	static thread_local MissileCollisionIntervalScratch* spScratch = nullptr;
-	if (spScratch == nullptr)
-	{
-		// Heap: function-local TLS defers non-trivial construction until allocator startup is complete.
-		ScopedSuppressAllocationTracking suppress;
-		static thread_local MissileCollisionIntervalScratch sScratch;
-		spScratch = &sScratch;
-	}
-	return *spScratch;
+	// Function-local TLS defers construction until first use; default construction is allocation-free
+	// (empty vectors), so it is safe even before allocator startup completes. Growth sites suppress tracking.
+	static thread_local MissileCollisionIntervalScratch sScratch;
+	return sScratch;
 }
 
 // Missile AI

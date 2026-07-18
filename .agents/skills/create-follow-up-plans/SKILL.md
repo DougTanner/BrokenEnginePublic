@@ -1,6 +1,6 @@
 ---
 name: create-follow-up-plans
-description: Converts proven pre-existing or out-of-scope C++ Change Workflow residuals into concise, evidence-backed follow-up plans under `Documents/Plans/<area>/`, then submits structured WorktreeCli add/update requests. Do not route an in-scope acceptance failure out of the active change. Also use when asked to queue review findings without duplicating existing plans.
+description: Converts proven pre-existing or out-of-scope Change Workflow residuals into concise, evidence-backed follow-up plans under `Documents/Plans/<area>/`, then submits structured WorktreeCli add/update requests. Do not route an in-scope acceptance failure out of the active change. Also use when asked to queue review findings without duplicating existing plans.
 allowed-tools: [Read, Write, Edit, Glob, Grep, PowerShell]
 ---
 
@@ -24,7 +24,7 @@ If a required fact is absent, inspect the repository and originating plan before
 
 ### 1. Load planning rules
 
-Read `Documents/AGENTS.md` and `Documents/Plans/AGENTS.md` completely. Follow their current plan shape, scoring anchors, structured dependency rules, and Coordination policy; they are authoritative if this skill drifts. Run `plan order validate --repo <canonical-git-common-dir> --worktree <session-worktree>` and require its JSON result to report `ok: true` before preparing a mutation. WorktreeCli is the only executable-row parser; do not parse or edit either `Order.md` directly.
+Read `Documents/AGENTS.md` and `Documents/Plans/AGENTS.md` completely. Follow their current plan shape, scoring anchors, structured dependency rules, and Coordination policy; they are authoritative if this skill drifts. Run `plan order validate --repo <canonical-git-common-dir> --worktree <session-worktree>` and require its JSON result to report `ok: true` before preparing a mutation. WorktreeCli is the only executable-row parser; the queue is machine-local state, so never parse or edit a queue row directly.
 
 Use `Documents/Plans/` only for refactors, bug fixes, hardening, and structural debt. If an item's purpose is a new engine capability, do not disguise it as debt: report that classification conflict for the main agent to resolve.
 
@@ -44,8 +44,8 @@ Reject stale, disproven, already-fixed, purely stylistic, or evidence-free candi
 Search all live plan files using the affected symbols, files, root-cause terms, intended outcome, and standard `## Coordination` sections. Use the successful WorktreeCli validation result as the executable-row inventory and source of each existing row's `rowSha256`; do not derive row state from Markdown.
 
 - Treat an existing plan as a duplicate when it owns the same root cause and implementation boundary, even if its title differs. Map the residual to that plan and create nothing.
-- If an existing plan owns the root cause but omits a necessary acceptance gap, prepare replacement plan bytes plus replacement row fields/dependencies for an WorktreeCli `update` request. Do not overwrite the live plan before the transaction succeeds.
-- WorktreeCli checks row claims and expected hashes under both queue locks. A claimed target or hash conflict produces zero repository mutation; report the returned owner/conflict evidence and do not retry by editing files or rows directly. Claim metadata exists only in WorktreeCli coordination state, never in `Order.md` or a plan file.
+- If an existing plan owns the root cause but omits a necessary acceptance gap, edit the plan body directly, then stage a WorktreeCli `update` request carrying the full edited plan bytes as `stagedContent` (with any replacement row fields). The direct prose edit belongs in `stagedContent`; the request is how those bytes and row data publish atomically.
+- WorktreeCli checks row claims and expected hashes under both queue locks. A claimed target or hash conflict produces zero repository mutation; report the returned owner/conflict evidence and do not retry by editing rows directly. Claim metadata exists only in WorktreeCli coordination state, never in a plan file.
 - Create a new plan when the work has an independent root cause or can be executed and accepted independently.
 
 ### 4. Group related residuals
@@ -81,7 +81,7 @@ Score each plan from the canonical anchors in `Documents/AGENTS.md`:
 - choose the informal `Tier` consistent with the plan's size and risk;
 - write a one-line `Notes` cell describing the concrete outcome and important exposure.
 
-For new plans, write the final plan files first, then create a unique schema-version `1` JSON request beneath the session worktree's `Temp/` with `operation: "add"` and prerequisite-first `sequences`. Each entry supplies `queue`, normalized repository-relative `plan`, `tier`, `effort`, `impact`, `risks`, `notes`, and optional `dependsOn`; WorktreeCli computes Score and adds the immediate-predecessor edge within each sequence. Put independent plans in separate sequences and name already-live prerequisites explicitly. Invoke:
+For new plans, write the final plan files first, then create a unique schema-version `1` JSON request beneath the session worktree's `Temp/` with `operation: "add"` and prerequisite-first `sequences`. Each entry supplies `queue`, normalized repository-relative `plan`, `tier`, `effort`, `impact`, `risks`, `notes`, and optional `dependsOn`; WorktreeCli computes Score and adds the immediate-predecessor edge within each sequence. Put independent plans in separate sequences and name already-live prerequisites explicitly. The add request is **staged, not submitted here** — `/finalize-changes` submits it post-landing (with `--worktree <session>`, whose tip equals the landed commit), so rows always reference landed plan files; a session that never lands leaves no rows and no orphans. The submitted command is:
 
 ```text
 plan order add --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>
@@ -93,11 +93,11 @@ For existing-plan extensions, write each proposed replacement beneath `Temp/`, h
 plan order update --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>
 ```
 
-WorktreeCli publishes all entries or none; never copy staged bytes over a live plan yourself.
+WorktreeCli publishes all entries or none. The `update` verb stages the full plan bytes it intends to publish: `expectedPlanSha256` hashes the bytes the session read before its own edits, so a same-session direct prose edit belongs in `stagedContent`, and a hash conflict signals another session's concurrent mutation (the intended guard). Fresh `add` plans, by contrast, are direct file writes staged for the post-landing submission.
 
-Directional prerequisites exist only in `dependsOn`. Mandatory nondirectional constraints (`never interleave`, joint resolution, alone execution, or protocol/version/CRC/replay/`.pack`/`kiVersion` batching) require reciprocal standard `## Coordination` sections in every affected live plan. Include every existing counterpart in one atomic update request; if any counterpart is claimed or changed, accept the zero-mutation failure and report exact evidence. Ordinary warning-only overlap may remain one-sided in plan prose and does not block queue mutation.
+Directional prerequisites exist only in `dependsOn`. Mandatory nondirectional constraints (`never interleave`, joint resolution, alone execution, or protocol/version/CRC/replay/`.pack`/`kiVersion` batching) require reciprocal standard `## Coordination` sections in every affected live plan. Those sections are plan-body prose edited directly; the authoring rule is to update every existing counterpart in the same change set, and a concurrent counterpart edit resolves as a merge conflict at landing, not a zero-mutation queue failure. Ordinary warning-only overlap may remain one-sided in plan prose.
 
-Require the add/update receipt to identify every intended plan and successful queue unlocks, then rerun session `plan order validate` and require `ok: true`. A failed add intentionally leaves retryable new plan files and its request as session orphans; a failed update leaves live files/rows unchanged. Do not repair either failure by parsing or editing `Order.md`.
+When a row update is submitted, require its receipt to identify every intended plan and successful queue unlocks, then rerun session `plan order validate` and require `ok: true`. The staged add publishes at landing, so a session that never lands leaves retryable new plan files and its request as session orphans; a failed update leaves live rows unchanged. Do not repair either failure by editing a queue row by hand.
 
 ## Report
 

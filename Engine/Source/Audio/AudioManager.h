@@ -15,6 +15,28 @@ struct Frame;
 namespace engine
 {
 
+enum class AudioManagerFlags : uint8_t
+{
+	// True once a live output graph produced a pinned format with real native channels. False for a
+	// silent-start engine (no device at construction, or a startup pin that left the graph silent):
+	// mPinnedOutputFormat holds no valid channel count yet, so Update recovery must reset to the device
+	// default to discover native channels before it can pin.
+	kPinnedFormatValid = 0x01,
+
+	// Silent-start recovery log-once gate: emits the "device absent" warning a single time until a device
+	// is found (re-armed on recovery for a future loss). The frame counter throttling the probe frequency
+	// is separate (miSilentRecoveryFrameCounter) — a permanently-deviceless machine would otherwise warn +
+	// full-reset every frame.
+	kSilentRecoveryLogged = 0x02,
+
+	// Set only across the silent-recovery pin/fallback Reset window, where the default Reset already brought
+	// the graph live so DirectXTK's Reset synchronously delivers the migration OnCriticalError. That
+	// notification is expected here, so OnCriticalError early-outs while this bit is set instead of logging a
+	// false critical error and clearing voices. Single-threaded main-thread synchronous window.
+	kExpectedResetInProgress = 0x04,
+};
+using AudioManagerFlags_t = common::Flags<AudioManagerFlags>;
+
 class AudioManager : public IVoiceNotify
 {
 public:
@@ -51,6 +73,10 @@ private:
 	void CreateAudioEngineForEndpoint(const std::wstring& rEndpointId);
 	std::wstring InitializeAudioEndpoint();
 	void InitializeAudioSubsystems(const std::wstring& rSelectedDeviceId);
+	WAVEFORMATEX MakePinnedOutputFormat(WORD uiChannels) const;
+	void ConfigureLiveGraph(const std::wstring& rSelectedDeviceId);
+	void FinishDeviceReset();
+	void AttemptSilentEngineRecovery();
 	void CacheMasteringVoiceChannels();
 	void ClearVoices(bool bNullVoicesBeforeDestroy);
 
@@ -66,6 +92,14 @@ private:
 	// Mastering voice pinned to this format (native channels, kiMasteringSampleRate). Reused by the
 	// device-reset path so the rate pin survives Reset — DirectXTK does not cache the ctor wfx.
 	WAVEFORMATEX mPinnedOutputFormat {};
+
+	// State bits (pinned-format validity, silent-recovery log-once, expected-reset suppression); see the
+	// AudioManagerFlags enumerators for each bit's contract.
+	AudioManagerFlags_t mFlags;
+
+	// Silent-start recovery throttle counter: gates probe frequency (kiSilentRecoveryRetryFrames) so a
+	// permanently-deviceless machine does not warn + full-reset every frame.
+	int64_t miSilentRecoveryFrameCounter = 0;
 };
 
 inline AudioManager* gpAudioManager = nullptr;

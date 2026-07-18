@@ -1,24 +1,21 @@
-# Canonical read-only identity, Git-state, manifest, WorktreeCli, and wrapper-claim
-# preflight for finalization. Invoked at initial, after-reconciliation (when bytes or
-# the primary tip changed), pre-mutation, and post-mutation checkpoints with the
-# phase-appropriate ManifestComparisonBase (the rebased primary parent after
-# reconciliation).
+# Canonical read-only structural preflight for finalization: identity, Git state,
+# WorktreeCli capability, and wrapper-claim checks. Invoked once per landing at the
+# pre-mutation checkpoint inside the landing transaction (other checkpoint labels
+# remain accepted for the primary-commit route).
 #
-# Capability profile: pass -HasPlanRowClaim only when finalization owns a row claim,
-# -HasCompletedPlanClaim when its receipt needs session `complete --reapply` or
-# primary-commit release, and -QueueChangingLanding only for a session landing whose
-# approved manifest changes an executable queue or plan file. Session mode requires
+# Capability profile: pass -HasPlanRowClaim only when finalization owns a row claim.
+# The machine-local plan queue never appears in the session diff, so landing takes no
+# queue locks and this preflight probes no queue-lock capability. Session mode requires
 # BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER and the wrapper's authoritative provenance
 # variables to match; primary mode requires neither wrapper provenance nor a session
-# claim. Keep the same capability profile across every checkpoint of one run.
+# claim.
 #
-# Consumes only the authoritative manifest and PASS-ledger ranges through
-# Read-AgentReportSection.ps1 and preserves the exact-PASS gate. Emits one
-# broken-engine-finalize-preflight/v1 JSON object: exit 0 with status pass is the only
-# success; exit 2 is a reported deterministic blocker; exit 1 is malformed input or
-# unreadable/internal state. Callers never reconstruct a failed check ad hoc and never
-# search another WorktreeCli path — a missing, empty, wrong-target, or capability-stale
-# executable requires explicitly authorized /compile primary maintenance.
+# Emits one broken-engine-finalize-preflight/v1 JSON object: exit 0 with status pass
+# is the only success; exit 2 is a reported deterministic blocker; exit 1 is
+# malformed input or unreadable/internal state. Callers never reconstruct a failed
+# check ad hoc and never search another WorktreeCli path — a missing, empty,
+# wrong-target, or capability-stale executable requires explicitly authorized
+# /compile primary maintenance.
 [CmdletBinding()]
 param(
 	[string] $Mode,
@@ -28,17 +25,11 @@ param(
 	[string] $CurrentBranch,
 	[string] $PrimaryBranch,
 	[string] $Baseline,
-	[string] $ManifestComparisonBase,
 	[string] $ExpectedCurrentTip,
 	[string] $ExpectedPrimaryTip,
-	[string] $VerificationReportPath,
-	[string] $VerificationReportSha256,
-	[string[]] $ManifestRange,
 	[string] $SessionOwner,
 	[string] $WaitSeconds = '60',
-	[switch] $HasPlanRowClaim,
-	[switch] $HasCompletedPlanClaim,
-	[switch] $QueueChangingLanding
+	[switch] $HasPlanRowClaim
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,8 +48,7 @@ $result = [ordered]@{
 	mode = $Mode
 	checkpoint = $Checkpoint
 	identities = [ordered]@{ currentWorktree = $null; primaryWorktree = $null; gitCommonDirectory = $null; currentBranch = $null; primaryBranch = $null }
-	tips = [ordered]@{ baseline = $Baseline; comparisonBase = $ManifestComparisonBase; current = $null; primary = $null; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip }
-	manifest = [ordered]@{ expectedSha256 = $null; expectedCount = 0; actualSha256 = $null; actualCount = 0; equal = $false }
+	tips = [ordered]@{ baseline = $Baseline; current = $null; primary = $null; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip }
 	worktreeCli = [ordered]@{ outputPath = $null; outputLinkTarget = $null; path = $null; capabilityResult = 'not-checked'; requiredCapabilities = @() }
 	claim = [ordered]@{ classification = if ($Mode -eq 'primary-commit') { 'not-required' } else { 'not-checked' }; owner = $SessionOwner; worktree = $null; pid = $null; processStartUtc = $null; actualProcessStartUtc = $null }
 }
@@ -177,59 +167,6 @@ function Test-GitSuccess([string] $Worktree, [string[]] $Arguments) {
 	return (Invoke-NativeText 'git.exe' (@('-C', $Worktree) + $Arguments) $Worktree).ExitCode -eq 0
 }
 
-function Get-Sha256([string[]] $Lines) {
-	$text = if ($Lines.Count -eq 0) { '' } else { ($Lines -join "`n") + "`n" }
-	return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.UTF8Encoding]::new($false).GetBytes($text))).ToLowerInvariant()
-}
-
-function Assert-GitPath([string] $Path) {
-	if ([string]::IsNullOrEmpty($Path) -or $Path.IndexOf("`0", [StringComparison]::Ordinal) -ge 0 -or
-		$Path.IndexOf("`r", [StringComparison]::Ordinal) -ge 0 -or $Path.IndexOf("`n", [StringComparison]::Ordinal) -ge 0 -or
-		$Path.Contains('\', [StringComparison]::Ordinal) -or $Path.StartsWith('/', [StringComparison]::Ordinal) -or
-		$Path -match '^[A-Za-z]:' -or [IO.Path]::IsPathRooted($Path)) {
-		Stop-Validation 'manifest.path-invalid' "Manifest path is not a canonical repository-relative Git path: '$Path'."
-	}
-	foreach ($component in $Path.Split('/')) {
-		if ([string]::IsNullOrEmpty($component) -or $component -ceq '.' -or $component -ceq '..') {
-			Stop-Validation 'manifest.path-invalid' "Manifest path contains an empty or traversing component: '$Path'."
-		}
-	}
-}
-
-function Get-ExpectedManifest([string[]] $Sections) {
-	$rows = [Collections.Generic.List[string]]::new()
-	foreach ($section in $Sections) {
-		$lines = @([regex]::Split($section, "`r`n|`n|`r"))
-		for ($index = 0; $index -lt $lines.Count; ++$index) {
-			if ($index -eq ($lines.Count - 1) -and $lines[$index].Length -eq 0) { continue }
-			if ($lines[$index].Length -eq 0) { Stop-Validation 'manifest.row-malformed' 'Manifest ranges contain an empty interior row.' }
-			$rows.Add($lines[$index])
-		}
-	}
-	$seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-	$previous = $null
-	foreach ($row in $rows) {
-		$tab = $row.LastIndexOf([char]9)
-		if ($tab -le 0 -or $tab -eq ($row.Length - 1)) { Stop-Validation 'manifest.row-malformed' "Manifest row has no final real tab delimiter: '$row'." }
-		$path = $row.Substring(0, $tab)
-		$status = $row.Substring($tab + 1)
-		Assert-GitPath $path
-		if ($status -cne 'DELETED' -and $status -cnotmatch '^blob:[0-9a-f]{40}$') {
-			Stop-Validation 'manifest.status-invalid' "Manifest row has an invalid status: '$row'."
-		}
-		if (-not $seen.Add($path)) { Stop-Validation 'manifest.path-duplicate' "Manifest contains duplicate path '$path'." }
-		if ($null -ne $previous -and [StringComparer]::Ordinal.Compare($previous, $path) -ge 0) {
-			Stop-Validation 'manifest.order-invalid' "Manifest paths are not strictly ordinal-sorted at '$path'."
-		}
-		$previous = $path
-	}
-	return $rows.ToArray()
-}
-
-function Get-ActualManifest([string] $Worktree, [string] $ComparisonBase) {
-	return @(Get-FinalizeManifestRows $Worktree $ComparisonBase)
-}
-
 function Get-WorktreeRecords([string] $Worktree) {
 	return @(Get-FinalizeWorktreeRecords $Worktree)
 }
@@ -237,14 +174,10 @@ function Get-WorktreeRecords([string] $Worktree) {
 try {
 	Assert-Input (@('session-landing', 'primary-commit') -ccontains $Mode) "Mode is invalid: '$Mode'."
 	Assert-Input (@('initial', 'after-reconciliation', 'pre-mutation', 'post-mutation') -ccontains $Checkpoint) "Checkpoint is invalid: '$Checkpoint'."
-	foreach ($value in @($CurrentWorktree, $PrimaryWorktree, $CurrentBranch, $PrimaryBranch, $Baseline, $ManifestComparisonBase, $VerificationReportPath, $VerificationReportSha256)) {
+	foreach ($value in @($CurrentWorktree, $PrimaryWorktree, $CurrentBranch, $PrimaryBranch, $Baseline)) {
 		Assert-Input (-not [string]::IsNullOrWhiteSpace($value)) 'Required string inputs must not be empty.'
 	}
-Assert-Input ($Baseline -cmatch '^[0-9a-f]{40}$') 'Baseline must be exactly 40 lowercase hexadecimal characters.'
-Assert-Input ($VerificationReportSha256 -cmatch '^[0-9a-f]{64}$') 'VerificationReportSha256 must be exactly 64 lowercase hexadecimal characters.'
-$ManifestRange = @($ManifestRange | ForEach-Object { $_ -split ',', 0, [StringSplitOptions]::None })
-Assert-Input (@($ManifestRange).Count -gt 0) 'At least one exact manifest range is required.'
-	foreach ($range in @($ManifestRange)) { Assert-Input ($range -cmatch '^L[1-9][0-9]*-L[1-9][0-9]*$') "Manifest range has invalid grammar: '$range'." }
+	Assert-Input ($Baseline -cmatch '^[0-9a-f]{40}$') 'Baseline must be exactly 40 lowercase hexadecimal characters.'
 	if ($Checkpoint -ne 'initial') {
 		Assert-Input ($ExpectedCurrentTip -cmatch '^[0-9a-f]{40}$') 'Later checkpoints require ExpectedCurrentTip.'
 		Assert-Input ($ExpectedPrimaryTip -cmatch '^[0-9a-f]{40}$') 'Later checkpoints require ExpectedPrimaryTip.'
@@ -256,8 +189,6 @@ Assert-Input (@($ManifestRange).Count -gt 0) 'At least one exact manifest range 
 	$parsedWaitSeconds = 0
 	Assert-Input ([int]::TryParse($WaitSeconds, [Globalization.NumberStyles]::None, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsedWaitSeconds)) 'WaitSeconds must be an integer between 1 and 660.'
 	Assert-Input ($parsedWaitSeconds -ge 1 -and $parsedWaitSeconds -le 660) 'WaitSeconds must be between 1 and 660.'
-	Assert-Input (-not $HasCompletedPlanClaim -or $HasPlanRowClaim) 'HasCompletedPlanClaim requires HasPlanRowClaim.'
-	Assert-Input (-not $QueueChangingLanding -or $Mode -ceq 'session-landing') 'QueueChangingLanding is valid only for session landing.'
 
 	if ($Mode -eq 'session-landing') {
 		Assert-Input ($SessionOwner -cmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') 'Session landing requires a canonical lowercase SessionOwner GUID.'
@@ -279,20 +210,6 @@ Assert-Input (@($ManifestRange).Count -gt 0) 'At least one exact manifest range 
 			else { Assert-Input ($actual -ceq $entry.Value) "$($entry.Key) does not match the supplied value." }
 		}
 	}
-
-	$repositoryRoot = Get-RootPreservingFullPath (Join-Path $PSScriptRoot '..\..\..\..')
-	$reader = Join-Path $repositoryRoot '.agents\scripts\Read-AgentReportSection.ps1'
-	if (-not (Test-Path -LiteralPath $reader -PathType Leaf)) { throw "Report reader is unavailable: '$reader'." }
-	$sections = [Collections.Generic.List[string]]::new()
-	try {
-		Push-Location $CurrentWorktree
-		try { foreach ($range in @($ManifestRange)) { $sections.Add([string](& $reader -ReportPath $VerificationReportPath -ExpectedSha256 $VerificationReportSha256 -Range $range)) } }
-		finally { Pop-Location }
-	}
-	catch { Stop-Validation 'report.invalid' $_.Exception.Message }
-	$expectedManifest = @(Get-ExpectedManifest $sections.ToArray())
-	$result.manifest.expectedCount = $expectedManifest.Count
-	$result.manifest.expectedSha256 = Get-Sha256 $expectedManifest
 
 	$currentIdentity = Get-ExistingWindowsIdentity $CurrentWorktree 'Current worktree'
 	$primaryIdentity = Get-ExistingWindowsIdentity $PrimaryWorktree 'Primary worktree'
@@ -328,7 +245,6 @@ Assert-Input (@($ManifestRange).Count -gt 0) 'At least one exact manifest range 
 	if (-not [string]::IsNullOrWhiteSpace($ExpectedCurrentTip) -and $currentTip -cne $ExpectedCurrentTip) { Stop-Validation 'git.current-tip-changed' 'Current tip differs from the recorded expectation.' }
 	if (-not [string]::IsNullOrWhiteSpace($ExpectedPrimaryTip) -and $primaryTip -cne $ExpectedPrimaryTip) { Stop-Validation 'git.primary-tip-changed' 'Primary tip differs from the recorded expectation.' }
 	if (-not (Test-GitSuccess $currentIdentity @('rev-parse', '--verify', "$Baseline^{commit}"))) { Stop-Validation 'git.baseline-invalid' 'Baseline is not a commit in this repository.' }
-	if (-not (Test-GitSuccess $currentIdentity @('rev-parse', '--verify', "$ManifestComparisonBase^{commit}"))) { Stop-Validation 'git.comparison-base-invalid' 'ManifestComparisonBase is not a commit in this repository.' }
 	if (-not (Test-GitSuccess $currentIdentity @('merge-base', '--is-ancestor', $Baseline, $currentTip)) -or -not (Test-GitSuccess $primaryIdentity @('merge-base', '--is-ancestor', $Baseline, $primaryTip))) { Stop-Validation 'git.baseline-not-ancestor' 'Baseline is not an ancestor of both current and primary tips.' }
 	if ($Mode -eq 'session-landing' -and $Checkpoint -in @('after-reconciliation', 'pre-mutation') -and -not (Test-GitSuccess $currentIdentity @('merge-base', '--is-ancestor', $primaryTip, $currentTip))) { Stop-Validation 'git.session-not-rebased' 'Primary tip is not an ancestor of the reconciled session tip.' }
 	if ($Mode -eq 'session-landing' -and $Checkpoint -eq 'post-mutation' -and $currentTip -cne $primaryTip) { Stop-Validation 'git.post-landing-tip-mismatch' 'Primary and session tips differ after landing.' }
@@ -339,15 +255,6 @@ Assert-Input (@($ManifestRange).Count -gt 0) 'At least one exact manifest range 
 		}
 	}
 	if ($Mode -eq 'session-landing' -and (Invoke-Git $primaryIdentity @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) { Stop-Validation 'git.primary-dirty' 'Primary worktree is not clean for session landing.' }
-
-	$actualManifest = @(Get-ActualManifest $currentIdentity $ManifestComparisonBase)
-	$result.manifest.actualCount = $actualManifest.Count
-	$result.manifest.actualSha256 = Get-Sha256 $actualManifest
-	$result.manifest.equal = $expectedManifest.Count -eq $actualManifest.Count
-	if ($result.manifest.equal) {
-		for ($index = 0; $index -lt $expectedManifest.Count; ++$index) { if ($expectedManifest[$index] -cne $actualManifest[$index]) { $result.manifest.equal = $false; break } }
-	}
-	if (-not $result.manifest.equal) { Stop-Validation 'manifest.mismatch' 'Current canonical manifest differs from the hash-bound verification manifest.' }
 
 	$relativeOutput = 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
 	$primaryOutput = Get-Item -LiteralPath (Join-Path $primaryIdentity $relativeOutput) -Force -ErrorAction Stop
@@ -375,16 +282,6 @@ Assert-Input (@($ManifestRange).Count -gt 0) 'At least one exact manifest range 
 		$requiredHelp.Add('WorktreeCli.exe plan row status --repo COMMON-DIR --order PATH --plan PATH [--owner TOKEN]')
 		$requiredHelp.Add('WorktreeCli.exe plan row unclaim --repo COMMON-DIR --order PATH --plan PATH --owner TOKEN')
 		$requiredCapabilities.Add('plan:row:status,unclaim')
-	}
-	if ($HasCompletedPlanClaim) {
-		$requiredHelp.Add('WorktreeCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH [--reapply]')
-		$requiredCapabilities.Add('plan:order:complete:reapply')
-	}
-	if ($QueueChangingLanding) {
-		$requiredHelp.Add('WorktreeCli.exe plan queue lock --repo COMMON-DIR --order PATH --owner TOKEN --session TOKEN')
-		$requiredHelp.Add('WorktreeCli.exe plan queue status --repo COMMON-DIR --order PATH [--owner TOKEN]')
-		$requiredHelp.Add('WorktreeCli.exe plan queue unlock --repo COMMON-DIR --order PATH --owner TOKEN')
-		$requiredCapabilities.Add('plan:queue:lock,status,unlock')
 	}
 	$result.worktreeCli.requiredCapabilities = $requiredCapabilities.ToArray()
 	$help = Invoke-NativeText $worktreeCliItem.FullName @('--help') $currentIdentity

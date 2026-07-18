@@ -12,7 +12,7 @@ shell: powershell
 
 Audit one completed `/next-plan` execution. Default to `HEAD`; when an argument
 is supplied, resolve that commit. Produce an evidence-based, priority-sorted
-improvement backlog for the C++ Change Workflow and `/next-plan` workflow.
+improvement backlog for the Change Workflow and `/next-plan` workflow.
 This is a read-only postmortem, not a code review, a plan retry, or an occasion
 to modify the commit under review.
 
@@ -22,11 +22,11 @@ to modify the commit under review.
    complete diff, and changed-file list with Git. Use the workflow files as
    they existed at the reviewed commit, including `AGENTS.md` and
    `.agents/skills/next-plan/SKILL.md`; otherwise a later process edit can be
-   mistaken for a requirement that did not exist.
-   Read the commit-keyed global landing artifact through
-   [`Find-AgentLandingArtifact.ps1`](../../../.agents/scripts/Find-AgentLandingArtifact.ps1)
-   when it exists. Treat its report and transcript locators as leads, not proof:
-   independently validate the report hash/ranges and transcript evidence below.
+   mistaken for a requirement that did not exist. Git history and the session
+   transcript are the primary evidence. A legacy landing under the retired
+   artifact/receipt contract may leave a commit-keyed landing artifact or
+   receipt JSON files; treat any such record as optional historical
+   corroboration, never as required or authoritative evidence.
 2. For a Codex CLI session, run
    [Find-AgentSessionTranscript.ps1](scripts/Find-AgentSessionTranscript.ps1)
    from the repository root. Its deterministic search is restricted to the
@@ -91,19 +91,13 @@ Build a compact chronological evidence table. Include plan selection, tier
 classification, implementation, required propagation, review and fix cycles,
 builds, live-harness runs, queue completion, approval waits, and landing or
 rebase. Link each event to transcript timestamps, Git state, WorktreeCli output,
-or a final verification report.
+or a final verification summary.
 
 Locate the selected plan from the claim/completion transcript evidence and its
 queue row. Compare its acceptance criteria and scope boundaries with the final
 commit diff and any final-tree report. Separate required propagation from
 scope expansion; do not penalize a necessary affected-site update merely
 because it was not the first edited file.
-
-For a post-migration landing, use the global artifact's verification locator,
-hash, ranges, queue receipt, and transcript candidate as the first deterministic
-route to finalization evidence. A missing artifact is evidence that the landing
-predates the store or did not complete its artifact contract; continue with the
-direct transcript and Git checks rather than guessing.
 
 For elapsed time, state all three values when evidence permits:
 
@@ -152,7 +146,26 @@ avoidable extra approval loops or unexplained waiting.
   concrete finding or failing acceptance check caused it; flag only duplicate
   passes, rediscovered issues, or loops with no new evidence.
 
-### 3. Worktree isolation and landing
+### 3. Process overhead
+
+Zero-byte re-work is waste by definition: any step that re-ran without changing
+a byte of the landed diff is a defect of the workflow, not of the agent. Count
+and report:
+
+- Reconcile cycles per landing. More than one is a P0 finding — identify what
+  invalidated the first.
+- Any re-verification, re-review, or rebuilt artifact whose input diff was
+  byte-identical to an already-verified one. Each instance is a P0 finding
+  naming the instruction that mandated it.
+- Landing-phase active time. A conflict-free landing that took more than a few
+  minutes is a P0 finding — attribute the time to specific steps.
+- Repeated validations of the same state (duplicate preflights, re-runs of a
+  check whose inputs did not change).
+
+Attribute each instance to the exact workflow instruction or script that
+required it, so the recommendation can name the deletion.
+
+### 4. Worktree isolation and landing
 
 - Verify wrapper-created worktree, live session claim, immutable WorktreeCli
   provisioning, and readiness before work began. Check the transcript for
@@ -160,14 +173,14 @@ avoidable extra approval loops or unexplained waiting.
 - Inspect each meta-tool interaction for avoidable failures, confusing output,
   manual fallbacks, or repeated retries. Distinguish a legitimate external
   conflict from a poor workflow interface.
-- Verify the rebase/reconciliation and final branch advance from Git parents,
-  transcript evidence, and finalization receipts. Confirm whether conflicts
-  were cleanly resolved and reverified when reconciliation changed content.
+- Verify the rebase/reconciliation and final branch advance from Git parents
+  and transcript evidence. Confirm whether conflicts were cleanly resolved and
+  reverified when reconciliation changed content.
 - Assess whether the written workflow led naturally to the right next action.
   Identify the exact instruction, ambiguity, or missing deterministic command
   behind any confusion rather than attributing it vaguely to the agent.
 
-### 4. Speed
+### 5. Speed
 
 - Compare active elapsed time with the actual change complexity, changed
   surfaces, and required checks. Explain the dominant productive costs.
@@ -181,7 +194,11 @@ Prioritize an improvement only when it has concrete evidence and a plausible
 workflow change. Prefer a deterministic script, clearer precondition, or
 removed duplicate stage over advice to "be more careful." Do not recommend
 loosening a control that was required by the reviewed tier without explaining
-the safety tradeoff.
+the safety tradeoff — and, symmetrically, flag as a removal candidate any
+control that consumed time in the reviewed execution without ever failing,
+blocking, or changing a decision. "The control never fired" is evidence
+against keeping it, not for it: over-process and under-verification are
+equal-priority findings.
 
 Return this exact structure:
 
@@ -209,6 +226,10 @@ Return this exact structure:
 ### Token efficiency
 
 <evidence-based assessment>
+
+### Process overhead
+
+<zero-byte re-work count, reconcile cycles, landing-phase time, and attribution>
 
 ### Worktree isolation and landing
 

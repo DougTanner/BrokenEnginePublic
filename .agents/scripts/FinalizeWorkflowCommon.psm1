@@ -125,45 +125,6 @@ function Assert-FinalizeGitPath([string] $Path) {
 	}
 }
 
-function Get-FinalizeManifestRows([string] $Worktree, [string] $ComparisonBase) {
-	$paths = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-	foreach ($arguments in @(
-		@('diff', '--name-only', '--no-renames', '-z', $ComparisonBase, '--'),
-		@('ls-files', '--others', '--exclude-standard', '-z')
-	)) {
-		$output = Invoke-FinalizeGit $Worktree $arguments
-		foreach ($rawPath in $output.Split([char]0, [StringSplitOptions]::RemoveEmptyEntries)) {
-			$path = $rawPath.Replace('\', '/')
-			Assert-FinalizeGitPath $path
-			[void] $paths.Add($path)
-		}
-	}
-	$ordered = [Collections.Generic.List[string]]::new()
-	foreach ($path in $paths) { $ordered.Add($path) }
-	$ordered.Sort([StringComparer]::Ordinal)
-	$rows = [Collections.Generic.List[string]]::new()
-	foreach ($path in $ordered) {
-		$absolute = Join-Path $Worktree ($path.Replace('/', [IO.Path]::DirectorySeparatorChar))
-		if (Test-Path -LiteralPath $absolute -PathType Leaf) {
-			$oid = (Invoke-FinalizeGit $Worktree @('hash-object', "--path=$path", '--', $path)).Trim()
-			if ($oid -cnotmatch '^[0-9a-f]{40}$') { throw "git hash-object returned an invalid object id for '$path': '$oid'." }
-			$rows.Add($path + [char]9 + 'blob:' + $oid)
-		}
-		elseif (Test-Path -LiteralPath $absolute) {
-			throw "Changed Git path is not a file or deletion: '$path'."
-		}
-		else {
-			$rows.Add($path + [char]9 + 'DELETED')
-		}
-	}
-	return $rows.ToArray()
-}
-
-function Get-FinalizeManifestSha256([string[]] $Rows) {
-	$text = if ($Rows.Count -eq 0) { '' } else { ($Rows -join "`n") + "`n" }
-	return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($script:FinalizeUtf8.GetBytes($text))).ToLowerInvariant()
-}
-
 function Get-FinalizeWorktreeRecords([string] $Worktree) {
 	$records = [Collections.Generic.List[object]]::new()
 	$current = $null
@@ -215,4 +176,4 @@ function Test-FinalizeAllWorktreesClear([string] $RepositoryWorktree) {
 	return [pscustomobject]@{ Clear = $problems.Count -eq 0; Inspected = $inspected.ToArray(); Problems = $problems.ToArray() }
 }
 
-Export-ModuleMember -Function Get-FinalizeRootPreservingFullPath, Get-FinalizeExistingWindowsIdentity, Test-FinalizeExistingIdentityEqual, Invoke-FinalizeNativeText, Invoke-FinalizeGit, Test-FinalizeGitSuccess, Get-FinalizeGitIdentity, Assert-FinalizeGitPath, Get-FinalizeManifestRows, Get-FinalizeManifestSha256, Get-FinalizeWorktreeRecords, Test-FinalizeWorktreeRegistration, Test-FinalizeAllWorktreesClear
+Export-ModuleMember -Function Get-FinalizeRootPreservingFullPath, Get-FinalizeExistingWindowsIdentity, Test-FinalizeExistingIdentityEqual, Invoke-FinalizeNativeText, Invoke-FinalizeGit, Test-FinalizeGitSuccess, Get-FinalizeGitIdentity, Assert-FinalizeGitPath, Get-FinalizeWorktreeRecords, Test-FinalizeWorktreeRegistration, Test-FinalizeAllWorktreesClear

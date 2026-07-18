@@ -250,7 +250,7 @@ void DynamicPipelines::CreatePipelineBillboards(common::crc_t crc, std::string_v
 	});
 }
 
-void DynamicPipelines::CreateDepositPipeline(DynamicPipelineType eType, common::crc_t crc, std::string_view name, common::crc_t vertexShaderCrc, common::crc_t fragmentShaderCrc, Texture& rTargetTexture, DescriptorInfo textureDescriptor, VkBuffer* pOccupancyBuffer, int64_t iBufferSize)
+void DynamicPipelines::CreateDepositPipeline(DynamicPipelineType eType, common::crc_t crc, std::string_view name, common::crc_t vertexShaderCrc, common::crc_t fragmentShaderCrc, Texture& rTargetTexture, const DescriptorInfo& rTextureDescriptor, VkBuffer* pOccupancyBuffer, int64_t iBufferSize)
 {
 	if (mPipelineMaps[eType].contains(crc))
 	{
@@ -274,7 +274,7 @@ void DynamicPipelines::CreateDepositPipeline(DynamicPipelineType eType, common::
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			textureDescriptor,
+			rTextureDescriptor,
 			{.flags = kStorageBuffer, .pVkBuffers = pOccupancyBuffer},
 		},
 	});

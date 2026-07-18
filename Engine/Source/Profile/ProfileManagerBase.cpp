@@ -10,7 +10,7 @@
 namespace engine
 {
 
-// The engine consumes game CPU timers/counters by name (GetCpuTimer(game::kCpuTimerFrameUpdate) below; GameBase phase brackets), and the game's GetCpuTimer/GetCpuCounter dispatch on a contiguous index space where the first game enumerator must start at the engine count. Pin that contract here so an omitted game-enum initializer is a compile error, not a silent misroute of every game index into the engine arrays.
+// The engine consumes game CPU timers/counters by name (GetCpuTimer(game::kCpuTimerFrameUpdate) below; GameBase phase brackets), and the base GetCpuTimer/GetCpuCounter accessors dispatch on a contiguous index space where the first game enumerator must start at the engine count. Pin that contract here so an omitted game-enum initializer is a compile error, not a silent misroute of every game index into the engine arrays.
 static_assert(static_cast<int64_t>(game::kCpuTimerFrameUpdate) == static_cast<int64_t>(kEngineCpuTimerCount), "First game CPU timer must start at kEngineCpuTimerCount (contiguous engine->game index space).");
 static_assert(static_cast<int64_t>(game::kCpuCounterPlayers) == static_cast<int64_t>(kEngineCpuCounterCount), "First game CPU counter must start at kEngineCpuCounterCount (contiguous engine->game index space).");
 
@@ -21,6 +21,16 @@ constexpr std::chrono::seconds kProfileVisibilityInterval = 2s;
 // kbProfilingDump mode: one CSV sample of every timer/counter per interval, written for offline analysis.
 constexpr std::chrono::seconds kProfileDumpInterval = 1s;
 #endif // BT_CLIENT
+
+ProfileManagerBase::ProfileManagerBase(CpuCounter* pGameCpuCounters, CpuTimer* pGameCpuTimers, const std::string_view* pGameCpuCounterNames, const std::string_view* pGameCpuTimerNames, int64_t iCpuCounterCount, int64_t iCpuTimerCount)
+: mpGameCpuCounters(pGameCpuCounters)
+, mpGameCpuTimers(pGameCpuTimers)
+, mpGameCpuCounterNames(pGameCpuCounterNames)
+, mpGameCpuTimerNames(pGameCpuTimerNames)
+, miCpuCounterCount(iCpuCounterCount)
+, miCpuTimerCount(iCpuTimerCount)
+{
+}
 
 void ProfileManagerBase::Create()
 {
@@ -524,32 +534,32 @@ void ProfileManagerBase::UpdateProfileText()
 
 CpuCounter& ProfileManagerBase::GetCpuCounter(int64_t iIndex)
 {
-	return mEngineCpuCounters[iIndex];
+	return iIndex < kEngineCpuCounterCount ? mEngineCpuCounters[iIndex] : mpGameCpuCounters[iIndex - kEngineCpuCounterCount];
 }
 
 CpuTimer& ProfileManagerBase::GetCpuTimer(int64_t iIndex)
 {
-	return mEngineCpuTimers[iIndex];
+	return iIndex < kEngineCpuTimerCount ? mEngineCpuTimers[iIndex] : mpGameCpuTimers[iIndex - kEngineCpuTimerCount];
 }
 
 std::string_view ProfileManagerBase::GetCpuCounterName(int64_t iIndex)
 {
-	return kEngineCpuCounterNames[iIndex];
+	return iIndex < kEngineCpuCounterCount ? kEngineCpuCounterNames[iIndex] : mpGameCpuCounterNames[iIndex - kEngineCpuCounterCount];
 }
 
 std::string_view ProfileManagerBase::GetCpuTimerName(int64_t iIndex)
 {
-	return kEngineCpuTimerNames[iIndex];
+	return iIndex < kEngineCpuTimerCount ? kEngineCpuTimerNames[iIndex] : mpGameCpuTimerNames[iIndex - kEngineCpuTimerCount];
 }
 
 int64_t ProfileManagerBase::GetCpuCounterCount() const
 {
-	return kEngineCpuCounterCount;
+	return miCpuCounterCount;
 }
 
 int64_t ProfileManagerBase::GetCpuTimerCount() const
 {
-	return kEngineCpuTimerCount;
+	return miCpuTimerCount;
 }
 
 ScopedBootTimer::ScopedBootTimer(BootTimers eBootTimer)

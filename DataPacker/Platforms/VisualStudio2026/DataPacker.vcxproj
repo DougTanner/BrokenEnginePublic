@@ -177,7 +177,7 @@
       <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include\Volk;$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\..\Common;$(ProjectDir)\..\..\..\Common\ClangTidyShims;$(ProjectDir)\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\ThirdParty\DirectXTK\Src;$(ProjectDir)\..\..\..\ThirdParty\glm;$(ProjectDir)\..\..\..\ThirdParty\zlib;$(ProjectDir)\..\..\..\ThirdParty\Prebuilts\Source\DataPacker\openexr;$(ProjectDir)\..\..\..\ThirdParty\cmft\include;$(ProjectDir)\..\..\..\ThirdParty\cmft\dependency;$(ProjectDir)\..\..\..\ThirdParty\meshoptimizer\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>false</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <PreprocessorDefinitions>BT_DATA_PACKER;BT_DEBUG;_ITERATOR_DEBUG_LEVEL=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>BT_DATA_PACKER;BT_DEBUG;_ITERATOR_DEBUG_LEVEL=0;_MSVC_STL_HARDENING_VECTOR=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FloatingPointModel>Strict</FloatingPointModel>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>

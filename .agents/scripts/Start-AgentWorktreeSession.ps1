@@ -9,6 +9,21 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# A -File caller cannot pass client arguments as parameter values: PowerShell binds a -prefixed token
+# to any parameter it names, so '--verbose' silently binds -Verbose and never reaches the client, and
+# '--Wait 5' silently rebinds $WaitSeconds. claude-worktree.sh therefore carries them out of band,
+# NUL-delimited and base64-encoded, which no quoting or parameter name can collide with. Clear the
+# variable so the launched client does not inherit it. Codex calls this script in-process and binds
+# -ClientArguments by name, so this path is claude-only and never overrides that binding.
+if ($Client -ceq 'claude' -and -not [string]::IsNullOrEmpty($env:BROKEN_ENGINE_CLIENT_ARGUMENTS))
+{
+	$decoded = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:BROKEN_ENGINE_CLIENT_ARGUMENTS))
+	$env:BROKEN_ENGINE_CLIENT_ARGUMENTS = $null
+	# printf terminates every argument with NUL, so the split always yields a trailing empty element.
+	$parts = @($decoded -split "`0")
+	if ($parts.Count -ge 2) { $ClientArguments = @($parts[0..($parts.Count - 2)]) }
+}
 Import-Module (Join-Path $PSScriptRoot 'AgentScriptCommon.psm1') -Force
 $module = Join-Path $PSScriptRoot 'WorktreeCliSessionExclusion.psm1'
 Import-Module $module -Force

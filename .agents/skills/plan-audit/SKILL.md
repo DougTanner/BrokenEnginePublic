@@ -7,7 +7,6 @@ description: >-
   Runs inside one delegated Fable reviewer; findings only, with no plan/code
   edits, user interview, or further delegation.
 allowed-tools: [Read, Grep, Glob, PowerShell]
-disallowed-tools: [Agent, Edit, Bash, AskUserQuestion]
 ---
 
 # Plan Audit
@@ -36,6 +35,17 @@ contract](../next-plan/references/execution-gates.md).
 Return the audit inline. A plan audit is a decision aid before implementation,
 not final evidence; its finding summary is the next role's input.
 
+## Execution Context
+
+Run inside one delegated Fable reviewer. The calling session delegates rather
+than invoking this skill in its own context; only an explicit user direction
+makes an inline run acceptable, and `/verify-changes` then records that review
+as `inline`. The bounds below are prose, not frontmatter: `disallowed-tools`
+once enforced them, but it removes tools from the *invoking* context for the
+rest of the turn, so an inline invocation stripped the caller's own delegation,
+editing, and user-interview ability instead of this reviewer's. Uphold them here
+regardless of which context this runs in.
+
 ## Audit
 
 1. Read the complete plan, applicable `AGENTS.md` files, and every cited code region.
@@ -55,6 +65,12 @@ not final evidence; its finding summary is the next role's input.
    concrete trigger is named, required and conditional roles fit the actual file
    types and risks, and each acceptance criterion has an initially decisive check
    and expected result, with a named independent signal for any duplicate check.
+   An acceptance criterion this audit's own evidence proves unverifiable in the
+   available verification environment (for example, a code path the agent
+   harness cannot reach) is a must-fix finding, never a note to carry forward:
+   propose the achievable replacement check, or name the verification gap as a
+   material user decision to resolve before approval — an end-of-session waiver
+   is not an acceptable resolution path.
    Do not require `/repo-code-review` for documentation,
    workflow, style-only, or project-membership-only changes; require it when
    changed C++ or shader-adjacent logic needs its correctness contract. A reviewer

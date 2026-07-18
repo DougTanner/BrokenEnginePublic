@@ -23,12 +23,12 @@ namespace toolcli::coordination
 	}
 
 	Guard::Guard(const std::filesystem::path& rPath) :
-		mPath(rPath)
+		mPath(ExtendedLengthPath(rPath))
 	{
 		const std::chrono::steady_clock::time_point endTime = std::chrono::steady_clock::now() + std::chrono::milliseconds(kuiGuardWaitMilliseconds);
 		do
 		{
-			mhFile.Reset(::CreateFileW(rPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_HIDDEN, nullptr));
+			mhFile.Reset(::CreateFileW(mPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_HIDDEN, nullptr));
 			if (mhFile.IsValid())
 			{
 				return;
@@ -257,13 +257,13 @@ namespace toolcli::coordination
 	bool EnsureParentDirectory(const std::filesystem::path& rPath)
 	{
 		std::error_code error;
-		std::filesystem::create_directories(rPath.parent_path(), error);
+		std::filesystem::create_directories(ExtendedLengthPath(rPath).parent_path(), error);
 		return !error;
 	}
 
 	bool ReadMetadata(const std::filesystem::path& rPath, nlohmann::json& rMetadata)
 	{
-		std::ifstream input(rPath, std::ios::binary);
+		std::ifstream input(ExtendedLengthPath(rPath), std::ios::binary);
 		if (!input)
 		{
 			return false;
@@ -282,7 +282,8 @@ namespace toolcli::coordination
 	bool WriteMetadataAtomic(const std::filesystem::path& rPath, const nlohmann::json& rMetadata)
 	{
 		static uint32_t suiSequence = 0;
-		std::filesystem::path temporaryPath = rPath;
+		const std::filesystem::path targetPath = ExtendedLengthPath(rPath);
+		std::filesystem::path temporaryPath = targetPath;
 		temporaryPath += L".tmp." + std::to_wstring(::GetCurrentProcessId()) + L"." + std::to_wstring(++suiSequence);
 		std::string contents = rMetadata.dump(2) + "\n";
 		Handle hFile(::CreateFileW(temporaryPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_TEMPORARY, nullptr));
@@ -295,7 +296,7 @@ namespace toolcli::coordination
 		hFile.Reset();
 		if (bSucceeded)
 		{
-			bSucceeded = ::MoveFileExW(temporaryPath.c_str(), rPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+			bSucceeded = ::MoveFileExW(temporaryPath.c_str(), targetPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
 		}
 		if (!bSucceeded)
 		{

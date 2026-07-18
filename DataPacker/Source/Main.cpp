@@ -271,10 +271,15 @@ bool RunExportJobs()
 	{
 		WriteCrcHeader(temporaryHeaderFile, exportJobs);
 
-		std::filesystem::rename(temporaryManifestFile, manifestFile);
-		std::filesystem::rename(temporaryPackFile, packFile);
-
-		// Only copy header if it has changed (causes game re-compilation otherwise)
+		// Only copy header if it has changed (causes game re-compilation otherwise). The header must publish
+		// before the pack: the pack rename is the commit point every dirty check keys off, so a header
+		// renamed after it would strand on a kill — pack/manifest new, every fingerprint older than the
+		// fresh pack, and the header check above only tests existence, never staleness. Publishing first
+		// cannot strand it: the constants are Crc(mRelativeFile), path-derived only, so the header changes
+		// only when the asset path set changes, and every such cause re-dirties against the still-old pack
+		// next run — an added/removed asset trips the manifest chunk-count comparison, a count-preserving
+		// rename trips CheckDirty and the fingerprint-newer-than-pack check, and a regenerated missing
+		// header already matches the pack.
 		if (!common::ContentsEqual(temporaryHeaderFile, headerFile))
 		{
 			std::filesystem::rename(temporaryHeaderFile, headerFile);
@@ -283,6 +288,9 @@ bool RunExportJobs()
 		{
 			std::filesystem::remove(temporaryHeaderFile);
 		}
+
+		std::filesystem::rename(temporaryManifestFile, manifestFile);
+		std::filesystem::rename(temporaryPackFile, packFile);
 	}
 
 	return !bFailed;

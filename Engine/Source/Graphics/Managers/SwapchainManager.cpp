@@ -271,49 +271,15 @@ void SwapchainManager::CreateSwapchain(VkSwapchainKHR oldSwapchain)
 	if (vkSurfaceCapabilitiesKHR.currentExtent.width == 0xFFFFFFFF)
 	{
 		// If the surface size is undefined, the size is set to the size of the images requested
-		gpGraphics->mFramebufferExtent2D.width = gWantedFramebufferExtent2D.width;
-		if (gpGraphics->mFramebufferExtent2D.width < vkSurfaceCapabilitiesKHR.minImageExtent.width)
-		{
-			gpGraphics->mFramebufferExtent2D.width = vkSurfaceCapabilitiesKHR.minImageExtent.width;
-		}
-		else if (gpGraphics->mFramebufferExtent2D.width > vkSurfaceCapabilitiesKHR.maxImageExtent.width)
-		{
-			gpGraphics->mFramebufferExtent2D.width = vkSurfaceCapabilitiesKHR.maxImageExtent.width;
-		}
-
-		gpGraphics->mFramebufferExtent2D.height = gWantedFramebufferExtent2D.height;
-		if (gpGraphics->mFramebufferExtent2D.height < vkSurfaceCapabilitiesKHR.minImageExtent.height)
-		{
-			gpGraphics->mFramebufferExtent2D.height = vkSurfaceCapabilitiesKHR.minImageExtent.height;
-		}
-		else if (gpGraphics->mFramebufferExtent2D.height > vkSurfaceCapabilitiesKHR.maxImageExtent.height)
-		{
-			gpGraphics->mFramebufferExtent2D.height = vkSurfaceCapabilitiesKHR.maxImageExtent.height;
-		}
+		gpGraphics->mFramebufferExtent2D.width = std::clamp(gWantedFramebufferExtent2D.width, vkSurfaceCapabilitiesKHR.minImageExtent.width, vkSurfaceCapabilitiesKHR.maxImageExtent.width);
+		gpGraphics->mFramebufferExtent2D.height = std::clamp(gWantedFramebufferExtent2D.height, vkSurfaceCapabilitiesKHR.minImageExtent.height, vkSurfaceCapabilitiesKHR.maxImageExtent.height);
 	}
 	else
 	{
 		// If the surface size is defined, the swapchain size must match. Clamp to [minImageExtent, maxImageExtent]
 		// symmetrically with the undefined branch — a degenerate currentExtent must never reach .imageExtent or any attachment.
-		gpGraphics->mFramebufferExtent2D.width = vkSurfaceCapabilitiesKHR.currentExtent.width;
-		if (gpGraphics->mFramebufferExtent2D.width < vkSurfaceCapabilitiesKHR.minImageExtent.width)
-		{
-			gpGraphics->mFramebufferExtent2D.width = vkSurfaceCapabilitiesKHR.minImageExtent.width;
-		}
-		else if (gpGraphics->mFramebufferExtent2D.width > vkSurfaceCapabilitiesKHR.maxImageExtent.width)
-		{
-			gpGraphics->mFramebufferExtent2D.width = vkSurfaceCapabilitiesKHR.maxImageExtent.width;
-		}
-
-		gpGraphics->mFramebufferExtent2D.height = vkSurfaceCapabilitiesKHR.currentExtent.height;
-		if (gpGraphics->mFramebufferExtent2D.height < vkSurfaceCapabilitiesKHR.minImageExtent.height)
-		{
-			gpGraphics->mFramebufferExtent2D.height = vkSurfaceCapabilitiesKHR.minImageExtent.height;
-		}
-		else if (gpGraphics->mFramebufferExtent2D.height > vkSurfaceCapabilitiesKHR.maxImageExtent.height)
-		{
-			gpGraphics->mFramebufferExtent2D.height = vkSurfaceCapabilitiesKHR.maxImageExtent.height;
-		}
+		gpGraphics->mFramebufferExtent2D.width = std::clamp(vkSurfaceCapabilitiesKHR.currentExtent.width, vkSurfaceCapabilitiesKHR.minImageExtent.width, vkSurfaceCapabilitiesKHR.maxImageExtent.width);
+		gpGraphics->mFramebufferExtent2D.height = std::clamp(vkSurfaceCapabilitiesKHR.currentExtent.height, vkSurfaceCapabilitiesKHR.minImageExtent.height, vkSurfaceCapabilitiesKHR.maxImageExtent.height);
 
 		gWantedFramebufferExtent2D = gpGraphics->mFramebufferExtent2D;
 	}

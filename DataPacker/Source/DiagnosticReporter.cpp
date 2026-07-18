@@ -46,24 +46,6 @@ std::string NormalizeUtf8(std::string_view value)
 	return utf8Value;
 }
 
-uint64_t AddChecked(uint64_t uiLeft, uint64_t uiRight)
-{
-	if (uiLeft > std::numeric_limits<uint64_t>::max() - uiRight)
-	{
-		throw std::runtime_error("Output materialization size overflow");
-	}
-	return uiLeft + uiRight;
-}
-
-uint64_t MultiplyChecked(uint64_t uiLeft, uint64_t uiRight)
-{
-	if (uiRight != 0 && uiLeft > std::numeric_limits<uint64_t>::max() / uiRight)
-	{
-		throw std::runtime_error("Output materialization size overflow");
-	}
-	return uiLeft * uiRight;
-}
-
 std::string BuildModalText(const Record& rRecord)
 {
 	if (rRecord.exportFailures.empty())
@@ -135,8 +117,8 @@ ButtonResult Report(const Record& rRecord)
 
 DiskSpaceDecision ReportMaterializationDiskSpace(uint64_t uiAllocation, uint64_t uiAvailable, uint64_t uiTotal, const std::filesystem::path& rSource, const std::filesystem::path& rDestination)
 {
-	const uint64_t uiReserve = (std::max)(1ull << 30, AddChecked(MultiplyChecked(uiAllocation, 5), 99) / 100);
-	const uint64_t uiRequired = AddChecked(uiAllocation, uiReserve);
+	const uint64_t uiReserve = (std::max)(1ull << 30, (uiAllocation * 5 + 99) / 100);
+	const uint64_t uiRequired = uiAllocation + uiReserve;
 	if (uiRequired > uiAvailable)
 	{
 		Record record
@@ -152,7 +134,7 @@ DiskSpaceDecision ReportMaterializationDiskSpace(uint64_t uiAllocation, uint64_t
 	}
 
 	const uint64_t uiProjected = uiAvailable - uiAllocation;
-	const uint64_t uiWarning = (std::max)(10ull << 30, AddChecked(MultiplyChecked(uiTotal, 10), 99) / 100);
+	const uint64_t uiWarning = (std::max)(10ull << 30, (uiTotal * 10 + 99) / 100);
 	if (uiProjected < uiWarning)
 	{
 		Record record

@@ -663,15 +663,10 @@ struct PlayerCollisionIntervalScratch
 
 static PlayerCollisionIntervalScratch& GetPlayerCollisionIntervalScratch()
 {
-	static thread_local PlayerCollisionIntervalScratch* spScratch = nullptr;
-	if (spScratch == nullptr)
-	{
-		// Heap: function-local TLS defers non-trivial construction until allocator startup is complete.
-		ScopedSuppressAllocationTracking suppress;
-		static thread_local PlayerCollisionIntervalScratch sScratch;
-		spScratch = &sScratch;
-	}
-	return *spScratch;
+	// Function-local TLS defers construction until first use; default construction is allocation-free
+	// (empty vectors), so it is safe even before allocator startup completes. Growth sites suppress tracking.
+	static thread_local PlayerCollisionIntervalScratch sScratch;
+	return sScratch;
 }
 
 void PlayersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)

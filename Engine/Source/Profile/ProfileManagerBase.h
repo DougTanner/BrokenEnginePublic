@@ -144,8 +144,7 @@ enum GpuTimers : int64_t
 	kGpuTimerGlobal,
 		kGpuTimerGlobalUniformCopy,
 		kGpuTimerShadow,
-		kGpuTimerTerrainGen,
-			kGpuTimerTerrainElevation,
+		kGpuTimerTerrainElevation,
 		kGpuTimerSpread,
 			kGpuTimerWindSpread,
 			kGpuTimerSmokeSpread,
@@ -187,8 +186,7 @@ inline constexpr std::string_view kGpuTimerNames[]
 	"Global render",
 	"    Uniform Copy",
 	"    Shadow",
-	"    Terrain Gen",
-	"        Terrain Elevation",
+	"    Terrain Elevation",
 	"    Spread",
 	"        Wind Spread",
 	"        Smoke Spread",
@@ -297,7 +295,9 @@ class ProfileManagerBase
 {
 public:
 
-	ProfileManagerBase() = default;
+	// The derived arrays are not constructed until after this base constructor returns. Store their addresses only;
+	// no base-constructor path may dereference them.
+	ProfileManagerBase(CpuCounter* pGameCpuCounters, CpuTimer* pGameCpuTimers, const std::string_view* pGameCpuCounterNames, const std::string_view* pGameCpuTimerNames, int64_t iCpuCounterCount, int64_t iCpuTimerCount);
 	virtual ~ProfileManagerBase() = default;
 
 	void Create();
@@ -331,12 +331,12 @@ public:
 	// Advances the shared profile-text visibility clock; returns true on a re-evaluation boundary (>= kProfileVisibilityInterval since last).
 	bool TickVisibilityCadence();
 
-	virtual CpuCounter& GetCpuCounter(int64_t iIndex);
-	virtual CpuTimer& GetCpuTimer(int64_t iIndex);
-	virtual std::string_view GetCpuCounterName(int64_t iIndex);
-	virtual std::string_view GetCpuTimerName(int64_t iIndex);
-	virtual int64_t GetCpuCounterCount() const;
-	virtual int64_t GetCpuTimerCount() const;
+	CpuCounter& GetCpuCounter(int64_t iIndex);
+	CpuTimer& GetCpuTimer(int64_t iIndex);
+	std::string_view GetCpuCounterName(int64_t iIndex);
+	std::string_view GetCpuTimerName(int64_t iIndex);
+	int64_t GetCpuCounterCount() const;
+	int64_t GetCpuTimerCount() const;
 
 	virtual void FormatGameScreens(common::Workbuffer&) {}
 
@@ -371,6 +371,13 @@ protected:
 	CpuCounter mEngineCpuCounters[kEngineCpuCounterCount];
 
 	CpuTimer mEngineCpuTimers[kEngineCpuTimerCount];
+
+	CpuCounter* mpGameCpuCounters;
+	CpuTimer* mpGameCpuTimers;
+	const std::string_view* mpGameCpuCounterNames;
+	const std::string_view* mpGameCpuTimerNames;
+	int64_t miCpuCounterCount;
+	int64_t miCpuTimerCount;
 
 #if defined(BT_CLIENT)
 	GpuTimer mGpuTimers[kGpuTimerCount];

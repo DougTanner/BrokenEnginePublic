@@ -157,7 +157,7 @@ namespace toolcli
 		bool ReadExisting(const coordination::Locator& rLocator, const PlanLocator& rPlanLocator, const std::wstring* pPlan, bool& rbExists, nlohmann::json& rMetadata)
 		{
 			std::error_code error;
-			rbExists = std::filesystem::exists(rLocator.path, error);
+			rbExists = std::filesystem::exists(ExtendedLengthPath(rLocator.path), error);
 			if (error)
 			{
 				Fail("could not inspect plan coordination record");
@@ -361,7 +361,7 @@ namespace toolcli
 			}
 			if (rVerb == L"unlock")
 			{
-				if (::DeleteFileW(rLocator.queue.path.c_str()) == FALSE)
+				if (::DeleteFileW(ExtendedLengthPath(rLocator.queue.path).c_str()) == FALSE)
 				{
 					FailWindows("unlock plan queue");
 					return kiExitFailure;
@@ -479,7 +479,7 @@ namespace toolcli
 			}
 			if (rVerb == L"unclaim")
 			{
-				if (::DeleteFileW(rLocator.row.path.c_str()) == FALSE)
+				if (::DeleteFileW(ExtendedLengthPath(rLocator.row.path).c_str()) == FALSE)
 				{
 					FailWindows("unclaim plan row");
 					return kiExitFailure;

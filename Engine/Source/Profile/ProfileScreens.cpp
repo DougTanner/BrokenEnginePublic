@@ -26,7 +26,7 @@ void FormatCpuTimersText(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rP
 		int64_t iValue = rCpuTimer.smoothedMicroseconds.Get();
 		if (bReevaluate)
 		{
-			rCpuTimer.flags.Set(ProfileRowFlags::kVisible, !(i > kCpuTimerAcquireToGlobal && iValue < 50));
+			rCpuTimer.flags.Set(ProfileRowFlags::kVisible, iValue != 0);
 		}
 
 		if (!(rCpuTimer.flags & ProfileRowFlags::kVisible))
@@ -135,7 +135,7 @@ void FormatGpuTimerRows(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rPr
 
 	// Active visible-area LOD vertex grid (quads + 1), shared by the water displacement compute pre-pass
 	// (writes the top-left rectangle) and the water mesh draw. Mirrors the LOD pick in RenderFrameMain.
-	int iWaterLod = std::clamp(game::gpCamera->miVisibleAreaLod, 0, BufferManager::kiVisibleAreaLodCount - 1);
+	int iWaterLod = std::clamp(game::gpCamera->miVisibleAreaLod, 0, static_cast<int>(BufferManager::kiVisibleAreaLodCount) - 1);
 	const BufferManager::VisibleAreaMeshLod& rWaterLod = gpBufferManager->mWaterMeshLods[iWaterLod];
 	int64_t iWaterGridX = rWaterLod.iQuadCountX + 1;
 	int64_t iWaterGridY = rWaterLod.iQuadCountY + 1;

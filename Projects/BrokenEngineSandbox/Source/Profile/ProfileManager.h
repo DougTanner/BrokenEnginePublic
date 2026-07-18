@@ -93,13 +93,6 @@ public:
 	ProfileManager();
 	~ProfileManager() override;
 
-	engine::CpuCounter& GetCpuCounter(int64_t iIndex) override;
-	engine::CpuTimer& GetCpuTimer(int64_t iIndex) override;
-	std::string_view GetCpuCounterName(int64_t iIndex) override;
-	std::string_view GetCpuTimerName(int64_t iIndex) override;
-	int64_t GetCpuCounterCount() const override;
-	int64_t GetCpuTimerCount() const override;
-
 #if defined(BT_CLIENT)
 	void FormatGameScreens(common::Workbuffer& rWorkbuffer) override;
 	void RenderImPlotGraphs() override;

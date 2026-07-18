@@ -6,8 +6,10 @@ description: >-
   mirrored client/server or per-collection patterns that must stay in sync, and
   stale references in comments or shared C++/GLSL headers. Invoke during the
   Implement and propagate stage after any code change; documentation, skill,
-  and script changes do not trigger it. Search-and-update only — no
-  refactoring, style fixes, or scope expansion.
+  and script changes do not trigger it, and a review-fix wave confined to one
+  function with no signature or contract change scans its own affected sites,
+  invoking this skill only for candidates outside its assigned scope.
+  Search-and-update only — no refactoring, style fixes, or scope expansion.
 allowed-tools: [Read, Write, Grep, Glob, Edit, Bash]
 ---
 
