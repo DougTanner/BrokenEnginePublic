@@ -185,19 +185,28 @@ inline float UnormToFloat(T uiValue)
 }
 
 // Frame-rate independent exponential decay factor using Padé (1,1) approximation
-// Approximates exp(-fDecayRate * fDeltaTime) for consistent behavior at any timestep
-// Fast (no transcendentals), stable (clamped to never negative), accurate (~1% for x < 0.35, ~9% at x = 1.0)
+// Approximates exp(-fDecayRate * fDeltaTime) for finite positive scaled times
+// Always returns [0, 1]: non-positive or NaN scaled time returns 1, positive infinity returns 0
+// Fast (no transcendentals), accurate (~1% for x < 0.35, ~9% at x = 1.0)
 // Usage: velocity *= ExponentialDecay(3.0f, fDeltaTime);
 constexpr float ExponentialDecay(float fDecayRate, float fDeltaTime)
 {
-	float x = fDecayRate * fDeltaTime;
-	return std::max(0.0f, (2.0f - x) / (2.0f + x));
+	float fScaledTime = fDecayRate * fDeltaTime;
+	if (!(fScaledTime > 0.0f))
+	{
+		return 1.0f;
+	}
+	if (fScaledTime == std::numeric_limits<float>::infinity())
+	{
+		return 0.0f;
+	}
+	return std::max(0.0f, (2.0f - fScaledTime) / (2.0f + fScaledTime));
 }
 
 // Frame-rate independent interpolation factor using Padé (1,1) approximation
 // Returns 1 - exp(-fRate * fDeltaTime) ≈ 2x / (2 + x) where x = fRate * fDeltaTime
 // Use for "move toward target" operations (rotation, position lerp)
-// Never exceeds 1.0 (no overshoot), frame-rate independent
+// Returns [0, 1] only for scaled time in [0, 2]; callers outside that domain must clamp the result
 // Usage: direction = lerp(direction, target, ExponentialInterpolant(10.0f, fDeltaTime));
 constexpr float ExponentialInterpolant(float fRate, float fDeltaTime)
 {
