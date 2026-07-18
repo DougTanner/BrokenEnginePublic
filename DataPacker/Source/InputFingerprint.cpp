@@ -76,19 +76,64 @@ private:
 	BCRYPT_HASH_HANDLE mpHash = nullptr;
 };
 
-std::string HashFileContents(const std::filesystem::path& rPath)
+std::string HashFileContents(const std::filesystem::path& rPath, InputFingerprintMode eMode)
 {
 	Sha256Hasher hasher;
 	std::fstream stream(rPath, std::ios::in | std::ios::binary);
 	std::vector<std::byte> buffer(64 * 1024);
+	std::vector<std::byte> normalizedBuffer;
+	if (eMode == InputFingerprintMode::kTextCrLf)
+	{
+		normalizedBuffer.resize(buffer.size() * 2 + 2);
+	}
+	bool bPendingCarriageReturn = false;
 	while (stream)
 	{
 		stream.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(buffer.size()));
-		hasher.Update(buffer.data(), static_cast<size_t>(stream.gcount()));
+		size_t uiBytes = static_cast<size_t>(stream.gcount());
+		if (eMode == InputFingerprintMode::kRaw)
+		{
+			hasher.Update(buffer.data(), uiBytes);
+			continue;
+		}
+
+		size_t uiNormalizedBytes = 0;
+		for (size_t i = 0; i < uiBytes; ++i)
+		{
+			std::byte uiByte = buffer.at(i);
+			if (bPendingCarriageReturn)
+			{
+				normalizedBuffer.at(uiNormalizedBytes++) = static_cast<std::byte>('\r');
+				normalizedBuffer.at(uiNormalizedBytes++) = static_cast<std::byte>('\n');
+				bPendingCarriageReturn = false;
+				if (uiByte == static_cast<std::byte>('\n'))
+				{
+					continue;
+				}
+			}
+			if (uiByte == static_cast<std::byte>('\r'))
+			{
+				bPendingCarriageReturn = true;
+			}
+			else if (uiByte == static_cast<std::byte>('\n'))
+			{
+				normalizedBuffer.at(uiNormalizedBytes++) = static_cast<std::byte>('\r');
+				normalizedBuffer.at(uiNormalizedBytes++) = static_cast<std::byte>('\n');
+			}
+			else
+			{
+				normalizedBuffer.at(uiNormalizedBytes++) = uiByte;
+			}
+		}
+		hasher.Update(normalizedBuffer.data(), uiNormalizedBytes);
 	}
 	if (!stream.eof())
 	{
 		throw std::runtime_error(std::format("Failed to fingerprint \"{}\"", rPath.string()));
+	}
+	if (bPendingCarriageReturn)
+	{
+		hasher.Update("\r\n");
 	}
 	return hasher.Finish();
 }
@@ -219,10 +264,10 @@ void InputFingerprintCache::Save()
 	mbDirty = false;
 }
 
-std::string InputFingerprintCache::Get(const std::filesystem::path& rPath)
+std::string InputFingerprintCache::Get(const std::filesystem::path& rPath, InputFingerprintMode eMode)
 {
 	std::scoped_lock lock(mMutex);
-	return GetUnlocked(rPath);
+	return GetUnlocked(rPath, eMode);
 }
 
 std::string InputFingerprintCache::GetPersistent(const std::filesystem::path& rPath)
@@ -231,18 +276,18 @@ std::string InputFingerprintCache::GetPersistent(const std::filesystem::path& rP
 	return GetPersistentFile(rPath);
 }
 
-std::string InputFingerprintCache::GetUnlocked(const std::filesystem::path& rPath)
+std::string InputFingerprintCache::GetUnlocked(const std::filesystem::path& rPath, InputFingerprintMode eMode)
 {
 	if (std::filesystem::is_directory(rPath))
 	{
 		return GetDirectory(rPath);
 	}
-	return GetFile(rPath);
+	return GetFile(rPath, eMode);
 }
 
-std::string InputFingerprintCache::GetFile(const std::filesystem::path& rPath)
+std::string InputFingerprintCache::GetFile(const std::filesystem::path& rPath, InputFingerprintMode eMode)
 {
-	std::string key = PathKey(rPath);
+	std::string key = PathKey(rPath, eMode);
 	FileSnapshot snapshot = Snapshot(rPath);
 	auto cachedIterator = mCachedFingerprints.find(key);
 	if (cachedIterator != mCachedFingerprints.end() && cachedIterator->second.snapshot == snapshot)
@@ -250,7 +295,7 @@ std::string InputFingerprintCache::GetFile(const std::filesystem::path& rPath)
 		return cachedIterator->second.fingerprint;
 	}
 
-	std::string fingerprint = HashFileContents(rPath);
+	std::string fingerprint = HashFileContents(rPath, eMode);
 	mCachedFingerprints.insert_or_assign(key, CachedFingerprint {.snapshot = snapshot, .fingerprint = fingerprint});
 	mbDirty = true;
 	return fingerprint;
@@ -260,7 +305,7 @@ std::string InputFingerprintCache::GetPersistentFile(const std::filesystem::path
 {
 	std::filesystem::path metadataPath = rPath;
 	metadataPath += ".fingerprint.meta";
-	std::string key = PathKey(rPath);
+	std::string key = PathKey(rPath, InputFingerprintMode::kRaw);
 	FileSnapshot snapshot = Snapshot(rPath);
 	auto cachedIterator = mCachedFingerprints.find(key);
 	if (cachedIterator != mCachedFingerprints.end() && cachedIterator->second.snapshot == snapshot)
@@ -304,7 +349,7 @@ std::string InputFingerprintCache::GetPersistentFile(const std::filesystem::path
 		// Missing and malformed metadata both fall through to content hashing.
 	}
 
-	std::string fingerprint = HashFileContents(rPath);
+	std::string fingerprint = HashFileContents(rPath, InputFingerprintMode::kRaw);
 	nlohmann::json metadata
 	{
 		{"magic", kpcPersistentFingerprintMagic},
@@ -391,7 +436,8 @@ InputFingerprintCache::FileSnapshot InputFingerprintCache::Snapshot(const std::f
 	};
 }
 
-std::string InputFingerprintCache::PathKey(const std::filesystem::path& rPath)
+std::string InputFingerprintCache::PathKey(const std::filesystem::path& rPath, InputFingerprintMode eMode)
 {
-	return common::ToLower(std::filesystem::absolute(rPath).lexically_normal().string());
+	std::string path = common::ToLower(std::filesystem::absolute(rPath).lexically_normal().string());
+	return eMode == InputFingerprintMode::kRaw ? path : "text-crlf-v1:" + path;
 }

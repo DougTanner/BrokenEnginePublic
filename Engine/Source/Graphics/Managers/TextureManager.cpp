@@ -5,6 +5,7 @@
 #include "Profile/ProfileManager.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
+#include "Ui/PbrWrappersBase.h"
 #include "Ui/WaterWrappersBase.h"
 
 namespace engine
@@ -443,6 +444,14 @@ void TextureManager::CreateSamplers()
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotRepeat]));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotRepeat], "Repeat");
+
+	// Model normal and metallic-roughness textures carry data rather than color. Apply their dedicated
+	// bias directly so negative sharpens, positive blurs, and zero is unbiased.
+	vkSamplerCreateInfo.mipLodBias = std::clamp(gPbrModelDataMipLodBias.Get(), -gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxSamplerLodBias, gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxSamplerLodBias);
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotRepeatModelData]));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotRepeatModelData], "RepeatModelData");
+
+	vkSamplerCreateInfo.mipLodBias = -gMipLodBias.Get();
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;

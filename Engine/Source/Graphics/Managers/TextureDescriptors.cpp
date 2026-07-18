@@ -19,6 +19,7 @@ void TextureDescriptors::Create()
 	// Global Set 0 layout (shared by graphics and compute pipelines):
 	//   Binding 0:  globalUniform (UNIFORM_BUFFER, VERTEX | FRAGMENT | COMPUTE)
 	//   Binding 1:  mainUniform   (UNIFORM_BUFFER, VERTEX | FRAGMENT | COMPUTE)
+	//   Binding 13: samplerRepeatModelData (SAMPLER, FRAGMENT | COMPUTE)
 	//   Binding 3:  samplerRepeat (SAMPLER, FRAGMENT | COMPUTE)
 	//   Binding 4:  pTextures[]   (SAMPLED_IMAGE, FRAGMENT | COMPUTE, PARTIALLY_BOUND | UPDATE_AFTER_BIND)
 	//   Binding 12: samplerClamp  (SAMPLER, FRAGMENT | COMPUTE)
@@ -26,6 +27,7 @@ void TextureDescriptors::Create()
 	{
 		{.binding = shaders::kiGlobalBindingGlobalUniform, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
 		{.binding = shaders::kiGlobalBindingMainUniform, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
+		{.binding = shaders::kiGlobalBindingSamplerRepeatModelData, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
 		{.binding = shaders::kiGlobalBindingSamplerRepeat, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
 		{.binding = shaders::kiGlobalBindingBindlessTextures, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = static_cast<uint32_t>(mImageInfos.size()), .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
 		{.binding = shaders::kiGlobalBindingSamplerClamp, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT},
@@ -33,6 +35,7 @@ void TextureDescriptors::Create()
 
 	VkDescriptorBindingFlags pBindingFlags[]
 	{
+		0,
 		0,
 		0,
 		0,
@@ -96,6 +99,7 @@ void TextureDescriptors::WriteGlobalDescriptorSets()
 	{
 		VkDescriptorBufferInfo globalBufferInfo {.buffer = gpBufferManager->mGlobalLayoutUniformBuffers[i].GetBuffer(), .offset = 0, .range = VK_WHOLE_SIZE};
 		VkDescriptorBufferInfo mainBufferInfo {.buffer = gpBufferManager->mMainLayoutUniformBuffers[i].GetBuffer(), .offset = 0, .range = VK_WHOLE_SIZE};
+		VkDescriptorImageInfo samplerRepeatModelDataInfo {.sampler = mrTextureManager.mpSamplers[TextureManager::kSamplerSlotRepeatModelData]};
 		VkDescriptorImageInfo samplerRepeatInfo {.sampler = mrTextureManager.mpSamplers[TextureManager::kSamplerSlotRepeat]};
 		VkDescriptorImageInfo samplerClampInfo {.sampler = mrTextureManager.mpSamplers[TextureManager::kSamplerSlotClamp]};
 
@@ -103,6 +107,7 @@ void TextureDescriptors::WriteGlobalDescriptorSets()
 		{
 			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets.at(i), .dstBinding = shaders::kiGlobalBindingGlobalUniform, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .pBufferInfo = &globalBufferInfo},
 			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets.at(i), .dstBinding = shaders::kiGlobalBindingMainUniform, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .pBufferInfo = &mainBufferInfo},
+			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets.at(i), .dstBinding = shaders::kiGlobalBindingSamplerRepeatModelData, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .pImageInfo = &samplerRepeatModelDataInfo},
 			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets.at(i), .dstBinding = shaders::kiGlobalBindingSamplerRepeat, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .pImageInfo = &samplerRepeatInfo},
 			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets.at(i), .dstBinding = shaders::kiGlobalBindingBindlessTextures, .descriptorCount = static_cast<uint32_t>(mImageInfos.size()), .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .pImageInfo = mImageInfos.data()},
 			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets.at(i), .dstBinding = shaders::kiGlobalBindingSamplerClamp, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .pImageInfo = &samplerClampInfo},

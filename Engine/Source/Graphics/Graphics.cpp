@@ -6,6 +6,7 @@
 #include "Profile/ProfileManager.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
+#include "Ui/PbrWrappersBase.h"
 #include "Ui/ShadowWrappersBase.h"
 #include "Ui/WaterWrappersBase.h"
 #include "Ui/WrapperBase.h"
@@ -518,6 +519,7 @@ void Graphics::Refresh()
 	PollSetting<bool>(gSampleShading, "Sample shading", DestroyType::kPipelines);
 	PollSetting<float>(gMinSampleShading, "Min sample shading", DestroyType::kPipelines);
 	PollSetting<float>(gMipLodBias, "Mip lod bias", DestroyType::kSamplers);
+	PollSetting<float>(gPbrModelDataMipLodBias, "Model data mip bias", DestroyType::kSamplers);
 	PollSetting<float>(gWaterNormalMipBias, "Water normal mip bias", DestroyType::kSamplers);
 	PollSetting<bool>(gWireframe, "Wireframe", DestroyType::kPipelines);
 	PollSetting<bool>(gDebugTexture, nullptr, DestroyType::kCommandBuffers);

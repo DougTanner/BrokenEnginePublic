@@ -1,5 +1,11 @@
 #pragma once
 
+enum class InputFingerprintMode
+{
+	kRaw,
+	kTextCrLf,
+};
+
 class InputFingerprintCache
 {
 public:
@@ -7,7 +13,7 @@ public:
 	InputFingerprintCache(const std::filesystem::path& rCacheFile);
 	~InputFingerprintCache();
 
-	std::string Get(const std::filesystem::path& rPath);
+	std::string Get(const std::filesystem::path& rPath, InputFingerprintMode eMode = InputFingerprintMode::kRaw);
 	std::string GetPersistent(const std::filesystem::path& rPath);
 
 private:
@@ -30,15 +36,15 @@ private:
 		std::string fingerprint;
 	};
 
-	std::string GetUnlocked(const std::filesystem::path& rPath);
-	std::string GetFile(const std::filesystem::path& rPath);
+	std::string GetUnlocked(const std::filesystem::path& rPath, InputFingerprintMode eMode);
+	std::string GetFile(const std::filesystem::path& rPath, InputFingerprintMode eMode = InputFingerprintMode::kRaw);
 	std::string GetPersistentFile(const std::filesystem::path& rPath);
 	std::string GetDirectory(const std::filesystem::path& rPath);
 	void Load();
 	void Save();
 
 	static FileSnapshot Snapshot(const std::filesystem::path& rPath);
-	static std::string PathKey(const std::filesystem::path& rPath);
+	static std::string PathKey(const std::filesystem::path& rPath, InputFingerprintMode eMode);
 
 	std::filesystem::path mCacheFile;
 	bool mbDirty = false;

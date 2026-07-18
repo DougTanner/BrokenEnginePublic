@@ -68,7 +68,7 @@ exit status and relevant diagnostics once.
 
 DataPacker's mutex coordinates across worktrees and its shared chunks live under `%TEMP%\DataPacker\<Project>`; do not add another PC-global DataPacker lock or a checkout-local cache copy. Gaea raw and split intermediates use the single mutable `%TEMP%\DataPacker\<Project>\Gaea\Islands` cache; source-tree island leaves retain only tracked BC outputs.
 
-**Run every build synchronously in the foreground and stay in-turn until the `WorktreeCli build` call returns an exit code — only then report. NEVER background a build (`run_in_background`, a `Monitor` watcher, `Start-Job`, or a trailing `&`) and then end your turn to await completion.** A delegated subagent that yields its turn while a build runs is not reliably re-woken when the build finishes, so the workflow stalls half-done — a common failure is ThirdParty completing while the client/server targets are never started — and no result is ever reported. Give each foreground `WorktreeCli build` call the maximum execution timeout the tool allows so WorktreeCli's 660-second lock wait cannot be preempted; a cold first build of a fresh worktree can approach that limit. If a call times out with the build still running, **re-invoke the same `WorktreeCli build` command** — WorktreeCli serializes per target and its incremental/tlog state continues the same build to completion — rather than backgrounding it. If blocking is genuinely unacceptable, poll the build's own output to completion within the same turn (repeated short reads in a loop) and report only once you hold the final per-target exit code; never hand the wait to a fire-and-forget watcher and stop. Orchestrated worktree game builds never run DataPacker, Gaea, or texture export. Ordinary builds always preserve `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; the explicit Microsoft PREfast verification mode below is the sole exception to `RunCodeAnalysis=false`. The bundled VS2026 clang-tidy crashes on this codebase.
+**Run every build synchronously in the foreground and stay in-turn until the `WorktreeCli build` call returns an exit code — only then report. NEVER background a build (`run_in_background`, a `Monitor` watcher, `Start-Job`, or a trailing `&`) and then end your turn to await completion.** A delegated subagent that yields its turn while a build runs is not reliably re-woken when the build finishes, so the workflow stalls half-done — a common failure is ThirdParty completing while the client/server targets are never started — and no result is ever reported. Give each foreground `WorktreeCli build` call the maximum execution timeout the tool allows so WorktreeCli's 660-second lock wait cannot be preempted; a cold first build of a fresh worktree can approach that limit. If a call times out with the build still running, **re-invoke the same `WorktreeCli build` command** — WorktreeCli serializes per target and its incremental/tlog state continues the same build to completion — rather than backgrounding it. If blocking is genuinely unacceptable, poll the build's own output to completion within the same turn (repeated short reads in a loop) and report only once you hold the final per-target exit code; never hand the wait to a fire-and-forget watcher and stop. Ordinary builds do not run DataPacker, Gaea, or texture export; the explicitly authorized Local generation path below is the sole exception. Ordinary builds always preserve `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; the explicit Microsoft PREfast verification mode below is the sole exception to `RunCodeAnalysis=false`. The bundled VS2026 clang-tidy crashes on this codebase.
 
 ## Select runtime data mode
 
@@ -76,29 +76,71 @@ Every worktree game build uses one data mode and one canonical directory for bot
 
 - **Shared** is the default for ordinary code changes. Set `$GameDataDirectory` to `$PRIMARY\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\Data`; this mode consumes primary generated headers/packs and disables every DataPacker build/export step.
 - **Local** is mandatory when tracked changes from `$BASELINE`, staged changes, unstaged changes, or untracked files touch `DataPacker/**`, `Engine/Data/**`, `Projects/BrokenEngineSandbox/Data/**`, `Common/DataFile.h`, generated-header logic, exporter versions/fingerprints, compression, chunk layout, or pack/manifest contracts. Set `$GameDataDirectory` to `$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\Data`.
-- A user may force Local. Never force Shared over a Local trigger. Local consumes only output the user explicitly prepared for the current worktree state; it never initiates export and never falls back to Shared data.
+- A user may force Local. Never force Shared over a Local trigger. Local never falls back to Shared data. Generate Local output only with explicit authorization; a user-approved plan or acceptance criterion requiring shader or data repack is authorization.
 - **Deletion-only exception:** pure deletions of source asset files under `Engine/Data/**` or `Projects/BrokenEngineSandbox/Data/**` do not trigger Local when a repository-wide search proves nothing tracked references the deleted asset's generated identity (its generated CRC constant, chunk, or path). With `RunDataPacker=false` the build consumes only pre-existing generated output, which a source deletion cannot alter — the dead chunk persists in the published pack and the unused constant in the generated header until the next real DataPacker export drops both. Record the reference-search evidence with the mode selection. Any addition, modification, rename, exporter, or contract change keeps the Local requirement.
 
-The game projects detect the canonical repository-root Git marker. A linked worktree has a `.git` file and defaults `RunDataPacker=false`; the primary checkout has a `.git` directory and preserves ordinary Local Visual Studio behavior by defaulting true. An explicit Local `RunDataPacker=true` permits deliberate worktree generation; Shared rejects true. This compile skill always passes false and never opts in.
+The game projects detect the canonical repository-root Git marker. A linked worktree has a `.git` file and defaults `RunDataPacker=false`; the primary checkout has a `.git` directory and preserves ordinary Local Visual Studio behavior by defaulting true. An explicit Local `RunDataPacker=true` permits deliberate worktree generation; Shared rejects true.
 
 Build the changed-path set from `git -C $ROOT diff --name-only $BASELINE --` plus `git -C $ROOT ls-files --others --exclude-standard`; normalize separators before matching. This single baseline diff includes committed, staged, and unstaged tracked changes. If a changed file may affect generated or serialized bytes and the path rules do not prove otherwise, select Local.
 
-Set `$GeneratedDataIncludeRoot` to the canonical parent of `$GameDataDirectory` (consumers include `Data/...`) and pass these exact properties to every client/server `.sln` or `.vcxproj` build, including `--files`:
+Set `$GeneratedDataIncludeRoot` to the canonical parent of `$GameDataDirectory` (consumers include `Data/...`). Set `$RunDataPacker` to `'false'` for Shared and ordinary Local builds, or to `'true'` only for the first game build in an authorized Local generation. Pass these exact properties to every client/server `.sln` or `.vcxproj` build, including `--files`:
 
 ```powershell
 $DataProperties = @(
 	"/p:DataBuildMode=$DataBuildMode",
-	'/p:RunDataPacker=false',
+	"/p:RunDataPacker=$RunDataPacker",
 	"/p:GameDataDirectory=$GameDataDirectory",
 	"/p:GeneratedDataIncludeRoot=$GeneratedDataIncludeRoot"
 )
 ```
 
+When `$RunDataPacker -eq 'true'`, the game project's nested DataPacker build also requires `DevEnvDir`. Resolve the exact VS2026 Community install first, then fall back to `vswhere`; require `Common7\IDE\devenv.com` or `devenv.exe`, preserve the directory's trailing separator, and append the property only for that generation build:
+
+```powershell
+$VsInstall = 'C:\Program Files\Microsoft Visual Studio\18\Community'
+$DevEnvDirectory = Join-Path $VsInstall 'Common7\IDE'
+if (-not (Test-Path -LiteralPath (Join-Path $DevEnvDirectory 'devenv.com') -PathType Leaf) -and -not (Test-Path -LiteralPath (Join-Path $DevEnvDirectory 'devenv.exe') -PathType Leaf))
+{
+	$VsWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+	if (-not (Test-Path -LiteralPath $VsWhere -PathType Leaf)) { throw 'Unable to locate vswhere for Visual Studio 2026.' }
+	$VsInstall = (& $VsWhere -latest -version '[18.0,19.0)' -products * -requires Microsoft.Component.MSBuild -property installationPath).Trim()
+	if (-not $VsInstall) { throw 'Unable to locate Visual Studio 2026.' }
+	$DevEnvDirectory = Join-Path $VsInstall 'Common7\IDE'
+}
+if (-not (Test-Path -LiteralPath (Join-Path $DevEnvDirectory 'devenv.com') -PathType Leaf) -and -not (Test-Path -LiteralPath (Join-Path $DevEnvDirectory 'devenv.exe') -PathType Leaf)) { throw "Visual Studio IDE executable missing under '$DevEnvDirectory'." }
+$DevEnvDirectory = $DevEnvDirectory.TrimEnd('\') + '\'
+$GenerationDataProperties = @($DataProperties) + "/p:DevEnvDir=$DevEnvDirectory"
+```
+
+Use `$GenerationDataProperties` only for the first `RunDataPacker=true` build. For every later build, set `$RunDataPacker = 'false'`, reconstruct `$DataProperties` from the four-property block above, and pass that array; `DevEnvDir` must not leak into subsequent calls.
+
 Before Shared compilation, require these ten nonempty headers: `Data.h`, `DataTypes.h`, `Audio.h`, `Font.h`, `Scene.h`, `Islands.h`, `Model.h`, `Shader.h`, `Texture.h`, `Raw.h`. Also require nonempty `.manifest` and `.pack` files for each of `Audio`, `Font`, `Scene`, `Islands`, `Model`, `Shader`, `Texture`, and `Raw`. The Shared directory must be absolute, outside `$ROOT`, and must remain unchanged: snapshot the required files as normalized relative path + length + last-write time before the first build, recheck after each client/server build, and return that snapshot for the harness's pre-launch check. Any missing, added, removed, or changed required file fails the workflow. Use full SHA-256 hashing in place of length + last-write time only when the run feeds replay/determinism verification.
 
-Local mode may build the worktree Release DataPacker as a standalone compile check, but must never execute it. Before compiling either game target, require the same complete nonempty output set and explicit confirmation that the user prepared it after the current relevant worktree changes. If either check is absent, stop with `Local data is missing or stale; manual worktree DataPacker export required` and do not build, export, or fall back. Actual generation is a separate user-controlled action outside this skill.
+Local mode may build the worktree Release DataPacker as a standalone compile check. Before Local work, snapshot the primary required-file set. For an authorized Local generation, set `$RunDataPacker = 'true'` on the first game build so the project builds and runs the worktree DataPacker. In a validated linked worktree, DataPacker seeds an absent worktree `Data` or `Attribution` output from the corresponding primary ordinary directory when it exists, using a recognized link; dirty output uses copy-on-write materialization, staging primary files and atomically replacing only the affected recognized link.
 
-Snapshot the primary required-file set before Local work and recheck it after each game build; any primary write fails the workflow. After the last game build, snapshot the complete selected Local output for the harness. Never copy worktree DataPacker/data source changes into `$PRIMARY` to test them.
+Agent-driven Local generation forbids Gaea by default. Scope `BT_DATAPACKER_FORBID_GAEA_EXPORT=1` around the entire first `RunDataPacker=true` WorktreeCli call and restore the caller's prior environment exactly in `finally`. Only an explicit user-approved plan or acceptance criterion that requires regenerating Gaea output authorizes omitting/clearing this guard; changed island inputs, DataPacker code, fingerprints, or cache state alone never authorize a Gaea run. If the guard blocks a dirty Gaea route, the generation build failed: report the exception and do not clear the guard or retry without that explicit approval. `BT_DATAPACKER_FORBID_EXPENSIVE_EXPORT` retains its broader independent meaning; never clear either caller-provided guard.
+
+```powershell
+$HadGaeaGuard = Test-Path Env:BT_DATAPACKER_FORBID_GAEA_EXPORT
+$PreviousGaeaGuard = $env:BT_DATAPACKER_FORBID_GAEA_EXPORT
+try
+{
+	$env:BT_DATAPACKER_FORBID_GAEA_EXPORT = '1'
+	# Invoke the first foreground WorktreeCli game build with RunDataPacker=true and
+	# $GenerationDataProperties here; require success.
+}
+finally
+{
+	if ($HadGaeaGuard) { $env:BT_DATAPACKER_FORBID_GAEA_EXPORT = $PreviousGaeaGuard }
+	else { Remove-Item Env:BT_DATAPACKER_FORBID_GAEA_EXPORT -ErrorAction SilentlyContinue }
+}
+```
+
+After that build, require the complete nonempty Local output set and recheck that primary output is unchanged. Set `$RunDataPacker = 'false'` for the other target and every subsequent build.
+
+Without generation authorization, require the same complete nonempty Local output set and explicit confirmation that it was prepared after the current relevant worktree changes. If either check is absent, stop with `Local data is missing or stale; manual worktree DataPacker export required` and do not build, export, or fall back.
+
+Recheck the primary required-file snapshot after each Local game build; any primary write fails the workflow. After generation and after the last game build, snapshot the complete selected Local output for the harness. Never copy worktree DataPacker/data source changes into `$PRIMARY` to test them.
 
 ## Explicit Microsoft PREfast verification mode
 
@@ -141,7 +183,7 @@ Use `--files` to invalidate specific project-member `.cpp` objects before a norm
 	'/p:Configuration=Debug' '/p:Platform=x64' @DataProperties '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
 ```
 
-Only `.cpp` inputs already present in the target project are valid. After a header edit, list the affected project-member `.cpp` files. Add new files to the vcxproj/filters before compiling. Shader changes require a separately prepared Local export before the client build; the build never compiles shaders through DataPacker automatically.
+Only `.cpp` inputs already present in the target project are valid. After a header edit, list the affected project-member `.cpp` files. Add new files to the vcxproj/filters before compiling. Shader changes require Local output generated through the authorized first-build path above or prepared explicitly before the client build.
 
 ## Report results
 
@@ -156,7 +198,7 @@ Only `.cpp` inputs already present in the target project are valid. After a head
 - LNK1168 or EXE LNK2019 can mean a client/server process still holds the executable; report it rather than diagnosing unless asked.
 - A prior killed build's `unsuccessfulbuild` marker clears on the next successful run; rerun instead of deleting tlogs.
 - A lock timeout means another WorktreeCli build still owns that target. Retry after it finishes; never delete `.claude/build-locks/` manually.
-- For game builds, report `DataBuildMode`, `RunDataPacker=false`, canonical `GameDataDirectory`, canonical `GeneratedDataIncludeRoot`, the selected-data identity snapshot, and the primary identity snapshot when Local. Report every mode-selection trigger and the Local prepared-data confirmation. A harness run must use this exact mode/path; it must not infer or substitute one.
+- For game builds, report `DataBuildMode`, the `RunDataPacker` value for every build, canonical `GameDataDirectory`, canonical `GeneratedDataIncludeRoot`, the selected-data identity snapshot, and the primary identity snapshot when Local. Report every mode-selection trigger, the Local prepared-data confirmation or generation-authorization trigger, whether the Gaea guard was applied (or the exact explicit Gaea-regeneration authorization), and the post-generation selected/primary snapshots. A harness run must use this exact mode/path; it must not infer or substitute one.
 
 End with:
 

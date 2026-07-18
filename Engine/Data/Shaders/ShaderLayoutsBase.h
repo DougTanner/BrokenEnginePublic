@@ -123,10 +123,10 @@ CONSTEXPR float kfEpsilon = 1e-6f;
 
 // Global Set-0 descriptor binding numbers. Single-sourced here (dual-language) so the C++ descriptor
 // layout/writes (TextureDescriptors) and every shader's layout(set = 0, binding = N) qualifier stay in
-// lockstep — a binding-number change in one place no longer silently mismatches the other. Binding 2 is
-// intentionally unused.
+// lockstep — a binding-number change in one place no longer silently mismatches the other.
 CONSTEXPR int kiGlobalBindingGlobalUniform = 0;
 CONSTEXPR int kiGlobalBindingMainUniform = 1;
+CONSTEXPR int kiGlobalBindingSamplerRepeatModelData = 13;
 CONSTEXPR int kiGlobalBindingSamplerRepeat = 3;
 CONSTEXPR int kiGlobalBindingBindlessTextures = 4;
 CONSTEXPR int kiGlobalBindingSamplerClamp = 12;

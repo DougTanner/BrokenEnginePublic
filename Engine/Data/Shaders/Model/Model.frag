@@ -43,6 +43,7 @@ layout (scalar, set = 1, binding = 2) buffer readonly modelsUniform
 };
 
 // Bindless texture array
+layout (set = 0, binding = kiGlobalBindingSamplerRepeatModelData) uniform sampler samplerRepeatModelData;
 layout (set = 0, binding = kiGlobalBindingSamplerRepeat) uniform sampler samplerRepeat;
 layout (set = 0, binding = kiGlobalBindingBindlessTextures) uniform texture2D pTextures[];
 
@@ -165,7 +166,7 @@ vec3 GetNormal(PbrMaterialLayout material)
 	mat3 TBN = mat3(T, B, N);
 
 	// BC5 normal map: only XY stored, reconstruct Z = sqrt(1 - X^2 - Y^2).
-	vec2 nXY = texture(sampler2D(pTextures[nonuniformEXT(int(material.fNormalTextureIndex))], samplerRepeat), getUV(material.iNormalTextureSet)).rg * 2.0 - 1.0;
+	vec2 nXY = texture(sampler2D(pTextures[nonuniformEXT(int(material.fNormalTextureIndex))], samplerRepeatModelData), getUV(material.iNormalTextureSet)).rg * 2.0 - 1.0;
 	vec3 tangentNormal = vec3(nXY, sqrt(clamp(1.0 - dot(nXY, nXY), 0.0, 1.0)));
 	return normalize(TBN * tangentNormal);
 }
@@ -205,7 +206,7 @@ void main()
 	float perceptualRoughness = material.fRoughnessFactor;
 	if (material.iPhysicalDescriptorTextureSet > -1)
 	{
-		vec4 mrSample = texture(sampler2D(pTextures[nonuniformEXT(int(material.fPhysicalDescriptorTextureIndex))], samplerRepeat), getUV(material.iPhysicalDescriptorTextureSet));
+		vec4 mrSample = texture(sampler2D(pTextures[nonuniformEXT(int(material.fPhysicalDescriptorTextureIndex))], samplerRepeatModelData), getUV(material.iPhysicalDescriptorTextureSet));
 		perceptualRoughness *= mrSample.g;
 		metallic *= mrSample.b;
 	}

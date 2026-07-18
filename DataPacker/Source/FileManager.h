@@ -30,8 +30,9 @@ public:
 
 	bool mbCleanExport = false;
 	bool mbForbidExpensiveExport = false;
+	bool mbForbidGaeaExport = false;
 
-	std::string GetFingerprint(const std::filesystem::path& rPath);
+	std::string GetFingerprint(const std::filesystem::path& rPath, InputFingerprintMode eMode = InputFingerprintMode::kRaw);
 	std::string GetSharedCacheFingerprint(const std::filesystem::path& rPath);
 	EnsureLocalResult EnsureLocal(OutputRoot eRoot);
 	std::filesystem::path GetAttributionDirectory() const;

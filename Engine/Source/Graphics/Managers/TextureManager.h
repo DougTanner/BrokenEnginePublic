@@ -149,6 +149,7 @@ public:
 		kSamplerSlotClamp,
 		kSamplerSlotElevation,
 		kSamplerSlotRepeat,
+		kSamplerSlotRepeatModelData,
 		kSamplerSlotMirroredRepeat,
 		kSamplerSlotMirroredRepeatWater,
 		kSamplerSlotCount,

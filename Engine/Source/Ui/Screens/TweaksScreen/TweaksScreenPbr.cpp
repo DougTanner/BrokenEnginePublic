@@ -15,6 +15,7 @@ const TweaksSliderMapRegistrar gPbrRegistrar
 	// Engine Variables
 	{"Sun", &gPbrSun},
 	{"Day Brightness", &gPbrDayBrightness},
+	{"Model Data Mip Bias", &gPbrModelDataMipLodBias},
 	// BRDF
 	{"BRDF Diffuse", &gPbrBrdfDiffuse},
 	{"BRDF Diffuse Power", &gPbrBrdfDiffusePower},
@@ -62,6 +63,7 @@ void TweaksScreenBase::RenderPbrSection()
 		WrapperSeparatorText("Engine Variables");
 		WrapperSlider("Sun", kiSection, 1.0f);
 		WrapperSlider("Day Brightness", kiSection, 1.0f);
+		WrapperSlider("Model Data Mip Bias", kiSection, 1.0f);
 
 		WrapperSeparatorText("BRDF");
 		WrapperSlider("BRDF Diffuse", kiSection, 1.0f);

@@ -30,7 +30,7 @@ Partial teardown/rebuild of render targets (in `mRenderTargetTextures`) and glob
 
 ## Samplers & IBL
 
-Nine sampler types with runtime-configurable anisotropy; most share a global mip-LOD sharpen bias, but the water-normal sampler carries its own bias slider (zero-default) because the water shader's analytic-LOD variance lookup must track the hardware fetch LOD. The ctor chunk walk also copies each water normal map's header-baked per-mip Toksvig variance table (chunk headers are resident at startup; the lazy pixel data is not) for the per-frame uniform upload — see [Water/AGENTS.md](../../../Data/Shaders/Water/AGENTS.md) for the consuming technique. Three IBL cubemaps (irradiance, two pre-filtered radiance) loaded from pre-baked pack data via WaitForTextures().
+Ten sampler types; applicable texture samplers have runtime-configurable anisotropy. Model normal and metallic-roughness data use a dedicated direct mip-bias slider (negative sharpens, positive blurs); water normals retain their own zero-default bias because the shader's analytic-LOD variance lookup must track the hardware fetch LOD; remaining applicable samplers use the global sharpen bias. The ctor chunk walk also copies each water normal map's header-baked per-mip Toksvig variance table (chunk headers are resident at startup; the lazy pixel data is not) for the per-frame uniform upload — see [Water/AGENTS.md](../../../Data/Shaders/Water/AGENTS.md) for the consuming technique. Three IBL cubemaps (irradiance, two pre-filtered radiance) loaded from pre-baked pack data via WaitForTextures().
 
 ## TextureDescriptors
 

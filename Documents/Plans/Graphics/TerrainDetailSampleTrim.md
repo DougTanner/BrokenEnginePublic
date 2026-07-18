@@ -41,5 +41,5 @@ The engine has a canonical shape for exactly this: **`HeightLerpWrapperQuartet`*
 
 - **Invariant exposure:** client/graphics-only; **shader repack** (Terrain.frag SPIR-V re-export via DataPacker). No `DataHeader::kiVersion`/`.pack` layout change, no CRC/wire/determinism, no allocation-tracked-path concerns (uniform math only).
 - Wrapper min/max bounds: fade heights need no shader-safety bounds (consumed CPU-side); keep the existing blend-strength bounds untouched.
-- **Sequencing:** `Graphics/DataTextureSamplerBias.md` also edits the terrain sampler bindings in `PipelineManager.cpp` and reasons about these same detail-normal fetches (mip bias) — no logic conflict (this plan removes fetches at height; that one unbiases them when taken), but co-schedule or refresh citations if both land near each other.
+- **Sequencing:** model-data mip bias now uses a dedicated Model-only sampler; terrain detail-normal fetches remain on the existing terrain sampler, so there is no overlap with this plan.
 - **Grill decision (single):** shared fade pair vs per-family `HeightLerpWrapperQuartet`s, and the default fade band heights.

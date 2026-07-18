@@ -32,7 +32,7 @@ this 2026-07-03 analysis, so future `/reduce-file` passes don't re-flag it.
 ## Coordination
 
 - `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
-- Never interleave the PipelineManager split with `Documents/Plans/Graphics/Architecture_PipelineRegistrationOwnership.md`, `Documents/Plans/Graphics/Managers/CorruptTextureChunkLifecycleHardening.md`, `Documents/Plans/Graphics/DataTextureSamplerBias.md`; refresh citations between landings.
+- Never interleave the PipelineManager split with `Documents/Plans/Graphics/Architecture_PipelineRegistrationOwnership.md` or `Documents/Plans/Graphics/Managers/CorruptTextureChunkLifecycleHardening.md`; refresh citations between landings.
 
 ## Notes
 

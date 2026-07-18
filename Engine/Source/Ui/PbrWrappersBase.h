@@ -8,6 +8,7 @@ namespace engine
 // Pbr - Engine Variables
 extern Wrapper gPbrSun;
 extern Wrapper gPbrDayBrightness;
+extern Wrapper gPbrModelDataMipLodBias;
 // Pbr - BRDF
 extern Wrapper gPbrBrdfDiffuse;
 extern Wrapper gPbrBrdfDiffusePower;

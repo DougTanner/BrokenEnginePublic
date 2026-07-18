@@ -195,6 +195,9 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	wchar_t pcForbidExpensiveExport[2] {};
 	DWORD uiForbidExpensiveExportLength = GetEnvironmentVariableW(L"BT_DATAPACKER_FORBID_EXPENSIVE_EXPORT", pcForbidExpensiveExport, static_cast<DWORD>(std::size(pcForbidExpensiveExport)));
 	mbForbidExpensiveExport = uiForbidExpensiveExportLength == 1 && pcForbidExpensiveExport[0] == L'1';
+	wchar_t pcForbidGaeaExport[2] {};
+	DWORD uiForbidGaeaExportLength = GetEnvironmentVariableW(L"BT_DATAPACKER_FORBID_GAEA_EXPORT", pcForbidGaeaExport, static_cast<DWORD>(std::size(pcForbidGaeaExport)));
+	mbForbidGaeaExport = uiForbidGaeaExportLength == 1 && pcForbidGaeaExport[0] == L'1';
 
 	if (argvSpan.size() == 1)
 	{
@@ -530,9 +533,9 @@ FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rR
 	return EnsureLocalResult::kMaterialized;
 }
 
-std::string FileManager::GetFingerprint(const std::filesystem::path& rPath)
+std::string FileManager::GetFingerprint(const std::filesystem::path& rPath, InputFingerprintMode eMode)
 {
-	return mpInputFingerprintCache->Get(rPath);
+	return mpInputFingerprintCache->Get(rPath, eMode);
 }
 
 std::string FileManager::GetSharedCacheFingerprint(const std::filesystem::path& rPath)
