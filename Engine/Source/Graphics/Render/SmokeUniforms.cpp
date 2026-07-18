@@ -34,8 +34,8 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	uint32_t uiTextureOneHeight = gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.height;
 	uint32_t uiMaxWidth = std::max(uiTextureOneWidth, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width);
 	uint32_t uiMaxHeight = std::max(uiTextureOneHeight, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.height);
-	rGlobalLayout.uiSmokeTilesX = (uiMaxWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	rGlobalLayout.uiSmokeTilesY = (uiMaxHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	rGlobalLayout.uiSmokeTilesX = TileCount(uiMaxWidth);
+	rGlobalLayout.uiSmokeTilesY = TileCount(uiMaxHeight);
 	rGlobalLayout.fSmokeDepositTileScale = static_cast<float>(uiMaxWidth) / static_cast<float>(uiTextureOneWidth);
 
 	// World-area follows the visible area each frame: aspect inherits from the framebuffer,

@@ -59,8 +59,7 @@ void TextureUploadManager::InitTransferResources()
 	VkName(VK_OBJECT_TYPE_FENCE, mTransferVkFence, "Transfer");
 
 	VmaAllocationInfo stagingVmaAllocationInfo {};
-	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("TransferStaging", kiByteBudgetPerFrame, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mStagingVkBuffer, vkDeviceMemory, mStagingVmaAllocation, &stagingVmaAllocationInfo);
+	Buffer::CreateBuffer("TransferStaging", kiByteBudgetPerFrame, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mStagingVkBuffer, mStagingVmaAllocation, &stagingVmaAllocationInfo);
 	mStagingSize = kiByteBudgetPerFrame;
 	mStagingMappedData = stagingVmaAllocationInfo.pMappedData;
 }
@@ -116,7 +115,6 @@ void TextureUploadManager::DestroyTransferResources()
 			vmaDestroyImage(gpDeviceManager->mpAllocator, rMutableChunk.vkImage, rMutableChunk.vmaAllocation);
 			rMutableChunk.vkImage = VK_NULL_HANDLE;
 			rMutableChunk.vmaAllocation = VK_NULL_HANDLE;
-			rMutableChunk.vkDeviceMemory = VK_NULL_HANDLE;
 		}
 	}
 
@@ -453,9 +451,7 @@ void TextureUploadManager::CreateTransferImage(LazyChunk& rLazyChunk, const Chun
 	};
 	VmaAllocationCreateInfo vmaAllocationCreateInfo {};
 	vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
-	VmaAllocationInfo vmaAllocationInfo {};
-	CHECK_VK(vmaCreateImage(gpDeviceManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &rLazyChunk.vkImage, &rLazyChunk.vmaAllocation, &vmaAllocationInfo));
-	rLazyChunk.vkDeviceMemory = vmaAllocationInfo.deviceMemory;
+	CHECK_VK(vmaCreateImage(gpDeviceManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &rLazyChunk.vkImage, &rLazyChunk.vmaAllocation, nullptr));
 }
 
 void TextureUploadManager::RecordStagingCopies(LazyChunk& rLazyChunk, const ChunkDimensions& rDimensions)

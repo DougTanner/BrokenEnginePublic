@@ -54,6 +54,7 @@ If a canonical primary executable is missing or a legacy first rollout applies, 
 
 - Default: BrokenEngineSandbox client Debug.
 - If any changed file is shared (`Common/`, `Engine/`, or non-exclusive game code), build both client and server.
+- If the session's approved plan or acceptance matrix includes an agent-harness scenario, build both client and server in the same request regardless of changed-file affinity — the harness launches both executables and hard-stops when either is missing. A delegator requesting the build states this trigger.
 - ThirdParty builds only on explicit request. Missing source or library links are provisioning failures; never rebuild ThirdParty automatically.
 - DataPacker builds Release only. WorktreeCli still supplies the normal worktree-local target serialization; DataPacker's `"BrokenEngineDataPacker"` mutex remains the only PC-global coordination exception.
 

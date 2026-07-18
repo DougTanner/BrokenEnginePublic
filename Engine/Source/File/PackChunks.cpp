@@ -702,7 +702,6 @@ void PackChunks::ResetTextureChunkStates(std::span<const common::crc_t> targetCr
 
 		rLazyChunk.vkImage = VK_NULL_HANDLE;
 		rLazyChunk.vmaAllocation = VK_NULL_HANDLE;
-		rLazyChunk.vkDeviceMemory = VK_NULL_HANDLE;
 
 		if (eState == ChunkState::kReady)
 		{

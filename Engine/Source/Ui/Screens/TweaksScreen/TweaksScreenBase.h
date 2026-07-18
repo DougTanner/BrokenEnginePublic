@@ -85,6 +85,7 @@ public:
 	virtual void RenderParticlesSection() = 0;
 
 	void RenderWaveCountRadioButtons(Wrapper& rCountWrapper);
+	bool BeginSubtab(const char* pcLabel, int64_t iSection, int8_t iTab);
 	void WrapperSlider(std::string_view label, int64_t iSection, float fWidthMultiplier = 2.0f, std::string_view mapKey = {});
 	void WrapperSeparatorText(std::string_view label);
 	// Chevron-style discrete index selector: << [name] >> with wrap-around. iCount must equal the wrapper's allowed-value count.

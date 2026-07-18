@@ -33,7 +33,10 @@ contract](../next-plan/references/execution-gates.md).
 ## Reporting Mode
 
 Return the audit inline. A plan audit is a decision aid before implementation,
-not final evidence; its finding summary is the next role's input.
+not final evidence; its finding summary is the next role's input. When the
+calling session constrains, narrows, or interrupts the audit, immediately return
+the findings gathered so far in the standard output format instead of continuing
+exploration; silence is never an acceptable response.
 
 ## Execution Context
 
@@ -48,7 +51,7 @@ regardless of which context this runs in.
 
 ## Audit
 
-1. Read the complete plan, applicable `AGENTS.md` files, and every cited code region.
+1. Read the complete plan, applicable `AGENTS.md` files, and every cited code region. Every search must serve a specific plan claim — direct callers, mirrored client/server sites, headers of cited types, enumerated affected-site hunts; unanchored exploration (reading unrelated plan files, browsing subsystems the plan neither cites nor affects) is out of scope. This bounds purpose, not breadth: an affected-site sweep anchored to a plan claim stays allowed.
 2. Verify structural assumptions, call sites, mirrored client/server paths, ownership, data layout, frame phase, threading, determinism, serialization, build wiring, and runtime verification where relevant.
 3. Hunt unresolved options, hidden behavior changes, contradictions, magic defaults, undeclared invariant exposure, missing affected locations, ungrounded requirements or checks, and scope that duplicates an existing mechanism.
 4. Ground each proposed correction in user intent, an existing repository contract, or a necessary integration consequence. Reuse an existing mechanism, narrow scope, add missing propagation or verification, or replace an invalid step when that evidence decides the correction. When it does not, report the material user decision instead of selecting one.

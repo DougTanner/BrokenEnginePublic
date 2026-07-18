@@ -34,6 +34,17 @@ std::string PathToString(const std::filesystem::path& rPath)
 	return std::string(reinterpret_cast<const char*>(u8.c_str()), u8.size());
 }
 
+void ReportCaptureFailure(std::string_view error, bool bPublishResult, uint64_t uiCaptureToken)
+{
+	LOG(kGraphics, kWarning, "{}", error);
+	if (bPublishResult)
+	{
+		nlohmann::json result;
+		result["error"] = error;
+		SetCaptureResult(uiCaptureToken, std::move(result));
+	}
+}
+
 bool IsBgra(VkFormat vkFormat);
 
 } // namespace
@@ -150,7 +161,12 @@ void SaveScreenshot(int64_t iFramebufferIndex, const ScreenshotRequest& rRequest
 			else
 			{
 				wchar_t pcDirectory[MAX_PATH] {};
-				GetTempPathW(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
+				uint32_t uiTemporaryPathLength = GetTempPathW(static_cast<DWORD>(std::size(pcDirectory)), pcDirectory);
+				if (uiTemporaryPathLength == 0 || uiTemporaryPathLength >= std::size(pcDirectory))
+				{
+					ReportCaptureFailure("SaveScreenshot GetTempPathW failed or returned insufficient capacity", rRequest.bPublishResult, rRequest.uiCaptureToken);
+					return;
+				}
 				filename = pcDirectory;
 				filename /= "Screenshots";
 				std::filesystem::create_directories(filename);
@@ -160,11 +176,19 @@ void SaveScreenshot(int64_t iFramebufferIndex, const ScreenshotRequest& rRequest
 
 			if (rRequest.bPng)
 			{
-				stbi_write_png(reinterpret_cast<const char*>(PathToU8(filename).c_str()), static_cast<int>(iWidth), static_cast<int>(iHeight), 4, pPixels, static_cast<int>(iWidth * 4));
+				if (stbi_write_png(reinterpret_cast<const char*>(PathToU8(filename).c_str()), static_cast<int>(iWidth), static_cast<int>(iHeight), 4, pPixels, static_cast<int>(iWidth * 4)) == 0)
+				{
+					ReportCaptureFailure("SaveScreenshot stbi_write_png failed", rRequest.bPublishResult, rRequest.uiCaptureToken);
+					return;
+				}
 			}
 			else
 			{
-				stbi_write_jpg(reinterpret_cast<const char*>(PathToU8(filename).c_str()), static_cast<int>(iWidth), static_cast<int>(iHeight), 4, pPixels, static_cast<int>(rRequest.iQuality));
+				if (stbi_write_jpg(reinterpret_cast<const char*>(PathToU8(filename).c_str()), static_cast<int>(iWidth), static_cast<int>(iHeight), 4, pPixels, static_cast<int>(rRequest.iQuality)) == 0)
+				{
+					ReportCaptureFailure("SaveScreenshot stbi_write_jpg failed", rRequest.bPublishResult, rRequest.uiCaptureToken);
+					return;
+				}
 			}
 
 			// Publish to the agent capture-result slot only for agent-originated requests; an F9 dev save must not
@@ -392,7 +416,12 @@ void EncodeAndWriteDump(std::vector<std::byte>& rData, VkExtent3D vkExtent3D, Vk
 			static std::atomic<int64_t> siDump {1};
 			int64_t iDump = siDump.fetch_add(1);
 			wchar_t pcDirectory[MAX_PATH] {};
-			GetTempPathW(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
+			uint32_t uiTemporaryPathLength = GetTempPathW(static_cast<DWORD>(std::size(pcDirectory)), pcDirectory);
+			if (uiTemporaryPathLength == 0 || uiTemporaryPathLength >= std::size(pcDirectory))
+			{
+				ReportCaptureFailure("DumpRenderTarget GetTempPathW failed or returned insufficient capacity", rRequest.bPublishResult, rRequest.uiCaptureToken);
+				return;
+			}
 			basePath = pcDirectory;
 			basePath /= "Screenshots";
 			std::filesystem::create_directories(basePath);
@@ -433,7 +462,11 @@ void EncodeAndWriteDump(std::vector<std::byte>& rData, VkExtent3D vkExtent3D, Vk
 			{
 				std::memcpy(rgba.data(), pSrc, static_cast<size_t>(iPixels) * sizeof(uint32_t));
 			}
-			stbi_write_png(reinterpret_cast<const char*>(PathToU8(pngPath).c_str()), static_cast<int>(iWidth), static_cast<int>(iHeight), 4, rgba.data(), static_cast<int>(iWidth * 4));
+			if (stbi_write_png(reinterpret_cast<const char*>(PathToU8(pngPath).c_str()), static_cast<int>(iWidth), static_cast<int>(iHeight), 4, rgba.data(), static_cast<int>(iWidth * 4)) == 0)
+			{
+				ReportCaptureFailure("DumpRenderTarget color stbi_write_png failed", rRequest.bPublishResult, rRequest.uiCaptureToken);
+				return;
+			}
 			result["path"] = PathToString(pngPath);
 		}
 		else if (IsSingleChannelNormalizable(vkFormat))
@@ -459,7 +492,11 @@ void EncodeAndWriteDump(std::vector<std::byte>& rData, VkExtent3D vkExtent3D, Vk
 				float fNormalized = std::clamp((fValue - fMin) / fRange, 0.0f, 1.0f);
 				gray[i] = static_cast<uint8_t>(std::lround(fNormalized * 255.0f));
 			}
-			stbi_write_png(reinterpret_cast<const char*>(PathToU8(pngPath).c_str()), static_cast<int>(iWidth), static_cast<int>(iHeight), 1, gray.data(), static_cast<int>(iWidth));
+			if (stbi_write_png(reinterpret_cast<const char*>(PathToU8(pngPath).c_str()), static_cast<int>(iWidth), static_cast<int>(iHeight), 1, gray.data(), static_cast<int>(iWidth)) == 0)
+			{
+				ReportCaptureFailure("DumpRenderTarget grayscale stbi_write_png failed", rRequest.bPublishResult, rRequest.uiCaptureToken);
+				return;
+			}
 			result["path"] = PathToString(pngPath);
 			result["min"] = fMin;
 			result["max"] = fMax;

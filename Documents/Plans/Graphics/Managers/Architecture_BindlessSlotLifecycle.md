@@ -64,7 +64,7 @@ place the staleness verifier must look away.
 
 ## Coordination
 
-- Execute alone; never interleave with `Documents/Plans/Graphics/Architecture_PipelineRegistrationOwnership.md`, `Documents/Plans/Graphics/PipelineDescriptorInfosRightSize.md`, `Documents/Plans/Graphics/Managers/Refactor_PipelineManagerSplit.md`, `Documents/Plans/Graphics/Managers/CorruptTextureChunkLifecycleHardening.md`, `Documents/Plans/Graphics/DataTextureSamplerBias.md`, `Documents/Plans/Graphics/Refactor_GraphicsObjectsQuickWins.md`, `Documents/Plans/Graphics/Refactor_StagingBufferRaii.md`, `Documents/Plans/Graphics/Refactor_CommandBufferRecordDedup.md`, `Documents/Plans/Graphics/WindowedLightingShadowDispatch.md`. The structured dependency on CorruptTextureChunkLifecycleHardening preserves its required first landing.
+- Execute alone; never interleave with `Documents/Plans/Graphics/Architecture_PipelineRegistrationOwnership.md`, `Documents/Plans/Graphics/PipelineDescriptorInfosRightSize.md`, `Documents/Plans/Graphics/Managers/Refactor_PipelineManagerSplit.md`, `Documents/Plans/Graphics/Managers/CorruptTextureChunkLifecycleHardening.md`, `Documents/Plans/Graphics/DataTextureSamplerBias.md`, `Documents/Plans/Graphics/WindowedLightingShadowDispatch.md`. The structured dependency on CorruptTextureChunkLifecycleHardening preserves its required first landing.
 
 ## Notes
 - No determinism/CRC exposure (client render path), but **high blast radius within rendering**: this is the

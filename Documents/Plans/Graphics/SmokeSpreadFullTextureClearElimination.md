@@ -145,8 +145,7 @@ case ≪).
 - The union term makes smoke's staleness handling *stronger* than wind's (wind tolerates stale texels by consumer
   invisibility). Do not back-port it to wind without a measured reason.
 - Co-scheduling: `CommandBufferRecordGlobal.cpp` is shared with `Graphics/DisabledPassGatingPerfAudit.md` and (per
-  the existing Dependencies entry) `Graphics/WindowedLightingShadowDispatch.md`; `Graphics/Refactor_CommandBufferRecordDedup.md`
-  plans to decompose the sibling Main record file. Co-schedule or refresh citations.
+  the existing Dependencies entry) `Graphics/WindowedLightingShadowDispatch.md`. Co-schedule or refresh citations.
 - External references from the technique survey: NVIDIA "Advanced API Performance: Vulkan Clearing and Presenting"
   (clear-path guidance, batch clears, compute-clear tradeoffs) — https://developer.nvidia.com/blog/advanced-api-performance-vulkan-clearing-and-presenting/ ;
   sparse "bricking"/active-brick fluid sim with indirect dispatch (the pattern smoke already implements) — e.g.

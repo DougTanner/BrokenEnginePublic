@@ -35,6 +35,11 @@ inline void CheckVk(VkResult vkResult, std::string_view expression, std::source_
 	}
 }
 
+inline constexpr uint32_t TileCount(uint32_t uiCount)
+{
+	return (uiCount + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+}
+
 // Shared rendering helpers for collections
 bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition);
 XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition);

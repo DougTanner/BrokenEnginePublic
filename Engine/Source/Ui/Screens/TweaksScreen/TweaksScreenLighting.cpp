@@ -1,10 +1,10 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 #include "TweaksSliderMap.h"
 #include "Ui/CurveWidget.h"
 #include "Ui/LightingWrappersBase.h"
-
-#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -52,6 +52,8 @@ const TweaksSliderMapRegistrar gLightingRegistrar
 	{"Spread Jitter End", &gSpreadJitterEnd},
 	{"Spread Sample Jitter Range End", &gSpreadSampleJitterRangeEnd},
 	{"Spread Sample Jitter Clustering End", &gSpreadSampleJitterClusteringEnd},
+	{"Spread Decay End", &gSpreadDecayEnd},
+	{"Spread Accumulation Decay End", &gSpreadAccumulationDecayEnd},
 	{"Spread Distance Falloff End", &gSpreadDistanceFalloffEnd},
 	{"Spread Output Threshold End", &gSpreadOutputThresholdEnd},
 	{"Spread Output Compress End", &gSpreadOutputCompressEnd},
@@ -117,16 +119,8 @@ void TweaksScreenBase::RenderLightingSection()
 
 	if (ImGui::BeginTabBar("LightingTabs"))
 	{
-		if (ImGui::BeginTabItem("Write", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Write", kiSection, 0))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 0;
-			}
 			if (ImGui::BeginTable("LightingWriteColumns", 2))
 			{
 				ImGui::TableNextColumn();
@@ -180,6 +174,8 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Jitter", kiSection, 1.0f, "Spread Jitter End");
 				WrapperSlider("Sample Jitter Range", kiSection, 1.0f, "Spread Sample Jitter Range End");
 				WrapperSlider("Sample Jitter Clustering", kiSection, 1.0f, "Spread Sample Jitter Clustering End");
+				WrapperSlider("Decay", kiSection, 1.0f, "Spread Decay End");
+				WrapperSlider("Accumulation Decay", kiSection, 1.0f, "Spread Accumulation Decay End");
 				WrapperSlider("Distance Falloff", kiSection, 1.0f, "Spread Distance Falloff End");
 				WrapperSlider("Output Threshold", kiSection, 1.0f, "Spread Output Threshold End");
 				WrapperSlider("Output Compress", kiSection, 1.0f, "Spread Output Compress End");
@@ -192,16 +188,8 @@ void TweaksScreenBase::RenderLightingSection()
 			}
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Combine", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Combine", kiSection, 1))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 1;
-			}
 			if (ImGui::BeginTable("LightingCombineColumns", 2))
 			{
 				ImGui::TableNextColumn();
@@ -251,16 +239,8 @@ void TweaksScreenBase::RenderLightingSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Read", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Read", kiSection, 2))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 2)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 2;
-			}
 			if (ImGui::BeginTable("LightingReadColumns", 2))
 			{
 				ImGui::TableNextColumn();
@@ -315,29 +295,13 @@ void TweaksScreenBase::RenderLightingSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Visible", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 3) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Visible", kiSection, 3))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 3)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 3;
-			}
 			RenderLightingEffectsVisibleTab();
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Lighting", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 4) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Lighting", kiSection, 4))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 4)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 4;
-			}
 			RenderLightingEffectsLightingTab();
 			ImGui::EndTabItem();
 		}

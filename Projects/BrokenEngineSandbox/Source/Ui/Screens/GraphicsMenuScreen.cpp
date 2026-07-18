@@ -14,6 +14,13 @@ namespace game
 namespace
 {
 
+constexpr float kfGraphicsMinWidthFraction = 0.5f;
+constexpr float kfGraphicsMaxWidthFraction = 0.9f;
+constexpr float kfGraphicsFontScaleAtMinimum = 2.0f;
+constexpr float kfGraphicsFontScaleAtMaximum = 1.2f;
+constexpr float kfGraphicsHeadingScale = 1.15f;
+constexpr float kfGraphicsColumnGutterPixels = 80.0f;
+
 // Float-backed RadioButton row: optional header text, then one RadioButton per option on a single line. The
 // checked button is the option whose value equals the wrapper's current value; clicking one writes that value.
 // One place for the enum<->index mapping of present mode, sample count, water detail, and theme — every Wrapper
@@ -67,15 +74,21 @@ void GraphicsMenuScreen::Render()
 	}
 
 	ImGuiIO& rIo = ImGui::GetIO();
-	ScopedMenuScale menuScale;
+	float fFontScaleRange = engine::gUiFontScale.GetMax() - engine::gUiFontScale.GetMin();
+	float fFontScalePosition = (engine::gUiFontScale.Get() - engine::gUiFontScale.GetMin()) / fFontScaleRange;
+	float fPanelWidthFraction = std::lerp(kfGraphicsMinWidthFraction, kfGraphicsMaxWidthFraction, fFontScalePosition);
+	// Graphics is the densest player-facing menu. Preserve the user's monotonic Font Size adjustment while
+	// compressing its local base scale toward the high end, and retain the theme's base geometry instead of
+	// doubling padding and spacing a second time.
+	float fMenuFontScale = std::lerp(kfGraphicsFontScaleAtMinimum, kfGraphicsFontScaleAtMaximum, fFontScalePosition);
 
 	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.5f, rIo.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x * kfSettingsPanelWidthFraction, 0.0f));
-	// Window auto-resizes to its content (content can exceed a 4K screen); cap the height so the whole panel plus the
-	// Back button stays on screen.
+	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x * fPanelWidthFraction, 0.0f));
+	// Window auto-resizes to its content (content can exceed a 4K screen); cap the height so the whole panel stays on
+	// screen.
 	ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(rIo.DisplaySize.x, rIo.DisplaySize.y * kfGraphicsMaxHeightFraction));
 
-	ScopedMenuFont menuFont;
+	ScopedMenuFont menuFont(fMenuFontScale);
 	ImGui::Begin("GraphicsMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
 
 	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
@@ -85,14 +98,40 @@ void GraphicsMenuScreen::Render()
 	ImVec2 vPanelSize = ImGui::GetWindowSize();
 	DrawPanelAccents(ImGui::GetWindowDrawList(), vPanelPos, ImVec2(vPanelPos.x + vPanelSize.x, vPanelPos.y + vPanelSize.y));
 
-	MenuHeading(AppendUtf8(common::gpThreadLocal->mWorkbuffer, TranslatedString(kStringGraphics)));
+	bool bBackPressed = false;
+	if (ImGui::BeginTable("GraphicsHeader", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoPadOuterX | ImGuiTableFlags_NoSavedSettings))
+	{
+		ImGui::TableSetupColumn("GraphicsTitle", ImGuiTableColumnFlags_WidthStretch, 3.0f);
+		ImGui::TableSetupColumn("GraphicsFps", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+		ImGui::TableSetupColumn("GraphicsBack", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+		ImGui::TableNextRow();
 
-	// FPS display
-	ImGui::Text("FPS: %lld", engine::gpGraphics->mRendersInTheLastSecond.Get());
+		ImGui::TableNextColumn();
+		float fHeaderHeight = 0.0f;
+		{
+			ScopedMenuFont headingFont(fMenuFontScale * kfGraphicsHeadingScale);
+			fHeaderHeight = ImGui::GetTextLineHeight();
+			ImGui::TextUnformatted(AppendUtf8(common::gpThreadLocal->mWorkbuffer, TranslatedString(kStringGraphics)));
+		}
+
+		ImGui::TableNextColumn();
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + std::max(0.0f, (fHeaderHeight - ImGui::GetTextLineHeight()) * 0.5f));
+		ImGui::Text("FPS: %lld", engine::gpGraphics->mRendersInTheLastSecond.Get());
+
+		ImGui::TableNextColumn();
+		float fBackWidth = MenuButtonsWidth({U"Back"});
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - fBackWidth);
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + std::max(0.0f, (fHeaderHeight - ImGui::GetFrameHeight()) * 0.5f));
+		bBackPressed = MenuButton("Back", ImVec2(fBackWidth, 0.0f), mfBackHoverAnim);
+
+		ImGui::EndTable();
+	}
 
 	ImGui::Separator();
 
-	if (ImGui::BeginTable("GraphicsColumns", 2, ImGuiTableFlags_SizingStretchSame))
+	const ImGuiStyle& rStyle = ImGui::GetStyle();
+	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(kfGraphicsColumnGutterPixels * engine::UiScale() * 0.5f, rStyle.CellPadding.y));
+	if (ImGui::BeginTable("GraphicsColumns", 2, ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_NoPadOuterX))
 	{
 		// Left column: Display
 		ImGui::TableNextColumn();
@@ -126,8 +165,7 @@ void GraphicsMenuScreen::Render()
 		RadioRow("Water Shape Detail", &engine::gWaterShapeDetail, engine::gWaterShapeDetail.Get(),
 			{{"1/4", 0.25f}, {"1/2", 0.5f}});
 
-		// Right column: Effects & UI
-		ImGui::TableNextColumn();
+		ImGui::Separator();
 
 		WrapperToggle("Anisotropy", &engine::gAnisotropy);
 		if (engine::gAnisotropy.Get<bool>())
@@ -136,7 +174,8 @@ void GraphicsMenuScreen::Render()
 		}
 		ColumnSlider("Mip Lod Bias", &engine::gMipLodBias);
 
-		ImGui::Separator();
+		// Right column: Effects & UI
+		ImGui::TableNextColumn();
 
 		WrapperToggle("Sample Shading", &engine::gSampleShading);
 		if (engine::gSampleShading.Get<bool>())
@@ -170,11 +209,9 @@ void GraphicsMenuScreen::Render()
 
 		ImGui::EndTable();
 	}
+	ImGui::PopStyleVar();
 
-	// Back button
-	ImGui::Separator();
-	float fBackWidth = MenuButtonsWidth({U"Back"});
-	if (MenuButton("Back", ImVec2(fBackWidth, 0.0f), mfBackHoverAnim))
+	if (bBackPressed)
 	{
 		SaveGraphicsSettings();
 		gpGame->meUiState = UiState::kPause;

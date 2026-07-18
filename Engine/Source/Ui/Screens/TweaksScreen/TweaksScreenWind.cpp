@@ -1,9 +1,9 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 #include "TweaksSliderMap.h"
 #include "Ui/WindWrappersBase.h"
-
-#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -42,17 +42,8 @@ void TweaksScreenBase::RenderWindSection()
 
 	if (ImGui::BeginTabBar("WindTabs"))
 	{
-		if (ImGui::BeginTabItem("Wind", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Wind", kiSection, 0))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 0;
-			}
-
 			WrapperSeparatorText("Time & Global");
 			WrapperSlider("Wind Time Scale", kiSection);
 			WrapperSlider("Wind Threshold Low", kiSection);
@@ -90,17 +81,8 @@ void TweaksScreenBase::RenderWindSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Deposits", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Deposits", kiSection, 1))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 1;
-			}
-
 			RenderWindDepositsTab();
 
 			ImGui::EndTabItem();

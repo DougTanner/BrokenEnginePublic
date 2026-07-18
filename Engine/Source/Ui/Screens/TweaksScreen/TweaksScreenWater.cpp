@@ -1,10 +1,10 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 #include "TweaksSliderMap.h"
 #include "Ui/WaterWrappersBase.h"
 #include "Graphics/Managers/TextureManager.h"
-
-#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -123,16 +123,8 @@ void TweaksScreenBase::RenderWaterSection()
 
 	if (ImGui::BeginTabBar("WaterTabs"))
 	{
-		if (ImGui::BeginTabItem("Specular", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Specular", kiSection, 0))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 0;
-			}
 			if (ImGui::BeginTable("WaterSpecularColumns", 2))
 			{
 				ImGui::TableNextColumn();
@@ -200,16 +192,8 @@ void TweaksScreenBase::RenderWaterSection()
 			}
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Low", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Low", kiSection, 1))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 1;
-			}
 			RenderWaveCountRadioButtons(gWaterLowCount);
 
 			WrapperSeparatorText("Wave");
@@ -236,16 +220,8 @@ void TweaksScreenBase::RenderWaterSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Medium", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 2) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Medium", kiSection, 2))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 2)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 2;
-			}
 			RenderWaveCountRadioButtons(gWaterMediumCount);
 
 			WrapperSeparatorText("Wave");
@@ -266,16 +242,8 @@ void TweaksScreenBase::RenderWaterSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Depth", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 3) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Depth", kiSection, 3))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 3)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 3;
-			}
 			WrapperSeparatorText("Terrain Fade");
 			WrapperSlider("Water Terrain Height", kiSection);
 			WrapperSlider("DT: TEMP Z Offset", kiSection); // DT: TEMP

@@ -17,6 +17,7 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 
 - Main session is manager; subagents execute work to keep main context clean
 - Give subagents only the instructions and context their task needs; they return a concise, clearly defined response
+- Delegation prompts for review roles enumerate the exact files/regions in scope; an interrupted or re-scoped reviewer returns findings gathered so far immediately
 - Subagent-to-subagent handoffs go through temporary files; return only the file paths to the parent session
 - Return one inline acceptance table only when a final-evidence gate (defined in the Change Workflow below) applies; format: [.agents/references/subagent-reporting.md](.agents/references/subagent-reporting.md)
 - Isolated worktrees and session claims are required only for queue selection or mutation, shared build/bootstrap coordination, or landing. Ordinary work uses the user-supplied checkout and preserves unrelated changes.
@@ -42,7 +43,7 @@ The user's request is implementation authority for Tier 1 and Tier 2 changes; ag
 Definitions used throughout this workflow:
 
 - **Execution card** — the short pre-implementation record of goal, out-of-scope boundary, tier trigger, affected interfaces/invariants, acceptance checks, and roles.
-- **Final-evidence gate** — the `/verify-changes` acceptance table plus `/finalize-changes` path required for queue mutation or completion, reconciliation, requested primary commit or landing, shared build/bootstrap work, or Tier-3 integration. Any `/next-plan` claim uses it regardless of tier — "Tier 1 and Tier 2 authorize implementation" governs approval, not finalization.
+- **Final-evidence gate** — the `/verify-changes` acceptance table plus `/finalize-changes` path required for queue mutation or completion, reconciliation, requested primary commit or landing, a wrapper session completing its work (step 8), shared build/bootstrap work, or Tier-3 integration. Any `/next-plan` claim uses it regardless of tier — "Tier 1 and Tier 2 authorize implementation" governs approval, not finalization.
 - **Objective-terminal** — the session state where every recorded stage is complete or explicitly user-deferred with a queued row in the live plan queue.
 - **Reconciliation** — `/finalize-changes` rebasing the verified session branch onto the current primary tip; a conflict-free rebase needs no re-verification, and conflicts route through the overlap check.
 - **Queue row** — one plan entry in the machine-local WorktreeCli queue (stored under `%LOCALAPPDATA%\BrokenEngineLocks\plan-queue-state\`, identified by the `Documents/Plans/Order.md` / `Documents/Features/Order.md` logical strings); the plan files it references live in the repo. WorktreeCli is the queue's sole parser and mutator.
@@ -91,6 +92,8 @@ Map every approved criterion and declared invariant to a decisive check, naming 
 When a final-evidence gate applies, produce the `/verify-changes` acceptance table. Run one `/session-audit` only for late semantic fixes, manual conflict resolutions or invalidated assumptions, Tier-3 cross-file integration, or contract-significant regions unseen by review.
 
 Queue work normally uses a registered session worktree. `/finalize-changes` owns commit, landing, and claim release — including the explicitly user-authorized `primary-commit` route — and a session landing still needs final approval before advancing its parent. WorktreeCli is the sole row parser and mutator; validate before queue selection or mutation, after a landing that changes plan files, and after primary completion.
+
+A wrapper session lands by default: once every stage's checks pass, produce the `/verify-changes` acceptance table and proceed to `/finalize-changes` without waiting for a landing request — its landing confirmation is the user's land/defer/decline decision.
 
 Landing and claim release complete only a repository stage. Continue the next recorded stage in the same session or present its approval gate. The session is objective-terminal only when every stage is complete or each unfinished stage was explicitly deferred by the user and has a queued row in the live plan queue.
 

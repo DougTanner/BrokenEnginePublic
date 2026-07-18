@@ -480,6 +480,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	}
 
 	const game::FrameInterpolate& rCameraInterpolate = rRenderInterpolates.at(cameraCoord);
+	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	RenderLightingMain(iCommandBuffer);
 	gpBufferManager->ResetSkinningAllocations(iCommandBuffer);
@@ -489,24 +490,21 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	// range and vertex base to draw. CameraBase computes miVisibleAreaLod from eye distance with 4×
 	// hysteresis bands; mesh density and snap-grid are in lockstep. Terrain draws via one
 	// vkCmdDrawIndexedIndirect per island template in CommandBufferRecordMain.cpp.
-	int iLod = std::clamp(game::gpCamera->miVisibleAreaLod, 0, static_cast<int>(BufferManager::kiVisibleAreaLodCount) - 1);
-	const BufferManager::VisibleAreaMeshLod& rWaterLod = gpBufferManager->mWaterMeshLods[iLod];
-	gpPipelineManager->mpPipelines[kPipelineWater].WriteIndirectBuffer(iCommandBuffer, 1, rWaterLod.iIndexCount, rWaterLod.iIndexOffset, rWaterLod.iVertexOffset);
+	int64_t iLevelOfDetail = game::gpCamera->miVisibleAreaLod;
+	const BufferManager::VisibleAreaMeshLod& rWaterLevelOfDetail = gpBufferManager->mWaterMeshLods[iLevelOfDetail];
+	gpPipelineManager->mpPipelines[kPipelineWater].WriteIndirectBuffer(iCommandBuffer, 1, rWaterLevelOfDetail.iIndexCount, rWaterLevelOfDetail.iIndexOffset, rWaterLevelOfDetail.iVertexOffset);
 
 	// Active LOD's vertex-grid dims (iQuadCount* == iMeshX/Y - 1). Read by:
 	//   1) WaterDisplacement.comp — bounds-checks each thread, only writes the top-left rectangle.
 	//   2) Water.vert — scales f2InTexcoord to the matching texel index via texelFetch.
 	// Both shaders must read the SAME values; populating once here keeps them in lockstep.
-	{
-		shaders::GlobalLayout& rGlobalLayoutForLod = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
-		rGlobalLayoutForLod.iWaterActiveQuadX = static_cast<int32_t>(rWaterLod.iQuadCountX);
-		rGlobalLayoutForLod.iWaterActiveQuadY = static_cast<int32_t>(rWaterLod.iQuadCountY);
-	}
+	rGlobalLayout.iWaterActiveQuadX = static_cast<int32_t>(rWaterLevelOfDetail.iQuadCountX);
+	rGlobalLayout.iWaterActiveQuadY = static_cast<int32_t>(rWaterLevelOfDetail.iQuadCountY);
 
 	// Indirect dispatch dims for kPipelineWaterDisplacement: one workgroup per kiComputeTileSize block over the
 	// (iQuadCount + 1) active-LOD texel rectangle the compute shader writes — the live sub-region only, not the
 	// full LOD0 grid. Written per framebuffer to match RecordComputeIndirect's slot indexing.
-	gpPipelineManager->mpPipelines[kPipelineWaterDisplacement].WriteIndirectComputeBuffer(iCommandBuffer, (rWaterLod.iQuadCountX + 1 + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, (rWaterLod.iQuadCountY + 1 + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, 1);
+	gpPipelineManager->mpPipelines[kPipelineWaterDisplacement].WriteIndirectComputeBuffer(iCommandBuffer, (rWaterLevelOfDetail.iQuadCountX + 1 + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, (rWaterLevelOfDetail.iQuadCountY + 1 + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, 1);
 
 	// Phase 1: BeginRender — compute total capacities, resize GPU buffers, reset counters
 	game::FrameInterpolate::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords);
@@ -585,7 +583,6 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	XMStoreFloat4(&rMainLayout.f4EyePosition, game::gpCamera->mVecEyePosition);
 	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, game::gpCamera->mVecToEyeNormal);
 
-	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 	PopulateGerstnerWaves(rMainLayout, rGlobalLayout);
 
 	PopulateHexShield(rMainLayout);

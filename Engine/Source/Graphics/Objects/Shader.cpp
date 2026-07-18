@@ -17,6 +17,8 @@ Shader::~Shader()
 
 void Shader::Create(const ShaderInfo& rInfo, const std::byte* pData)
 {
+	Destroy();
+
 	mInfo = rInfo;
 
 	VkShaderModuleCreateInfo vkShaderModuleCreateInfo

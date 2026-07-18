@@ -126,8 +126,8 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSpreadJitterEnd = gSpreadJitterEnd.Get();
 	rGlobalLayout.fSpreadSampleJitterRangeEnd = gSpreadSampleJitterRangeEnd.Get();
 	rGlobalLayout.fSpreadSampleJitterClusteringEnd = gSpreadSampleJitterClusteringEnd.Get();
-	rGlobalLayout.fSpreadDecayEnd = gSpreadDecay.Get();
-	rGlobalLayout.fSpreadAccumulationDecayEnd = gSpreadAccumulationDecay.Get();
+	rGlobalLayout.fSpreadDecayEnd = gSpreadDecayEnd.Get();
+	rGlobalLayout.fSpreadAccumulationDecayEnd = gSpreadAccumulationDecayEnd.Get();
 	rGlobalLayout.fSpreadDistanceFalloffEnd = gSpreadDistanceFalloffEnd.Get();
 	rGlobalLayout.fSpreadOutputThresholdEnd = gSpreadOutputThresholdEnd.Get();
 	rGlobalLayout.fSpreadOutputCompressEnd = gSpreadOutputCompressEnd.Get();

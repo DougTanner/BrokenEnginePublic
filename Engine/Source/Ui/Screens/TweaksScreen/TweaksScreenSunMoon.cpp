@@ -1,9 +1,9 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 #include "TweaksSliderMap.h"
 #include "Ui/SunMoonWrappersBase.h"
-
-#if defined(BT_CLIENT)
 
 namespace engine
 {

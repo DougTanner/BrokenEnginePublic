@@ -8,6 +8,15 @@
 namespace game
 {
 
+namespace
+{
+
+constexpr float kfModalWindowWidthFraction = 0.24f;
+constexpr float kfModalMessageFontScale = 1.15f;
+constexpr float kfModalMessageActionGapPixels = 36.0f;
+
+} // namespace
+
 void ModalScreen::Render()
 {
 	if (gpGame->meUiState != UiState::kModal)
@@ -18,7 +27,7 @@ void ModalScreen::Render()
 	ImGuiIO& rIo = ImGui::GetIO();
 	ScopedMenuScale menuScale;
 
-	float fWindowWidth = rIo.DisplaySize.x * kfModalWidthFraction;
+	float fWindowWidth = rIo.DisplaySize.x * kfModalWindowWidthFraction;
 	// Pivot-centered horizontally, seated slightly above center (UserInterfaceDesign.txt section 5)
 	ImGui::SetNextWindowPos(ImVec2(rIo.DisplaySize.x * 0.5f, rIo.DisplaySize.y * kfModalAnchorFractionY), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	ImGui::SetNextWindowSize(ImVec2(fWindowWidth, 0.0f));
@@ -33,9 +42,12 @@ void ModalScreen::Render()
 	ImVec2 vPanelSize = ImGui::GetWindowSize();
 	DrawPanelAccents(ImGui::GetWindowDrawList(), vPanelPos, ImVec2(vPanelPos.x + vPanelSize.x, vPanelPos.y + vPanelSize.y));
 
-	ImGui::TextWrapped("%s", gpGame->mModalMessage);
+	{
+		ScopedMenuFont messageFont(kfMenuUiScale * kfModalMessageFontScale);
+		ImGui::TextWrapped("%s", gpGame->mModalMessage);
+	}
 
-	ImGui::Dummy(ImVec2(0.0f, kfSectionGapPixels * engine::UiScale()));
+	ImGui::Dummy(ImVec2(0.0f, kfModalMessageActionGapPixels * engine::UiScale()));
 
 	// Text-driven width, floored to the modal button minimum; centered in the window via the measured width
 	float fButtonWidth = std::max(MenuButtonsWidth({U"OK"}), kfModalButtonMinWidthPixels * engine::UiScale());

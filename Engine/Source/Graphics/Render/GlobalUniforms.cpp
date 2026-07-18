@@ -289,9 +289,9 @@ static void PopulateShadowSunExtension(shaders::GlobalLayout& rGlobalLayout, flo
 		}
 		rGlobalLayout.fShadowDirectionMultiplier = 1.0f;
 
-		rGlobalLayout.iShadowElevationSize = static_cast<int>(fShadowElevationTextureSizeWidth); // !=
-		rGlobalLayout.iShadowIncrement = 1; // ++
-		rGlobalLayout.iShadowStartOffset = 0; // Start offset
+		rGlobalLayout.iShadowElevationSize = static_cast<int32_t>(fShadowElevationTextureSizeWidth);
+		rGlobalLayout.iShadowIncrement = 1;
+		rGlobalLayout.iShadowStartOffset = 0;
 	}
 	else
 	{
@@ -301,17 +301,18 @@ static void PopulateShadowSunExtension(shaders::GlobalLayout& rGlobalLayout, flo
 		rGlobalLayout.fShadowSunAngle = fSunAngle >= XM_PI ? fSunAngle - XM_PI : XM_PI - fSunAngle;
 		rGlobalLayout.fShadowDirectionMultiplier = -1.0f;
 
-		rGlobalLayout.iShadowElevationSize = 0; // !=
-		rGlobalLayout.iShadowIncrement = -1; // ++
-		rGlobalLayout.iShadowStartOffset = static_cast<int>(fShadowElevationTextureSizeWidth - fShadowTextureSizeWidth); // Start offset (elevation extension half-width, from real extents)
+		rGlobalLayout.iShadowElevationSize = 0;
+		rGlobalLayout.iShadowIncrement = -1;
+		rGlobalLayout.iShadowStartOffset = static_cast<int32_t>(fShadowElevationTextureSizeWidth - fShadowTextureSizeWidth); // Elevation extension half-width, from real extents.
 	}
 }
 
 static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent, float fNoonPercent)
 {
 	// Shadow texture
-	float fShadowTextureSizeWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width);
-	float fShadowTextureSizeHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height);
+	VkExtent3D vkShadowTextureExtent = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent;
+	float fShadowTextureSizeWidth = static_cast<float>(vkShadowTextureExtent.width);
+	float fShadowTextureSizeHeight = static_cast<float>(vkShadowTextureExtent.height);
 	// 1.5x-wide elevation texture: read the created extent so the headroom factor has a single owner at the
 	// allocation site (RenderTargetTextures::CreateShadowTextures), like the shadow extent read just above.
 	float fShadowElevationTextureSizeWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.mInfo.extent.width);
@@ -342,8 +343,8 @@ static void PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float
 	rGlobalLayout.fShadowHeightFadeTop = gShadowHeightFadeTop.Get();
 	rGlobalLayout.fShadowHeightFadeBottom = gShadowHeightFadeBottom.Get();
 
-	rGlobalLayout.iShadowTextureWidth = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width; // X pixels
-	rGlobalLayout.iShadowTextureHeight = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height; // Y pixels
+	rGlobalLayout.iShadowTextureWidth = static_cast<int32_t>(vkShadowTextureExtent.width);
+	rGlobalLayout.iShadowTextureHeight = static_cast<int32_t>(vkShadowTextureExtent.height);
 
 	float fWorldTexelX = 0.0f;
 	float fFullWidth = 0.0f;

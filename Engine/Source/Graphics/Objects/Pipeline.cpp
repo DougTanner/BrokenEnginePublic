@@ -228,9 +228,15 @@ void Pipeline::Destroy() noexcept
 
 		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mIndirectVkBuffer, mIndirectVmaAllocation);
 		mIndirectVkBuffer = VK_NULL_HANDLE;
-		mIndirectVkDeviceMemory = VK_NULL_HANDLE;
 		mIndirectVmaAllocation = VK_NULL_HANDLE;
 	}
+
+	// mModelMaterialsStorageBuffer is deliberately NOT torn down here — its member Buffer dtor owns the free.
+	// The mDeviceLocalVkBuffer == VK_NULL_HANDLE guard in WriteModelDescriptor (PipelineDescriptorWriter.cpp)
+	// exists to build the buffer once across Write()'s per-framebuffer loop, not to support in-place
+	// re-Create() reuse: model pipelines are rebuild-only (fresh objects every time — see Objects/AGENTS.md),
+	// so a Destroy() on a pipeline holding this buffer is only ever followed by destruction. If an in-place
+	// re-Create with a different scene ever appears, destroy the buffer here or the guard keeps stale materials.
 }
 
 void Pipeline::RecordDraw(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iInstanceCount, int64_t iFirstInstance, const XMFLOAT4& f4PushConstants)
@@ -337,9 +343,6 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 		RecordPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, f4PushConstants);
 	}
 
-	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;
-	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipeline);
-	BindComputeDescriptorSets(vkCommandBuffer, mVkPipelineLayout, mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, mVkDescriptorSets);
 	// Host-visible indexes per-framebuffer; device-local reads slot 0
 	int64_t iIndirectSlot = mInfo.flags & kIndirectHostVisible ? iCommandBuffer : 0;
 	VkDeviceSize vkDispatchOffset = iIndirectSlot * sizeof(VkDispatchIndirectCommand);
@@ -347,7 +350,17 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 	// Verify the indexed slot is within the indirect buffer's slot capacity
 	ASSERT(iIndirectSlot < miIndirectSlotCount);
 
-	vkCmdDispatchIndirect(vkCommandBuffer, mIndirectVkBuffer, vkDispatchOffset);
+	RecordComputeIndirectFrom(iCommandBuffer, vkCommandBuffer, mIndirectVkBuffer, vkDispatchOffset);
+}
+
+void Pipeline::RecordComputeIndirectFrom(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, VkBuffer vkIndirectBuffer, VkDeviceSize vkIndirectOffset)
+{
+	ASSERT(mInfo.flags & kCompute);
+
+	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;
+	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipeline);
+	BindComputeDescriptorSets(vkCommandBuffer, mVkPipelineLayout, mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, mVkDescriptorSets);
+	vkCmdDispatchIndirect(vkCommandBuffer, vkIndirectBuffer, vkIndirectOffset);
 }
 
 void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount, int64_t iFirstIndex, int64_t iVertexOffset)
@@ -365,7 +378,7 @@ void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCoun
 
 	VkDrawIndexedIndirectCommand& rCommand = mpIndirectMappedMemory[iCommandBuffer];
 
-	rCommand.indexCount = static_cast<uint32_t>(iIndexCount == 0 ? static_cast<uint32_t>(mInfo.pVertexBuffer->mInfo.iCount) : iIndexCount);
+	rCommand.indexCount = static_cast<uint32_t>(iIndexCount < 0 ? mInfo.pVertexBuffer->mInfo.iCount : iIndexCount);
 	rCommand.instanceCount = static_cast<uint32_t>(iInstanceCount);
 	rCommand.firstIndex = static_cast<uint32_t>(iFirstIndex);
 	rCommand.vertexOffset = static_cast<int32_t>(iVertexOffset);

@@ -55,8 +55,7 @@ Islands::Islands()
 		// Per-template VkDrawIndexedIndirectCommand buffer. indexCount / firstIndex / vertexOffset /
 		// firstInstance baked here; instanceCount rewritten per frame from UpdateActiveIslands.
 		VmaAllocationInfo vmaAllocationInfo {};
-		VkDeviceMemory vkDeviceMemoryUnused = VK_NULL_HANDLE;
-		Buffer::CreateBuffer("IslandsIndirect", vkIndirectSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIslandsIndirectVkBuffers.at(iFramebuffer), vkDeviceMemoryUnused, mIslandsIndirectVmaAllocations.at(iFramebuffer), &vmaAllocationInfo);
+		Buffer::CreateBuffer("IslandsIndirect", vkIndirectSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIslandsIndirectVkBuffers.at(iFramebuffer), mIslandsIndirectVmaAllocations.at(iFramebuffer), &vmaAllocationInfo);
 		mppIslandsIndirectMapped.at(iFramebuffer) = static_cast<VkDrawIndexedIndirectCommand*>(vmaAllocationInfo.pMappedData);
 
 		for (int64_t iTemplate = 0; iTemplate < miTemplateCount; ++iTemplate)

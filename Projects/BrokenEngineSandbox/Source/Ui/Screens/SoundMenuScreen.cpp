@@ -10,6 +10,13 @@
 namespace game
 {
 
+namespace
+{
+
+constexpr float kfSoundSliderWidthPixels = 640.0f;
+
+} // namespace
+
 void SoundMenuScreen::Render()
 {
 	if (gpGame->meUiState != UiState::kSound)
@@ -35,10 +42,14 @@ void SoundMenuScreen::Render()
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
-	MenuHeading(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)));
+	MenuHeading(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)), kfMainMenuHeadingScale);
 
+	const float fSliderWidth = kfSoundSliderWidthPixels * engine::UiScale();
+	ImGui::SetNextItemWidth(fSliderWidth);
 	WrapperSlider("Master Volume", &engine::gMasterVolume);
+	ImGui::SetNextItemWidth(fSliderWidth);
 	WrapperSlider("Music Volume", &engine::gMusicVolume);
+	ImGui::SetNextItemWidth(fSliderWidth);
 	WrapperSlider("Sound Volume", &engine::gSoundVolume);
 
 	ImGui::Separator();

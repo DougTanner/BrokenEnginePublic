@@ -32,4 +32,3 @@ This is a **decision/design plan — first step is `/external-design-interface`*
 
 ## Notes
 - **Decision plan (present options)** — the `/external-design-interface` pass produces the API shape; do not hand-pick one before it runs.
-- Co-schedule / File-Group note: shares `TweaksScreenBase.{h,cpp}` with the other Ui TweaksScreen plans (`Ui/Refactor_TweaksScreenQuickWins.md`, `Engine/TweaksScreenDynamicFontMigration.md`, `Meta/ReviewSweepQuickWins.md`'s `TweakSectionFlags` `static_assert` item) — refresh citations if co-scheduled; the `TweakSectionFlags` ceiling item overlaps this plan's flags-sizing question.

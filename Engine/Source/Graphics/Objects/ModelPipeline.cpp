@@ -62,6 +62,16 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 	const uint32_t* puiIndexStarts = reinterpret_cast<const uint32_t*>(rChunk.pData + iIndexStartsOffset);
 	const common::MaterialShaderData* pMaterials = reinterpret_cast<const common::MaterialShaderData*>(rChunk.pData + iMaterialDataOffset);
 	PipelineFlags_t originalFlags = pipelineInfo.flags;
+	uint32_t uiPreviousIndexStart = 0;
+	for (int64_t i = 0; i < miMaterialCount; ++i)
+	{
+		uint32_t uiIndexStart = puiIndexStarts[i];
+		if ((i > 0 && uiIndexStart < uiPreviousIndexStart) || static_cast<int64_t>(uiIndexStart) > pipelineInfo.pVertexBuffer->mInfo.iCount)
+		{
+			throw common::CorruptStreamException("ModelPipeline::Create");
+		}
+		uiPreviousIndexStart = uiIndexStart;
+	}
 
 	bool bMultiSet = pipelineInfo.flags & PipelineFlags::kMultiSet;
 

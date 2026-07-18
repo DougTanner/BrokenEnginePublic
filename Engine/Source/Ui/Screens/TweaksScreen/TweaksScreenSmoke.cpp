@@ -1,9 +1,9 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 #include "TweaksSliderMap.h"
 #include "Ui/SmokeWrappersBase.h"
-
-#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -52,17 +52,8 @@ void TweaksScreenBase::RenderSmokeSection()
 
 	if (ImGui::BeginTabBar("SmokeTabs"))
 	{
-		if (ImGui::BeginTabItem("Smoke", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Smoke", kiSection, 0))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 0;
-			}
-
 			if (ImGui::BeginTable("SmokeColumns", 2))
 			{
 				// Left column
@@ -104,17 +95,8 @@ void TweaksScreenBase::RenderSmokeSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Deposits", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Deposits", kiSection, 1))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 1;
-			}
-
 			RenderSmokeDepositsTab();
 
 			ImGui::EndTabItem();

@@ -112,6 +112,25 @@ void TweaksScreenBase::ChevronIndexSelector(std::string_view label, Wrapper& rWr
 	}
 }
 
+bool TweaksScreenBase::BeginSubtab(const char* pcLabel, int64_t iSection, int8_t iTab)
+{
+	const bool bApplySavedSubtab = (mApplySubtab & SectionFlag(iSection)) && mActiveSubtab[iSection] == iTab;
+	if (!ImGui::BeginTabItem(pcLabel, nullptr, bApplySavedSubtab ? ImGuiTabItemFlags_SetSelected : 0))
+	{
+		return false;
+	}
+
+	if (bApplySavedSubtab)
+	{
+		mApplySubtab.Clear(SectionFlag(iSection));
+	}
+	if (!(mApplySubtab & SectionFlag(iSection)))
+	{
+		mActiveSubtab[iSection] = iTab;
+	}
+	return true;
+}
+
 void TweaksScreenBase::WrapperSlider(std::string_view label, int64_t iSection, float fWidthMultiplier, std::string_view mapKey)
 {
 	if (mapKey.empty())
@@ -152,7 +171,7 @@ void TweaksScreenBase::WrapperSlider(std::string_view label, int64_t iSection, f
 		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
 	}
 
-	// Section sliders are twice as wide as default
+	// Scale section slider width by the caller-provided multiplier
 	if (iSection >= 0)
 	{
 		ImGui::SetNextItemWidth(ImGui::CalcItemWidth() * fWidthMultiplier);
@@ -178,7 +197,7 @@ void TweaksScreenBase::WrapperSlider(std::string_view label, int64_t iSection, f
 	}
 	if (ImGui::IsItemActive())
 	{
-		mActiveSlider = mapKey.data();
+		mActiveSlider = mapKey;
 		miActiveSliderSection = iSection;
 	}
 

@@ -52,7 +52,7 @@ class Buffer
 {
 public:
 
-	static void CreateBuffer(std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory, VmaAllocation& rVmaAllocation, VmaAllocationInfo* pVmaAllocationInfo = nullptr);
+	static void CreateBuffer(std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VmaAllocation& rVmaAllocation, VmaAllocationInfo* pVmaAllocationInfo = nullptr);
 	static void RecordBarriers(VkCommandBuffer vkCommandBuffer, const BarrierInfo* pBarriers, int64_t iBarrierCount);
 
 	Buffer() = default;
@@ -74,13 +74,23 @@ public:
 	BufferInfo mInfo {};
 
 	VkBuffer mHostVisibleVkBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory mHostVisibleVkDeviceMemory = VK_NULL_HANDLE;
 	VmaAllocation mHostVisibleVmaAllocation = VK_NULL_HANDLE;
 	char* mpMappedMemory = nullptr;
 
 	VkBuffer mDeviceLocalVkBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory mDeviceLocalVkDeviceMemory = VK_NULL_HANDLE;
 	VmaAllocation mDeviceLocalVmaAllocation = VK_NULL_HANDLE;
+};
+
+struct StagingBuffer
+{
+	StagingBuffer(std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags);
+	StagingBuffer(const StagingBuffer&) = delete;
+	StagingBuffer& operator=(const StagingBuffer&) = delete;
+	~StagingBuffer();
+
+	VkBuffer vkBuffer = VK_NULL_HANDLE;
+	VmaAllocation vmaAllocation = VK_NULL_HANDLE;
+	VmaAllocationInfo vmaAllocationInfo {};
 };
 
 } // namespace engine

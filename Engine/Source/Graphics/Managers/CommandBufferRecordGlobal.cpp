@@ -42,13 +42,13 @@ void CommandBufferRecordGlobal::Record(int64_t iFramebuffer)
 
 	uint32_t uiWindWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
 	uint32_t uiWindHeight = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.height;
-	uint32_t uiWindTilesX = (uiWindWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	uint32_t uiWindTilesY = (uiWindHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiWindTilesX = TileCount(uiWindWidth);
+	uint32_t uiWindTilesY = TileCount(uiWindHeight);
 
 	uint32_t uiSmokeMaxWidth = std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width);
 	uint32_t uiSmokeMaxHeight = std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.height, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.height);
-	uint32_t uiSmokeTilesX = (uiSmokeMaxWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	uint32_t uiSmokeTilesY = (uiSmokeMaxHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiSmokeTilesX = TileCount(uiSmokeMaxWidth);
+	uint32_t uiSmokeTilesY = TileCount(uiSmokeMaxHeight);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSpread);
 	RecordWindSpreadPipeline(vkCommandBuffer, iCommandBuffer, uiWindTilesX, uiWindTilesY, pPipelines);
@@ -79,8 +79,8 @@ void CommandBufferRecordGlobal::RecordShadowPasses(VkCommandBuffer vkCommandBuff
 	gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.RecordEndRenderPass(vkCommandBuffer);
 	uint32_t uiShadowWidth = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.width;
 	uint32_t uiShadowHeight = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent.height;
-	uint32_t uiShadowTilesX = (uiShadowWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	uint32_t uiShadowTilesY = (uiShadowHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiShadowTilesX = TileCount(uiShadowWidth);
+	uint32_t uiShadowTilesY = TileCount(uiShadowHeight);
 	pPipelines[kPipelineShadow].RecordCompute(iCommandBuffer, vkCommandBuffer, uiShadowTilesX, uiShadowTilesY);
 	gpTextureManager->mRenderTargetTextures.mShadowTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadOnly);
 	gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
@@ -252,22 +252,12 @@ void CommandBufferRecordGlobal::RecordWindSpreadPipeline(VkCommandBuffer vkComma
 
 	// SpreadB: dispatch from ActiveTileB (reads TextureOne, writes TextureTwo)
 	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
-	{
-		int64_t iDescriptorSetIndex = pPipelines[kPipelineWindSpreadComputeB].mbPerCommandBuffer ? iCommandBuffer : 0;
-		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineWindSpreadComputeB].mVkPipeline);
-		BindComputeDescriptorSets(vkCommandBuffer, pPipelines[kPipelineWindSpreadComputeB].mVkPipelineLayout, pPipelines[kPipelineWindSpreadComputeB].mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, pPipelines[kPipelineWindSpreadComputeB].mVkDescriptorSets);
-		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mWindActiveTileVkBuffers[1], 0);
-	}
+	pPipelines[kPipelineWindSpreadComputeB].RecordComputeIndirectFrom(iCommandBuffer, vkCommandBuffer, gpBufferManager->mWindActiveTileVkBuffers[1], 0);
 	gpTextureManager->mRenderTargetTextures.mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 
 	// SpreadA: dispatch from ActiveTileA (reads TextureTwo, writes TextureOne)
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
-	{
-		int64_t iDescriptorSetIndex = pPipelines[kPipelineWindSpreadComputeA].mbPerCommandBuffer ? iCommandBuffer : 0;
-		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pPipelines[kPipelineWindSpreadComputeA].mVkPipeline);
-		BindComputeDescriptorSets(vkCommandBuffer, pPipelines[kPipelineWindSpreadComputeA].mVkPipelineLayout, pPipelines[kPipelineWindSpreadComputeA].mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, pPipelines[kPipelineWindSpreadComputeA].mVkDescriptorSets);
-		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mWindActiveTileVkBuffers[0], 0);
-	}
+	pPipelines[kPipelineWindSpreadComputeA].RecordComputeIndirectFrom(iCommandBuffer, vkCommandBuffer, gpBufferManager->mWindActiveTileVkBuffers[0], 0);
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
@@ -349,12 +339,7 @@ void CommandBufferRecordGlobal::RecordSmokeSpreadHalf(VkCommandBuffer vkCommandB
 	rSmokeTexture.TransitionImageLayout(vkCommandBuffer, kTransferDestination, kComputeReadWrite);
 
 	// Indirect dispatch from active tile buffer
-	{
-		int64_t iDescriptorSetIndex = rSpreadPipeline.mbPerCommandBuffer ? iCommandBuffer : 0;
-		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rSpreadPipeline.mVkPipeline);
-		BindComputeDescriptorSets(vkCommandBuffer, rSpreadPipeline.mVkPipelineLayout, rSpreadPipeline.mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, rSpreadPipeline.mVkDescriptorSets);
-		vkCmdDispatchIndirect(vkCommandBuffer, gpBufferManager->mSmokeActiveTileVkBuffer, 0);
-	}
+	rSpreadPipeline.RecordComputeIndirectFrom(iCommandBuffer, vkCommandBuffer, gpBufferManager->mSmokeActiveTileVkBuffer, 0);
 	rSmokeTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 }
 

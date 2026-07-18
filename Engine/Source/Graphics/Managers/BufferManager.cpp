@@ -56,14 +56,34 @@ BufferManager::BufferManager()
 			throw common::CorruptStreamException("BufferManager model");
 		}
 
+		const common::ModelHeader& rModelHeader = rChunk.pHeader->modelHeader;
+		if (rModelHeader.iIndexCount < 0 || rModelHeader.iIndexCount > UINT32_MAX || rModelHeader.iVertexCount < 0 || rModelHeader.iStride <= 0)
+		{
+			throw common::CorruptStreamException("BufferManager model");
+		}
+
+		int64_t iIndexElementSize = common::ModelHeader::UsesU16Indices(rModelHeader.iVertexCount) ? sizeof(uint16_t) : sizeof(uint32_t);
+		if (rModelHeader.iIndexCount > (std::numeric_limits<int64_t>::max() - 3) / iIndexElementSize
+			|| rModelHeader.iVertexCount > std::numeric_limits<int64_t>::max() / rModelHeader.iStride)
+		{
+			throw common::CorruptStreamException("BufferManager model");
+		}
+
+		int64_t iVerticesOffset = common::ModelHeader::VerticesOffset(rModelHeader.iIndexCount, iIndexElementSize);
+		int64_t iVertexBytes = rModelHeader.iVertexCount * rModelHeader.iStride;
+		if (iVerticesOffset > rChunk.pHeader->iSize || iVertexBytes > rChunk.pHeader->iSize - iVerticesOffset)
+		{
+			throw common::CorruptStreamException("BufferManager model");
+		}
+
 		auto [it, bInserted] = mModelMap.try_emplace(rCrc, BufferInfo
 		{
 			.name = rChunk.pHeader->pcPath,
 			.flags = {kIndexVertex, kDeviceLocal},
-			.iCount = rChunk.pHeader->modelHeader.iIndexCount,
-			.vkIndexType = common::ModelHeader::UsesU16Indices(rChunk.pHeader->modelHeader.iVertexCount) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32,
-			.iVertexStride = rChunk.pHeader->modelHeader.iStride,
-			.dataVkDeviceSize = static_cast<uint32_t>(rChunk.pHeader->iSize),
+			.iCount = rModelHeader.iIndexCount,
+			.vkIndexType = common::ModelHeader::UsesU16Indices(rModelHeader.iVertexCount) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32,
+			.iVertexStride = rModelHeader.iStride,
+			.dataVkDeviceSize = static_cast<VkDeviceSize>(rChunk.pHeader->iSize),
 		},
 		[&](void* pData)
 		{
@@ -567,20 +587,18 @@ void BufferManager::CreateSmokeHierarchicalBuffers()
 
 	uint32_t uiMaxWidth = std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.width);
 	uint32_t uiMaxHeight = std::max(gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.mInfo.extent.height, gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.mInfo.extent.height);
-	uint32_t uiTilesX = (uiMaxWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	uint32_t uiTilesY = (uiMaxHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiTilesX = TileCount(uiMaxWidth);
+	uint32_t uiTilesY = TileCount(uiMaxHeight);
 	uint32_t uiTotalTiles = uiTilesX * uiTilesY;
 
 	// Bit-packed occupancy: 1 bit per tile, packed into uint32s
 	uint32_t uiOccupancyUints = (uiTotalTiles + 31) / 32;
 	mSmokeOccupancyBufferSize = static_cast<VkDeviceSize>(uiOccupancyUints) * sizeof(uint32_t);
-	VkDeviceMemory unusedMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("SmokeOccupancy", mSmokeOccupancyBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mSmokeOccupancyVkBuffer, unusedMemory, mSmokeOccupancyVmaAllocation);
+	Buffer::CreateBuffer("SmokeOccupancy", mSmokeOccupancyBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mSmokeOccupancyVkBuffer, mSmokeOccupancyVmaAllocation);
 
 	// Active tile list: VkDispatchIndirectCommand (12 bytes) + packed tile indices (4 bytes each)
 	mSmokeActiveTileBufferSize = sizeof(VkDispatchIndirectCommand) + static_cast<VkDeviceSize>(uiTotalTiles) * sizeof(uint32_t);
-	VkDeviceMemory unusedActiveTileMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("SmokeActiveTile", mSmokeActiveTileBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mSmokeActiveTileVkBuffer, unusedActiveTileMemory, mSmokeActiveTileVmaAllocation);
+	Buffer::CreateBuffer("SmokeActiveTile", mSmokeActiveTileBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mSmokeActiveTileVkBuffer, mSmokeActiveTileVmaAllocation);
 }
 
 void BufferManager::DestroySmokeHierarchicalBuffers()
@@ -607,8 +625,8 @@ void BufferManager::CreateWindHierarchicalBuffers()
 
 	uint32_t uiWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
 	uint32_t uiHeight = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.height;
-	uint32_t uiTilesX = (uiWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	uint32_t uiTilesY = (uiHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
+	uint32_t uiTilesX = TileCount(uiWidth);
+	uint32_t uiTilesY = TileCount(uiHeight);
 	uint32_t uiTotalTiles = uiTilesX * uiTilesY;
 
 	// Bit-packed occupancy: 1 bit per tile, packed into uint32s
@@ -620,11 +638,9 @@ void BufferManager::CreateWindHierarchicalBuffers()
 
 	for (int64_t i = 0; i < 2; ++i)
 	{
-		VkDeviceMemory unusedMemoryOccupancy = VK_NULL_HANDLE;
-		Buffer::CreateBuffer(i == 0 ? "WindOccupancyA" : "WindOccupancyB", mWindOccupancyBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mWindOccupancyVkBuffers[i], unusedMemoryOccupancy, mWindOccupancyVmaAllocations[i]);
+		Buffer::CreateBuffer(i == 0 ? "WindOccupancyA" : "WindOccupancyB", mWindOccupancyBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mWindOccupancyVkBuffers[i], mWindOccupancyVmaAllocations[i]);
 
-		VkDeviceMemory unusedMemoryActive = VK_NULL_HANDLE;
-		Buffer::CreateBuffer(i == 0 ? "WindActiveTileA" : "WindActiveTileB", mWindActiveTileBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mWindActiveTileVkBuffers[i], unusedMemoryActive, mWindActiveTileVmaAllocations[i]);
+		Buffer::CreateBuffer(i == 0 ? "WindActiveTileA" : "WindActiveTileB", mWindActiveTileBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mWindActiveTileVkBuffers[i], mWindActiveTileVmaAllocations[i]);
 	}
 }
 

@@ -76,6 +76,7 @@ struct GraphicsSettings
 	static constexpr int64_t kiVersion = 8;
 
 	common::Flags<GraphicsSettingsFlags> flags {};
+	uint8_t uiPad[3] {};
 	VkPresentModeKHR ePresentMode = VK_PRESENT_MODE_FIFO_KHR;
 	VkSampleCountFlagBits eSampleCount = VK_SAMPLE_COUNT_4_BIT;
 	float fMaxAnisotropy = 0.0f;
@@ -88,6 +89,7 @@ struct GraphicsSettings
 	float fUiOpacity = 0.9f;
 	float fUiFontScale = 1.0f;
 	engine::UiTheme eUiTheme = engine::UiTheme::kNavalSteel;
+	uint8_t uiTrailingPad[3] {};
 };
 static constexpr char kpcGraphicsSettingsPath[] = "GraphicsSettings.bin";
 

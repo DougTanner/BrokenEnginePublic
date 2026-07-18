@@ -25,6 +25,12 @@ enum class DescriptorFlags : uint64_t
 		kSamplerWindClamp           = 0x10000,
 		kSamplerElevation           = 0x20000,
 		kSamplerMirroredRepeatWater = 0x80000, // MirroredRepeat with the gWaterNormalMipBias slider instead of the global -gMipLodBias sharpen (water normal maps)
+		// Any-bit mask of every sampler flag, for the standalone-sampler (bSampler) test in
+		// PipelineDescriptorWriter::Write. Value is the OR of the nine kSampler* bits above. Includes
+		// kSamplerBorderWhite (0x0200), which is behavior-neutral: that flag only ever appears alongside
+		// kCombinedSamplers, and the standalone-sampler branch excludes kCombinedSamplers, so its presence in
+		// the mask never reclassifies a descriptor as a standalone sampler.
+		kSamplerAny                 = 0x00010 | 0x00020 | 0x00040 | 0x00080 | 0x00100 | 0x00200 | 0x10000 | 0x20000 | 0x80000,
 	kStorageImages                  = 0x0400,
 
 	kUniformBuffer                  = 0x0800,
@@ -131,8 +137,9 @@ public:
 	void RecordDrawIndirectSet2(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants);
 	void RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iGroupCountX, int64_t iGroupCountY = 1, int64_t iGroupCountZ = 1, const XMFLOAT4& f4PushConstants = {});
 	void RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants = {});
+	void RecordComputeIndirectFrom(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, VkBuffer vkIndirectBuffer, VkDeviceSize vkIndirectOffset);
 
-	void WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount = 0, int64_t iFirstIndex = 0, int64_t iVertexOffset = 0);
+	void WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount = -1, int64_t iFirstIndex = 0, int64_t iVertexOffset = 0);
 	void WriteIndirectComputeBuffer(int64_t iCommandBuffer, int64_t iGroupCountX, int64_t iGroupCountY, int64_t iGroupCountZ);
 
 	void UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
@@ -159,11 +166,10 @@ public:
 
 	// Host-visible indirect buffer (used by GPU for vkCmdDrawIndexedIndirect)
 	VkBuffer mIndirectVkBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory mIndirectVkDeviceMemory = VK_NULL_HANDLE;
 	VmaAllocation mIndirectVmaAllocation = VK_NULL_HANDLE;
 	VkDrawIndexedIndirectCommand* mpIndirectMappedMemory = nullptr;
 	VkDispatchIndirectCommand* mpIndirectComputeMappedMemory = nullptr; // Host-visible dispatch map (kIndirectHostVisible | kCompute); mutually exclusive with the draw map above
-	int64_t miIndirectSlotCount = 0; // Indirect buffer slot capacity bounding the Record*Indirect command-buffer index. SetupIndirectBuffer stamps every graphics pipeline (= max(framebufferCount, 3), even no-indirect ones); the kIndirectDeviceLocal compute branch overrides it to 1
+	int64_t miIndirectSlotCount = 0; // Indirect buffer slot capacity bounding the Record*Indirect command-buffer index. Set only for indirect pipelines: the host-visible / graphics-device-local branches stamp max(framebufferCount, 3), the kIndirectDeviceLocal compute branch stamps 1. Stays 0 on non-indirect pipelines, which never read it (every Record*Indirect ASSERT is gated behind an indirect-flag ASSERT)
 
 	Buffer mModelMaterialsStorageBuffer;
 

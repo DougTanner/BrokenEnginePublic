@@ -30,7 +30,7 @@ namespace toolcli
 		{
 			rOutput << "Usage: AgentHarness.exe [--owner TOKEN] --port N [--timeout-ms 15000] -\n";
 			rOutput << "       AgentHarness.exe [--owner TOKEN] --port N [--timeout-ms 15000] \"<json>\"\n";
-			rOutput << "       AgentHarness.exe lock <token|claim|status|release|steal> ...\n";
+			rOutput << "       AgentHarness.exe lock <token|claim|status|release|steal|heartbeat> ...\n";
 			rOutput << "       AgentHarness.exe --help\n";
 		}
 

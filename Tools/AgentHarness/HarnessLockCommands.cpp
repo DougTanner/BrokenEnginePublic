@@ -86,13 +86,20 @@ namespace toolcli
 			return MakeHarnessLocator(key);
 		}
 
+		bool StampHarnessHeartbeat(const std::filesystem::path& rPath, nlohmann::json& rMetadata)
+		{
+			rMetadata["heartbeatAt"] = CurrentUtcTimestamp();
+			rMetadata["heartbeatPid"] = ::GetCurrentProcessId();
+			return WriteMetadataAtomic(rPath, rMetadata);
+		}
+
 	}
 
 	int RunHarnessLockCommand(int iArgumentCount, wchar_t* pArgumentValues[])
 	{
 		if (iArgumentCount < 3)
 		{
-			Fail("lock requires token, claim, status, release, or steal");
+			Fail("lock requires token, claim, status, release, steal, or heartbeat");
 			return kiExitFailure;
 		}
 		std::wstring verb = ToLowerInvariant(pArgumentValues[2]);
@@ -105,7 +112,7 @@ namespace toolcli
 			}
 			return PrintOwnerToken();
 		}
-		if (verb != L"claim" && verb != L"status" && verb != L"release" && verb != L"steal")
+		if (verb != L"claim" && verb != L"status" && verb != L"release" && verb != L"steal" && verb != L"heartbeat")
 		{
 			Fail("unknown lock verb");
 			return kiExitFailure;
@@ -125,9 +132,9 @@ namespace toolcli
 			Fail("claim and steal require --owner, --session, and --worktree");
 			return kiExitFailure;
 		}
-		if (verb == L"release" && owner.empty())
+		if ((verb == L"release" || verb == L"heartbeat") && owner.empty())
 		{
-			Fail("release requires --owner");
+			Fail("release and heartbeat require --owner");
 			return kiExitFailure;
 		}
 		if (verb == L"steal" && expectedOwner.empty())
@@ -188,7 +195,7 @@ namespace toolcli
 			PrintMetadata(metadata);
 			return kiExitOk;
 		}
-		if (!bExists || (verb == L"release" && !HasOwner(metadata, owner)) || (verb == L"steal" && !HasOwner(metadata, expectedOwner)))
+		if (!bExists || ((verb == L"release" || verb == L"heartbeat") && !HasOwner(metadata, owner)) || (verb == L"steal" && !HasOwner(metadata, expectedOwner)))
 		{
 			if (bExists)
 			{
@@ -207,6 +214,16 @@ namespace toolcli
 				FailWindows("release lock");
 				return kiExitFailure;
 			}
+			return kiExitOk;
+		}
+		if (verb == L"heartbeat")
+		{
+			if (!StampHarnessHeartbeat(locator->path, metadata))
+			{
+				FailWindows("write lock metadata");
+				return kiExitFailure;
+			}
+			PrintMetadata(metadata);
 			return kiExitOk;
 		}
 
@@ -241,8 +258,6 @@ namespace toolcli
 		{
 			return false;
 		}
-		metadata["heartbeatAt"] = CurrentUtcTimestamp();
-		metadata["heartbeatPid"] = ::GetCurrentProcessId();
-		return WriteMetadataAtomic(locator->path, metadata);
+		return StampHarnessHeartbeat(locator->path, metadata);
 	}
 }

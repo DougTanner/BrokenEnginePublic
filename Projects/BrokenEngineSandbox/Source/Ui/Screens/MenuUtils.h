@@ -14,10 +14,10 @@ inline constexpr float kfMainMenuHeadingScale = 1.3f;
 inline constexpr float kfLanguageMenuFontScale = 1.0f;
 inline constexpr float kfLanguageMenuGeometryScale = 0.5f;
 
-// Shared menu-layout constants (source of truth: Documents/UserInterfaceDesign.txt). No inline magic layout
-// literal belongs in a screen .cpp — every anchor/gap/min-width lives here. Two kinds per the sizing standard:
-// DisplaySize fractions (content-independent anchors/extents) and 4K-authored
-// pixel constants multiplied by engine::UiScale() at each use site.
+// Shared menu-layout constants (source of truth: Documents/UserInterfaceDesign.txt). Values shared by multiple
+// screens live here; screen-specific dimensions remain named constants in their screen .cpp. Two kinds per the
+// sizing standard: DisplaySize fractions (content-independent anchors/extents) and 4K-authored pixel constants
+// multiplied by engine::UiScale() at each use site.
 //
 // Anchors / extents as DisplaySize fractions:
 inline constexpr float kfMainMenuCenterFractionX = 1.0f / 3.0f; // MainMenu group center on first vertical third
@@ -26,13 +26,10 @@ inline constexpr float kfHudEdgeMarginFraction = 0.05f;        // HUD panel inse
 inline constexpr float kfHudPanelTopFraction = 0.125f;         // HUD panel top edge
 inline constexpr float kfHudPanelMaxHeightFraction = 0.75f;    // HUD panel height cap + fixed hover-zone extent
 inline constexpr float kfGraphicsMaxHeightFraction = 0.9f;     // Graphics settings-panel height cap
-inline constexpr float kfModalWidthFraction = 0.35f;           // Modal TextWrapped wrap width
 inline constexpr float kfModalAnchorFractionY = 0.4f;          // Modal center Y, seated slightly above screen center
-inline constexpr float kfSettingsPanelWidthFraction = 0.6f;    // Graphics settings-panel width (Sound auto-resizes)
 // 4K-authored pixels (multiply by engine::UiScale() at use):
 inline constexpr float kfHeadingGapPixels = 22.0f;             // Gap below a MenuHeading
 inline constexpr float kfMainMenuOpticalOffsetYPixels = 20.0f; // Screenshot-derived upward correction for visible title/action composition
-inline constexpr float kfSectionGapPixels = 65.0f;             // Gap between major sections
 inline constexpr float kfScreenBottomMarginPixels = 44.0f;     // Margin above a screen's bottom edge
 inline constexpr float kfPrimaryButtonMinWidthPixels = 760.0f; // Menu primary-button minimum width
 inline constexpr float kfModalButtonMinWidthPixels = 380.0f;   // Modal button minimum width
@@ -85,18 +82,14 @@ public:
 float MenuButtonsWidth(std::initializer_list<std::u32string_view> aLabels);
 
 // One menu/panel heading: pushes the heading font (kfMenuUiScale * fHeadingScale), emits pcLabel, then a
-// standard kfHeadingGapPixels * UiScale() gap below it. The default preserves settings/pause heading scale.
+// standard kfHeadingGapPixels * UiScale() gap below it. Screens override the scale when their hierarchy requires it.
 void MenuHeading(const char* pcLabel, float fHeadingScale = kfMenuHeadingScale);
 
 // Full-screen dim behind pause-style overlays (background draw list, behind all windows)
 void DrawFullScreenDim();
 
-// Layered vector panel: rounded fill, vertical gradient, border, top accent strip. Alphas compose with the
-// user's UI opacity (gOpaqueUi/gUiOpacity). Call right after Begin() so widgets render on top.
-void DrawPanelBackground(ImDrawList* pDrawList, const ImVec2& vMin, const ImVec2& vMax);
-
 // Border + top accent strip only (no fill) — for opaque-WindowBg panels whose background must stay intact for
-// RegisterOpaqueRect occlusion (HUD)
+// RegisterOpaqueRect occlusion.
 void DrawPanelAccents(ImDrawList* pDrawList, const ImVec2& vMin, const ImVec2& vMax);
 
 // Custom-drawn menu button: InvisibleButton semantics (ID/click/keyboard/gamepad nav) with animated rounded

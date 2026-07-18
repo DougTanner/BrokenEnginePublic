@@ -1292,15 +1292,42 @@ namespace toolcli
 			return false;
 		}
 
+		// Absolute request under the (lowercased) worktree -> worktree-relative remainder, preserving
+		// original casing so the Temp/ gate still fires; every other input is returned byte-identical.
+		std::wstring NormalizeRequestUnderWorktree(const std::wstring& rRequest, const std::wstring& rWorktree)
+		{
+			std::wstring request = rRequest;
+			std::replace(request.begin(), request.end(), L'/', L'\\');
+			if (!std::filesystem::path(request).is_absolute())
+			{
+				return rRequest;
+			}
+			std::wstring root = rWorktree;
+			while (!root.empty() && root.back() == L'\\')
+			{
+				root.pop_back();
+			}
+			const std::wstring requestFolded = ToLowerInvariant(request);
+			const std::wstring rootFolded = ToLowerInvariant(root);
+			if (requestFolded.size() <= rootFolded.size() || requestFolded.compare(0, rootFolded.size(), rootFolded) != 0 || requestFolded[rootFolded.size()] != L'\\')
+			{
+				return rRequest;
+			}
+			std::wstring remainder = request.substr(root.size() + 1);
+			std::replace(remainder.begin(), remainder.end(), L'\\', L'/');
+			return remainder;
+		}
+
 		bool ReadJsonRequest(const Arguments& rArguments, const std::wstring& rWorktree, nlohmann::json& rRequest)
 		{
-			const std::string requestIdentity = ToRepositoryPath(rArguments.request);
+			const std::wstring request = NormalizeRequestUnderWorktree(rArguments.request, rWorktree);
+			const std::string requestIdentity = ToRepositoryPath(request);
 			if (!requestIdentity.starts_with("Temp/"))
 			{
 				Fail("--request must be a repository-relative path beneath the session Temp directory");
 				return false;
 			}
-			const std::optional<std::filesystem::path> path = ResolveContainedPath(rWorktree, rArguments.request, true);
+			const std::optional<std::filesystem::path> path = ResolveContainedPath(rWorktree, request, true);
 			std::string bytes;
 			if (!path || !IsLexicallyContained(std::filesystem::path(rWorktree) / L"Temp", *path) || !ReadBoundedFile(*path, kuiMaximumRequestBytes, bytes) || !IsStrictUtf8(bytes))
 			{

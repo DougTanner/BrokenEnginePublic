@@ -63,7 +63,6 @@ struct LazyChunk
 	// GPU upload results (written by upload thread, read by main thread)
 	VkImage vkImage = VK_NULL_HANDLE;
 	VmaAllocation vmaAllocation = VK_NULL_HANDLE;
-	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
 };
 
 // Load request for background thread

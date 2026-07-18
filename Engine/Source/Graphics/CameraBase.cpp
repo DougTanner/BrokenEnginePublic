@@ -91,10 +91,11 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 	if (gpGraphics->mFramebufferExtent2D.width > gpGraphics->mFramebufferExtent2D.height) [[likely]]
 	{
 		f4RenderVisibleArea = f4LargeVisibleArea;
-		f4RenderVisibleArea.x -= gVisibleAreaExtraTop.Get() * (f4RenderVisibleArea.y - f4RenderVisibleArea.w);
-		f4RenderVisibleArea.y += gVisibleAreaExtraTop.Get() * (f4RenderVisibleArea.y - f4RenderVisibleArea.w);
-		f4RenderVisibleArea.z += gVisibleAreaExtraTop.Get() * (f4RenderVisibleArea.y - f4RenderVisibleArea.w);
-		f4RenderVisibleArea.w -= gVisibleAreaExtraBottom.Get() * (f4RenderVisibleArea.y - f4RenderVisibleArea.w);
+		float fVisibleHeight = f4RenderVisibleArea.y - f4RenderVisibleArea.w;
+		f4RenderVisibleArea.x -= gVisibleAreaExtraTop.Get() * fVisibleHeight;
+		f4RenderVisibleArea.y += gVisibleAreaExtraTop.Get() * fVisibleHeight;
+		f4RenderVisibleArea.z += gVisibleAreaExtraTop.Get() * fVisibleHeight;
+		f4RenderVisibleArea.w -= gVisibleAreaExtraBottom.Get() * fVisibleHeight;
 	}
 	else [[unlikely]]
 	{

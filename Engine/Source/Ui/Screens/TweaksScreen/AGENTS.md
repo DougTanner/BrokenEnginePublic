@@ -8,7 +8,7 @@ Data-driven: a section-name array plus a parallel function-pointer table drive s
 
 **Exclusive-render while dragging**: when a slider is active, only its owning section window renders; others fade to alpha 0 with layout preserved. A sentinel index denotes "slider owned by the toggle bar". Non-slider widgets vary: `ChevronIndexSelector` (discrete-index picker) and `WrapperSeparatorText` push alpha 0 while another slider drags so their layout slot is preserved; the wave-count radio row instead skips rendering entirely, collapsing its slot.
 
-**Subtab restore on load**: tabbed sections persist their active subtab. On load a one-shot apply flag per section drives `ImGuiTabItemFlags_SetSelected` to force-select the saved tab for one frame, then clears so the user can switch freely; while the flag is clear, the rendered tab writes itself back as the active subtab. New tabbed sections must replicate this apply-flag handshake in every `BeginTabItem`.
+**Subtab restore on load**: tabbed sections persist their active subtab. On load a one-shot apply flag per section drives `ImGuiTabItemFlags_SetSelected` to force-select the saved tab for one frame, then clears so the user can switch freely; while the flag is clear, the rendered tab writes itself back as the active subtab. Engine tabbed sections call `BeginSubtab` for every tab; the game-owned Particle tabs implement the equivalent handshake inline.
 
 **Toggle bar**: full-width bar hosts section show/hide selectables plus a special-cased full-width Sun Angle slider not in the main slider map.
 

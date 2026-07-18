@@ -137,13 +137,12 @@ void Texture::InitDeferred(const TextureInfo& rInfo, VkImageView vkPlaceholderIm
 	// Destroy() early-returns when mVkImage == VK_NULL_HANDLE, so the borrowed placeholder view is never freed
 }
 
-void Texture::AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAllocation, VkDeviceMemory& rVkDeviceMemory)
+void Texture::AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAllocation)
 {
 	Destroy();
 
 	mVkImage = std::exchange(rVkImage, VK_NULL_HANDLE);
 	mVmaAllocation = std::exchange(rVmaAllocation, VK_NULL_HANDLE);
-	mVkDeviceMemory = std::exchange(rVkDeviceMemory, VK_NULL_HANDLE);
 
 	CreateImageView(mVkImage, mInfo, false, mVkImageView);
 	++muiGeneration;
@@ -211,12 +210,8 @@ void Texture::Create(const TextureInfo& rInfo, const std::function<void(void*, i
 		}
 	}
 
-	VmaAllocationInfo vmaAllocationInfo {};
-	CHECK_VK(vmaCreateImage(gpDeviceManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &mVkImage, &mVmaAllocation, &vmaAllocationInfo));
+	CHECK_VK(vmaCreateImage(gpDeviceManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &mVkImage, &mVmaAllocation, nullptr));
 	VkName(VK_OBJECT_TYPE_IMAGE, mVkImage, mInfo.name.data());
-
-	// Get the VkDeviceMemory for compatibility with existing code
-	mVkDeviceMemory = vmaAllocationInfo.deviceMemory;
 
 	CreateImageView(mVkImage, mInfo, true, mVkImageView);
 	++muiGeneration;
@@ -252,14 +247,10 @@ void Texture::UploadImageData(const std::function<void(void*, int64_t, int64_t)>
 	VkDeviceSize vkDeviceSize = common::ComputeImageByteSize(mInfo.format, mInfo.extent.width, mInfo.extent.height, mInfo.mipLevels, mInfo.arrayLayers, mInfo.extent.depth);
 
 	// Create staging buffer and fill with data
-	VkBuffer stagingVkBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
-	VmaAllocation stagingVmaAllocation = VK_NULL_HANDLE;
-	VmaAllocationInfo stagingVmaAllocationInfo {};
-	Buffer::CreateBuffer(mInfo.name, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
+	StagingBuffer stagingBuffer(mInfo.name, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
 	// Use VMA's pre-mapped pointer
-	rDataFunction(stagingVmaAllocationInfo.pMappedData, 0, vkDeviceSize);
+	rDataFunction(stagingBuffer.vmaAllocationInfo.pMappedData, 0, vkDeviceSize);
 
 	// Record all operations into a single command buffer
 	OneShotCommandBuffer oneShotCommandBuffer;
@@ -289,7 +280,7 @@ void Texture::UploadImageData(const std::function<void(void*, int64_t, int64_t)>
 			uiWidth = std::max(1u, uiWidth / 2);
 			uiHeight = std::max(1u, uiHeight / 2);
 
-			vkCmdCopyBufferToImage(oneShotCommandBuffer.mVkCommandBuffer, stagingVkBuffer, mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
+			vkCmdCopyBufferToImage(oneShotCommandBuffer.mVkCommandBuffer, stagingBuffer.vkBuffer, mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
 		}
 	}
 
@@ -300,9 +291,6 @@ void Texture::UploadImageData(const std::function<void(void*, int64_t, int64_t)>
 	}
 
 	oneShotCommandBuffer.Execute();
-
-	// Cleanup staging buffer
-	vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 }
 
 void Texture::CreateRenderTarget()
@@ -444,7 +432,6 @@ void Texture::Destroy() noexcept
 	vmaDestroyImage(gpDeviceManager->mpAllocator, mVkImage, mVmaAllocation);
 	mVkImage = VK_NULL_HANDLE;
 	mVmaAllocation = VK_NULL_HANDLE;
-	mVkDeviceMemory = VK_NULL_HANDLE;
 
 	if (mVkRenderPass != VK_NULL_HANDLE)
 	{

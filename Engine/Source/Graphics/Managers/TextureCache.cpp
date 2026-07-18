@@ -26,11 +26,7 @@ void TextureCache::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, Vk
 	rOutData.resize(iTotalSize);
 
 	// Create staging buffer
-	VkBuffer stagingVkBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
-	VmaAllocation stagingVmaAllocation = VK_NULL_HANDLE;
-	VmaAllocationInfo stagingVmaAllocationInfo {};
-	Buffer::CreateBuffer("ImageCopyStaging", iTotalSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
+	StagingBuffer stagingBuffer("ImageCopyStaging", iTotalSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 	OneShotCommandBuffer oneShotCommandBuffer;
 
@@ -83,7 +79,7 @@ void TextureCache::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, Vk
 				},
 			};
 
-			vkCmdCopyImageToBuffer(oneShotCommandBuffer.mVkCommandBuffer, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, stagingVkBuffer, 1, &vkBufferImageCopy);
+			vkCmdCopyImageToBuffer(oneShotCommandBuffer.mVkCommandBuffer, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, stagingBuffer.vkBuffer, 1, &vkBufferImageCopy);
 
 			uiOffset += common::SizeInBytes(format, iMipWidth, iMipHeight);
 			iMipWidth = std::max(iMipWidth / 2, 1ll);
@@ -102,10 +98,7 @@ void TextureCache::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, Vk
 
 	// Use VMA's pre-mapped pointer to copy data to output (VMA guarantees pMappedData valid for mapped allocations)
 #pragma warning(suppress: 6387)
-	std::memcpy(rOutData.data(), stagingVmaAllocationInfo.pMappedData, iTotalSize);
-
-	// Cleanup staging buffer
-	vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
+	std::memcpy(rOutData.data(), stagingBuffer.vmaAllocationInfo.pMappedData, iTotalSize);
 }
 
 void TextureCache::GeneratePbrLutBrdf()

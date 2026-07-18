@@ -46,7 +46,7 @@ In `ClientSession::PollConnection`, at the `WasDisconnected()` branch (`:318-321
 
 - **Plumbing a structured disconnect reason** (server-closed vs. timeout vs. crash) — ENet carries none on a mid-session disconnect (`data 0`), so the message is necessarily generic. Adding a reason code is a wire/protocol change needing a `kuiProtocolVersion` bump — not this plan.
 - The three **already-wired** modal paths (connect-time rejection, connect-time `"Connection failed"`, desync) — verified present; unchanged.
-- `ModalScreen` appearance / layout — covered by `Documents/Plans/Ui/AestheticUiDesignPass.md`.
+- `ModalScreen` appearance / layout — defined by `Documents/UserInterfaceDesign.txt`.
 - Reconnect / subscription-lifecycle correctness (why the ring never populated) — `Network/SubscriptionLifecycleRaceHardening.md` / `Network/ClientFullStateEdgeFixes.md`.
 - Distinguishing a future user-initiated disconnect from a server death (no user-initiated disconnect UI exists today; if one is added it should suppress this modal).
 

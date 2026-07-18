@@ -5,6 +5,37 @@
 namespace engine
 {
 
+namespace
+{
+
+template <typename KEYFRAME>
+void FindKeyframePair(const KEYFRAME* pKeyframes, uint32_t uiKeyframeCount, float fTime, uint32_t& ruiKeyframe0, uint32_t& ruiKeyframe1)
+{
+	if (fTime <= pKeyframes[0].fTime)
+	{
+		ruiKeyframe0 = 0;
+		ruiKeyframe1 = 0;
+		return;
+	}
+	if (fTime >= pKeyframes[uiKeyframeCount - 1].fTime)
+	{
+		ruiKeyframe0 = uiKeyframeCount - 1;
+		ruiKeyframe1 = uiKeyframeCount - 1;
+		return;
+	}
+
+	// Find first keyframe after fTime, then pair it with the preceding keyframe.
+	const KEYFRAME* pFound = std::upper_bound(pKeyframes, pKeyframes + uiKeyframeCount, fTime, [](float fValue, const KEYFRAME& rKeyframe)
+	{
+		return fValue < rKeyframe.fTime;
+	});
+	uint32_t uiUpperIndex = static_cast<uint32_t>(pFound - pKeyframes);
+	ruiKeyframe0 = uiUpperIndex > 0 ? uiUpperIndex - 1 : 0;
+	ruiKeyframe1 = uiUpperIndex < uiKeyframeCount ? uiUpperIndex : uiKeyframeCount - 1;
+}
+
+} // namespace
+
 void AnimationData::Load(const std::byte* pAnimationData, int64_t iAnimationBytes, common::crc_t crc)
 {
 	mCrc = crc;
@@ -89,7 +120,7 @@ void AnimationData::Load(const std::byte* pAnimationData, int64_t iAnimationByte
 	// fixed-size node arrays / alias pointers. A corrupt chunk with in-range counts can point these out of bounds
 	// — e.g. a channel's uiNodeIndex OOB-*writes* mbAnimatedNodes below, and a skin joint->node entry OOB-reads
 	// pWorldMatrices in EvaluateMaterial. Validate every on-disk index once here so the per-frame evaluate path
-	// stays unchecked. (Node parent indices are covered by the topological-order ASSERT below.)
+	// stays unchecked, including the node parent indices that enable the single-pass world-matrix build.
 	for (uint32_t i = 0; i < mHeader.skeleton.uiSkinJointCount; ++i)
 	{
 		if (mpSkinJointToNode[i] >= mHeader.skeleton.uiNodeCount)
@@ -126,10 +157,14 @@ void AnimationData::Load(const std::byte* pAnimationData, int64_t iAnimationByte
 		}
 	}
 
-	// Verify topological order: every parent index must be less than the child index
+	// Verify the exact root sentinel and topological order required by the single-pass world-matrix build.
 	for (uint32_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
 	{
-		ASSERT(mpNodes[i].iParentIndex < static_cast<int16_t>(i));
+		int64_t iParentIndex = mpNodes[i].iParentIndex;
+		if (iParentIndex != -1 && (iParentIndex < 0 || iParentIndex >= static_cast<int64_t>(i)))
+		{
+			throw common::CorruptStreamException("AnimationData::Load");
+		}
 	}
 
 	// Pre-compute bind-pose local matrices
@@ -225,25 +260,7 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 		uint32_t uiKeyframe0 = 0;
 		uint32_t uiKeyframe1 = 0;
 
-		if (fTime <= pKeyframes[0].fTime)
-		{
-			uiKeyframe0 = 0;
-			uiKeyframe1 = 0;
-		}
-		else if (fTime >= pKeyframes[uiKeyframeCount - 1].fTime)
-		{
-			uiKeyframe0 = uiKeyframeCount - 1;
-			uiKeyframe1 = uiKeyframeCount - 1;
-		}
-		else
-		{
-			// Binary search: find first keyframe with time > fTime, then step back one
-			auto compare = [](float fT, const common::AnimationKeyframeCubic& rKey) { return fT < rKey.fTime; };
-			const common::AnimationKeyframeCubic* pFound = std::upper_bound(pKeyframes, pKeyframes + uiKeyframeCount, fTime, compare);
-			uint32_t uiUpper = static_cast<uint32_t>(pFound - pKeyframes);
-			uiKeyframe0 = uiUpper > 0 ? uiUpper - 1 : 0;
-			uiKeyframe1 = uiUpper < uiKeyframeCount ? uiUpper : uiKeyframeCount - 1;
-		}
+		FindKeyframePair(pKeyframes, uiKeyframeCount, fTime, uiKeyframe0, uiKeyframe1);
 
 		const common::AnimationKeyframeCubic& rKey0 = pKeyframes[uiKeyframe0];
 		const common::AnimationKeyframeCubic& rKey1 = pKeyframes[uiKeyframe1];
@@ -288,25 +305,7 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 	uint32_t uiKeyframe0 = 0;
 	uint32_t uiKeyframe1 = 0;
 
-	if (fTime <= pKeyframes[0].fTime)
-	{
-		uiKeyframe0 = 0;
-		uiKeyframe1 = 0;
-	}
-	else if (fTime >= pKeyframes[uiKeyframeCount - 1].fTime)
-	{
-		uiKeyframe0 = uiKeyframeCount - 1;
-		uiKeyframe1 = uiKeyframeCount - 1;
-	}
-	else
-	{
-		// Binary search: find first keyframe with time > fTime, then step back one
-		auto compare = [](float fT, const common::AnimationKeyframe& rKey) { return fT < rKey.fTime; };
-		const common::AnimationKeyframe* pFound = std::upper_bound(pKeyframes, pKeyframes + uiKeyframeCount, fTime, compare);
-		uint32_t uiUpper = static_cast<uint32_t>(pFound - pKeyframes);
-		uiKeyframe0 = uiUpper > 0 ? uiUpper - 1 : 0;
-		uiKeyframe1 = uiUpper < uiKeyframeCount ? uiUpper : uiKeyframeCount - 1;
-	}
+	FindKeyframePair(pKeyframes, uiKeyframeCount, fTime, uiKeyframe0, uiKeyframe1);
 
 	const common::AnimationKeyframe& rKey0 = pKeyframes[uiKeyframe0];
 	const common::AnimationKeyframe& rKey1 = pKeyframes[uiKeyframe1];
@@ -339,8 +338,6 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 // which converts row-vector convention (v*M) to column-vector convention (M*v)
 void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const
 {
-	ASSERT(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount);
-	iAnimationIndex = std::clamp(iAnimationIndex, int64_t {0}, static_cast<int64_t>(mHeader.uiAnimationCount) - 1);
 	const common::AnimationClip& rAnimation = mpAnimations[iAnimationIndex];
 
 	// Allocate temporary TRS arrays from the thread-local workbuffer

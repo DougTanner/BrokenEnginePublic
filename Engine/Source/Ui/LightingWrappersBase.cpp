@@ -49,6 +49,8 @@ Wrapper gSpreadRingCountEnd(3.0f, 2.0f, 16.0f); // min >= 2.0f load-bearing: see
 Wrapper gSpreadJitterEnd(0.874f, 0.0f, 1.0f);
 Wrapper gSpreadSampleJitterRangeEnd(0.0f, 0.0f, 10.0f);
 Wrapper gSpreadSampleJitterClusteringEnd(4.0f, 0.25f, 16.0f);
+Wrapper gSpreadDecayEnd(1.0f, 0.0f, 1.0f);
+Wrapper gSpreadAccumulationDecayEnd(0.35f, 0.0f, 1.0f);
 Wrapper gSpreadDistanceFalloffEnd(0.75f, 0.0f, 1.0f);
 Wrapper gSpreadOutputThresholdEnd(0.0f, 0.0f, 4.0f);
 Wrapper gSpreadOutputCompressEnd(1.0f, 0.0f, 4.0f);

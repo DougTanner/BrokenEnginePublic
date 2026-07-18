@@ -103,8 +103,6 @@ constexpr float kfHoverAnimRate = 12.0f;
 // Custom menu chrome per engine::UiTheme; hues track the engine ThemePalettes (ImGuiManager.cpp) — designer-pass placeholders
 struct MenuChrome
 {
-	ImVec4 f4PanelFillTop;
-	ImVec4 f4PanelFillBottom;
 	ImVec4 f4PanelBorder;
 	ImVec4 f4Accent;
 	ImVec4 f4ButtonFill;
@@ -117,8 +115,6 @@ constexpr MenuChrome kMenuChromes[]
 {
 	// kNavalSteel
 	{
-		.f4PanelFillTop = ImVec4(0.10f, 0.14f, 0.18f, 0.92f),
-		.f4PanelFillBottom = ImVec4(0.05f, 0.07f, 0.09f, 0.92f),
 		.f4PanelBorder = ImVec4(0.30f, 0.42f, 0.52f, 0.8f),
 		.f4Accent = ImVec4(0.15f, 0.75f, 0.85f, 1.0f),
 		.f4ButtonFill = ImVec4(0.10f, 0.14f, 0.18f, 0.75f),
@@ -128,8 +124,6 @@ constexpr MenuChrome kMenuChromes[]
 	},
 	// kDarkAmber
 	{
-		.f4PanelFillTop = ImVec4(0.14f, 0.13f, 0.11f, 0.92f),
-		.f4PanelFillBottom = ImVec4(0.07f, 0.06f, 0.05f, 0.92f),
 		.f4PanelBorder = ImVec4(0.45f, 0.38f, 0.26f, 0.8f),
 		.f4Accent = ImVec4(0.95f, 0.65f, 0.15f, 1.0f),
 		.f4ButtonFill = ImVec4(0.14f, 0.13f, 0.11f, 0.75f),
@@ -139,8 +133,6 @@ constexpr MenuChrome kMenuChromes[]
 	},
 	// kMidnightMauve
 	{
-		.f4PanelFillTop = ImVec4(0.14f, 0.14f, 0.20f, 0.92f),
-		.f4PanelFillBottom = ImVec4(0.09f, 0.09f, 0.14f, 0.92f),
 		.f4PanelBorder = ImVec4(0.36f, 0.36f, 0.48f, 0.8f),
 		.f4Accent = ImVec4(0.80f, 0.65f, 0.97f, 1.0f),
 		.f4ButtonFill = ImVec4(0.14f, 0.14f, 0.20f, 0.75f),
@@ -204,35 +196,6 @@ void MenuHeading(const char* pcLabel, float fHeadingScale)
 void DrawFullScreenDim()
 {
 	ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0.0f, 0.0f), ImGui::GetIO().DisplaySize, ChromeColor(GetMenuChrome().f4BackdropDim));
-}
-
-void DrawPanelBackground(ImDrawList* pDrawList, const ImVec2& vMin, const ImVec2& vMax)
-{
-	const MenuChrome& rChrome = GetMenuChrome();
-
-	const float fUiScale = engine::UiScale();
-	const float fPanelRounding = kfPanelRounding * fUiScale;
-	const float fPanelBorderThickness = kfPanelBorderThickness * fUiScale;
-	const float fAccentStripThickness = kfAccentStripThickness * fUiScale;
-
-	// User opacity comes from the wrappers, not Colors[ImGuiCol_WindowBg].w — callers push a fully transparent
-	// WindowBg before Begin() and PushStyleColor writes the live style, so the style read would always be 0.0
-	float fWindowAlpha = engine::gOpaqueUi.Get<bool>() ? 1.0f : engine::gUiOpacity.Get();
-
-	pDrawList->AddRectFilled(vMin, vMax, ChromeColor(rChrome.f4PanelFillBottom, fWindowAlpha), fPanelRounding);
-
-	// AddRectFilledMultiColor cannot round corners — inset the gradient past the radius
-	ImVec2 vInsetMin(vMin.x + fPanelRounding, vMin.y + fPanelRounding);
-	ImVec2 vInsetMax(vMax.x - fPanelRounding, vMax.y - fPanelRounding);
-	if (vInsetMin.x < vInsetMax.x && vInsetMin.y < vInsetMax.y)
-	{
-		ImU32 uiTop = ChromeColor(rChrome.f4PanelFillTop, fWindowAlpha);
-		ImU32 uiBottom = ChromeColor(rChrome.f4PanelFillBottom, fWindowAlpha);
-		pDrawList->AddRectFilledMultiColor(vInsetMin, vInsetMax, uiTop, uiTop, uiBottom, uiBottom);
-	}
-
-	pDrawList->AddRect(vMin, vMax, ChromeColor(rChrome.f4PanelBorder, fWindowAlpha), fPanelRounding, 0, fPanelBorderThickness);
-	pDrawList->AddRectFilled(ImVec2(vMin.x + fPanelRounding, vMin.y), ImVec2(vMax.x - fPanelRounding, vMin.y + fAccentStripThickness), ChromeColor(rChrome.f4Accent, fWindowAlpha));
 }
 
 void DrawPanelAccents(ImDrawList* pDrawList, const ImVec2& vMin, const ImVec2& vMax)

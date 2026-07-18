@@ -7,7 +7,7 @@ namespace engine
 
 using enum BufferFlags;
 
-void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory, VmaAllocation& rVmaAllocation, VmaAllocationInfo* pVmaAllocationInfo)
+void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VmaAllocation& rVmaAllocation, VmaAllocationInfo* pVmaAllocationInfo)
 {
 	VkDeviceSize roundedVkDeviceSize = common::RoundUp(vkDeviceSize, gpInstanceManager->mVkPhysicalDeviceProperties.limits.nonCoherentAtomSize);
 
@@ -54,14 +54,21 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize v
 	CHECK_VK(vmaCreateBuffer(gpDeviceManager->mpAllocator, &vkBufferCreateInfo, &vmaAllocationCreateInfo, &rVkBuffer, &rVmaAllocation, &vmaAllocationInfo));
 	VkName(VK_OBJECT_TYPE_BUFFER, rVkBuffer, name.data());
 
-	// Get the VkDeviceMemory for compatibility with existing code that still uses vkMapMemory
-	rVkDeviceMemory = vmaAllocationInfo.deviceMemory;
-
 	// Optionally return the full VmaAllocationInfo (contains pMappedData if VMA_ALLOCATION_CREATE_MAPPED_BIT was set)
 	if (pVmaAllocationInfo != nullptr)
 	{
 		*pVmaAllocationInfo = vmaAllocationInfo;
 	}
+}
+
+StagingBuffer::StagingBuffer(std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags)
+{
+	Buffer::CreateBuffer(name, vkDeviceSize, vkBufferUsageFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkBuffer, vmaAllocation, &vmaAllocationInfo);
+}
+
+StagingBuffer::~StagingBuffer()
+{
+	vmaDestroyBuffer(gpDeviceManager->mpAllocator, vkBuffer, vmaAllocation);
 }
 
 void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, const BarrierInfo* pBarriers, int64_t iBarrierCount)
@@ -145,11 +152,9 @@ Buffer::Buffer(const BufferInfo& rInfo, const std::function<void(void*)>& rDataF
 Buffer::Buffer(Buffer&& rOther) noexcept
 	: mInfo(std::exchange(rOther.mInfo, {}))
 	, mHostVisibleVkBuffer(std::exchange(rOther.mHostVisibleVkBuffer, VK_NULL_HANDLE))
-	, mHostVisibleVkDeviceMemory(std::exchange(rOther.mHostVisibleVkDeviceMemory, VK_NULL_HANDLE))
 	, mHostVisibleVmaAllocation(std::exchange(rOther.mHostVisibleVmaAllocation, VK_NULL_HANDLE))
 	, mpMappedMemory(std::exchange(rOther.mpMappedMemory, nullptr))
 	, mDeviceLocalVkBuffer(std::exchange(rOther.mDeviceLocalVkBuffer, VK_NULL_HANDLE))
-	, mDeviceLocalVkDeviceMemory(std::exchange(rOther.mDeviceLocalVkDeviceMemory, VK_NULL_HANDLE))
 	, mDeviceLocalVmaAllocation(std::exchange(rOther.mDeviceLocalVmaAllocation, VK_NULL_HANDLE))
 {
 }
@@ -162,11 +167,9 @@ Buffer& Buffer::operator=(Buffer&& rOther) noexcept
 
 		mInfo = std::exchange(rOther.mInfo, {});
 		mHostVisibleVkBuffer = std::exchange(rOther.mHostVisibleVkBuffer, VK_NULL_HANDLE);
-		mHostVisibleVkDeviceMemory = std::exchange(rOther.mHostVisibleVkDeviceMemory, VK_NULL_HANDLE);
 		mHostVisibleVmaAllocation = std::exchange(rOther.mHostVisibleVmaAllocation, VK_NULL_HANDLE);
 		mpMappedMemory = std::exchange(rOther.mpMappedMemory, nullptr);
 		mDeviceLocalVkBuffer = std::exchange(rOther.mDeviceLocalVkBuffer, VK_NULL_HANDLE);
-		mDeviceLocalVkDeviceMemory = std::exchange(rOther.mDeviceLocalVkDeviceMemory, VK_NULL_HANDLE);
 		mDeviceLocalVmaAllocation = std::exchange(rOther.mDeviceLocalVmaAllocation, VK_NULL_HANDLE);
 	}
 
@@ -197,11 +200,11 @@ void Buffer::Create(const BufferInfo& rInfo, const std::function<void(void*)>& r
 			VmaAllocationInfo vmaAllocationInfo {};
 			if (mInfo.flags & kHostVisible)
 			{
-				Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mHostVisibleVkBuffer, mHostVisibleVkDeviceMemory, mHostVisibleVmaAllocation, &vmaAllocationInfo);
+				Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mHostVisibleVkBuffer, mHostVisibleVmaAllocation, &vmaAllocationInfo);
 			}
 			else
 			{
-				Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mHostVisibleVkBuffer, mHostVisibleVkDeviceMemory, mHostVisibleVmaAllocation, &vmaAllocationInfo);
+				Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mHostVisibleVkBuffer, mHostVisibleVmaAllocation, &vmaAllocationInfo);
 			}
 
 			// Use VMA's pre-mapped pointer (VMA_ALLOCATION_CREATE_MAPPED_BIT auto-maps the memory)
@@ -216,26 +219,22 @@ void Buffer::Create(const BufferInfo& rInfo, const std::function<void(void*)>& r
 
 		if (mInfo.flags & kDeviceLocal || mInfo.flags & kCopyToDeviceLocalEveryFrame)
 		{
-			Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mDeviceLocalVkBuffer, mDeviceLocalVkDeviceMemory, mDeviceLocalVmaAllocation);
+			Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mDeviceLocalVkBuffer, mDeviceLocalVmaAllocation);
 		}
 	}
 	else
 	{
 		ASSERT(mInfo.flags & kIndexVertex);
-		Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mDeviceLocalVkBuffer, mDeviceLocalVkDeviceMemory, mDeviceLocalVmaAllocation);
+		Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mDeviceLocalVkBuffer, mDeviceLocalVmaAllocation);
 	}
 
 	if (mInfo.flags & kDeviceLocal)
 	{
 		// Copy to host visible staging buffer
-		VkBuffer vkBuffer = VK_NULL_HANDLE;
-		VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
-		VmaAllocation vmaAllocation = VK_NULL_HANDLE;
-		VmaAllocationInfo vmaAllocationInfo {};
-		CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkBuffer, vkDeviceMemory, vmaAllocation, &vmaAllocationInfo);
+		StagingBuffer stagingBuffer(mInfo.name, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
 		// Use VMA's pre-mapped pointer
-		rDataFunction(vmaAllocationInfo.pMappedData);
+		rDataFunction(stagingBuffer.vmaAllocationInfo.pMappedData);
 
 		// Copy to device local memory
 		OneShotCommandBuffer oneShotCommandBuffer;
@@ -245,30 +244,25 @@ void Buffer::Create(const BufferInfo& rInfo, const std::function<void(void*)>& r
 			.dstOffset = 0,
 			.size = mInfo.dataVkDeviceSize,
 		};
-		vkCmdCopyBuffer(oneShotCommandBuffer.mVkCommandBuffer, vkBuffer, mDeviceLocalVkBuffer, 1, &vkBufferCopy);
+		vkCmdCopyBuffer(oneShotCommandBuffer.mVkCommandBuffer, stagingBuffer.vkBuffer, mDeviceLocalVkBuffer, 1, &vkBufferCopy);
 		oneShotCommandBuffer.Execute();
-
-		// Clean up
-		vmaDestroyBuffer(gpDeviceManager->mpAllocator, vkBuffer, vmaAllocation);
 	}
 }
 
 void Buffer::Destroy() noexcept
 {
-	if (mHostVisibleVkDeviceMemory != VK_NULL_HANDLE)
+	if (mHostVisibleVkBuffer != VK_NULL_HANDLE)
 	{
 		mpMappedMemory = nullptr;
 		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mHostVisibleVkBuffer, mHostVisibleVmaAllocation);
 		mHostVisibleVkBuffer = VK_NULL_HANDLE;
-		mHostVisibleVkDeviceMemory = VK_NULL_HANDLE;
 		mHostVisibleVmaAllocation = VK_NULL_HANDLE;
 	}
 
-	if (mDeviceLocalVkDeviceMemory != VK_NULL_HANDLE)
+	if (mDeviceLocalVkBuffer != VK_NULL_HANDLE)
 	{
 		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mDeviceLocalVkBuffer, mDeviceLocalVmaAllocation);
 		mDeviceLocalVkBuffer = VK_NULL_HANDLE;
-		mDeviceLocalVkDeviceMemory = VK_NULL_HANDLE;
 		mDeviceLocalVmaAllocation = VK_NULL_HANDLE;
 	}
 }

@@ -1,9 +1,9 @@
 #include "TweaksScreenBase.h"
 
+#if defined(BT_CLIENT)
+
 #include "TweaksSliderMap.h"
 #include "Ui/SoundSettingsWrappersBase.h"
-
-#if defined(BT_CLIENT)
 
 namespace engine
 {
@@ -44,17 +44,8 @@ void TweaksScreenBase::RenderSoundSection()
 
 	if (ImGui::BeginTabBar("SoundTabs"))
 	{
-		if (ImGui::BeginTabItem("Volumes", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Volumes", kiSection, 0))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 0)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 0;
-			}
-
 			// Engine settings rendered inline (no outer table) so the game-side hook can own its own 2-column table at full sub-tab width.
 			WrapperSeparatorText("Settings");
 			WrapperSlider("Master", kiSection, 1.0f, "Master Volume");
@@ -65,17 +56,8 @@ void TweaksScreenBase::RenderSoundSection()
 
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Tweaks", nullptr, ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1) ? ImGuiTabItemFlags_SetSelected : 0))
+		if (BeginSubtab("Tweaks", kiSection, 1))
 		{
-			if ((mApplySubtab & SectionFlag(kiSection)) && mActiveSubtab[kiSection] == 1)
-			{
-				mApplySubtab.Clear(SectionFlag(kiSection));
-			}
-			if (!(mApplySubtab & SectionFlag(kiSection)))
-			{
-				mActiveSubtab[kiSection] = 1;
-			}
-
 			WrapperSeparatorText("Listener Distance Start");
 			WrapperSlider("Start Height", kiSection, 2.0f, "Listener Distance Start Start Height");
 			WrapperSlider("End Height", kiSection, 2.0f, "Listener Distance Start End Height");

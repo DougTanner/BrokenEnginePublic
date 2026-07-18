@@ -22,7 +22,7 @@ void PauseMenuScreen::Render()
 	// Dim the game scene behind the pause overlay
 	DrawFullScreenDim();
 
-	// Transparent background (panel chrome is custom-drawn below)
+	// Invisible window lets the pause actions float directly over the dimmed scene
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 
@@ -32,17 +32,20 @@ void PauseMenuScreen::Render()
 	ScopedMenuFont menuFont;
 	ImGui::Begin("PauseMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
 
-	// AlwaysAutoResize yields last-frame size — accepted one-frame lag
-	ImVec2 vWindowPos = ImGui::GetWindowPos();
-	ImVec2 vWindowSize = ImGui::GetWindowSize();
-	DrawPanelBackground(ImGui::GetWindowDrawList(), vWindowPos, ImVec2(vWindowPos.x + vWindowSize.x, vWindowPos.y + vWindowSize.y));
-
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
-	MenuHeading(AppendUtf8(rWorkbuffer, TranslatedString(kStringPaused)));
+	// Share the Main Menu's restrained title scale and primary action tier.
+	float fButtonWidth = std::max(MenuButtonsWidth({TranslatedString(kStringResume), TranslatedString(kStringGraphics), TranslatedString(kStringSound), TranslatedString(kStringMainMenu), TranslatedString(kStringQuit)}), kfPrimaryButtonMinWidthPixels * engine::UiScale());
+	float fHeadingWidth = 0.0f;
+	{
+		ScopedMenuFont headingFont(kfMenuUiScale * kfMainMenuHeadingScale);
+		fHeadingWidth = ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringPaused))).x;
+	}
 
-	// One text-driven width shared across all pause buttons (measured under the live menu font)
-	float fButtonWidth = MenuButtonsWidth({TranslatedString(kStringResume), TranslatedString(kStringGraphics), TranslatedString(kStringSound), TranslatedString(kStringMainMenu), TranslatedString(kStringQuit)});
+	float fContentStartX = ImGui::GetCursorPosX();
+	ImGui::SetCursorPosX(fContentStartX + (fButtonWidth - fHeadingWidth) * 0.5f);
+	MenuHeading(AppendUtf8(rWorkbuffer, TranslatedString(kStringPaused)), kfMainMenuHeadingScale);
+	ImGui::SetCursorPosX(fContentStartX);
 
 	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringResume)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[0]))
 	{

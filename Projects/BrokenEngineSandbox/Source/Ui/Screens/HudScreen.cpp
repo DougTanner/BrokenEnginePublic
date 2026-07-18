@@ -431,8 +431,15 @@ void HudScreen::RenderFocusedPlayerPanel(float fTarget)
 		gpGame->mWeaponModeToggle.Update(bUseMissiles);
 
 		const char* pLabel = bUseMissiles ? "[Q] Missiles" : "[Q] Blasters";
+		const ImGuiStyle& rStyle = ImGui::GetStyle();
+		const ImVec2 vLabelSize = ImGui::CalcTextSize(pLabel);
+		const ImVec2 vButtonSize(vLabelSize.x + 2.0f * rStyle.FramePadding.x, vLabelSize.y + 2.0f * rStyle.FramePadding.y);
+		const ImVec2 vAvailable = ImGui::GetContentRegionAvail();
+		const ImVec2 vCursor = ImGui::GetCursorPos();
+		ImGui::SetCursorPos(ImVec2(vCursor.x + std::max(0.0f, 0.5f * (vAvailable.x - vButtonSize.x)), vCursor.y + std::max(0.0f, 0.5f * (vAvailable.y - vButtonSize.y))));
+
 		ImGui::BeginDisabled(gpGame->mWeaponModeToggle.IsPending());
-		if (ImGui::Button(pLabel))
+		if (ImGui::Button(pLabel, vButtonSize))
 		{
 			if (gpClientSession != nullptr && gpGame->ClientPlayerId().IsValid())
 			{

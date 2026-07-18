@@ -50,6 +50,8 @@ extern Wrapper gSpreadRingCountEnd;
 extern Wrapper gSpreadJitterEnd;
 extern Wrapper gSpreadSampleJitterRangeEnd;
 extern Wrapper gSpreadSampleJitterClusteringEnd;
+extern Wrapper gSpreadDecayEnd;
+extern Wrapper gSpreadAccumulationDecayEnd;
 extern Wrapper gSpreadDistanceFalloffEnd;
 extern Wrapper gSpreadOutputThresholdEnd;
 extern Wrapper gSpreadOutputCompressEnd;

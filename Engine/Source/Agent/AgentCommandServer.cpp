@@ -280,30 +280,47 @@ void AgentCommandServer::Drain()
 	else
 	{
 		response["id"] = request.request.contains("id") ? request.request["id"] : nlohmann::json(nullptr);
-		std::string cmd = request.request["cmd"].get<std::string>();
-		const nlohmann::json& rParams = request.request.contains("params") ? request.request["params"] : nlohmann::json::object();
 
-		// A handler may call DeferResponse() to complete asynchronously; record the id it must echo first.
-		mDeferredId = response["id"];
-		mbResponseDeferred = false;
-		try
+		// Reject an unknown top-level envelope key before dispatch (before mDeferredId is armed) so a typo'd field
+		// can never be silently ignored. Only id/cmd/params are legitimate; the first offending key is reported.
+		bool bUnknownKey = false;
+		for (auto& [rKey, rValue] : request.request.items())
 		{
-			common::ScopedExpectedThrows scopedExpectedThrows; // validation throws here are a designed error path — keep them off the VEH crash-diagnostic walk
-			nlohmann::json result;
-			game::ExecuteAgentCommand(cmd, rParams, result);
-			if (mbResponseDeferred)
+			if (rKey != "cmd" && rKey != "params" && rKey != "id")
 			{
-				return; // response published later by the deferred-poll path above
+				response["ok"] = false;
+				response["error"] = "unknown envelope key '" + rKey + "'";
+				bUnknownKey = true;
+				break;
 			}
-			response["ok"] = true;
-			response["result"] = std::move(result);
 		}
-		catch (const std::exception& rException)
+		if (!bUnknownKey)
 		{
-			mDeferredPoll = nullptr; // a handler that deferred then threw does not leave a stale poll
+			std::string cmd = request.request["cmd"].get<std::string>();
+			const nlohmann::json& rParams = request.request.contains("params") ? request.request["params"] : nlohmann::json::object();
+
+			// A handler may call DeferResponse() to complete asynchronously; record the id it must echo first.
+			mDeferredId = response["id"];
 			mbResponseDeferred = false;
-			response["ok"] = false;
-			response["error"] = rException.what();
+			try
+			{
+				common::ScopedExpectedThrows scopedExpectedThrows; // validation throws here are a designed error path — keep them off the VEH crash-diagnostic walk
+				nlohmann::json result;
+				game::ExecuteAgentCommand(cmd, rParams, result);
+				if (mbResponseDeferred)
+				{
+					return; // response published later by the deferred-poll path above
+				}
+				response["ok"] = true;
+				response["result"] = std::move(result);
+			}
+			catch (const std::exception& rException)
+			{
+				mDeferredPoll = nullptr; // a handler that deferred then threw does not leave a stale poll
+				mbResponseDeferred = false;
+				response["ok"] = false;
+				response["error"] = rException.what();
+			}
 		}
 	}
 

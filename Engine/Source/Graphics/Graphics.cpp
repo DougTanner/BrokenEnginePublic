@@ -23,21 +23,20 @@ constexpr int64_t kiReferenceWidth = 3840;
 // Smoke-sim pixel budget at the reference width (smoke resolution scales by actual/reference width).
 constexpr float kfSmokeReferencePixels = 8192.0f;
 
+static int64_t SnapToDetailBlock(int64_t iExtent)
+{
+	int64_t iSnappedExtent = kiDetailBlockSize;
+	while ((10 * iSnappedExtent) / 9 < iExtent)
+	{
+		iSnappedExtent += kiDetailBlockSize;
+	}
+	return iSnappedExtent;
+}
+
 std::tuple<int64_t, int64_t> FullDetail()
 {
-	int64_t iBlockSize = kiDetailBlockSize;
-
-	int64_t iX = iBlockSize;
-	while ((10 * iX) / 9 < static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.width))
-	{
-		iX += iBlockSize;
-	}
-
-	int64_t iY = iBlockSize;
-	while ((10 * iY) / 9 < static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.height))
-	{
-		iY += iBlockSize;
-	}
+	int64_t iX = SnapToDetailBlock(gpGraphics->mFramebufferExtent2D.width);
+	int64_t iY = SnapToDetailBlock(gpGraphics->mFramebufferExtent2D.height);
 
 	static int64_t siX = 0;
 	static int64_t siY = 0;
@@ -57,19 +56,8 @@ std::tuple<int64_t, int64_t> WaterFullDetail()
 	// reference 4K resolution instead of the live framebuffer extent. Block-snap matches FullDetail()
 	// so the snapped result is deterministic and divides cleanly for shadow-execution-aligned consumers.
 	constexpr int64_t kiReferenceHeight = 2160;
-	int64_t iBlockSize = kiDetailBlockSize;
-
-	int64_t iX = iBlockSize;
-	while ((10 * iX) / 9 < kiReferenceWidth)
-	{
-		iX += iBlockSize;
-	}
-
-	int64_t iY = iBlockSize;
-	while ((10 * iY) / 9 < kiReferenceHeight)
-	{
-		iY += iBlockSize;
-	}
+	int64_t iX = SnapToDetailBlock(kiReferenceWidth);
+	int64_t iY = SnapToDetailBlock(kiReferenceHeight);
 
 	return std::make_tuple(iX, iY);
 }
@@ -675,6 +663,7 @@ bool Graphics::Destroy()
 
 	if (gpDeviceManager != nullptr)
 	{
+		// Teardown must continue even if the device is already lost; result escalation is not actionable here.
 		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 	}
 

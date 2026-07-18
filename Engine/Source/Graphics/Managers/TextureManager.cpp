@@ -599,7 +599,7 @@ void TextureManager::AdoptUploadedChunk(common::crc_t crc, Texture& rTexture, bo
 	LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(crc);
 
 	// Adopt the GPU-uploaded image (sets mVkImage and creates VkImageView)
-	rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
+	rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation);
 
 	bool bIsLightingTexture = mLightingTextureCrcs.contains(crc);
 
@@ -814,14 +814,14 @@ void TextureManager::BlurLightingTexture(common::crc_t crc, bool bNeedAcquireBar
 
 	// Horizontal pass: source → intermediate
 	rIntermediate.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadWrite);
-	rBlurH.RecordCompute(0, vkCommandBuffer, (uiWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, (uiHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, 1, {std::bit_cast<float>(iWidth), std::bit_cast<float>(iHeight), fSigma, fPackedW});
+	rBlurH.RecordCompute(0, vkCommandBuffer, TileCount(uiWidth), TileCount(uiHeight), 1, {std::bit_cast<float>(iWidth), std::bit_cast<float>(iHeight), fSigma, fPackedW});
 
 	// Transition intermediate: storage write → shader read for V pass sampler
 	rIntermediate.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 
 	// Vertical pass: intermediate → result
 	rResult.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
-	rBlurV.RecordCompute(0, vkCommandBuffer, (uiWidth + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, (uiHeight + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize, 1, {std::bit_cast<float>(iWidth), std::bit_cast<float>(iHeight), fSigma, fPackedW});
+	rBlurV.RecordCompute(0, vkCommandBuffer, TileCount(uiWidth), TileCount(uiHeight), 1, {std::bit_cast<float>(iWidth), std::bit_cast<float>(iHeight), fSigma, fPackedW});
 
 	// Transition result back to shader read for bindless sampling
 	rResult.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);

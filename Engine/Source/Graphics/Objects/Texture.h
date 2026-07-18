@@ -90,7 +90,6 @@ public:
 	Texture& operator=(const Texture&) = delete;
 	Texture(Texture&& rOther) noexcept
 		: mInfo(std::move(rOther.mInfo))
-		, mVkDeviceMemory(std::exchange(rOther.mVkDeviceMemory, VK_NULL_HANDLE))
 		, mVmaAllocation(std::exchange(rOther.mVmaAllocation, VK_NULL_HANDLE))
 		, mVkImage(std::exchange(rOther.mVkImage, VK_NULL_HANDLE))
 		, mVkImageView(std::exchange(rOther.mVkImageView, VK_NULL_HANDLE))
@@ -104,7 +103,7 @@ public:
 
 	void Create(const TextureInfo& rInfo, const std::function<void(void*, int64_t, int64_t)>& rDataFunction = nullptr);
 	void InitDeferred(const TextureInfo& rInfo, VkImageView vkPlaceholderImageView);
-	void AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAllocation, VkDeviceMemory& rVkDeviceMemory);
+	void AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAllocation);
 	void RecordAcquireBarrier(VkCommandBuffer vkCommandBuffer);
 	void UpdateData(const std::function<void(void*, int64_t, int64_t)>& rDataFunction);
 	void Destroy() noexcept;
@@ -124,7 +123,6 @@ private:
 public:
 
 	// Image
-	VkDeviceMemory mVkDeviceMemory = VK_NULL_HANDLE;
 	VmaAllocation mVmaAllocation = VK_NULL_HANDLE;
 	VkImage mVkImage = VK_NULL_HANDLE;
 	VkImageView mVkImageView = VK_NULL_HANDLE;

@@ -91,39 +91,43 @@ static void CreateSingleSetPipelineLayout(VkDescriptorSetLayoutCreateInfo& rLayo
 	VkName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, rPipeline.mVkPipelineLayout, rPipeline.mInfo.name.data());
 }
 
+// Creates a host-visible/coherent indirect buffer of iSlotCount * iElementSize bytes, asserts VMA honored the
+// host-visible + coherent request, and zeroes the persistent mapping so no slot runs until the CPU writes real
+// data. Shared by the graphics draw-indirect and compute dispatch-indirect host-visible paths — they differ
+// only in element/command type (VkDrawIndexedIndirectCommand vs VkDispatchIndirectCommand) and which typed
+// mapped-pointer member the caller stores the result in; every command struct is fully zero-cleared, so a byte
+// memset over the whole range is equivalent to the old per-field init. Returns the mapped pointer. NOTE: never
+// route the device-local paths through here (graphics N-slot / compute single-slot device-local are GPU-written,
+// not host-mapped).
+static void* CreateHostVisibleIndirectBuffer(Pipeline& rPipeline, int64_t iSlotCount, int64_t iElementSize)
+{
+	VmaAllocationInfo vmaAllocationInfo {};
+	Buffer::CreateBuffer(rPipeline.mInfo.name, iSlotCount * iElementSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVmaAllocation, &vmaAllocationInfo);
+
+	// Verify VMA gave us the memory properties we requested
+	VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
+	vmaGetAllocationMemoryProperties(gpDeviceManager->mpAllocator, rPipeline.mIndirectVmaAllocation, &vkMemoryPropertyFlags);
+	ASSERT((vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0);
+	ASSERT((vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0);
+
+	ASSERT(vmaAllocationInfo.pMappedData != nullptr);
+
+	// Zero all slots — no work runs until the CPU writes real data
+	std::memset(vmaAllocationInfo.pMappedData, 0, static_cast<size_t>(iSlotCount * iElementSize));
+	return vmaAllocationInfo.pMappedData;
+}
+
 static void SetupIndirectBuffer(Pipeline& rPipeline, int64_t iCommandBufferCount)
 {
-	VkDeviceSize vkDeviceSize = iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand);
-	rPipeline.miIndirectSlotCount = iCommandBufferCount;
-
 	if (rPipeline.mInfo.flags & kIndirectHostVisible)
 	{
-		VmaAllocationInfo vmaAllocationInfo {};
-		Buffer::CreateBuffer(rPipeline.mInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation, &vmaAllocationInfo);
-
-		// Verify VMA gave us the memory properties we requested
-		VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
-		vmaGetAllocationMemoryProperties(gpDeviceManager->mpAllocator, rPipeline.mIndirectVmaAllocation, &vkMemoryPropertyFlags);
-		ASSERT((vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0);
-		ASSERT((vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0);
-
-		rPipeline.mpIndirectMappedMemory = static_cast<VkDrawIndexedIndirectCommand*>(vmaAllocationInfo.pMappedData);
-		ASSERT(rPipeline.mpIndirectMappedMemory != nullptr);
-
-		// Initialize all indirect buffer slots to zero
-		for (int64_t i = 0; i < iCommandBufferCount; ++i)
-		{
-			VkDrawIndexedIndirectCommand& rCommand = rPipeline.mpIndirectMappedMemory[i];
-			rCommand.indexCount = 0;
-			rCommand.instanceCount = 0;
-			rCommand.firstIndex = 0;
-			rCommand.vertexOffset = 0;
-			rCommand.firstInstance = 0;
-		}
+		rPipeline.miIndirectSlotCount = iCommandBufferCount;
+		rPipeline.mpIndirectMappedMemory = static_cast<VkDrawIndexedIndirectCommand*>(CreateHostVisibleIndirectBuffer(rPipeline, iCommandBufferCount, sizeof(VkDrawIndexedIndirectCommand)));
 	}
 	else if (rPipeline.mInfo.flags & kIndirectDeviceLocal)
 	{
-		Buffer::CreateBuffer(rPipeline.mInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation);
+		rPipeline.miIndirectSlotCount = iCommandBufferCount;
+		Buffer::CreateBuffer(rPipeline.mInfo.name, iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVmaAllocation);
 	}
 }
 
@@ -686,30 +690,13 @@ void PipelineCreator::CreateComputePipeline(Pipeline& rPipeline)
 		size_t uiFramebufferCount = gpSwapchainManager->mFramebuffers.size();
 		int64_t iCommandBufferCount = std::max(uiFramebufferCount, static_cast<size_t>(3));
 		rPipeline.miIndirectSlotCount = iCommandBufferCount;
-
-		VmaAllocationInfo vmaAllocationInfo {};
-		Buffer::CreateBuffer(rPipeline.mInfo.name, iCommandBufferCount * sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation, &vmaAllocationInfo);
-
-		// Verify VMA gave us the memory properties we requested
-		VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
-		vmaGetAllocationMemoryProperties(gpDeviceManager->mpAllocator, rPipeline.mIndirectVmaAllocation, &vkMemoryPropertyFlags);
-		ASSERT((vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0);
-		ASSERT((vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0);
-
-		rPipeline.mpIndirectComputeMappedMemory = static_cast<VkDispatchIndirectCommand*>(vmaAllocationInfo.pMappedData);
-		ASSERT(rPipeline.mpIndirectComputeMappedMemory != nullptr);
-
-		// Zero all dispatch slots — no work runs until the CPU writes real dims
-		for (int64_t i = 0; i < iCommandBufferCount; ++i)
-		{
-			rPipeline.mpIndirectComputeMappedMemory[i] = {.x = 0, .y = 0, .z = 0};
-		}
+		rPipeline.mpIndirectComputeMappedMemory = static_cast<VkDispatchIndirectCommand*>(CreateHostVisibleIndirectBuffer(rPipeline, iCommandBufferCount, sizeof(VkDispatchIndirectCommand)));
 	}
 	else if (rPipeline.mInfo.flags & kIndirectDeviceLocal)
 	{
 		// Single-slot dispatch buffer (always read at offset 0); bounds the RecordComputeIndirect index assert
 		rPipeline.miIndirectSlotCount = 1;
-		Buffer::CreateBuffer(rPipeline.mInfo.name, sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVkDeviceMemory, rPipeline.mIndirectVmaAllocation);
+		Buffer::CreateBuffer(rPipeline.mInfo.name, sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, rPipeline.mIndirectVkBuffer, rPipeline.mIndirectVmaAllocation);
 	}
 
 	ASSERT(!(rPipeline.mInfo.flags & kMultiSet)); // Set 2 / multi-material is graphics-only

@@ -79,6 +79,15 @@ if ($ClaimExit -ne 0) { throw "Harness claim failed: $ClaimExit" }
 
 Report the successful claim metadata verbatim. Hold the claim across rebuild/relaunch cycles. Every socket command must pass `--owner $Owner`; AgentHarness refreshes the heartbeat only when that token still owns the harness key. After the first command, compare `lock status` before/after and confirm `heartbeatAt` advanced.
 
+When a non-harness phase (a build, a long edit/review wave) between socket commands may exceed the five-minute staleness window, either touch the heartbeat directly between steps — e.g., after each build or subagent completes — or quit both executables and release before the phase, re-claiming after (a release with the game still running leaves the port for the next claimant to `quit`):
+
+```powershell
+& $AgentHarness lock heartbeat --key default --owner $Owner
+if ($LASTEXITCODE -ne 0) { throw "Harness heartbeat failed: $LASTEXITCODE" }
+```
+
+`lock heartbeat` stamps `heartbeatAt`/`heartbeatPid` without a running game; it exits `2` if the lock is missing or `$Owner` no longer owns the harness key.
+
 If claim returns exit code `2`, read `lock status`. A heartbeat older than five minutes is the only stale criterion. A fresh claim is not stealable and its processes must not be disturbed. For a stale claim:
 
 1. Copy the reported owner and send `quit` to both ports with `--owner $OldOwner`; fall back to `Stop-Process` only if commands cannot connect.
@@ -144,7 +153,7 @@ Argument form also works: `& $AgentHarness --owner $Owner --port 27100 '{"cmd":"
 
 ## Request / response envelope
 
-Request: `{"cmd":"<name>","params":{...},"id":<optional>}`. `params` may be omitted when a command takes none; `id` (any JSON) is echoed back for correlation.
+Request: `{"cmd":"<name>","params":{...},"id":<optional>}`. `params` may be omitted when a command takes none; `id` (any JSON) is echoed back for correlation. The server rejects any unknown top-level envelope key with `ok:false` — command parameters belong under `params`, not at the envelope root.
 
 Response: `{"id":<echoed|null>,"ok":true,"result":{...}}` on success, or `{"id":...,"ok":false,"error":"<message>"}` on failure. **All per-command fields below are the contents of `result`.**
 
@@ -332,7 +341,7 @@ verification retains its normal inline command results.
 - **Agent-mode launches stay minimized:** both executables use `SW_SHOWMINNOACTIVE` with `--agent-port`. The client also skips `SetForegroundWindow`/`BringWindowToTop`/`SetFocus` and suspends audio at boot, so it starts minimized, unfocused, and silent; a human restoring and clicking the window resumes audio, so hold focus before any audio check. `screenshot` and `dump_render_target` may briefly restore it without activation, but re-minimize it before replying.
 - **Focus/injection interleaving:** client focus state is logged — if a scripted action depends on which window/fleet is focused, read `get_logs` (or `describe_ui` `focused` flags) to confirm state before acting.
 - **Replay commands require `kbDebugInput`** — they error on builds without it (on in Debug, off in Profile/Release).
-- **Keep the claim warm during long soaks:** the claim becomes stealable after a five-minute heartbeat gap. Poll `status`/`get_logs` at least every few minutes with `--owner $Owner`. Never leave a background poll loop running beyond the session.
+- **Keep the claim warm during long soaks:** the claim becomes stealable after a five-minute heartbeat gap. Poll `status`/`get_logs` at least every few minutes with `--owner $Owner`. When a non-harness phase (build, long edit/review wave) may exceed that window between socket commands, either touch `lock heartbeat --key default --owner $Owner` between steps or quit both executables, release before the phase, and re-claim after. Never leave a background poll loop running beyond the session.
 - **Port in use:** if a command can't connect (AgentHarness exit 1, "connect failed"), a prior instance is likely still running and holding the port/mutex. `quit` it (or confirm it exited) before relaunching — a duplicate launch exits itself.
 
 ## Missing capability? Extend the harness
