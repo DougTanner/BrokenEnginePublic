@@ -97,7 +97,9 @@ inline constexpr LogLevel keLogLevelInput = keLogLevelDefault;
 // has no includes of its own), and Shaders/ShaderLayouts.h must precede Engine.h — this is the repo's sole C++ include site for shaders:: constants; engine TUs consume them only via this PCH
 #include "Common.h"
 #include "Shaders/ShaderLayouts.h"
+#if defined(BT_CLIENT)
 #include "Ui/HexShieldWrappers.h"
+#endif
 #include "Ui/WindDepositsWrappers.h"
 #include "Frame/Frame.h"
 #include "Engine.h"

@@ -1,3 +1,5 @@
+#if defined(BT_CLIENT)
+
 #include "HexShieldWrappers.h"
 
 namespace game
@@ -19,3 +21,5 @@ engine::Wrapper gHexShieldDirectionFalloffPower(4.35f, 2.0f, 10.0f);
 engine::Wrapper gHexShieldDirectionMultiplier(4.5f, 0.5f, 8.0f);
 
 } // namespace game
+
+#endif // defined(BT_CLIENT)
