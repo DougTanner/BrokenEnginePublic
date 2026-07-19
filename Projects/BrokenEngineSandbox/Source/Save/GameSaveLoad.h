@@ -27,11 +27,13 @@ public:
 	void TickAutosave();
 	bool Autoload();
 	void SaveLoadReplay();
-	void SyncReplayTick();
+	bool SyncReplayTick(); // false when final replay reader retires and this fixed-tick iteration must stop before dispatch
 
 	bool IsReplaying() const { return !mReplayReaders.empty(); }
 	bool IsRecording() const { return !mReplayWriters.empty(); }
 	void ResetStreams();
+	void RetainReplayEndFrame(engine::GridCoord coord, std::unique_ptr<game::Frame>& rpFrame);
+	bool DropRetainedReplayEndFrame(engine::GridCoord coord);
 
 	const std::unordered_map<engine::GridCoord, std::unique_ptr<engine::DifferenceStreamReader<game::Frame, game::FrameInput>>>& GetReplayReaders() const { return mReplayReaders; }
 
@@ -45,7 +47,14 @@ private:
 	static constexpr std::chrono::seconds kAutosaveInterval = 3600s;
 	common::Timer mAutosaveTimer;
 
-	std::unordered_map<engine::GridCoord, std::unique_ptr<engine::DifferenceStreamWriter<game::Frame, game::FrameInput>>> mReplayWriters;
+	struct ReplayWriterState
+	{
+		std::unique_ptr<engine::DifferenceStreamWriter<game::Frame, game::FrameInput>> pWriter;
+		std::unique_ptr<game::Frame> pRetainedEndFrame;
+		bool bTerminal = false;
+	};
+
+	std::unordered_map<engine::GridCoord, ReplayWriterState> mReplayWriters;
 	std::unordered_map<engine::GridCoord, std::unique_ptr<engine::DifferenceStreamReader<game::Frame, game::FrameInput>>> mReplayReaders;
 };
 

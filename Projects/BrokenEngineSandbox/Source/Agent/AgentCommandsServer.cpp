@@ -207,6 +207,30 @@ void CommandReplayPlay([[maybe_unused]] const nlohmann::json& rParams, [[maybe_u
 	}
 }
 
+void CommandReplayDropRetainedEndFrame([[maybe_unused]] const nlohmann::json& rParams, [[maybe_unused]] nlohmann::json& rResult)
+{
+	if constexpr (!kbDebugInput)
+	{
+		throw std::runtime_error("replay requires kbDebugInput build");
+	}
+	else
+	{
+		if (!gpGame->mGameSaveLoad.IsRecording())
+		{
+			throw std::runtime_error("replay_drop_retained_end_frame requires active recording");
+		}
+
+		engine::GridCoord coord = CoordFromParam(rParams);
+		if (!gpGame->mGameSaveLoad.DropRetainedReplayEndFrame(coord))
+		{
+			throw std::runtime_error("replay_drop_retained_end_frame requires a retained terminal frame for 'coord'");
+		}
+
+		rResult["coord"] = {coord.x, coord.y};
+		rResult["dropped"] = true;
+	}
+}
+
 void CommandQueryProfile([[maybe_unused]] const nlohmann::json& rParams, nlohmann::json& rResult)
 {
 	nlohmann::json timers = nlohmann::json::array();
@@ -462,6 +486,11 @@ bool ExecuteAgentCommandServer(std::string_view cmd, const nlohmann::json& rPara
 	if (cmd == "replay_play")
 	{
 		CommandReplayPlay(rParams, rResult);
+		return true;
+	}
+	if (cmd == "replay_drop_retained_end_frame")
+	{
+		CommandReplayDropRetainedEndFrame(rParams, rResult);
 		return true;
 	}
 	if (cmd == "query_frame")

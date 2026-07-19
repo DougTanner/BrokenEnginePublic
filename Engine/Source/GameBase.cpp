@@ -155,8 +155,11 @@ void GameBase::ServerUpdate()
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
 
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
+	int64_t iFinalizedTicks = 0;
 	for (int64_t i = 0; i < iFullTicks; ++i)
 	{
+		const int64_t iPreviousTickCounter = miTickCounter;
+		const float fPreviousCurrentTime = mfCurrentTime;
 		++miTickCounter;
 		mfCurrentTime += game::kfDeltaTime;
 
@@ -166,11 +169,30 @@ void GameBase::ServerUpdate()
 
 		if (game::gpGame->mGameSaveLoad.IsRecording() || game::gpGame->mGameSaveLoad.IsReplaying() || (mGameFlags & GameFlags::kSaveReplay)) [[unlikely]]
 		{
-			game::gpGame->mGameSaveLoad.SyncReplayTick();
+			if (!game::gpGame->mGameSaveLoad.SyncReplayTick())
+			{
+				// The final replay reader retired before dispatch. Reload now so server display/network observers never
+				// see an empty grid between updates, but start simulating the new loop on the next update.
+				game::gpGame->mGameSaveLoad.SaveLoadReplay();
+				if (!game::gpGame->mGameSaveLoad.IsReplaying())
+				{
+					// The reload failed after this iteration advanced the sim clock but before it finalized a frame.
+					// Restore the exact pre-tick values so buffered-frame indexing remains contiguous.
+					miTickCounter = iPreviousTickCounter;
+					mfCurrentTime = fPreviousCurrentTime;
+					iFullTicks = iFinalizedTicks;
+					mfLastDeltaTime = static_cast<float>(iFinalizedTicks) * game::kfDeltaTime;
+					// Rebuild only active frames; normal input/manager progression resumes on the next server update.
+					game::gpGame->ComputeActiveSet();
+					game::gpGame->EnsureNextFrames();
+				}
+				break;
+			}
 		}
 
 		BuildAndDispatchFrameTicks(rActiveCoords);
 		FinalizeFrameTick();
+		++iFinalizedTicks;
 	}
 	if (iFullTicks > 0)
 	{
@@ -613,7 +635,7 @@ void GameBase::PrepareActiveSet()
 #if defined(BT_SERVER)
 	if (game::gpGame->mGameSaveLoad.IsReplaying())
 	{
-		// During replay, all recorded coords are active
+		// During replay, all coords with live readers are active; SyncReplayTick retires ended readers before dispatch.
 		// Heap: vector clear/push_back, unordered_map insertion + make_unique<Frame>
 		ScopedSuppressAllocationTracking suppress;
 		game::gpGame->mActiveCoords.clear();
@@ -626,7 +648,7 @@ void GameBase::PrepareActiveSet()
 				rSub.pNext = std::make_unique<game::Frame>();
 			}
 		}
-		game::gpGame->BuildFrameInputs();
+		// SyncReplayTick creates and overwrites each recorded FrameInput. Do not advance normal server managers here.
 		return;
 	}
 #endif // BT_SERVER

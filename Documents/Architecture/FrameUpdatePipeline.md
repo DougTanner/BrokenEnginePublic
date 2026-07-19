@@ -137,11 +137,15 @@ flowchart TD
         subgraph physics_loop ["Fixed Timestep Loop (32 Hz)"]
             prepare_tick["ServerSession::PrepareTick()"]:::network
             sync_replay["GameSaveLoad::SyncReplayTick()<br/>(recording/replaying/record-pending only)"]:::server
+            replay_terminal{"Final replay reader retired?"}:::server
+            replay_reload["Reload replay loop<br/>(skip dispatch/finalize)"]:::server
             dispatch_s["Dispatch RunFrameTick()"]:::physics
             harvest["HarvestTransfers()"]:::physics
             frame_swap["SwapFrames()"]:::physics
             broadcast_tick["ServerSession::BroadcastTick()"]:::network
-            prepare_tick --> sync_replay --> dispatch_s --> harvest --> frame_swap
+            prepare_tick --> sync_replay --> replay_terminal
+            replay_terminal -->|No| dispatch_s --> harvest --> frame_swap
+            replay_terminal -->|Yes| replay_reload
             frame_swap --> broadcast_tick
         end
 
@@ -152,7 +156,8 @@ flowchart TD
 
         pre_tick --> agent_drain --> quickload
         quickload -->|No| save_load_replay --> wait_tick --> ts --> prepare_active --> physics_loop
-        physics_loop --> tick_branch
+        broadcast_tick --> tick_branch
+        replay_reload --> tick_branch
         tick_branch -->|Yes| resends --> autosave
         tick_branch -->|"No (paused / zero-tick)"| service_paused --> autosave
     end

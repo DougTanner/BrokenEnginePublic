@@ -40,7 +40,7 @@ See also: [Frame Update Pipeline](../../Documents/Architecture/FrameUpdatePipeli
 ## Tick Flow
 
 - **Client**: single-pass poll / reconcile / advance. Clamps to `GetSimTickCeiling()` (clock-servo target + `kiSimCeilingSlackTicks`) via `AbsorbUnusedTicks()` — the slack keeps arrival jitter from stalling the sim while StatusChanges still normally arrive before their tick simulates. Physics advances only inside reconcile — no separate client physics loop.
-- **Server**: `ServerUpdate` orchestrates network pre-tick, save/load/replay, tick wait, per-tick simulation/broadcast, resends, and autosave; quickload may early-return the whole update. Full-tick count ≠ 1 logs a warning.
+- **Server**: `ServerUpdate` orchestrates network pre-tick, save/load/replay, tick wait, per-tick simulation/broadcast, resends, and autosave; quickload may early-return the whole update. When the final replay reader retires, the next loop is loaded before further tick dispatch; failed reload restores the pre-tick clock so buffered tick indexes remain contiguous. Full-tick count ≠ 1 logs a warning.
 - **Finalize**: cross-frame transfer harvest is skipped during replay for deterministic reproduction; per-tick status changes are cleared after broadcast.
 - **Dispatch**: `ActiveFrameRef` pre-resolved into workbuffer, fanned out across grid coordinates via `common::gpMultithreading->Dispatch()` when enabled, else sequential; `thread_local` globals enable safe parallel physics.
 - Network orchestration lives in `ClientSession`/`ServerSession` at the game layer, called from `ClientUpdate`/`ServerUpdate`.

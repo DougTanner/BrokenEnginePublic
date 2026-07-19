@@ -19,7 +19,7 @@ bool ExecuteAgentCommandClient(std::string_view cmd, const nlohmann::json& rPara
 
 #if defined(BT_SERVER)
 // Server-only command dispatch (status / pause / timescale / save / load / reset / replay_record / replay_play /
-// query_profile).
+// replay_drop_retained_end_frame / query_profile).
 // ExecuteAgentCommand falls through to this under BT_SERVER before the unknown-command throw; returns true if
 // handled. Defined in the server-vcxproj-only AgentCommandsServer.cpp. Throws on bad params (trust boundary), caught
 // by AgentCommandServer::Drain().

@@ -69,7 +69,11 @@ void ServerSession::BroadcastTick(int64_t iTick)
 	ScopedSuppressAllocationTracking suppress;
 
 	HandleResyncRequests();
-	mpClientManager->FinalizeNewClients();
+	if (!gpGame->mGameSaveLoad.IsReplaying())
+	{
+		// Replay inputs never include live queued spawns; any new player belongs to the recording.
+		mpClientManager->FinalizeNewClients();
+	}
 	mpClientManager->DetectPlayerDeaths();
 	mpFleetManager->DetectDisconnectedPlayerDeaths();
 	{
@@ -403,11 +407,18 @@ void ServerSession::SyncActiveFrames()
 		}
 	}
 
-	// Delete frames outside the active set
-	std::erase_if(gpGame->mCoordFrames, [](const auto& rPair)
+	// Delete frames outside the active set, handing a recording writer its final complete current frame first.
+	for (auto it = gpGame->mCoordFrames.begin(); it != gpGame->mCoordFrames.end();)
 	{
-		return !std::ranges::contains(gpGame->mActiveCoords, rPair.first);
-	});
+		if (std::ranges::contains(gpGame->mActiveCoords, it->first))
+		{
+			++it;
+			continue;
+		}
+
+		gpGame->mGameSaveLoad.RetainReplayEndFrame(it->first, it->second.pCurrent);
+		it = gpGame->mCoordFrames.erase(it);
+	}
 }
 
 void ServerSession::ComputeActiveSet()

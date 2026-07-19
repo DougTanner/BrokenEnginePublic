@@ -57,4 +57,4 @@ Texture reset clears GPU handles: ready chunks return to not-loaded for full rel
 
 ## DifferenceStream
 
-Template delta compression for deterministic state recording/replay. Records full state at boundaries and changed states between frames; a per-frame CRC stream enables validation. `Save` emits a sibling file set (header, `.frames`, `.checksums`, and optional `.fullframes`) and returns success only when every write succeeds. On failure it independently attempts to remove every sibling and returns `false`, so callers must consume the result before reporting complete replay persistence. Optional full-frame debug state is gated by `kbReplayFullFrames`.
+Template delta compression for deterministic recording/replay. Records full boundary states and per-frame deltas; a checksum stream validates playback. `Save` emits a sibling file set (header, `.frames`, `.checksums`, and optional `.fullframes`) and succeeds only when every write succeeds. Failure independently removes every sibling and returns `false`; callers lacking an end frame use the same explicit all-sibling cleanup path. Optional full-frame debug state is gated by `kbReplayFullFrames`.

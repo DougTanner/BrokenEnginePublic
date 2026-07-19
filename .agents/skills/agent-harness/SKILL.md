@@ -201,7 +201,9 @@ params: `{"faster":bool(required)}`. `result`: `{"numerator","denominator"}`
 
 **`replay_record`** — start/stop replay recording. params: `{"start":bool(required)}`. `result`: `{"pending":bool}` (whether a state transition was scheduled). **Errors** (`ok:false`) on a build with `kbDebugInput` compiled out.
 
-**`replay_play`** — start (or cancel) replay playback; doubles as a determinism check (per-tick CRC validation — watch `get_logs`; validation is silent, only mismatches log). No params. `result`: `{"pending":true}`. **Errors** without `kbDebugInput`. **Playback loops forever** ("End replay N, looping" at `kDebug`) — `status.replaying` never clears on its own; send `replay_play` again to cancel.
+**`replay_play`** — start (or cancel) replay playback; doubles as a determinism check (per-tick CRC validation — watch `get_logs`; validation is silent, only mismatches log). No params. `result`: `{"pending":true}`. **Errors** without `kbDebugInput`. Readers retire independently at their recorded ends, and playback loops forever after the final reader ends ("End replay N, looping" at `kDebug`) — `status.replaying` never clears on its own; send `replay_play` again to cancel.
+
+**`replay_drop_retained_end_frame`** — inject replay-stop persistence failure after a recorded coordinate has been evicted. params: `{"coord":[x,y](required)}`. Discards exactly that coordinate's retained terminal frame; subsequent stop must report aggregate failure and remove the coordinate's replay siblings while still attempting other writers and metadata. `result`: `{"coord":[x,y],"dropped":true}`. **Errors** without `kbDebugInput`, when recording is inactive, or when the coordinate has no retained terminal frame.
 
 **`query_frame`** — per-collection counts for one grid cell.
 params: `{"coord":[x,y](required)}`. Errors if the coord has no loaded/ready frame.
