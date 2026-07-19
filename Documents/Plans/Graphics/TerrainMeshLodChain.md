@@ -47,7 +47,7 @@ DataPacker already links meshoptimizer (`ProcessBakedRegion.cpp` uses `meshopt_o
 - Water mesh LOD (already exists) and any change to the elevation/shadow prepasses.
 - GPU mesh residency/eviction — `IslandMeshArenaResidency.md` owns that; see Notes for sequencing.
 - Terrain collision / `Frame/IslandTerrain` sim queries (heightmap-based, mesh-free) — untouched.
-- Height-faded rock/beach detail-normal sampling in `Terrain.frag` and instance culling (`TerrainInstanceAreaCull.md`).
+- Height-faded rock/beach detail-normal sampling in `Terrain.frag` and `Engine/Source/Graphics/Islands.cpp`'s existing packing contract: a mesh-visible indirect-count prefix followed by the full subscribed offscreen remainder for fixed-count prepasses.
 
 ## Acceptance criteria
 
@@ -61,5 +61,5 @@ DataPacker already links meshoptimizer (`ProcessBakedRegion.cpp` uses `meshopt_o
 ## Notes
 
 - **Invariant exposure:** `.pack` layout change → `DataHeader::kiVersion` bump + `ExportIsland::GetVersion` raw bump (shared with any concurrently-landing `kiVersion` bump). **No CRC/wire/determinism exposure**: the mesh is client-render-only (the server never reads it — `IslandTerrainResidency.cpp` documents the server decommits the mesh slice unread); heightmap, placements, and collision are untouched. Client/graphics + DataPacker only.
-- **Sequencing:** `IslandMeshArenaResidency.md` option A rewrites the same indirect `firstIndex`/`vertexOffset` bookkeeping and option B replaces the mesh layout entirely — resolve that decision plan first or land this first and refresh it; never interleave. Shares `IslandTerrainResidency.cpp` with the island residency series File Group and `File/MeshRecommitFailureObservability.md` — co-schedule or refresh citations. Shares `Islands.cpp`/`Islands.h` with `TerrainInstanceAreaCull.md` — co-schedule (the two per-frame writes compose trivially).
+- **Sequencing:** `IslandMeshArenaResidency.md` option A rewrites the same indirect `firstIndex`/`vertexOffset` bookkeeping and option B replaces the mesh layout entirely — resolve that decision plan first or land this first and refresh it; never interleave. Shares `IslandTerrainResidency.cpp` with the island residency series File Group and `File/MeshRecommitFailureObservability.md` — co-schedule or refresh citations. Its per-frame indirect writes must preserve `Islands.cpp`/`Islands.h`'s mesh-visible prefix and offscreen-remainder count split.
 - **Grill decisions:** per-LOD `meshopt_simplify` error bounds (meters) and whether LOD3 is ÷64 or capped shallower; whether the bias slider ships range −3..+3 or 0..+3.

@@ -266,6 +266,12 @@ void Game::ComputeActiveSet()
 		return rPair.second.iConfirmedTick < 0;
 	}) <= 9);
 
+#endif // BT_SERVER
+}
+
+#if defined(BT_CLIENT)
+void Game::UpdateActiveIslands()
+{
 	// Update island rendering only for subscribed frames (confirmed server data). Build the filtered
 	// coord list in the workbuffer (per-frame, no heap) and pass it as a span; UpdateActiveIslands' own
 	// nested PushBuffer is LIFO and pops before this arena does.
@@ -279,8 +285,8 @@ void Game::ComputeActiveSet()
 		}
 	}
 	engine::gpIslands->UpdateActiveIslands(mCoordFrames, subscribedArena.Span<const engine::GridCoord>());
-#endif // BT_SERVER
 }
+#endif // BT_CLIENT
 
 #if defined(BT_SERVER)
 void Game::EnsureNextFrames()

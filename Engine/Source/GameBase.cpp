@@ -597,6 +597,8 @@ void GameBase::Render()
 		return;
 	}
 
+	// Pack island instances after the current camera update and only once the acquired framebuffer index is valid.
+	game::gpGame->UpdateActiveIslands();
 	gpGraphics->RenderGlobal(fCurrentTime);
 
 	// Capture command buffer index before async launch to avoid re-reading in async thread

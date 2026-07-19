@@ -381,9 +381,9 @@ void CommandBufferRecordMain::RecordImageRenderPass(VkCommandBuffer vkCommandBuf
 		// Per-template terrain draws: one indirect draw per IslandTemplate (count fixed at boot
 		// from gpIslandTerrain->mIslandCrcsSorted). Each template's Gaea2 Mesher mesh is bound,
 		// and vkCmdDrawIndexedIndirect reads the per-template VkDrawIndexedIndirectCommand whose
-		// instanceCount is rewritten each frame in Islands::UpdateActiveIslands. firstInstance is
-		// baked at boot to iTemplate*kiMaxPlacementsPerTemplate so Terrain.vert's pQuads[gl_InstanceIndex]
-		// lookups land in the right per-template SSBO range. Inactive templates have
+		// instanceCount is rewritten each frame to Islands::UpdateActiveIslands' mesh-visible prefix.
+		// firstInstance is baked at boot to iTemplate*kiMaxPlacementsPerTemplate so Terrain.vert's
+		// pQuads[gl_InstanceIndex] lookups land in the right per-template SSBO range. Inactive templates have
 		// instanceCount=0 → zero draws issued. Record-once: CB never needs re-record on
 		// subscription changes.
 		pPipelines[kPipelineTerrain].RecordBindPipelineAndDescriptors(iCommandBuffer, vkCommandBuffer);

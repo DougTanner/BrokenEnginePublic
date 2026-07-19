@@ -76,7 +76,7 @@ void main()
 	float fRotation = pQuads[gl_InstanceIndex].fRotation;
 	uiOutTextureSlot = pQuads[gl_InstanceIndex].uiTextureSlot;
 
-	// f4VertexRect.{x,y} is the rect's top-left corner (Islands.cpp:143-146 packs x = worldX - 0.5*w,
+	// f4VertexRect.{x,y} is the rect's top-left corner (Islands::UpdateActiveIslands packs x = worldX - 0.5*w,
 	// y = worldY + 0.5*h, w = footprintX, h = -footprintY), so the island center is at corner + half-extent.
 	float fCenterX = f4VertexRect.x + 0.5f * f4VertexRect.z;
 	float fCenterY = f4VertexRect.y + 0.5f * f4VertexRect.w;

@@ -52,7 +52,8 @@ Islands::Islands()
 		mLastWrittenCounts.at(iFramebuffer).resize(static_cast<size_t>(miTemplateCount), 0u);
 
 		// Per-template VkDrawIndexedIndirectCommand buffer. indexCount / firstIndex / vertexOffset /
-		// firstInstance baked here; instanceCount rewritten per frame from UpdateActiveIslands.
+		// firstInstance baked here; instanceCount rewritten per frame to the mesh-visible prefix from
+		// UpdateActiveIslands.
 		VmaAllocationInfo vmaAllocationInfo {};
 		Buffer::CreateBuffer("IslandsIndirect", vkIndirectSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIslandsIndirectVkBuffers.at(iFramebuffer), mIslandsIndirectVmaAllocations.at(iFramebuffer), &vmaAllocationInfo);
 		mppIslandsIndirectMapped.at(iFramebuffer) = static_cast<VkDrawIndexedIndirectCommand*>(vmaAllocationInfo.pMappedData);
@@ -95,9 +96,9 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 {
 	// Write only the framebuffer instance the current frame will consume. miFramebufferIndex was set by the
 	// trailing AcquireNextImage of the prior render (Graphics.cpp); it is the index RenderGlobal reads
-	// (Graphics.cpp:166) and the record-once CB for that framebuffer binds, and is stable across this
-	// ClientUpdate. Re-acquiring this image index implies the prior frame that used it has presented, so its
-	// GPU read of this instance has finished; this frame's render is not yet recorded — hence no host/GPU race.
+	// (Graphics.cpp:166) and the record-once CB for that framebuffer binds, and is stable until this frame's
+	// submission. Re-acquiring this image index implies the prior frame that used it has presented, so its
+	// GPU read of this instance has finished; this frame's render is not yet submitted — hence no host/GPU race.
 	int64_t iFramebuffer = gpSwapchainManager->miFramebufferIndex;
 	Buffer& rStorageBuffer = mIslandsStorageBuffers.at(iFramebuffer);
 	VkDrawIndexedIndirectCommand* pIndirect = mppIslandsIndirectMapped.at(iFramebuffer);
@@ -140,10 +141,64 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 		}
 	}
 
-	// Per-template running emit counter — sized to miTemplateCount, lives in the workbuffer (no heap).
+	// Per-template total emit counter — sized to miTemplateCount, lives in the workbuffer (no heap).
 	auto puiPerTemplateCount = common::gpThreadLocal->mWorkbuffer.PushBuffer<uint32_t*>(static_cast<size_t>(miTemplateCount) * sizeof(uint32_t));
 	std::memset(puiPerTemplateCount, 0, static_cast<size_t>(miTemplateCount) * sizeof(uint32_t));
 
+	// f4RenderVisibleArea is the straight-down frustum footprint at Z=0. The lowest terrain vertices
+	// are sunk to mfSeaFloorElevation, whose perspective footprint is the widest; expand analytically
+	// about the camera XY so every higher vertex lies within this conservative area.
+	XMFLOAT4A f4EyePosition {};
+	XMStoreFloat4A(&f4EyePosition, game::gpCamera->mVecEyePosition);
+	float fSeaFloorScale = (f4EyePosition.z - gpIslandTerrain->mfSeaFloorElevation) / f4EyePosition.z;
+	XMFLOAT4 f4MeshVisibleArea = game::gpCamera->f4RenderVisibleArea;
+	f4MeshVisibleArea.x = f4EyePosition.x + (f4MeshVisibleArea.x - f4EyePosition.x) * fSeaFloorScale;
+	f4MeshVisibleArea.y = f4EyePosition.y + (f4MeshVisibleArea.y - f4EyePosition.y) * fSeaFloorScale;
+	f4MeshVisibleArea.z = f4EyePosition.x + (f4MeshVisibleArea.z - f4EyePosition.x) * fSeaFloorScale;
+	f4MeshVisibleArea.w = f4EyePosition.y + (f4MeshVisibleArea.w - f4EyePosition.y) * fSeaFloorScale;
+
+	auto IsMeshVisible = [&](const IslandPlacement& rPlacement, const IslandTemplate& rTemplate)
+	{
+		float fRadius = 0.5f * std::hypot(rTemplate.mfQuadFootprintX, rTemplate.mfQuadFootprintY);
+		XMFLOAT4 f4Position {rPlacement.f2WorldPos.x, rPlacement.f2WorldPos.y, 0.0f, 1.0f};
+		return game::gpCamera->InVisibleArea(f4MeshVisibleArea, f4Position, fRadius, fRadius, fRadius, fRadius);
+	};
+
+	auto EmitPlacement = [&](const IslandPlacement& rPlacement, const IslandTemplate& rTemplate, uint32_t uiTextureSlot)
+	{
+		int64_t iTemplate = rTemplate.miTemplateArrayIndex;
+		ASSERT(iTemplate >= 0 && iTemplate < miTemplateCount);
+		uint32_t uiSlotInTemplate = puiPerTemplateCount[iTemplate];
+		if (uiSlotInTemplate >= static_cast<uint32_t>(kiMaxPlacementsPerTemplate))
+		{
+			// Worst-case headroom blown. Skip extra placements rather than corrupt neighbouring
+			// templates' SSBO ranges; raise kiMaxPlacementsPerTemplate if this fires.
+			ASSERT(false);
+			return;
+		}
+
+		int64_t iStorageBufferIndex = iTemplate * kiMaxPlacementsPerTemplate + static_cast<int64_t>(uiSlotInTemplate);
+		shaders::AxisAlignedQuadLayout& rQuad = pSsbo[iStorageBufferIndex];
+
+		rQuad.f4VertexRect.x = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadFootprintX;
+		rQuad.f4VertexRect.y = rPlacement.f2WorldPos.y + 0.5f * rTemplate.mfQuadFootprintY;
+		rQuad.f4VertexRect.z = rTemplate.mfQuadFootprintX;
+		rQuad.f4VertexRect.w = -rTemplate.mfQuadFootprintY;
+
+		rQuad.f4TextureRect.x = 0.0f;
+		rQuad.f4TextureRect.z = 1.0f;
+		rQuad.f4TextureRect.y = 0.0f;
+		rQuad.f4TextureRect.w = 1.0f;
+
+		rQuad.f4Params.x = 0.0f;
+		rQuad.fRotation = rPlacement.fRotation;
+		rQuad.uiTextureSlot = uiTextureSlot;
+
+		++puiPerTemplateCount[iTemplate];
+	};
+
+	// First pass visits every subscribed placement exactly once for residency bookkeeping and texture-slot
+	// acquisition, while packing only the mesh-visible prefix. Visible placements receive capacity priority.
 	for (const GridCoord& rCoord : rActiveCoords)
 	{
 		auto it = rFrames.find(rCoord);
@@ -158,43 +213,48 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrame
 			IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
 			++rTemplate.miRefCount;
 			rTemplate.muiLastUsedRenderFrame = gpGraphics->muiFrameCounter;
+			uint32_t uiTextureSlot = static_cast<uint32_t>(gpIslandTerrain->AcquireTextureSlot(rPlacement.islandCrc));
 
-			int64_t iTemplate = rTemplate.miTemplateArrayIndex;
-			ASSERT(iTemplate >= 0 && iTemplate < miTemplateCount);
-			uint32_t uiSlotInTemplate = puiPerTemplateCount[iTemplate];
-			if (uiSlotInTemplate >= static_cast<uint32_t>(kiMaxPlacementsPerTemplate))
+			if (IsMeshVisible(rPlacement, rTemplate))
 			{
-				// Worst-case headroom blown. Skip extra placements rather than corrupt neighbouring
-				// templates' SSBO ranges; raise kiMaxPlacementsPerTemplate if this fires.
-				ASSERT(false);
-				continue;
+				EmitPlacement(rPlacement, rTemplate, uiTextureSlot);
 			}
-
-			int64_t iSsboIndex = iTemplate * kiMaxPlacementsPerTemplate + static_cast<int64_t>(uiSlotInTemplate);
-			shaders::AxisAlignedQuadLayout& rQuad = pSsbo[iSsboIndex];
-
-			rQuad.f4VertexRect.x = rPlacement.f2WorldPos.x - 0.5f * rTemplate.mfQuadFootprintX;
-			rQuad.f4VertexRect.y = rPlacement.f2WorldPos.y + 0.5f * rTemplate.mfQuadFootprintY;
-			rQuad.f4VertexRect.z = rTemplate.mfQuadFootprintX;
-			rQuad.f4VertexRect.w = -rTemplate.mfQuadFootprintY;
-
-			rQuad.f4TextureRect.x = 0.0f;
-			rQuad.f4TextureRect.z = 1.0f;
-			rQuad.f4TextureRect.y = 0.0f;
-			rQuad.f4TextureRect.w = 1.0f;
-
-			rQuad.f4Params.x = 0.0f;
-			rQuad.fRotation = rPlacement.fRotation;
-			rQuad.uiTextureSlot = static_cast<uint32_t>(gpIslandTerrain->AcquireTextureSlot(rPlacement.islandCrc));
-
-			++puiPerTemplateCount[iTemplate];
-			pIndirect[iTemplate].instanceCount = puiPerTemplateCount[iTemplate];
 		}
 	}
 
-	// Record this frame's dense per-template counts so the next population of this framebuffer index clears
-	// exactly these slots. puiPerTemplateCount == pIndirect[].instanceCount and is capped at
-	// kiMaxPlacementsPerTemplate by the overflow guard above, so every recorded range stays in bounds.
+	// Snapshot the mesh-visible prefix. The fixed-count elevation and shadow-elevation prepasses consume
+	// every populated SSBO slot, while the terrain mesh indirect draw consumes only this prefix.
+	for (int64_t iTemplate = 0; iTemplate < miTemplateCount; ++iTemplate)
+	{
+		pIndirect[iTemplate].instanceCount = puiPerTemplateCount[iTemplate];
+	}
+
+	// Second pass appends every offscreen placement. Texture slots were acquired in the first pass; reuse the
+	// template-owned slot without touching residency. Mesh-visible placements always remain in the prefix so
+	// TerrainElevation covers every terrain mesh instance, while the full subscribed set remains available to
+	// ShadowElevation.
+	for (const GridCoord& rCoord : rActiveCoords)
+	{
+		auto it = rFrames.find(rCoord);
+		if (it == rFrames.end() || it->second.iSnapshotCount == 0)
+		{
+			continue;
+		}
+
+		const FrameStaticData& rStaticData = it->second.staticData;
+		for (const IslandPlacement& rPlacement : rStaticData.islands)
+		{
+			const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(rPlacement.islandCrc);
+			if (!IsMeshVisible(rPlacement, rTemplate))
+			{
+				EmitPlacement(rPlacement, rTemplate, static_cast<uint32_t>(rTemplate.miTextureSlot));
+			}
+		}
+	}
+
+	// Record this frame's dense total per-template counts (mesh-visible prefix + offscreen remainder) so
+	// the next population of this framebuffer index clears exactly these slots. Counts are capped at
+	// kiMaxPlacementsPerTemplate by the overflow guard, so every recorded range stays in bounds.
 	std::memcpy(rLastWrittenCounts.data(), puiPerTemplateCount, static_cast<size_t>(miTemplateCount) * sizeof(uint32_t));
 }
 

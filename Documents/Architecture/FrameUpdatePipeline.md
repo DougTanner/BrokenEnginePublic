@@ -84,17 +84,25 @@ flowchart TD
     end
 
     subgraph render_method ["GameBase::Render()"]
-        r_global["RenderGlobal()"]:::render
         r_interp["FrameInterpolate::<br/>AllocateAndCopy + Update"]:::render
-        r_render["BeginRender / Render / EndRender"]:::render
+        r_camera["Camera::Update()<br/>(current render frame; only when<br/>bHaveRenderableCamera)"]:::render
+        r_swapchain{"Swapchain deferred<br/>or frame poisoned?"}:::render
+        r_skip["Recreate / retry swapchain<br/>skip render + present"]:::render
+        r_islands["Game::UpdateActiveIslands()<br/>pack island instances"]:::render
+        r_global["RenderGlobal()"]:::render
+        r_render["RenderMainPresentAcquire()<br/>BeginRender / Render / EndRender<br/>main + present"]:::render
 
-        r_global --> r_interp --> r_render
+        r_interp --> r_camera --> r_swapchain
+        r_swapchain -->|Yes| r_skip
+        r_swapchain -->|No| r_islands --> r_global --> r_render
     end
 
     audio["AudioManager::Update()"]:::render
 
     start --> msgs --> agent_drain --> preupdate --> tick_frames
-    tick_frames --> render_method --> audio
+    tick_frames --> r_interp
+    r_skip --> audio
+    r_render --> audio
     audio -->|next iteration| start
 ```
 

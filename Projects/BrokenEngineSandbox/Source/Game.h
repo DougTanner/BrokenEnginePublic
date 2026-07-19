@@ -78,6 +78,9 @@ public:
 
 	// Multi-frame grid
 	void ComputeActiveSet();
+#if defined(BT_CLIENT)
+	void UpdateActiveIslands();
+#endif
 #if defined(BT_SERVER)
 	void EnsureNextFrames();
 #endif
