@@ -1,5 +1,6 @@
 #pragma once
 
+#include "HeightLerpWrapperQuartet.h"
 #include "WrapperBase.h"
 
 namespace engine
@@ -7,6 +8,9 @@ namespace engine
 
 // Ambient Occlusion
 extern Wrapper gIslandAmbientOcclusion;
+
+// Terrain Detail
+extern HeightLerpWrapperQuartet gTerrainDetailNormalsMultiplier;
 
 // Beach
 extern Wrapper gTerrainSnowBlend;

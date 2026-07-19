@@ -14,6 +14,11 @@ const TweaksSliderMapRegistrar gTerrainRegistrar
 {
 	// Ambient Occlusion
 	{"Ambient Occlusion", &gIslandAmbientOcclusion},
+	// Terrain Detail
+	{"Detail Normals Multiplier Start Height", &gTerrainDetailNormalsMultiplier.StartHeight},
+	{"Detail Normals Multiplier End Height", &gTerrainDetailNormalsMultiplier.EndHeight},
+	{"Detail Normals Multiplier Low", &gTerrainDetailNormalsMultiplier.Low},
+	{"Detail Normals Multiplier High", &gTerrainDetailNormalsMultiplier.High},
 	// Beach
 	{"Snow Blend", &gTerrainSnowBlend},
 	{"Snow AO Exclusion", &gTerrainSnowAmbientOcclusionExclusion},
@@ -39,6 +44,12 @@ void TweaksScreenBase::RenderTerrainSection()
 
 	WrapperSeparatorText("Ambient Occlusion");
 	WrapperSlider("Ambient Occlusion", kiSection);
+
+	WrapperSeparatorText("Terrain Detail");
+	WrapperSlider("Detail Normals Multiplier Start Height", kiSection);
+	WrapperSlider("Detail Normals Multiplier End Height", kiSection);
+	WrapperSlider("Detail Normals Multiplier Low", kiSection);
+	WrapperSlider("Detail Normals Multiplier High", kiSection);
 
 	WrapperSeparatorText("Beach");
 	WrapperSlider("Snow Blend", kiSection);

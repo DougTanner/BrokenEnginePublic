@@ -47,7 +47,7 @@ DataPacker already links meshoptimizer (`ProcessBakedRegion.cpp` uses `meshopt_o
 - Water mesh LOD (already exists) and any change to the elevation/shadow prepasses.
 - GPU mesh residency/eviction — `IslandMeshArenaResidency.md` owns that; see Notes for sequencing.
 - Terrain collision / `Frame/IslandTerrain` sim queries (heightmap-based, mesh-free) — untouched.
-- Fragment-shader sample reduction (`TerrainDetailSampleTrim.md`) and instance culling (`TerrainInstanceAreaCull.md`).
+- Height-faded rock/beach detail-normal sampling in `Terrain.frag` and instance culling (`TerrainInstanceAreaCull.md`).
 
 ## Acceptance criteria
 

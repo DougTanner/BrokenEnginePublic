@@ -32,7 +32,7 @@ Two-tier cull inside `Islands::UpdateActiveIslands`, using the existing `CameraB
 ## Out of scope
 
 - Culling the elevation/shadow prepass draw count itself (fixed slot count, zero-width-quad culled — cheap at 34 µs; not worth touching).
-- Mesh LOD (`TerrainMeshLodChain.md`) and fragment sample reduction (`TerrainDetailSampleTrim.md`).
+- Mesh LOD (`TerrainMeshLodChain.md`) and height-faded rock/beach detail-normal sampling in `Terrain.frag`.
 - Per-template `miRefCount`/LRU semantics: the residency ref count must keep counting **all** placements in subscribed coords (tier 1 skips must still ref-count their template, or eviction churn changes) — preserve the existing loop's ref-count/`muiLastUsedRenderFrame` writes for every placement, culled or not.
 - Any change to `FrameStaticData`, placements, or the deterministic island-chain generation (sim-side; CRC exposure).
 

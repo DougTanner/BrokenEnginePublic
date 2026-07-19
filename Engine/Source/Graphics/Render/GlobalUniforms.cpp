@@ -366,20 +366,21 @@ static void PopulateTerrainParameters(shaders::GlobalLayout& rGlobalLayout, floa
 
 	rGlobalLayout.fTerrainSnowBlend = gTerrainSnowBlend.Get();
 	rGlobalLayout.fTerrainSnowAmbientOcclusionExclusion = gTerrainSnowAmbientOcclusionExclusion.Get();
+	const float fTerrainDetailNormalsMultiplier = gTerrainDetailNormalsMultiplier.Resolve(game::gpCamera->mfCameraEyeHeight);
 
 	rGlobalLayout.fTerrainRockSize = gTerrainRockSize.Get();
 	rGlobalLayout.fTerrainRockBlend = gTerrainRockBlend.Get();
 	rGlobalLayout.fTerrainRockNormalsSizeOne = gTerrainRockNormalsSizeOne.Get();
 	rGlobalLayout.fTerrainRockNormalsSizeTwo = gTerrainRockNormalsSizeTwo.Get();
 	rGlobalLayout.fTerrainRockNormalsSizeThree = gTerrainRockNormalsSizeThree.Get();
-	rGlobalLayout.fTerrainRockNormalsBlend = gTerrainRockNormalsBlend.Get();
+	rGlobalLayout.fTerrainRockNormalsBlend = fTerrainDetailNormalsMultiplier * gTerrainRockNormalsBlend.Get();
 
 	rGlobalLayout.fTerrainBeachSandSize = gTerrainBeachSandSize.Get();
 	rGlobalLayout.fTerrainBeachSandBlend = gTerrainBeachSandBlend.Get();
 	rGlobalLayout.fTerrainBeachNormalsSizeOne = gTerrainBeachNormalsSizeOne.Get();
 	rGlobalLayout.fTerrainBeachNormalsSizeTwo = gTerrainBeachNormalsSizeTwo.Get();
 	rGlobalLayout.fTerrainBeachNormalsSizeThree = gTerrainBeachNormalsSizeThree.Get();
-	rGlobalLayout.fTerrainBeachNormalsBlend = std::max(fDayPercent * fDayPercent, 0.25f) * gTerrainBeachNormalsBlend.Get();
+	rGlobalLayout.fTerrainBeachNormalsBlend = std::max(fDayPercent * fDayPercent, 0.25f) * gTerrainBeachNormalsBlend.Get() * fTerrainDetailNormalsMultiplier;
 }
 
 // Water depth-LUT sunset fade: piecewise over the sun angle, then intensity/power shaping.
