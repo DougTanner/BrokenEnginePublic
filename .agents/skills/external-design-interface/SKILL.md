@@ -35,7 +35,7 @@ Use the codebase to answer as many of these as possible before asking the user.
 
 ### 2. Explore Existing Patterns
 
-Launch an Explore agent (`subagent_type: "Explore"`, `model: "opus"`) to find:
+Launch a `researcher` agent (`subagent_type: "researcher"`) to find and synthesize:
 - Similar systems in the codebase (same problem domain or similar shape)
 - The dominant caller pattern for this kind of system (how do existing callers invoke similar APIs?)
 - Relevant conventions (naming, parameter ordering, `gp*` usage, workbuffer patterns)
@@ -44,7 +44,7 @@ Record these findings — they get passed to every design agent in the next step
 
 ### 3. Generate Designs (Parallel Sub-Agents)
 
-Spawn exactly 3 Plan agents (`subagent_type: "Plan"`, `model: "fable"`) in parallel using the Agent tool. The `Plan` and `Explore` subagent types are custom agents defined in this environment — if they are unavailable, fall back to `subagent_type: "general-purpose"` with the role ("plan designer" / "explorer") embedded at the top of the prompt. Each agent's prompt must include:
+Spawn exactly 3 `planner` agents (`subagent_type: "planner"`) in parallel using the Agent tool. The `planner` and `researcher` subagent types are custom agents defined in this environment — if they are unavailable, fall back to `subagent_type: "general-purpose"` with the role ("plan designer" / "pattern researcher") embedded at the top of the prompt. Each agent's prompt must include:
 - The requirements gathered in step 1
 - The existing patterns and caller conventions found in step 2
 - One of the design constraints below

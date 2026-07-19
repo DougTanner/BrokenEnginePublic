@@ -1,4 +1,4 @@
 name = "fable"
-description = "Judgment, planning, management, and primary review roles."
+description = "Planning, management, and every review role — plan, code, shader, and session reviews, audits, and adversarial falsification."
 developer_instructions = "Follow repository instructions for Fable-assigned work."
 model = "gpt-5.6-sol"

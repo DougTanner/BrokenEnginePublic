@@ -38,7 +38,7 @@ For each header exceeding 5,000 bt-token-v1 or implementation exceeding 10,000 b
 
 ### 3. Fan-Out for Large Targets
 
-If more than ~15 files or ~80,000 bt-token-v1 remain after triage, do not scan inline — partition the remaining files into batches of related functionality (same subsystem, sibling files) and launch one subagent per batch in parallel (`subagent_type: "general-purpose"`, `model: "fable"`). Each subagent prompt includes: the step-0 authority list to read first, the full checklists from steps 4–7, its file batch, and the instruction to return findings as a structured list with `file:line` locations and the checklist category for each. Consolidate and dedup the returned findings, then continue at step 8. At or below the threshold, scan inline yourself (steps 4–7).
+If more than ~15 files or ~80,000 bt-token-v1 remain after triage, do not scan inline — partition the remaining files into batches of related functionality (same subsystem, sibling files) and launch one subagent per batch in parallel (`subagent_type: "reviewer"`). Each subagent prompt includes: the step-0 authority list to read first, the full checklists from steps 4–7, its file batch, and the instruction to return findings as a structured list with `file:line` locations and the checklist category for each. Consolidate and dedup the returned findings, then continue at step 8. At or below the threshold, scan inline yourself (steps 4–7).
 
 ### 4. Complexity Within Functions
 

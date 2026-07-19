@@ -7,7 +7,7 @@ description: >-
   directories, new-filter GUIDs, shader <None> items. Use when .cpp/.h/shader
   files are added or removed, or when an existing file gains or loses a
   file-wide BT_CLIENT/BT_SERVER guard (affinity change).
-  Designed for a cheap subagent — the project XML is large; work via Grep
+  Designed for a `mechanic` subagent — the project XML is large; work via Grep
   anchors, report per-file results, never echo the XML.
 allowed-tools: [Read, Write, Edit, Grep, Glob, PowerShell]
 ---

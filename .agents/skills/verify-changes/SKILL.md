@@ -60,7 +60,7 @@ Block when any handoff shows an unapproved plan delta. Only main may apply an ex
      change actually exposes: client/server, replay/determinism/CRC, wire or
      serialization/save compatibility, threading, trust boundary, or shared
      build/bootstrap coordination.
-   For an applicable runtime check, have an Opus subagent invoke `/agent-harness`,
+   For an applicable runtime check, have an `implementer` subagent invoke `/agent-harness`,
    using a self-contained fresh Claude prompt or Codex `fork_turns:"none"` with
    the baseline, final plan/deltas, execution-control record, and residual chain.
    Use the plan's Verification section when present; otherwise derive the smallest
@@ -69,7 +69,7 @@ Block when any handoff shows an unapproved plan delta. Only main may apply an ex
 5. Return each decisive failure and its evidence to the main session for its one
    Intent (`conformance | plan_delta`) and Scope (`non_structural | structural`)
    adjudication. Main sends only accepted `conformance + non_structural` work to
-   an Opus subagent invoking `/resolve-findings`; plan deltas require user
+   an `implementer` subagent invoking `/resolve-findings`; plan deltas require user
    approval. An accepted in-scope structural acceptance failure remains a blocker
    pending user direction; only proven pre-existing or out-of-scope structural
    residuals route to the conditional `/create-follow-up-plans` role. After an

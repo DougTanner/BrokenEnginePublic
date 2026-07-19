@@ -15,7 +15,7 @@ allowed-tools: [Read, Write, Grep, Glob, Edit, Bash]
 
 # Update Affected Code
 
-Propagate the session's changes outward: find every location whose correctness depends on the modified code and update it. Designed to run as an Opus subagent briefed by the caller — propagation edits real code and needs judgment.
+Propagate the session's changes outward: find every location whose correctness depends on the modified code and update it. Designed to run as an `implementer` subagent briefed by the caller — propagation edits real code and needs judgment.
 
 ## Inputs (from the caller's prompt)
 

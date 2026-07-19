@@ -69,9 +69,10 @@ pre-existing worktree changes.
    checks needed to establish that the edit is internally coherent. Do not
    substitute these checks for the manager's targeted compile/static-check stage,
    which runs after all required propagation and before correctness review.
-   Delegate any implementation-assigned build to a Sonnet `/compile` subagent and
-   preserve its status plus error and warning lines verbatim; leave broader
-   review and runtime verification to their trigger-based stages.
+   A subagent cannot spawn a build subagent: return any implementation-assigned
+   build to the caller as a `Build required` handoff line naming the exact
+   targets, and leave broader review and runtime verification to their
+   trigger-based stages.
 6. Track every file changed and the exact functions, types, sections, or data
    regions touched. Emit an affected-site trigger for every sweep handoff or
    signature, identity, semantics, layout, client/server guard-affinity, or
@@ -134,12 +135,11 @@ Audit each relevant dimension:
    existing helpers or accidental duplication. Deliberate mirrored boilerplate
    remains exempt.
 
-If an audit fix changes C++, have a Sonnet subagent invoke `/compile` to
-selectively rebuild every affected `.cpp` file and return status plus error and
-warning lines verbatim. Repair only errors introduced by that fix. This keeps a
-late self-audit correction from reaching fresh-context reviewers uncompiled. If
-the build cannot run, report the exact blocker as a reviewer focus area and
-residual; never imply that compilation passed.
+If an audit fix changes C++, return a `Build required` handoff line naming every
+affected `.cpp` file for selective rebuild. The caller runs it and routes any
+error back for repair; repair only errors introduced by that fix. This keeps a
+late self-audit correction from reaching fresh-context reviewers uncompiled.
+Never imply that compilation passed.
 
 ## Handoff Report
 
@@ -156,6 +156,10 @@ Self-audit resolved:
 Affected-site triggers:
 - `sweep | signature | identity | semantics | layout | guard | mirror` — exact
   symbol/pattern and scope `/update-affected-code` must verify
+- none
+
+Build required:
+- exact targets or `.cpp` files the caller must compile
 - none
 
 Reviewer focus areas:

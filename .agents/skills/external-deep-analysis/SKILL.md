@@ -89,7 +89,7 @@ Write all new actionable findings as plan files: `Refactor_<GroupName>.md`, usin
 
 ### 3. Phase 3: Verification Pass
 
-After Phase 2 completes, launch a verification subagent with `subagent_type: "general-purpose"` and `model: "fable"`. State the expected mutations up front in the prompt: the agent will rewrite plan files (`Read`, `Write`, `Edit`, `Grep`, `Glob`) and delete entirely-invalid ones (`Bash`). Verification runs BEFORE scoring so scores reflect what survives, not what was originally drafted.
+After Phase 2 completes, launch a verification subagent with `subagent_type: "reviewer"`. State the expected mutations up front in the prompt: the agent will rewrite plan files (`Read`, `Write`, `Edit`, `Grep`, `Glob`) and delete entirely-invalid ones (`Bash`). Verification runs BEFORE scoring so scores reflect what survives, not what was originally drafted.
 
 The verification agent reads every plan file created during this run and checks:
 

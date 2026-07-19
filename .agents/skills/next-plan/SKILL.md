@@ -133,7 +133,7 @@ mid-workflow rebase or a stop for user direction.
      `/external-grill-plan`. If an unresolved decision needs user authority,
      report it as the residual after completing every other part of the card.
 
-   `/plan-audit` runs in a delegated Fable subagent; never invoke it in this
+   `/plan-audit` runs in a delegated `reviewer` subagent; never invoke it in this
    session's own context. Its bounds are written for that reviewer, and an
    inline invocation applies them here instead. Replace a running audit reviewer
    only under the liveness and interruption contract in

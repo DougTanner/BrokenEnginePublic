@@ -10,12 +10,12 @@ Deliverable: a hotspot report (per-process shares, interpreted) and scored plan 
 
 ## Scripts vs subagents (who does what)
 
-Deterministic work goes to scripts/tools, judgment goes to models — per root AGENTS.md model roles:
+Deterministic work goes to scripts/tools, judgment goes to models — per root AGENTS.md delegation roles:
 
 - **Deterministic scripts (no subagent)**: extraction, xperf invocations, share computation (`scripts/profile_shares.py`), PDB GUID checks, grepping profile text. Never ask a subagent to parse or summarize what a script parses exactly.
-- **Sonnet subagents**: code searches to gather context for hotspot functions — must return verbatim quotes + file:line, never summarize; fan out one agent per hotspot cluster in a single message. Also any build verification via `/compile`.
-- **Opus subagent**: writes the plan files and submits their structured WorktreeCli add request (step 7) — new-content authoring role.
-- **Main session (Opus)**: interprets the numbers against §5's rubric, decides which hotspots become plans, writes the user-facing report.
+- **`locator` subagents**: code searches to gather context for hotspot functions — must return verbatim quotes + file:line, never summarize; fan out one agent per hotspot cluster in a single message. **`builder` subagents**: any build verification via `/compile`.
+- **`implementer` subagent**: writes the plan files and submits their structured WorktreeCli add request (step 7) — new-content authoring role.
+- **Main session**: interprets the numbers against §5's rubric, decides which hotspots become plans, writes the user-facing report.
 
 ## 1. Extract
 
@@ -78,12 +78,12 @@ Judge by share of the process's own total (§4), after clustering sibling leaves
 
 ## 6. Gather code context
 
-For each top hotspot cluster (skip OS/driver/CRT), fan out Sonnet search agents in one message: full function bodies, call sites with enclosing loop headers, container/comparator types behind `std::` template hits. Verbatim quotes + file:line only.
+For each top hotspot cluster (skip OS/driver/CRT), fan out `locator` agents in one message: full function bodies, call sites with enclosing loop headers, container/comparator types behind `std::` template hits. Verbatim quotes + file:line only.
 
 ## 7. Report, then plans
 
 Report to the user first: per-process table of top shares, config-overhead vs algorithmic split, expected gain per item.
 
-Then dispatch one Opus subagent to write and register the plan files. It must read `Documents/Plans/AGENTS.md` (file shape, required `## Out of scope`, structured dependencies, and Coordination policy) and the canonical scoring anchors it links in `Documents/AGENTS.md`, re-verify every code citation against current source, state invariant exposure per plan (determinism/CRC/`kiVersion` — sim-path optimizations must be **bit-identical**: same float ops, same order, `/fp:strict`), and pre-stage grill decisions in `## Notes`. No 'Verification' sections.
+Then dispatch one `implementer` subagent to write and register the plan files. It must read `Documents/Plans/AGENTS.md` (file shape, required `## Out of scope`, structured dependencies, and Coordination policy) and the canonical scoring anchors it links in `Documents/AGENTS.md`, re-verify every code citation against current source, state invariant exposure per plan (determinism/CRC/`kiVersion` — sim-path optimizations must be **bit-identical**: same float ops, same order, `/fp:strict`), and pre-stage grill decisions in `## Notes`. No 'Verification' sections.
 
 Write the plan files first, then create one schema-version `1` request beneath the session worktree's `Temp/` with `operation: "add"` and prerequisite-first `sequences`. Each entry supplies `queue`, normalized repository-relative `plan`, `tier`, `effort`, `impact`, `risks`, `notes`, and optional `dependsOn`; WorktreeCli computes Score. Put independent plans in separate sequences, invoke `plan order add --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>`, require successful unlocks, then require `plan order validate --repo <common-dir> --worktree <session-worktree>` to report `ok: true`. Never parse or edit either `Order.md`. Directional prerequisites use `dependsOn`; mandatory nondirectional constraints require reciprocal `## Coordination` updates through the atomic multi-plan workflow, while ordinary overlap may remain a nonblocking one-sided warning in plan prose.

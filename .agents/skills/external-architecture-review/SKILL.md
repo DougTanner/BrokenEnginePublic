@@ -21,9 +21,9 @@ The user provides a target path (file or directory) to review. If no path is giv
 
 ### 1. Launch Parallel Analysis Agents
 
-Use the Agent tool to launch five subagents in parallel, all with `model: "fable"`. Agent A is locate-shaped — use `subagent_type: "Explore"` (if unavailable, fall back to `general-purpose` with the explorer role stated at the top of the prompt). Agents B–E judge as well as locate — use `subagent_type: "general-purpose"` with the reviewer role stated at the top of the prompt. Each agent receives the target path (and the recursion mode) and produces a focused report. Each owns a short, related checklist — keep the groupings as defined below; do not merge them back into one agent.
+Use the Agent tool to launch five subagents in parallel. All five judge as well as locate — Agent A flags cyclic includes and layer violations rather than only listing them — so use `subagent_type: "reviewer"` for every one (if unavailable, fall back to `general-purpose` with the reviewer role stated at the top of the prompt). Each agent receives the target path (and the recursion mode) and produces a focused report. Each owns a short, related checklist — keep the groupings as defined below; do not merge them back into one agent.
 
-#### Agent A: Dependency Structure & Layering (subagent_type: Explore)
+#### Agent A: Dependency Structure & Layering (subagent_type: reviewer)
 
 Prompt the agent to:
 - Map `#include` dependencies for all `.h` and `.cpp` files in the target area
@@ -34,21 +34,21 @@ Prompt the agent to:
 - Report include-graph shape: which headers are hubs (pulled in by many files), which files pull in the largest transitive closures?
 - **Layer integrity** — `Projects/` reaching into `Engine/` internals; `Common/` depending on `Engine/` or `Projects/`; `Engine/` *types* naming game concepts (e.g. an `engine::` enumerator only the game uses). Engine code *reading* `game::` types, globals, or compile-time symbols is by design, not a violation (root `AGENTS.md` §Key Patterns)
 
-#### Agent B: Simulation & Threading Invariants (subagent_type: general-purpose)
+#### Agent B: Simulation & Threading Invariants (subagent_type: reviewer)
 
 Prompt the agent to evaluate:
 - **Determinism** — RNG ordering, floating-point reorder across threads that could affect replay CRC, read/write ordering between Interpolate and PostRender phases, cross-build parity of `SharedMembers()`
 - **Thread model** — `gpMultithreading->Dispatch()` data-access patterns; shared mutable state in parallel regions; `PersistentWorker` usage
 - **Frame-phase alignment** — are systems operating in the correct phase (Update vs PostRender vs Interpolate)? Any phase-boundary violations?
 
-#### Agent C: Client/Server & Data Shape (subagent_type: general-purpose)
+#### Agent C: Client/Server & Data Shape (subagent_type: reviewer)
 
 Prompt the agent to evaluate:
 - **Client/Server separation** — `BT_CLIENT`/`BT_SERVER` paths that should differ but don't; client-only code not isolated from server build
 - **Collection shape** — `SharedMembers()`/`ClientMembers()`/`Members()` pattern compliance; members stored in the wrong phase (interpolated vs post-render); collections whose member list has grown so large the struct has lost cohesion
 - **Shader/CPU consistency** — shader constants or layouts that have diverged from their C++ counterparts; magic numbers in shaders that should reference shared definitions (only when the target area contains shaders or shader-facing CPU code — skip otherwise)
 
-#### Agent D: Cohesion & AI-Generation Anti-Patterns (subagent_type: general-purpose)
+#### Agent D: Cohesion & AI-Generation Anti-Patterns (subagent_type: reviewer)
 
 Prompt the agent to evaluate:
 - **Manager patterns** — `gp*` singletons, unnecessary cross-manager references, god-managers
@@ -59,7 +59,7 @@ Prompt the agent to evaluate:
   - *Cross-file duplication* — near-duplicate functions or logic blocks (~100+ bt-token-v1) recurring across files from context loss during generation; flag because one copy can drift or receive a fix the other misses. (In-function duplication stays with `/external-refactor-clean`.)
   - *Inter-module contract seams* — integration edges where two modules show divergent naming, error-handling, or abstraction styles (a sign they were generated in different sessions); verify the producing side's output assumptions match the consuming side's — the highest-probability spot for silent contract violations.
 
-#### Agent E: ThirdParty Library Replacement Opportunities (subagent_type: general-purpose)
+#### Agent E: ThirdParty Library Replacement Opportunities (subagent_type: reviewer)
 
 Goal: identify cohesive in-house code that could be deleted in favor of a permissively-licensed library dropped into `/ThirdParty/` — benefits are codebase shrinkage and access to a battle-tested implementation.
 

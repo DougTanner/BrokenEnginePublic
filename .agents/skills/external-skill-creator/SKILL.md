@@ -31,7 +31,7 @@ The current conversation might already contain the workflow to capture (e.g., th
 
 Proactively ask questions about edge cases, input/output formats, example files, success criteria, and dependencies.
 
-Check available MCPs - if useful for research (searching docs, finding similar skills, looking up best practices), dispatch Opus subagents via the Agent tool in parallel when research spans multiple sources, otherwise inline. Come prepared with context to reduce burden on the user.
+Check available MCPs - if useful for research (searching docs, finding similar skills, looking up best practices), dispatch `researcher` subagents via the Agent tool in parallel when research spans multiple sources, otherwise inline. Come prepared with context to reduce burden on the user.
 
 ### Write the SKILL.md
 

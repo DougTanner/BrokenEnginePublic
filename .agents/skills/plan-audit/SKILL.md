@@ -4,7 +4,7 @@ description: >-
   Adversarially audit a Tier-2 or Tier-3 implementation plan before
   implementation; for Tier 3 it runs before /external-grill-plan. Do not add it
   to Tier-1 mechanical changes.
-  Runs inside one delegated Fable reviewer; findings only, with no plan/code
+  Runs inside one delegated `reviewer`; findings only, with no plan/code
   edits, user interview, or further delegation.
 allowed-tools: [Read, Grep, Glob, PowerShell]
 ---
@@ -40,7 +40,7 @@ exploration; silence is never an acceptable response.
 
 ## Execution Context
 
-Run inside one delegated Fable reviewer. The calling session delegates rather
+Run inside one delegated `reviewer`. The calling session delegates rather
 than invoking this skill in its own context; only an explicit user direction
 makes an inline run acceptable, and `/verify-changes` then records that review
 as `inline`. The bounds below are prose, not frontmatter: `disallowed-tools`

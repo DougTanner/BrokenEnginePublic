@@ -16,6 +16,7 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 ### Subagents
 
 - Main session is manager; subagents execute work to keep main context clean
+- Subagents cannot spawn subagents. Only main-session skills request delegation; a subagent needing delegated work returns the requirement to its caller instead of dispatching it
 - Give subagents only the instructions and context their task needs; they return a concise, clearly defined response
 - Delegation prompts for review roles enumerate the exact files/regions in scope; an interrupted or re-scoped reviewer returns findings gathered so far immediately
 - A wait boundary or elapsed time alone never proves a delegate is stuck — judge liveness by transcript/status evidence: recent distinct tool activity, narrowing searches, new evidence, or in-progress synthesis is forward progress; a loop requires repeated equivalent operations or unchanged failures without narrowing or new evidence. Before replacing a running reviewer, request findings gathered so far; a justified replacement continues from them (mechanics: [.agents/references/subagent-reporting.md](.agents/references/subagent-reporting.md))
@@ -24,16 +25,26 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 - Isolated worktrees and session claims are required only for queue selection or mutation, shared build/bootstrap coordination, or landing. Ordinary work uses the user-supplied checkout and preserves unrelated changes.
 - Live sessions hold a `git worktree lock`; retained worktrees are removed only by the manual `/cleanup-worktrees` skill or explicit user direction — never recreate its effect with raw Git or filesystem commands.
 
-### When to use each model
+### Delegation roles
+
+The only place a role's model and effort are written down; skills name a role and describe the work. Definitions: `.claude/agents/<role>.md`. Codex resolves a role through the Model column — `.codex/agents/` is model-named.
+
+| `subagent_type` | Model | Effort | Work |
+| --- | --- | --- | --- |
+| `planner` | Fable | medium | Plans, designs, approach options |
+| `reviewer` | Fable | medium | Every review and audit; adversarial falsification |
+| `implementer` | Opus | xhigh | Code, docs, propagation, fix waves, plan authoring, harness runs |
+| `researcher` | Opus | xhigh | Research requiring judgment |
+| `locator` | Sonnet | xhigh | Search, log filtering, spec fetch, claim verification — returns file:line, quotes, or links, never summaries |
+| `builder` | Sonnet | xhigh | `/compile`; returns status plus decisive errors and warnings verbatim |
+| `mechanic` | Sonnet | xhigh | Checklist edits — `/code-style-review`, `/update-vcxproj` |
+
+- Delegate by `subagent_type`; an ad-hoc `model:` cannot pin effort. A documented host-unavailability fallback to `general-purpose` may pass `model:` and runs unpinned
+- Every review is `reviewer` — no higher-capability exception. Locating is `locator`, judgment is `researcher`, style review is mechanical so `mechanic`
+- `codex-review` is the sole skill that may name a model — it routes around one being unavailable
 
 For ChatGPT Codex: Fable -> gpt-5.6-sol, Opus -> gpt-5.6-terra, Sonnet -> gpt-5.6-luna
 	Temp Note: Codex does not currently expose model names for subagents, so we are using gpt-5.6-sol high (which currently is picked up by all subagents)
-
-Fable: Planning, Code & Session Reviews
-Opus: Writing Code & Documentation
-Sonnet: Code/Web search, Builds, Large-file/log filtering, Style Review
-	- Search and filtering roles return direct quotes, file:line references, or links — never summaries
-	- Build roles invoke `/compile` and return status plus decisive errors or warnings
 
 ## IMPORTANT: Change Workflow (YOU MUST follow this when changing anything tracked in this repository)
 
@@ -66,19 +77,19 @@ At session start, pin the process baseline. Record the complete user objective, 
 
 ### 2. Plan review
 
-Tier 2+ starts from a plan: load a plan file or enter plan mode to create one; that plan is what gets reviewed. Plans may include a Verification section of agent-harness steps (launch, drive, query, screenshot — see `/agent-harness`); optional, so trivial refactors don't gold-plate. Tier 1 skips plan review. Tier 2: a Fable subagent runs `/plan-audit`. Tier 3: a Fable subagent runs `/plan-audit`, then main feeds accepted findings into `/external-grill-plan` — the interview needs the user-facing UI subagents lack.
+Tier 2+ starts from a plan: load a plan file or enter plan mode to create one; that plan is what gets reviewed. Plans may include a Verification section of agent-harness steps (launch, drive, query, screenshot — see `/agent-harness`); optional, so trivial refactors don't gold-plate. Tier 1 skips plan review. Tier 2: a `reviewer` runs `/plan-audit`. Tier 3: a `reviewer` runs `/plan-audit`, then main feeds accepted findings into `/external-grill-plan` — the interview needs the user-facing UI subagents lack.
 
 ### 3. Implement and propagate
 
-Opus subagents implement the smallest complete change, then run `/update-affected-code` for any code change (not documentation, skills, or scripts), updating only required affected sites. Exception: in a review-fix wave, a single-function fix with no signature or contract change self-scans affected sites, spawning `/update-affected-code` only for candidates outside its assigned scope (mechanics: `/resolve-findings`).
+`implementer` subagents implement the smallest complete change and return affected-site triggers; main runs `/update-affected-code` for any code change (not documentation, skills, or scripts), updating only required affected sites. Exception: in a review-fix wave, a single-function fix with no signature or contract change self-scans affected sites, returning only candidates outside its assigned scope for `/update-affected-code` (mechanics: `/resolve-findings`).
 
 ### 4. Run targeted pre-review checks
 
-Run the smallest applicable static checks and affected-target compilation before review. Full builds and runtime or harness scenarios are acceptance-matrix decisions.
+Run the smallest applicable static checks and affected-target compilation before review. A `Build required` line returned by any subagent is executed here through `builder`, before the work it covers advances. Full builds and runtime or harness scenarios are acceptance-matrix decisions.
 
 ### 5. Review and resolve correctness
 
-Run one fresh domain review — changed C++: `/repo-code-review`; changed shaders: `/glsl-review`; Tier-1 non-C++: direct coherence; any other changed artifact at Tier 2+ (scripts, skills, plans, documentation): fresh-eyes coherence review by a Fable subagent against the changed bytes — that reviewer fixes and self-verifies sub-semantic issues (meaning-preserving wording, formatting) in the same pass; only semantic findings route through separate resolve/verify steps. Every changed artifact type gets exactly one domain review — a change spanning two types runs each type's review — and no artifact type falls through this list unreviewed. Tier 3 adds `/adversarial-review`, which any tier may also run for one concrete unresolved reachable hypothesis. Adjudicate evidence once; accepted fixes re-review and retest only affected regions, and a second wave needs a reproducible blocker.
+Run one fresh domain review — changed C++: `/repo-code-review`; changed shaders: `/glsl-review`; Tier-1 non-C++: direct coherence; any other changed artifact at Tier 2+ (scripts, skills, plans, documentation): fresh-eyes coherence review by a `reviewer` against the changed bytes — that reviewer fixes and self-verifies sub-semantic issues (meaning-preserving wording, formatting) in the same pass; only semantic findings route through separate resolve/verify steps. Every changed artifact type gets exactly one domain review — a change spanning two types runs each type's review — and no artifact type falls through this list unreviewed. Tier 3 adds `/adversarial-review`, which any tier may also run for one concrete unresolved reachable hypothesis. Adjudicate evidence once; accepted fixes re-review and retest only affected regions, and a second wave needs a reproducible blocker.
 
 ### 6. Apply hygiene
 
@@ -117,7 +128,7 @@ Convergence applies only to steps this workflow routes and does not trigger. An 
 ## Resolving Ambiguity
 
 - **Trivial choices** (naming, small implementation details, equivalent approaches): pick the simplest and proceed.
-- **Non-trivial ties** (two viable approaches, neither architectural): fan out Opus subagents to validate each, compare pros/cons, then pick simplest good solution.
+- **Non-trivial ties** (two viable approaches, neither architectural): fan out `researcher` subagents to validate each, compare pros/cons, then pick simplest good solution.
 - **Architectural decisions** (new system shape, public API, data layout, threading model): stop and ask the user. Concisely present: (a) the problem, (b) proposed solutions, (c) pros and cons of each.
 
 ## Diagnosis Discipline

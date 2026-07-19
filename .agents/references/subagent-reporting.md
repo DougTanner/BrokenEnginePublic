@@ -12,8 +12,14 @@ Return only the information the next role needs:
 Status: PASS | NEEDS_ACTION | BLOCKED
 Changed files: <paths or none>
 Decisive checks: <command/read and result>
+Build required: <exact targets the caller must compile, or none>
 Residuals: <actionable blocker or none>
 ```
+
+A build the delegation cannot run itself belongs on the `Build required` line
+naming exact targets, never reported as a check that passed; the caller runs it
+(root `AGENTS.md`, Change Workflow step 4). Skills defining their own handoff
+report carry the same line.
 
 Use a fresh context only for an independent review, an explicitly requested
 second opinion, or a focused correction/retest.

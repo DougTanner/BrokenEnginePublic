@@ -47,7 +47,7 @@ For each assigned item:
 4. Apply the smallest change that restores the plan's intended behavior. Do not refactor adjacent code, clean up pre-existing issues, or broaden the accepted finding.
 5. Re-read the complete fixed region and its directly affected call path. Verify that the original failure scenario no longer follows from the code.
 6. When the fix is confined to one function with no signature or contract change, run the affected-site scan yourself — callers, mirrored client/server or per-collection patterns, stale comment or shared-header references — and record the result. Fix a candidate inside the assigned scope as part of the same item; report any candidate outside it as a residual for `/update-affected-code` rather than editing it. A scan that finds nothing replaces a separate propagation pass.
-7. Run the caller-prescribed check. When none is prescribed, select the narrowest meaningful check: selective `/compile` for changed C++ regions, the relevant existing command for tooling/docs changes, or the exact `/agent-harness` scenario that reproduced a runtime failure. Delegate `/compile` to a Sonnet subagent and preserve its status plus error and warning lines verbatim; keep diagnosis and edits in this context. Do not silently substitute a weaker check.
+7. Run the caller-prescribed check. When none is prescribed, select the narrowest meaningful check: selective `/compile` for changed C++ regions, the relevant existing command for tooling/docs changes, or the exact `/agent-harness` scenario that reproduced a runtime failure. A subagent cannot spawn a build subagent: return any required build to the caller as a `Build required` report line naming the exact targets, and keep diagnosis and edits in this context. Do not silently substitute a weaker check.
 
 Fix only errors introduced by this assignment's edits during verification. Report unrelated or structurally larger failures as residuals.
 
@@ -59,7 +59,7 @@ For each assigned fix:
 
 1. Read the accepted finding, fixed region, and enough surrounding flow to restate the original failure scenario.
 2. Attempt to reproduce the finding against the current code. Confirm that the fix addresses the proven cause rather than masking its symptom.
-3. Run only the targeted build/runtime/static check assigned by the caller. Delegate builds to a Sonnet `/compile` subagent and preserve its status plus error and warning lines verbatim. Build artifacts are permitted; tracked-file changes are not.
+3. Run only the targeted runtime/static check assigned by the caller. Builds are caller-run: use the build result supplied with the assignment. When a required build result was not supplied, mark that item `UNRESOLVED` and name the exact targets under `Build Required`; the caller runs the build and reissues the item. Build artifacts are permitted; tracked-file changes are not.
 4. Return one verdict:
    - `VERIFIED` — the original scenario is prevented and the scoped check passes.
    - `REFUTED` — the failure remains, the fix introduces a concrete replacement failure, or the scoped check fails because of the fixed region.
@@ -96,9 +96,13 @@ Mode: fix | independent-verify
 - <path> — <function/region>
 - none
 
+### Build Required
+- <exact targets or `.cpp` files the caller must compile>
+- none
+
 ### Residuals
 - <unresolved/out-of-scope item, evidence, and required next owner/action>
 - none
 ```
 
-List `Files Changed and Regions Touched: none` in independent-verify mode. Do not report success for an item whose required verification was skipped; mark it `UNRESOLVED` and explain why.
+List `Files Changed and Regions Touched: none` in independent-verify mode. Do not report success for an item whose required verification was skipped; mark it `UNRESOLVED` and explain why. A build listed under `Build Required` is reassigned to the caller, not skipped.

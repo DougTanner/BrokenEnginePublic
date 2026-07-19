@@ -79,7 +79,7 @@ clang-tidy catches.
 
 ## API Verification
 
-For non-obvious API usage a finding depends on (Vulkan entry points, DirectXMath alignment ops, rarely-used third-party calls), do not pull spec pages into context — emit an entry under `### API Verification Requests` (API/symbol, spec URL, exactly what to confirm, which finding depends on it); the caller resolves via Sonnet WebFetch subagents.
+For non-obvious API usage a finding depends on (Vulkan entry points, DirectXMath alignment ops, rarely-used third-party calls), do not pull spec pages into context — emit an entry under `### API Verification Requests` (API/symbol, spec URL, exactly what to confirm, which finding depends on it); the caller resolves via `locator` subagents.
 
 ## Output
 

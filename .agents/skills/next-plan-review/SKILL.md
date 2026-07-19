@@ -55,9 +55,7 @@ worktree evidence.
 
 Transcripts can be too large for the main session to analyze efficiently.
 After provenance is established, delegate the parent transcript and material
-subagent transcripts to exactly one fresh, high-capability review agent. Prefer
-an Opus/Terra-class reviewer when the host exposes that choice; otherwise use
-a fresh reviewer without claiming a profile the host cannot attest. Give it the
+subagent transcripts to exactly one fresh `reviewer`. Give it the
 commit facts, parent transcript path, and the material child transcript paths
 or identifiers. The reviewer reads targeted event ranges and returns evidence,
 not a final recommendation list.
