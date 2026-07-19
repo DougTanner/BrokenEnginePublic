@@ -335,6 +335,10 @@ bool ClientSession::PollConnection()
 	if (mpClientNetwork->WasDisconnected())
 	{
 		gpGame->ChangeFrame(GameFlags::kMainMenu);
+		if (gpGame->mModalMessage[0] == '\0')
+		{
+			std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Connection lost");
+		}
 		gpGame->meUiState = gpGame->mModalMessage[0] != '\0' ? UiState::kModal : UiState::kPause;
 		return false;
 	}
