@@ -78,6 +78,16 @@ primary as well remains a genuine blocking diagnostic.
 
 ## 4. Landing confirmation
 
+When landing updates canonical shared parent infrastructure, including an
+AgentTools promotion, require the canonical session ledger to show no live
+session other than the current cooperating owner and no maintenance
+claim before presenting landing confirmation. If it is not quiescent, release
+any reconcile or landing lease, retain the candidate and claims, and tell the
+user to wait until every other active session has ended and any maintenance
+claim has cleared. After the user reports that they have ended, recheck the
+ledger; that report clears only the safety blocker and does not authorize
+landing. Present the normal landing confirmation only after the recheck passes.
+
 Immediately before the one operation that mutates primary history, state in one
 short summary: what the change is in one sentence, the changed-file count and
 kind (code vs docs/plans), the session branch, and the primary branch. Then ask

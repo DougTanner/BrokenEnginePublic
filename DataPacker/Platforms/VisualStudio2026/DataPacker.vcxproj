@@ -37,6 +37,7 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportModel.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportRaw.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportShader.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\ExportShaderDependencies.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportTexture.cpp" />
     <ClCompile Include="..\..\Source\Attribution.cpp" />
     <ClCompile Include="..\..\Source\DiagnosticReporter.cpp" />

@@ -69,7 +69,7 @@ When `ShaderLayoutsBase.h`, `ShaderLayouts.h`, or any `*Common.h` struct is modi
 
 - A struct field added/removed/reordered on one side of the `BT_ENGINE` guard but not the other.
 - A type whose C++ and GLSL representations differ in size/alignment under scalar layout (e.g., `XMFLOAT3` vs `vec3`, array stride assumptions).
-- `#include` of the header from a C++ file that isn't also in the DataPacker's `.d` depfile path — stale caches won't rebuild. See `ExportShader::CheckDirty` in `DataPacker/Source/ExportJobs/ExportShader.cpp` for the `.d`-depfile parse path.
+- `#include` of the header from a C++ file that isn't also in the DataPacker's `.d` depfile path — stale caches won't rebuild. See `ExportShader::CheckDirty` in `DataPacker/Source/ExportJobs/ExportShaderDependencies.cpp` for the `.d`-depfile parse path.
 
 #### 2f. Prefer shared helpers in `ShaderFunctions.h`
 

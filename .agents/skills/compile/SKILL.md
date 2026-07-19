@@ -46,6 +46,12 @@ AgentTools source changes (`Tools/WorktreeCli/**`, `Tools/AgentHarness/**`, `Too
 
    Exit `0` returns the receipt path/SHA-256 in one JSON result; `2` is a deterministic build or capability blocker. This doubles as the compile check for tool-source changes, and is safe in any registered checkout at any time. A candidate is valid for promotion iff its receipt has `dirtyToolPaths: false` and its three `toolTreeHashes` match the landed commit's tool trees; `sourceCommit` is informational. Tree hashes survive a rebase that leaves tool bytes unchanged, so a rebase alone does not require a rebuild — rebuild only when `dirtyToolPaths: true` or the landed tool trees differ from the receipt. When `BuildCommand.cpp`'s result contract changes, run [`scripts/Test-BuildResultFixtures.ps1`](scripts/Test-BuildResultFixtures.ps1) against the candidate `WorktreeCli.exe`.
 
+   Candidate production may finish while other wrapper sessions remain active.
+   Its handoff must flag that landing updates canonical shared parent
+   infrastructure; `/finalize-changes` waits for every other active wrapper
+   session to end, rechecks the canonical session ledger, and presents landing
+   confirmation only after that recheck passes.
+
 2. **Promotion** — owned by `/finalize-changes` (`.agents/skills/finalize-changes/scripts/Invoke-AgentToolsPromotion.ps1`) and possible only during an approved session landing, after the landed commit's tool trees match the candidate receipt. Routine builds, this skill, and unlanded session trees cannot promote; do not copy or install either executable elsewhere.
 
 If a canonical primary executable is missing or a legacy first rollout applies, wrapper bootstrap (`.agents/scripts/Bootstrap-AgentTools.ps1`) remains the only in-place build path.
