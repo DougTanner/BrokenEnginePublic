@@ -7,7 +7,6 @@
 #include <string_view>
 
 #include "ToolCliCommon.h"
-#include "tinygltf/json.hpp"
 
 namespace toolcli::coordination
 {

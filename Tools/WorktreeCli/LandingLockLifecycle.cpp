@@ -78,19 +78,25 @@ namespace toolcli::landing
 	nlohmann::json LandingStatus(const nlohmann::json& rMetadata, const Locator& rLocator)
 	{
 		nlohmann::json status = { { "held", true }, { "leaseState", "unverifiable" } };
-		for (const char* pField : { "owner", "session", "worktree", "claimedAt", "heartbeatAt", "expiresAt" })
+		for (const char* pField : { "domain", "logicalKey", "owner", "session", "worktree", "claimedAt", "heartbeatAt", "expiresAt" })
 		{
 			if (rMetadata.contains(pField) && rMetadata[pField].is_string())
 			{
 				status[pField] = rMetadata[pField];
 			}
 		}
-		std::optional<LandingLease> lease = ValidateLandingLease(rMetadata, rLocator, CurrentUtcTicks());
+		for (const char* pField : { "schemaVersion", "leaseDurationSeconds" })
+		{
+			if (rMetadata.contains(pField) && rMetadata[pField].is_number_integer())
+			{
+				status[pField] = rMetadata[pField];
+			}
+		}
+		const uint64_t uiCurrentTicks = CurrentUtcTicks();
+		std::optional<LandingLease> lease = ValidateLandingLease(rMetadata, rLocator, uiCurrentTicks);
 		if (lease)
 		{
-			status = rMetadata;
-			status["held"] = true;
-			status["leaseState"] = CurrentUtcTicks() < lease->uiExpiresTicks ? "live" : "expired";
+			status["leaseState"] = uiCurrentTicks < lease->uiExpiresTicks ? "live" : "expired";
 		}
 		return status;
 	}

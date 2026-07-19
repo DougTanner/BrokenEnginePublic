@@ -19,8 +19,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "tinygltf/json.hpp"
-
 namespace toolcli
 {
 	namespace

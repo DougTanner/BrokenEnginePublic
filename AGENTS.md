@@ -181,6 +181,6 @@ The agent interaction harness launches and controls the client/server for live v
 - **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temp allocations instead of local `std::vector`/`std::string`. See `Common/AGENTS.md`
 - **Allocation tracking**: Heap allocations in the main loop trigger `DEBUG_BREAK()`. When unavoidable, wrap with `ScopedSuppressAllocationTracking` + `// Heap:` comment. See [Memory/AGENTS.md](Engine/Source/Memory/AGENTS.md)
 - **LOG formatting**: logging in allocation-tracked Game/Engine code must remain allocation-free; /repo-code-review owns accepted formatting and wrapper details
-- **Standard library / external headers**: new standard-library/third-party `#include`s go in `Common/ExternalHeaders.h` (gated by build defines), not in individual source files — rule and exception: `Common/AGENTS.md`
+- **Standard library / external headers**: new standard-library/third-party `#include`s in PCH-backed code go in `Common/ExternalHeaders.h` (gated by build defines), not in individual source files. The PCH-less AgentTools centralize shared consumption headers in `Tools/ToolCommon/ToolCliCommon.h`; rules and exceptions: `Common/AGENTS.md` and `Tools/ToolCommon/AGENTS.md`
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See `Common/AGENTS.md`
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See `Common/AGENTS.md`

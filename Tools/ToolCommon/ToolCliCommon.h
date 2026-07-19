@@ -9,6 +9,8 @@
 #include <string_view>
 #include <vector>
 
+#include "tinygltf/json.hpp"
+
 namespace toolcli
 {
 	constexpr int kiExitOk = 0;

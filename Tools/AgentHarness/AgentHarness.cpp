@@ -13,8 +13,6 @@
 #include <string>
 #include <string_view>
 
-#include "tinygltf/json.hpp"
-
 #pragma comment(lib, "ws2_32.lib")
 
 namespace toolcli

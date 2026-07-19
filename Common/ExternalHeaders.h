@@ -245,6 +245,12 @@ inline constexpr bool XmIsInf(float fValue)
 	#include "RenderDoc/renderdoc_app.h"
 #endif
 
+// stb - image resize / write (client consumption only; implementation in the Prebuilts unity .cpp)
+#if defined(BT_CLIENT)
+	#include "stb/stb_image_resize2.h"
+	#include "stb/stb_image_write.h"
+#endif
+
 // StackWalker
 #include "StackWalker/Main/StackWalker/StackWalker.h"
 
@@ -299,6 +305,9 @@ inline constexpr bool XmIsInf(float fValue)
 	#include <bcrypt.h>
 	#include <winioctl.h>
 	#pragma comment(lib, "bcrypt.lib")
+
+	// DirectXTK - WAV parsing
+	#include "DirectXTK/Audio/WAVFileReader.h"
 
 	// bc7enc_rdo - BCn encode/decode (consumption only; RGBCX/implementation defined in the Prebuilts unity .cpp)
 	#include "bc7enc_rdo/bc7decomp.h"

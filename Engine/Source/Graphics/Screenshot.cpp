@@ -5,9 +5,6 @@
 #include "Graphics/Managers/TextureCache.h"
 #include "Graphics/Managers/TextureManager.h"
 
-#include "../../../ThirdParty/stb/stb_image_write.h"
-#include "../../../ThirdParty/stb/stb_image_resize2.h"
-
 namespace engine
 {
 

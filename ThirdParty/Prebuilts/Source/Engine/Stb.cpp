@@ -7,6 +7,6 @@
 #include "../../../ThirdParty/stb/stb_image_write.h"
 
 // STB_IMAGE_RESIZE_IMPLEMENTATION lives in DataPacker/stb.cpp — same ThirdParty.lib, defining it here too triggers
-// LNK4006. Screenshot.cpp includes stb_image_resize2.h (declaration only) to call stbir_resize_uint8_srgb.
+// LNK4006. Common/ExternalHeaders.h exposes the declaration to Screenshot.cpp for stbir_resize_uint8_srgb.
 
 #pragma warning(pop)

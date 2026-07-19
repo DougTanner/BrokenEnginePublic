@@ -7,8 +7,6 @@
 #include <iostream>
 #include <optional>
 
-#include "tinygltf/json.hpp"
-
 namespace toolcli
 {
 	namespace

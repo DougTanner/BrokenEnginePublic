@@ -8,8 +8,6 @@
 #include <iostream>
 #include <optional>
 
-#include "tinygltf/json.hpp"
-
 namespace toolcli
 {
 	namespace
@@ -195,7 +193,7 @@ namespace toolcli
 		{
 			if (bExists)
 			{
-				PrintMetadata(metadata);
+				PrintMetadata(landing::LandingStatus(metadata, *locator));
 				return kiExitStateConflict;
 			}
 			metadata = landing::NewLandingMetadata(*locator, owner, session, worktree, iLeaseSeconds);
@@ -204,7 +202,7 @@ namespace toolcli
 				FailWindows("write lock metadata");
 				return kiExitFailure;
 			}
-			PrintMetadata(metadata);
+			PrintMetadata(landing::LandingStatus(metadata, *locator));
 			return kiExitOk;
 		}
 
@@ -233,7 +231,7 @@ namespace toolcli
 				FailWindows("refresh lock metadata");
 				return kiExitFailure;
 			}
-			PrintMetadata(metadata);
+			PrintMetadata(landing::LandingStatus(metadata, *locator));
 			return kiExitOk;
 		}
 
@@ -260,7 +258,7 @@ namespace toolcli
 				FailWindows("recover lock metadata");
 				return kiExitFailure;
 			}
-			PrintMetadata(metadata);
+			PrintMetadata(landing::LandingStatus(metadata, *locator));
 			return kiExitOk;
 		}
 
@@ -268,7 +266,7 @@ namespace toolcli
 		{
 			if (bExists)
 			{
-				PrintMetadata(metadata);
+				PrintMetadata(landing::LandingStatus(metadata, *locator));
 			}
 			else
 			{
