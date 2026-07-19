@@ -29,7 +29,7 @@ Separate "spawn with defaults" from "restore transferred state" so no live value
 
 ## Out of scope
 
-- The blaster wind-trail transfer params (client-visual, structurally never populated server-side) — owned by `Frame/BlasterWindTrailTransferParams.md`.
+- Blaster wind-deposit continuity across cell handoff — a brief discontinuity while the client regenerates the deposit emitter is acceptable.
 - Player uuid preservation across transfer — owned by `Frame/PlayerTransferUuidPreservation.md`.
 - Arrival-grace or pending-countdown semantics — already correct (ride in `TransferData` by design).
 - Missile lifetime / dead `pfTimes` fields — owned by `Frame/MissileLifetimeAndTargetLifecycle.md`.
@@ -42,7 +42,7 @@ Separate "spawn with defaults" from "restore transferred state" so no live value
 
 ## Coordination
 
-- Frame version/save/replay batch with `Documents/Plans/Frame/PlayerTransferUuidPreservation.md`, `Documents/Plans/Frame/MissileLifetimeAndTargetLifecycle.md`, `Documents/Plans/Frame/BlasterWindTrailTransferParams.md`, `Documents/Plans/Frame/FireCooldownNegativeFloor.md`: co-land behind one consolidated `Frame::kiVersion` change and one save/replay invalidation; the last lander owns the bump.
+- Frame version/save/replay batch with `Documents/Plans/Frame/PlayerTransferUuidPreservation.md`, `Documents/Plans/Frame/MissileLifetimeAndTargetLifecycle.md`, `Documents/Plans/Frame/FireCooldownNegativeFloor.md`: co-land behind one consolidated `Frame::kiVersion` change and one save/replay invalidation; the last lander owns the bump.
 
 ## Notes
 
