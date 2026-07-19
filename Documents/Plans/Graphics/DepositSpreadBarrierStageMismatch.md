@@ -39,4 +39,4 @@ Also inspect the sibling `vkComputeBarrier` declared at the top of `RecordLighti
 
 - Invariant exposure: client/graphics-only; no determinism/CRC/wire/`kiVersion`. Runtime GPU-sync change — barrier correctness is **not** compile-checked; validate with the Vulkan validation layers plus a visual check.
 - Impact escalates from hygiene to a real (currently-masked) sync-correctness fix if step-1 verification finds the subpass dependency does not cover deposit→spread on all target hardware.
-- Shares `CommandBufferRecordMain.cpp` with `WindowedLightingShadowDispatch`, `LightingSpreadEmptySkipCadence`, `DisabledPassGatingPerfAudit`, `ObjectShadowsPassCost` — co-schedule or refresh citations (File Group).
+- Shares `CommandBufferRecordMain.cpp` with `WindowedLightingShadowDispatch`, `LightingSpreadEmptySkipCadence`, `DisabledPassGatingPerfAudit` — co-schedule or refresh citations (File Group).

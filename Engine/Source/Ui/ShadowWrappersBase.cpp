@@ -21,7 +21,7 @@ Wrapper gShadowHeightFadeTop(5.0f, 0.0f, 20.0f);
 Wrapper gShadowHeightFadeBottom(-2.0f, -30.0f, 0.0f);
 
 // Object Shadows
-Wrapper gObjectShadowsRenderMultiplier(1.0f, 0.25f, 4.0f);
+Wrapper gObjectShadowsRenderMultiplier(0.5f, 0.25f, 4.0f);
 Wrapper gObjectShadowsBlurMultiplier(0.5f, 0.125f, 1.0f);
 Wrapper gObjectShadowsNoon(0.6f, 0.1f, 1.0f);
 Wrapper gObjectShadowsSunset(0.4f, 0.01f, 1.0f);

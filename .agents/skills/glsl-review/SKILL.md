@@ -1,7 +1,7 @@
 ---
 name: glsl-review
-description: Reviews GLSL shader changes (.vert .frag .comp and related stages) for correctness, performance, and Broken Engine conventions. Use this skill after editing shader source under Engine/Data/Shaders/ or Projects/*/Data/Shaders/ to catch NaN/Inf hazards, divergent branching, early-Z regressions, descriptor-set mistakes, scalar-block-layout violations, and the NVIDIA `inverse()` compiler-hang bug. ALSO use proactively when the user asks to review, audit, or verify shader code.
-allowed-tools: [Read, Write, Grep, Glob, WebFetch, Bash, PowerShell]
+description: Reviews GLSL shader changes (.vert .frag .comp and related stages) for correctness, performance, Broken Engine conventions, and missing rationale for non-trivial algorithm constraints. Use this skill after editing shader source under Engine/Data/Shaders/ or Projects/*/Data/Shaders/ to catch NaN/Inf hazards, divergent branching, early-Z regressions, descriptor-set mistakes, scalar-block-layout violations, undocumented mathematical or grid assumptions, and the NVIDIA `inverse()` compiler-hang bug. ALSO use proactively when the user asks to review, audit, or verify shader code.
+allowed-tools: [Read, Grep, Glob, WebFetch, Bash, PowerShell]
 paths: ["**/*.vert", "**/*.frag", "**/*.comp", "**/*.geom", "**/*.tesc", "**/*.tese", "**/*.mesh", "**/*.task", "**/*.rgen", "**/*.rmiss", "**/*.rchit", "**/*.rahit", "**/*.rint", "**/*.rcall", "**/*.glsl", "**/Data/Shaders/**/*.h"]
 ---
 
@@ -9,7 +9,7 @@ paths: ["**/*.vert", "**/*.frag", "**/*.comp", "**/*.geom", "**/*.tesc", "**/*.t
 
 Reviews GLSL shader changes for **correctness** (NaN/Inf, wrong math, wrong precision, coordinate/space confusion), **performance** (divergence, early-Z, dependent fetches, dynamic loops, hot-path `inverse()`), and **Broken Engine conventions** (scalar block layout, descriptor sets, bindless indexing, NVIDIA `inverse()` ban).
 
-Sibling to `/repo-code-review` — that skill covers C++; this one covers shaders. Style/formatting is out of scope.
+Sibling to `/repo-code-review` — that skill covers C++; this one covers shaders. Style/formatting is out of scope; maintainability review is limited to the algorithm-rationale rule below.
 
 **Principle — no suppression rules.** Describe invariants and flag deviations; never instruct reviewers to ignore specific existing code. "Don't flag X — it's deliberate / legacy / slated for replacement" goes stale the moment the code changes or gains callers, and hides legitimate findings. When an implementation is a known tradeoff, report the tradeoff (e.g., "Phong rather than Blinn-Phong — cheaper-to-rewrite vs. wait-for-Ward-migration") and let the reviewer decide. Parser-level carve-outs (e.g., ignoring `inverse(` inside comments) are fine — they prevent false positives, not real findings.
 
@@ -135,6 +135,10 @@ Catch these by reading the intent, not pattern-matching:
 - Shadow bias sign wrong for the depth convention.
 - Tangent-space normal applied in world space or vice versa — this repo uses `dFdx`/`dFdy` tangent reconstruction in `Model.frag`; verify consistency.
 
+#### Algorithm rationale
+
+Flag new or materially changed non-trivial logic when correctness or performance depends on a non-obvious mathematical, numerical, coordinate/grid, ordering, or hardware assumption and no source-adjacent comment states the rationale or invariant. Require enough explanation to preserve the proof obligation, fallback, or guard; do not request line-by-line narration, comments for standard shader operations, or restatement of code that is already self-explanatory.
+
 ---
 
 ### 4. Performance Footguns
@@ -251,6 +255,9 @@ Only include sections where issues were found. Omit empty sections entirely.
 
 ### Performance Issues
 - file:line - Divergence, early-Z kill, hot-path inverse/pow/trig, dependent fetch, memory-access hazard
+
+### Algorithm Documentation Issues
+- file:line - Non-obvious correctness/performance assumption that needs a source-adjacent rationale or invariant
 
 ### Vulkan / API Issues
 - file:line - Push-constant overflow, missing feature flag, subgroup-op hazard

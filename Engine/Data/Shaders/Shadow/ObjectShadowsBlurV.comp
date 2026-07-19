@@ -28,15 +28,40 @@ void main()
 	vec2 f2InvSize = 1.0f / vec2(i2Size);
 	vec2 f2Uv = (vec2(uiX, uiY) + 0.5f) * f2InvSize;
 
-	float fTotal = 0.0f;
-	float fWeightSum = 0.0f;
-	for (int j = -iRadius; j <= iRadius; ++j)
+	float fTotal = textureLod(objectShadowsBlurIntermediateSampler, f2Uv, 0.0f).x;
+	float fWeightSum = 1.0f;
+	// Intermediate and output grids match, so a linear sample at j + w2 / (w1 + w2) returns
+	// (w1 * T[j] + w2 * T[j + 1]) / (w1 + w2); multiplying it by the combined weight
+	// reconstructs the weighted sum.
+	for (int j = 1; j <= iRadius; j += 2)
 	{
-		float fA = float(j) / fRadiusOverSigma;
-		float fWeight = exp(-0.5f * fA * fA);
-		vec2 f2Offset = vec2(0.0f, float(j)) * f2InvSize;
-		fTotal += fWeight * textureLod(objectShadowsBlurIntermediateSampler, f2Uv + f2Offset, 0.0f).x;
-		fWeightSum += fWeight;
+		float fA1 = float(j) / fRadiusOverSigma;
+		float fWeight1 = exp(-0.5f * fA1 * fA1);
+		if (j + 1 <= iRadius)
+		{
+			float fA2 = float(j + 1) / fRadiusOverSigma;
+			float fWeight2 = exp(-0.5f * fA2 * fA2);
+			float fCombinedWeight = fWeight1 + fWeight2;
+			// Both Gaussian weights can underflow to zero; that pair contributes nothing and cannot form an offset.
+			if (fCombinedWeight > 0.0f)
+			{
+				float fCombinedOffset = float(j) + fWeight2 / fCombinedWeight;
+				vec2 f2Offset = vec2(0.0f, fCombinedOffset) * f2InvSize;
+				fTotal += fCombinedWeight *
+					(textureLod(objectShadowsBlurIntermediateSampler, f2Uv + f2Offset, 0.0f).x
+						+ textureLod(objectShadowsBlurIntermediateSampler, f2Uv - f2Offset, 0.0f).x);
+				fWeightSum += 2.0f * fCombinedWeight;
+			}
+		}
+		else
+		{
+			// An odd radius leaves one unpaired outer tap on each side.
+			vec2 f2Offset = vec2(0.0f, float(j)) * f2InvSize;
+			fTotal += fWeight1 *
+				(textureLod(objectShadowsBlurIntermediateSampler, f2Uv + f2Offset, 0.0f).x
+					+ textureLod(objectShadowsBlurIntermediateSampler, f2Uv - f2Offset, 0.0f).x);
+			fWeightSum += 2.0f * fWeight1;
+		}
 	}
 
 	float fOutColor = 1.0f - globalLayout.fObjectShadowsIntensity * fTotal / fWeightSum;

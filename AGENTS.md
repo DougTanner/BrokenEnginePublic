@@ -79,9 +79,9 @@ Run the smallest applicable static checks and affected-target compilation before
 
 Run one fresh domain review — changed C++: `/repo-code-review`; changed shaders: `/glsl-review`; Tier-1 non-C++: direct coherence; any other changed artifact at Tier 2+ (scripts, skills, plans, documentation): fresh-eyes coherence review by a Fable subagent against the changed bytes — that reviewer fixes and self-verifies sub-semantic issues (meaning-preserving wording, formatting) in the same pass; only semantic findings route through separate resolve/verify steps. Every changed artifact type gets exactly one domain review — a change spanning two types runs each type's review — and no artifact type falls through this list unreviewed. Tier 3 adds `/adversarial-review`, which any tier may also run for one concrete unresolved reachable hypothesis. Adjudicate evidence once; accepted fixes re-review and retest only affected regions, and a second wave needs a reproducible blocker.
 
-### 6. Apply conditional hygiene
+### 6. Apply hygiene
 
-Run `/code-style-review` only for changed C++, `/validate-skill` only for a changed `.agents/skills/*/SKILL.md`, `/update-claude-docs` only for durable instruction or invariant drift, and `/update-vcxproj` only for added or removed files or whole-file client/server affinity changes.
+Run `/code-style-review` only for changed C++, `/validate-skill` only for a changed `.agents/skills/*/SKILL.md`, `/update-claude-docs` after every C++ or GLSL change, and `/update-vcxproj` only for added or removed files or whole-file client/server affinity changes. The documentation pass always inspects the affected AGENTS.md scope but may make no edits when the existing guidance remains correct.
 
 ### 7. Verify the acceptance matrix
 

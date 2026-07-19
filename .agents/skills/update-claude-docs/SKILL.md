@@ -1,7 +1,7 @@
 ---
 name: update-claude-docs
-description: Updates AGENTS.md files when a change alters a durable instruction, non-obvious invariant, subsystem boundary, or agent-memory contract. Syncs only affected documentation; ordinary code changes whose existing docs remain true do not trigger it. Also has an explicit audit mode that grades every AGENTS.md in the repo against a rubric, reports, then applies improvements.
-when_to_use: Sync mode (default) — after a durable instruction/invariant or agent-memory change, or for "update AGENTS.md", "sync project memory", "refresh the docs". Audit mode — "audit AGENTS.md", "grade AGENTS.md files", "AGENTS.md quality report", "improve AGENTS.md across the repo".
+description: Updates AGENTS.md after every C++ or GLSL change by inspecting affected documentation and making only necessary edits. Also use for explicit AGENTS.md sync requests and for repo-wide audit mode, which grades every AGENTS.md against a rubric before applying approved improvements.
+when_to_use: Sync mode (default) — after every C++ or GLSL change, or for "update AGENTS.md", "sync project memory", "refresh the docs". Audit mode — "audit AGENTS.md", "grade AGENTS.md files", "AGENTS.md quality report", "improve AGENTS.md across the repo".
 allowed-tools: [Read, Edit, Write, Grep, Glob, Bash, PowerShell]
 ---
 
@@ -9,7 +9,7 @@ allowed-tools: [Read, Edit, Write, Grep, Glob, Bash, PowerShell]
 
 Two modes — infer from the invocation:
 
-- **Sync mode** (default) — invoked only when changed behavior alters a durable instruction, non-obvious invariant, subsystem boundary, or agent-memory contract, or when the user explicitly requests documentation. Targets only the affected directories; small, surgical edits. If no durable documentation fact changed, report no trigger and make no edits.
+- **Sync mode** (default) — invoke after every C++ or GLSL change, or when the user explicitly requests documentation. Inspect only the affected directories and make small, surgical edits. If the existing guidance remains correct, report that no documentation edit was needed.
 - **Audit mode** — only when the user asks for an audit / report / grade / repo-wide improvement pass. Quality report first, then improvements after user approval.
 
 For a delegated call, use concise inline reporting. Keep audit approval
@@ -19,21 +19,22 @@ requests and decision-driving contradictions live.
 
 ## Sync Mode (default)
 
-Before discovery, confirm the supplied change made a durable instruction,
-non-obvious invariant, subsystem boundary, or agent-memory contract false or
-incomplete. If none changed and the user did not explicitly request a docs
-edit, report no trigger and stop without scanning or editing the documentation
-tree.
+Run this mode after every C++ or GLSL change. Invocation and affected-document
+inspection are unconditional; documentation edits are not. Do not decide that
+the change is too small or non-durable before inspecting the affected AGENTS.md
+scope.
 
-1. **Identify affected directories**: If invoked as a subagent, the caller should provide the list of changed files. Otherwise, use the session's explicit change list or derive it from the fixed session-start commit and cross-check it against Edit/Write/NotebookEdit calls. Do not use a moving merge-base after primary-branch reconciliation, and do not use `git status` alone because it cannot distinguish the session's edits from newly integrated changes. If neither source is available, inspect the files edited in the current task before asking the user. Update AGENTS.md only in the immediate directories containing those files (not parent directories unless their content directly changed).
+Treat a new or materially changed algorithm as a documentation candidate when correctness or performance depends on a non-obvious mathematical, numerical, coordinate/grid, ordering, or hardware assumption. Source comments own the local rationale; AGENTS.md owns only the subsystem-level constraint a future editor needs to make a correct design decision. Ordinary formulas and self-explanatory implementation details do not by themselves require documentation edits.
+
+1. **Identify affected directories**: If invoked as a subagent, the caller should provide the list of changed files. Otherwise, use the session's explicit change list or derive it from the fixed session-start commit and cross-check it against Edit/Write/NotebookEdit calls. Do not use a moving merge-base after primary-branch reconciliation, and do not use `git status` alone because it cannot distinguish the session's edits from newly integrated changes. If neither source is available, inspect the files edited in the current task before asking the user. For every changed C++ or GLSL file, walk from its containing directory toward the repository root and identify the nearest governing AGENTS.md. Treat that document's directory as affected; do not update other parent documents unless their content directly changed.
    - **Hub drift**: if a hub AGENTS.md was modified this session (root, `Engine/Source`, `Common`, any `Collections` hub), also audit its immediate descendants for newly-stale duplicated content — leaves often carry pre-trim copies of hub wording.
 
 2. **Discover the existing AGENTS.md tree**: Before editing, Glob `**/AGENTS.md` (excluding `ThirdParty/`, `Documents/Plans/`, and the `Engine/Source/Graphics/Managers/*.AGENTS.md` linked docs — those are linked reference docs, not directory memory) so you know what sibling docs exist. This informs cross-linking and prevents creating a new AGENTS.md where a parent already covers the subsystem. The sibling `CLAUDE.md` stubs are not memory docs and won't match this glob.
 
-3. **Read existing AGENTS.md**: Before editing, read each affected directory's AGENTS.md (if it exists) to understand what's already documented.
+3. **Read existing AGENTS.md**: Before deciding whether documentation edits are needed, read every nearest governing AGENTS.md identified in step 1 to understand what's already documented.
 
 4. **Create or update AGENTS.md**:
-   - **Default to inaction**: Prefer modifying existing content over adding new content. If the doc still reads true after the code change, do nothing — that is a valid outcome and the most common one. Small additions (a method, a member, a refactor, a bug fix) should typically produce zero new lines. Only add net-new content for substantial changes: a new subsystem, a new cross-cutting pattern, or a non-obvious invariant a reader would make a worse decision without.
+   - **Default to inaction**: Prefer modifying existing content over adding new content. If the doc still reads true after the code change, do nothing — that is a valid outcome and the most common one. Small additions (a method, a member, a refactor, a bug fix) should typically produce zero new lines. Only add net-new content for substantial changes: a new subsystem, a new cross-cutting pattern, or a non-obvious invariant or algorithm constraint a reader would make a worse decision without. Judge significance by future decision impact, not diff size.
    - **Classify hub vs. leaf**: A hub serves multiple child subsystems (root, `Engine/Source`, `Common`, any `Collections` hub); a leaf documents one subsystem. Length target follows from classification (see step 7).
    - **Hubs must claim territory**: If the directory is a hub whose children share a pattern (base class, protocol, layout, file-split convention), state ONCE at the hub that children do not re-document this pattern. This is what stops leaves from defensively re-stating the same boilerplate.
    - If an AGENTS.md exists, update only the sections affected by the code changes.
