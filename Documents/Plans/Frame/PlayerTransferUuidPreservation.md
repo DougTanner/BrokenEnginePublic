@@ -37,10 +37,10 @@ Carry the uuid through transfer and re-add with it:
 
 ## Coordination
 
-- Frame version/save/replay batch with `Documents/Plans/Frame/TransferSentinelConflation.md`, `Documents/Plans/Frame/MissileLifetimeAndTargetLifecycle.md`, `Documents/Plans/Frame/FireCooldownNegativeFloor.md`: co-land behind one consolidated `Frame::kiVersion` change and one save/replay invalidation; the last lander owns the bump.
+- Frame version/save/replay batch with `Documents/Plans/Frame/TransferSentinelConflation.md` and `Documents/Plans/Frame/FireCooldownNegativeFloor.md`: co-land behind one consolidated `Frame::kiVersion` change and one save/replay invalidation; the last lander owns the bump.
 
 ## Notes
 
 - **Invariant exposure: high.** `TransferData` layout change → StatusChange wire/save payload change → bump `PlayersPostRender::kiVersion` (propagates to `Frame::kiVersion`, invalidates saves/replays). Uuid allocation order feeds `idToIndexMap` iteration-independent lookups only, but the uuid counter itself is CRC-relevant shared state — re-adding with a carried id must keep the mint counter behavior identical on both sides (verify the `AddIndexableElementWithId` counter contract against SmokeTrails' usage). Inside the `/fp:strict` CRC'd tick; client and server land together.
 - **Single open decision for `/external-grill-plan`:** fix (recommended — carries one `uint64_t`, closes the window, restores the documented convention) vs accept-and-document (add the caveat to the hub AGENTS.md and downgrade the `kWarning`; zero code risk, keeps the lost-update behavior).
-- Co-schedule with `Frame/TransferSentinelConflation.md` + `Frame/MissileLifetimeAndTargetLifecycle.md` — shared `TransferData`/codec surface, one shared version bump (see Order.md Dependencies).
+- Co-schedule with `Frame/TransferSentinelConflation.md` — shared `TransferData`/codec surface, one shared version bump (see Order.md Dependencies).

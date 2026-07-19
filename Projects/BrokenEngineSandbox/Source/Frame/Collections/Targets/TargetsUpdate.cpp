@@ -57,6 +57,12 @@ void TargetsPostRender::Remove(Frame& __restrict rFrame, target_t& rId, TargetFl
 	TargetsInterpolate& rInterpolate = *rFrame.interpolate.pTargets;
 	TargetsPostRender& rPostRender = *rFrame.postRender.pTargets;
 
+	if (!rId.IsValid() || !rInterpolate.idToIndexMap.contains(rId))
+	{
+		rId = {};
+		return;
+	}
+
 	int64_t iIndex = rInterpolate.IdToIndex(rId);
 
 	if (flags & kDestination)
@@ -77,8 +83,8 @@ void TargetsPostRender::Remove(Frame& __restrict rFrame, target_t& rId, TargetFl
 	if (!(rPostRender.pFlags[iIndex] & kDestination) && rPostRender.puiSubscribers[iIndex] == 0)
 	{
 		engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-		rId = {};
 	}
+	rId = {};
 }
 
 void TargetsPostRender::AddSubscriber(Frame& __restrict rFrame, target_t id)

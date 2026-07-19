@@ -68,7 +68,6 @@ constexpr float kfMissileSoundFadeOutTime = 0.15f;
 // Missile spawn
 constexpr float kfDeltaRotationLimitMin = 2.0f;
 constexpr float kfDeltaRotationLimitRandom = 2.0f;
-constexpr float kfExhaustDelay = 0.01f;
 
 #if defined(BT_CLIENT)
 // Area light type registration for exhaust
@@ -100,8 +99,8 @@ void XM_CALLCONV SyncMissileTrail(FrameInterpolate& rFrameInterpolate, engine::s
 // Helper to sync owned objects for a missile
 void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::smoke_trails_t uiSmokeTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, [[maybe_unused]] float fDeltaRotation, float fExhaustLength)
 {
-	// Sync area light (exhaust flame) if not exploding
-	if (uiAreaLight.IsValid() && !(flags & kExploding))
+	// Sync area light (exhaust flame) while the engine is active
+	if (uiAreaLight.IsValid() && !(flags & kExploding) && !(flags & kFalling))
 	{
 		float fLength = fExhaustLength;
 		float fWidth = kfExhaustWidth;
@@ -126,7 +125,7 @@ void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_l
 	}
 
 	// Sync trail position
-	if (uiSmokeTrail.IsValid())
+	if (uiSmokeTrail.IsValid() && !(flags & kFalling))
 	{
 		float fTrailOffset = kfTrailOffset;
 		XMVECTOR vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
@@ -135,7 +134,7 @@ void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_l
 	}
 
 	// Sync sound position (looping engine sound)
-	if (uiSound.IsValid() && !(flags & kExploding))
+	if (uiSound.IsValid() && !(flags & kExploding) && !(flags & kFalling))
 	{
 		engine::SoundsInterpolate::Sync(rFrameInterpolate, uiSound,
 		{
@@ -156,16 +155,21 @@ void MissilesInterpolate::ClientInit(Frame& rFrame, int64_t iIndex, engine::smok
 	MissilesInterpolate& rMissiles = *rFrame.interpolate.pMissiles;
 	MissilesPostRender& rPostRender = *rFrame.postRender.pMissiles;
 
+	rMissiles.puiAreaLights[iIndex] = {};
+	rMissiles.puiSmokeTrails[iIndex] = {};
+	rPostRender.puiSounds[iIndex] = {};
+	if ((rPostRender.pFlags[iIndex] & kFalling) || (rPostRender.pFlags[iIndex] & kSilentDespawn))
+	{
+		return;
+	}
+
 	// Add client-only owned objects
 	uint8_t uiAreaLightType = (rPostRender.pFlags[iIndex] & kTargetEnemy)
 		? suiPlayerExhaustAreaLightTypeIndex : suiEnemyExhaustAreaLightTypeIndex;
-	rMissiles.puiAreaLights[iIndex] = {};
 	rFrame.postRender.areaLights.Add(rFrame, rMissiles.puiAreaLights[iIndex], uiAreaLightType);
 
-	rMissiles.puiSmokeTrails[iIndex] = {};
 	engine::SmokeTrailsPostRender::Add(rFrame, rMissiles.puiSmokeTrails[iIndex], suiSmokeTrailTypeIndex, smokeTrailReuseId);
 
-	rPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
 
 	// Sync all owned objects (reads fields from arrays)
@@ -312,7 +316,7 @@ void MissilesPostRender::AllocateAndCopy(MissilesPostRender& rCurrent, const Mis
 {
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
-	// Static fields - memcpy (never modified in Update)
+	// Copy fields carried forward from previous frame
 	if (rCurrent.iCount > 0)
 	{
 		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
@@ -345,19 +349,7 @@ static void RemoveOwnedObjects([[maybe_unused]] Frame& rFrame, [[maybe_unused]] 
 	}
 #endif // BT_CLIENT
 
-	// Remove target subscription (if target still exists)
-	if (rCurrentPostRender.puiTargets[i].IsValid())
-	{
-		const TargetsInterpolate& rTargets = *rFrame.interpolate.pTargets;
-		if (rTargets.idToIndexMap.contains(rCurrentPostRender.puiTargets[i]))
-		{
-			TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
-		}
-		else
-		{
-			rCurrentPostRender.puiTargets[i] = {};
-		}
-	}
+	TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
 }
 
 void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
@@ -388,7 +380,6 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[m
 				.fAcceleration = rCurrentPostRender.pfAccelerations[i],
 				.fDeltaRotationDelay = rCurrentPostRender.pfDeltaRotationDelays[i],
 				.fTime = rCurrentPostRender.pfTimes[i],
-				.fExhaustDelay = rCurrentPostRender.pfExaustDelays[i],
 				.fNextJitter = rCurrentPostRender.pfNextJitter[i],
 #if defined(BT_CLIENT)
 				.smokeTrailId = rCurrentInterpolate.puiSmokeTrails[i],
@@ -424,12 +415,14 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[ma
 
 	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
 	{
-		if (!(rCurrentPostRender.pFlags[i] & kExploding) || rCurrentInterpolate.pfDestroyedTimes[i] > 0.0f) [[likely]]
+		bool bSilentDespawn = rCurrentPostRender.pFlags[i] & kSilentDespawn;
+		bool bExplosionFinished = (rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pfDestroyedTimes[i] <= 0.0f;
+		if (!bSilentDespawn && !bExplosionFinished) [[likely]]
 		{
 			continue;
 		}
 
-		// Area light and sound may already be removed by Explode()
+		// Owned effects and target may already be released by Fall() or Explode()
 		RemoveOwnedObjects(rFrame, rCurrentInterpolate, rCurrentPostRender, i);
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
@@ -456,7 +449,12 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	// Initialize interpolate state
 	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
-	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
+	MissileFlags_t flags = rInfo.flags;
+	if (rInfo.fTime >= kfMissileLifetime)
+	{
+		flags.Set(kFalling);
+	}
+	rCurrentPostRender.pFlags[iIndex] = flags;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	// Initialize post-render state
@@ -465,21 +463,18 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pVecStoredDirections[iIndex] = rInfo.vecStoredDirection;
 	rCurrentPostRender.puiTargets[iIndex] = rInfo.uiTarget;
 	rCurrentPostRender.pfTimes[iIndex] = rInfo.fTime;
-	rCurrentPostRender.pfDeltaRotationDelays[iIndex] = rInfo.fDeltaRotationDelay > 0.0f
+	rCurrentPostRender.pfDeltaRotationDelays[iIndex] = (flags & kFalling) || rInfo.fDeltaRotationDelay > 0.0f
 		? rInfo.fDeltaRotationDelay
 		: 0.5f * kfMissileDeltaRotationDelay + common::Random<kfMissileDeltaRotationDelay>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfDeltaRotations[iIndex] = 0.0f;
-	rCurrentPostRender.pfExaustDelays[iIndex] = rInfo.fExhaustDelay > 0.0f
-		? rInfo.fExhaustDelay
-		: kfExhaustDelay;
-	float fExhaustLength = kfMissileExhaustLength + common::Random<kfMissileExhaustLengthRandom>(rFrame.postRender.randomEngine);
+	float fExhaustLength = (flags & kFalling) ? 0.0f : kfMissileExhaustLength + common::Random<kfMissileExhaustLengthRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfExhaustLengths[iIndex] = fExhaustLength;
 	rCurrentPostRender.pfNextJitter[iIndex] = rInfo.fNextJitter;
-	rCurrentPostRender.pfDeltaRotationMax[iIndex] = kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.postRender.randomEngine);
+	rCurrentPostRender.pfDeltaRotationMax[iIndex] = (flags & kFalling) ? 0.0f : kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfAccelerations[iIndex] = rInfo.fAcceleration;
 
 	// Create sound with random pitch variation
-	float fPitch = kfMissilePitchMin + common::Random<kfMissilePitchRandom>(rFrame.postRender.randomEngine);
+	float fPitch = (flags & kFalling) ? 0.0f : kfMissilePitchMin + common::Random<kfMissilePitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
@@ -487,6 +482,40 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 #if defined(BT_CLIENT)
 	MissilesInterpolate::ClientInit(rFrame, iIndex, rInfo.smokeTrailId);
 #endif // BT_CLIENT
+}
+
+void MissilesPostRender::Fall(Frame& __restrict rFrame, int64_t i, float fDeltaTime)
+{
+	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
+
+	if ((rCurrentPostRender.pFlags[i] & kExploding) || (rCurrentPostRender.pFlags[i] & kFalling))
+	{
+		return;
+	}
+
+	TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
+	rCurrentPostRender.pFlags[i].Set(kFalling);
+	rCurrentPostRender.pfDeltaRotations[i] = 0.0f;
+	rCurrentPostRender.pVecVelocities[i] = XMVectorSetZ(rCurrentPostRender.pVecVelocities[i], XMVectorGetZ(rCurrentPostRender.pVecVelocities[i]) - kfMissileGravity * fDeltaTime);
+
+#if defined(BT_CLIENT)
+	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
+	if (rCurrentInterpolate.puiAreaLights[i].IsValid())
+	{
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		rCurrentInterpolate.puiAreaLights[i] = {};
+	}
+	if (rCurrentInterpolate.puiSmokeTrails[i].IsValid())
+	{
+		engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
+		rCurrentInterpolate.puiSmokeTrails[i] = {};
+	}
+	if (rCurrentPostRender.puiSounds[i].IsValid())
+	{
+		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+		rCurrentPostRender.puiSounds[i] = {};
+	}
+#endif
 }
 
 void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData, [[maybe_unused]] int64_t i, [[maybe_unused]] bool bDirectional)
@@ -498,6 +527,7 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	{
 		return;
 	}
+	TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
 
 #if defined(BT_CLIENT)
 	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], gExplosionVolume.Get());
@@ -573,7 +603,6 @@ bool MissilesPostRender::LogDifferences(const MissilesPostRender& rOther) const
 		bEqual &= common::LogDifference<"pfTimes">(i, pfTimes[i], rOther.pfTimes[i]);
 		bEqual &= common::LogDifference<"pfDeltaRotationDelays">(i, pfDeltaRotationDelays[i], rOther.pfDeltaRotationDelays[i]);
 		bEqual &= common::LogDifference<"pfDeltaRotations">(i, pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
-		bEqual &= common::LogDifference<"pfExaustDelays">(i, pfExaustDelays[i], rOther.pfExaustDelays[i]);
 		bEqual &= common::LogDifference<"pfNextJitter">(i, pfNextJitter[i], rOther.pfNextJitter[i]);
 		bEqual &= common::LogDifference<"pfDeltaRotationMax">(i, pfDeltaRotationMax[i], rOther.pfDeltaRotationMax[i]);
 		bEqual &= common::LogDifference<"pfAccelerations">(i, pfAccelerations[i], rOther.pfAccelerations[i]);

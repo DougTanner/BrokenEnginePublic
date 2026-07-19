@@ -36,6 +36,8 @@ inline constexpr float kfBlasterDamage = 6.0f;
 inline constexpr float kfMissileCollisionRadius = 0.5f;
 inline constexpr float kfMissileDamageRadius = 7.0f;
 inline constexpr float kfMissileDamage = 30.0f;
+inline constexpr float kfMissileLifetime = 10.0f;
+inline constexpr float kfMissileGravity = 9.8f;
 
 inline constexpr float kfSpaceshipHealth = 10.0f;
 inline constexpr float kfSpaceshipCollisionDamage = 5.0f;

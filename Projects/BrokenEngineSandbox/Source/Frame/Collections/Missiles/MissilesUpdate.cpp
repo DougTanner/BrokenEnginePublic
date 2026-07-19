@@ -78,8 +78,11 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 			// Positions must always have W=1.0 — prevents W-lane drift via MultiplyAdd.
 			vecPosition = XMVectorSetW(vecPosition, 1.0f);
 
-			// Add delta rotation to direction (delay percentage already applied in PostRender::Update)
-			vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * rPreviousPostRender.pfDeltaRotations[i])));
+			if (!(flags & kFalling))
+			{
+				// Add delta rotation to direction (delay percentage already applied in PostRender::Update)
+				vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * rPreviousPostRender.pfDeltaRotations[i])));
+			}
 		}
 
 		// Decay destroyed time
@@ -115,13 +118,14 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 		float fTime = rPrevious.pfTimes[i] + fDeltaTime;
 		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
 		float fDeltaRotationDelay = rPrevious.pfDeltaRotationDelays[i];
-		float fExaustDelay = rPrevious.pfExaustDelays[i] - fDeltaTime;
 		float fExhaustLength = rPrevious.pfExhaustLengths[i];
-		float fNextJitter = rPrevious.pfNextJitter[i] - fDeltaTime;
+		float fNextJitter = rPrevious.pfNextJitter[i];
 		XMVECTOR vecStoredDirection = rPrevious.pVecStoredDirections[i];
 
-		if (!(rCurrent.pFlags[i] & kExploding)) [[likely]]
+		if (!(rCurrent.pFlags[i] & kExploding) && !(rCurrent.pFlags[i] & kFalling) && fTime < kfMissileLifetime) [[likely]]
 		{
+			fNextJitter -= fDeltaTime;
+
 			// Decay velocity
 			vecVelocity = XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfVelocityDecay), vecVelocity);
 
@@ -158,7 +162,8 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 			// Validate existing target: clear uiTarget if its source row or kDestination flag is gone
 			if (uiTarget.IsValid())
 			{
-				const TargetsInterpolate& rTargets = *rPreviousFrame.interpolate.pTargets;
+				const TargetsInterpolate& rTargets = *rFrame.interpolate.pTargets;
+				const TargetsPostRender& rTargetsPostRender = *rFrame.postRender.pTargets;
 
 				if (!rTargets.idToIndexMap.contains(uiTarget))
 				{
@@ -167,13 +172,11 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 				}
 				else
 				{
-					const TargetsPostRender& rTargetsPostRender = *rPreviousFrame.postRender.pTargets;
 					int64_t iTargetIndex = rTargets.IdToIndex(uiTarget);
 
 					if (!(rTargetsPostRender.pFlags[iTargetIndex] & TargetFlags::kDestination))
 					{
 						TargetsPostRender::Remove(rFrame, uiTarget, {});
-						uiTarget = {};
 						vecStoredDirection = rCurrentInterpolate.pVecDirections[i];
 					}
 				}
@@ -191,12 +194,12 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 			// engage homing next tick (matches engine's read-previous / write-current pattern)
 			if (uiTarget.IsValid() && !bAcquiredThisTick)
 			{
-				const TargetsInterpolate& rTargets = *rPreviousFrame.interpolate.pTargets;
-				int64_t iTargetIndex = rTargets.IdToIndex(uiTarget);
+				const TargetsInterpolate& rPreviousTargets = *rPreviousFrame.interpolate.pTargets;
+				int64_t iPreviousTargetIndex = rPreviousTargets.IdToIndex(uiTarget);
 
 				fDeltaRotationDelay -= fDeltaTime;
 
-				XMVECTOR vecTargetPosition = rTargets.pVecPositions[iTargetIndex];
+				XMVECTOR vecTargetPosition = rPreviousTargets.pVecPositions[iPreviousTargetIndex];
 				XMVECTOR vecToTargetNormal = XMVector3Normalize(XMVectorSubtract(vecTargetPosition, rCurrentInterpolate.pVecPositions[i]));
 				float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(rCurrentInterpolate.pVecDirections[i], vecToTargetNormal));
 				float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaRotationTowardsTarget : -kfDeltaRotationTowardsTarget;
@@ -226,9 +229,9 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 			// Keep velocity in XY plane
 			vecVelocity = XMVectorSetZ(vecVelocity, 0.0f);
 		}
-		else
+		else if (rCurrent.pFlags[i] & kFalling)
 		{
-			// Missile is exploding - single big explosion spawned in Explode()
+			vecVelocity = XMVectorSetZ(vecVelocity, XMVectorGetZ(vecVelocity) - kfMissileGravity * fDeltaTime);
 		}
 
 		// Save dynamic fields (static fields copied via memcpy in AllocateAndCopy)
@@ -238,9 +241,13 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 		rCurrent.pfTimes[i] = fTime;
 		rCurrent.pfDeltaRotationDelays[i] = fDeltaRotationDelay;
 		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
-		rCurrent.pfExaustDelays[i] = fExaustDelay;
 		rCurrent.pfExhaustLengths[i] = fExhaustLength;
 		rCurrent.pfNextJitter[i] = fNextJitter;
+
+		if (!(rCurrent.pFlags[i] & kExploding) && !(rCurrent.pFlags[i] & kFalling) && fTime >= kfMissileLifetime)
+		{
+			Fall(rFrame, i, fDeltaTime);
+		}
 	}
 }
 
@@ -325,7 +332,7 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		if (rCurrentPostRender.pFlags[i] & kExploding) [[unlikely]]
+		if ((rCurrentPostRender.pFlags[i] & kExploding) || (rCurrentPostRender.pFlags[i] & kSilentDespawn)) [[unlikely]]
 		{
 			continue;
 		}
@@ -351,7 +358,14 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 #if defined(BT_CLIENT)
 			SyncMissileTrail(rFrame.interpolate, rCurrentInterpolate.puiSmokeTrails[i], rTerrainHit.vecPosition);
 #endif
-			Explode(rFrame, rStaticData, i, true);
+			if ((rCurrentPostRender.pFlags[i] & kFalling) && XMVectorGetZ(rTerrainHit.vecPosition) <= 0.0f)
+			{
+				rCurrentPostRender.pFlags[i].Set(kSilentDespawn);
+			}
+			else
+			{
+				Explode(rFrame, rStaticData, i, true);
+			}
 		}
 		else if (rBoundaryHit.bHit) [[unlikely]]
 		{

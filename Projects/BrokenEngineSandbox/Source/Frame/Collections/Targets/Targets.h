@@ -50,7 +50,8 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 	static void EndRender(int64_t) {}
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions); }
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions); }
+	auto Members(this auto&& rSelf) { return rSelf.SharedMembers(); }
 
 	// Utility
 	bool LogDifferences(const TargetsInterpolate& rOther) const;
@@ -81,7 +82,8 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	TargetFlags_t* __restrict pFlags = nullptr;
 	uint8_t* __restrict puiSubscribers = nullptr;
 	engine::alignment_t* __restrict pAlignments = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds, rSelf.pFlags, rSelf.puiSubscribers, rSelf.pAlignments); }
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.puiIds, rSelf.pFlags, rSelf.puiSubscribers, rSelf.pAlignments); }
+	auto Members(this auto&& rSelf) { return rSelf.SharedMembers(); }
 
 	// Utility
 	bool LogDifferences(const TargetsPostRender& rOther) const;

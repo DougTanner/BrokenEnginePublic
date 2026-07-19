@@ -99,7 +99,7 @@ struct TransferData
 			rSelf.fNextBlasterSpawnTime,
 			rSelf.fArrivalGracePeriod,
 			rSelf.fNavigationDelay,
-			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fExhaustDelay, rSelf.fNextJitter,
+			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fNextJitter,
 			rSelf.globalPlayerId,
 			rSelf.fleetWantedCoord,
 			rSelf.uiPendingFleetWantedCoordTicks,
@@ -155,7 +155,6 @@ struct TransferData
 	// Missile timers
 	float fDeltaRotationDelay = 0.0f;
 	float fTime = 0.0f;
-	float fExhaustDelay = 0.0f;
 	float fNextJitter = 0.0f;
 
 	// Global player ID (player transfers only)

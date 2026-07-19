@@ -60,7 +60,6 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.alignment = rData.alignment,
 				.fDeltaRotationDelay = rData.fDeltaRotationDelay,
 				.fTime = rData.fTime,
-				.fExhaustDelay = rData.fExhaustDelay,
 				.fNextJitter = rData.fNextJitter,
 #if defined(BT_CLIENT)
 				.smokeTrailId = rData.smokeTrailId,
