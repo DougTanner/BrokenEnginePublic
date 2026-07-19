@@ -286,7 +286,7 @@ void DynamicPipelines::CreatePipelineSmokeAxisAligned(common::crc_t crc, std::st
 		data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc, data::kShadersSmokeSmokefragCrc,
 		gpTextureManager->mRenderTargetTextures.mSmokeTextureOne,
 		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
-		&gpBufferManager->mSmokeOccupancyVkBuffer, iBufferSize);
+		&gpBufferManager->mSmokeOccupancyVkBuffers[0], iBufferSize);
 }
 
 void DynamicPipelines::CreatePipelineSmoke(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -295,7 +295,7 @@ void DynamicPipelines::CreatePipelineSmoke(common::crc_t crc, std::string_view n
 		data::kShadersQuadsQuadsVisibleAreavertCrc, data::kShadersSmokeSmokefragCrc,
 		gpTextureManager->mRenderTargetTextures.mSmokeTextureOne,
 		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeGradientTexture},
-		&gpBufferManager->mSmokeOccupancyVkBuffer, iBufferSize);
+		&gpBufferManager->mSmokeOccupancyVkBuffers[0], iBufferSize);
 }
 
 void DynamicPipelines::CreatePipelineWindDepositA(common::crc_t crc, std::string_view name, int64_t iBufferSize)

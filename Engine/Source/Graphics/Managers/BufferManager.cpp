@@ -594,7 +594,36 @@ void BufferManager::CreateSmokeHierarchicalBuffers()
 	// Bit-packed occupancy: 1 bit per tile, packed into uint32s
 	uint32_t uiOccupancyUints = (uiTotalTiles + 31) / 32;
 	mSmokeOccupancyBufferSize = static_cast<VkDeviceSize>(uiOccupancyUints) * sizeof(uint32_t);
-	Buffer::CreateBuffer("SmokeOccupancy", mSmokeOccupancyBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mSmokeOccupancyVkBuffer, mSmokeOccupancyVmaAllocation);
+	for (int64_t i = 0; i < 2; ++i)
+	{
+		Buffer::CreateBuffer(i == 0 ? "SmokeOccupancyA" : "SmokeOccupancyB", mSmokeOccupancyBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mSmokeOccupancyVkBuffers[i], mSmokeOccupancyVmaAllocations[i]);
+	}
+
+	// Occupancy describes persistent texture contents, so both buffers must start empty alongside the
+	// creation-time smoke texture clears. The one-shot barrier also makes the fills visible to the first spread.
+	OneShotCommandBuffer oneShotCommandBuffer;
+	for (VkBuffer vkSmokeOccupancyBuffer : mSmokeOccupancyVkBuffers)
+	{
+		vkCmdFillBuffer(oneShotCommandBuffer.mVkCommandBuffer, vkSmokeOccupancyBuffer, 0, mSmokeOccupancyBufferSize, 0);
+	}
+	VkBufferMemoryBarrier pSmokeOccupancyInitBarriers[2] {};
+	for (int64_t i = 0; i < 2; ++i)
+	{
+		pSmokeOccupancyInitBarriers[i] =
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+			.pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = mSmokeOccupancyVkBuffers[i],
+			.offset = 0,
+			.size = VK_WHOLE_SIZE,
+		};
+	}
+	vkCmdPipelineBarrier(oneShotCommandBuffer.mVkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, static_cast<uint32_t>(std::size(pSmokeOccupancyInitBarriers)), pSmokeOccupancyInitBarriers, 0, nullptr);
+	oneShotCommandBuffer.Execute();
 
 	// Active tile list: VkDispatchIndirectCommand (12 bytes) + packed tile indices (4 bytes each)
 	mSmokeActiveTileBufferSize = sizeof(VkDispatchIndirectCommand) + static_cast<VkDeviceSize>(uiTotalTiles) * sizeof(uint32_t);
@@ -603,13 +632,16 @@ void BufferManager::CreateSmokeHierarchicalBuffers()
 
 void BufferManager::DestroySmokeHierarchicalBuffers()
 {
-	if (mSmokeOccupancyVkBuffer != VK_NULL_HANDLE)
+	for (int64_t i = 0; i < 2; ++i)
 	{
-		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mSmokeOccupancyVkBuffer, mSmokeOccupancyVmaAllocation);
-		mSmokeOccupancyVkBuffer = VK_NULL_HANDLE;
-		mSmokeOccupancyVmaAllocation = VK_NULL_HANDLE;
-		mSmokeOccupancyBufferSize = 0;
+		if (mSmokeOccupancyVkBuffers[i] != VK_NULL_HANDLE)
+		{
+			vmaDestroyBuffer(gpDeviceManager->mpAllocator, mSmokeOccupancyVkBuffers[i], mSmokeOccupancyVmaAllocations[i]);
+			mSmokeOccupancyVkBuffers[i] = VK_NULL_HANDLE;
+			mSmokeOccupancyVmaAllocations[i] = VK_NULL_HANDLE;
+		}
 	}
+	mSmokeOccupancyBufferSize = 0;
 	if (mSmokeActiveTileVkBuffer != VK_NULL_HANDLE)
 	{
 		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mSmokeActiveTileVkBuffer, mSmokeActiveTileVmaAllocation);

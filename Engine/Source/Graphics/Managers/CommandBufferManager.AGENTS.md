@@ -10,14 +10,15 @@ Global (shadows, terrain generation, wind/smoke spread, particle spawn/update), 
 
 ## Smoke Spread Recording
 
-Smoke spread uses **hierarchical indirect dispatch** rather than direct full-grid dispatch. The sequence runs twice per frame (once for each ping-pong direction):
+Smoke spread uses hierarchical indirect dispatch rather than direct full-grid dispatch. Each ping-pong half:
 
-1. **Dilate+Compact** (`kPipelineSmokeOccupancyDilate`) - reads the bit-packed occupancy buffer, dilates active tiles, and writes a compacted tile index list into `mSmokeActiveTileVkBuffer` (which also serves as the indirect dispatch args buffer).
-2. `vkCmdFillBuffer` resets the occupancy buffer to zero.
-3. `vkCmdClearColorImage` clears the output smoke texture (requires `VK_IMAGE_USAGE_TRANSFER_DST_BIT`).
-4. **Indirect spread** (`kPipelineSmokeSpreadComputeB` or `kPipelineSmokeSpreadComputeA`) dispatched via `vkCmdDispatchIndirect` from `mSmokeActiveTileVkBuffer`; each workgroup looks up its tile from the active tile list.
+1. Dilates input occupancy together with the output texture's existing occupancy and compacts active tiles into the shared indirect-dispatch list.
+2. Resets only output occupancy after the dilate consumes its stale-storage union term.
+3. Indirect-spreads into the output texture and re-marks occupancy for nonzero tiles.
 
-Full sequence per frame: Dilate+Compact → Fill → Clear → indirect SpreadB → Dilate+Compact → Fill → Clear → indirect SpreadA. Each spread pass transitions the output texture from `kShaderReadOnly` to `kComputeReadWrite` before dispatch and back to `kShaderReadOnly` after. Pass B writes the larger `mSmokeTextureTwo`; pass A writes `mSmokeTextureOne`.
+Pass B uses direct tile lookup; pass A uses the previous-area remap. Each pass transitions only its output texture to compute read/write and back, with no per-frame image clear.
+
+The enable/recreate clear edge is recorded in Main after Global spread. An indirect-gated fullscreen draw clears TextureTwo in its own render pass, followed by a matching TextureOne clear at the start of the deposit render pass; stale occupancy drains in the following spread.
 
 ## Lighting Pipeline Order
 

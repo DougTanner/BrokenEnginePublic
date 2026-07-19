@@ -4,22 +4,24 @@ GPU-driven 2D smoke density field (single R channel) over a camera-following wor
 
 ## Overview
 
-Smoke owns the dynamic world-area (`f4SmokeArea` / `f4PreviousSmokeArea`, populated CPU-side from the camera visible area before Wind reads them). The field ping-pongs between two render-target textures using the same hierarchical indirect dispatch pattern as [Wind](../Wind/AGENTS.md): a bit-packed occupancy buffer (one bit per 8x8 tile) is dilated and compacted into an active-tile list driving `vkCmdDispatchIndirect`, so spread cost scales with smoke coverage rather than texture size — empty ocean costs nothing.
+Smoke owns the dynamic world-area (`f4SmokeArea` / `f4PreviousSmokeArea`, populated CPU-side from the camera visible area before Wind reads them). The field ping-pongs between two render-target textures using the same hierarchical indirect dispatch pattern as [Wind](../Wind/AGENTS.md): each texture has paired bit-packed occupancy, which is dilated and compacted into a shared active-tile list driving indirect dispatch. Spread cost therefore scales with smoke coverage rather than texture size; the texture and occupancy pairs start at zero on creation/recreate.
 
 ## Architecture: Recorded Frame Order
 
 Pass B records before pass A; each frame runs dilate → B → dilate-remap → A → deposit → consumers:
 
-1. **Pass B** (`SmokeSpreadTwo.comp`, pipeline SmokeSpreadComputeB) reads TextureOne — the previous frame's pass A output plus deposits, still in previous-area coordinates — at the same UV (no remap) and writes TextureTwo.
-2. **Pass A** (`SmokeSpreadOne.comp`, pipeline SmokeSpreadComputeA) reads TextureTwo and performs the frame's single coordinate remap (previous area → current area), so the field survives camera translation and zoom; writes TextureOne.
-3. **Deposit** (`Smoke.frag`, Main command buffer, paired with the Quads vertex shaders) adds fresh smoke into TextureOne and seeds occupancy before the consumer passes, so consumers see same-frame deposits.
+1. **Pass B** (`SmokeSpreadTwo.comp`) reads TextureOne and its occupancy — the previous frame's pass A output plus deposits, still in previous-area coordinates — at the same UV (no remap), then writes TextureTwo and its occupancy.
+2. **Pass A** (`SmokeSpreadOne.comp`) reads TextureTwo and its occupancy, performs the frame's single previous-area-to-current-area remap so smoke survives camera translation and zoom, then writes TextureOne and its occupancy.
+3. **Deposit** (`Smoke.frag`, Main command buffer, paired with the Quads vertex shaders) adds fresh smoke into TextureOne and marks its occupancy before consumer passes, so consumers see same-frame deposits.
 
 The one-sided remap forces two dilate variants, one before each spread:
 
-- **SmokeOccupancyDilate.comp** (before B) - plain occupancy lookup at the output tile, 5x5 box dilation.
-- **SmokeOccupancyDilateRemap.comp** (before A) - remaps each output tile's center into the previous-area tile grid and checks occupancy there; without the remap, zoom drops smoke at edges where the displacement exceeds the dilation radius.
+- **SmokeOccupancyDilate.comp** (before B) - plain input-occupancy lookup at the output tile with 5x5 box dilation, unioned with the output texture's existing occupancy.
+- **SmokeOccupancyDilateRemap.comp** (before A) - remaps each output tile's center into the previous-area tile grid before checking input occupancy, then unions the output texture's existing occupancy; without the remap, zoom drops smoke where displacement exceeds the dilation radius.
 
-Both compact surviving tile indices into the indirect dispatch buffer. The .comp header comments are the authoritative statement of this contract.
+The output-occupancy union redispatches storage tiles written in an earlier frame even when camera remapping moves the smoke footprint elsewhere. Each half consumes that union before resetting and re-marking its output occupancy, so stale texels are rewritten and self-clear at exact zero without a per-frame image clear. The compute-shader header comments are authoritative for the lookup contract.
+
+The enable/disable/recreate edges use indirect fullscreen clears in Main after Global spread: TextureTwo clears in its own render pass, then TextureOne clears at the start of the deposit render pass. Stale occupancy drains through the next spread frame.
 
 ## Shaders
 

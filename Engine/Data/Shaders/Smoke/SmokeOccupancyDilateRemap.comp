@@ -25,6 +25,11 @@ layout (set = 1, binding = 2) buffer activeTileBuffer
 	uint activeTiles[];
 };
 
+layout (scalar, set = 1, binding = 3) readonly buffer ownOccupancyBuffer
+{
+	uint ownOccupancy[];
+};
+
 // Second-pass dilate (used before SmokeSpreadComputeA).
 //
 // SmokeSpreadComputeA does a scale-aware sample: at output current-frame tile (X, Y),
@@ -32,7 +37,8 @@ layout (set = 1, binding = 2) buffer activeTileBuffer
 // That sample lands at floor(prev_uv * tileCount) — possibly several tiles away from (X, Y)
 // when the world area zooms between frames. We need to check occupancy (= where ComputeB
 // just wrote) at that remapped index, not at (X, Y), or zoom drops smoke at edges where
-// the remap displacement exceeds the 5x5 box (Chebyshev-2) dilation radius.
+// the remap displacement exceeds the 5x5 box (Chebyshev-2) dilation radius. TextureOne's own
+// occupancy is unioned at the output tile index so stale storage is always rewritten.
 void main()
 {
 	uint uiTilesX = globalLayout.uiSmokeTilesX;
@@ -55,7 +61,7 @@ void main()
 	int iPrevTileX = int(floor(f2PrevUV.x * float(uiTilesX)));
 	int iPrevTileY = int(floor(f2PrevUV.y * float(uiTilesY)));
 
-	bool bActive = false;
+	bool bActive = (ownOccupancy[uiTileIndex >> 5] & (1u << (uiTileIndex & 31))) != 0;
 	for (int iDy = -2; iDy <= 2 && !bActive; ++iDy)
 	{
 		for (int iDx = -2; iDx <= 2 && !bActive; ++iDx)

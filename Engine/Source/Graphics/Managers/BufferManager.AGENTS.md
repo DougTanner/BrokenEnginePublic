@@ -16,13 +16,9 @@ Per-frame bump allocation for mesh data and joint matrices with per-command-buff
 
 Both smoke and wind use the same occupancy + active tile list pattern for hierarchical indirect dispatch.
 
-**Smoke** (single pair):
-- **`mSmokeOccupancyVkBuffer`** - Bit-packed buffer with one bit per 8x8 smoke tile. Written by `Smoke.frag` and both spread shaders; read and zeroed each frame by `kPipelineSmokeOccupancyDilate`.
-- **`mSmokeActiveTileVkBuffer`** - Compacted flat list of active tile indices produced by the dilate+compact pass. Also serves as the indirect dispatch argument buffer.
+Smoke pairs one bit-packed occupancy buffer with each ping-pong texture and shares one compact active-tile list between both spread halves. Deposits mark the first texture's occupancy; each spread reads its input occupancy, consumes its output texture's prior occupancy as a stale-storage union term, resets the output occupancy, and re-marks nonzero output. Both occupancy buffers start at zero.
 
-**Wind** (two pairs A/B, one per ping-pong texture index):
-- **`mWindOccupancyVkBuffers[2]`** - Per-index bit-packed occupancy. Written by `WindDeposit.frag` and the spread compute shaders.
-- **`mWindActiveTileVkBuffers[2]`** - Per-index active tile list with indirect dispatch args prefix. Enables record-once command buffers: both spread pipelines are always dispatched, and each returns early if its index is inactive.
+Wind keeps a separate occupancy and active-tile-list pair for each ping-pong texture. Both spread variants remain recorded, with runtime state and indirect dispatch selecting useful work.
 
 ## Swapchain Lifecycle
 

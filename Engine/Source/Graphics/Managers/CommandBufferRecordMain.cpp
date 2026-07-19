@@ -238,8 +238,16 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 void CommandBufferRecordMain::RecordSmokeEmit(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer)
 {
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeEmit);
+
+	// Force-clear TextureTwo on the Smoke enabled/recreate edge. Global spread runs before Main, so any stale
+	// occupancy describing this cleared texture is consumed and drained by the next frame's spread.
+	gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
+	gpPipelineManager->mpPipelines[kPipelineSmokeClearB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+	gpTextureManager->mRenderTargetTextures.mSmokeTextureTwo.RecordEndRenderPass(vkCommandBuffer);
+
 	gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mSmokeTextureOne.RecordBeginRenderPass(vkCommandBuffer);
+	gpPipelineManager->mpPipelines[kPipelineSmokeClearA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	for (const auto& [rCrc, pPipeline] : gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineSmokeAxisAligned])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});

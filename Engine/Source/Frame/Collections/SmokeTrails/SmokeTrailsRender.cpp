@@ -3,6 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "Profile/ProfileManager.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/SmokeWrappersBase.h"
 
 namespace engine
@@ -130,7 +131,7 @@ void SmokeTrailsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 {
 	gpProfileManager->SetCount(kCpuCounterSmokeTrails, siTotalCount);
 	gpProfileManager->SetCount(kCpuCounterSmokeTrailsRendered, siRendered);
-	gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineSmoke].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
+	gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineSmoke].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, gSmokeEnabled.Get<bool>() ? siRendered : 0);
 }
 
 } // namespace engine

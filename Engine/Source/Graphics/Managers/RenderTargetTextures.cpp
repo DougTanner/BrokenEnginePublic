@@ -225,6 +225,18 @@ void RenderTargetTextures::CreateSmokeTextures()
 	smokeTextureInfo.name = "SmokeTwo";
 	smokeTextureInfo.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	mSmokeTextureTwo.Create(smokeTextureInfo);
+
+	// Smoke spread only rewrites occupancy-active tiles, so both ping-pong textures must start at zero.
+	OneShotCommandBuffer oneShotCommandBuffer;
+	VkClearColorValue vkSmokeClearColor {{0.0f, 0.0f, 0.0f, 0.0f}};
+	VkImageSubresourceRange vkSmokeSubresource {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1};
+	for (Texture* pSmokeTexture : {&mSmokeTextureOne, &mSmokeTextureTwo})
+	{
+		pSmokeTexture->TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
+		vkCmdClearColorImage(oneShotCommandBuffer.mVkCommandBuffer, pSmokeTexture->mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vkSmokeClearColor, 1, &vkSmokeSubresource);
+		pSmokeTexture->TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
+	}
+	oneShotCommandBuffer.Execute();
 }
 
 void RenderTargetTextures::CreateWindTextures()
@@ -271,8 +283,8 @@ void RenderTargetTextures::CreateWindTextures()
 	// Wind ping-pong textures are (re)created with undefined contents. On a device-lost / settings recreate the wind
 	// spread only touches active tiles (occupancy-driven), so it never decays garbage in inactive tiles, and smoke
 	// samples that garbage for several frames. Hard-clear both to zero once here (the device is idle on the
-	// recreate/boot path). Smoke clears every frame in RecordSmokeSpreadHalf; wind's alternating ping-pong makes a
-	// per-frame clear unsafe (it would wipe the idle half's field), so the recreate edge is closed at creation.
+	// recreate/boot path). Like smoke, the recreate edge is closed with a one-time creation clear rather than a
+	// per-frame full-texture clear.
 	OneShotCommandBuffer oneShotCommandBuffer;
 	VkClearColorValue vkWindClearColor {{0.0f, 0.0f, 0.0f, 0.0f}};
 	VkImageSubresourceRange vkWindSubresource {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1};

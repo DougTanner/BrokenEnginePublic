@@ -24,12 +24,18 @@ layout (set = 1, binding = 2) buffer activeTileBuffer
 	uint activeTiles[];
 };
 
+layout (scalar, set = 1, binding = 3) readonly buffer ownOccupancyBuffer
+{
+	uint ownOccupancy[];
+};
+
 // First-pass dilate (used before SmokeSpreadComputeB).
 //
 // SmokeSpreadComputeB samples TextureOne at the OUTPUT tile's UV directly (no cross-frame
 // remap), so ComputeB at current-frame tile (X, Y) produces nonzero iff prev-frame ComputeA
 // wrote nonzero at tile index (X, Y). That makes this a plain direct lookup with 5x5 box
-// (Chebyshev-2) dilation — no f4PreviousSmokeArea / f4SmokeArea math is needed here.
+// (Chebyshev-2) dilation — no f4PreviousSmokeArea / f4SmokeArea math is needed here. The output
+// TextureTwo occupancy is unioned at the output tile index so stale storage is always rewritten.
 //
 // ComputeA's input (TextureTwo) DOES need a scale-aware lookup; that's done by the separate
 // SmokeOccupancyDilateRemap.comp run before SmokeSpreadComputeA.
@@ -45,7 +51,7 @@ void main()
 	uint uiTileY = uiTileIndex / uiTilesX;
 	uint uiTileX = uiTileIndex - uiTileY * uiTilesX;
 
-	bool bActive = false;
+	bool bActive = (ownOccupancy[uiTileIndex >> 5] & (1u << (uiTileIndex & 31))) != 0;
 	for (int iDy = -2; iDy <= 2 && !bActive; ++iDy)
 	{
 		for (int iDx = -2; iDx <= 2 && !bActive; ++iDx)

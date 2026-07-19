@@ -3,6 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "Profile/ProfileManager.h"
+#include "Ui/GraphicsSettingsWrappersBase.h"
 
 namespace engine
 {
@@ -82,7 +83,7 @@ void PuffsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 {
 	gpProfileManager->SetCount(kCpuCounterPuffs, siTotalCount);
 	gpProfileManager->SetCount(kCpuCounterPuffsRendered, siRendered);
-	gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineSmokeAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
+	gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineSmokeAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, gSmokeEnabled.Get<bool>() ? siRendered : 0);
 }
 
 } // namespace engine

@@ -4,15 +4,15 @@
 
 The smoke ping-pong pair (`mSmokeTextureOne/Two`) stores a single-channel density field in
 `shaders::keSmokeFormat` = `VK_FORMAT_R32_SFLOAT`. At a 3840×2160 framebuffer each texture is ≈ 8192×4608
-(`SmokeSimulationPixels()`, default `gSmokeSimulationPixels` = 1.0) = **151 MB — every byte of it touched at memory
-bandwidth by the per-frame clears, spread reads/writes, deposit blend, and consumer sampling** (Water/Terrain/Model/
-Particles all sample smoke via the `ShaderFunctions.h` helpers).
+(`SmokeSimulationPixels()`, default `gSmokeSimulationPixels` = 1.0) = **151 MB**. Before full-texture clear elimination,
+every byte was touched by the per-frame clears; current bandwidth comes from spread reads/writes, deposit blend, and
+consumer sampling (Water/Terrain/Model/Particles all sample smoke via the `ShaderFunctions.h` helpers).
 
-Measured (built-in GPU timestamp profiler, Profile build, 120 fps, **idle scene** — content-independent fixed cost):
-`kGpuTimerSmokeSpread` 1210 µs current / 1245 avg, of which ~1080 µs is the two full-texture clears
-(≈ 14.3 µs per megatexel cleared; see `Graphics/SmokeSpreadFullTextureClearElimination.md` for the breakdown against
-`kGpuTimerWindSpread`'s 129 µs). Idle-scene caveat: the clear share is fixed cost; the spread/sample share this plan
-also halves only materializes with smoke content.
+Historical pre-clear-elimination measurement (built-in GPU timestamp profiler, Profile build, 120 fps, **idle scene**):
+`kGpuTimerSmokeSpread` 1210 µs current / 1245 avg, of which ~1080 µs was the two full-texture clears
+(≈ 14.3 µs per megatexel cleared, against `kGpuTimerWindSpread`'s 129 µs). That fixed per-frame clear cost is already
+eliminated; the remaining spread/sample bandwidth this plan targets materializes with smoke content, plus residual
+creation/edge clears.
 
 **PRIOR ATTEMPT — REGRESSED (user report, must not be repeated naively):** R32F→R16F was tried before on this sim and
 made it *slower* — the compute-shader 32↔16-bit conversions were heavy enough to outweigh the bandwidth savings. Treat
@@ -27,11 +27,9 @@ spec-mandatory, so the existing smoke-sampler NEAREST downgrade for devices with
 (documented in `Managers/AGENTS.md`, built in `TextureManager` sampler creation) becomes dead — devices currently
 falling to NEAREST get *better* smoke filtering.
 
-This composes with (is independent of) `Graphics/SmokeSpreadFullTextureClearElimination.md`: executed standalone it
-halves the ~1080 µs clear cost (→ save ~540 µs idle); executed after it, the clears are gone and this plan halves the
-remaining content-proportional spread/consumer bandwidth plus the residual creation/edge clears. Same reasoning as that
-plan applies against `Graphics/DisabledPassGatingPerfAudit.md`: content-driven cost reduction, complements (does not
-replace) the audit; do not edit the audit.
+Full-texture clears are already eliminated. This plan now targets the remaining content-proportional spread/consumer
+bandwidth plus residual creation/edge clears. The same content-driven reasoning applies against
+`Graphics/DisabledPassGatingPerfAudit.md`: this complements (does not replace) the audit; do not edit the audit.
 
 ## Design
 
@@ -82,9 +80,9 @@ toggle would need a `DestroyFlags::kSmokeTextures` destroy-tier recreate for a k
 (YAGNI). The existing `gSmokeSimulationPixels` slider (0.5-1.5, `GraphicsSettingsWrappersBase`, TweaksSliderMap-exposed)
 remains the user-facing smoke cost/quality lever.
 
-Expected saving: standalone **~540 µs idle at 4K** (halves the clear bandwidth) plus proportional combat-time
-spread/consumer bandwidth; after `SmokeSpreadFullTextureClearElimination` lands, ~half of the smoke sim's remaining
-content-proportional bandwidth and half its memory footprint (302 MB → 151 MB for the pair).
+Expected saving: ~half of the smoke sim's remaining content-proportional spread/consumer bandwidth, half the residual
+creation/edge-clear bandwidth, and half its memory footprint (302 MB → 151 MB for the pair). The historical 1245 µs
+average is not the current expected delta because its ~1080 µs per-frame clear share is already eliminated.
 
 ## Critical files
 
@@ -102,8 +100,6 @@ content-proportional bandwidth and half its memory footprint (302 MB → 151 MB 
 
 ## Out of scope
 
-- The per-frame clear elimination — `Graphics/SmokeSpreadFullTextureClearElimination.md` (co-schedule; same shader and
-  record files).
 - The wind texture format (`keWindFormat` is already `R16G16_SFLOAT`).
 - Smoke sim resolution defaults / `gSmokeSimulationPixels` range changes.
 - Any change to the smoke kernel math (`SmokeSpreadCommon.h`) beyond the two extinction constants.
@@ -117,7 +113,6 @@ content-proportional bandwidth and half its memory footprint (302 MB → 151 MB 
 - Pre-staged grill decision: **extinction-constant values** (threshold ≈ 1e-3, constant decay ≈ 1e-4 recommended —
   pick against `gSmokeColorMin`/`fSmokeColorMultiplier` so the threshold sits below first-visible density) and
   **NEAREST-downgrade path: delete vs keep-documented**.
-- Order relative to the clear-elimination plan: either order works; doing this second keeps the A/B visual comparison
-  for *this* plan clean (format is the only variable). Same-session execution is ideal (shared files, one repack).
+- Full-texture clear elimination is complete; this plan's A/B comparison isolates format as the variable.
 - If a future device without `R16_SFLOAT` STORAGE_IMAGE ever matters, the fallback is reverting the constant — the
   probe's fail-loud keeps that decision visible rather than silent.

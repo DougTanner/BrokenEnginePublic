@@ -61,9 +61,9 @@ public:
 
 	std::vector<Buffer> mUiRectStorageBuffers;
 
-	// Smoke hierarchical dispatch buffers (device-local, single instance)
-	VkBuffer mSmokeOccupancyVkBuffer = VK_NULL_HANDLE;
-	VmaAllocation mSmokeOccupancyVmaAllocation = VK_NULL_HANDLE;
+	// Smoke hierarchical dispatch buffers (per-texture occupancy, shared active tile list)
+	VkBuffer mSmokeOccupancyVkBuffers[2] {};
+	VmaAllocation mSmokeOccupancyVmaAllocations[2] {};
 	VkDeviceSize mSmokeOccupancyBufferSize = 0;
 	VkBuffer mSmokeActiveTileVkBuffer = VK_NULL_HANDLE;
 	VmaAllocation mSmokeActiveTileVmaAllocation = VK_NULL_HANDLE;
