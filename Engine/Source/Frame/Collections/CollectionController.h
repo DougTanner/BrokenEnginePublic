@@ -13,7 +13,8 @@ class Wrapper;
 // Reusable keyframe animation system for collections that need time-based property interpolation.
 
 inline constexpr int64_t kMaxControllerKeyframes = 4;
-inline constexpr uint8_t kuiInvalidControllerType = 0xFF;
+inline constexpr uint8_t kuiInvalidTypeIndex = 0xFF;
+inline constexpr uint8_t kuiInvalidControllerType = kuiInvalidTypeIndex;
 
 // Keyframe state with lerp-able properties for light animation
 struct ControllerKeyframe
@@ -102,8 +103,14 @@ struct ControllerTypeRegistry
 
 	static void RegisterControllerType(uint8_t& ruiIndex, const TControllerType& rType)
 	{
-		ASSERT(ruiIndex == 0xFF);
-		ASSERT(sControllerTypes.size() < kuiInvalidControllerType);
+		ASSERT(ruiIndex == kuiInvalidTypeIndex);
+		ASSERT(sControllerTypes.size() < kuiInvalidTypeIndex);
+		ASSERT(rType.uiKeyframeCount >= 2);
+		ASSERT(rType.uiKeyframeCount <= kMaxControllerKeyframes);
+		for (int64_t i = 1; i < rType.uiKeyframeCount; ++i)
+		{
+			ASSERT(rType.pfTimes[i] >= rType.pfTimes[i - 1]);
+		}
 		ruiIndex = static_cast<uint8_t>(sControllerTypes.size());
 		sControllerTypes.push_back(rType);
 	}

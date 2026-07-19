@@ -140,21 +140,17 @@ void ResetDataToNull(TStruct& rStruct, TTuple&& members)
 	}, std::forward<TTuple>(members));
 }
 
-// Type trait to detect if a collection type has idToIndexMap member
-template <typename T, typename = void>
-struct HasIdToIndex : std::false_type {};
-
+// Detects whether a collection type has an idToIndexMap member.
 template <typename T>
-struct HasIdToIndex<T, std::void_t<decltype(std::declval<T>().idToIndexMap)>> : std::true_type {};
+concept HasIdToIndex = requires(T& rStruct)
+{
+	rStruct.idToIndexMap;
+};
 
-template <typename T>
-inline constexpr bool HasIdToIndex_v = HasIdToIndex<T>::value;
-
-// Shared core for Allocate: copies metadata from the previous frame and
-// reallocates the SOA buffer (positioning member pointers) when capacity changed. Returns false when
-// previous-frame data was null, true otherwise — callers expose or discard that signal per their contract.
+// Copies metadata and reallocates buffer for AllocateAndCopy() phase. Resets null previous-frame data.
+// Used in AllocateAndCopy() static methods to prepare collections before Update() phase.
 template <typename TStruct, typename TTuple>
-bool AllocateCore(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
+void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
 	// Heap: MakeAligned for the SOA buffer and unordered_map copy for idToIndexMap. Both persist across frames
 	// with sizes that vary at runtime based on entity count, so neither workbuffer nor static arrays work.
@@ -162,7 +158,7 @@ bool AllocateCore(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 	rCurrent.iCount = rPrevious.iCount;
 
 	// Copy indexable state if applicable
-	if constexpr (HasIdToIndex_v<TStruct>)
+	if constexpr (HasIdToIndex<TStruct>)
 	{
 		rCurrent.idToIndexMap = rPrevious.idToIndexMap;
 	}
@@ -170,7 +166,7 @@ bool AllocateCore(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 	if (rPrevious.pData == nullptr)
 	{
 		ResetDataToNull(rCurrent, std::forward<TTuple>(members));
-		return false;
+		return;
 	}
 
 	const int64_t iCapacity = rPrevious.iCapacity;
@@ -193,16 +189,6 @@ bool AllocateCore(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 			ASSERT(rCurrent.iCount <= rCurrent.iCapacity);
 		}, std::forward<TTuple>(members));
 	}
-
-	return true;
-}
-
-// Copies metadata and reallocates buffer for AllocateAndCopy() phase. Does not return early on null data.
-// Used in AllocateAndCopy() static methods to prepare collections before Update() phase.
-template <typename TStruct, typename TTuple>
-void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
-{
-	AllocateCore(rCurrent, rPrevious, std::forward<TTuple>(members));
 }
 
 // Allocates and copies the ID array from previous frame. Used by PostRender collections
@@ -218,7 +204,7 @@ void AllocateAndCopyIds(TPostRender& rCurrent, const TPostRender& rPrevious)
 	}
 }
 
-// Grows capacity while preserving existing data. Growth strategy: 2 * capacity + 1.
+// Grows capacity while preserving existing data.
 template <typename TStruct, typename TTuple>
 void GrowCapacityWithCopy(TStruct& rStruct, int64_t iNewCapacity, int64_t iCurrentCount, TTuple&& members)
 {

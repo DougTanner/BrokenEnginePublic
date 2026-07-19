@@ -28,7 +28,7 @@ Source: /external-architecture-review on Engine/Source (recursive). The `ForEach
 
 ## Coordination
 
-- Never interleave with the live frame-collection series `Documents/Plans/Frame/Architecture_CollectionCopyContract.md`, `Documents/Plans/Frame/Architecture_CollectionHelperDedup.md`, `Documents/Plans/Frame/CollectionReadIndexHardening.md`, `Documents/Plans/Frame/CollectionDeserializationHardening.md`, `Documents/Plans/Frame/Refactor_CollectionHeadersQuickWins.md`; each later landing must refresh shared collection-header/TU citations.
+- Never interleave with the live frame-collection series `Documents/Plans/Frame/Architecture_CollectionCopyContract.md`, `Documents/Plans/Frame/Architecture_CollectionHelperDedup.md`, `Documents/Plans/Frame/CollectionReadIndexHardening.md`, `Documents/Plans/Frame/CollectionDeserializationHardening.md`; each later landing must refresh shared collection-header/TU citations.
 
 ## Notes
 - Invariant exposure: MODERATE — no CRC/serialization change (hooks are call-sites, not data), but the failure mode inverts: today a signature mismatch is a hard compile error; with `requires`-based opt-in it becomes a silent phase skip. That includes hooks *with logic* on sim-phase families (e.g. `Destroy` on PointLights, the shared Explosions/Pushers and game-collection PostRender hooks) — a skipped sim hook changes behavior identically on both builds (no client/server desync) but silently diverges from old replays. Mitigate with a `static_assert` on the mandatory hooks (`Update`/`Members`) and treat any hook-signature change as a checklist item in the add-collection skill; accept that non-mandatory hooks rely on review

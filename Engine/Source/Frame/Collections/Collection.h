@@ -30,6 +30,8 @@ template <typename TTuple>
 common::crc_t MultiCrc(int64_t iCount, TTuple&& members)
 {
 	common::crc_t checksum = 0;
+	// Zero-capacity member pointers may be null, and Crc(pointer, 0) returns the seeded empty-input hash;
+	// skip the fold to preserve the collection's zero checksum.
 	if (iCount > 0)
 	{
 		std::apply([&](auto&... memberPtrRefs)
@@ -120,8 +122,8 @@ struct TypeRegistry
 
 	static void RegisterType(uint8_t& ruiIndex, const TType& rType)
 	{
-		ASSERT(ruiIndex == 0xFF);
-		ASSERT(sTypes.size() < 0xFF);
+		ASSERT(ruiIndex == kuiInvalidTypeIndex);
+		ASSERT(sTypes.size() < kuiInvalidTypeIndex);
 		ruiIndex = static_cast<uint8_t>(sTypes.size());
 		sTypes.push_back(rType);
 
@@ -160,7 +162,7 @@ struct OptionalIdToIndex
 {
 };
 
-// Indexable version with strong-typed id_t and ID-to-index mapping using CRTP pattern.
+// Indexable version with strong-typed id_t and ID-to-index mapping.
 template <typename T, common::Flags<CollectionFlags> FLAGS>
 	requires (FLAGS & CollectionFlags::kIdToIndex)
 struct OptionalIdToIndex<T, FLAGS>
@@ -192,7 +194,8 @@ struct OptionalIdToIndex<T, FLAGS>
 
 	inline void Read(std::istream& rStream)
 	{
-		// Heap: unordered_map::reserve and operator[] allocate buckets and nodes to rebuild the map from file.
+		// Heap: unordered_map::reserve and unordered_map::insert_or_assign allocate buckets and nodes
+		// to rebuild the map from file.
 		// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
 		ScopedSuppressAllocationTracking suppress;
 		int64_t iSize = 0;
@@ -480,6 +483,7 @@ bool GrowPairedCollections(TInterpolate& rInterpolate, TPostRender& rPostRender,
 		return false;
 	}
 
+	// Deterministic growth is 2 * capacity + 1 because capacity participates in the collection CRC.
 	int64_t iNewCapacity = 2 * rInterpolate.iCapacity + 1;
 
 	ASSERT(rInterpolate.iCount == rPostRender.iCount);
@@ -495,7 +499,7 @@ bool GrowPairedCollections(TInterpolate& rInterpolate, TPostRender& rPostRender,
 template <typename TInterpolate, typename TPostRender>
 std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, FramePostRenderBase& rFramePostRender)
 {
-	// Heap: unordered_map::operator[] may allocate a new bucket or node for the ID-to-index entry.
+	// Heap: unordered_map::insert_or_assign may allocate a new bucket or node for the ID-to-index entry.
 	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
 	ScopedSuppressAllocationTracking suppress;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
@@ -513,7 +517,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolat
 template <typename TInterpolate, typename TPostRender>
 std::tuple<int64_t, typename TInterpolate::id_t> AddVisualIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, FramePostRenderBase& rFramePostRender)
 {
-	// Heap: unordered_map::operator[] may allocate a new bucket or node for the ID-to-index entry.
+	// Heap: unordered_map::insert_or_assign may allocate a new bucket or node for the ID-to-index entry.
 	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
 	ScopedSuppressAllocationTracking suppress;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
@@ -532,7 +536,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddVisualIndexableElement(TInte
 template <typename TInterpolate, typename TPostRender>
 std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElementWithId(TInterpolate& rInterpolate, TPostRender& rPostRender, typename TInterpolate::id_t existingId)
 {
-	// Heap: unordered_map::operator[] may allocate a new bucket or node for the ID-to-index entry.
+	// Heap: unordered_map::insert_or_assign may allocate a new bucket or node for the ID-to-index entry.
 	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
 	ScopedSuppressAllocationTracking suppress;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);

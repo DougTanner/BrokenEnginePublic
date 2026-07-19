@@ -32,7 +32,7 @@ Source: /external-architecture-review on Engine/Source (recursive). Cross-file d
 
 ## Coordination
 
-- Never interleave with the live frame-collection series `Documents/Plans/Frame/Architecture_CollectionCopyContract.md`, `Documents/Plans/Frame/Architecture_PhaseHookOptIn.md`, `Documents/Plans/Frame/CollectionReadIndexHardening.md`, `Documents/Plans/Frame/CollectionDeserializationHardening.md`, `Documents/Plans/Frame/Refactor_CollectionHeadersQuickWins.md`; each later landing must refresh shared collection-header/TU citations.
+- Never interleave with the live frame-collection series `Documents/Plans/Frame/Architecture_CollectionCopyContract.md`, `Documents/Plans/Frame/Architecture_PhaseHookOptIn.md`, `Documents/Plans/Frame/CollectionReadIndexHardening.md`, `Documents/Plans/Frame/CollectionDeserializationHardening.md`; each later landing must refresh shared collection-header/TU citations.
 
 ## Notes
 - Invariant exposure: `BlendPlacementIntoGrid` feeds the CRC'd sim elevation grid — the sampling-helper extraction must preserve its exact float-op order (`/fp:strict`); parameterize, change nothing else. If `GlobalElevation` is instead migrated onto the reciprocal-multiply form its render-only output shifts by at most one ulp-scale rounding difference — acceptable, but say so in the diff. The controller/spawn helpers touch client-only collections (no `SharedMembers()`) — no CRC exposure, but keep `common::Random*` draw order unchanged where spawn seeding touches it. Everything else render-path or file-motion only

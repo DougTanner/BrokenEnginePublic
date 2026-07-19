@@ -38,11 +38,11 @@ Surfaced (and extension-review-gated) during the `Save/SaveLoadTrustBoundaryHard
 
 ## Coordination
 
-- Never interleave with the live frame-collection series `Documents/Plans/Frame/Architecture_CollectionCopyContract.md`, `Documents/Plans/Frame/Architecture_CollectionHelperDedup.md`, `Documents/Plans/Frame/Architecture_PhaseHookOptIn.md`, `Documents/Plans/Frame/CollectionDeserializationHardening.md`, `Documents/Plans/Frame/Refactor_CollectionHeadersQuickWins.md`; each later landing must refresh shared collection-header/TU citations.
+- Never interleave with the live frame-collection series `Documents/Plans/Frame/Architecture_CollectionCopyContract.md`, `Documents/Plans/Frame/Architecture_CollectionHelperDedup.md`, `Documents/Plans/Frame/Architecture_PhaseHookOptIn.md`, `Documents/Plans/Frame/CollectionDeserializationHardening.md`; each later landing must refresh shared collection-header/TU citations.
 
 ## Notes
 
 - Surfaced + extension-review-gated during the `SaveLoadTrustBoundaryHardening` session; deferred here by user decision (out of that plan's envelope: shared engine/CRC/client-network path, needs a signature/second-pass design choice).
 - Grill: Option A (thread the bound) vs Option B (second pass) for the index check.
-- Shares `Engine/Source/Frame/Collections/Collection.h` with the Frame-collections series (`Frame/Architecture_CollectionCopyContract.md`, `Frame/Architecture_CollectionHelperDedup.md`, `Frame/Architecture_PhaseHookOptIn.md`, `Frame/CollectionDeserializationHardening.md`, `Frame/Refactor_CollectionHeadersQuickWins.md`) — co-schedule / refresh citations; touches the client full-state receive path shared with the Network full-state plans.
+- Shares `Engine/Source/Frame/Collections/Collection.h` with the Frame-collections series (`Frame/Architecture_CollectionCopyContract.md`, `Frame/Architecture_CollectionHelperDedup.md`, `Frame/Architecture_PhaseHookOptIn.md`, `Frame/CollectionDeserializationHardening.md`) — co-schedule / refresh citations; touches the client full-state receive path shared with the Network full-state plans.
 - **Sibling deserialization-hardening plan:** `Frame/CollectionDeserializationHardening.md` owns the memory-safety gaps on the same read path (A1 shrink-reuse under-zero, A3 alloc-failure invariant, A5 paired-count parity); this plan owns SOA-index-value validation and the real-stride capacity-byte ceiling. Item 2 above (thread the real per-element stride) is the same finding that plan cross-references — keep the two in sync; land together.

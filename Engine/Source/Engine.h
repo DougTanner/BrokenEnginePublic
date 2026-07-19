@@ -100,7 +100,8 @@
 // Engine base
 #include "GameBase.h"
 
-// Formatters for engine types used by LogDifference
+// Formatters for engine types used by LogDifference.
+// global_id_t's formatter stays with its type in Frame/Collections/CollectionId.h.
 template<>
 struct std::formatter<engine::alignment_t> : std::formatter<uint32_t>
 {
