@@ -18,6 +18,7 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 - Main session is manager; subagents execute work to keep main context clean
 - Give subagents only the instructions and context their task needs; they return a concise, clearly defined response
 - Delegation prompts for review roles enumerate the exact files/regions in scope; an interrupted or re-scoped reviewer returns findings gathered so far immediately
+- A wait boundary or elapsed time alone never proves a delegate is stuck — judge liveness by transcript/status evidence: recent distinct tool activity, narrowing searches, new evidence, or in-progress synthesis is forward progress; a loop requires repeated equivalent operations or unchanged failures without narrowing or new evidence. Before replacing a running reviewer, request findings gathered so far; a justified replacement continues from them (mechanics: [.agents/references/subagent-reporting.md](.agents/references/subagent-reporting.md))
 - Subagent-to-subagent handoffs go through temporary files; return only the file paths to the parent session
 - Return one inline acceptance table only when a final-evidence gate (defined in the Change Workflow below) applies; format: [.agents/references/subagent-reporting.md](.agents/references/subagent-reporting.md)
 - Isolated worktrees and session claims are required only for queue selection or mutation, shared build/bootstrap coordination, or landing. Ordinary work uses the user-supplied checkout and preserves unrelated changes.

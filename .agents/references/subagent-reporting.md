@@ -27,3 +27,25 @@ residuals. There is no report artifact, hash, or manifest range to forward;
 `/finalize-changes` consumes the inline result. Intermediate delegates never
 produce compact envelopes, hashes, IDs, dependency graphs, or evidence
 locators.
+
+## Liveness and interruption
+
+A wait boundary or elapsed-time threshold alone is never evidence a delegate is
+stuck. Judge liveness only by observable transcript/status evidence. Forward
+progress = recent distinct tool activity, narrowing searches, new evidence, or
+in-progress synthesis. A loop = repeated equivalent operations or unchanged
+failures without narrowing or new evidence.
+
+Interruption sequence, in order:
+
+- Inspect available status/transcript evidence.
+- Request an immediate return of findings gathered so far (the Default handoff
+  format above).
+- Allow a bounded response window.
+- Interrupt or replace only after terminal failure or documented
+  no-progress/loop evidence.
+
+Continuation: prefer resuming the same reviewer when the host supports it.
+Otherwise the replacement receives the prior findings and decisive evidence and
+continues from the interruption point — it never repeats completed repository
+exploration from scratch.

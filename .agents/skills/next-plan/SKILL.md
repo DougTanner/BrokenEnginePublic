@@ -135,8 +135,13 @@ mid-workflow rebase or a stop for user direction.
 
    `/plan-audit` runs in a delegated Fable subagent; never invoke it in this
    session's own context. Its bounds are written for that reviewer, and an
-   inline invocation applies them here instead. `/external-grill-plan` is the
-   opposite: it interviews the user, so it runs in this session.
+   inline invocation applies them here instead. Replace a running audit reviewer
+   only under the liveness and interruption contract in
+   [subagent-reporting.md](../../references/subagent-reporting.md) — a wait
+   boundary or elapsed time alone never justifies replacement; request partial
+   findings first, and seed a justified replacement with them rather than
+   restarting exploration. `/external-grill-plan` is the opposite: it interviews
+   the user, so it runs in this session.
 
    If an `Agent` spawn is denied, stop and report it to the user before running
    the review anywhere. Do not silently continue in this context: a review that
