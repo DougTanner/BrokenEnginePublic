@@ -4,7 +4,7 @@
 
 `kGpuTimerWater` is the most expensive GPU pass: **2329 µs current / 2248 avg / 2335 max** (Profile build, 120 fps, idle connected scene — ocean + islands, no combat), ~35% of the ~6.6 ms GPU frame (Terrain 998 µs, Objects 229 µs, Image pass total 3606 µs). The cost is dominated by per-fragment work at near-full-screen coverage: `Water.frag` does **22 texture fetches** plus heavy ALU per fragment (9 wave-normal octaves, 3 EWNS lighting, analytic-AA specular lobes, reflected projection). Idle-scene caveat: water coverage and shading cost are effectively scene-independent in this ocean game, so the number generalizes.
 
-Shading water at half resolution and upsampling is the established big lever for exactly this profile (quarter the fragment invocations; the SSAO/volumetrics precedent). It is the largest single win available on this pass (**est. ~1.2–1.5 ms**), but also the most architectural — hence a separate plan from the two cheap ones (`WaterMeshDensityOvershading.md`, `WaterFragmentCostReduction.md`), which should land and be measured first; their savings subtract from this plan's payoff and may resize its Impact.
+Shading water at half resolution and upsampling is the established big lever for exactly this profile (quarter the fragment invocations; the SSAO/volumetrics precedent). It is the largest single win available on this pass (**est. ~1.2–1.5 ms**), but also the most architectural — hence a separate plan from the mesh-density work and the now-landed cheap fragment optimizations. The mesh-density work should land and be measured first; this plan must also rebaseline the water timer because the landed fragment savings reduce its payoff and may resize its Impact.
 
 Key constraint inventory (all satisfiable): record-once command buffers (all new passes are static; per-frame variation stays in uniforms/indirect buffers, matching the existing water indirect-draw + indirect-dispatch pattern); snap-grid stability (untouched — the visible area, LOD latch, and quad sizes are unchanged); water is render-only (no determinism exposure). Water currently draws with `{kAlphaBlend, kCullBack, kDepthTest, kDepthWrite, kDepthBias}` between Terrain and HexShields in the swapchain Image pass — later passes rely on the depth it writes, and its alpha encodes the shore terrain-fade.
 
@@ -42,7 +42,7 @@ Plumbing notes:
 ## Out of scope
 
 - Mesh density defaults and the 1/8 detail option (`WaterMeshDensityOvershading.md` — prerequisite measurement, land first)
-- Fragment fetch diet (`WaterFragmentCostReduction.md` — independent; both multiply)
+- Further fragment fetch/ALU tuning — the current cheap fragment optimizations have landed; additional tuning remains independent and multiplies with this plan
 - Any change to wave simulation, displacement prebake, snap grid, or `WaterFullDetail` anchoring
 - Temporal upsampling / checkerboard / ML upscaling of the water layer (bilinear + edge-aware only)
 - Applying the same split to Terrain or other passes
@@ -50,6 +50,6 @@ Plumbing notes:
 ## Notes
 
 - Invariant exposure: client/graphics-only; **shader repack required** (new shaders + any layout additions); new `kPipeline*` enum entries and vcxproj filter additions for new shader files (DataPacker picks up `Engine/Data/Shaders/Water/` automatically); no determinism/CRC/`kiVersion`/wire exposure; all new passes are record-once (no per-frame CB recording); RTT creation at destroy tiers only (no steady-state allocation).
-- Sequencing: execute **after** `WaterMeshDensityOvershading.md` (its measurement changes this plan's cost model and its 1/8 option reduces the depth-only draw cost) and ideally after `WaterFragmentCostReduction.md` (shrinks the shade-pass baseline). Same-files group with both (`Water.frag`, `MainUniforms.cpp`, `GraphicsSettingsWrappersBase.cpp`).
+- Sequencing: execute **after** `WaterMeshDensityOvershading.md` (its measurement changes this plan's cost model and its 1/8 option reduces the depth-only draw cost), then rebaseline the now-optimized fragment pass before selecting the half-resolution design. Same-files group with the mesh-density work (`MainUniforms.cpp`, `GraphicsSettingsWrappersBase.cpp`).
 - Pre-staged grill decisions: (a) offscreen color format (RGBA16F vs packed); (b) coarse-LOD offset for the shade mesh (+1 vs +2); (c) composite depth-test scheme (`EQUAL` on the depth-only surface vs re-evaluating the over-land discard); (d) MSAA interaction; (e) whether the shade pass gets its own GPU timer.
 - Research grounding: half/quarter-res shading + upsample as the standard pattern for expensive screen-coverage effects — [Unreal's Rendering Passes / translucency and SSAO half-res practice](https://unrealartoptimization.github.io/book/profiling/passes/); quad overshading motivating the coarse shade mesh — [Fatahalian et al.](https://graphics.stanford.edu/papers/fragmerging/shade_sig10.pdf); geometry-vs-normal-map LOD tradeoff for Gerstner oceans — [GPU Gems ch. 1, Effective Water Simulation](https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-1-effective-water-simulation-physical-models).

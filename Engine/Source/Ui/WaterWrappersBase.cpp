@@ -37,7 +37,7 @@ Wrapper gWaterNormalSpeedDirectionTwo(-1.0f, -XM_PI, XM_PI);
 Wrapper gWaterNormalIndexThree(int64_t {4}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
 Wrapper gLightingSampledNormalsThreeSize(0.02f, 0.02f, 0.1f);
 Wrapper gLightingSampledNormalsWeightThreeMin(0.5f, 0.0f, 4.0f);
-Wrapper gLightingSampledNormalsWeightThreeMax(1.25f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightThreeMax(0.0f, 0.0f, 4.0f);
 Wrapper gWaterNormalRotationThree(0.17f, -XM_PI, XM_PI);
 Wrapper gLightingSampledNormalsSpeedThreeMin(0.1f, 0.0f, 0.2f);
 Wrapper gLightingSampledNormalsSpeedThreeMax(0.15f, 0.0f, 1.0f);

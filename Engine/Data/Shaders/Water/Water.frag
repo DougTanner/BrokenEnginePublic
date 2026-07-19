@@ -188,10 +188,8 @@ void main()
 	vec3 f3SampledNormalOne = vec3(0.0f);
 	if (fWeightOne > 0.0f)
 	{
-		float fCosOne = cos(mainLayout.fWaterNormalRotationOne);
-		float fSinOne = sin(mainLayout.fWaterNormalRotationOne);
-		mat2 m2UvRotOne = mat2(fCosOne, -fSinOne, fSinOne, fCosOne);
-		mat2 m2NormalRotOne = mat2(fCosOne, fSinOne, -fSinOne, fCosOne);
+		mat2 m2UvRotOne = mat2(globalLayout.f4WaterNormalRotationOne);
+		mat2 m2NormalRotOne = mat2(globalLayout.f4WaterNormalRotationOne.xzyw);
 		vec3 f3Accum = vec3(0.0f);
 		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, f2ReducedTime, m2UvRotOne, 0.2f, 1.1f, vec2(0.1f, 0.2f))
 		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, f2ReducedTime, m2UvRotOne, 1.1f, 1.2f, vec2(0.2f, 0.3f))
@@ -204,10 +202,8 @@ void main()
 	vec3 f3SampledNormalTwo = vec3(0.0f);
 	if (fWeightTwo > 0.0f)
 	{
-		float fCosTwo = cos(mainLayout.fWaterNormalRotationTwo);
-		float fSinTwo = sin(mainLayout.fWaterNormalRotationTwo);
-		mat2 m2UvRotTwo = mat2(fCosTwo, -fSinTwo, fSinTwo, fCosTwo);
-		mat2 m2NormalRotTwo = mat2(fCosTwo, fSinTwo, -fSinTwo, fCosTwo);
+		mat2 m2UvRotTwo = mat2(globalLayout.f4WaterNormalRotationTwo);
+		mat2 m2NormalRotTwo = mat2(globalLayout.f4WaterNormalRotationTwo.xzyw);
 		vec3 f3Accum = vec3(0.0f);
 		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, f2ReducedTimeTwo, m2UvRotTwo, 0.3f, 1.4f, vec2(0.4f, 0.5f))
 		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, f2ReducedTimeTwo, m2UvRotTwo, 1.2f, 1.5f, vec2(0.6f, 0.7f))
@@ -220,10 +216,8 @@ void main()
 	vec3 f3SampledNormalThree = vec3(0.0f);
 	if (fWeightThree > 0.0f)
 	{
-		float fCosThree = cos(mainLayout.fWaterNormalRotationThree);
-		float fSinThree = sin(mainLayout.fWaterNormalRotationThree);
-		mat2 m2UvRotThree = mat2(fCosThree, -fSinThree, fSinThree, fCosThree);
-		mat2 m2NormalRotThree = mat2(fCosThree, fSinThree, -fSinThree, fCosThree);
+		mat2 m2UvRotThree = mat2(globalLayout.f4WaterNormalRotationThree);
+		mat2 m2NormalRotThree = mat2(globalLayout.f4WaterNormalRotationThree.xzyw);
 		vec3 f3Accum = vec3(0.0f);
 		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, f2ReducedTimeThree, m2UvRotThree, 0.4f, 1.7f, vec2(1.0f, 1.1f))
 		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, f2ReducedTimeThree, m2UvRotThree, 1.3f, 1.8f, vec2(1.2f, 1.3f))
@@ -471,35 +465,40 @@ void main()
 
 	// Sample lighting texture at projected base-height x/y
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, vec3(f2WorldInitialPosition, 0.0f));
+	vec2 f2PositionAtBaseHeightFinal = f2PositionAtBaseHeight;
+	float fReflectedScale = mainLayout.fLightingWaterReflectedAmount * mainLayout.fLightingWaterReflectedIntensity;
 
-	// Reflected base-height sample: reflect the eye ray about the water normal and
-	// project the reflected ray to fBaseHeight. Distortion scales the normal's XY
-	// before renormalization so wave tilt (not the slow eye-to-point gradient) is
-	// the dominant contributor to the reflected sample position.
-	vec3 f3ReflectedNormal = mix(f3SampledNormal, f3InNormal, mainLayout.fLightingWaterReflectedNormalBlendWave);
-	f3ReflectedNormal = normalize(vec3(f3ReflectedNormal.xy * mainLayout.fLightingWaterReflectedDistortion, f3ReflectedNormal.z));
-	vec3 f3WaterWorld = vec3(f2WorldInitialPosition, 0.0f);
-	vec3 f3EyeToPoint = normalize(f3WaterWorld - mainLayout.f4EyePosition.xyz);
-	vec3 f3ReflectedRay = reflect(f3EyeToPoint, f3ReflectedNormal);
-	// Guard grazing-normal divide: clamp z away from zero so fReflectedMult can't overflow to +Inf
-	float fReflectedMult = (globalLayout.fBaseHeight - f3WaterWorld.z) / max(f3ReflectedRay.z, 1e-4f);
-	vec2 f2PositionAtBaseHeightReflected = (f3WaterWorld + max(fReflectedMult, 0.0f) * f3ReflectedRay).xy;
-
-	// Power-curve compression on the XY offset above FalloffStart so heavily-bent
-	// normals don't sample hundreds of world units away. Power=1 is passthrough.
-	vec2 f2ReflectedOffset = f2PositionAtBaseHeightReflected - f3WaterWorld.xy;
-	float fOffsetDistance = length(f2ReflectedOffset);
-	float fFalloffStart = mainLayout.fLightingWaterReflectedFalloffStart;
-	if (fOffsetDistance > fFalloffStart)
+	if (fReflectedScale > 0.0f)
 	{
-		float fNewDistance = fFalloffStart + pow(fOffsetDistance - fFalloffStart, mainLayout.fLightingWaterReflectedFalloffPower);
-		f2PositionAtBaseHeightReflected = f3WaterWorld.xy + f2ReflectedOffset * (fNewDistance / fOffsetDistance);
-		fOffsetDistance = fNewDistance;
-	}
+		// Reflected base-height lighting-texture sample: reflect the eye ray about the water normal and
+		// project the reflected ray to fBaseHeight. Distortion scales the normal's XY
+		// before renormalization so wave tilt (not the slow eye-to-point gradient) is
+		// the dominant contributor to the reflected sample position.
+		vec3 f3ReflectedNormal = mix(f3SampledNormal, f3InNormal, mainLayout.fLightingWaterReflectedNormalBlendWave);
+		f3ReflectedNormal = normalize(vec3(f3ReflectedNormal.xy * mainLayout.fLightingWaterReflectedDistortion, f3ReflectedNormal.z));
+		vec3 f3WaterWorld = vec3(f2WorldInitialPosition, 0.0f);
+		vec3 f3EyeToPoint = normalize(f3WaterWorld - mainLayout.f4EyePosition.xyz);
+		vec3 f3ReflectedRay = reflect(f3EyeToPoint, f3ReflectedNormal);
+		// Guard grazing-normal divide: clamp z away from zero so fReflectedMult can't overflow to +Inf
+		float fReflectedMult = (globalLayout.fBaseHeight - f3WaterWorld.z) / max(f3ReflectedRay.z, 1e-4f);
+		vec2 f2PositionAtBaseHeightReflected = (f3WaterWorld + max(fReflectedMult, 0.0f) * f3ReflectedRay).xy;
 
-	float fReflectedFresnel = mix(1.0f, Fresnel(mainLayout.f4EyePosition.xyz, f3WaterWorld, f3ReflectedNormal, 1.0f), mainLayout.fLightingWaterReflectedFresnel);
-	float fReflectedAmount = clamp(mainLayout.fLightingWaterReflectedAmount * mainLayout.fLightingWaterReflectedIntensity * fReflectedFresnel, 0.0f, 1.0f);
-	vec2 f2PositionAtBaseHeightFinal = mix(f2PositionAtBaseHeight, f2PositionAtBaseHeightReflected, fReflectedAmount);
+		// Power-curve compression on the XY offset above FalloffStart so heavily-bent
+		// normals don't sample hundreds of world units away. Power=1 is passthrough.
+		vec2 f2ReflectedOffset = f2PositionAtBaseHeightReflected - f3WaterWorld.xy;
+		float fOffsetDistance = length(f2ReflectedOffset);
+		float fFalloffStart = mainLayout.fLightingWaterReflectedFalloffStart;
+		if (fOffsetDistance > fFalloffStart)
+		{
+			float fNewDistance = fFalloffStart + pow(fOffsetDistance - fFalloffStart, mainLayout.fLightingWaterReflectedFalloffPower);
+			f2PositionAtBaseHeightReflected = f3WaterWorld.xy + f2ReflectedOffset * (fNewDistance / fOffsetDistance);
+			fOffsetDistance = fNewDistance;
+		}
+
+		float fReflectedFresnel = mix(1.0f, Fresnel(mainLayout.f4EyePosition.xyz, f3WaterWorld, f3ReflectedNormal, 1.0f), mainLayout.fLightingWaterReflectedFresnel);
+		float fReflectedAmount = clamp(fReflectedScale * fReflectedFresnel, 0.0f, 1.0f);
+		f2PositionAtBaseHeightFinal = mix(f2PositionAtBaseHeight, f2PositionAtBaseHeightReflected, fReflectedAmount);
+	}
 
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeightFinal, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4LightingBaseHeight[3];

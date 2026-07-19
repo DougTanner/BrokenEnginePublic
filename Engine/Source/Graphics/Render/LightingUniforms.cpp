@@ -166,9 +166,6 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fWaterNormalWeightOne = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightOneMin.Get(), gLightingSampledNormalsWeightOneMax.Get());
 	rMainLayout.fWaterNormalWeightTwo = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightTwoMin.Get(), gLightingSampledNormalsWeightTwoMax.Get());
 	rMainLayout.fWaterNormalWeightThree = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightThreeMin.Get(), gLightingSampledNormalsWeightThreeMax.Get());
-	rMainLayout.fWaterNormalRotationOne = gWaterNormalRotationOne.Get();
-	rMainLayout.fWaterNormalRotationTwo = gWaterNormalRotationTwo.Get();
-	rMainLayout.fWaterNormalRotationThree = gWaterNormalRotationThree.Get();
 	rMainLayout.fWaterHeightDarkenTop = gWaterHeightDarkenTop.Get();
 	rMainLayout.fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();
 	rMainLayout.fWaterHeightDarkenTarget = gWaterHeightDarkenTarget.Get();

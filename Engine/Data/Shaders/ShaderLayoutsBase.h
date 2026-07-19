@@ -382,6 +382,9 @@ struct GlobalLayout
 	float fWaterReducedNormalOriginTwoY INIT;
 	float fWaterReducedNormalOriginThreeX INIT;
 	float fWaterReducedNormalOriginThreeY INIT;
+	vec4 f4WaterNormalRotationOne INIT;
+	vec4 f4WaterNormalRotationTwo INIT;
+	vec4 f4WaterNormalRotationThree INIT;
 
 	// Water
 	int32_t iWaterLowCount INIT;
@@ -496,9 +499,6 @@ struct MainLayout
 	float fWaterNormalWeightOne INIT;
 	float fWaterNormalWeightTwo INIT;
 	float fWaterNormalWeightThree INIT;
-	float fWaterNormalRotationOne INIT;
-	float fWaterNormalRotationTwo INIT;
-	float fWaterNormalRotationThree INIT;
 	float fWaterHeightDarkenTop INIT;
 	float fWaterHeightDarkenBottom INIT;
 	float fWaterHeightDarkenTarget INIT;

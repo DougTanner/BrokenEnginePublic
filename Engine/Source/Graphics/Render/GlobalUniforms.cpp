@@ -488,6 +488,9 @@ static void PopulateWaterReducedUv(shaders::GlobalLayout& rGlobalLayout)
 	double dDeltaThree = dSizeBaseThree * dSpeedThree * dDeltaTime;
 	double dCosThree = static_cast<double>(std::cos(fRotationThree));
 	double dSinThree = static_cast<double>(std::sin(fRotationThree));
+	rGlobalLayout.f4WaterNormalRotationOne = {static_cast<float>(dCosOne), -static_cast<float>(dSinOne), static_cast<float>(dSinOne), static_cast<float>(dCosOne)};
+	rGlobalLayout.f4WaterNormalRotationTwo = {static_cast<float>(dCosTwo), -static_cast<float>(dSinTwo), static_cast<float>(dSinTwo), static_cast<float>(dCosTwo)};
+	rGlobalLayout.f4WaterNormalRotationThree = {static_cast<float>(dCosThree), -static_cast<float>(dSinThree), static_cast<float>(dSinThree), static_cast<float>(dCosThree)};
 	double dScrollGammaThree = static_cast<double>(fSpeedDirectionThree) - static_cast<double>(fRotationThree);
 	double dScrollCosThree = std::cos(dScrollGammaThree);
 	double dScrollSinThree = std::sin(dScrollGammaThree);
