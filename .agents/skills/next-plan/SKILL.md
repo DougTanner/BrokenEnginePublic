@@ -87,6 +87,12 @@ between wrapper creation and the claim. Recover in place, automatically:
    re-supply the override rather than treating it as corruption.
 3. Claim and continue.
 
+After the claim, a plan file landing on primary can surface as a
+`missing-plan-file` notice when the session's older tree cannot see it. That
+stale-baseline notice is non-blocking at every `ok: true` gate and is resolved
+by reconciliation — see the canonical contract's state 3; it never justifies a
+mid-workflow rebase or a stop for user direction.
+
 ## Workflow
 
 1. Run `plan order validate` against primary. Skill-text validation runs when

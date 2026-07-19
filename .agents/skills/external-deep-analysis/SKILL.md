@@ -148,7 +148,7 @@ After scoring, write every surviving plan file first, then create one schema-ver
 ```
 
 - Put prerequisite-first plans in the same sequence; WorktreeCli adds each immediate-predecessor edge. Put independent plans in separate sequences and name already-live prerequisites in `dependsOn`.
-- Invoke `plan order add --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>`. Require a receipt covering every intended plan and successful queue unlocks, then require `plan order validate --repo <common-dir> --worktree <session-worktree>` to report `ok: true`.
+- Invoke `plan order add --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>`. Require a receipt covering every intended plan and successful queue unlocks, then require `plan order validate --repo <common-dir> --worktree <session-worktree>` to report `ok: true` (a stale-baseline `missing-plan-file` notice for a foreign row whose plan landed on primary after the session baseline is acceptable — see the `/next-plan` execution-gate contract, state 3).
 - Never parse or edit either `Order.md`. A failed add leaves retryable plan-file orphans and no new executable rows.
 - Directional prerequisites exist only in `dependsOn`. Mandatory nondirectional constraints require reciprocal `## Coordination` sections in every affected live plan; if existing counterparts need updates, route the set through the atomic multi-plan add/update workflow. Ordinary overlap may remain a nonblocking one-sided warning in plan prose.
 - Do **not** include the Debt Score or any other run retrospective in the request; it lives in the Phase 6 summary only.

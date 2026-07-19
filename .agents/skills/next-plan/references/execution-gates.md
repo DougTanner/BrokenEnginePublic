@@ -64,6 +64,16 @@ The claim no longer requires a clean session tree, so there is no stash step;
 `plan-byte-mismatch` (primary plan bytes) is the sole plan-content guard, and
 `git-operation-in-progress` still applies.
 
+A second recoverable condition is the stale-baseline queue notice: after the
+claim, a plan file and row landing on primary produce a row whose file exists
+on primary but not in this session's older tree. WorktreeCli reports that case
+as a non-blocking `missing-plan-file` notice, and any `ok: true` gate in this
+workflow accepts it. Record the notice as evidence and continue — the
+reconciliation rebase resolves it. It is never grounds to rebase mid-workflow,
+stop for user direction, or treat validation, verification, or a queue
+mutation as blocked. Only a `missing-plan-file` whose plan is absent from
+primary as well remains a genuine blocking diagnostic.
+
 <!-- next-plan-gate:primary-mutation-confirmation -->
 
 ## 4. Landing confirmation

@@ -649,6 +649,58 @@ try {
 		Assert-Bytes (Get-StoreOrderPath $fixture 'Plans') $plansBefore 'Reseed after unlock changed the Plans store.'
 	}
 
+	Invoke-Case 'validate demotes a stale-baseline missing plan to a notice and add still lands beside it' {
+		$fixture = New-FixtureRepository 'stale-baseline' @() @()
+		# The session branches at the baseline, before the new plan lands on primary.
+		$session = Add-Worktree $fixture 'session'
+		# Land a new plan file on primary and publish its row against the primary tree (where the file exists).
+		Set-Utf8File (Join-Path $fixture.Primary 'Documents/Plans/Landed.md') "# Landed`n"
+		Invoke-Git $fixture.Primary @('add', '--', 'Documents/Plans/Landed.md') | Out-Null
+		Invoke-Git $fixture.Primary @('commit', '-m', 'land a new plan on primary') | Out-Null
+		$landRequest = @{ schemaVersion=1; operation='add'; sequences = ,@(
+			@{ queue='plans'; plan='Documents/Plans/Landed.md'; tier='Small'; effort=2; impact=3; risks=1; notes='landed'; dependsOn=@() }
+		) }
+		$landPath = Write-Request $fixture.Primary 'stale-land' $landRequest
+		Invoke-WorktreeCli ((Get-OrderArguments $fixture 'add' $fixture.Primary) + @('--owner','land-owner','--session','land-session','--request',$landPath)) 0 | Out-Null
+		# (a) The stale session lacks Landed.md, but primary has it: validate demotes the missing-plan-file to a notice.
+		$validation = Get-Validation $fixture $session 0
+		Assert-True $validation.Json.ok 'Stale-baseline validate did not report ok:true.'
+		Assert-Equal @($validation.Json.diagnostics).Count 0 'Stale-baseline missing plan produced a blocking diagnostic.'
+		$notice = @($validation.Json.notices | Where-Object { $_.code -ceq 'missing-plan-file' -and $_.path -ceq 'Documents/Plans/Order.md' })
+		Assert-Equal $notice.Count 1 'Stale-baseline missing plan was not demoted to a missing-plan-file notice.'
+		# (c) A fresh valid add from the session succeeds despite the stale foreign row from (a).
+		Set-Utf8File (Join-Path $session 'Documents/Plans/Fresh.md') "# Fresh`n"
+		$freshRequest = @{ schemaVersion=1; operation='add'; sequences = ,@(
+			@{ queue='plans'; plan='Documents/Plans/Fresh.md'; tier='Small'; effort=2; impact=3; risks=1; notes='fresh'; dependsOn=@() }
+		) }
+		$freshPath = Write-Request $session 'stale-fresh' $freshRequest
+		$json = ConvertFrom-AgentJson (Invoke-WorktreeCli ((Get-OrderArguments $fixture 'add' $session) + @('--owner','fresh-owner','--session','fresh-session','--request',$freshPath)) 0)
+		Assert-True ($json.handled -and $json.operation -ceq 'add') 'Fresh add beside a stale foreign row did not succeed.'
+		$afterFresh = Get-Validation $fixture $session 0
+		Assert-Equal @($afterFresh.Json.rows | Where-Object plan -CEQ 'Documents/Plans/Fresh.md').Count 1 'Fresh add did not publish its row.'
+	}
+
+	Invoke-Case 'validate keeps a missing plan blocking when it is absent from both trees' {
+		$fixture = New-FixtureRepository 'absent-both' @() @()
+		$session = Add-Worktree $fixture 'session'
+		# Land Ghost.md on primary and publish its row, then remove the file from primary while keeping the row.
+		Set-Utf8File (Join-Path $fixture.Primary 'Documents/Plans/Ghost.md') "# Ghost`n"
+		Invoke-Git $fixture.Primary @('add', '--', 'Documents/Plans/Ghost.md') | Out-Null
+		Invoke-Git $fixture.Primary @('commit', '-m', 'land ghost plan') | Out-Null
+		$request = @{ schemaVersion=1; operation='add'; sequences = ,@(
+			@{ queue='plans'; plan='Documents/Plans/Ghost.md'; tier='Small'; effort=2; impact=3; risks=1; notes='ghost'; dependsOn=@() }
+		) }
+		$requestPath = Write-Request $fixture.Primary 'absent-add' $request
+		Invoke-WorktreeCli ((Get-OrderArguments $fixture 'add' $fixture.Primary) + @('--owner','ghost-owner','--session','ghost-session','--request',$requestPath)) 0 | Out-Null
+		Invoke-Git $fixture.Primary @('rm', '--', 'Documents/Plans/Ghost.md') | Out-Null
+		Invoke-Git $fixture.Primary @('commit', '-m', 'remove ghost file, keep its row') | Out-Null
+		# Absent from the session baseline and from primary: the missing-plan-file stays a blocking diagnostic.
+		$validation = Get-Validation $fixture $session 2
+		Assert-True (-not $validation.Json.ok) 'Both-absent missing plan did not report ok:false.'
+		$blocking = @($validation.Json.diagnostics | Where-Object { $_.code -ceq 'missing-plan-file' -and $_.path -ceq 'Documents/Plans/Order.md' })
+		Assert-Equal $blocking.Count 1 'Both-absent missing plan was not a blocking missing-plan-file diagnostic.'
+	}
+
 }
 finally {
 	Clear-TrackedQueueLocks

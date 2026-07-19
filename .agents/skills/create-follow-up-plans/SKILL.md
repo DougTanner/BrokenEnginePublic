@@ -24,7 +24,7 @@ If a required fact is absent, inspect the repository and originating plan before
 
 ### 1. Load planning rules
 
-Read `Documents/AGENTS.md` and `Documents/Plans/AGENTS.md` completely. Follow their current plan shape, scoring anchors, structured dependency rules, and Coordination policy; they are authoritative if this skill drifts. Run `plan order validate --repo <canonical-git-common-dir> --worktree <session-worktree>` and require its JSON result to report `ok: true` before preparing a mutation. WorktreeCli is the only executable-row parser; the queue is machine-local state, so never parse or edit a queue row directly.
+Read `Documents/AGENTS.md` and `Documents/Plans/AGENTS.md` completely. Follow their current plan shape, scoring anchors, structured dependency rules, and Coordination policy; they are authoritative if this skill drifts. Run `plan order validate --repo <canonical-git-common-dir> --worktree <session-worktree>` and require its JSON result to report `ok: true` before preparing a mutation. A `missing-plan-file` notice for a foreign row whose plan landed on primary after the session baseline is the expected stale-baseline condition and does not block validation or mutation (see the `/next-plan` execution-gate contract, state 3); reconciliation resolves it. WorktreeCli is the only executable-row parser; the queue is machine-local state, so never parse or edit a queue row directly.
 
 Use `Documents/Plans/` only for refactors, bug fixes, hardening, and structural debt. If an item's purpose is a new engine capability, do not disguise it as debt: report that classification conflict for the main agent to resolve.
 
@@ -97,7 +97,7 @@ WorktreeCli publishes all entries or none. The `update` verb stages the full pla
 
 Directional prerequisites exist only in `dependsOn`. Mandatory nondirectional constraints (`never interleave`, joint resolution, alone execution, or protocol/version/CRC/replay/`.pack`/`kiVersion` batching) require reciprocal standard `## Coordination` sections in every affected live plan. Those sections are plan-body prose edited directly; the authoring rule is to update every existing counterpart in the same change set, and a concurrent counterpart edit resolves as a merge conflict at landing, not a zero-mutation queue failure. Ordinary warning-only overlap may remain one-sided in plan prose.
 
-When a row update is submitted, require its receipt to identify every intended plan and successful queue unlocks, then rerun session `plan order validate` and require `ok: true`. The staged add publishes at landing, so a session that never lands leaves retryable new plan files and its request as session orphans; a failed update leaves live rows unchanged. Do not repair either failure by editing a queue row by hand.
+When a row update is submitted, require its receipt to identify every intended plan and successful queue unlocks, then rerun session `plan order validate` and require `ok: true` (stale-baseline `missing-plan-file` notices remain acceptable). The staged add publishes at landing, so a session that never lands leaves retryable new plan files and its request as session orphans; a failed update leaves live rows unchanged. Do not repair either failure by editing a queue row by hand.
 
 ## Report
 

@@ -1563,11 +1563,37 @@ namespace toolcli
 			return nullptr;
 		}
 
+		// Rows whose plan file is missing from this worktree but present in the primary checkout: the plan landed on
+		// primary after this worktree's baseline, so reconciliation restores it. Empty unless a distinct primary exists;
+		// any path-resolution failure leaves the row out so it stays blocking (fail-safe).
+		std::set<std::string> CollectStaleBaselinePlans(const QueueState& rState, const std::wstring& rWorktree, const std::optional<std::wstring>& rPrimary)
+		{
+			std::set<std::string> stalePlans;
+			if (!rPrimary || *rPrimary == rWorktree)
+			{
+				return stalePlans;
+			}
+			for (const Diagnostic& rDiagnostic : rState.diagnostics)
+			{
+				if (rDiagnostic.code != "missing-plan-file")
+				{
+					continue;
+				}
+				const std::string* pRowPlan = PlanForRowDiagnostic(rState, rDiagnostic);
+				if (pRowPlan != nullptr && ResolveContainedPath(*rPrimary, Utf8ToWide(*pRowPlan), true))
+				{
+					stalePlans.insert(*pRowPlan);
+				}
+			}
+			return stalePlans;
+		}
+
 		// orphan-plan is a notice, never a diagnostic, so it never reaches this gate; a missing-plan-file for a currently
-		// claimed row is an in-flight completion; complete ignores diagnostics attributed to its own target and the
-		// dependent-edge tear its rerun heals; add ignores the missing-dependency/duplicate tears its rerun rewrites.
-		// Everything else (parse/graph/unrelated file) still blocks.
-		bool HasBlockingDiagnostics(const QueueState& rState, const std::set<std::string>& rClaimedPlans, const std::string* pTargetPlan, const std::set<std::string>& rRequestPlans = {})
+		// claimed row is an in-flight completion, and one for a stale-baseline row (plan present on primary, absent here)
+		// heals at reconciliation; complete ignores diagnostics attributed to its own target and the dependent-edge tear
+		// its rerun heals; add ignores the missing-dependency/duplicate tears its rerun rewrites. Everything else
+		// (parse/graph/unrelated file) still blocks.
+		bool HasBlockingDiagnostics(const QueueState& rState, const std::set<std::string>& rClaimedPlans, const std::string* pTargetPlan, const std::set<std::string>& rRequestPlans = {}, const std::set<std::string>& rStaleBaselinePlans = {})
 		{
 			for (const Diagnostic& rDiagnostic : rState.diagnostics)
 			{
@@ -1577,7 +1603,7 @@ namespace toolcli
 				{
 					continue;
 				}
-				if (rDiagnostic.code == "missing-plan-file" && pRowPlan != nullptr && rClaimedPlans.contains(*pRowPlan))
+				if (rDiagnostic.code == "missing-plan-file" && pRowPlan != nullptr && (rClaimedPlans.contains(*pRowPlan) || rStaleBaselinePlans.contains(*pRowPlan)))
 				{
 					continue;
 				}
@@ -1626,7 +1652,7 @@ namespace toolcli
 			return false;
 		}
 
-		int RunValidate(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree, bool bPrimary)
+		int RunValidate(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree, bool bPrimary, const std::optional<std::wstring>& rPrimary)
 		{
 			QueueState state;
 			if (!LoadQueueState(rRepository, rWorktree, rArguments, std::nullopt, std::nullopt, {}, state))
@@ -1638,13 +1664,15 @@ namespace toolcli
 			{
 				return kiExitFailure;
 			}
+			const std::set<std::string> staleBaselinePlans = CollectStaleBaselinePlans(state, rWorktree, rPrimary);
 			// A missing-plan-file for a row held by a live claim is the transient post-advance/pre-phase-2 window (or a
-			// crashed session); surface it as a non-blocking notice so it never reds out a later landing's validate.
+			// crashed session); one for a foreign row whose plan landed on primary after this worktree's baseline is
+			// resolved by reconciliation. Either surfaces as a non-blocking notice so it never reds out a later validate.
 			std::vector<Diagnostic> blocking;
 			for (Diagnostic& rDiagnostic : state.diagnostics)
 			{
 				const std::string* pRowPlan = PlanForRowDiagnostic(state, rDiagnostic);
-				if (rDiagnostic.code == "missing-plan-file" && pRowPlan != nullptr && claimedPlans.contains(*pRowPlan))
+				if (rDiagnostic.code == "missing-plan-file" && pRowPlan != nullptr && (claimedPlans.contains(*pRowPlan) || staleBaselinePlans.contains(*pRowPlan)))
 				{
 					state.notices.push_back(std::move(rDiagnostic));
 				}
@@ -1802,7 +1830,7 @@ namespace toolcli
 			return kiExitOk;
 		}
 
-		int RunAdd(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree)
+		int RunAdd(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree, const std::optional<std::wstring>& rPrimary)
 		{
 			nlohmann::json request;
 			std::vector<AddSequence> sequences;
@@ -1827,7 +1855,8 @@ namespace toolcli
 			{
 				return kiExitFailure;
 			}
-			if (HasBlockingDiagnostics(state, claimedPlans, nullptr, added))
+			const std::set<std::string> staleBaselinePlans = CollectStaleBaselinePlans(state, rWorktree, rPrimary);
+			if (HasBlockingDiagnostics(state, claimedPlans, nullptr, added, staleBaselinePlans))
 			{
 				PrintValidation(state);
 				return kiExitStateConflict;
@@ -1886,7 +1915,8 @@ namespace toolcli
 			{
 				return kiExitFailure;
 			}
-			if (HasBlockingDiagnostics(prospective, claimedPlans, nullptr, added))
+			const std::set<std::string> prospectiveStalePlans = CollectStaleBaselinePlans(prospective, rWorktree, rPrimary);
+			if (HasBlockingDiagnostics(prospective, claimedPlans, nullptr, added, prospectiveStalePlans))
 			{
 				PrintValidation(prospective);
 				return kiExitStateConflict;
@@ -1926,7 +1956,7 @@ namespace toolcli
 			return bUnlocked ? kiExitOk : kiExitStateConflict;
 		}
 
-		int RunUpdate(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree)
+		int RunUpdate(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree, const std::optional<std::wstring>& rPrimary)
 		{
 			nlohmann::json request;
 			if (!ReadJsonRequest(rArguments, rWorktree, request) || !request.contains("operation") || request["operation"] != "update" || !request.contains("updates") || !request["updates"].is_array() || request["updates"].empty())
@@ -1949,7 +1979,8 @@ namespace toolcli
 			{
 				return kiExitFailure;
 			}
-			if (HasBlockingDiagnostics(state, claimedPlans, nullptr))
+			const std::set<std::string> staleBaselinePlans = CollectStaleBaselinePlans(state, rWorktree, rPrimary);
+			if (HasBlockingDiagnostics(state, claimedPlans, nullptr, {}, staleBaselinePlans))
 			{
 				PrintValidation(state);
 				return kiExitStateConflict;
@@ -2014,7 +2045,8 @@ namespace toolcli
 			{
 				return kiExitFailure;
 			}
-			if (HasBlockingDiagnostics(prospective, claimedPlans, nullptr))
+			const std::set<std::string> prospectiveStalePlans = CollectStaleBaselinePlans(prospective, rWorktree, rPrimary);
+			if (HasBlockingDiagnostics(prospective, claimedPlans, nullptr, {}, prospectiveStalePlans))
 			{
 				PrintValidation(prospective);
 				return kiExitStateConflict;
@@ -2220,7 +2252,7 @@ namespace toolcli
 			return bUnlocked ? kiExitOk : kiExitStateConflict;
 		}
 
-		int RunComplete(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree)
+		int RunComplete(const Arguments& rArguments, const std::wstring& rRepository, const std::wstring& rWorktree, const std::optional<std::wstring>& rPrimary)
 		{
 			const std::optional<std::string> normalizedPlan = NormalizeIdentity(WideToUtf8(rArguments.plan));
 			if (rArguments.owner.empty() || !normalizedPlan || !IsCanonicalDependency(*normalizedPlan))
@@ -2261,7 +2293,8 @@ namespace toolcli
 			{
 				return kiExitFailure;
 			}
-			if (HasBlockingDiagnostics(state, claimedPlans, &*normalizedPlan))
+			const std::set<std::string> staleBaselinePlans = CollectStaleBaselinePlans(state, rWorktree, rPrimary);
+			if (HasBlockingDiagnostics(state, claimedPlans, &*normalizedPlan, {}, staleBaselinePlans))
 			{
 				PrintValidation(state);
 				return kiExitStateConflict;
@@ -2286,7 +2319,8 @@ namespace toolcli
 			{
 				return kiExitFailure;
 			}
-			if (HasBlockingDiagnostics(prospective, claimedPlans, &*normalizedPlan))
+			const std::set<std::string> prospectiveStalePlans = CollectStaleBaselinePlans(prospective, rWorktree, rPrimary);
+			if (HasBlockingDiagnostics(prospective, claimedPlans, &*normalizedPlan, {}, prospectiveStalePlans))
 			{
 				PrintValidation(prospective);
 				return kiExitStateConflict;
@@ -2360,25 +2394,32 @@ namespace toolcli
 		{
 			return kiExitFailure;
 		}
+		// Registered primary checkout (front porcelain entry, canonicalized by ResolveWorktrees); absent when it is bare or
+		// prunable, in which case stale-baseline demotion is disabled and missing plan files stay blocking (fail-safe).
+		std::optional<std::wstring> primaryPath;
+		if (!listing.empty() && !listing.front().bBare && !listing.front().bPrunable)
+		{
+			primaryPath = listing.front().path;
+		}
 		if (verb == L"init")
 		{
 			return RunInit(arguments, repository, worktree);
 		}
 		if (verb == L"validate")
 		{
-			return RunValidate(arguments, repository, worktree, !listing.empty() && listing.front().path == worktree);
+			return RunValidate(arguments, repository, worktree, !listing.empty() && listing.front().path == worktree, primaryPath);
 		}
 		if (verb == L"add")
 		{
-			return RunAdd(arguments, repository, worktree);
+			return RunAdd(arguments, repository, worktree, primaryPath);
 		}
 		if (verb == L"update")
 		{
-			return RunUpdate(arguments, repository, worktree);
+			return RunUpdate(arguments, repository, worktree, primaryPath);
 		}
 		if (verb == L"complete")
 		{
-			return RunComplete(arguments, repository, worktree);
+			return RunComplete(arguments, repository, worktree, primaryPath);
 		}
 		if (!primary)
 		{
