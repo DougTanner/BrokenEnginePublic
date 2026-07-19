@@ -53,7 +53,12 @@ bool GameSaveLoad::ServerLoad(const std::filesystem::path& rFilename)
 		return false;
 	}
 
+	const int64_t iLoadedTick = mrGameBase.TickCounter();
+	const float fLoadedTime = mrGameBase.CurrentTime();
 	game::gpGame->Reset();
+	// Reset clears the clock; restore the saved values before client resynchronization.
+	mrGameBase.SetTickCounter(iLoadedTick);
+	mrGameBase.SetCurrentTime(fLoadedTime);
 	game::gpGame->SetClientGridCoord(loadedClientGridCoord);
 	game::gpServerSession->ResetClientsForLoad();
 	game::gpServerSession->ComputeActiveSet();
