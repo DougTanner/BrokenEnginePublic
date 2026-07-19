@@ -184,7 +184,15 @@ void WriteModelDescriptor(Pipeline& rPipeline, const DescriptorInfo& rDescriptor
 void WriteBufferDescriptor(const DescriptorInfo& rDescriptorInfo, int64_t iFramebuffer, VkWriteDescriptorSet& rVkWriteDescriptorSet, DescriptorWriteCursor& rCursor)
 {
 	VkBuffer vkBuffer = VK_NULL_HANDLE;
-	if (rDescriptorInfo.flags & kUniformBuffer || rDescriptorInfo.flags & kStorageBuffer)
+	if (rDescriptorInfo.flags & kGlobalLayoutUniformBuffers)
+	{
+		vkBuffer = gpBufferManager->mGlobalLayoutUniformBuffers.at(static_cast<size_t>(iFramebuffer)).GetBuffer();
+	}
+	else if (rDescriptorInfo.flags & kMainLayoutUniformBuffers)
+	{
+		vkBuffer = gpBufferManager->mMainLayoutUniformBuffers.at(static_cast<size_t>(iFramebuffer)).GetBuffer();
+	}
+	else if (rDescriptorInfo.flags & kUniformBuffer || rDescriptorInfo.flags & kStorageBuffer)
 	{
 		vkBuffer = rDescriptorInfo.pBuffers != nullptr ? rDescriptorInfo.pBuffers->GetBuffer() : *rDescriptorInfo.pVkBuffers;
 	}
@@ -526,7 +534,7 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline)
 			{
 				WriteModelDescriptor(rPipeline, rDescriptorInfo, iFramebuffer, vkWriteDescriptorSet, cursor);
 			}
-			else if (rDescriptorInfo.flags & kUniformBuffer || rDescriptorInfo.flags & kStorageBuffer || rDescriptorInfo.flags & kPerCommandBufferUniformBuffers || rDescriptorInfo.flags & kPerCommandBufferStorageBuffers)
+			else if (rDescriptorInfo.flags & kUniformBuffer || rDescriptorInfo.flags & kStorageBuffer || rDescriptorInfo.flags & kPerCommandBufferUniformBuffers || rDescriptorInfo.flags & kPerCommandBufferStorageBuffers || rDescriptorInfo.flags & kGlobalLayoutUniformBuffers || rDescriptorInfo.flags & kMainLayoutUniformBuffers)
 			{
 				WriteBufferDescriptor(rDescriptorInfo, iFramebuffer, vkWriteDescriptorSet, cursor);
 			}

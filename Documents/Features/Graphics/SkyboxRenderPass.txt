@@ -148,9 +148,9 @@ Changes (11 files)
          .pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
          .pDescriptorInfos =
          {
-             {.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-             {.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-             {.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCKloofendalPuresky_PrefilteredR16G16B16A16_SFLOATCrc},
+             {.flags = kGlobalLayoutUniformBuffers},
+             {.flags = kMainLayoutUniformBuffers},
+             {.flags = kCombinedSamplers, .textureCrc = data::kTexturesCKloofendalPuresky_PrefilteredR16G16B16A16_SFLOATCrc},
          },
      });
 

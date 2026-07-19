@@ -37,6 +37,8 @@ enum class DescriptorFlags : uint64_t
 	kStorageBuffer                  = 0x1000,
 	kPerCommandBufferUniformBuffers = 0x2000,
 	kPerCommandBufferStorageBuffers = 0x4000,
+	kGlobalLayoutUniformBuffers     = 0x100000,
+	kMainLayoutUniformBuffers       = 0x200000,
 
 	kModel                          = 0x8000,
 
@@ -53,7 +55,7 @@ struct DescriptorInfo
 {
 	DescriptorFlags_t flags {DescriptorFlags::kEmpty};
 
-	int64_t iCount = 0;
+	int64_t iCount = 1;
 	int64_t iExplicitBinding = -1; // If >= 0, use this binding number instead of sequential assignment
 	common::crc_t textureCrc = 0;
 	Texture* pTexture = nullptr;

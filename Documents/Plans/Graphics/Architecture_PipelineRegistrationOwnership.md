@@ -93,7 +93,6 @@ owner, and `ModelPipeline` configures inner pipelines by poking public members b
 
 - `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
 - `Documents/Plans/Graphics/PipelineDescriptorInfosRightSize.md`: never interleave changes to the shared scan-to-max `Pipeline::Create` / `PipelineDescriptorWriter::Write` paths.
-- `Documents/Plans/Graphics/Managers/Refactor_PipelineManagerSplit.md`: never interleave with its PipelineManager file-shape change; refresh citations after it lands.
 
 ## Notes
 - Architectural ownership move, client-only: no determinism/CRC, `kiVersion`, replay, or network exposure.

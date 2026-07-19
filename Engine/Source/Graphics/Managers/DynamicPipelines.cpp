@@ -82,8 +82,8 @@ void DynamicPipelines::CreateModelPipeline(common::crc_t crc, std::string_view n
 			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
 			.pDescriptorInfos =
 			{
-				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+				{.flags = kGlobalLayoutUniformBuffers},
+				{.flags = kMainLayoutUniformBuffers},
 				{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
 			},
 		},
@@ -123,8 +123,8 @@ void DynamicPipelines::CreateModelPipelineShadow(common::crc_t crc, std::string_
 			.vkExtent3D = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent,
 			.pDescriptorInfos =
 			{
-				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+				{.flags = kGlobalLayoutUniformBuffers},
+				{.flags = kMainLayoutUniformBuffers},
 				{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
 			},
 		},
@@ -156,7 +156,7 @@ void DynamicPipelines::CreatePipelineLighting(common::crc_t crc, std::string_vie
 		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kGlobalLayoutUniformBuffers},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = kSamplerRepeat},
 			{.flags = kTextures},
@@ -181,12 +181,12 @@ void DynamicPipelines::CreatePipelineVisibleLights(common::crc_t crc, std::strin
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
 		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kGlobalLayoutUniformBuffers},
+			{.flags = kMainLayoutUniformBuffers},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
 			{.flags = kSamplerRepeat},
 			{.flags = kTextures},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
+			{.flags = kCombinedSamplers, .pTexture = &gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture},
 		},
 	});
 }
@@ -213,7 +213,7 @@ void DynamicPipelines::CreatePipelineAxisAlignedLighting(common::crc_t crc, std:
 		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kGlobalLayoutUniformBuffers},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = kSamplerClamp},
 			{.flags = kTextures},
@@ -241,8 +241,8 @@ void DynamicPipelines::CreatePipelineBillboards(common::crc_t crc, std::string_v
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
 		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kGlobalLayoutUniformBuffers},
+			{.flags = kMainLayoutUniformBuffers},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = kSamplerClamp},
 			{.flags = kTextures},
@@ -272,7 +272,7 @@ void DynamicPipelines::CreateDepositPipeline(DynamicPipelineType eType, common::
 		.vkExtent3D = rTargetTexture.mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kGlobalLayoutUniformBuffers},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			rTextureDescriptor,
 			{.flags = kStorageBuffer, .pVkBuffers = pOccupancyBuffer},
@@ -285,7 +285,7 @@ void DynamicPipelines::CreatePipelineSmokeAxisAligned(common::crc_t crc, std::st
 	CreateDepositPipeline(kDynamicPipelineSmokeAxisAligned, crc, name,
 		data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc, data::kShadersSmokeSmokefragCrc,
 		gpTextureManager->mRenderTargetTextures.mSmokeTextureOne,
-		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
 		&gpBufferManager->mSmokeOccupancyVkBuffers[0], iBufferSize);
 }
 
@@ -294,7 +294,7 @@ void DynamicPipelines::CreatePipelineSmoke(common::crc_t crc, std::string_view n
 	CreateDepositPipeline(kDynamicPipelineSmoke, crc, name,
 		data::kShadersQuadsQuadsVisibleAreavertCrc, data::kShadersSmokeSmokefragCrc,
 		gpTextureManager->mRenderTargetTextures.mSmokeTextureOne,
-		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeGradientTexture},
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeGradientTexture},
 		&gpBufferManager->mSmokeOccupancyVkBuffers[0], iBufferSize);
 }
 
@@ -303,7 +303,7 @@ void DynamicPipelines::CreatePipelineWindDepositA(common::crc_t crc, std::string
 	CreateDepositPipeline(kDynamicPipelineWindDepositA, crc, name,
 		data::kShadersQuadsQuadsVisibleAreavertCrc, data::kShadersWindWindDepositfragCrc,
 		gpTextureManager->mRenderTargetTextures.mWindTextureOne,
-		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .textureCrc = data::kTexturesBC4Radial2pngCrc},
 		&gpBufferManager->mWindOccupancyVkBuffers[0], iBufferSize);
 }
 
@@ -312,7 +312,7 @@ void DynamicPipelines::CreatePipelineWindDepositB(common::crc_t crc, std::string
 	CreateDepositPipeline(kDynamicPipelineWindDepositB, crc, name,
 		data::kShadersQuadsQuadsVisibleAreavertCrc, data::kShadersWindWindDepositfragCrc,
 		gpTextureManager->mRenderTargetTextures.mWindTextureTwo,
-		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .textureCrc = data::kTexturesBC4Radial2pngCrc},
 		&gpBufferManager->mWindOccupancyVkBuffers[1], 0);
 }
 
@@ -321,7 +321,7 @@ void DynamicPipelines::CreatePipelineWindDepositAxisAlignedA(common::crc_t crc, 
 	CreateDepositPipeline(kDynamicPipelineWindDepositAxisAlignedA, crc, name,
 		data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc, data::kShadersWindWindDepositfragCrc,
 		gpTextureManager->mRenderTargetTextures.mWindTextureOne,
-		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square24pngCrc},
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .textureCrc = data::kTexturesParticlesBC4Square24pngCrc},
 		&gpBufferManager->mWindOccupancyVkBuffers[0], iBufferSize);
 }
 
@@ -330,7 +330,7 @@ void DynamicPipelines::CreatePipelineWindDepositAxisAlignedB(common::crc_t crc, 
 	CreateDepositPipeline(kDynamicPipelineWindDepositAxisAlignedB, crc, name,
 		data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc, data::kShadersWindWindDepositfragCrc,
 		gpTextureManager->mRenderTargetTextures.mWindTextureTwo,
-		{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square24pngCrc},
+		{.flags = {kCombinedSamplers, kSamplerClamp}, .textureCrc = data::kTexturesParticlesBC4Square24pngCrc},
 		&gpBufferManager->mWindOccupancyVkBuffers[1], 0);
 }
 
@@ -354,10 +354,10 @@ void DynamicPipelines::CreatePipelineHexShields(common::crc_t crc, std::string_v
 		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronDualGeodesicIcosahedrongltfMODELCrc),
 		.pDescriptorInfos =
 		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kGlobalLayoutUniformBuffers},
+			{.flags = kMainLayoutUniformBuffers},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCSkyboxCrc},
+			{.flags = kCombinedSamplers, .textureCrc = data::kTexturesCSkyboxCrc},
 		},
 	});
 }
@@ -381,8 +381,8 @@ void DynamicPipelines::CreatePipelineHexShieldsLighting(common::crc_t crc, std::
 		.vkExtent3D = gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kGlobalLayoutUniformBuffers},
+			{.flags = kMainLayoutUniformBuffers},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 		},
 	});

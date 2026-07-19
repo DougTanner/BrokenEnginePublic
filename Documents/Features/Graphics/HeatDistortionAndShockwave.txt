@@ -232,9 +232,9 @@ Changes (12 files)
          .pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
          .pDescriptorInfos =
          {
-             {.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+             {.flags = kMainLayoutUniformBuffers},
              {.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDistortionStorageBuffers.data()},
-             {.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mRenderTargetTextures.mDistortionSceneCopyTexture},
+             {.flags = kCombinedSamplers, .pTexture = &gpTextureManager->mRenderTargetTextures.mDistortionSceneCopyTexture},
          },
      });
 

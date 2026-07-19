@@ -28,7 +28,6 @@ The upload thread's per-chunk soft-fail catch (`TextureUploadManager::UploadThre
 ## Coordination
 
 - `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
-- `Documents/Plans/Graphics/Managers/Refactor_PipelineManagerSplit.md`: never interleave with its PipelineManager file-shape change; refresh citations after it lands.
 
 ## Notes
 
