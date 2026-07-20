@@ -22,6 +22,8 @@ public:
 
 	TextureManager();
 	~TextureManager();
+	// Starts asynchronous uploads and performs fatal-rethrowing boot waits after Graphics owns this manager.
+	void InitializeBootTextures();
 
 	void DestroyScreenDependentResources();
 	void CreateScreenDependentResources();
@@ -85,7 +87,7 @@ public:
 		"SlimyWaterB", "StonesAndRipples", "WaterFall",
 	};
 
-	// IBL cubemap CRCs (loaded eagerly in ctor; referenced by Model and Water pipelines).
+	// IBL cubemap CRCs (loaded by InitializeBootTextures; referenced by Model and Water pipelines).
 	static inline constexpr common::crc_t kIrradianceCrc       = data::kTexturesCKloofendalPuresky_IrradianceR16G16B16A16_SFLOATCrc;
 	static inline constexpr common::crc_t kPrefilteredCrc      = data::kTexturesCKloofendalPuresky_PrefilteredR16G16B16A16_SFLOATCrc;
 	static inline constexpr common::crc_t kPrefilteredWaterCrc = data::kTexturesCRyfjallet_PrefilteredR16G16B16A16_SFLOATCrc;

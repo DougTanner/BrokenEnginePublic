@@ -20,7 +20,7 @@ Wire change: extend the hello payload and bump `NetworkProtocol.h`'s `kiVersion`
 
 ## Out of scope
 
-- Changing the `LoadChunk` soft-fail policy for non-sim (texture) chunks — client-visual soft-fail stays (see `Graphics/Managers/CorruptTextureChunkLifecycleHardening.md` for its GPU-side hardening).
+- Changing corrupt-chunk soft-fail policy for non-simulation data — `PackChunks::LoadChunk` continues soft-completing corrupt or truncated reads, and `TextureUploadManager` continues soft-completing corrupt texture dimensions before image creation.
 - The send/receive pairing restructure (`Network/Architecture_WireFormatPairing.md`) — the new hello field is written/read hand-mirrored like its neighbors for now.
 
 ## Coordination

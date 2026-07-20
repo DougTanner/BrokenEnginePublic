@@ -419,6 +419,20 @@ void Graphics::Create()
 	if (mpTextureManager == nullptr)
 	{
 		mpTextureManager = std::make_unique<TextureManager>();
+		try
+		{
+			mpTextureManager->InitializeBootTextures();
+		}
+		catch (...)
+		{
+			meDestroyType = DestroyType::kSurface;
+			Destroy();
+			if (gpGraphics == this)
+			{
+				gpGraphics = nullptr;
+			}
+			throw;
+		}
 	}
 	else if (bSwapchainRecreated)
 	{

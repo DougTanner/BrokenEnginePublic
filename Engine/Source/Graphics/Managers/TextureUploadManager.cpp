@@ -22,12 +22,14 @@ TextureUploadManager::~TextureUploadManager()
 
 void TextureUploadManager::InitTransferResources()
 {
+	RethrowException();
+
 	mbShutdown = false;
 	// Re-arm the drain handshake state alongside mbShutdown so a recreate starts the upload thread clean
 	//   (WaitIdle always returns with these false today, but keep the re-init symmetric and future-proof).
 	mbDrainRequested = false;
 	mbDrained = false;
-	mbThreadExited = false; // A recreated thread starts un-exited
+	mbThreadExited.store(false, std::memory_order_release); // A recreated thread starts un-exited
 
 	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
 	{
@@ -72,7 +74,7 @@ void TextureUploadManager::DestroyTransferResources()
 	}
 
 	// Join upload thread first. Drain any pending permit before the release: a WaitIdle that returned early via
-	//   mbThreadExited (device-loss thread-exit path) can leave its probe permit pending, and an unguarded release
+	//   mbThreadExited (device-loss or fatal-error thread-exit path) can leave its probe permit pending, and an unguarded release
 	//   would push the binary_semaphore past its max of 1 (UB). Same drain-then-release idiom as WaitIdle.
 	mbShutdown = true;
 	std::ignore = mFrameSignal.try_acquire();
@@ -200,6 +202,23 @@ void TextureUploadManager::SignalFrame()
 	mFrameSignal.release();
 }
 
+void TextureUploadManager::RethrowException()
+{
+	// Healthy per-frame polling stays lock-free. The acquire pairs with UploadThread's release-store, so a
+	// fatal exit publishes mException before this thread takes the mutex and consumes the mailbox.
+	if (!mbThreadExited.load(std::memory_order_acquire)) [[likely]]
+	{
+		return;
+	}
+
+	std::unique_lock lock(mWorkMutex);
+	if (mException != nullptr) [[unlikely]]
+	{
+		std::exception_ptr exception = std::exchange(mException, nullptr);
+		std::rethrow_exception(exception);
+	}
+}
+
 void TextureUploadManager::UploadThread()
 {
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
@@ -216,7 +235,7 @@ void TextureUploadManager::UploadThread()
 			//   notify under the lock -- a WaitIdle parked on mIdleConditionVariable then sees no lost wakeup.
 			{
 				std::unique_lock exitLock(mWorkMutex);
-				mbThreadExited = true;
+				mbThreadExited.store(true, std::memory_order_release);
 				mIdleConditionVariable.notify_all();
 			}
 			break;
@@ -274,7 +293,19 @@ void TextureUploadManager::UploadThread()
 			// Trust boundary: TextureHeader dims/mips are on-disk pack bytes that drive a VkImageCreateInfo GPU
 			// allocation and the mip-iteration copy loop. Reject implausible values before allocating so a corrupt
 			// header cannot drive a hostile VkImage size or run the copy loop off rLazyChunk.pData.
-			ValidateTextureDimensions(rLazyChunk, dimensions);
+			try
+			{
+				ValidateTextureDimensions(rLazyChunk, dimensions);
+			}
+			catch (const common::CorruptStreamException& rException)
+			{
+				LOG(kLoading, kError, "Corrupt texture chunk {}: {}; marking ready zero-filled", mCurrentCrc, rException.what());
+				DEBUG_BREAK();
+				rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+				gpFileManager->NotifyChunkCompletion(); // No NotifyChunkAdoptable: nothing valid to adopt (no GPU image created)
+				ResetUploadProgress();
+				continue;
+			}
 
 			// First chunk: create VkImage via VMA
 			if (bFirstChunk)
@@ -322,7 +353,7 @@ void TextureUploadManager::UploadThread()
 		catch (DeviceLostException&)
 		{
 			// Device lost during upload -- DestroyTransferResources will clean up GPU resources.
-			// Caught before the broad std::exception handler below (DeviceLostException derives from it)
+			// Caught before the fatal catch-all below (DeviceLostException derives from std::exception)
 			// so device loss keeps its distinct re-upload recovery rather than the zero-fill soft-fail.
 			if (mCurrentCrc != 0)
 			{
@@ -335,29 +366,18 @@ void TextureUploadManager::UploadThread()
 			//   so set the exit flag and notify directly -- re-locking would self-deadlock. Unblocks a WaitIdle
 			//   parked on the drain probe that this exiting thread would otherwise never ack -- the device-loss
 			//   teardown deadlock the mbThreadExited flag closes.
-			mbThreadExited = true;
+			mbThreadExited.store(true, std::memory_order_release);
 			mIdleConditionVariable.notify_all();
 			break;
 		}
-		catch (const std::exception& rException)
+		catch (...)
 		{
-			// Loading-thread per-chunk corruption: fail soft (mirror FileManager's soft-fail tier). Catches the
-			// trust-boundary CorruptStreamException (bad header counts/dimensions) plus any malformed-data fallout
-			// that surfaces during the parse (a bad VkFormat ASSERT, std::bad_alloc, .at() overrun) — log kError,
-			// mark the chunk ready (pool slot stays zero-filled), notify completion, and re-park so the thread
-			// survives and WaitForChunks waiters unblock. No GPU image was created (dimensions validated first).
-			LOG(kLoading, kError, "Corrupt texture chunk {}: {}; marking ready zero-filled", mCurrentCrc, rException.what());
-			DEBUG_BREAK();
-			// Guard on an in-progress chunk: a throw before a CRC is assigned (e.g. bad_alloc in dequeue) must not
-			// call GetLazyChunk(0), whose own throw would escape this catch on the bare thread and std::terminate.
-			if (mCurrentCrc != 0)
-			{
-				LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(mCurrentCrc);
-				rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
-				gpFileManager->NotifyChunkCompletion(); // No NotifyChunkAdoptable: nothing valid to adopt (no GPU image created)
-				ResetUploadProgress();
-			}
-			continue;
+			// Unexpected failures are process-fatal. Keep the chunk kUploading and preserve any unadopted image;
+			// Graphics teardown waits for the device before DestroyTransferResources destroys that image.
+			mException = std::current_exception();
+			mbThreadExited.store(true, std::memory_order_release);
+			mIdleConditionVariable.notify_all();
+			break;
 		}
 	}
 }

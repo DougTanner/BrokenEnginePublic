@@ -64,7 +64,7 @@ place the staleness verifier must look away.
 
 ## Coordination
 
-- Execute alone; never interleave with `Documents/Plans/Graphics/Architecture_PipelineRegistrationOwnership.md`, `Documents/Plans/Graphics/PipelineDescriptorInfosRightSize.md`, `Documents/Plans/Graphics/Managers/CorruptTextureChunkLifecycleHardening.md`, `Documents/Plans/Graphics/WindowedLightingShadowDispatch.md`. The structured dependency on CorruptTextureChunkLifecycleHardening preserves its required first landing.
+- Execute alone; never interleave with `Documents/Plans/Graphics/Architecture_PipelineRegistrationOwnership.md`, `Documents/Plans/Graphics/PipelineDescriptorInfosRightSize.md`, or `Documents/Plans/Graphics/WindowedLightingShadowDispatch.md`.
 
 ## Notes
 - No determinism/CRC exposure (client render path), but **high blast radius within rendering**: this is the
@@ -75,6 +75,5 @@ place the staleness verifier must look away.
 - The `CrcToIndex` phase-exclusion contract is settled (documented in `Managers/AGENTS.md`); the registry
   inherits it unchanged.
 - `RegisterTextureBinding` now takes a designated-initializer struct — refresh call-signature citations at
-  execution. The small `WriteArrayElementFromLive` null-view-fallback fix in
-  `CorruptTextureChunkLifecycleHardening.md` targets the same function — land it first or fold it into the
-  registry move; never interleave.
+  execution. `WriteArrayElementFromLive` already falls back when either the texture pointer or image view is
+  null; preserve that behavior when moving the function into the registry.

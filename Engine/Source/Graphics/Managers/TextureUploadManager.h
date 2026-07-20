@@ -22,6 +22,7 @@ public:
 	void RequestUpload(common::crc_t crc, LoadPriority ePriority);
 	void WaitIdle();
 	void SignalFrame();
+	void RethrowException();
 
 	// Pending-adoption counter: tracks chunks in an adoptable state (kDiskLoaded / kGpuUploadComplete) awaiting
 	// TextureManager::ProcessPendingTextures. Lives here (not on TextureManager) because this manager outlives the
@@ -76,7 +77,8 @@ private:
 	std::condition_variable mIdleConditionVariable; // WaitIdle() waits on this; UploadThread notifies when it acks a drain probe (guarded by mWorkMutex)
 	bool mbDrainRequested = false; // WaitIdle() sets this; UploadThread acks instead of submitting (guarded by mWorkMutex)
 	bool mbDrained = false; // UploadThread sets this to confirm it reached a quiescent point (guarded by mWorkMutex)
-	std::atomic<bool> mbThreadExited {false}; // UploadThread sets this on every loop exit (under mWorkMutex so the CV wait sees no lost wakeup); WaitIdle reads it lock-free to unblock/early-return
+	std::exception_ptr mException; // Unexpected upload-thread failure, published before mbThreadExited while mWorkMutex is held
+	std::atomic<bool> mbThreadExited {false}; // UploadThread release-stores this on every loop exit (under mWorkMutex so the CV wait sees no lost wakeup); WaitIdle/RethrowException acquire-load it lock-free
 	std::mutex mUploadMutex;
 	std::priority_queue<LoadRequest> mUploadQueue;
 	std::atomic<bool> mbShutdown {false};

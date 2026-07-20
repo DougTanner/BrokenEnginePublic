@@ -244,9 +244,12 @@ TextureManager::TextureManager()
 
 	gpProfileManager->BootStop(kBootTimerTextureUpload);
 
-	// Create per-framebuffer command buffers for batched QFOT acquire barriers (before StartThread/WaitForTextures -> ProcessPendingTextures)
+	// Create per-framebuffer command buffers for batched QFOT acquire barriers (before InitializeBootTextures -> ProcessPendingTextures)
 	CreateAcquireCommandBuffers();
+}
 
+void TextureManager::InitializeBootTextures()
+{
 	gpProfileManager->BootStart(kModelTexturesGeneration);
 
 	// Make sure to start the texture upload thread before WaitForTextures because it will wait on texture availability
@@ -680,6 +683,8 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 		// Upload in progress — spin until upload thread finishes and ProcessPendingTextures adopts
 		while (rLazyChunk.eState.load(std::memory_order_acquire) < ChunkState::kReady)
 		{
+			gpTextureUploadManager->RethrowException();
+
 			// Signal upload thread to process one chunk (drain then release to avoid binary_semaphore double-release UB)
 			// Return value intentionally discarded: we only need to drain the semaphore to 0 before release()
 			std::ignore = gpTextureUploadManager->mFrameSignal.try_acquire();

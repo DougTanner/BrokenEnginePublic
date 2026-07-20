@@ -402,6 +402,7 @@ void MainThread(HINSTANCE hinstance)
 #if defined(BT_CLIENT)
 		try
 		{
+			gpTextureUploadManager->RethrowException();
 			pGame->Render();
 		}
 		catch (DeviceLostException& rDeviceLostException)
