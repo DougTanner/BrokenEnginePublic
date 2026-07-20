@@ -57,7 +57,7 @@ The server treats every inbound client packet as hostile/corruptible. A declarat
 
 | Packet | Min | Max | /tick | Handshake | Over-cap | Residual semantic validation |
 |--------|----|----|------|-----------|----------|------------------------------|
-| `kClientHello` | 13 | 93 | 4 | no | violation | `kuiProtocolVersion` + `game::Frame::kiVersion` gates (mismatch rejects+disconnects); build-config warn; ghost-client drop; idempotent re-Hello |
+| `kClientHello` | 21 | 101 | 4 | no | violation | `kuiProtocolVersion` → `game::Frame::kiVersion` → ordered `Islands.manifest` chunk-table integrity-token gates (any mismatch rejects+disconnects); build-config warn; ghost-client drop; idempotent re-Hello |
 | `kClientAckStream` | 10 | 1738 | 128 | yes | **silent** | exact size `2 + count*27 + 8` (`BoundedCursor`); per-slot epoch match; floor clamped ≤ latest buffered tick; timestamp echo monotonic |
 | `kClientSubscribe` | 9 | 9 | 64 | yes | violation | 3×3 adjacency of an authorized coord (`kOriginCoord` always allowed); slot clamped to `game::kiDesiredCoordSlots` |
 | `kClientUnsubscribe` | 2 | 2 | 64 | yes | violation | slot index bound |
@@ -75,7 +75,7 @@ The server treats every inbound client packet as hostile/corruptible. A declarat
 | `kClientPauseRequest` | 2 | 2 | 4 | yes | violation | **`kbDebugInput`-gated** |
 | `kClientTimespeedRequest` | 2 | 2 | 8 | yes | violation | **`kbDebugInput`-gated** |
 
-Server→client types and unknown type bytes resolve to the sentinel (not client-sendable). No wire-format change: `kuiProtocolVersion` stays 5. Contract enforcement runs pre-sim and server-authoritative — no determinism/CRC exposure; the client ack throttle is send-timing only (acks are not CRC'd).
+Server→client types and unknown type bytes resolve to the sentinel (not client-sendable). This landing is a wire-format change: `kuiProtocolVersion` is 6, and Hello carries an 8-byte integrity token derived from the ordered Islands manifest `ChunkLocation` table. The gate runs pre-sim and server-authoritative — no deterministic simulation/shared-CRC exposure; the client ack throttle is send-timing only (acks are not CRC'd).
 
 ## See Also
 

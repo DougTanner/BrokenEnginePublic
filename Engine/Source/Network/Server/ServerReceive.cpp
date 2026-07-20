@@ -243,8 +243,8 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 
 void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
 {
-	// 1B type + 4B protocolVersion + 8B frameVersion = 13 minimum bytes
-	if (iSize < 13)
+	// 1B type + 4B protocolVersion + 8B frameVersion + 8B packIntegrityToken = 21 minimum bytes
+	if (iSize < 21)
 	{
 		return;
 	}
@@ -269,6 +269,20 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	{
 		char pcMessage[256] {};
 		std::snprintf(pcMessage, sizeof(pcMessage), "Frame version mismatch: server is %lld, client is %lld", game::Frame::kiVersion, iClientFrameVersion);
+		LOG(kNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
+
+		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
+		RemoveClient(iClientId);
+		enet_peer_disconnect_later(pPeer, 0);
+		return;
+	}
+
+	common::crc_t clientPackIntegrityToken = ReadUint64(pCursor);
+	common::crc_t serverPackIntegrityToken = gpFileManager->GetPackIntegrityToken();
+	if (clientPackIntegrityToken != serverPackIntegrityToken)
+	{
+		char pcMessage[256] {};
+		std::snprintf(pcMessage, sizeof(pcMessage), "Pack integrity mismatch: server token is %llu, client token is %llu. Regenerate generated game data and retry.", static_cast<unsigned long long>(serverPackIntegrityToken), static_cast<unsigned long long>(clientPackIntegrityToken));
 		LOG(kNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage, nullptr);

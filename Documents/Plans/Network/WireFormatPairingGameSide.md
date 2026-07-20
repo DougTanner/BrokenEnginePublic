@@ -32,7 +32,7 @@ Move to a new `GamePacketType` enumerator (append-only, per hub) + a game-side p
 ## Design
 
 - **(a)/(b) — byte-identical conversion**: express assign, player-state, and the fleet-sync envelope in the engine plan's paired scheme, colocated so a one-sided layout edit cannot compile (or trips a written-size assert). `PlayerStateWireType`'s decode switch and the server name table derive from the one paired definition, retiring the "send order and decode order move together" convention. Convert message-by-message; assert written sizes against the existing magic numbers (16 / 17 / 36 / 9) during transition. No wire bytes change.
-- **(c) — wire change**: relocate the spawn/respawn request to `GamePacketType` + a game pending-request struct. Delete `kClientSpawnRequest`, `ClientRequestFlags(_t)`, `PendingSpawnRequest`, and the engine send/receive/drain path; wire the game client send + game server drain through the existing opaque-game-packet forwarding (`ReceivedGamePacket`). Batch the protocol break with the other wire-changing plans and bump `kuiProtocolVersion` once (see Notes).
+- **(c) — wire change**: relocate the spawn/respawn request to `GamePacketType` + a game pending-request struct. Delete `kClientSpawnRequest`, `ClientRequestFlags(_t)`, `PendingSpawnRequest`, and the engine send/receive/drain path; wire the game client send + game server drain through the existing opaque-game-packet forwarding (`ReceivedGamePacket`). If this change lands independently, bump `kuiProtocolVersion` beyond the current version 6; only incompatible wire changes atomically co-landed in the same client/server release may share that one new version (see Notes).
 - **(d)**: fold the two riders into the same file while it is open.
 
 ## Critical files
@@ -63,13 +63,13 @@ Move to a new `GamePacketType` enumerator (append-only, per hub) + a game-side p
 
 ## Coordination
 
-- Protocol/version batch with `Documents/Plans/Network/PackIntegrityHandshake.md`, `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md`, `Documents/Plans/Network/FleetRequestsByGuid.md`: land the wire breaks in one client/server release behind one `kuiProtocolVersion` bump; the last lander owns the consolidated bump.
+- Protocol/version batch with `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md` and `Documents/Plans/Network/FleetRequestsByGuid.md`: co-landed wire breaks may share one new `kuiProtocolVersion` bump; otherwise each incompatible release bumps the current version again. The pack-integrity handshake already consumed version 6 independently.
 - `Documents/Plans/Network/Architecture_WireFormatPairing.md`: never interleave send/receive-site restructuring with this wire change. WireFormatPairingGameSide's structured dependency requires the architecture plan first.
 
 ## Notes
 
 - **Invariant exposure — two distinct exposures, stated explicitly:**
   - (a)/(b): **no wire change** — byte-identical, no `kuiProtocolVersion` bump. Highest risk is a non-identical conversion desyncing; mitigate with per-message written-size asserts against the current constants and interop smoke between conversions.
-  - (c): **wire change** — retires `kClientSpawnRequest`, adds a `GamePacketType`. Requires a `kuiProtocolVersion` bump (currently `5`). **Batch the break** with the queue's other wire-changing plans — `PackIntegrityHandshake.md` (hello layout + version bump) and `SubscriptionLifecycleRaceHardening.md` (potential unsubscribe-epoch field) — so clients/servers cross one version boundary, not three. `GamePacketType` order is the wire protocol (append-only); appending the spawn-request enumerator keeps existing game packets stable, but the removed engine type shifts nothing after `kGamePacketStart` since engine and game enums are separate spaces.
+  - (c): **wire change** — retires `kClientSpawnRequest`, adds a `GamePacketType`. Requires a `kuiProtocolVersion` bump beyond the current version 6 unless co-landed with another incompatible wire change behind one new version. Coordinate with `SubscriptionLifecycleRaceHardening.md` and `FleetRequestsByGuid.md`. `GamePacketType` order is the wire protocol (append-only); appending the spawn-request enumerator keeps existing game packets stable, but the removed engine type shifts nothing after `kGamePacketStart` since engine and game enums are separate spaces.
 - No CRC/determinism/`.pack`/`kiVersion` (`Frame::kiVersion`) exposure — this is transport, not sim state.
-- Pre-staged grill decision: (c) sequencing/version-bump ownership — does this plan own the bump, or does whichever wire plan lands last own it? Recommend: last wire plan in the batch owns the single bump; each plan notes its contribution.
+- Version ownership: (c) bumps `kuiProtocolVersion` beyond the current version 6 when it lands independently; only an atomic co-land with another incompatible wire change shares one new version.

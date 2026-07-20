@@ -50,11 +50,11 @@ Key the four request payloads by `FleetGuid` and have the server resolve guid �
 
 ## Coordination
 
-- Protocol/version batch with `Documents/Plans/Network/PackIntegrityHandshake.md`, `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md`, `Documents/Plans/Network/WireFormatPairingGameSide.md`: land the wire breaks in one client/server release behind one `kuiProtocolVersion` bump; the last lander owns the consolidated bump.
+- Protocol/version batch with `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md` and `Documents/Plans/Network/WireFormatPairingGameSide.md`: co-landed wire breaks may share one new `kuiProtocolVersion` bump; otherwise each incompatible release bumps the current version again. The pack-integrity handshake already consumed version 6 independently.
 - `Documents/Plans/Network/Architecture_WireFormatPairing.md`: never interleave send/receive-site restructuring with this wire change. WireFormatPairingGameSide's structured dependency requires the architecture plan first.
 
 ## Notes
 
 - **Invariant exposure**: **wire change in game-layer payloads** (`>= kGamePacketStart`, engine-opaque). No engine `kuiProtocolVersion` mechanic gates game payloads — the engine forwards them as raw bytes — so nothing auto-detects a client/server skew here: **client and server builds must move together**. No `Frame::kiVersion` / CRC / determinism exposure (`fNavigationDelay` is server-authoritative; guids do not enter sim CRC). Risk: a mixed-build pairing silently misparses fleet requests (wrong fleet or dropped), hard to catch without a version signal.
-- **Version-break batching**: coordinate the compatibility break with the queue's other pending wire changes — `Network/PackIntegrityHandshake.md` and `Network/SubscriptionLifecycleRaceHardening.md` (both bump `kuiProtocolVersion`). Landing all wire-affecting changes in one client/server release, gated behind a single protocol-version bump, gives a clean rejection on skew even though the game payloads themselves aren't version-checked. Do **not** interleave with `Network/Architecture_WireFormatPairing.md`.
+- **Version-break batching**: coordinate with `Network/SubscriptionLifecycleRaceHardening.md` and `Network/WireFormatPairingGameSide.md`. Changes co-landed in one client/server release may share one new protocol bump; otherwise this plan must bump the current version beyond 6 so skew rejects cleanly even though game payloads themselves are not version-checked. Do **not** interleave with `Network/Architecture_WireFormatPairing.md`.
 - **No open architectural decision** — the identifier (`FleetGuid`) and its wire presence already exist; this is a mechanical re-key. The only judgment call (member identity) is deferred above.

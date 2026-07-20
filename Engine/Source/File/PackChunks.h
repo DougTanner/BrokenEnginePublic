@@ -21,6 +21,7 @@ public:
 
 	const std::unordered_map<common::crc_t, EagerChunk>& GetEagerChunkMap() const;
 	const std::unordered_map<common::crc_t, LazyChunk>& GetLazyChunkMap() const;
+	common::crc_t GetPackIntegrityToken() const;
 
 	// Lazy loading APIs
 	bool IsChunkReady(common::crc_t crc) const;
@@ -60,8 +61,9 @@ private:
 	// Only available for eager pack files
 	std::vector<std::byte> mPackFileData[data::kDataTypeCount];
 
-	// Per-data-type chunk-location tables (offset/size/crc), read from each manifest in LoadPackFiles
+	// Per-data-type chunk-location tables (offset/size/path CRC/content CRC), read from each manifest in LoadPackFiles
 	std::vector<common::ChunkLocation> mChunkLocations[data::kDataTypeCount];
+	common::crc_t mPackIntegrityToken = common::kCrcSeed;
 
 	// Split chunk maps for eager and lazy loading
 	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Scene, Model, Shader, Raw

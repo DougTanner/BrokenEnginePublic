@@ -41,7 +41,7 @@ Pipeline RTT seeded from the handshake wall-clock delta, then refined from a cli
 - **Disconnect**: resets all session state and calls `CoordFrames::ResetClientState` on every coord.
 - **LAN discovery**: scanner auto-restarts on timeout.
 - **Desync debug mode**: freezes the ACK floor (received-tick tracking becomes a no-op) so the server keeps resending while the captured debug frame is inspected.
-- **Network simulation**: fast-forward (time multiply > 1) bypasses the delay queue and flushes pending; slot reuse and unsubscribe-ack paths purge delayed packets on that slot's channels.
+- **Network simulation**: fast-forward (time multiply > 1) bypasses the delay queue and flushes pending; slot reuse and unsubscribe-ack paths purge delayed packets on that slot's channels. If ENet reports disconnect before a delayed reliable rejection is released, the client delivers that queued rejection first so teardown cannot suppress its reason.
 
 ## See Also
 

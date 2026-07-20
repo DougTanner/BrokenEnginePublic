@@ -38,7 +38,7 @@ Tools builds have no allocation tracker, so the engine LOG float-format-spec res
 
 ## Output Structure
 
-Each asset type produces a `.manifest`, `.pack`, and generated CRC header. DataPacker also generates `DataTypes.h`, aggregate `Data.h`, and the sibling `Attribution/` tree.
+Each asset type produces a `.manifest`, `.pack`, and generated CRC header. Manifest entries keep the path CRC separate from a content CRC computed offline over the exact emitted chunk bytes before the pack write. DataPacker also generates `DataTypes.h`, aggregate `Data.h`, and the sibling `Attribution/` tree.
 
 ## See Also
 

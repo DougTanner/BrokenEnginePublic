@@ -7,7 +7,7 @@ Source: /external-architecture-review on `Engine/Source/Network` (recursive). Ev
 ## Design
 
 ### Colocate each message's writer and reader
-- Header sizes 20/16/32/12/17/2 are hand-mirrored between `ClientReceive.cpp:141,220,273,444,354,515` and the writers (`ServerSend.cpp:34-42,66-72,104-119,99-101`; `ServerReceive.cpp:212-218`); the ACK layout `2+27n+8` between `ClientSend.cpp:22-49` and `ServerReceive.cpp:24-99`; the hello between `ClientSend.cpp:190-196` and `ServerReceive.cpp:225-296`. Introduce per-message paired write/read functions (or layout structs with `Write(cursor)`/`Read(cursor)`) colocated in one place per message — e.g. a `NetworkMessages.h` beside `NetworkProtocol.h` — so a one-sided layout edit becomes structurally impossible. Wire bytes must remain identical; convert message-by-message, diffing capture or asserting written sizes against the existing magic numbers during transition. [~1h per message family; ~6h total]
+- Header sizes 20/16/32/17/12/2 are hand-mirrored between the handlers beginning at `ClientReceive.cpp:151,229,287,367,444,524` and the writers (`ServerSend.cpp:37-44,70-75,109-120,102-104`; `ServerReceive.cpp:233-239,464`); the ACK layout `2+27n+8` between `ClientSend.cpp:33-59` and `ServerReceive.cpp:22-116`; the hello begins at `ClientSend.cpp:172`, with fields at `:177-184`, and is mirrored by `ServerReceive.cpp:244-355`. Introduce per-message paired write/read functions (or layout structs with `Write(cursor)`/`Read(cursor)`) colocated in one place per message — e.g. a `NetworkMessages.h` beside `NetworkProtocol.h` — so a one-sided layout edit becomes structurally impossible. Wire bytes must remain identical; convert message-by-message, diffing capture or asserting written sizes against the existing magic numbers during transition. [~1h per message family; ~6h total]
 - Dedupe the two near-verbatim `SendSimplePacket` templates (`Client.h:80-97`, `Server.h:129-141`) into one shared helper (e.g. on `NetworkManager`), and give "simple" packets a read-side counterpart so even they are symmetric in mechanism. [~30m]
 
 ### Engine/Source/Network/NetworkSimulation.h
@@ -34,7 +34,7 @@ Source: /external-architecture-review on `Engine/Source/Network` (recursive). Ev
 
 ## Coordination
 
-- Never interleave with the wire-break batch `Documents/Plans/Network/PackIntegrityHandshake.md`, `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md`, `Documents/Plans/Network/FleetRequestsByGuid.md`, `Documents/Plans/Network/WireFormatPairingGameSide.md`; WireFormatPairingGameSide depends on this plan, while the other batch members may sequence either way with citation refresh.
+- Never interleave with the remaining wire-break batch `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md`, `Documents/Plans/Network/FleetRequestsByGuid.md`, `Documents/Plans/Network/WireFormatPairingGameSide.md`; WireFormatPairingGameSide depends on this plan, while the other batch members may sequence either way with citation refresh. The pack-integrity handshake already landed independently at protocol version 6.
 
 ## Notes
 

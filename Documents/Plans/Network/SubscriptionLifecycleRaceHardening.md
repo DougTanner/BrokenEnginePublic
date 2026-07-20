@@ -46,7 +46,7 @@ Commit from `kUnsubscribed` only when a `kSubscribing` placeholder for the incom
 
 - Server: in `ClientUnsubscribe`, **ack unconditionally** (idempotent, cheap) — send `kServerUnsubscribeAck` even when the slot is already inactive, so a client in `kUnsubscribing` always resolves. Keep the `FreeSlot` only when the slot was active.
 - Add an epoch to `kClientUnsubscribe` (payload grows 1 → 2 bytes: `uint8 slot` + `uint16 epoch`). Client stamps the slot's current `ackState.uiEpoch`; server verifies epoch against the slot before freeing, so a ghost unsubscribe cannot free a newer subscription that reused the slot. Thread the epoch through `SendUnsubscribe` and every `SendSimplePacket(kClientUnsubscribe, ...)` ghost-reject site (the ghost sites send the epoch of the slot they observed).
-- **Requires `kuiProtocolVersion` bump** (`Engine/Source/Network/NetworkProtocol.h:64`, currently `5`). Verify server-side parse in `ClientUnsubscribe`.
+- **Requires `kuiProtocolVersion` bump** (`Engine/Source/Network/NetworkProtocol.h:64`, currently `6`). Verify server-side parse in `ClientUnsubscribe`; bump beyond 6 unless this change co-lands with another incompatible wire change behind one new version.
 
 ### (c) Transitional watchdog
 
@@ -77,13 +77,13 @@ Coarse per-slot age counter on `ClientCoordSlot`: while a slot sits in `kSubscri
 
 ## Coordination
 
-- Protocol/version batch with `Documents/Plans/Network/PackIntegrityHandshake.md`, `Documents/Plans/Network/FleetRequestsByGuid.md`, `Documents/Plans/Network/WireFormatPairingGameSide.md`: land the wire breaks in one client/server release behind one `kuiProtocolVersion` bump; the last lander owns the consolidated bump.
+- Protocol/version batch with `Documents/Plans/Network/FleetRequestsByGuid.md` and `Documents/Plans/Network/WireFormatPairingGameSide.md`: co-landed wire breaks may share one new `kuiProtocolVersion` bump; otherwise each incompatible release bumps the current version again. The pack-integrity handshake already consumed version 6 independently.
 - `Documents/Plans/Network/Architecture_WireFormatPairing.md`: never interleave send/receive-site restructuring with this wire change. WireFormatPairingGameSide's structured dependency requires the architecture plan first.
 - `Documents/Plans/Network/Refactor_ServerClientPlayerRegistry.md`: never interleave the shared slot-state work; the registry plan structurally depends on this hardening landing first.
 
 ## Notes
 
 - **Invariant exposure**: **wire change + `kuiProtocolVersion` bump** (`kClientUnsubscribe` 1→2 payload bytes); touches cross-frame client/server subscription state and network protocol handling (Risk: hard to verify). No sim/CRC/`Frame::kiVersion` change.
-- **Version-bump coordination**: batch the `kuiProtocolVersion` bump with `Network/PackIntegrityHandshake.md` (the queue's other pending wire change / version bump) — one bump for both. **Never interleave with `Network/Architecture_WireFormatPairing.md`**, which restructures every send/receive site including these; land one, refresh the other's citations.
+- **Version-bump coordination**: co-landed remaining wire changes may share one new bump, but this plan must bump beyond version 6 when it lands independently. **Never interleave with `Network/Architecture_WireFormatPairing.md`**, which restructures every send/receive site including these; land one, refresh the other's citations.
 - **Co-schedule with `Network/ResyncFullStateRepair.md`** — both edit `Client::ClassifyFullState`.
 - **Grill decision to pre-stage**: watchdog threshold duration and whether the counter is wall-clock or frame-count (lean wall-clock, few seconds, matching `kDesyncDebugTimeout`-style constants). The (a) and (b) fixes have no open decision.

@@ -191,6 +191,11 @@ void PackChunks::LoadPackFiles()
 		{
 			FailMissingRequiredAsset(manifestPath, "manifest chunk table truncated");
 		}
+		if (static_cast<data::DataTypes>(i) == data::kDataTypeIslands)
+		{
+			const std::vector<common::ChunkLocation>& rChunkLocations = mChunkLocations[i];
+			mPackIntegrityToken = rChunkLocations.empty() ? common::kCrcSeed : common::Crc(rChunkLocations.data(), static_cast<int64_t>(rChunkLocations.size()));
+		}
 		manifestStream.close();
 
 		if (IsEagerChunk(static_cast<data::DataTypes>(i)))
@@ -373,6 +378,11 @@ const std::unordered_map<common::crc_t, EagerChunk>& PackChunks::GetEagerChunkMa
 const std::unordered_map<common::crc_t, LazyChunk>& PackChunks::GetLazyChunkMap() const
 {
 	return mLazyChunkMap;
+}
+
+common::crc_t PackChunks::GetPackIntegrityToken() const
+{
+	return mPackIntegrityToken;
 }
 
 bool PackChunks::IsChunkReady(common::crc_t crc) const

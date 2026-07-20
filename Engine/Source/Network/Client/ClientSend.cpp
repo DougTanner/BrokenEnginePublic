@@ -177,6 +177,7 @@ void Client::SendHello()
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientHello));
 	rWorkbuffer.PushBack<uint32_t>(kuiProtocolVersion);
 	rWorkbuffer.PushBack<int64_t>(game::Frame::kiVersion);
+	rWorkbuffer.PushBack<common::crc_t>(gpFileManager->GetPackIntegrityToken());
 	rWorkbuffer.Append(std::string_view(kpcBuildConfigName));
 	rWorkbuffer.PushBack<uint8_t>(0); // null terminator for config string
 	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiHigh);

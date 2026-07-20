@@ -228,6 +228,7 @@ bool RunExportJobs()
 				.crc = rpExportJob->mCrc,
 				.uiOffset = static_cast<uint64_t>(temporaryPackFileStream.tellp()),
 				.uiSize = rData.size(),
+				.contentCrc = rData.empty() ? common::kCrcSeed : common::Crc(rData.data(), static_cast<int64_t>(rData.size())),
 			};
 			temporaryManifestFileStream.write(reinterpret_cast<char*>(&chunkLocation), sizeof(chunkLocation));
 

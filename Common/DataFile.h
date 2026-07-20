@@ -44,11 +44,13 @@ struct ChunkLocation
 	crc_t crc = 0;
 	uint64_t uiOffset = 0;
 	uint64_t uiSize = 0;
+	crc_t contentCrc = 0;
 };
-static_assert(sizeof(ChunkLocation) == 24, "ChunkLocation layout changed — bump DataHeader::kiVersion");
+static_assert(sizeof(ChunkLocation) == 32, "ChunkLocation layout changed — bump DataHeader::kiVersion");
 static_assert(BT_OFFSETOF(ChunkLocation, crc) == 0, "ChunkLocation::crc offset changed — bump DataHeader::kiVersion");
 static_assert(BT_OFFSETOF(ChunkLocation, uiOffset) == 8, "ChunkLocation::uiOffset offset changed — bump DataHeader::kiVersion");
 static_assert(BT_OFFSETOF(ChunkLocation, uiSize) == 16, "ChunkLocation::uiSize offset changed — bump DataHeader::kiVersion");
+static_assert(BT_OFFSETOF(ChunkLocation, contentCrc) == 24, "ChunkLocation::contentCrc offset changed — bump DataHeader::kiVersion");
 
 enum class ChunkFlags : uint64_t
 {
@@ -420,13 +422,13 @@ struct DataHeader
 	// Auto-bumps when sizeof(ChunkHeader) changes (largest-union-member or outer-field edits). Layout
 	// edits that DON'T change sizeof — reordering/shrinking a non-largest union member, or changing a
 	// non-union payload struct — are instead caught by the per-struct sizeof/offsetof static_asserts
-	// beside each header; bump the manual 49 below when one of those fires. A kiVersion bump forces a
+	// beside each header; bump the manual 50 below when one of those fires. A kiVersion bump forces a
 	// full re-export: the DataPacker manifest check (Main.cpp RunExportJobs) re-runs everything on a
 	// version mismatch, and the engine ASSERTs on a stale-version manifest. Per-job chunk caches are
 	// separate — payload-struct SIZE changes auto-dirty them via the sizeof folds in each job's
 	// GetVersion (ExportScene/ExportModel); same-size reorders still need that raw version
 	// bumped by hand (the static_assert message beside each struct names the owning job).
-	static constexpr int64_t kiVersion = 49 + sizeof(ChunkHeader);
+	static constexpr int64_t kiVersion = 50 + sizeof(ChunkHeader);
 	int64_t iVersion = kiVersion;
 
 	int64_t iChunkCount = 0;

@@ -29,7 +29,7 @@ Note the window is not closed for a *changed*-asset kill by CRC comparison alone
 ## Critical files
 
 - `RunExportJobs<T>` in `DataPacker/Source/Main.cpp` (~lines 81-297) — owns the dirty checks (~lines 89-153) and the header/manifest/pack rename publish sequence (~lines 283-293).
-- `common::ChunkLocation` and `common::DataHeader` in `Common/DataFile.h` (~lines 20-50) — manifest on-disk chunk entry (`crc`, `uiOffset`, `uiSize`) and header (`iMagic`, `iVersion`, `iChunkCount`).
+- `common::ChunkLocation` and `common::DataHeader` in `Common/DataFile.h` (~lines 20-50) — manifest on-disk chunk entry (`crc`, `uiOffset`, `uiSize`, `contentCrc`) and header (`iMagic`, `iVersion`, `iChunkCount`).
 - `ExportJob::CheckDirty` and `ExportJob::mCrc` in `DataPacker/Source/ExportJobs/ExportJob.h` — per-job cache dirty check and the path-derived chunk CRC.
 
 ## Out of scope

@@ -61,7 +61,7 @@ inline constexpr const char* PacketTypeName(PacketType eType)
 }
 
 // Protocol constants
-inline constexpr uint32_t kuiProtocolVersion = 5;
+inline constexpr uint32_t kuiProtocolVersion = 6;
 inline constexpr uint8_t kuiSubscribeRejectSlot = 0xFF; // Sentinel slot in kServerSubscribeAccept: server rejected the subscribe (not adjacent / no free slot)
 inline constexpr uint16_t kuiDefaultPort = 27015;
 inline constexpr int64_t kiMaxResendFrames = 8;
@@ -131,7 +131,7 @@ inline constexpr ClientPacketContract GetClientPacketContract(PacketType eType)
 		case PacketType::kClientSpawnRequest:      return {2, 2, 8};
 		case PacketType::kClientDesyncReport:      return {33, 33, 8};
 		case PacketType::kClientDebugFrameRequest: return {17, 17, 8};
-		case PacketType::kClientHello:             return {13, 93, 4, false}; // pre-handshake by definition
+		case PacketType::kClientHello:             return {.iMinSize = 21, .iMaxSize = 101, .iMaxPerTick = 4, .bRequiresHandshake = false}; // pre-handshake by definition
 		case PacketType::kClientSubscribe:         return {9, 9, 64};
 		case PacketType::kClientUnsubscribe:       return {2, 2, 64};
 		case PacketType::kClientResyncRequest:     return {1, 1, 4};

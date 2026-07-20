@@ -22,6 +22,8 @@ Writes are atomic by default — staged through a `.tmp` sibling then `std::file
 
 The packed-asset chunk engine, owned by FileManager via `std::unique_ptr` and reached only through FileManager's forwarding chunk API. Not a `*Manager`: no `gp*` global, not aggregated into `Engine.h`; its header is included only by `PackChunks.cpp` and `FileManager.cpp`. Owns the eager pack buffers, the lazy chunk maps and their atomic `eState` machine, the background loading-thread pool with its sync primitives, and the single-`VirtualAlloc` lazy memory pool.
 
+After validating manifests at startup, it synchronously hashes the ordered Islands manifest table into the connection integrity token. DataPacker's per-entry content CRCs make this payload-sensitive without reading island pack payloads at runtime.
+
 ### Eager vs Lazy
 
 `IsEagerChunk(DataTypes)` selects client-only Scene/Model/Shader/Raw packs, read whole at boot with chunk pointers aliasing the pack buffer. Audio/Islands/Texture are lazy. Server skips eager types and opens only lazy types accepted by `IsServerChunk` (currently Islands), allowing DataPacker to rewrite unopened Audio/Texture packs while the server runs. Eager load is asynchronous and format-agnostic; readers acquire its completion flag before accessing the map.

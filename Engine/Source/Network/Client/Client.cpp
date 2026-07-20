@@ -129,6 +129,22 @@ void Client::Poll()
 				break;
 			}
 			case ENET_EVENT_TYPE_DISCONNECT:
+				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
+				{
+					// ENet can acknowledge a reliable rejection before the simulated receive delay releases it.
+					// Deliver that rejection before the disconnect tears down the session and its delay queue.
+					auto it = std::ranges::find_if(mDelayedPackets, [](const DelayedPacket& rPacket)
+					{
+						return rPacket.data.size() >= 2
+							&& static_cast<PacketType>(rPacket.data.at(0)) == PacketType::kServerConnectionResponse
+							&& rPacket.data.at(1) == 0;
+					});
+					if (it != mDelayedPackets.end())
+					{
+						Receive(it->data.data(), it->data.size());
+						mDelayedPackets.erase(it);
+					}
+				}
 				mStateFlags.Clear(ClientStateFlags::kConnected);
 				mStateFlags.Set(ClientStateFlags::kDisconnectedEvent);
 				mpServerPeer = nullptr;

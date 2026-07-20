@@ -199,6 +199,11 @@ const std::unordered_map<common::crc_t, LazyChunk>& FileManager::GetLazyChunkMap
 	return mpPackChunks->GetLazyChunkMap();
 }
 
+common::crc_t FileManager::GetPackIntegrityToken() const
+{
+	return mpPackChunks->GetPackIntegrityToken();
+}
+
 bool FileManager::IsChunkReady(common::crc_t crc) const
 {
 	return mpPackChunks->IsChunkReady(crc);
