@@ -15,6 +15,36 @@ namespace game
 
 // On-disk version of the F7.replay.manifest coord list. Bump on layout change; old manifests are rejected on read.
 static constexpr int64_t kiReplayManifestVersion = 1;
+static constexpr int64_t kiInvalidReplayManifestVersion = 0;
+
+namespace
+{
+
+bool InvalidateReplayManifest()
+{
+	return engine::gpFileManager->WriteFileAtomically({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.manifest"), [&](std::fstream& rManifestStream)
+	{
+		common::Write(rManifestStream, kiInvalidReplayManifestVersion);
+	});
+}
+
+bool PublishReplayManifest(const std::vector<uint64_t>& rSortedCoordKeys)
+{
+	return engine::gpFileManager->WriteFileAtomically({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.manifest"), [&](std::fstream& rManifestStream)
+	{
+		common::Write(rManifestStream, kiReplayManifestVersion);
+
+		const int64_t iCoordCount = static_cast<int64_t>(rSortedCoordKeys.size());
+		common::Write(rManifestStream, iCoordCount);
+		for (uint64_t uiKey : rSortedCoordKeys)
+		{
+			engine::GridCoord coord = engine::GridCoord::FromKey(uiKey);
+			coord.Write(rManifestStream);
+		}
+	});
+}
+
+} // namespace
 
 GameSaveLoad::GameSaveLoad(engine::GameBase& rGameBase)
 	: mrGameBase(rGameBase)
@@ -25,6 +55,7 @@ void GameSaveLoad::ResetStreams()
 {
 	mReplayWriters.clear();
 	mReplayReaders.clear();
+	meReplayPersistenceFailurePoint = ReplayPersistenceFailurePoint::kNone;
 }
 
 void GameSaveLoad::RetainReplayEndFrame(engine::GridCoord coord, std::unique_ptr<game::Frame>& rpFrame)
@@ -48,6 +79,37 @@ bool GameSaveLoad::DropRetainedReplayEndFrame(engine::GridCoord coord)
 	}
 
 	it->second.pRetainedEndFrame.reset();
+	return true;
+}
+
+bool GameSaveLoad::ArmReplayPersistenceFailure(ReplayPersistenceFailurePoint eFailurePoint, engine::GridCoord coord)
+{
+	if (eFailurePoint == ReplayPersistenceFailurePoint::kCoordinateWriter)
+	{
+		auto it = mReplayWriters.find(coord);
+		if (it == mReplayWriters.end() || (it->second.bTerminal && it->second.pRetainedEndFrame == nullptr))
+		{
+			return false;
+		}
+	}
+
+	meReplayPersistenceFailurePoint = eFailurePoint;
+	mReplayPersistenceFailureCoord = coord;
+	return true;
+}
+
+bool GameSaveLoad::ConsumeReplayPersistenceFailure(ReplayPersistenceFailurePoint eFailurePoint, engine::GridCoord coord)
+{
+	if (meReplayPersistenceFailurePoint != eFailurePoint)
+	{
+		return false;
+	}
+	if (eFailurePoint == ReplayPersistenceFailurePoint::kCoordinateWriter && mReplayPersistenceFailureCoord != coord)
+	{
+		return false;
+	}
+
+	meReplayPersistenceFailurePoint = ReplayPersistenceFailurePoint::kNone;
 	return true;
 }
 
@@ -158,14 +220,7 @@ void GameSaveLoad::SaveLoadReplay()
 					return;
 				}
 
-				game::ReplayMeta meta {};
-				if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, std::filesystem::path("F7.replay.meta"), meta))
-				{
-					LOG(kDefault, kError, "Failed to read replay metadata");
-					return;
-				}
-
-				// Read manifest to get recorded coord list
+				// The valid manifest is the generation commit marker. Validate it before reading any component.
 				std::fstream manifestStream = engine::gpFileManager->OpenFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, std::filesystem::path("F7.replay.manifest"));
 				if (!manifestStream)
 				{
@@ -191,6 +246,18 @@ void GameSaveLoad::SaveLoadReplay()
 					engine::GridCoord coord;
 					coord.Read(manifestStream);
 					recordedCoords.push_back(coord);
+				}
+				if (!manifestStream)
+				{
+					LOG(kDefault, kError, "Failed to read replay manifest");
+					return;
+				}
+
+				game::ReplayMeta meta {};
+				if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, std::filesystem::path("F7.replay.meta"), meta))
+				{
+					LOG(kDefault, kError, "Failed to read replay metadata");
+					return;
 				}
 
 				// Load initial grid state
@@ -270,9 +337,24 @@ bool GameSaveLoad::SyncReplayTick()
 		if ((mrGameBase.mGameFlags & engine::GameFlags::kSaveReplay) && mReplayWriters.empty())
 		{
 			mrGameBase.mGameFlags.Clear(engine::GameFlags::kSaveReplay);
+
+			if (ConsumeReplayPersistenceFailure(ReplayPersistenceFailurePoint::kManifestInvalidation))
+			{
+				LOG(kDefault, kError, "Injected replay manifest invalidation failure; recording not started");
+				return true;
+			}
+			if (!InvalidateReplayManifest())
+			{
+				meReplayPersistenceFailurePoint = ReplayPersistenceFailurePoint::kNone;
+				LOG(kDefault, kError, "Replay manifest invalidation failed; recording not started");
+				return true;
+			}
+
 			mReplayReaders.clear();
 
-			if (!WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.grid"), game::gpGame->mClientGridCoord))
+			const bool bGridWritten = !ConsumeReplayPersistenceFailure(ReplayPersistenceFailurePoint::kGrid) &&
+				WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.grid"), game::gpGame->mClientGridCoord);
+			if (!bGridWritten)
 			{
 				LOG(kDefault, kError, "Replay grid write failed; recording not started");
 				return true;
@@ -295,29 +377,16 @@ bool GameSaveLoad::SyncReplayTick()
 		{
 			mrGameBase.mGameFlags.Clear(engine::GameFlags::kSaveReplay);
 
-			// Write manifest listing all recorded coords
-			bool bReplayWritten = engine::gpFileManager->WriteFileAtomically({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.manifest"), [&](std::fstream& rManifestStream)
+			// Preserve the valid manifest's deterministic coord ordering after writer state is cleared.
+			std::vector<uint64_t> recordedCoordKeys;
+			recordedCoordKeys.reserve(mReplayWriters.size());
+			for (const auto& [rCoord, rWriterState] : mReplayWriters)
 			{
-				common::Write(rManifestStream, kiReplayManifestVersion);
+				recordedCoordKeys.push_back(rCoord.ToKey());
+			}
+			std::sort(recordedCoordKeys.begin(), recordedCoordKeys.end());
 
-				int64_t iCoordCount = static_cast<int64_t>(mReplayWriters.size());
-				common::Write(rManifestStream, iCoordCount);
-
-				// Sort by coord key for deterministic output (mirrors WriteGrid).
-				std::vector<uint64_t> keys;
-				keys.reserve(mReplayWriters.size());
-				for (const auto& [rCoord, rWriterState] : mReplayWriters)
-				{
-					keys.push_back(rCoord.ToKey());
-				}
-				std::sort(keys.begin(), keys.end());
-
-				for (uint64_t uiKey : keys)
-				{
-					engine::GridCoord coord = engine::GridCoord::FromKey(uiKey);
-					coord.Write(rManifestStream);
-				}
-			});
+			bool bReplayWritten = true;
 
 			for (auto& [rCoord, rWriterState] : mReplayWriters)
 			{
@@ -341,6 +410,12 @@ bool GameSaveLoad::SyncReplayTick()
 				if (pEndFrame != nullptr)
 				{
 					bWriterSaved = rWriterState.pWriter->Save(fileFlags, coordReplayPath, *pEndFrame);
+					if (ConsumeReplayPersistenceFailure(ReplayPersistenceFailurePoint::kCoordinateWriter, rCoord))
+					{
+						LOG(kDefault, kError, "Injected replay writer failure for coord ({},{}); deleting replay sibling set", rCoord.x, rCoord.y);
+						rWriterState.pWriter->CleanupFiles(fileFlags, coordReplayPath);
+						bWriterSaved = false;
+					}
 				}
 				else
 				{
@@ -358,8 +433,16 @@ bool GameSaveLoad::SyncReplayTick()
 				.iClientPlayerIdValue = game::gpGame->ClientPlayerId().iValue,
 				.fPreviousClientArmor = game::gpGame->PreviousClientArmor(),
 			};
-			const bool bMetadataWritten = engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.meta"), meta);
+			const bool bMetadataWritten = !ConsumeReplayPersistenceFailure(ReplayPersistenceFailurePoint::kMetadata) &&
+				engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, std::filesystem::path("F7.replay.meta"), meta);
 			bReplayWritten = bMetadataWritten && bReplayWritten;
+
+			if (bReplayWritten)
+			{
+				bReplayWritten = !ConsumeReplayPersistenceFailure(ReplayPersistenceFailurePoint::kFinalManifest) &&
+					PublishReplayManifest(recordedCoordKeys);
+			}
+			meReplayPersistenceFailurePoint = ReplayPersistenceFailurePoint::kNone;
 
 			if (bReplayWritten)
 			{

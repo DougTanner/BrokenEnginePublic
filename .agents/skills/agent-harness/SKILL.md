@@ -205,6 +205,8 @@ params: `{"faster":bool(required)}`. `result`: `{"numerator","denominator"}`
 
 **`replay_drop_retained_end_frame`** — inject replay-stop persistence failure after a recorded coordinate has been evicted. params: `{"coord":[x,y](required)}`. Discards exactly that coordinate's retained terminal frame; subsequent stop must report aggregate failure and remove the coordinate's replay siblings while still attempting other writers and metadata. `result`: `{"coord":[x,y],"dropped":true}`. **Errors** without `kbDebugInput`, when recording is inactive, or when the coordinate has no retained terminal frame.
 
+**`replay_inject_persistence_failure`** — arm one server-only, one-shot replay persistence failure. params: `{"stage":"invalidation"|"grid"|"coordinate_writer"|"metadata"|"final_manifest","coord"?:[x,y]}`. `coordinate_writer` requires an active recording and `coord` naming one of its writers with an available end frame; `metadata` and `final_manifest` also require active recording. `invalidation` and `grid` require recording to be inactive. Other stages reject `coord`. The selected stage mimics a failed write without changing the general file layer; coordinate-writer injection invokes the writer first, then deletes its sibling set and reports aggregate failure. `result`: `{"stage","coord"?:[x,y],"armed":true}`. **Errors** without `kbDebugInput` or on invalid stage/state/coord combinations.
+
 **`query_frame`** — per-collection counts for one grid cell.
 params: `{"coord":[x,y](required)}`. Errors if the coord has no loaded/ready frame.
 `result`: `{"players":{"count"},"spaceships":{"count"},"missiles":{"count"},"blasters":{"count"},"targets":{"count"}}`

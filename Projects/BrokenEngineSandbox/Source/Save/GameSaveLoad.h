@@ -16,6 +16,16 @@ class GameSaveLoad
 {
 public:
 
+	enum class ReplayPersistenceFailurePoint : uint8_t
+	{
+		kNone,
+		kManifestInvalidation,
+		kGrid,
+		kCoordinateWriter,
+		kMetadata,
+		kFinalManifest,
+	};
+
 	GameSaveLoad(engine::GameBase& rGameBase);
 
 	bool ServerSave();
@@ -34,6 +44,7 @@ public:
 	void ResetStreams();
 	void RetainReplayEndFrame(engine::GridCoord coord, std::unique_ptr<game::Frame>& rpFrame);
 	bool DropRetainedReplayEndFrame(engine::GridCoord coord);
+	bool ArmReplayPersistenceFailure(ReplayPersistenceFailurePoint eFailurePoint, engine::GridCoord coord = {});
 
 	const std::unordered_map<engine::GridCoord, std::unique_ptr<engine::DifferenceStreamReader<game::Frame, game::FrameInput>>>& GetReplayReaders() const { return mReplayReaders; }
 
@@ -56,6 +67,10 @@ private:
 
 	std::unordered_map<engine::GridCoord, ReplayWriterState> mReplayWriters;
 	std::unordered_map<engine::GridCoord, std::unique_ptr<engine::DifferenceStreamReader<game::Frame, game::FrameInput>>> mReplayReaders;
+	ReplayPersistenceFailurePoint meReplayPersistenceFailurePoint = ReplayPersistenceFailurePoint::kNone;
+	engine::GridCoord mReplayPersistenceFailureCoord {};
+
+	bool ConsumeReplayPersistenceFailure(ReplayPersistenceFailurePoint eFailurePoint, engine::GridCoord coord = {});
 };
 
 } // namespace game

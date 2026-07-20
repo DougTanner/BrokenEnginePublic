@@ -231,6 +231,76 @@ void CommandReplayDropRetainedEndFrame([[maybe_unused]] const nlohmann::json& rP
 	}
 }
 
+void CommandReplayInjectPersistenceFailure([[maybe_unused]] const nlohmann::json& rParams, [[maybe_unused]] nlohmann::json& rResult)
+{
+	if constexpr (!kbDebugInput)
+	{
+		throw std::runtime_error("replay requires kbDebugInput build");
+	}
+	else
+	{
+		if (!rParams.contains("stage") || !rParams.at("stage").is_string())
+		{
+			throw std::runtime_error("replay_inject_persistence_failure requires string 'stage'");
+		}
+
+		const std::string stage = rParams.at("stage").get<std::string>();
+		GameSaveLoad::ReplayPersistenceFailurePoint eFailurePoint = GameSaveLoad::ReplayPersistenceFailurePoint::kNone;
+		if (stage == "invalidation")
+		{
+			eFailurePoint = GameSaveLoad::ReplayPersistenceFailurePoint::kManifestInvalidation;
+		}
+		else if (stage == "grid")
+		{
+			eFailurePoint = GameSaveLoad::ReplayPersistenceFailurePoint::kGrid;
+		}
+		else if (stage == "coordinate_writer")
+		{
+			eFailurePoint = GameSaveLoad::ReplayPersistenceFailurePoint::kCoordinateWriter;
+		}
+		else if (stage == "metadata")
+		{
+			eFailurePoint = GameSaveLoad::ReplayPersistenceFailurePoint::kMetadata;
+		}
+		else if (stage == "final_manifest")
+		{
+			eFailurePoint = GameSaveLoad::ReplayPersistenceFailurePoint::kFinalManifest;
+		}
+		else
+		{
+			throw std::runtime_error("'stage' must be invalidation|grid|coordinate_writer|metadata|final_manifest");
+		}
+
+		if ((eFailurePoint == GameSaveLoad::ReplayPersistenceFailurePoint::kManifestInvalidation ||
+			eFailurePoint == GameSaveLoad::ReplayPersistenceFailurePoint::kGrid) == gpGame->mGameSaveLoad.IsRecording())
+		{
+			throw std::runtime_error(gpGame->mGameSaveLoad.IsRecording() ? "selected stage requires recording to be inactive" : "selected stage requires active recording");
+		}
+
+		if ((eFailurePoint == GameSaveLoad::ReplayPersistenceFailurePoint::kCoordinateWriter) != rParams.contains("coord"))
+		{
+			throw std::runtime_error(eFailurePoint == GameSaveLoad::ReplayPersistenceFailurePoint::kCoordinateWriter ? "coordinate_writer requires 'coord'" : "'coord' is only valid for coordinate_writer");
+		}
+
+		engine::GridCoord coord {};
+		if (eFailurePoint == GameSaveLoad::ReplayPersistenceFailurePoint::kCoordinateWriter)
+		{
+			coord = CoordFromParam(rParams);
+		}
+		if (!gpGame->mGameSaveLoad.ArmReplayPersistenceFailure(eFailurePoint, coord))
+		{
+			throw std::runtime_error("coordinate_writer 'coord' has no replay writer with an end frame");
+		}
+
+		rResult["stage"] = stage;
+		if (eFailurePoint == GameSaveLoad::ReplayPersistenceFailurePoint::kCoordinateWriter)
+		{
+			rResult["coord"] = {coord.x, coord.y};
+		}
+		rResult["armed"] = true;
+	}
+}
+
 void CommandQueryProfile([[maybe_unused]] const nlohmann::json& rParams, nlohmann::json& rResult)
 {
 	nlohmann::json timers = nlohmann::json::array();
@@ -491,6 +561,11 @@ bool ExecuteAgentCommandServer(std::string_view cmd, const nlohmann::json& rPara
 	if (cmd == "replay_drop_retained_end_frame")
 	{
 		CommandReplayDropRetainedEndFrame(rParams, rResult);
+		return true;
+	}
+	if (cmd == "replay_inject_persistence_failure")
+	{
+		CommandReplayInjectPersistenceFailure(rParams, rResult);
 		return true;
 	}
 	if (cmd == "query_frame")
