@@ -53,7 +53,7 @@ const TweaksSliderMapRegistrar gPbrRegistrar
 
 void TweaksScreenBase::RenderPbrSection()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kModel);
+	const int64_t iSection = giTweakSectionPbr;
 
 	if (ImGui::BeginTable("PbrColumns", 2))
 	{
@@ -61,51 +61,51 @@ void TweaksScreenBase::RenderPbrSection()
 		ImGui::TableNextColumn();
 
 		WrapperSeparatorText("Engine Variables");
-		WrapperSlider("Sun", kiSection, 1.0f);
-		WrapperSlider("Day Brightness", kiSection, 1.0f);
-		WrapperSlider("Model Data Mip Bias", kiSection, 1.0f);
+		WrapperSlider("Sun", iSection, 1.0f);
+		WrapperSlider("Day Brightness", iSection, 1.0f);
+		WrapperSlider("Model Data Mip Bias", iSection, 1.0f);
 
 		WrapperSeparatorText("BRDF");
-		WrapperSlider("BRDF Diffuse", kiSection, 1.0f);
-		WrapperSlider("BRDF Diffuse Power", kiSection, 1.0f);
-		WrapperSlider("BRDF Specular", kiSection, 1.0f);
-		WrapperSlider("BRDF Specular Power", kiSection, 1.0f);
+		WrapperSlider("BRDF Diffuse", iSection, 1.0f);
+		WrapperSlider("BRDF Diffuse Power", iSection, 1.0f);
+		WrapperSlider("BRDF Specular", iSection, 1.0f);
+		WrapperSlider("BRDF Specular Power", iSection, 1.0f);
 
 		WrapperSeparatorText("Tone Mapping");
-		WrapperSlider("Exposure", kiSection, 1.0f);
-		WrapperSlider("Gamma", kiSection, 1.0f);
+		WrapperSlider("Exposure", iSection, 1.0f);
+		WrapperSlider("Gamma", iSection, 1.0f);
 
 		WrapperSeparatorText("Color Grading");
-		WrapperSlider("Saturation", kiSection, 1.0f);
-		WrapperSlider("Contrast", kiSection, 1.0f);
-		WrapperSlider("Temperature", kiSection, 1.0f);
+		WrapperSlider("Saturation", iSection, 1.0f);
+		WrapperSlider("Contrast", iSection, 1.0f);
+		WrapperSlider("Temperature", iSection, 1.0f);
 
 		WrapperSeparatorText("Post Lighting");
-		WrapperSlider("Lighting Specular", kiSection, 1.0f);
-		WrapperSlider("Lighting Specular Power", kiSection, 1.0f);
-		WrapperSlider("Lighting", kiSection, 1.0f);
-		WrapperSlider("Lighting Power", kiSection, 1.0f);
+		WrapperSlider("Lighting Specular", iSection, 1.0f);
+		WrapperSlider("Lighting Specular Power", iSection, 1.0f);
+		WrapperSlider("Lighting", iSection, 1.0f);
+		WrapperSlider("Lighting Power", iSection, 1.0f);
 
 		// Right column
 		ImGui::TableNextColumn();
 
 		WrapperSeparatorText("IBL");
-		WrapperSlider("IBL Ambient", kiSection, 1.0f);
-		WrapperSlider("IBL Diffuse", kiSection, 1.0f);
-		WrapperSlider("IBL Diffuse Power", kiSection, 1.0f);
-		WrapperSlider("IBL Specular", kiSection, 1.0f);
-		WrapperSlider("IBL Specular Power", kiSection, 1.0f);
-		WrapperSlider("IBL Shadow Blend", kiSection, 1.0f);
-		WrapperSlider("IBL Ambient Color Blend", kiSection, 1.0f);
-		WrapperSlider("Cubemap Lod Power", kiSection, 1.0f);
-		WrapperSlider("Cubemap Lod Offset", kiSection, 1.0f);
-		WrapperSlider("Shadow Floor", kiSection, 1.0f);
+		WrapperSlider("IBL Ambient", iSection, 1.0f);
+		WrapperSlider("IBL Diffuse", iSection, 1.0f);
+		WrapperSlider("IBL Diffuse Power", iSection, 1.0f);
+		WrapperSlider("IBL Specular", iSection, 1.0f);
+		WrapperSlider("IBL Specular Power", iSection, 1.0f);
+		WrapperSlider("IBL Shadow Blend", iSection, 1.0f);
+		WrapperSlider("IBL Ambient Color Blend", iSection, 1.0f);
+		WrapperSlider("Cubemap Lod Power", iSection, 1.0f);
+		WrapperSlider("Cubemap Lod Offset", iSection, 1.0f);
+		WrapperSlider("Shadow Floor", iSection, 1.0f);
 
 		WrapperSeparatorText("Smoke");
-		WrapperSlider("Smoke", kiSection, 1.0f);
+		WrapperSlider("Smoke", iSection, 1.0f);
 
 		WrapperSeparatorText("Emissive");
-		WrapperSlider("Emissive", kiSection, 1.0f);
+		WrapperSlider("Emissive", iSection, 1.0f);
 
 		ImGui::EndTable();
 	}

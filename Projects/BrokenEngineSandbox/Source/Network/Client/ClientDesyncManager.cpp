@@ -13,19 +13,31 @@ void ClientDesyncManager::OnDesyncDetected(ReconcileDesyncInfo&& rDesyncInfo)
 	// Heap: Network sends for desync reporting
 	ScopedSuppressAllocationTracking suppress;
 
-	gpClientSession->mpClientNetwork->SendDesyncReport(rDesyncInfo.iDesyncTick, rDesyncInfo.desyncCoord, rDesyncInfo.desyncExpectedCrc, rDesyncInfo.desyncActualCrc);
-	gpClientSession->mpClientNetwork->SendDebugFrameRequest(rDesyncInfo.iDesyncTick, rDesyncInfo.desyncCoord);
-	gpClientSession->mpClientNetwork->SetDesyncDebugMode(true);
+	gpClientSession->mpRuntime->mpClient->SendDesyncReport(rDesyncInfo.iDesyncTick, rDesyncInfo.desyncCoord, rDesyncInfo.desyncExpectedCrc, rDesyncInfo.desyncActualCrc);
+	if constexpr (kbDesyncDebugFrames)
+	{
+		gpClientSession->mpRuntime->mpClient->SendDebugFrameRequest(rDesyncInfo.iDesyncTick, rDesyncInfo.desyncCoord);
+		gpClientSession->mpRuntime->mpClient->mStateFlags.Set(engine::Client::ClientStateFlags::kDesyncDebugMode);
 
-	mDesyncDebugState.iTick = rDesyncInfo.iDesyncTick;
-	mDesyncDebugState.coord = rDesyncInfo.desyncCoord;
-	mDesyncDebugState.pClientFrame = std::move(rDesyncInfo.pDesyncClientFrame);
-	mDesyncDebugState.entryTime = std::chrono::steady_clock::now();
+		mDesyncDebugState.iTick = rDesyncInfo.iDesyncTick;
+		mDesyncDebugState.coord = rDesyncInfo.desyncCoord;
+		mDesyncDebugState.pClientFrame = std::move(rDesyncInfo.pDesyncClientFrame);
+		mDesyncDebugState.entryTime = std::chrono::steady_clock::now();
+	}
+	else if constexpr (kbDesyncRecovery)
+	{
+		RecoverFromDesync();
+	}
+	else
+	{
+		std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
+		gpClientSession->mpRuntime->mpClient->Disconnect();
+	}
 }
 
 void ClientDesyncManager::PollDebugFrameResponse()
 {
-	std::unique_ptr<engine::ReceivedDebugFrame> pDebugFrame = gpClientSession->mpClientNetwork->DrainReceivedDebugFrame();
+	std::unique_ptr<engine::ReceivedDebugFrame> pDebugFrame = std::move(gpClientSession->mpRuntime->mpClient->mpReceivedDebugFrame);
 	if (pDebugFrame != nullptr && mDesyncDebugState.pClientFrame != nullptr)
 	{
 		LOG(kNetwork, kError, "ClientDesyncManager::PollDebugFrameResponse Frame: {} Coord: ({},{}) matched, dumping diff", mDesyncDebugState.iTick, mDesyncDebugState.coord.x, mDesyncDebugState.coord.y);
@@ -45,7 +57,7 @@ void ClientDesyncManager::PollDebugFrameResponse()
 		{
 			ASSERT(false);
 			std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
-			gpClientSession->mpClientNetwork->Disconnect();
+			gpClientSession->mpRuntime->mpClient->Disconnect();
 		}
 	}
 }
@@ -68,7 +80,7 @@ bool ClientDesyncManager::PollDesyncTimeout()
 		LOG(kNetwork, kError, "ClientDesyncManager::PollDesyncTimeout Desync debug mode timed out, disconnecting");
 		ASSERT(false);
 		std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server (debug frame timeout)");
-		gpClientSession->mpClientNetwork->Disconnect();
+		gpClientSession->mpRuntime->mpClient->Disconnect();
 	}
 	return true;
 }
@@ -94,12 +106,12 @@ void ClientDesyncManager::RecoverFromDesync()
 	{
 		LOG(kNetwork, kError, "ClientDesyncManager::RecoverFromDesync Escalating to disconnect");
 		std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Desynced from server");
-		gpClientSession->mpClientNetwork->Disconnect();
+		gpClientSession->mpRuntime->mpClient->Disconnect();
 		return;
 	}
 
-	gpClientSession->mpClientNetwork->SendResyncRequest();
-	gpClientSession->mpClientNetwork->SetDesyncDebugMode(false);
+	gpClientSession->mpRuntime->mpClient->SendResyncRequest();
+	gpClientSession->mpRuntime->mpClient->mStateFlags.Clear(engine::Client::ClientStateFlags::kDesyncDebugMode);
 	ResetCoordStatesForResync();
 }
 
@@ -111,13 +123,37 @@ void ClientDesyncManager::ResetCoordStatesForResync()
 	}
 
 	gpClientSession->mpReconciler->Reset();
-	gpClientSession->ClearStickySubscriptions();
+	gpClientSession->mpRuntime->mUnwantedTimestamps.clear();
 }
 
 void ClientDesyncManager::Reset()
 {
+	if (engine::gpClient != nullptr)
+	{
+		gpClientSession->mpRuntime->mpClient->mStateFlags.Clear(engine::Client::ClientStateFlags::kDesyncDebugMode);
+	}
 	mDesyncDebugState = {};
+	mAgentFullStateFixtureState = {};
 	miDesyncCount = 0;
+}
+
+void ClientDesyncManager::ArmAgentFullStateFixture(int64_t iTick, engine::GridCoord coord)
+{
+	ASSERT(!IsStalled());
+	mAgentFullStateFixtureState.bStalled = true;
+	mAgentFullStateFixtureState.iTick = iTick;
+	mAgentFullStateFixtureState.coord = coord;
+	gpClientSession->mpRuntime->mpClient->mStateFlags.Set(engine::Client::ClientStateFlags::kDesyncDebugMode);
+	gpClientSession->mpRuntime->mpClient->SendResyncRequest();
+}
+
+void ClientDesyncManager::ClearAgentFullStateFixture()
+{
+	mAgentFullStateFixtureState = {};
+	if (engine::gpClient != nullptr && mDesyncDebugState.iTick < 0)
+	{
+		gpClientSession->mpRuntime->mpClient->mStateFlags.Clear(engine::Client::ClientStateFlags::kDesyncDebugMode);
+	}
 }
 
 #endif // BT_CLIENT

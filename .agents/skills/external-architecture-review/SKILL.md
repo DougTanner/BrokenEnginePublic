@@ -1,142 +1,127 @@
 ---
 name: external-architecture-review
-description: Performs a multi-perspective architectural review of a codebase area, focusing on *shape* concerns — dependency structure, module depth (Ousterhout), coupling/cohesion, determinism, frame-phase and thread-model alignment, shader-CPU consistency, ThirdParty library-replacement opportunities, and the structural anti-patterns characteristic of iteratively AI-generated code (dead modules, cosmetic/broken abstractions, pattern abandonment, cross-file duplication, inter-module seams). Line-level concerns (complexity, hot-path allocations, bool→Flags, file size) belong to `/external-refactor-clean`, which this skill hands off to. Only invoke when the user explicitly requests it (e.g., "/external-architecture-review", "run an architecture review") or when another skill explicitly instructs it. Never trigger autonomously from general code questions or during routine code changes.
-disable-model-invocation: true
-allowed-tools: [Read, Grep, Glob, Agent, Bash, PowerShell]
+description: >-
+  Review a code area for architectural shape: dependencies and layering,
+  simulation and threading invariants, client/server and data shape, module
+  cohesion, AI-generation residue, and ThirdParty replacement opportunities.
+  Use only when the user explicitly requests an architecture review or an
+  explicit parent workflow such as external-deep-analysis chains to it. Do not
+  select it for routine code changes or general code questions.
+allowed-tools: [Read, Grep, Glob, Agent, PowerShell]
 ---
 
 # Architecture Review
 
-Performs an architectural review of a specified codebase area using parallel analysis agents. Designed for a C++23 data-oriented Vulkan game engine with Common → Engine → Projects layering. Applies Ousterhout's deep-modules lens throughout: small interface hiding significant complexity is good; shallow modules are a smell. Because this codebase was built through iterative AI-generation sessions, the review also hunts the structural residue that process characteristically leaves — dead modules, cosmetic abstractions, abandoned patterns, and cross-session integration seams. Security auditing is deliberately out of scope: findings are structural only; injection, auth, secrets, crypto, and CORS belong to a dedicated security pass, not this skill.
+Run a findings-only, multi-perspective review from the main invoking context. This skill owns cross-file shape: dependency structure, module depth, coupling, phase and thread alignment, and inter-module contracts. Hand function complexity, nesting, hot-path allocation, bool-to-flags, and file-size mechanics to `external-refactor-clean`. Exclude security auditing.
 
-**Scope boundary:** This skill owns shape. It does NOT flag function length, nesting depth, hot-path heap allocations, bool-proliferation, or `#ifdef` width — those are line-level concerns owned by `/external-refactor-clean`. If the review surfaces line-level issues during exploration, note them briefly and recommend running `/external-refactor-clean` for depth.
+## Scope and Authorities
 
-## Arguments
+Require a target path. If absent, ask for it. Resolve scope before dispatch:
 
-The user provides a target path (file or directory) to review. If no path is given, ask for one.
+- **Exact file:** review only that file. Follow dependencies and callers as evidence, but report a finding only when the defect is rooted in the target file or its contract.
+- **Directory, non-recursive (default):** enumerate only files directly in that directory. Do not silently include descendants.
+- **Directory, recursive:** include descendants only when the caller explicitly requests recursion.
 
-**Recursion**: By default, only analyze files directly in the specified directory (non-recursive) — subagents use non-recursive glob patterns (e.g., `path/*.h`). Recurse into sub-directories only when the caller explicitly requests it ("recursive", "include subdirectories") — then subagents use recursive patterns (`path/**/*.h`). Pass the active mode to every subagent.
+Record the exact scoped-file manifest and pass it to every reviewer. Evidence may cross the boundary to prove a scoped finding; incidental defects outside it are residuals, not findings.
 
-## Instructions
+Before dispatch, read root `AGENTS.md` and every nested `AGENTS.md` applicable to the scoped files. Preload every reviewer with those authority paths and the scoped-file manifest; require them to read the authorities before source. Findings cite the controlling `AGENTS.md` path and section or line when a repository rule supplies the judgment. Checklists are heuristics, never authority.
 
-### 1. Launch Parallel Analysis Agents
+## Main-Context Reviewer Waves
 
-Use the Agent tool to launch five subagents in parallel. All five judge as well as locate — Agent A flags cyclic includes and layer violations rather than only listing them — so use `subagent_type: "reviewer"` for every one (if unavailable, fall back to `general-purpose` with the reviewer role stated at the top of the prompt). Each agent receives the target path (and the recursion mode) and produces a focused report. Each owns a short, related checklist — keep the groupings as defined below; do not merge them back into one agent.
+The main invoking context owns dispatch and synthesis. If this workflow is entered from a delegated context that repository policy forbids from delegating, return a main-context dispatch requirement; do not replace the five independent lenses with an inline approximation.
 
-#### Agent A: Dependency Structure & Layering (subagent_type: reviewer)
+Inspect available depth and concurrency. Dispatch one `reviewer` role per lens below, in waves no larger than the currently free slots. Never ask a reviewer to delegate. Refill slots only as prior reviewers finish, and do not merge lenses merely to fit a host limit. Every prompt includes the target, exact scope mode and manifest, authority paths, lens checklist, finding schema, external-claim routing, and findings-only boundary.
 
-Prompt the agent to:
-- Map `#include` dependencies for all `.h` and `.cpp` files in the target area
-- Identify headers included but not used (no symbols referenced) — include the count and file list in this review's report. Macro, template, and transitive usage make this false-positive-prone: tag each entry HIGH / MEDIUM / LOW confidence, and spot-verify before tagging HIGH
-- Identify orphan / dead modules — files whose exported symbols have zero callers in production code; cross-reference test-only usage so a module that is tested but never called in the shipping build isn't masked as live. Report these as dead-code candidates.
-- Flag transitive includes that should be made direct
-- Detect circular or near-circular include chains
-- Report include-graph shape: which headers are hubs (pulled in by many files), which files pull in the largest transitive closures?
-- **Layer integrity** — `Projects/` reaching into `Engine/` internals; `Common/` depending on `Engine/` or `Projects/`; `Engine/` *types* naming game concepts (e.g. an `engine::` enumerator only the game uses). Engine code *reading* `game::` types, globals, or compile-time symbols is by design, not a violation (root `AGENTS.md` §Key Patterns)
+### Lens A — Dependencies and Layering
 
-#### Agent B: Simulation & Threading Invariants (subagent_type: reviewer)
+- Map direct and transitive includes; identify hubs, large closures, cycles, missing direct includes, and unused includes. Treat macro, template, and transitive use cautiously.
+- Find exported symbols with no production callers; distinguish test-only reachability.
+- Check layer integrity. `Common` must not depend on `Engine` or `Projects`; `Projects` must not reach through documented engine boundaries. Engine reads of game globals or types allowed by applicable authorities are not violations.
 
-Prompt the agent to evaluate:
-- **Determinism** — RNG ordering, floating-point reorder across threads that could affect replay CRC, read/write ordering between Interpolate and PostRender phases, cross-build parity of `SharedMembers()`
-- **Thread model** — `gpMultithreading->Dispatch()` data-access patterns; shared mutable state in parallel regions; `PersistentWorker` usage
-- **Frame-phase alignment** — are systems operating in the correct phase (Update vs PostRender vs Interpolate)? Any phase-boundary violations?
+### Lens B — Simulation and Threading
 
-#### Agent C: Client/Server & Data Shape (subagent_type: reviewer)
+- Trace determinism risks: RNG ordering, parallel floating-point reorder, CRC-participating state, `SharedMembers()` parity, and phase-crossing reads or writes.
+- Check dispatch ownership, shared mutation, worker lifetime, and Update/PostRender/Interpolate alignment against documented thread and frame rules.
 
-Prompt the agent to evaluate:
-- **Client/Server separation** — `BT_CLIENT`/`BT_SERVER` paths that should differ but don't; client-only code not isolated from server build
-- **Collection shape** — `SharedMembers()`/`ClientMembers()`/`Members()` pattern compliance; members stored in the wrong phase (interpolated vs post-render); collections whose member list has grown so large the struct has lost cohesion
-- **Shader/CPU consistency** — shader constants or layouts that have diverged from their C++ counterparts; magic numbers in shaders that should reference shared definitions (only when the target area contains shaders or shader-facing CPU code — skip otherwise)
+### Lens C — Client/Server and Data Shape
 
-#### Agent D: Cohesion & AI-Generation Anti-Patterns (subagent_type: reviewer)
+- Check `BT_CLIENT`/`BT_SERVER` separation and mirrored build behavior.
+- Check collection member registration, shared/client/member partitioning, interpolation versus PostRender placement, and cohesion.
+- When scoped code is shader-facing, compare CPU and shader constants, layouts, and shared definitions.
 
-Prompt the agent to evaluate:
-- **Manager patterns** — `gp*` singletons, unnecessary cross-manager references, god-managers
-- **Cohesion (Ousterhout deep modules)** — where does understanding one concept require bouncing between many small files? Where are modules so shallow that the interface is nearly as complex as the implementation? Where do tightly-coupled modules create integration risk in the seams?
-- **AI-generation structural anti-patterns** — this codebase is iteratively AI-generated; hunt the residue (structural only, no security):
-  - *Cosmetic & broken abstractions* — interfaces / abstract bases with a single implementation that add no isolation (deleting them and using the concrete type changes no behavior); a defined interface bypassed by referencing concrete types directly elsewhere; abstractions that relocate complexity rather than hide it, forcing callers to understand internals (leaky). Apply the deep-modules lens already central to this skill.
-  - *Pattern abandonment* — an established engine pattern (`SharedMembers()`/`ClientMembers()`, manager-singleton shape, Collection registration / `ForEach` helpers) followed in early modules but dropped in later-added ones; sibling files whose conventions diverge, signalling a later-generated block that lost the original context.
-  - *Cross-file duplication* — near-duplicate functions or logic blocks (~100+ bt-token-v1) recurring across files from context loss during generation; flag because one copy can drift or receive a fix the other misses. (In-function duplication stays with `/external-refactor-clean`.)
-  - *Inter-module contract seams* — integration edges where two modules show divergent naming, error-handling, or abstraction styles (a sign they were generated in different sessions); verify the producing side's output assumptions match the consuming side's — the highest-probability spot for silent contract violations.
+### Lens D — Cohesion and Generation Residue
 
-#### Agent E: ThirdParty Library Replacement Opportunities (subagent_type: reviewer)
+- Apply the deep-module test: prefer small interfaces that hide substantial complexity; flag shallow indirection, god-managers, and excessive cross-manager knowledge.
+- Find cosmetic or bypassed abstractions, abandoned sibling patterns, substantial cross-file duplication, dead modules, and producer/consumer seams with mismatched contracts.
+- Require concrete structural impact; do not infer a defect merely from stylistic difference or the history of AI generation.
 
-Goal: identify cohesive in-house code that could be deleted in favor of a permissively-licensed library dropped into `/ThirdParty/` — benefits are codebase shrinkage and access to a battle-tested implementation.
+### Lens E — ThirdParty Replacement
 
-Instruct the agent to first read `ThirdParty/AGENTS.md` for the **License Policy** and list current `/ThirdParty/` subdirectories (skip suggesting anything already imported; do suggest extending coverage of an already-imported library when the in-house code overlaps it).
+- Read `ThirdParty/AGENTS.md`, list existing ThirdParty packages, and avoid proposing an already-covered dependency unless extending it removes separate in-house code.
+- Find cohesive, reusable in-house clusters with no engine-specific reason to exist. Skip engine pipelines, gameplay, collections, managers, and Vulkan/shader glue.
+- Consider only replacements likely to remove more than 500 `bt-token-v1`; measure the inclusive candidate range with `.agents/scripts/Measure-Tokens.ps1`.
+- For each candidate, name the library, removable paths/ranges, integration and dependency risks, and the license proposition requiring verification. The local license allow list in `ThirdParty/AGENTS.md` remains controlling authority.
 
-Prompt the agent to:
-- Find cohesive code clusters (single file, file group, or small subsystem) that implement a well-known reusable problem with no engine-specific reason to be in-house. Typical candidates: data structures, parsers/serializers, compression, math primitives, container utilities, string/path helpers, hashing/CRC, file-format readers, image/audio decoding, geometry/mesh utilities.
-- Skip code that is engine-specific by design (frame pipeline, collections, manager singletons, gameplay logic, Vulkan/shader integration glue).
-- For each candidate, propose a **specific** replacement library and verify its license against the **License Policy** in `ThirdParty/AGENTS.md` (read above) — that file is the sole authority; do not filter against a remembered license list. Reject anything not on its allow list.
-- Prefer libraries that are widely adopted in the C++ game-engine / graphics / systems space and actively maintained.
-- Be conservative: do NOT propose libraries that would require heavy build-system changes, drag in large transitive dependencies, or replace ≲500 bt-token-v1 of trivial code. Measure the inclusive range with `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path> -StartLine <n> -EndLine <n>`; `bt-token-v1` is a deterministic normalized-byte estimate, not an exact model-token count.
+## Finding and Claim Contracts
 
-Report per candidate:
-- **Module / cluster**: path(s) and approximate line range
-- **Size removable**: rough bt-token-v1 estimate that would be deleted
-- **Proposed library**: name, license, one-line justification (battle-tested signal: adoption / maintenance status)
-- **Risks**: API mismatch, performance characteristics vs in-house, integration cost, transitive deps
-- **Confidence**: HIGH / MEDIUM / LOW
+Every reviewer reports each finding in this exact shape:
 
-### 2. Consolidate Results
-
-After all agents complete, read their reports and merge into a single architecture review. Deduplicate findings that appear in multiple agent reports. Cross-reference findings to identify systemic issues (e.g., a layer violation that also causes include-chain bloat).
-
-### 3. Synthesize Recommendation
-
-After deduplicating findings, provide an opinionated recommendation: what is the single most impactful architectural improvement? Be specific — name the modules, the proposed change, and why it matters most. The user wants a strong read, not just a list.
-
-### 4. Output Consolidated Report
-
+```markdown
+- [severity/category] `path:line` — `symbol or contract`
+  - Evidence: repository-observed fact; controlling authority citation when applicable
+  - Impact: concrete architectural or invariant consequence
+  - Correction: smallest structural correction or investigation needed
+  - Confidence: HIGH | MEDIUM | LOW
 ```
-## Architecture Review: [target path]
+
+Use precise symbols and evidence, not thematic summaries. Unused includes and dead-code candidates must retain confidence labels. Report no-finding conclusions explicitly for assigned lens checks.
+
+Reviewers do not establish non-obvious external API, specification, license, maintenance, or ThirdParty behavior from memory. They return an **External Claim Verification Request** containing the exact proposition, dependent finding, applicable repository version/configuration, why it matters, and an official candidate source when known.
+
+After reviewer waves complete, route every such request through `verify-external-claims` before consolidation. Apply its verdict: retain `VERIFIED` evidence, remove or correct a `REFUTED` dependent finding, and move `UNRESOLVED` claims to residuals rather than presenting them as confirmed recommendations.
+
+## Consolidate and Report
+
+Deduplicate by root cause, preserve the strongest evidence, and cross-reference systemic findings without inflating their count. Choose one most impactful architectural improvement and name its modules, correction, and reason. Do not invent findings to populate a section.
+
+Return:
+
+```markdown
+## Architecture Review: <target>
+
+### Scope and Authorities
+<exact-file | non-recursive directory | recursive directory; file count; AGENTS.md paths>
 
 ### Overview
-[3-5 sentence summary of architectural health, key strengths, and primary concerns]
+<architectural health, strengths, primary concern>
 
-### Dependency Structure & Layering
-[Consolidated findings from Agent A]
-- Include-graph shape (hubs, worst transitive closures)
-- Circular or near-circular chains
-- Unused includes (with confidence tags)
-- Orphan / dead modules (zero-caller files)
-- Layer integrity
+### Dependencies and Layering
+<standard findings or explicit no findings>
 
-### Simulation & Threading Invariants
-[Consolidated findings from Agent B]
-- Determinism
-- Thread model
-- Frame-phase alignment
+### Simulation and Threading
+<standard findings or explicit no findings>
 
-### Client/Server & Data Shape
-[Consolidated findings from Agent C]
-- Client/Server separation
-- Collection shape (SharedMembers/ClientMembers, phase placement, cohesion)
-- Shader/CPU consistency
+### Client/Server and Data Shape
+<standard findings or explicit no findings>
 
-### Cohesion & AI-Generation Anti-Patterns
-[Consolidated findings from Agent D]
-- Manager patterns
-- Deep-module cohesion notes
-- AI-generation structural anti-patterns (dead modules, cosmetic/broken abstractions, pattern abandonment, cross-file duplication, inter-module seams)
+### Cohesion and Generation Residue
+<standard findings or explicit no findings>
 
-### ThirdParty Library Replacement Opportunities
-[Consolidated findings from Agent E]
-- Per candidate: module/cluster, bt-token-v1 removable, proposed library (name + license), risks, confidence
-- License-rejected candidates (note any tempting libraries excluded for copyleft)
+### ThirdParty Replacement Opportunities
+<verified standard findings, including removable size and license evidence, or none>
 
 ### Cross-Cutting Concerns
-[Systemic issues that span multiple categories]
+<deduplicated systemic effects>
 
-### Handoff to `/external-refactor-clean`
-[One-line notes on line-level issues surfaced in passing — do NOT enumerate; that skill re-scans with the right depth]
+### Handoff to external-refactor-clean
+<one concise scope note; do not enumerate line-level findings>
 
 ### Prioritized Recommendations
-1. [Highest priority] — [justification] — [effort estimate]
-2. ...
-3. ...
+1. <highest-impact correction, rationale, rough effort>
 
-### Architecture Health: [HEALTHY / MINOR CONCERNS / NEEDS ATTENTION / CRITICAL]
-[Brief justification]
+### Architecture Health: <HEALTHY | MINOR CONCERNS | NEEDS ATTENTION | CRITICAL>
+<brief justification>
+
+### External-Claim Residuals
+<unresolved propositions or none>
 ```

@@ -36,7 +36,7 @@ inline constexpr VkFormat keElevationFormat = VK_FORMAT_R16_SFLOAT;
 
 inline constexpr VkFormat keLightingFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 
-inline constexpr VkFormat keSmokeFormat = VK_FORMAT_R32_SFLOAT;
+inline constexpr VkFormat keSmokeFormat = VK_FORMAT_R16_SFLOAT;
 inline constexpr VkFormat keWindFormat = VK_FORMAT_R16G16_SFLOAT;
 inline constexpr VkFormat keShadowFormat = VK_FORMAT_R16_UNORM;
 inline constexpr VkFormat keCombineFormat = VK_FORMAT_R8G8B8A8_UNORM;

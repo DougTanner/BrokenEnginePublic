@@ -3,10 +3,12 @@
 # file as an ordinary tracked deletion (`git rm`). The queue row stays claimed and is
 # removed post-landing by Invoke-FinalizeLanding.ps1 (`plan order complete`); this
 # script never runs `plan order complete` or `plan order validate` and performs no
-# post-deletion row checks. -Plan is the repository-relative plan path being completed.
+# post-deletion row checks. -Plan is the repository-relative plan path being completed;
+# -PlanSha256 is the immutable digest returned by its claim.
 [CmdletBinding()]
 param(
-	[string] $Plan
+	[string] $Plan,
+	[string] $PlanSha256
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,6 +36,8 @@ function Complete-Workflow([int] $ExitCode, [string] $Status, [string] $Code, [s
 try {
 	Import-Module (Join-Path $PSScriptRoot 'NextPlanWorkflowCommon.psm1') -Force -DisableNameChecking
 	$context = Get-NextPlanContext -AllowPrimaryAdvance
+	if ([string]::IsNullOrWhiteSpace($Plan)) { throw 'Plan is required.' }
+	if ($PlanSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'PlanSha256 must be the lowercase SHA-256 from the claim receipt.' }
 	$plan = $Plan.Replace('\', '/')
 	Assert-NextPlanGitPath $plan
 	$order = if ($plan.StartsWith('Documents/Plans/', [StringComparison]::Ordinal)) { 'Documents/Plans/Order.md' }
@@ -43,6 +47,9 @@ try {
 	$expectedPlanPath = Join-Path $context.Worktree $plan
 	if (-not (Test-Path -LiteralPath $expectedPlanPath -PathType Leaf)) {
 		Complete-Workflow 2 'blocked' 'completion.plan-missing' 'The selected plan no longer exists.'
+	}
+	if ((Get-NextPlanFileSha256 $expectedPlanPath) -cne $PlanSha256) {
+		Complete-Workflow 2 'blocked' 'completion.plan-byte-mismatch' 'Claimed plan bytes changed; stop this workflow and retain the claimed row.'
 	}
 
 	$rowResponse = Invoke-NextPlanProcess $context.WorktreeCli @('plan','row','status','--repo',$context.CommonDirectory,'--order',$order,'--plan',$rowPlan,'--owner',$context.Owner) $context.Worktree

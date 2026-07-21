@@ -1,18 +1,21 @@
-# /Projects/BrokenEngineSandbox/Source/Frame/Collections/Players/
+# Players - Player Fleet Ships
 
-Player spaceships (one flagship + follower wingmen, all AI-driven). Uses `CollectionFlags::kIdToIndex` for stable ID-based lookup. All players share the same update logic — flagship status is a `PlayerFlags::kIsFlagship` bit, never a privileged SOA index. The flagship spawns navigating to an island (nav mode 4); wingmen spawn roaming (mode -1) and switch to flagship-follow (mode 5) by proximity.
+Players represent a flagship and AI-driven wingmen through one collection. Stable global IDs provide lookup and transfer identity; flagship status is a flag, never a privileged SOA index.
 
-## Non-Obvious Invariants
+## Navigation Invariants
 
-- **Nav mode sentinel** (packed `value + 1` into `PlayerFlags` bits 8-10): `-1` roam via `ComputeAiSteering` (flips to mode 4 when the frame-change timer expires), `0`-`3` head toward a neighbor frame, `4` island destination, `5` flagship follow. Mode-4 and mode-5 RNG consumption is held identical so mode flips (mode 5 → 4 zeroes the destination at the same tick, triggering mode 4's entry-block draws) do not desync the shared random engine: each draws exactly three randoms (island pick + footprint X + footprint Y, in that order). Mode 5 draws all three unconditionally per tick; mode 4 draws them only on the entry tick when `pVecIslandDestinations[i].W == 0.0f` (steady-state mode 4 draws zero — fine, both sides see the same flags+W). Only the draw count matters for parity — every `common::Random` advances the engine once regardless of its bound — so mode 5 may compute its (now ignored) footprint from `rStaticData.islands.at(playerIndex % size)` while mode 4 picks a different island.
-- **Fleet override**: modes 0-3 are assigned only by the fleet block — when the fleet wanted coord differs from the current coord and its pending countdown has expired. Its diagonal tie-break is a conditional `Random(3u)` draw; deterministic because it conditions purely on shared state.
-- **Nav waypoint sequence** (mode 4 only): the destination island is chosen by a per-frame 2-bit counter in `PlayerFlags` bits 12-13 — index 0 = largest-area island in the frame, 1 = smallest-area, 2+ = a random island. The counter saturates at 2 and is reset to 0 on every `Spawn` (initial + cross-frame transfer) so the largest → smallest → random sequence restarts in each new Frame. The largest/smallest scan is deterministic (no RNG, first-found tie-break, anisotropic quad-footprint area); the random island pick is still drawn every entry tick to keep the 3-draw count above (only consumed when the index is ≥ 2).
-- **Pathfinding throttle**: the `NavQueryDirection` call is gated — each player re-pathfinds only on a fixed-interval cadence keyed on `(tick + globalId)` (staggered so players spread across ticks), plus immediately on any mode/destination change or direction re-seed, plus an off-cadence forced recompute when the held `rVecAiDirection` bearing would drive the ship into rising terrain within `kfNavTerrainLookahead` (deterministic shared reads, no RNG draw — preserves throttle determinism and the mode-4/5 draw-parity contract); between recomputes the cached `rVecAiDirection` is reused. Because globalId is server-minted and serialized, the cadence is identical on both sides → deterministic. Only the query is gated: RNG draws (including the mode-4/5 entry draws above), arrival checks, and mode transitions stay unconditional. Moving any of those inside the throttle desyncs the shared random stream. Client debug nav waypoints are also written only on recompute ticks, so the Update orchestrator carries the previous tick's value forward (including across the transfer-lock skip) — without that copy the debug line flashes stale buffer contents.
-- **Spawn random consumption**: `Spawn()` always consumes `Random<10.0f>` for `fFrameChangeTimer` even when `SpawnInfo` pre-sets it (determinism).
-- **Shared-CRC exclusions**: `SharedCrcMembers` is narrower than `SharedMembers` — it omits the animation clock (advanced only under `BT_CLIENT`, intentionally divergent while still riding save/transfer), local pusher indices, and the server-side identity fields below.
-- **Identity**: Parallel `engine::global_id_t` array gives stable cross-transfer, cross-session identity (preserved via `TransferData.globalPlayerId`, excluded from shared CRC). Game-layer identity uses global IDs, never local SOA indices.
-- **Sizing**: `kfPlayerRadius` (in `Players.h`) is the single source of truth for all derived radii/offsets via ratio multipliers.
-- **AreaDamage no-op**: `PlayersPostRender::AreaDamage` is intentional — players take damage only from direct PostCollision hits, never splash.
+- Navigation covers roaming, cross-frame movement, island destinations, and flagship following. Mode transitions depend only on shared state.
+- Flagship following has no frame-local exit when the flagship row is gone; recovery comes from the server's flagship reassignment landing in the next tick's Spawn phase, not from navigation. The promoted ship is the exception — it satisfies neither the follow scan nor the fleet override, so it holds the mode until the fleet navigation timer fires.
+- Path queries run on a deterministic cadence staggered by tick and stable global ID, with immediate recomputation for mode, destination, direction, or terrain-avoidance changes.
+- Random draws, arrival checks, and mode transitions remain outside the pathfinding throttle. Modes 4 and 5 do not have an identical per-tick draw schedule; parity comes from both builds evaluating the same shared-state conditions.
+- Spawning consumes its frame-change random draw even when transfer data already supplies the resulting timer.
+- Preserve cached steering and client debug waypoints across ticks where pathfinding is skipped.
+
+## State Boundaries
+
+- Game identity uses stable global IDs rather than local collection indices.
+- Shared CRC excludes client animation time, local pusher bookkeeping, and server-minted global identity. Some excluded state still participates in save or transfer.
 
 ## See Also
-- Parent collections: `../AGENTS.md` (SOA, `Collection<T>`, PreCollision thread_local pattern, arrival grace, pending-tick countdown)
+
+- [../AGENTS.md](../AGENTS.md) - Game collection transfer, CRC, and collision rules

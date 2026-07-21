@@ -1,99 +1,93 @@
 ---
 name: external-design-interface
 description: >-
-  Generate multiple radically different C++ interface designs for an engine system
-  using parallel sub-agents, then compare and synthesize the best approach. When
-  auto-detecting (not explicitly requested), ask the user "Would you like me to run
-  /external-design-interface to explore different API shapes?" before invoking.
-when_to_use: >-
-  When the user explicitly requests it ("design this API", "explore interface
-  options", "design it twice"), or proactively when detecting the user is designing
-  a new system — especially new Collections (game or engine), new manager classes,
-  or new subsystem APIs. Do NOT auto-suggest for bug fixes, single-function
-  additions, or adding a member to an existing collection — those route to
-  `/add-collection-member`.
+  Generate three radically different C++ interface designs, compare them, and
+  synthesize the user's choice into a reviewed implementation plan. Use when
+  the user explicitly asks to design an API, explore interface options, or
+  design a system multiple ways. When implicitly detecting interface design
+  for a new Collection, manager, or subsystem API, first ask "Would you like me
+  to run /external-design-interface to explore different API shapes?" and
+  continue only if accepted. Do not suggest or use for bug fixes,
+  single-function additions, implementation of an already approved interface,
+  or adding a member to an existing Collection; the last case routes to
+  /add-collection-member.
 allowed-tools: [Read, Grep, Glob, Agent, AskUserQuestion]
 ---
 
 # Design Interface
 
-## Arguments
+Run from the main invoking context. A delegated worker never dispatches another
+worker; if this skill is entered where delegation is forbidden, return a
+main-context dispatch requirement instead of approximating the independent
+designs inline.
 
-The user provides a description of the system to design. If none is given, use AskUserQuestion to ask what system to explore interface options for, and wait for a response before proceeding.
+## Establish the Design Brief
 
-## Instructions
+Use the supplied system description, or ask for one when absent. Inspect the
+repository before asking about gaps. Record:
 
-### 1. Gather Requirements
+- problem, callers, operations, ownership, and existing interfaces;
+- allocation tracking, SOA layout, threading, build affinity, and frame phases;
+- bit-deterministic, CRC-checked PostRender state versus non-deterministic
+  Interpolate/render state and client-only visuals.
 
-Before designing, understand:
-- What problem does this system solve?
-- Who are the callers? (other managers, collections, frame phases, game code)
-- What are the key operations?
-- Constraints: allocation tracking, client/server builds, SOA layout, frame phase boundaries, determinism, threading
+Before any delegation, decide whether the requested system or a viable design
+could add a `Collection<T>` type or SOA member pointer. If so, read
+`/add-collection` and `/add-collection-member` and pass their applicable layout,
+lifecycle, persistence, CRC, version, and registration constraints to every
+worker.
 
-Use the codebase to answer as many of these as possible before asking the user.
+## Research Existing Patterns
 
-### 2. Explore Existing Patterns
+The main context dispatches one `researcher` first and waits for its result.
+Give it the brief and exact repository scope. Ask it to identify similar live
+systems, dominant caller patterns, naming and parameter conventions, manager
+access, workbuffer usage, and relevant collection shapes. It returns concise
+evidence with paths and symbols and does not delegate.
 
-Launch a `researcher` agent (`subagent_type: "researcher"`) to find and synthesize:
-- Similar systems in the codebase (same problem domain or similar shape)
-- The dominant caller pattern for this kind of system (how do existing callers invoke similar APIs?)
-- Relevant conventions (naming, parameter ordering, `gp*` usage, workbuffer patterns)
+## Generate Three Designs
 
-Record these findings — they get passed to every design agent in the next step.
+After research completes, the main context dispatches exactly three `planner`
+workers concurrently. Use no more than the three available child slots and do
+not add a manager/singleton-specific fourth design. Give each worker the same
+brief, repository evidence, applicable collection constraints, and one
+unsoftened axis:
 
-### 3. Generate Designs (Parallel Sub-Agents)
+1. **Minimal surface:** 1–3 entry points, opaque internals, deep module.
+2. **Data locality:** contiguous SOA iteration, batching, and workbuffer use.
+3. **Caller ergonomics:** optimize readability and simplicity for the dominant
+   caller pattern found by research.
 
-Spawn exactly 3 `planner` agents (`subagent_type: "planner"`) in parallel using the Agent tool. The `planner` and `researcher` subagent types are custom agents defined in this environment — if they are unavailable, fall back to `subagent_type: "general-purpose"` with the role ("plan designer" / "pattern researcher") embedded at the top of the prompt. Each agent's prompt must include:
-- The requirements gathered in step 1
-- The existing patterns and caller conventions found in step 2
-- One of the design constraints below
+Each worker returns C++ interface declarations, representative usage, hidden
+complexity, client/server guard impact, allocation behavior, threading and
+frame-phase behavior, deterministic-state impact, and trade-offs. It explicitly
+identifies any proposed Collection or member and never implements bodies.
 
-**Design constraints** (each targets a fundamentally different optimization axis):
-- **Agent 1 — Minimal surface area**: "Design the interface with 1-3 entry points max, hiding all complexity behind opaque internals. Favor a deep module — small interface, significant internal machinery."
-- **Agent 2 — Data locality**: "Design the interface to maximize SOA data locality — optimize for cache-friendly iteration, workbuffer usage, and batch processing of contiguous arrays."
-- **Agent 3 — Caller ergonomics**: "Design the interface to be ergonomic for [specific caller pattern found in step 2], prioritizing call-site simplicity and readability."
+## Compare and Decide
 
-**Conditional 4th agent**: Add a 4th agent only when the system being designed is a manager or singleton: "Design around the existing `gp*` singleton pattern, following how other managers expose their API."
+Present all three designs with their declarations, usage, and hidden
+complexity. Compare interface simplicity and depth, SOA friendliness,
+client/server gating, main-loop allocation, dispatch safety, frame-phase
+clarity, and deterministic-state placement. Give an opinionated recommendation
+grounded in the brief; do not rank by implementation effort.
 
-Each agent outputs:
-1. Interface signature (types, methods, params) — C++ code
-2. Usage example showing how callers use it
-3. What complexity it hides internally
-4. Client/server build impact (`#ifdef BT_CLIENT` surface area)
-5. Memory/allocation implications (workbuffer vs heap)
-6. Trade-offs
+Ask the user which design or explicit hybrid to carry forward. Do not silently
+choose a public interface when multiple materially different shapes remain.
 
-### 4. Present & Compare
+## Synthesize and Gate the Plan
 
-Show each design sequentially with interface signature, usage examples, and what it hides.
+After the user decides, create a complete implementation plan containing the
+final header-style interface, key call-site examples, incorporated elements,
+affected integration sites and invariants, exclusions, and decisive acceptance
+checks. Classify it under the root Change Workflow.
 
-Then compare on:
-- **Interface simplicity**: fewer methods, simpler params
-- **Depth**: small interface hiding significant complexity (deep module = good)
-- **SOA friendliness**: does the shape work well with data-oriented design?
-- **Client/server code gating**: how much `#ifdef` surface area?
-- **Allocation overhead**: heap allocations in main loop?
-- **Thread safety**: safe under `gpMultithreading->Dispatch()`?
-- **Frame phase clarity**: clean Update vs PostRender separation?
+- Tier 1 needs no plan audit.
+- Tier 2 dispatches one `reviewer` to run `/plan-audit`; main resolves accepted
+  findings before approval or implementation.
+- Tier 3 dispatches one `reviewer` to run `/plan-audit`, then main passes
+  accepted findings into `/external-grill-plan`. Never substitute either gate
+  or run them out of order.
 
-Discuss trade-offs in prose. Give an opinionated recommendation.
-
-### 5. Synthesize
-
-Ask which design best fits, and whether elements from other designs are worth incorporating.
-
-After the user picks, output a final synthesized interface:
-1. A C++ header-style code block with the complete interface (types, methods, params)
-2. Brief usage examples at key call sites
-3. Notes on any elements incorporated from other designs
-
-### 6. Handoff
-
-Suggest running `/external-grill-plan` next to resolve determinism / client-server / memory / threading / frame-phase decisions on the synthesized design before implementation. For new Collection systems, also remind the caller that `/add-collection` owns the mechanical wiring steps once the shape is fixed.
-
-### Anti-Patterns
-- Each agent prompt specifies a fundamentally different optimization axis — do not soften or merge the constraints, as the value comes from contrast between divergent designs
-- Do not skip the comparison step — presenting designs without contrasting them loses most of the skill's value
-- Do not implement beyond interface shape — no .cpp bodies, no allocation code, just the API surface
-- Do not evaluate designs based on implementation effort — focus on the quality of the interface for callers
+Do not begin implementation from this skill. When the plan adds a Collection,
+record that `/add-collection` owns its mechanical wiring and invokes
+`/add-collection-member` for every SOA column.

@@ -114,7 +114,6 @@ private:
 	static thread_local int64_t siLayerPairCount;
 
 	static thread_local std::vector<CollisionResult> sResultEntries;
-	static thread_local int64_t siResultEntryCount;
 	static thread_local std::vector<CollisionResultSpan> sResultSpans;
 	static thread_local int64_t siResultSpanCount;
 	static thread_local int64_t sLayerBaseOffsets[kiCollisionLayerPreallocate];

@@ -6,6 +6,7 @@
 #include "Profile/ProfileManager.h"
 #include "Server/ServerDisplay.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/Screens/TweaksScreen/TweaksScreen.h"
 
 namespace engine
 {
@@ -252,6 +253,10 @@ void MainThread(HINSTANCE hinstance)
 	gpIslandTerrain->WaitForElevationMaps(gBaseHeight.Get() - game::kfPlayerRadius - game::kfPushMargin);
 	gpProfileManager->BootStop(kBootTimerWaitForIslands);
 
+	// Register tweaks sections before the Graphics ctor builds ImGuiManager
+	RegisterEngineTweakSections();
+	game::RegisterGameTweakSections();
+
 	// Initialize graphics
 	gpProfileManager->BootStart(kBootTimerVulkan);
 	auto pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
@@ -303,8 +308,6 @@ void MainThread(HINSTANCE hinstance)
 	gpIslandTerrain->WaitForElevationMaps(gBaseHeight.Get() - game::kfPlayerRadius - game::kfPushMargin);
 
 	auto pGame = std::make_unique<game::Game>();
-
-	auto pServerNetwork = std::make_unique<Server>(kuiDefaultPort);
 
 	ShowWindow(sHwnd, gLaunchOptions.iAgentPort != 0 ? SW_SHOWMINNOACTIVE : SW_SHOWNOACTIVATE);
 #endif // BT_CLIENT

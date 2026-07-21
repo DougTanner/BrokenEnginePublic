@@ -1,130 +1,90 @@
 ---
 name: create-follow-up-plans
-description: Converts proven pre-existing or out-of-scope Change Workflow residuals into concise, evidence-backed follow-up plans under `Documents/Plans/<area>/`, then submits structured WorktreeCli add/update requests. Do not route an in-scope acceptance failure out of the active change. Also use when asked to queue review findings without duplicating existing plans.
+description: Converts proven pre-existing or out-of-scope Change Workflow residuals into concise, evidence-backed follow-up plans under `Documents/Plans/<area>/`, then prepares the correct tracked edit or structured WorktreeCli add/update transaction. Do not route an in-scope acceptance failure out of the active change. Also use when asked to queue review findings without duplicating existing plans.
 allowed-tools: [Read, Write, Edit, Glob, Grep, PowerShell]
 ---
 
 # Create Follow-up Plans
 
-Turn eligible proven pre-existing or out-of-scope residuals into executable debt plans without losing the evidence or acceptance gap that caused the handoff.
+Turn eligible residuals into executable debt plans. This skill owns candidate adjudication, grouping, duplicate detection, area and filename placement, collision handling, scoring, dependencies, and Coordination decisions; callers supply evidence, not those decisions.
 
-## Inputs
+## Inputs and boundary
 
-Require the caller to provide:
+Require direct finding evidence, originating stage and acceptance gap, affected symbols/files, prior reviewer or user decisions, the active intent/plan, related residuals, and the session changed-file list. Inspect missing facts; never invent evidence or behavior.
 
-- direct finding/residual evidence, including originating process stage and affected symbols/files;
-- the current plan or intent summary and the acceptance criterion each item prevents;
-- prior reviewer conclusions, user decisions, and related residuals;
-- session changed-file list when overlap with the active change matters.
-- a wrapper-created worktree with a live WorktreeCli session claim; this skill never creates a worktree or initializes an independent exclusion domain.
+Read `Documents/AGENTS.md` and `Documents/Plans/AGENTS.md` completely. Their current plan shape, scoring, dependency, and Coordination rules override this skill. This skill creates debt plans only. Report a capability addition for main-agent routing to `Documents/Features/`; do not disguise it as debt.
 
-If a required fact is absent, inspect the repository and originating plan before proceeding. Do not invent evidence or intended behavior. Report items that still cannot be grounded as residuals instead of creating speculative plans.
+Reject an in-scope acceptance failure, including required structural work: it remains a blocker in the active change. Also reject stale, disproven, fixed, stylistic-only, and evidence-free candidates, stating why.
+
+Queue mutation requires the current checkout to be the wrapper session worktree named by `BROKEN_ENGINE_WORKTREE_PATH` and `BROKEN_ENGINE_WORKTREECLI_SESSION_WORKTREE`, with admission mode `session` and a nonempty `BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER`. Use that owner for both WorktreeCli `--owner` and `--session`; never mint another token or reconstruct wrapper identity. In an ordinary checkout, perform the evidence, duplicate, grouping, placement, tier, and scoring work, then report proposed plan contents and rows without writing plan files, requests, or queue state.
 
 ## Workflow
 
-### 1. Load planning rules
+### 1. Prove and consolidate candidates
 
-Read `Documents/AGENTS.md` and `Documents/Plans/AGENTS.md` completely. Follow their current plan shape, scoring anchors, structured dependency rules, and Coordination policy; they are authoritative if this skill drifts. Run `plan order validate --repo <canonical-git-common-dir> --worktree <session-worktree>` and require its JSON result to report `ok: true` before preparing a mutation. A `missing-plan-file` notice for a foreign row whose plan landed on primary after the session baseline is the expected stale-baseline condition and does not block validation or mutation (see the `/next-plan` execution-gate contract, state 3); reconciliation resolves it. WorktreeCli is the only executable-row parser; the queue is machine-local state, so never parse or edit a queue row directly.
+For every candidate:
 
-Use `Documents/Plans/` only for refactors, bug fixes, hardening, and structural debt. If an item's purpose is a new engine capability, do not disguise it as debt: report that classification conflict for the main agent to resolve.
+1. State the false required condition and its originating criterion, accepted finding, or residual.
+2. Confirm root cause and unresolved state from current source or direct logs. Record durable `path:line`, symbol, and observed behavior evidence.
+3. Prove it is pre-existing or outside the approved implementation boundary.
+4. Preserve user decisions and the authority order among user direction, approved plan, documentation, and current behavior; report contradictions.
 
-### 2. Validate every candidate
+Group items only when root cause, implementation boundary, invariant, and verification strategy all match. Split independently landable work, architectural decisions, separate subsystems, or materially different risks.
 
-For each item:
+Run the provisioned `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe plan order validate --repo <absolute git-common-dir> --worktree <checkout>` before duplicate decisions or any queue mutation. If the executable is absent, stop and report that authorized primary maintenance through `/compile` is required. Require exit `0` and JSON `ok: true`; stale-baseline `missing-plan-file` notices remain non-blocking. Treat its `rows` as the only executable inventory and source of `rowSha256`; never parse or edit machine-local rows.
 
-1. State the concrete acceptance gap: what required condition remains false and which originating criterion, accepted finding, or residual establishes the requirement.
-2. Confirm the root cause against current source or direct logs. Record durable evidence as `path:line`, symbol name, and observed behavior; prefer symbols over line numbers when one must carry the identity.
-3. Confirm the work is still unresolved and proven pre-existing or out of scope. An in-scope acceptance failure, including structural work, remains a blocker for the active change and is rejected from follow-up routing.
-4. Preserve any user decision and the authority relationship among user direction, the grilled plan, documentation, and current behavior. Surface contradictions rather than choosing silently.
+Search all live plan files by symbols, paths, root-cause terms, outcome, and `## Coordination`. A plan is a duplicate when it owns the same root cause and implementation boundary. Map the candidate to it unless the proven acceptance gap requires extending that plan.
 
-Reject stale, disproven, already-fixed, purely stylistic, or evidence-free candidates. Report why each rejected item was not queued.
+### 2. Draft and classify
 
-### 3. Reconcile duplicates before writing
+Choose the existing owning area and a concise PascalCase filename; never overwrite a collision. Draft the smallest decision-complete plan with `# Title`, `## Context`, `## Design`, `## Critical files`, `## Out of scope`, `## Acceptance criteria` when the diff is insufficient, and `## Notes`. Include verified root cause, originating gap, implementation boundary, and applicable determinism/CRC, serialization/`.pack`/`kiVersion`, replay, wire, affinity, threading, allocation, shader, build, or live-verification exposure. Pre-stage architectural choices instead of deciding them. Do not add unit tests or unsupported implementation detail.
 
-Search all live plan files using the affected symbols, files, root-cause terms, intended outcome, and standard `## Coordination` sections. Use the successful WorktreeCli validation result as the executable-row inventory and source of each existing row's `rowSha256`; do not derive row state from Markdown.
+Derive the future implementation's Change Workflow Tier 1/2/3 from the highest root `AGENTS.md` risk trigger and record that trigger in the plan; queue `tier` is the separate informal `Quick Win`/`Small`/`Medium`/`Large`/`Architectural` descriptor. Choose `Effort`, `Impact`, and `Risks` from the canonical anchors, compute `Score = Effort - Impact + Risks`, and normally map the queue tier to the matching Effort anchor, elevating it only when concrete coordination or architectural risk makes the lower label misleading. Write one outcome/exposure sentence for row `notes`. Put directional prerequisites only in `dependsOn`. Put mandatory nondirectional constraints in reciprocal standard `## Coordination` sections in every affected plan.
 
-- Treat an existing plan as a duplicate when it owns the same root cause and implementation boundary, even if its title differs. Map the residual to that plan and create nothing.
-- If an existing plan owns the root cause but omits a necessary acceptance gap, edit the plan body directly, then stage a WorktreeCli `update` request carrying the full edited plan bytes as `stagedContent` (with any replacement row fields). The direct prose edit belongs in `stagedContent`; the request is how those bytes and row data publish atomically.
-- WorktreeCli checks row claims and expected hashes under both queue locks. A claimed target or hash conflict produces zero repository mutation; report the returned owner/conflict evidence and do not retry by editing rows directly. Claim metadata exists only in WorktreeCli coordination state, never in a plan file.
-- Create a new plan when the work has an independent root cause or can be executed and accepted independently.
+### 3. Apply exactly one case
 
-### 4. Group related residuals
+| Case | Tracked plan bytes | Queue action | Completion route |
+|---|---|---|---|
+| New independent plan | Write the final plan directly under `Documents/Plans/<area>/`. | Write a unique schema-version `1` `operation: "add"` request under `Temp/`; do **not** invoke WorktreeCli, request a receipt, or unlock anything. | Return the request path for `/verify-changes`, then `/finalize-changes` as `-PlanAddRequestPaths`; finalization publishes after landing. |
+| Existing plan, prose only | Edit the live tracked plan directly, including reciprocal Coordination prose. | None when identity, `tier`, `effort`, `impact`, `risks`, `notes`, and `dependsOn` are unchanged. | Verify the tracked edit; wrapper completion routes through `/verify-changes` and `/finalize-changes`. |
+| Existing plan, row changes | Leave the live plan untouched. Write its complete replacement under `Temp/`. | Write and immediately submit one schema-version `1` `operation: "update"` request. WorktreeCli atomically publishes the staged bytes and replacement row or neither. | Require the update receipt/unlocks and session validation, then route the queue mutation through `/verify-changes` and `/finalize-changes`. |
 
-Group items only when they share a root cause, implementation boundary, affected invariant, and verification strategy. Split them when they span independent subsystems, require separate architectural decisions, have materially different risk, or one could land while another remains blocked.
+An add request contains prerequisite-first `sequences`; independent plans use separate sequences. Each entry supplies `queue`, normalized `plan`, queue `tier`, `effort`, `impact`, `risks`, `notes`, and optional `dependsOn`; omit `score` because WorktreeCli computes it.
 
-Prefer one cohesive plan over a miscellaneous review batch. A multi-item plan must explain why its items should land together.
-
-### 5. Draft actionable plans
-
-Choose the existing area directory matching the owning subsystem. Add a new area only when no current area fits. Use a concise PascalCase filename that describes the outcome; never overwrite a collision.
-
-Prepare the smallest decision-complete plan content that preserves:
-
-- `# Title`
-- `## Context` — current behavior, verified root cause, evidence, and originating acceptance gap
-- `## Design` — intended behavior and implementation boundary; pre-stage unresolved architectural choices instead of deciding them
-- `## Critical files` — affected interfaces/symbols with paths
-- `## Out of scope` — adjacent work explicitly excluded
-- `## Acceptance criteria` — observable completion and verification conditions when completion is not self-evident
-- `## Notes` — determinism/CRC, `kiVersion`/`.pack`, replay, wire protocol, client/server guard, allocation-tracked, shader, build, and live-verification exposure as applicable
-
-Do not prescribe unsupported implementation details. Do not add unit tests. Require the builds, selective checks, or live agent-harness scenarios proportionate to the exposed behavior.
-
-### 6. Build and submit the structured mutation
-
-Finish evidence adjudication, plan drafting, scoring, grouping, semantic duplicate checks, and Coordination decisions before invoking WorktreeCli. Set `$WorktreeCli` to the current checkout's provisioned `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe`; if it is missing, stop and report that explicitly authorized primary maintenance through `/compile` is required. Resolve `git rev-parse --git-common-dir` to a canonical absolute path and generate one owner with `lock token`.
-
-Score each plan from the canonical anchors in `Documents/AGENTS.md`:
-
-- choose `Effort`, `Impact`, and `Risks` from repository evidence;
-- compute `Score = Effort - Impact + Risks`;
-- choose the informal `Tier` consistent with the plan's size and risk;
-- write a one-line `Notes` cell describing the concrete outcome and important exposure.
-
-For new plans, write the final plan files first, then create a unique schema-version `1` JSON request beneath the session worktree's `Temp/` with `operation: "add"` and prerequisite-first `sequences`. Each entry supplies `queue`, normalized repository-relative `plan`, `tier`, `effort`, `impact`, `risks`, `notes`, and optional `dependsOn`; WorktreeCli computes Score and adds the immediate-predecessor edge within each sequence. Put independent plans in separate sequences and name already-live prerequisites explicitly. The add request is **staged, not submitted here** — `/finalize-changes` submits it post-landing (with `--worktree <session>`, whose tip equals the landed commit), so rows always reference landed plan files; a session that never lands leaves no rows and no orphans. The submitted command is:
+An update entry supplies normalized `plan`, `expectedPlanSha256` from the untouched live bytes, `expectedRowSha256` from validation, repository-relative `stagedContent` beneath `Temp/`, every replacement row field, and optional `dependsOn`. Invoke:
 
 ```text
-plan order add --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>
+plan order update --repo <common-dir> --worktree <session-worktree> --owner <wrapper-owner> --session <same-wrapper-owner> --request <Temp repo-relative JSON>
 ```
 
-For existing-plan extensions, write each proposed replacement beneath `Temp/`, hash the untouched live plan bytes, take `expectedRowSha256` from the validation result, and create one schema-version `1` request with `operation: "update"` and an `updates` array. Each update supplies `plan`, `expectedPlanSha256`, `expectedRowSha256`, `stagedContent`, replacement `tier`/`effort`/`impact`/`risks`/`notes`, and optional `dependsOn`. Invoke:
-
-```text
-plan order update --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>
-```
-
-WorktreeCli publishes all entries or none. The `update` verb stages the full plan bytes it intends to publish: `expectedPlanSha256` hashes the bytes the session read before its own edits, so a same-session direct prose edit belongs in `stagedContent`, and a hash conflict signals another session's concurrent mutation (the intended guard). Fresh `add` plans, by contrast, are direct file writes staged for the post-landing submission.
-
-Directional prerequisites exist only in `dependsOn`. Mandatory nondirectional constraints (`never interleave`, joint resolution, alone execution, or protocol/version/CRC/replay/`.pack`/`kiVersion` batching) require reciprocal standard `## Coordination` sections in every affected live plan. Those sections are plan-body prose edited directly; the authoring rule is to update every existing counterpart in the same change set, and a concurrent counterpart edit resolves as a merge conflict at landing, not a zero-mutation queue failure. Ordinary warning-only overlap may remain one-sided in plan prose.
-
-When a row update is submitted, require its receipt to identify every intended plan and successful queue unlocks, then rerun session `plan order validate` and require `ok: true` (stale-baseline `missing-plan-file` notices remain acceptable). The staged add publishes at landing, so a session that never lands leaves retryable new plan files and its request as session orphans; a failed update leaves live rows unchanged. Do not repair either failure by editing a queue row by hand.
+Require a receipt naming every updated plan and successful unlocks, then rerun session validation and require exit `0` and `ok: true`. A claimed target or hash conflict must leave both plan and rows unchanged; report owner/conflict evidence and never retry through direct row edits. A failed add publication is owned by finalization; preserve its plan and request for the documented retry path.
 
 ## Report
 
-After successful queue unlock, return this complete report inline. Keep
-lock-release state, created/updated paths, unqueued items, and blockers visible.
-Never report completion while holding the queue lock:
+Include every candidate exactly once:
 
 ```text
 Created:
-- <plan path> — <acceptance gap queued>
+- <plan path> — <gap; add request path or proposed row>
 
 Updated existing:
-- <plan path or none> — <scope/row/dependency change>
+- <plan path or none> — <prose-only or atomic row update; receipt when submitted>
 
 Duplicate mappings:
 - <residual> -> <existing plan path, or none>
 
-WorktreeCli receipt:
-- <add/update request path and exact receipt identity>
-- <structured dependencies and Coordination updates, or none>
+Scoring and coordination:
+- <plan> — Change Workflow Tier; queue Tier; Effort/Impact/Risks/Score; dependencies/Coordination
+
+Verification/finalization handoff:
+- <validate evidence; staged add request paths; required route>
 
 Files changed + regions touched:
-- <path> — <heading/row/region>
+- <path> — <heading/region>
 - none
 
 Residuals:
-- <unqueued item and reason, or none>
+- <unqueued item, conflict, or blocker and reason, or none>
 ```
 
-Include every candidate in exactly one of Created, Updated existing, Duplicate mappings, or Residuals so no handoff disappears.
+Never report a staged add as published, a prose-only edit as a queue mutation, or completion while a submitted update failed to unlock.

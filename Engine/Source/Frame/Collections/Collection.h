@@ -354,24 +354,6 @@ inline constexpr bool kbServerMembersParity = std::is_same_v<
 	decltype(std::declval<const TStruct&>().Members()),
 	decltype(std::declval<const TStruct&>().SharedMembers())>;
 
-// True when every entry of rSubMembers refers to one of rFullMembers' member arrays. Compared by
-// address — element types repeat across members, so a type-level check cannot express containment.
-template <typename TSubTuple, typename TFullTuple>
-inline bool IsMemberTupleSubset(const TSubTuple& rSubMembers, const TFullTuple& rFullMembers)
-{
-	return std::apply([&](const auto&... subMemberPtrRefs)
-	{
-		return ([&](const auto& rSubMemberPtrRef)
-		{
-			return std::apply([&](const auto&... fullMemberPtrRefs)
-			{
-				// Compare via uintptr_t: clang rejects static_cast<const void*> on &(T* __restrict) as casting away __restrict
-				return ((reinterpret_cast<uintptr_t>(&rSubMemberPtrRef) == reinterpret_cast<uintptr_t>(&fullMemberPtrRefs)) || ...);
-			}, rFullMembers);
-		}(subMemberPtrRefs) && ...);
-	}, rSubMembers);
-}
-
 template <typename TStruct>
 inline common::crc_t SharedCollectionCrc(const TStruct& rCurrent)
 {
@@ -493,22 +475,32 @@ bool GrowPairedCollections(TInterpolate& rInterpolate, TPostRender& rPostRender,
 	return true;
 }
 
-// Increments counts, generates unique ID, and updates idToIndexMap for indexable collections.
-// Returns tuple of (spawnIndex, newId).
-// Usage: auto [uiIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFramePostRender);
-template <typename TInterpolate, typename TPostRender>
-std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, FramePostRenderBase& rFramePostRender)
+// Internal insertion primitive. Invokes generateId exactly once, then records that ID at the new row.
+template <typename TInterpolate, typename TPostRender, typename TGenerateId>
+std::tuple<int64_t, typename TInterpolate::id_t> AddGeneratedIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, TGenerateId&& generateId)
 {
 	// Heap: unordered_map::insert_or_assign may allocate a new bucket or node for the ID-to-index entry.
 	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
 	ScopedSuppressAllocationTracking suppress;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 
-	using id_t = typename TInterpolate::id_t;
-	id_t newId = id_t::Generate(rFramePostRender);
+	typename TInterpolate::id_t newId = generateId();
 	rInterpolate.idToIndexMap.insert_or_assign(newId, iSpawnIndex);
 
 	return {iSpawnIndex, newId};
+}
+
+// Increments counts, generates unique ID, and updates idToIndexMap for indexable collections.
+// Returns tuple of (spawnIndex, newId).
+// Usage: auto [uiIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFramePostRender);
+template <typename TInterpolate, typename TPostRender>
+std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, FramePostRenderBase& rFramePostRender)
+{
+	using id_t = typename TInterpolate::id_t;
+	return AddGeneratedIndexableElement(rInterpolate, rPostRender, [&rFramePostRender]()
+	{
+		return id_t::Generate(rFramePostRender);
+	});
 }
 
 // Increments counts, generates visual unique ID, and updates idToIndexMap for visual-only collections.
@@ -517,16 +509,11 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolat
 template <typename TInterpolate, typename TPostRender>
 std::tuple<int64_t, typename TInterpolate::id_t> AddVisualIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, FramePostRenderBase& rFramePostRender)
 {
-	// Heap: unordered_map::insert_or_assign may allocate a new bucket or node for the ID-to-index entry.
-	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
-	ScopedSuppressAllocationTracking suppress;
-	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
-
 	using id_t = typename TInterpolate::id_t;
-	id_t newId = id_t::GenerateVisual(rFramePostRender);
-	rInterpolate.idToIndexMap.insert_or_assign(newId, iSpawnIndex);
-
-	return {iSpawnIndex, newId};
+	return AddGeneratedIndexableElement(rInterpolate, rPostRender, [&rFramePostRender]()
+	{
+		return id_t::GenerateVisual(rFramePostRender);
+	});
 }
 #endif // BT_CLIENT
 
@@ -536,12 +523,10 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddVisualIndexableElement(TInte
 template <typename TInterpolate, typename TPostRender>
 std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElementWithId(TInterpolate& rInterpolate, TPostRender& rPostRender, typename TInterpolate::id_t existingId)
 {
-	// Heap: unordered_map::insert_or_assign may allocate a new bucket or node for the ID-to-index entry.
-	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
-	ScopedSuppressAllocationTracking suppress;
-	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
-	rInterpolate.idToIndexMap.insert_or_assign(existingId, iSpawnIndex);
-	return {iSpawnIndex, existingId};
+	return AddGeneratedIndexableElement(rInterpolate, rPostRender, [existingId]()
+	{
+		return existingId;
+	});
 }
 
 // Removes element by ID from paired indexable collections using swap-and-pop.
@@ -568,6 +553,15 @@ void RemoveIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender
 	--rPostRender.iCount;
 
 	rInterpolate.idToIndexMap.erase(id);
+}
+
+// Removes an externally-owned handle from paired collections, then invalidates that handle.
+template <typename TInterpolate, typename TPostRender, typename TInterpolateTuple, typename TPostRenderTuple>
+void RemoveIndexableElementAndClearHandle(TInterpolate& rInterpolate, TPostRender& rPostRender, typename TInterpolate::id_t& rId, TInterpolateTuple&& interpolateTuple, TPostRenderTuple&& postRenderTuple)
+{
+	ASSERT(rId.IsValid());
+	RemoveIndexableElement(rInterpolate, rPostRender, rId, std::forward<TInterpolateTuple>(interpolateTuple), std::forward<TPostRenderTuple>(postRenderTuple));
+	rId = {};
 }
 
 // Removes element at index from paired collections using swap-and-pop.

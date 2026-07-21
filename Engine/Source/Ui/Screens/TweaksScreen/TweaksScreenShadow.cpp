@@ -42,35 +42,35 @@ const TweaksSliderMapRegistrar gShadowRegistrar
 
 void TweaksScreenBase::RenderShadowSection()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kShadow);
+	const int64_t iSection = giTweakSectionShadow;
 
 	WrapperSeparatorText("Quality / Perf");
-	WrapperSlider("Resolution", kiSection);
-	WrapperSlider("Texel Ramp Speed", kiSection, 2.0f, "Shadow Texel Ramp Speed");
-	WrapperSlider("Temporal Blend", kiSection, 2.0f, "Shadow Temporal Blend");
+	WrapperSlider("Resolution", iSection);
+	WrapperSlider("Texel Ramp Speed", iSection, 2.0f, "Shadow Texel Ramp Speed");
+	WrapperSlider("Temporal Blend", iSection, 2.0f, "Shadow Temporal Blend");
 
 	WrapperSeparatorText("Feather");
-	WrapperSlider("Feather Noon", kiSection);
-	WrapperSlider("Feather Noon Offset", kiSection);
-	WrapperSlider("Feather Sunset", kiSection);
-	WrapperSlider("Feather Sunset Offset", kiSection);
-	WrapperSlider("Feather Power", kiSection);
-	WrapperSlider("Distance Falloff", kiSection);
-	WrapperSlider("Blur Sigma", kiSection);
-	WrapperSlider("Affect Ambient", kiSection);
-	WrapperSlider("Height Fade Top", kiSection);
-	WrapperSlider("Height Fade Bottom", kiSection);
+	WrapperSlider("Feather Noon", iSection);
+	WrapperSlider("Feather Noon Offset", iSection);
+	WrapperSlider("Feather Sunset", iSection);
+	WrapperSlider("Feather Sunset Offset", iSection);
+	WrapperSlider("Feather Power", iSection);
+	WrapperSlider("Distance Falloff", iSection);
+	WrapperSlider("Blur Sigma", iSection);
+	WrapperSlider("Affect Ambient", iSection);
+	WrapperSlider("Height Fade Top", iSection);
+	WrapperSlider("Height Fade Bottom", iSection);
 
 	WrapperSeparatorText("Object Shadows");
-	WrapperSlider("Render Multiplier", kiSection);
-	WrapperSlider("Blur Multiplier", kiSection);
-	WrapperSlider("Shadow Noon", kiSection);
-	WrapperSlider("Shadow Sunset", kiSection);
-	WrapperSlider("Sunset Stretch", kiSection);
-	WrapperSlider("Object Blur Sigma", kiSection);
-	WrapperSlider("Object Blur Radius", kiSection);
-	WrapperSlider("Grow", kiSection, 2.0f, "Object Shadow Grow");
-	WrapperSlider("Smoke Shadow Intensity", kiSection);
+	WrapperSlider("Render Multiplier", iSection);
+	WrapperSlider("Blur Multiplier", iSection);
+	WrapperSlider("Shadow Noon", iSection);
+	WrapperSlider("Shadow Sunset", iSection);
+	WrapperSlider("Sunset Stretch", iSection);
+	WrapperSlider("Object Blur Sigma", iSection);
+	WrapperSlider("Object Blur Radius", iSection);
+	WrapperSlider("Grow", iSection, 2.0f, "Object Shadow Grow");
+	WrapperSlider("Smoke Shadow Intensity", iSection);
 }
 
 } // namespace engine

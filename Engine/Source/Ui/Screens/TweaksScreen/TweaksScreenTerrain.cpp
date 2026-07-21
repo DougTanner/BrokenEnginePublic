@@ -40,34 +40,34 @@ const TweaksSliderMapRegistrar gTerrainRegistrar
 
 void TweaksScreenBase::RenderTerrainSection()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kTerrain);
+	const int64_t iSection = giTweakSectionTerrain;
 
 	WrapperSeparatorText("Ambient Occlusion");
-	WrapperSlider("Ambient Occlusion", kiSection);
+	WrapperSlider("Ambient Occlusion", iSection);
 
 	WrapperSeparatorText("Terrain Detail");
-	WrapperSlider("Detail Normals Multiplier Start Height", kiSection);
-	WrapperSlider("Detail Normals Multiplier End Height", kiSection);
-	WrapperSlider("Detail Normals Multiplier Low", kiSection);
-	WrapperSlider("Detail Normals Multiplier High", kiSection);
+	WrapperSlider("Detail Normals Multiplier Start Height", iSection);
+	WrapperSlider("Detail Normals Multiplier End Height", iSection);
+	WrapperSlider("Detail Normals Multiplier Low", iSection);
+	WrapperSlider("Detail Normals Multiplier High", iSection);
 
 	WrapperSeparatorText("Beach");
-	WrapperSlider("Snow Blend", kiSection);
-	WrapperSlider("Snow AO Exclusion", kiSection);
-	WrapperSlider("Beach Sand Size", kiSection);
-	WrapperSlider("Beach Sand Blend", kiSection);
-	WrapperSlider("Beach Normals Size 1", kiSection);
-	WrapperSlider("Beach Normals Size 2", kiSection);
-	WrapperSlider("Beach Normals Size 3", kiSection);
-	WrapperSlider("Beach Normals Blend", kiSection);
+	WrapperSlider("Snow Blend", iSection);
+	WrapperSlider("Snow AO Exclusion", iSection);
+	WrapperSlider("Beach Sand Size", iSection);
+	WrapperSlider("Beach Sand Blend", iSection);
+	WrapperSlider("Beach Normals Size 1", iSection);
+	WrapperSlider("Beach Normals Size 2", iSection);
+	WrapperSlider("Beach Normals Size 3", iSection);
+	WrapperSlider("Beach Normals Blend", iSection);
 
 	WrapperSeparatorText("Rock");
-	WrapperSlider("Rock Size", kiSection);
-	WrapperSlider("Rock Blend", kiSection);
-	WrapperSlider("Rock Normals Size 1", kiSection);
-	WrapperSlider("Rock Normals Size 2", kiSection);
-	WrapperSlider("Rock Normals Size 3", kiSection);
-	WrapperSlider("Rock Normals Blend", kiSection);
+	WrapperSlider("Rock Size", iSection);
+	WrapperSlider("Rock Blend", iSection);
+	WrapperSlider("Rock Normals Size 1", iSection);
+	WrapperSlider("Rock Normals Size 2", iSection);
+	WrapperSlider("Rock Normals Size 3", iSection);
+	WrapperSlider("Rock Normals Blend", iSection);
 }
 
 } // namespace engine

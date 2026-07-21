@@ -1,35 +1,37 @@
-# Network/Server/ - Server Session and Managers
+# Network Server - Game Session and Managers
 
-## Overview
+Server-only game networking. `ServerSession` is the game-policy façade over `engine::ServerSessionRuntime`, coordinating client, fleet, transfer, and publication managers. The runtime owns host/discovery/pacing and fixed poll/tick/paused phase order; game hooks mutate game state around the deterministic Frame tick.
 
-Server-side game networking (`BT_SERVER`). `ServerSession` (`gpServerSession`) orchestrates fleet, transfer, broadcaster, and client managers, which collaborate through the session. Fleet, client, and broadcaster drain request queues; transfer consumes Frame `transferRequests`; fleet navigation delegates direction and pending flagship updates to `FleetNavigationController`. `GameBase::ServerUpdate` drives parse/request drain, active-set preparation, Frame tick, transfer harvest, and broadcast.
+## State Ownership
 
-## Invariants
+- Client-owned player IDs and each connection's authorized coordinates are parallel vectors. Spawn, transfer, death, reconnect, and load relink mutate them in lockstep.
+- Fleets are keyed by persistent `ClientGuid`. Fleet RNG is seeded once, serialized with fleet state, and consumes exactly two 64-bit draws when minting a fleet identifier.
+- Relink matches are sorted by global ID before rebuilding client ownership so reconnect and save-load preserve creation order.
+- Normal update prepares tick inputs; replay supplies its recorded `FrameInput`.
 
-- **Parallel-vector invariant**: `ServerSession::mClientOwnedPlayerIds[iClientId]` and `ClientConnection::authorizedCoords` are index-aligned; every spawn / transfer / death / relink must mutate both in lockstep.
-- **Active set**: client subscriptions plus player coords, with `kOriginCoord` forced; replay uses only coords with live readers.
-- **Spawn assignment by snapshot diff**: the server can't know which player entity the frame tick will mint for a `kSpawnPlayer` status change, so it snapshots origin-coord player ids pre-tick and diffs post-tick, zipping new ids to waiting clients in queue order — order-sensitive on both sides. The spawned entity gets the client GUID written into `pClientGuids` so relinking can be done from frame state alone.
-- **Client-dead gating**: a client is only marked dead when all owned players are gone; clients mid-transfer (pending subscription update) are skipped to avoid false positives while a player crosses a coord boundary.
-- **Fleet ownership by `ClientGuid`**: fleets are keyed by persistent GUID so they survive disconnect/reconnect; a separate reap pass handles AI-managed disconnected fleets.
-- **Fleet RNG lifecycle**: the fleet manager's `RandomEngine` is `TimeSeed()`ed once at construction and never re-seeded — not on session reset, quickload, or replay-load; save/load round-trips its state at the tail of the fleet block. Fleet creation draws exactly two 64-bit values to mint the persistent fleet identifier; changing that draw count breaks save/replay determinism.
-- **Flagship timer**: `fFrameChangeTimer` drains only after the flagship reaches `wantedCoord`, making cycle time transit plus `fNavigationDelay`. Cardinal mode does not stop the drain; fire-time checks require timer expiry, matching coord, loaded Frame, and non-cardinal mode because cardinal eject can move the flagship between ticks. Direction changes use delayed `kUpdateFleet` StatusChanges (see [Frame/AGENTS.md](../../Frame/AGENTS.md)).
-- **Tick-rate state in `BuildFrameInputs`**: runs in every non-replay `ServerUpdate`, including paused updates. Replay differences own `FrameInput`; replay skips this preparation and defers new-client finalization until normal preparation refreshes the pre-spawn snapshot. A later call wipes unconsumed `statusChanges`. Sim-time progression uses `gpGame->mfLastDeltaTime` (`iFullTicks * kfDeltaTime`: zero paused, scaled by `mTimeStep`), never `kfDeltaTime`.
-- **Agent StatusChange injection**: agent commands queue `StatusChange`s into the broadcaster's pending-injection map; `BuildFrameInputs` consumes them after fleet updates and before the broadcast-status-change snapshot, gated on `mfLastDeltaTime > 0` + not replaying + no waiting clients + per-coord active-and-frame-ready (otherwise held in the map for a later tick — never dropped). Consumed coords' `statusChanges` are `stable_sort`ed by `eType` so server tick order matches the type-grouped wire batch order (CRC invariant). The map is cleared only in `ResetState`, not in `ClearPendingRequests` (which runs each update before the agent drain and would destroy paused-deferred injections).
-- **Transfer liveness gate**: `HarvestTransfers` drops non-player transfers whose destination has no committed player and no subscriber (`IsDestinationLive`) — prevents ghost entities accumulating in cells no client observes. `kTransferPlayer` is always allowed: the player's arrival is the subscription. The check deliberately ignores `mActiveCoords` because `kOriginCoord` is force-added every tick as a spawn bootstrap. Destinations must be Chebyshev-adjacent (distance ≤ 1); larger deltas `DEBUG_BREAK` as upstream teleport bugs.
-- **Post-transfer CRC recompute**: the frame tick computes `sharedCrc` before transfers land, so `HarvestTransfers` re-runs `Frame::Crcs()` on every destination frame and logs pre/post CRCs — clients validate against `GridUpdateData.sharedCrc`, so skipping this desyncs every transfer.
-- **Reconnect / load relink**: both relink paths sort GUID matches by global ID to preserve creation order before rebuilding the parallel vectors — reconnect (`TryRelinkNewClient`) and the load path (`TryRelinkClientForLoad`) — so the client-visible assign/spawn send order is creation-order stable across both reconnect and save→load. On load, the client/transfer/broadcaster managers get `ResetState()` but the fleet manager only `ClearPendingRequests()` — `ReadFleetData` + `OnResetForLoad` just restored its state, and the pending flagship updates restoration re-queued must not be cleared again.
-- **Allocation suppression**: manager entry points that grow persistent containers own a `ScopedSuppressAllocationTracking` guard even under guarded orchestrators; no-growth and workbuffer-only entry points omit it. Because suppression is a thread-local counter, guarded callers use `ScopedResumeAllocationTracking` around callees intentionally kept armed (`BroadcastTick` around `BroadcastStatusChanges`). `ComputeActiveSet` and `SendResends` retain guards for their unguarded call paths. Fleet-sync sends are workbuffer-based and rely on `NetworkManager::SendPacket` for ENet allocation suppression.
-- **Untrusted-input bounds**: contract-gate packets before dispatch and record violations through `RecordContractViolation`; per-case checks remain backstops. Navigation delay is finite-clamped to `[0,60]`; fleet/member counts cap at 16; spawn requests deduplicate `{client, fleet, member}` without reordering. Save/replay fleet reads use the same navigation clamp, while the flagship timer only maps non-finite values to zero because negative cardinal-mode values are valid.
+## Timing and Paused Availability
 
-## Notes
+- Fixed-tick pacing converts the simulation interval to wall time, sleeps the bulk remainder with a high-resolution waitable timer, then spins through the final precision margin. Preserve tick-remainder accounting and the existing overshoot diagnostics when changing this path.
+- Poll transport and LAN discovery before simulation work on every update, including while paused. A paused or other zero-tick update builds navigation data needed by pending subscriptions, services resync and new-subscription full-state queues, and flushes them so a newly connected client can receive initial state without a simulation tick.
 
-- Packet parsing queues manager requests without mutating game state; debug controls and fleet navigation-delay updates act immediately. A log-and-drop dispatch `try/catch` records contract violations so a throwing handler cannot tear down `ServerUpdate`. Queues clear each tick and drain in fixed order; requests for vanished clients are dropped.
-- Timespeed broadcast is edge-triggered (`BroadcastTimespeedIfChanged`); newly-handshaken clients are caught up via a direct send from engine `Server::ClientHello`.
-- Zero-tick updates (paused, or an occasional clock/timescale remainder) are the counterpart to the per-tick `BroadcastTick`: `ServicePausedNetwork` services the persist-until-served resync/new-subscription queues so a client can connect to a paused server and receive full state. It first builds server-side navData for any never-ticked subscribed coord (reusing `RunFrameTick`'s `BuildCellNavData` under the same built-flag gate that skips already-built cells) — `RunFrameTick` builds navData lazily and never runs while paused, and the new-subscription static-data message is the only path clients receive it (resyncs re-send frames, not static data).
-- Disconnect clears `kPaused` and restores `mTimeStep` to 1/1 only when the last client disconnects — fired on the non-empty→empty client-set transition (`mbHadClients` state edge, not `GetClients().empty()` alone), so it's caught regardless of removal path including ClientHello rejects that bypass the `PendingDisconnect` queue. An agent-paused empty server keeps its commanded pause/timescale.
+## Deterministic Tick Contracts
+
+- The active set combines subscriptions and player coordinates, always including origin; replay uses coordinates with live readers.
+- Spawn assignment diffs origin player IDs across the tick and pairs new IDs with waiting clients in request order. The client GUID written into Frame state is the persistent relink key.
+- Fleet navigation defers flagship updates through `StatusChange`s. Within `BuildFrameInputs`, waiting-client spawn construction, queued player updates, fleet timers and pending flagship updates, plus broadcast and pre-spawn snapshot capture run only on advancing updates; this work remains deferred through paused and other zero-tick updates.
+- Agent-injected `StatusChange`s remain queued until a normal, advancing, frame-ready tick can consume them. Consumed changes use the same deterministic type grouping as broadcast serialization.
+- Transfer destinations must be adjacent. Non-player transfers require a live destination; player transfer establishes that liveness itself. Recompute the destination Frame CRC after landing transfers.
+- `ServerSessionRuntime::CompleteTick` invokes `ServerBroadcaster::BuildTickPublication`, which passes each tick to `ServerSessionRuntime::PublishTick` to maintain the delta resend ring. The publication includes complete per-coordinate Frames for the separate diagnostic ring only when `kbDesyncDebugFrames` is enabled. This manual flag is disabled by default and must match the client build.
+
+## Trust and Lifecycle Boundaries
+
+- Engine and game packet contract gates run before manager dispatch. Side-specific bounds validate navigation timing, fleet sizes, and save/replay fleet data without partially applying a request.
+- A client is dead only after all owned players are gone; skip death handling while a player is mid-transfer.
+- Load reset clears client, transfer, and broadcast transient state after restored fleet state is read. Do not erase restored fleet RNG or pending navigation updates.
+- When the last client leaves, clear network-driven pause and timescale on the nonempty-to-empty transition. An agent-paused server that was already empty retains its commanded state.
 
 ## See Also
 
-- `../AGENTS.md`
-- [Engine/Source/Network/AGENTS.md](../../../../../Engine/Source/Network/AGENTS.md)
-- [Network Architecture](../../../../../Documents/Architecture/Network.md)
+- [Game Network](../AGENTS.md)
+- [Engine Server Transport](../../../../../Engine/Source/Network/Server/AGENTS.md)
+- [Network architecture](../../../../../Documents/Architecture/Network.md)

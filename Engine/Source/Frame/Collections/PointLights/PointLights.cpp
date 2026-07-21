@@ -14,15 +14,7 @@ void PointLightsInterpolate::Register()
 
 void PointLightsInterpolate::AllocateAndCopy(PointLightsInterpolate& rCurrent, const PointLightsInterpolate& rPrevious)
 {
-	Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
-		std::memcpy(rCurrent.puiControllerTypeIndices, rPrevious.puiControllerTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiControllerTypeIndices[0]));
-		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, rCurrent.iCount * sizeof(rCurrent.pfStartTimes[0]));
-		std::memcpy(rCurrent.pfBaseRotations, rPrevious.pfBaseRotations, rCurrent.iCount * sizeof(rCurrent.pfBaseRotations[0]));
-	}
+	AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void PointLightsPostRender::AllocateAndCopy(PointLightsPostRender& rCurrent, const PointLightsPostRender& rPrevious)

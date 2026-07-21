@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Release Microsoft code-analysis policy for the explicit PREfast verification mode.
+     IncludeAll mirrors the built-in AllRules.ruleset this replaced; CodeAnalysisTreatWarningsAsErrors
+     in both Release configurations promotes every remaining rule to an error, so a newly introduced
+     code fails the build by default. Only the codes listed below are allowed through, and each needs
+     its own explicit entry — there is no wildcard and no severity-band escape.
+     These entries are a cleanup backlog, not a policy: delete each one as its sites are fixed. -->
+<RuleSet Name="Broken Engine Release Analysis Rules" Description="All Microsoft code-analysis rules, minus the codes already present when the gate was introduced. Applies only when RunCodeAnalysis=true." ToolsVersion="10.0">
+  <IncludeAll Action="Warning" />
+  <Rules AnalyzerId="Microsoft.Analyzers.NativeCodeAnalysis" RuleNamespace="Microsoft.Rules.Native">
+    <!-- Observed on the client and server Release PREfast runs that introduced this gate, 2026-07-21,
+         at these occurrence counts (client/server): C26494 5/2, C26497 7/2, C26473 1/1, C26445 1/0.
+         Action="None" suppresses at the analyzer; these codes are invisible, not merely non-fatal.
+         C26494 is a real correctness rule (uninitialized variable) and is the first cleanup target. -->
+    <Rule Id="C26445" Action="None" />
+    <Rule Id="C26473" Action="None" />
+    <Rule Id="C26494" Action="None" />
+    <Rule Id="C26497" Action="None" />
+    <!-- Reported by the verification round that motivated this plan; not seen in the runs above,
+         retained because that round observed them under the same rule surface. -->
+    <Rule Id="C26459" Action="None" />
+    <Rule Id="C26498" Action="None" />
+  </Rules>
+</RuleSet>

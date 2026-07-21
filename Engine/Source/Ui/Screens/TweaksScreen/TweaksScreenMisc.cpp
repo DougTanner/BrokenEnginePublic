@@ -18,10 +18,10 @@ const TweaksSliderMapRegistrar gMiscRegistrar
 
 void TweaksScreenBase::RenderMiscSection()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kMisc);
+	const int64_t iSection = giTweakSectionMisc;
 
 	WrapperSeparatorText("Misc");
-	WrapperSlider("Debug Texture Range", kiSection);
+	WrapperSlider("Debug Texture Range", iSection);
 }
 
 } // namespace engine

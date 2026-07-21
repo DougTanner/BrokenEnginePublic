@@ -17,6 +17,8 @@ struct StatusChange;
 namespace engine
 {
 
+class ClientSessionRuntime;
+
 // Per-coord received update (single coord, not multi-coord)
 struct ReceivedCoordUpdate
 {
@@ -55,6 +57,7 @@ struct ClientCoordSlot
 	GridCoord coord {};
 	CoordSubscriptionState eState = CoordSubscriptionState::kUnsubscribed;
 	AckState ackState;
+	std::chrono::steady_clock::time_point transitionStartTime {};
 };
 
 struct ReceivedDebugFrame
@@ -71,14 +74,12 @@ public:
 	Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots, const ClientGuid& rGuid, GuidAssignedCallback pfnGuidAssigned);
 	~Client();
 
-	void Poll();
-
 	template <typename TType, typename... TArgs>
 	void SendSimplePacket(TType eType, uint8_t uiChannel, uint32_t uiPacketFlags, const TArgs&... args)
 	{
 		static_assert(std::is_enum_v<TType>, "SendSimplePacket type tag must be an enum (engine::PacketType or game::GamePacketType)");
 
-		if (!CanSend())
+		if (!(mStateFlags & ClientStateFlags::kConnected) || mpServerPeer == nullptr)
 		{
 			return;
 		}
@@ -92,45 +93,58 @@ public:
 		NetworkManager::SendPacket(mpServerPeer, uiChannel, rWorkbuffer, uiPacketFlags);
 	}
 
-	bool SendAck();
 	void SendSpawnRequest(ClientRequestFlags_t flags);
 	void SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual);
 	void SendDebugFrameRequest(int64_t iTick, GridCoord coord);
-	bool SendSubscribe(GridCoord coord);
-	void SendUnsubscribe(int64_t iSlot);
 	void SendResyncRequest();
-	void Flush();
 	void Disconnect();
-	void SetDesyncDebugMode(bool bEnabled) { mStateFlags.Set(ClientStateFlags::kDesyncDebugMode, bEnabled); }
 
-	std::vector<std::vector<ReceivedCoordUpdate>>& DrainReceivedCoordUpdates() { return mReceivedCoordUpdates; }
-	std::vector<ReceivedCoordFullState>& DrainReceivedFullStates() { return mReceivedFullStates; }
-	std::vector<ReceivedStaticData>& DrainReceivedStaticData() { return mReceivedStaticData; }
-	std::unique_ptr<ReceivedDebugFrame> DrainReceivedDebugFrame() { return std::move(mpReceivedDebugFrame); }
+	enum class ClientStateFlags : uint8_t
+	{
+		kConnected                = 1 << 0,
+		kConnectionAccepted       = 1 << 1,
+		kDisconnectedEvent        = 1 << 2,
+		kHasLastUpdateArrival     = 1 << 3,
+		kDesyncDebugMode          = 1 << 4,
+		kLoadNotificationReceived = 1 << 5,
+	};
 
-	bool IsConnected() const { return mStateFlags & ClientStateFlags::kConnected; }
-	bool CanSend() const { return (mStateFlags & ClientStateFlags::kConnected) && mpServerPeer != nullptr; }
-	bool IsConnectionAccepted() const { return mStateFlags & ClientStateFlags::kConnectionAccepted; }
-	const char* GetRejectionReason() const { return mpcRejectionReason[0] != '\0' ? mpcRejectionReason : nullptr; }
-	bool WasDisconnected() const { return mStateFlags & ClientStateFlags::kDisconnectedEvent; }
+	ENetPeer* mpServerPeer = nullptr;
+	common::Flags<ClientStateFlags> mStateFlags;
+	char mpcRejectionReason[256] = {};
+
 	// Heap: raw game packet buffer grows on assign/player-state packets
-	std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& DrainReceivedGamePackets() { return mReceivedGamePackets; }
-
-	const ClientGuid& GetClientGuid() const { return mClientGuid; }
-	bool DrainLoadNotification() { bool b = mStateFlags & ClientStateFlags::kLoadNotificationReceived; mStateFlags.Clear(ClientStateFlags::kLoadNotificationReceived); return b; }
-	const std::vector<ClientCoordSlot>& GetCoordSlots() const { return mCoordSlots; }
-	void CancelSubscription(int64_t iSlot);
-	void ResetAllSlots();
-	ENetPeer* GetServerPeer() const { return mpServerPeer; }
-	int64_t GetBytesInPerSecond() { return mBytesInPerSecond.Get(); }
-	int64_t GetBytesOutPerSecond() { return mBytesOutPerSecond.Get(); }
-	int64_t GetPipelineRttUs() { return mSmoothedPipelineRttUs.Get(); }
-	float GetPacketLossPercent();
-	int64_t GetJitterUs() { return mSmoothedJitterUs.Get(); }
+	std::vector<std::pair<uint8_t, std::vector<uint8_t>>> mReceivedGamePackets;
+	std::vector<std::vector<ReceivedCoordUpdate>> mReceivedCoordUpdates;
+	std::vector<ReceivedCoordFullState> mReceivedFullStates;
+	std::vector<ReceivedStaticData> mReceivedStaticData;
+	std::unique_ptr<ReceivedDebugFrame> mpReceivedDebugFrame;
+	std::vector<ClientCoordSlot> mCoordSlots;
+	common::Smoothed<int64_t> mSmoothedPipelineRttUs;
+	common::InTheLastSecond mBytesInPerSecond;
+	common::InTheLastSecond mBytesOutPerSecond;
+	common::InTheLastSecond mFramesReceived;
+	common::Smoothed<int64_t> mSmoothedJitterUs;
+	ClientGuid mClientGuid {};
+	NetworkTimeState mTimeState {};
 
 private:
-
-	void DispatchIncoming(ENetEvent& rEvent);
+	friend class ClientSessionRuntime;
+	void Poll(const NetworkTimeState& rTimeState);
+	bool SendAck();
+	bool SendSubscribe(GridCoord coord);
+	void SendUnsubscribe(int64_t iSlot);
+	void Flush();
+	bool DrainLoadNotification()
+	{
+		bool bReceived = mStateFlags & ClientStateFlags::kLoadNotificationReceived;
+		mStateFlags.Clear(ClientStateFlags::kLoadNotificationReceived);
+		return bReceived;
+	}
+	void CancelSubscription(int64_t iSlot);
+	void RecoverTimedOutSubscriptions();
+	void ResetAllSlots();
+	void DispatchIncoming(ENetEvent& rEvent, bool bFastForward);
 	void Receive(ENetEvent& rEvent);
 	void Receive(const uint8_t* pData, size_t iSize);
 	void ServerCoordFullState(const uint8_t* pData, size_t iSize);
@@ -145,7 +159,7 @@ private:
 	enum class FullStateFlags : uint8_t
 	{
 		kClearPlaceholder = 1 << 0, // Full state arrived before SubscribeAccept; clear kSubscribing placeholder + adopt coord
-		kRejectAsGhost    = 1 << 1, // Coord mismatch on kWaitingFullState/kSubscribing slot; send unsubscribe + log
+		kRejectAsGhost    = 1 << 1, // No legitimate placeholder or coord mismatch; send epoch-qualified unsubscribe + log
 		kCommit           = 1 << 2, // Caller proceeds to push fullState + activate slot
 	};
 	using FullStateFlags_t = common::Flags<FullStateFlags>;
@@ -170,70 +184,36 @@ private:
 	SubscribeAcceptFlags_t ClassifySubscribeAccept(uint8_t uiSlotIndex, GridCoord coord);
 
 	bool RemoveCancelledSubscription(GridCoord coord);
+	int64_t FindSubscribingPlaceholder(GridCoord coord) const;
 	void ClearSubscribingPlaceholder(GridCoord coord);
 	void TrackReceivedTick(int64_t iSlot, int64_t iTick);
 
-	enum class ClientStateFlags : uint8_t
-	{
-		kConnected                = 1 << 0,
-		kConnectionAccepted       = 1 << 1,
-		kDisconnectedEvent        = 1 << 2,
-		kHasLastUpdateArrival     = 1 << 3,
-		kDesyncDebugMode          = 1 << 4,
-		kLoadNotificationReceived = 1 << 5,
-	};
-
 	ENetHost* mpHost = nullptr;
-	ENetPeer* mpServerPeer = nullptr;
-	common::Flags<ClientStateFlags> mStateFlags;
-	char mpcRejectionReason[256] = {};
 
-	// Heap: raw game packets (type byte + payload) for game-layer parsing
-	std::vector<std::pair<uint8_t, std::vector<uint8_t>>> mReceivedGamePackets;
-
-	// Per-slot receive buffers
-	std::vector<std::vector<ReceivedCoordUpdate>> mReceivedCoordUpdates;
 	// Reused status-change decode scratch (same reused-buffer + exact-size-assign pattern as Server::mCompressionBuffer):
 	// decompress into this 1024-cap buffer, then assign() the exact count into each ReceivedCoordUpdate so buffered updates carry no slack
 	std::vector<game::StatusChange> mStatusChangeScratch;
-	std::vector<ReceivedCoordFullState> mReceivedFullStates;
-	// Heap: static data received once per subscription
-	std::vector<ReceivedStaticData> mReceivedStaticData;
-
-	std::unique_ptr<ReceivedDebugFrame> mpReceivedDebugFrame;
-
-	// Per-slot subscription state (replaces single ACK floor/bitfield)
-	std::vector<ClientCoordSlot> mCoordSlots;
 
 	// Pipeline RTT (timestamp echo)
-	common::Smoothed<int64_t> mSmoothedPipelineRttUs;
 	int64_t miLastEchoedTimestampNs = 0;
 	int64_t miHelloSendTimeNs = 0;
 
 	// Bandwidth tracking (host-level cumulative counters)
 	uint32_t muiPrevReceivedData = 0;
 	uint32_t muiPrevSentData = 0;
-	common::InTheLastSecond mBytesInPerSecond;
-	common::InTheLastSecond mBytesOutPerSecond;
-
-	// Packet loss tracking
-	common::InTheLastSecond mFramesReceived;
 
 	// Interarrival jitter tracking
 	std::chrono::steady_clock::time_point mLastUpdateArrival {};
-	common::Smoothed<int64_t> mSmoothedJitterUs;
 
 	// Tick-rate-locked ack cadence: last wall-clock ack send time; SendAck throttles to one sim-tick
 	// interval so packet rate is decoupled from render framerate (interval derived from kiTickRate).
 	std::chrono::steady_clock::time_point mLastAckSendTime {};
 
-	ClientGuid mClientGuid {};
 	GuidAssignedCallback mpfnGuidAssigned = nullptr;
 
 	// Network simulation delay queue
 	std::deque<DelayedPacket> mDelayedPackets;
 	NetworkSimulationState mNetworkSimState;
-
 	// Coords whose kSubscribing slot was cancelled before the server responded
 	std::vector<GridCoord> mCancelledSubscriptions;
 };

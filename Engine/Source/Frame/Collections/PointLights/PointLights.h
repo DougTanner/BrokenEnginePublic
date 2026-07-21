@@ -77,6 +77,10 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 		                rSelf.pfVisibleAreas, rSelf.pfVisibleIntensities, rSelf.pfLightingAreas, rSelf.pfLightingIntensities,
 		                rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseRotations);
 	}
+	auto PersistentMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.puiTypeIndices, rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseRotations);
+	}
 
 	// Graphics resources
 	static void GraphicsResources();

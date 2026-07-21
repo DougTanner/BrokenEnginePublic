@@ -155,7 +155,7 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 		{
 			// -- Transport --
 			rWorkbuffer.Append("\n-- Transport --\n");
-			ENetPeer* pPeer = engine::gpClient->GetServerPeer();
+			ENetPeer* pPeer = engine::gpClient->mpServerPeer;
 			if (pPeer != nullptr)
 			{
 				int64_t iRtt = static_cast<int64_t>(pPeer->roundTripTime);
@@ -172,7 +172,7 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 				}
 
 				rWorkbuffer.Append("  Pipe: ");
-				rWorkbuffer.AppendFloat(engine::gpClient->GetPipelineRttUs() / 1000.0f, 1);
+				rWorkbuffer.AppendFloat(engine::gpClient->mSmoothedPipelineRttUs.Get() / 1000.0f, 1);
 				rWorkbuffer.Append(" ms\n");
 
 				float fLoss = pPeer->packetLoss * 100.0f / 65536.0f;
@@ -199,29 +199,40 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 				}
 				rWorkbuffer.Append("\n");
 
+				int64_t iActiveSlotCount = 0;
+				for (const engine::ClientCoordSlot& rSlot : engine::gpClient->mCoordSlots)
+				{
+					if (rSlot.eState == engine::CoordSubscriptionState::kActive)
+					{
+						++iActiveSlotCount;
+					}
+				}
+				int64_t iExpectedFrames = engine::gpClient->mTimeState.iExpectedUpdatesPerSecond * iActiveSlotCount;
+				int64_t iLostFrames = iExpectedFrames - engine::gpClient->mFramesReceived.Get();
+				float fPacketLossPercent = iExpectedFrames > 0 && iLostFrames > 0 ? static_cast<float>(iLostFrames) * 100.0f / static_cast<float>(iExpectedFrames) : 0.0f;
 				rWorkbuffer.Append("Pkt Loss: ");
-				rWorkbuffer.AppendFloat(engine::gpClient->GetPacketLossPercent(), 1);
+				rWorkbuffer.AppendFloat(fPacketLossPercent, 1);
 				rWorkbuffer.Append("%  Jitter: ");
-				rWorkbuffer.AppendFloat(engine::gpClient->GetJitterUs() / 1000.0f, 1);
+				rWorkbuffer.AppendFloat(engine::gpClient->mSmoothedJitterUs.Get() / 1000.0f, 1);
 				rWorkbuffer.Append(" ms\n");
 
 				mSmoothedRtt = iRtt;
 				mSmoothedRtt.Update();
-				mSmoothedJitter = engine::gpClient->GetJitterUs() / 1000;
+				mSmoothedJitter = engine::gpClient->mSmoothedJitterUs.Get() / 1000;
 				mSmoothedJitter.Update();
 			}
 
 			rWorkbuffer.Append("In: ");
-			AppendBytes(rWorkbuffer, engine::gpClient->GetBytesInPerSecond());
+			AppendBytes(rWorkbuffer, engine::gpClient->mBytesInPerSecond.Get());
 			rWorkbuffer.Append("  Out: ");
-			AppendBytes(rWorkbuffer, engine::gpClient->GetBytesOutPerSecond());
+			AppendBytes(rWorkbuffer, engine::gpClient->mBytesOutPerSecond.Get());
 
 			// -- Sync --
 			rWorkbuffer.Append("\n-- Sync --\n");
 			{
 				int64_t iMinAckFloor = -1;
 				int64_t iTotalRecv = 0;
-				for (const auto& rSlot : engine::gpClient->GetCoordSlots())
+				for (const engine::ClientCoordSlot& rSlot : engine::gpClient->mCoordSlots)
 				{
 					if (rSlot.eState == engine::CoordSubscriptionState::kActive)
 					{
@@ -266,11 +277,11 @@ void ProfileManager::FormatGameScreens(common::Workbuffer& rWorkbuffer)
 			rWorkbuffer.Append("  Buffer: ");
 			rWorkbuffer.Append(mSmoothedBuffer.Get());
 			rWorkbuffer.Append("\nDesync: ");
-			bool bDesync = gpClientSession->GetDesyncTick() >= 0;
+			bool bDesync = gpClientSession->mpDesyncManager->GetDesyncTick() >= 0;
 			if (bDesync)
 			{
 				rWorkbuffer.Append("Yes (");
-				rWorkbuffer.Append(gpClientSession->GetDesyncTick());
+				rWorkbuffer.Append(gpClientSession->mpDesyncManager->GetDesyncTick());
 				rWorkbuffer.Append(")");
 				if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 				{
@@ -347,26 +358,11 @@ void ProfileManager::SetClockCorrection(int64_t iOffset, int64_t iTargetBehind, 
 
 void ProfileManager::SetReconcileCounters(int64_t iCrcValidated, int64_t iAssumed, int64_t iCrcFastPath, int64_t iStatusChangeReplay, int64_t iKnockOnReplay)
 {
-	if (iCrcValidated > 0)
-	{
-		mCrcValidatedTicksPerSecond.Set(iCrcValidated);
-	}
-	if (iAssumed > 0)
-	{
-		mAssumedTicksPerSecond.Set(iAssumed);
-	}
-	if (iCrcFastPath > 0)
-	{
-		mCrcFastPathEventsPerSecond.Set(iCrcFastPath);
-	}
-	if (iStatusChangeReplay > 0)
-	{
-		mStatusChangeReplayTicksPerSecond.Set(iStatusChangeReplay);
-	}
-	if (iKnockOnReplay > 0)
-	{
-		mKnockOnReplayTicksPerSecond.Set(iKnockOnReplay);
-	}
+	mCrcValidatedTicksPerSecond.Set(iCrcValidated);
+	mAssumedTicksPerSecond.Set(iAssumed);
+	mCrcFastPathEventsPerSecond.Set(iCrcFastPath);
+	mStatusChangeReplayTicksPerSecond.Set(iStatusChangeReplay);
+	mKnockOnReplayTicksPerSecond.Set(iKnockOnReplay);
 }
 
 #endif // BT_CLIENT

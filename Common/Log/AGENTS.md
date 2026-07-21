@@ -1,0 +1,23 @@
+# Common Log
+
+Shared logging, formatting, diagnostic-file, and difference-reporting implementation. Call-site level meanings and allocation rules remain in [`../AGENTS.md`](../AGENTS.md).
+
+## Contracts
+
+- `LOG` first applies each project's compile-time category floor, then the atomic runtime threshold. Runtime levels default to `kInfo` (`kVerbose` in DataPacker) and the agent command may raise or lower them only within the compiled range.
+- Threads format into their `ThreadLocal` buffer or a thread-local fallback. Emission is serialized; the crash snapshot ring does not wrap, while the cross-category agent-query ring does. Keep formatting allocation-free before entering either ring.
+- Tick and absolute-indent scopes propagate simulation context across worker dispatch. `ScopedLogIndent` is the separate delta-based scope for ordinary nesting.
+- `LogFormatters.h` owns formatters for Common-visible types. Paths, wide strings, vectors, and precision-sensitive floats use workbuffer-backed wrappers; higher-layer types stay with their owning aggregation hub.
+- `DiagnosticLog` writes explicitly initialized per-file diagnostics with allocation tracking suppressed. `LogDifference` compares deterministic state under a scoped section label; add structured comparisons there instead of building ad hoc desync strings.
+- `EnableLogFile` mirrors emitted lines to a flushed file sink. Treat sink setup as startup/diagnostic work, not a tracked-loop operation.
+
+## Failure and Concurrency Rules
+
+Logging may run during exception handling. Do not introduce recursive logging, heap-dependent crash formatting, or unsynchronized DbgHelp use. The engine's debug-string emission is marked so the vectored exception handler does not re-log it.
+
+When adding a category, update the enum, names, per-project compile floors, runtime-level storage, and any agent-facing parsing together.
+
+## See Also
+
+- [`../AGENTS.md`](../AGENTS.md) - cross-codebase call-site and allocation rules
+- [`../Threading/AGENTS.md`](../Threading/AGENTS.md) - thread-local buffers and context lifetime

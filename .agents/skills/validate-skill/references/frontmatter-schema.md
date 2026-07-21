@@ -1,6 +1,6 @@
-# Repository Skill Frontmatter v1
+# Repository Skill Package v2
 
-This is the authoritative schema for `.agents/skills/*/SKILL.md`. It intentionally supports a constrained, dependency-free subset rather than general YAML.
+This is the authoritative schema for Claude-facing `SKILL.md` frontmatter and optional Codex `agents/openai.yaml`. Their invocation controls are independent. Both intentionally use constrained YAML subsets.
 
 ## Document shape
 
@@ -53,6 +53,16 @@ Folded text uses `>-`; consecutive nonblank lines fold with spaces and blank lin
 
 Markdown links whose relative destination begins with `references/`, `scripts/`, or `assets/` must resolve beneath the skill directory. URL fragments and query strings do not participate in the filesystem check. Absolute paths, URI destinations, and links outside those bundled directories are not sidecar links under this rule.
 
+## Codex sidecar
+
+`interface`, `policy`, and `dependencies` are independently optional top-level objects in `agents/openai.yaml`; at least one must exist. Quote every string, indent with spaces, and omit comments. A present object requires:
+
+- `interface`: nonempty `display_name` and 25–64-character `short_description`; optional nonempty `icon_small`, `icon_large`, `brand_color`, and `default_prompt`. Icons resolve inside the skill, color is `#RRGGBB`, and a default prompt names `$skill-name`.
+- `policy`: exact boolean `allow_implicit_invocation`. `false` disables Codex implicit discovery but preserves explicit invocation.
+- `dependencies`: nonempty `tools`; each item has quoted `type: "mcp"`, `value`, and `description`, with optional quoted `transport` and HTTPS `url`.
+
+This sidecar supplies Codex UI, discovery policy, and dependency wiring. Body tool and delegation bounds remain authoritative. Never infer that Claude `disable-model-invocation: true` requires a Codex sidecar.
+
 ## Result contract
 
 The mechanical command accepts exactly one target:
@@ -66,3 +76,5 @@ Repository targets must be below `.agents/skills/`. Pass `-Fixture` only for a d
 - `VALID <path>` with exit `0`: every mechanical check passed.
 - One or more line-ordered `INVALID <path>:<line> <code>: <message>` diagnostics with exit `1`: target content is invalid.
 - `SETUP_ERROR <code>: <message>` with exit `2`: invocation, path resolution, file read, or internal validation failed.
+
+For validator changes, create disposable packages under a temporary directory; never track fixtures. Require `VALID`/0 from a valid `-Fixture` package, `INVALID`/1 after corrupting a known field, `SETUP_ERROR`/2 for a nonexistent target, and `VALID`/0 from the repository self-check.

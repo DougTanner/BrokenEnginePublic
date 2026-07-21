@@ -34,6 +34,10 @@ Setting up a new machine? [Documents/FreshMachineSetup.md](Documents/FreshMachin
 - Line endings are LF, enforced by the tracked `.gitattributes` (`* text=auto eol=lf`), so `core.autocrlf` no longer affects checkouts and no LF/CRLF conversion warnings occur.
 	- If you cloned before `.gitattributes` existed, refresh an existing clone's working tree to LF with `git add --renormalize .` then `git checkout-index -a -f` (clean tree required).
 
+### SmartGit
+
+- When agent worktrees run in parallel, enable **Edit -> Preferences -> Commands -> Log and Working Tree Window -> Log -> Allow multiple Log Windows for the same repository or file**. Each worktree's finalization opens a Log anchored at its landing candidate; without this setting, SmartGit reuses and retargets an existing Log for the shared repository, replacing another session's review view. See SmartGit's [Commands preferences](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Preferences/Commands).
+
 ## Windows Shell Tools
 
 - Git for Windows and PowerShell 7 are required for the documented AI coding workflow. Git for Windows includes Git Bash.

@@ -3,6 +3,7 @@
 #if defined(BT_SERVER)
 
 #include "Network/Server/Server.h"
+#include "Network/Server/ServerSessionRuntime.h"
 
 #include "Network/NetworkCursor.h"
 
@@ -10,6 +11,13 @@
 
 namespace engine
 {
+
+namespace
+{
+
+constexpr std::chrono::seconds kDesyncDiagnosticCooldown = 2s;
+
+} // namespace
 
 void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
@@ -161,6 +169,13 @@ void Server::ClientDesyncReport(const uint8_t* pData, size_t iSize, int64_t iCli
 		return;
 	}
 
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	if (now < pClient->desyncReportDeadline)
+	{
+		return;
+	}
+	pClient->desyncReportDeadline = now + kDesyncDiagnosticCooldown;
+
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	int64_t iTick = ReadInt64(pCursor);
@@ -187,58 +202,68 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	int64_t iTick = ReadInt64(pCursor);
-	GridCoord coord = ReadGridCoord(pCursor);
-
-	LOG(kNetwork, kError, "Server::ClientDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
-	ScopedLogIndent scopedLogIndent;
-
-	// Find the frame in the ring buffer
-	const BufferedFullFrame* pBuffered = nullptr;
-	for (const BufferedFullFrame& rBuffered : mBufferedFullFrames)
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	if (now < pClient->debugFrameRequestDeadline)
 	{
-		if (rBuffered.iTick == iTick)
+		return;
+	}
+	pClient->debugFrameRequestDeadline = now + kDesyncDiagnosticCooldown;
+
+	if constexpr (game::NetworkSessionContract::kbDebugFrames)
+	{
+		const uint8_t* pCursor = pData + 1; // Skip packet type
+
+		int64_t iTick = ReadInt64(pCursor);
+		GridCoord coord = ReadGridCoord(pCursor);
+
+		LOG(kNetwork, kError, "Server::ClientDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
+		ScopedLogIndent scopedLogIndent;
+
+		// Find the frame in the ring buffer
+		const BufferedFullFrame* pBuffered = nullptr;
+		for (const BufferedFullFrame& rBuffered : mBufferedFullFrames)
 		{
-			pBuffered = &rBuffered;
-			break;
+			if (rBuffered.iTick == iTick)
+			{
+				pBuffered = &rBuffered;
+				break;
+			}
 		}
+
+		if (pBuffered == nullptr)
+		{
+			LOG(kNetwork, kError, "Server::ClientDebugFrameRequest Frame {} not found in buffer", iTick);
+			return;
+		}
+
+		auto it = pBuffered->serializedFrames.find(coord);
+		if (it == pBuffered->serializedFrames.end())
+		{
+			LOG(kNetwork, kError, "Server::ClientDebugFrameRequest Frame: {} Coord: ({},{}) not found", iTick, coord.x, coord.y);
+			return;
+		}
+
+		const std::string& rFrameData = it->second;
+
+		// Heap: compression buffer may grow when LZ4 expansion bound exceeds current capacity
+		ScopedSuppressAllocationTracking suppress;
+
+		// LZ4 compress (reuse persistent compression buffer)
+		int iCompressedSize = CompressToBuffer(rFrameData.data(), static_cast<int>(rFrameData.size()));
+
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+
+		// [1B type][8B frame][4B gridX][4B gridY][4B uncompressedSize][4B compressedSize][...LZ4 data]
+		rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerDebugFrame));
+		rWorkbuffer.PushBack<int64_t>(iTick);
+		WriteGridCoord(rWorkbuffer, coord);
+		rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(rFrameData.size()));
+		rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(iCompressedSize));
+		rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(mCompressionBuffer.data()), iCompressedSize));
+
+		NetworkManager::SendPacket(pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 	}
-
-	if (pBuffered == nullptr)
-	{
-		LOG(kNetwork, kError, "Server::ClientDebugFrameRequest Frame {} not found in buffer", iTick);
-		return;
-	}
-
-	auto it = pBuffered->serializedFrames.find(coord);
-	if (it == pBuffered->serializedFrames.end())
-	{
-		LOG(kNetwork, kError, "Server::ClientDebugFrameRequest Frame: {} Coord: ({},{}) not found", iTick, coord.x, coord.y);
-		return;
-	}
-
-	const std::string& rFrameData = it->second;
-
-	// Heap: compression buffer may grow when LZ4 expansion bound exceeds current capacity
-	ScopedSuppressAllocationTracking suppress;
-
-	// LZ4 compress (reuse persistent compression buffer)
-	int iCompressedSize = CompressToBuffer(rFrameData.data(), static_cast<int>(rFrameData.size()));
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-	// [1B type][8B frame][4B gridX][4B gridY][4B uncompressedSize][4B compressedSize][...LZ4 data]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerDebugFrame));
-	rWorkbuffer.PushBack<int64_t>(iTick);
-	WriteGridCoord(rWorkbuffer, coord);
-	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(rFrameData.size()));
-	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(iCompressedSize));
-	rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(mCompressionBuffer.data()), iCompressedSize));
-
-	NetworkManager::SendPacket(pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
@@ -265,10 +290,10 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	}
 
 	int64_t iClientFrameVersion = ReadInt64(pCursor);
-	if (iClientFrameVersion != game::Frame::kiVersion)
+	if (iClientFrameVersion != game::NetworkSessionContract::GetFrameVersion())
 	{
 		char pcMessage[256] {};
-		std::snprintf(pcMessage, sizeof(pcMessage), "Frame version mismatch: server is %lld, client is %lld", game::Frame::kiVersion, iClientFrameVersion);
+		std::snprintf(pcMessage, sizeof(pcMessage), "Frame version mismatch: server is %lld, client is %lld", game::NetworkSessionContract::GetFrameVersion(), iClientFrameVersion);
 		LOG(kNetwork, kWarning, "Server::ClientHello Rejecting Client: {} Reason: {}", iClientId, pcMessage);
 
 		SendConnectionResponse(pPeer, false, pcMessage, nullptr);
@@ -335,7 +360,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	{
 		LOG(kNetwork, kInfo, "Server::ClientHello Replay Client: {} GUID: {} {}", iClientId, pClient->clientGuid.uiHigh, pClient->clientGuid.uiLow);
 		SendConnectionResponse(pPeer, true, nullptr, &pClient->clientGuid);
-		game::gpServerSession->SendTimespeedToNewClient(pPeer);
+		mrSessionRuntime.mrSession.SendTimespeedToNewClient(pPeer);
 		return;
 	}
 
@@ -354,7 +379,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	LOG(kNetwork, kInfo, "Server::ClientHello Accepted Client: {} Config: {} GUID: {} {}", iClientId, pcClientConfig, clientGuid.uiHigh, clientGuid.uiLow);
 	SendConnectionResponse(pPeer, true, nullptr, &clientGuid);
 
-	game::gpServerSession->SendTimespeedToNewClient(pPeer);
+	mrSessionRuntime.mrSession.SendTimespeedToNewClient(pPeer);
 }
 
 void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId)
@@ -376,7 +401,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	}
 
 	// Already subscribed?
-	if (pClient->IsCoordSubscribed(coord))
+	if (pClient->FindSlotForCoord(coord) >= 0)
 	{
 		LOG(kNetwork, kVerbose, "Server::ClientSubscribe AlreadySubscribed Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
 		return;
@@ -402,7 +427,7 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 		return;
 	}
 
-	int64_t iSlot = pClient->AllocateSlot(game::kiDesiredCoordSlots);
+	int64_t iSlot = pClient->AllocateSlot(game::NetworkSessionContract::kiCoordSlots);
 	if (iSlot < 0)
 	{
 		LOG(kNetwork, kWarning, "Server::ClientSubscribe No free slot Client: {} Coord: ({},{})", iClientId, coord.x, coord.y);
@@ -435,8 +460,8 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 
 void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId)
 {
-	// 1B type + 1B slot = 2 fixed bytes
-	if (iSize < 2)
+	// [1B type][1B slot][2B epoch]
+	if (iSize != 4)
 	{
 		return;
 	}
@@ -444,6 +469,7 @@ void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClie
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	uint8_t uiSlotIndex = ReadUint8(pCursor);
+	uint16_t uiEpoch = ReadUint16(pCursor);
 
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -451,15 +477,15 @@ void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClie
 		return;
 	}
 
-	if (uiSlotIndex >= std::ssize(pClient->coordSubscriptions) || !(pClient->coordSubscriptions.at(uiSlotIndex).flags & SubscriptionFlags::kActive))
+	if (uiSlotIndex < std::ssize(pClient->coordSubscriptions)
+		&& (pClient->coordSubscriptions.at(uiSlotIndex).flags & SubscriptionFlags::kActive)
+		&& pClient->coordAckStates.at(uiSlotIndex).uiEpoch == uiEpoch)
 	{
-		return;
+		GridCoord coord = pClient->coordSubscriptions.at(uiSlotIndex).coord;
+		pClient->FreeSlot(uiSlotIndex);
+
+		LOG(kNetwork, kDebug, "Server::ClientUnsubscribe Client: {} Slot: {} Coord: ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
 	}
-
-	GridCoord coord = pClient->coordSubscriptions.at(uiSlotIndex).coord;
-	pClient->FreeSlot(uiSlotIndex);
-
-	LOG(kNetwork, kDebug, "Server::ClientUnsubscribe Client: {} Slot: {} Coord: ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
 
 	SendSimplePacket(pClient->pPeer, PacketType::kServerUnsubscribeAck, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
 }

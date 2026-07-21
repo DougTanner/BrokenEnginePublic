@@ -381,6 +381,7 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[m
 				.fDeltaRotationDelay = rCurrentPostRender.pfDeltaRotationDelays[i],
 				.fTime = rCurrentPostRender.pfTimes[i],
 				.fNextJitter = rCurrentPostRender.pfNextJitter[i],
+				.fDeltaRotation = rCurrentPostRender.pfDeltaRotations[i],
 #if defined(BT_CLIENT)
 				.smokeTrailId = rCurrentInterpolate.puiSmokeTrails[i],
 #endif
@@ -463,10 +464,11 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pVecStoredDirections[iIndex] = rInfo.vecStoredDirection;
 	rCurrentPostRender.puiTargets[iIndex] = rInfo.uiTarget;
 	rCurrentPostRender.pfTimes[iIndex] = rInfo.fTime;
-	rCurrentPostRender.pfDeltaRotationDelays[iIndex] = (flags & kFalling) || rInfo.fDeltaRotationDelay > 0.0f
+	// An arrival restores the ramp verbatim — including the negative value of a finished ramp — and draws no fresh ramp delay.
+	rCurrentPostRender.pfDeltaRotationDelays[iIndex] = rInfo.bTransfer
 		? rInfo.fDeltaRotationDelay
 		: 0.5f * kfMissileDeltaRotationDelay + common::Random<kfMissileDeltaRotationDelay>(rFrame.postRender.randomEngine);
-	rCurrentPostRender.pfDeltaRotations[iIndex] = 0.0f;
+	rCurrentPostRender.pfDeltaRotations[iIndex] = rInfo.fDeltaRotation;
 	float fExhaustLength = (flags & kFalling) ? 0.0f : kfMissileExhaustLength + common::Random<kfMissileExhaustLengthRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfExhaustLengths[iIndex] = fExhaustLength;
 	rCurrentPostRender.pfNextJitter[iIndex] = rInfo.fNextJitter;

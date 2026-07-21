@@ -3,6 +3,7 @@
 #if defined(BT_SERVER)
 
 #include "Network/Server/Server.h"
+#include "Network/Server/ServerSessionRuntime.h"
 
 #include "Game.h"
 
@@ -14,7 +15,8 @@ namespace engine
 static_assert(kiMaxAckStreamPacketSize == 2 + NetworkManager::kiMaxEnetCoordSlots * 27 + 8,
 	"kiMaxAckStreamPacketSize must match the ack-stream wire layout sized by kiMaxEnetCoordSlots");
 
-Server::Server(uint16_t uiPort)
+Server::Server(uint16_t uiPort, ServerSessionRuntime& rSessionRuntime)
+:	mrSessionRuntime(rSessionRuntime)
 {
 	ASSERT(gpServer == nullptr);
 
@@ -64,7 +66,7 @@ void Server::Flush()
 	enet_host_flush(mpHost);
 }
 
-void Server::Poll()
+void Server::Poll(const NetworkTimeState& rTimeState)
 {
 	ASSERT(common::gpMultithreading->IsMainThread());
 
@@ -76,10 +78,10 @@ void Server::Poll()
 	mPendingSpawnRequests.clear();
 	mPendingDisconnects.clear();
 	// mPendingNewSubscriptions / mPendingResyncClientIds are intentionally NOT cleared here. Their consumers
-	// (ServerSessionBase::SendNewSubscriptionFullStates / game ServerSession::HandleResyncRequests) run post-tick,
+	// (game ServerSession::SendNewSubscriptionFullStates / game ServerSession::HandleResyncRequests) run post-tick,
 	// so a per-poll clear would drop a subscribe/resync accepted between servicings. They persist until those
-	// consumers service and clear them. While paused (iFullTicks == 0) BroadcastTick doesn't run, so game
-	// ServerSession::ServicePausedNetwork services them each update instead — a client can join a paused server.
+	// consumers service and clear them. While paused (iFullTicks == 0), ServerSessionRuntime::CompleteUpdate
+	// services them each update instead, so a client can join a paused server.
 	mReceivedGamePackets.clear();
 
 	// Reset the per-poll (~ per-tick window) contract budgets before draining this poll's packets.
@@ -102,7 +104,7 @@ void Server::Poll()
 				Disconnect(event);
 				break;
 			case ENET_EVENT_TYPE_RECEIVE:
-				DispatchIncoming(event);
+				DispatchIncoming(event, rTimeState.bFastForward);
 				break;
 			case ENET_EVENT_TYPE_NONE:
 				break;
@@ -112,20 +114,22 @@ void Server::Poll()
 	// Process delayed packets whose release time has passed (or flush all when bypassing simulation)
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		bool bFastForward = game::gpGame->mTimeStep.miTimeMultiply > 1;
-		NetworkSimulation::ProcessOrFlush(mDelayedPackets, bFastForward,
-			[this](const DelayedPacket& rPacket) { Receive(rPacket.data.data(), rPacket.data.size(), rPacket.pPeer); });
+		NetworkSimulation::ProcessOrFlush(mDelayedPackets, rTimeState.bFastForward, [this](const DelayedPacket& rPacket)
+		{
+			Receive(rPacket.data.data(), rPacket.data.size(), rPacket.pPeer);
+		});
 	}
 }
 
-void Server::DispatchIncoming(ENetEvent& rEvent)
+void Server::DispatchIncoming(ENetEvent& rEvent, bool bFastForward)
 {
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
 		constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-		bool bFastForward = game::gpGame->mTimeStep.miTimeMultiply > 1;
-		NetworkSimulation::DispatchOrEnqueue(mDelayedPackets, mNetworkSimState, kSimConfig, bFastForward, rEvent,
-			[this](ENetEvent& rInner) { Receive(rInner); });
+		NetworkSimulation::DispatchOrEnqueue(mDelayedPackets, mNetworkSimState, kSimConfig, bFastForward, rEvent, [this](ENetEvent& rInner)
+		{
+			Receive(rInner);
+		});
 	}
 	else
 	{
@@ -319,16 +323,17 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 	}
 }
 
-void Server::BufferFrame(int64_t iTick, std::span<const std::pair<GridCoord, GridUpdateData>> gridUpdates)
+void Server::BufferFrame(int64_t iTick, const std::pair<GridCoord, GridUpdateData>* pGridUpdates, int64_t iGridUpdateCount)
 {
 	miLatestBufferedTick = iTick;
 	ScopedSuppressAllocationTracking suppress;
 
 	std::unordered_set<GridCoord> activeCoords;
-	activeCoords.reserve(gridUpdates.size());
+	activeCoords.reserve(static_cast<size_t>(iGridUpdateCount));
 
-	for (const std::pair<GridCoord, GridUpdateData>& rGridUpdate : gridUpdates)
+	for (int64_t i = 0; i < iGridUpdateCount; ++i)
 	{
+		const std::pair<GridCoord, GridUpdateData>& rGridUpdate = pGridUpdates[i];
 		const GridCoord& rCoord = rGridUpdate.first;
 		const GridUpdateData& rUpdateData = rGridUpdate.second;
 		activeCoords.insert(rCoord);
@@ -352,7 +357,7 @@ void Server::BufferFrame(int64_t iTick, std::span<const std::pair<GridCoord, Gri
 			}
 			else
 			{
-				int64_t iCompressedSize = CompressStatusChangeBatch(rUpdateData.statusChanges.data(), iStatusChangeCount, mCompressionBuffer.data(), static_cast<int64_t>(mCompressionBuffer.size()));
+				int64_t iCompressedSize = game::NetworkSessionContract::CompressStatusChanges(rUpdateData.statusChanges.data(), iStatusChangeCount, mCompressionBuffer.data(), static_cast<int64_t>(mCompressionBuffer.size()));
 				if (iCompressedSize > 0)
 				{
 					buffered.compressedData.assign(mCompressionBuffer.begin(), mCompressionBuffer.begin() + iCompressedSize);
@@ -381,7 +386,7 @@ void Server::BufferFrame(int64_t iTick, std::span<const std::pair<GridCoord, Gri
 	});
 }
 
-void Server::BufferFullFrame(int64_t iTick, std::span<const std::pair<GridCoord, const game::Frame*>> frames)
+void Server::BufferFullFrame(int64_t iTick, const std::pair<GridCoord, const game::Frame*>* pFrames, int64_t iFrameCount)
 {
 	ScopedSuppressAllocationTracking suppress;
 
@@ -400,8 +405,9 @@ void Server::BufferFullFrame(int64_t iTick, std::span<const std::pair<GridCoord,
 	BufferedFullFrame buffered {};
 	buffered.iTick = iTick;
 
-	for (const std::pair<GridCoord, const game::Frame*>& rFrame : frames)
+	for (int64_t i = 0; i < iFrameCount; ++i)
 	{
+		const std::pair<GridCoord, const game::Frame*>& rFrame = pFrames[i];
 		std::string serialized;
 		if (!mFullFramePool.empty())
 		{
@@ -411,7 +417,7 @@ void Server::BufferFullFrame(int64_t iTick, std::span<const std::pair<GridCoord,
 		serialized.clear();
 
 		mFrameStreamBuf.mpTarget = &serialized;
-		mFrameStream << *rFrame.second;
+		game::NetworkSessionContract::WriteFrame(mFrameStream, *rFrame.second);
 
 		buffered.serializedFrames.insert_or_assign(rFrame.first, std::move(serialized));
 	}

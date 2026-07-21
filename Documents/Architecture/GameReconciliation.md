@@ -32,13 +32,16 @@ flowchart TD
     STALENOSNAPSHOT --> ROLLBACK
     CRC -->|"Deferred missing snapshot"| DEFNOSNAPSHOT["Skip, keep updates"]:::fastpath
     DEFNOSNAPSHOT --> CRC
-    CRC -->|"Pending full state"| ROLLBACK
+    CRC -->|"Due pending full state"| ROLLBACK
 
     ROLLBACK["ReconcileRollbackCoord()<br/>restore confirmed frame<br/>into replay stack"]:::replay --> FINDRANGE
 
-    FINDRANGE["ReconcileFindReplayRangeCoord()<br/>find consecutive server frames"]:::state --> REPLAY
+    FINDRANGE["ReconcileFindReplayRangeCoord()<br/>find uncapped consecutive<br/>server-frame endpoint"]:::state --> REACHABLE{"Due full-state tick<br/>reachable?"}
 
-    REPLAY["ReconcileReplayCoord()<br/>replay consecutive range<br/>up to target tick"]:::replay
+    REACHABLE -->|"Yes / none due"| REPLAY
+    REACHABLE -->|"No: real update gap"| ADOPT["Adopt authoritative full state<br/>as logical ring base"]:::state
+
+    REPLAY["ReconcileReplayCoord()<br/>replay consecutive range<br/>capped to target tick"]:::replay
 
     REPLAY --> CRCCHECK{"State CRC match?"}
     CRCCHECK -->|"Yes"| NEXTSRV{"More frames in<br/>replay range?"}
@@ -46,6 +49,7 @@ flowchart TD
 
     NEXTSRV -->|"Yes"| REPLAY
     NEXTSRV -->|"No"| CATCHUP
+    ADOPT --> CATCHUP
 
     CATCHUP["ReconcileCatchUpCoord()<br/>simulate with empty inputs<br/>to target tick"]:::replay
 
@@ -59,7 +63,7 @@ flowchart TD
 
 ## Pending Full State Injection
 
-Full states arrive during subscription changes and are injected at two points during reconciliation:
+Full states arrive during initial subscription and active-slot resync flows. A state ahead of the current target remains pending. Once due, it is injected at a reachable matching tick or adopted directly as the authoritative ring base when a gap prevents replay from reaching that tick. A state below the confirmed tick is stale and discarded:
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -68,11 +72,15 @@ flowchart LR
 
     PFS["CoordFrames::pendingFullState"]
 
-    PRE["ReconcileRollbackCoord()<br/>at or before confirmed frame"]:::injection
-    MAIN["ReconcileReplayCoord()<br/>at matching transfer frame"]:::injection
+    PRE["ReconcileRollbackCoord()<br/>at confirmed frame"]:::injection
+    MAIN["ReconcileReplayCoord()<br/>at matching replay tick"]:::injection
+    GAP["ReconcileCoord()<br/>direct adoption past<br/>uncapped update gap"]:::injection
+    STALE["Discard below-confirmed<br/>stale state"]
 
-    PFS -->|"injects into"| PRE
-    PFS -->|"injects into"| MAIN
+    PFS -->|"inject at confirmed"| PRE
+    PFS -->|"inject at matching tick"| MAIN
+    PFS -->|"becomes ring base in"| GAP
+    PFS -->|"discard when stale"| STALE
 ```
 
 ## Extrapolation Mode
@@ -118,9 +126,9 @@ flowchart TD
     AUDIO --> MSG
 ```
 
-## Desync Debug Mode
+## Desync Recovery and Optional Debug Frames
 
-CRC mismatch triggers a request for the server's full frame, then per-field comparison to pinpoint the exact divergence.
+CRC mismatch always reports the differing CRCs. The manual `kbDesyncDebugFrames` switch is disabled by default; disabled builds immediately enter the normal recovery/disconnect policy without requesting or waiting for a full frame, while matching enabled client/server builds retain the per-field diagnostic comparison.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -132,17 +140,23 @@ sequenceDiagram
     Main->>Main: ClientReconciler::Run() detects CRC mismatch
     Main->>Main: Deep-copy client Frame
     Main->>Net: SendDesyncReport()
-    Main->>Net: SendDebugFrameRequest()
-    Main->>Net: SetDesyncDebugMode(true)
-    Net->>Server: Desync report + debug frame request
+    Net->>Server: Desync report
 
-    Note over Main: IsStalled() gates physics<br/>and reconciliation.<br/>Render and audio still run.
-
-    Server->>Net: Debug frame response
-    Main->>Main: PollNetwork() drains debug frame
-    Main->>Main: LogDifferences() then DEBUG_BREAK()
-
-    Main->>Main: Show modal, disconnect
+    alt kbDesyncDebugFrames enabled on client and server
+        Main->>Net: SendDebugFrameRequest()
+        Main->>Net: Set Client::mStateFlags kDesyncDebugMode
+        Net->>Server: Debug frame request
+        Note over Main: Polling and receive adoption continue.<br/>ClientDesyncManager::IsStalled() gates physics,<br/>subscriptions, and reconciliation. Render and audio still run.
+        alt Debug frame arrives before timeout
+            Server->>Net: Debug frame response
+            Main->>Main: ClientSessionRuntime::PollAndDrain() drains debug frame
+            Main->>Main: LogDifferences(), then recover or disconnect
+        else kDesyncDebugTimeout expires
+            Main->>Main: Recover or disconnect without debug frame
+        end
+    else kbDesyncDebugFrames disabled
+        Main->>Main: Run recovery/disconnect policy immediately
+    end
 ```
 
 ## Player Event Parsing

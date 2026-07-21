@@ -38,31 +38,21 @@ void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	// Heap: idToIndexMap[] may allocate a new node for the ID-to-index entry
-	ScopedSuppressAllocationTracking suppress;
-	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
-	sound_t newId {uuid_t{rFrame.postRender.GenerateSoundUuid()}};
-	rInterpolate.idToIndexMap.insert_or_assign(newId, iSpawnIndex);
+	auto [iSpawnIndex, newId] = AddGeneratedIndexableElement(rInterpolate, rPostRender, [&rFrame]()
+	{
+		return sound_t {uuid_t {rFrame.postRender.GenerateSoundUuid()}};
+	});
 	rId = newId;
 	rPostRender.puiIds[iSpawnIndex] = newId;
-	rInterpolate.puiCrcs[iSpawnIndex] = {};
-	rInterpolate.pfVolumes[iSpawnIndex] = 0.0f;
-	rInterpolate.pfPitches[iSpawnIndex] = 0.0f;
-	rInterpolate.pfFadeOutTimes[iSpawnIndex] = 0.0f;
-	rInterpolate.pVecPositions[iSpawnIndex] = XMVectorZero();
-	rInterpolate.pVecVelocities[iSpawnIndex] = XMVectorZero();
+	ZeroMemberRow(iSpawnIndex, rInterpolate.Members());
 }
 
 void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t& rId)
 {
-	ASSERT(rId.IsValid());
-
 	SoundsInterpolate& rInterpolate = rFrame.interpolate.sounds;
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
 
-	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-
-	rId = {};
+	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 }
 
 void SoundsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

@@ -14,15 +14,7 @@ void WindRadialsInterpolate::Register()
 
 void WindRadialsInterpolate::AllocateAndCopy(WindRadialsInterpolate& rCurrent, const WindRadialsInterpolate& rPrevious)
 {
-	Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiControllerTypeIndices, rPrevious.puiControllerTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiControllerTypeIndices[0]));
-		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, rCurrent.iCount * sizeof(rCurrent.pfStartTimes[0]));
-		std::memcpy(rCurrent.pfBaseIntensities, rPrevious.pfBaseIntensities, rCurrent.iCount * sizeof(rCurrent.pfBaseIntensities[0]));
-		std::memcpy(rCurrent.pfBaseSizes, rPrevious.pfBaseSizes, rCurrent.iCount * sizeof(rCurrent.pfBaseSizes[0]));
-	}
+	AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void WindRadialsPostRender::AllocateAndCopy(WindRadialsPostRender& rCurrent, const WindRadialsPostRender& rPrevious)

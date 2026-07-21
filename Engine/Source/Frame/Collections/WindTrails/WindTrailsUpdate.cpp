@@ -39,22 +39,15 @@ void WindTrailsPostRender::Add(game::Frame& __restrict rFrame, wind_trail_t& rId
 	auto [uiSpawnIndex, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
-	rInterpolate.pfIntensities[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfWidths[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfLengthMultipliers[uiSpawnIndex] = 0.0f;
+	ZeroMemberRow(uiSpawnIndex, rInterpolate.Members());
 }
 
 void WindTrailsPostRender::Remove(game::Frame& __restrict rFrame, wind_trail_t& rId)
 {
-	ASSERT(rId.IsValid());
-
 	WindTrailsInterpolate& rInterpolate = rFrame.interpolate.windTrails;
 	WindTrailsPostRender& rPostRender = rFrame.postRender.windTrails;
 
-	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-
-	rId = {};
+	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 }
 
 void WindTrailsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

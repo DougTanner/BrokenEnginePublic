@@ -28,7 +28,8 @@ Assert-Contains $worktreeHelp @(
 	'WorktreeCli.exe --help',
 	'WorktreeCli.exe plan order init --repo COMMON-DIR --worktree CHECKOUT [--force]',
 	'WorktreeCli.exe plan order validate --repo COMMON-DIR --worktree CHECKOUT',
-	'WorktreeCli.exe plan order <add|update> --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL',
+	'WorktreeCli.exe plan order add --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL [--request-sha256 SHA256]',
+	'WorktreeCli.exe plan order update --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL',
 	'WorktreeCli.exe plan order claim-next --repo COMMON-DIR --primary-worktree CHECKOUT --worktree CHECKOUT --branch TARGET --owner TOKEN --session TOKEN --queue <plans|features>',
 	'WorktreeCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH'
 ) 'WorktreeCli'

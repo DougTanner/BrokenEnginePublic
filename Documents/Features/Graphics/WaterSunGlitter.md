@@ -25,7 +25,7 @@ f3SkyboxSpecular += fGlitter * f3SunOrMoon;
 
 ### New uniforms / sliders
 
-~4 new `GlobalLayout` floats: `fWaterGlitterThreshold` (0.9–0.999), `fWaterGlitterIntensity`, `fWaterGlitterNoiseScale`, `fWaterGlitterNoiseStrength`. Wrappers in `WaterWrappersBase.{h,cpp}`, sliders in `RenderWaterSection()`, uploads in `GlobalUniforms.cpp`.
+~4 new `GlobalLayout` floats: `fWaterGlitterThreshold` (0.9–0.999), `fWaterGlitterIntensity`, `fWaterGlitterNoiseScale`, `fWaterGlitterNoiseStrength`. Wrappers in `WaterWrappersBase.{h,cpp}`, sliders in `RenderWaterSection()`, uploads in `WaterUniforms.cpp`.
 
 ## Critical files
 
@@ -33,7 +33,7 @@ f3SkyboxSpecular += fGlitter * f3SunOrMoon;
 - `Engine/Data/Shaders/ShaderLayoutsBase.h` — new `GlobalLayout` floats
 - `Engine/Source/Ui/WaterWrappersBase.{h,cpp}` — wrappers
 - `Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenWater.cpp` — sliders
-- `Engine/Source/Graphics/Render/GlobalUniforms.cpp` — uploads + glitter-noise reduced origin
+- `Engine/Source/Graphics/Render/WaterUniforms.cpp` — uploads + glitter-noise reduced origin
 
 ## Out of scope
 

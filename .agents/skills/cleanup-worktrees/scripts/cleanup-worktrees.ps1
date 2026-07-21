@@ -284,7 +284,7 @@ try {
 	if ($Preview) { $cleanupStatus = 'PREVIEW' }
 	elseif ($residuals.Count -ne 0 -or $unexpectedRetained.Count -ne 0) { $cleanupStatus = 'PARTIAL' }
 	else { $cleanupStatus = 'COMPLETED' }
-	foreach ($item in $unexpectedRetained) { $residuals.Add("retained $($item.Path): $($item.Reason)") }
+	if ($unexpectedRetained.Count -ne 0) { $residuals.Add("$($unexpectedRetained.Count) worktree(s) retained for safety; see Retained") }
 	Write-Report -Status $cleanupStatus -RepositoryRoot $repositoryRoot -PrimaryBranch $primaryBranch -PrimaryHead $primaryHead -Removed $removed -Retained $retained -SnapshotRefs $snapshotRefs -Residuals $residuals.ToArray()
 	if ($cleanupStatus -eq 'PARTIAL') { exit 2 }
 }

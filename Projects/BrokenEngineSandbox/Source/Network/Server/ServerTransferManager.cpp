@@ -34,7 +34,7 @@ static bool IsDestinationLive(engine::GridCoord destination)
 	{
 		return true;
 	}
-	for (const engine::ClientConnection& rClient : engine::gpServer->GetClients())
+	for (const engine::ClientConnection& rClient : engine::gpServer->mClients)
 	{
 		for (const engine::ClientCoordSubscription& rSubscription : rClient.coordSubscriptions)
 		{
@@ -166,7 +166,7 @@ void ServerTransferManager::TrackClientTransfers(std::span<const ClientTransferI
 		}
 
 		bool bFoundClient = false;
-		std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+		std::vector<engine::ClientConnection>& rClients = engine::gpServer->mClients;
 		for (engine::ClientConnection& rClient : rClients)
 		{
 			// Find the client that owns this global ID
@@ -282,9 +282,9 @@ void ServerTransferManager::HarvestTransfers()
 		else
 		{
 			bool bAnySubscribed = false;
-			for (const engine::ClientConnection& rClient : engine::gpServer->GetClients())
+			for (const engine::ClientConnection& rClient : engine::gpServer->mClients)
 			{
-				if (rClient.IsCoordSubscribed(rCoord))
+				if (rClient.FindSlotForCoord(rCoord) >= 0)
 				{
 					bAnySubscribed = true;
 					break;

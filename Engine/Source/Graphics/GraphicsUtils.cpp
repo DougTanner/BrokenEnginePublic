@@ -98,11 +98,11 @@ void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT
 	rLayout.uiColor = uiColor;
 }
 
-bool SupportsLinearFilter(VkFormat vkFormat)
+bool SupportsStorageImage(VkFormat vkFormat)
 {
 	VkFormatProperties vkFormatProperties {};
 	vkGetPhysicalDeviceFormatProperties(gpInstanceManager->mVkPhysicalDevice, vkFormat, &vkFormatProperties);
-	return (vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
+	return (vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) != 0;
 }
 
 bool SupportsColorAttachmentBlend(VkFormat vkFormat)

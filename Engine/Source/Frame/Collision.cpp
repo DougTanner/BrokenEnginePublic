@@ -27,6 +27,17 @@ struct CollisionCandidate
 	XMVECTOR vecPositionB {};
 };
 
+// Values shared by every object pair generated for one layer pair.
+struct CollisionPairContext
+{
+	const Alignments& rAlignments;
+	const CollisionLayer& rLayerA;
+	const CollisionLayer& rLayerB;
+	size_t uiLayerA = 0;
+	size_t uiLayerB = 0;
+	bool bSweptPair = false;
+};
+
 struct CollisionEventScratch
 {
 	std::vector<CollisionCandidate> candidates;
@@ -97,7 +108,6 @@ thread_local std::vector<LayerPairZones> Collision::sLayerPairZones;
 thread_local int64_t Collision::siLayerPairCount = 0;
 
 thread_local std::vector<CollisionResult> Collision::sResultEntries;
-thread_local int64_t Collision::siResultEntryCount = 0;
 thread_local std::vector<CollisionResultSpan> Collision::sResultSpans;
 thread_local int64_t Collision::siResultSpanCount = 0;
 thread_local int64_t Collision::sLayerBaseOffsets[kiCollisionLayerPreallocate] {};
@@ -430,8 +440,6 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 			sResultEntries.resize(iTotalResults);
 		}
 	}
-	siResultEntryCount = iTotalResults;
-
 	// Pass 2: Fill results at their assigned offsets
 	for (int64_t i = 0; i < rScratch.iPendingResultCount; ++i)
 	{
@@ -533,8 +541,15 @@ void Collision::CommitCandidate(const CollisionCandidate& rCandidate)
 
 // Test one A object against one B object and collect a globally sortable event. The caller handles
 // the per-B tested-this-A-object dedup.
-static void TestAndCollectPair(const Alignments& rAlignments, CollisionLayer& rLayerA, CollisionLayer& rLayerB, size_t uiLayerA, size_t uiLayerB, int64_t i, int64_t j, bool bSweptPair)
+static void TestAndCollectPair(const CollisionPairContext& rPairContext, int64_t i, int64_t j)
 {
+	const Alignments& rAlignments = rPairContext.rAlignments;
+	const CollisionLayer& rLayerA = rPairContext.rLayerA;
+	const CollisionLayer& rLayerB = rPairContext.rLayerB;
+	size_t uiLayerA = rPairContext.uiLayerA;
+	size_t uiLayerB = rPairContext.uiLayerB;
+	bool bSweptPair = rPairContext.bSweptPair;
+
 	// Skip if alignments don't allow collision
 	if (!rAlignments.CanCollide(rLayerA.pAlignments[i], rLayerB.pAlignments[j]))
 	{
@@ -637,6 +652,15 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 	CollisionLayer& rLayerB = sLayers.at(uiLayerB);
 
 	bool bSweptPair = rLayerA.bSweptTest || rLayerB.bSweptTest;
+	CollisionPairContext pairContext
+	{
+		.rAlignments = rAlignments,
+		.rLayerA = rLayerA,
+		.rLayerB = rLayerB,
+		.uiLayerA = uiLayerA,
+		.uiLayerB = uiLayerB,
+		.bSweptPair = bSweptPair,
+	};
 
 	// Track tested B objects to avoid duplicates from multi-zone presence (generation counter)
 	if (rLayerB.iCount > static_cast<int64_t>(sTestedBGeneration.size()))
@@ -644,7 +668,6 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 		// Heap: one-time per-thread growth (thread_local vectors start empty to avoid allocating during mi_process_init)
 		ScopedSuppressAllocationTracking suppress;
 		sTestedBGeneration.resize(static_cast<size_t>(rLayerB.iCount));
-		std::memset(sTestedBGeneration.data(), 0, sTestedBGeneration.size() * sizeof(uint32_t));
 	}
 
 	for (int64_t i = 0; i < rLayerA.iCount; ++i)
@@ -688,7 +711,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					}
 					sTestedBGeneration.at(static_cast<size_t>(j)) = suiTestedBCurrentGeneration;
 
-					TestAndCollectPair(rAlignments, rLayerA, rLayerB, uiLayerA, uiLayerB, i, j, bSweptPair);
+					TestAndCollectPair(pairContext, i, j);
 				}
 			}
 		}

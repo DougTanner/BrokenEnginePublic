@@ -58,66 +58,66 @@ const engine::TweaksSliderMapRegistrar gLightingEffectsLightingRegistrar
 
 void TweaksScreen::RenderLightingEffectsLightingTab()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(engine::TweakSection::kLighting);
+	const int64_t iSection = engine::giTweakSectionLighting;
 
 	if (ImGui::BeginTable("LightingEffectsLightingColumns", 2))
 	{
 		ImGui::TableNextColumn();
 
 		WrapperSeparatorText("Explosions - Primary");
-		WrapperSlider("Lighting Area One", kiSection, 1.0f, "Explosion Primary Lighting Area One");
-		WrapperSlider("Lighting Area Two", kiSection, 1.0f, "Explosion Primary Lighting Area Two");
-		WrapperSlider("Lighting Area Three", kiSection, 1.0f, "Explosion Primary Lighting Area Three");
-		WrapperSlider("Lighting Int One", kiSection, 1.0f, "Explosion Primary Lighting Intensity One");
-		WrapperSlider("Lighting Int Two", kiSection, 1.0f, "Explosion Primary Lighting Intensity Two");
-		WrapperSlider("Lighting Int Three", kiSection, 1.0f, "Explosion Primary Lighting Intensity Three");
+		WrapperSlider("Lighting Area One", iSection, 1.0f, "Explosion Primary Lighting Area One");
+		WrapperSlider("Lighting Area Two", iSection, 1.0f, "Explosion Primary Lighting Area Two");
+		WrapperSlider("Lighting Area Three", iSection, 1.0f, "Explosion Primary Lighting Area Three");
+		WrapperSlider("Lighting Int One", iSection, 1.0f, "Explosion Primary Lighting Intensity One");
+		WrapperSlider("Lighting Int Two", iSection, 1.0f, "Explosion Primary Lighting Intensity Two");
+		WrapperSlider("Lighting Int Three", iSection, 1.0f, "Explosion Primary Lighting Intensity Three");
 
 		WrapperSeparatorText("Explosions - Secondary");
-		WrapperSlider("Lighting Area One", kiSection, 1.0f, "Explosion Secondary Lighting Area One");
-		WrapperSlider("Lighting Area Two", kiSection, 1.0f, "Explosion Secondary Lighting Area Two");
-		WrapperSlider("Lighting Area Three", kiSection, 1.0f, "Explosion Secondary Lighting Area Three");
-		WrapperSlider("Lighting Int One", kiSection, 1.0f, "Explosion Secondary Lighting Intensity One");
-		WrapperSlider("Lighting Int Two", kiSection, 1.0f, "Explosion Secondary Lighting Intensity Two");
-		WrapperSlider("Lighting Int Three", kiSection, 1.0f, "Explosion Secondary Lighting Intensity Three");
+		WrapperSlider("Lighting Area One", iSection, 1.0f, "Explosion Secondary Lighting Area One");
+		WrapperSlider("Lighting Area Two", iSection, 1.0f, "Explosion Secondary Lighting Area Two");
+		WrapperSlider("Lighting Area Three", iSection, 1.0f, "Explosion Secondary Lighting Area Three");
+		WrapperSlider("Lighting Int One", iSection, 1.0f, "Explosion Secondary Lighting Intensity One");
+		WrapperSlider("Lighting Int Two", iSection, 1.0f, "Explosion Secondary Lighting Intensity Two");
+		WrapperSlider("Lighting Int Three", iSection, 1.0f, "Explosion Secondary Lighting Intensity Three");
 
 		WrapperSeparatorText("Blasters - Terrain Crater");
-		WrapperSlider("Lighting Area One", kiSection, 1.0f, "Crater Lighting Area One");
-		WrapperSlider("Lighting Area Two", kiSection, 1.0f, "Crater Lighting Area Two");
-		WrapperSlider("Lighting Area Three", kiSection, 1.0f, "Crater Lighting Area Three");
-		WrapperSlider("Lighting Area Four", kiSection, 1.0f, "Crater Lighting Area Four");
-		WrapperSlider("Lighting Int One", kiSection, 1.0f, "Crater Lighting Intensity One");
-		WrapperSlider("Lighting Int Two", kiSection, 1.0f, "Crater Lighting Intensity Two");
-		WrapperSlider("Lighting Int Three", kiSection, 1.0f, "Crater Lighting Intensity Three");
-		WrapperSlider("Lighting Int Four", kiSection, 1.0f, "Crater Lighting Intensity Four");
+		WrapperSlider("Lighting Area One", iSection, 1.0f, "Crater Lighting Area One");
+		WrapperSlider("Lighting Area Two", iSection, 1.0f, "Crater Lighting Area Two");
+		WrapperSlider("Lighting Area Three", iSection, 1.0f, "Crater Lighting Area Three");
+		WrapperSlider("Lighting Area Four", iSection, 1.0f, "Crater Lighting Area Four");
+		WrapperSlider("Lighting Int One", iSection, 1.0f, "Crater Lighting Intensity One");
+		WrapperSlider("Lighting Int Two", iSection, 1.0f, "Crater Lighting Intensity Two");
+		WrapperSlider("Lighting Int Three", iSection, 1.0f, "Crater Lighting Intensity Three");
+		WrapperSlider("Lighting Int Four", iSection, 1.0f, "Crater Lighting Intensity Four");
 
 		ImGui::TableNextColumn();
 
 		WrapperSeparatorText("Players - Area Light");
-		WrapperSlider("Lighting Size", kiSection, 1.0f, "Player Area Light Lighting Size");
-		WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Player Area Light Lighting Intensity");
+		WrapperSlider("Lighting Size", iSection, 1.0f, "Player Area Light Lighting Size");
+		WrapperSlider("Lighting Intensity", iSection, 1.0f, "Player Area Light Lighting Intensity");
 
 		WrapperSeparatorText("Players - Impact Light");
-		WrapperSlider("Lighting Area One", kiSection, 1.0f, "Player Impact Lighting Area One");
-		WrapperSlider("Lighting Area Two", kiSection, 1.0f, "Player Impact Lighting Area Two");
-		WrapperSlider("Lighting Int One", kiSection, 1.0f, "Player Impact Lighting Intensity One");
-		WrapperSlider("Lighting Int Two", kiSection, 1.0f, "Player Impact Lighting Intensity Two");
+		WrapperSlider("Lighting Area One", iSection, 1.0f, "Player Impact Lighting Area One");
+		WrapperSlider("Lighting Area Two", iSection, 1.0f, "Player Impact Lighting Area Two");
+		WrapperSlider("Lighting Int One", iSection, 1.0f, "Player Impact Lighting Intensity One");
+		WrapperSlider("Lighting Int Two", iSection, 1.0f, "Player Impact Lighting Intensity Two");
 
 		WrapperSeparatorText("Players - Hex Shield");
-		WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Hex Shield Lighting Intensity");
+		WrapperSlider("Lighting Intensity", iSection, 1.0f, "Hex Shield Lighting Intensity");
 
 		WrapperSeparatorText("Missiles - Exhaust");
-		WrapperSlider("Lighting Area", kiSection, 1.0f, "Missile Exhaust Lighting Area");
-		WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Missile Exhaust Lighting Intensity");
+		WrapperSlider("Lighting Area", iSection, 1.0f, "Missile Exhaust Lighting Area");
+		WrapperSlider("Lighting Intensity", iSection, 1.0f, "Missile Exhaust Lighting Intensity");
 
 		WrapperSeparatorText("Spaceships - Enemy Blaster");
-		WrapperSlider("Lighting Area", kiSection, 1.0f, "Enemy Blaster Lighting Area");
-		WrapperSlider("Lighting Intensity", kiSection, 1.0f, "Enemy Blaster Lighting Intensity");
+		WrapperSlider("Lighting Area", iSection, 1.0f, "Enemy Blaster Lighting Area");
+		WrapperSlider("Lighting Intensity", iSection, 1.0f, "Enemy Blaster Lighting Intensity");
 
 		WrapperSeparatorText("Spaceships - Hit Flash");
-		WrapperSlider("Lighting Area One", kiSection, 1.0f, "Hit Flash Lighting Area One");
-		WrapperSlider("Lighting Area Two", kiSection, 1.0f, "Hit Flash Lighting Area Two");
-		WrapperSlider("Lighting Int One", kiSection, 1.0f, "Hit Flash Lighting Intensity One");
-		WrapperSlider("Lighting Int Two", kiSection, 1.0f, "Hit Flash Lighting Intensity Two");
+		WrapperSlider("Lighting Area One", iSection, 1.0f, "Hit Flash Lighting Area One");
+		WrapperSlider("Lighting Area Two", iSection, 1.0f, "Hit Flash Lighting Area Two");
+		WrapperSlider("Lighting Int One", iSection, 1.0f, "Hit Flash Lighting Intensity One");
+		WrapperSlider("Lighting Int Two", iSection, 1.0f, "Hit Flash Lighting Intensity Two");
 
 		ImGui::EndTable();
 	}

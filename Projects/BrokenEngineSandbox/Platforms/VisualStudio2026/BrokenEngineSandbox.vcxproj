@@ -100,7 +100,14 @@
     <TargetName>$(ProjectName)</TargetName>
     <CustomBuildBeforeTargets />
     <LinkIncremental>false</LinkIncremental>
-    <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)BrokenEngineAnalysis.ruleset</CodeAnalysisRuleSet>
+    <!-- Analysis diagnostics reach the post-link NativeCodeAnalysis task, not cl's console, so
+         TreatWarningAsError never sees them; this is what makes them fail the build. It takes effect
+         wherever RunCodeAnalysis is true - including the Release default set just below, so Visual
+         Studio Release builds enforce as well - and is inert only for agent builds, which pass
+         /p:RunCodeAnalysis=false. Keep CodeAnalysisNeverReportRuleErrors unset or the task silently
+         drops back to warnings. -->
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
     <RunCodeAnalysis>true</RunCodeAnalysis>
     <CustomBuildAfterTargets>PreBuildEvent</CustomBuildAfterTargets>
     <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
@@ -416,11 +423,13 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Screenshot.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Client\Client.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\Client\ClientSessionRuntime.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryScanner.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkProtocol.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSessionContract.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSimulation.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h" />
     <ClInclude Include="..\..\Source\Profile\ProfileManager.h" />
@@ -460,13 +469,12 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\Source\ClientSettings.h" />
     <ClInclude Include="..\..\Source\FleetSelection.h" />
     <ClInclude Include="..\..\Source\Network\Client\ClientSession.h" />
-    <ClInclude Include="..\..\Source\Network\Client\ClientDataReceiver.h" />
     <ClInclude Include="..\..\Source\Network\Client\ClientDesyncManager.h" />
     <ClInclude Include="..\..\Source\Network\Client\ClientReconciler.h" />
     <ClInclude Include="..\..\Source\Network\Client\ReconcileReplay.h" />
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h" />
     <ClInclude Include="..\..\Source\Network\GamePacketType.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\Client\ClientSessionBase.h" />
+    <ClInclude Include="..\..\Source\Network\NetworkSessionContract.h" />
     <ClInclude Include="..\..\Source\Graphics\Camera.h" />
     <ClInclude Include="..\..\Source\Input\Input.h" />
     <ClInclude Include="..\..\Source\Pch.h" />
@@ -563,6 +571,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Render\LightingUniforms.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Render\SmokeUniforms.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Render\WindUniforms.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Render\WaterUniforms.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\LaunchOptions.cpp" />
@@ -615,9 +624,9 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\..\..\Engine\Source\CrashReport.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Main.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Client\Client.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\Client\ClientSessionRuntime.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Client\ClientReceive.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Client\ClientSend.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Client\ClientSessionBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryScanner.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkManager.cpp" />
     <ClCompile Include="..\..\Source\Network\NetworkSerialization.cpp" />
@@ -690,7 +699,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\Source\FleetSelection.cpp" />
     <ClCompile Include="..\..\Source\Network\Client\ClientSession.cpp" />
     <ClCompile Include="..\..\Source\Network\Client\ClientSessionSubscriptions.cpp" />
-    <ClCompile Include="..\..\Source\Network\Client\ClientDataReceiver.cpp" />
+    <ClCompile Include="..\..\Source\Network\Client\ClientSessionReceive.cpp" />
     <ClCompile Include="..\..\Source\Network\Client\ClientDesyncManager.cpp" />
     <ClCompile Include="..\..\Source\Network\Client\ClientReconciler.cpp" />
     <ClCompile Include="..\..\Source\Network\Client\ReconcileReplay.cpp" />

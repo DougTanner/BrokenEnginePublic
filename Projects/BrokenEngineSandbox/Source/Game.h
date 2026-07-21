@@ -23,7 +23,6 @@ inline constexpr std::string_view kGameName = "Broken Engine Sandbox";
 #else
 inline constexpr std::string_view kGameName = "Broken Engine Sandbox Server";
 #endif
-inline constexpr int64_t kiDesiredCoordSlots = 16; // 9 subscriptions (1 current + 8 ring) + 6 sticky + 1 spare
 
 enum class UiState
 {

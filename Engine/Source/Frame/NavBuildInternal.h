@@ -11,6 +11,14 @@
 namespace engine
 {
 
+template <typename T>
+inline std::pair<int32_t, int32_t> PolygonRange(const std::vector<int32_t>& rPolygonOffsets, T polygonIndex, int32_t iVertexTotal)
+{
+	int32_t iStart = rPolygonOffsets.at(static_cast<size_t>(polygonIndex));
+	int32_t iEnd = (polygonIndex + 1 < static_cast<T>(rPolygonOffsets.size())) ? rPolygonOffsets.at(static_cast<size_t>(polygonIndex + 1)) : iVertexTotal;
+	return {iStart, iEnd};
+}
+
 // Returns true if segments (A1,A2) and (B1,B2) properly intersect (interior crossing only, not
 // endpoint touching). Defined in NavBuild.cpp.
 bool SegmentsIntersect(XMFLOAT2 f2A1, XMFLOAT2 f2A2, XMFLOAT2 f2B1, XMFLOAT2 f2B2);

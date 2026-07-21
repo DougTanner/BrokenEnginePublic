@@ -32,11 +32,14 @@ param(
 	[Parameter(Mandatory)][string] $SessionOwner,
 	[string] $WaitSeconds = '60',
 	[switch] $HasPlanRowClaim,
+	[Parameter(Mandatory)][ValidateSet('none', 'list')][string] $PlanAddRequestDisposition,
+	[string[]] $PlanAddRequestPaths,
 	[ValidateSet('none', 'compare-and-swap', 'postcondition', 'final-dirty')][string] $FixtureFailure = 'none'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$planAddRequestPathsBound = $PSBoundParameters.ContainsKey('PlanAddRequestPaths')
 $workflowModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
 if (-not (Test-Path -LiteralPath $workflowModule)) {
 	$workflowModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
@@ -66,6 +69,7 @@ $result = [ordered]@{
 		initial = $null
 		final = $null
 	}
+	planAddRequests = [ordered]@{ disposition = $PlanAddRequestDisposition; items = @() }
 }
 
 $script:CurrentIdentity = $null
@@ -112,6 +116,60 @@ function Get-JsonResponse($Response, [string] $Operation)
 	}
 }
 
+function New-PlanAddRequestItemsJson
+{
+	$paths = @()
+	if ($planAddRequestPathsBound) { $paths = @($PlanAddRequestPaths) }
+	if ($PlanAddRequestDisposition -ceq 'none')
+	{
+		Assert-Input ($paths.Count -eq 0) 'PlanAddRequestDisposition none forbids request paths.'
+		return $null
+	}
+	Assert-Input ($paths.Count -gt 0) 'PlanAddRequestDisposition list requires at least one request path.'
+	$items = [Collections.Generic.List[object]]::new()
+	foreach ($path in $paths)
+	{
+		Assert-Input (-not [string]::IsNullOrWhiteSpace($path)) 'PlanAddRequestPaths contains a null or blank element.'
+		$items.Add([ordered]@{ path = $path })
+	}
+	return ConvertTo-Json -InputObject $items.ToArray() -Depth 4 -Compress
+}
+
+function Assert-PlanAddRequestResult($PreflightResult)
+{
+	if ($null -eq $PreflightResult.planAddRequests -or $PreflightResult.planAddRequests.disposition -cne $PlanAddRequestDisposition)
+	{
+		Throw-Preparation 1 'preflight.request-disposition-invalid' 'Finalization preflight returned a different plan-add request disposition.'
+	}
+	$paths = @()
+	if ($planAddRequestPathsBound) { $paths = @($PlanAddRequestPaths) }
+	$items = @($PreflightResult.planAddRequests.items)
+	if ($items.Count -ne $paths.Count)
+	{
+		Throw-Preparation 1 'preflight.request-count-invalid' 'Finalization preflight returned a different plan-add request count.'
+	}
+	for ($index = 0; $index -lt $items.Count; ++$index)
+	{
+		$item = $items[$index]
+		if ($null -eq $item)
+		{
+			Throw-Preparation 1 'preflight.request-identity-invalid' "Finalization preflight returned a null plan-add request at index $index."
+		}
+		$properties = @($item.PSObject.Properties.Name)
+		if (@('suppliedPath', 'repositoryRelativePath', 'identity', 'sha256') | Where-Object { $properties -cnotcontains $_ })
+		{
+			Throw-Preparation 1 'preflight.request-identity-invalid' "Finalization preflight omitted plan-add request identity fields at index $index."
+		}
+		if ([string]::IsNullOrWhiteSpace([string]$item.suppliedPath) -or
+			[string]::IsNullOrWhiteSpace([string]$item.repositoryRelativePath) -or
+			[string]::IsNullOrWhiteSpace([string]$item.identity) -or
+			[string]$item.suppliedPath -cne $paths[$index] -or [string]$item.sha256 -cnotmatch '^[0-9a-f]{64}$')
+		{
+			Throw-Preparation 1 'preflight.request-identity-invalid' "Finalization preflight returned an invalid or reordered plan-add request at index $index."
+		}
+	}
+}
+
 function Invoke-Preflight([string] $CurrentTip)
 {
 	$preflight = Join-Path $PSScriptRoot 'Test-FinalizePreflight.ps1'
@@ -136,6 +194,12 @@ function Invoke-Preflight([string] $CurrentTip)
 		$arguments.Add($argument)
 	}
 	if ($HasPlanRowClaim) { $arguments.Add('-HasPlanRowClaim') }
+	foreach ($argument in @('-PlanAddRequestDisposition', $PlanAddRequestDisposition)) { $arguments.Add($argument) }
+	$requestItemsJson = New-PlanAddRequestItemsJson
+	if ($null -ne $requestItemsJson)
+	{
+		foreach ($argument in @('-PlanAddRequestItemsJson', $requestItemsJson)) { $arguments.Add($argument) }
+	}
 
 	$response = Invoke-FinalizeNativeText 'pwsh.exe' $arguments.ToArray() $CurrentWorktree
 	$preflightResult = Get-JsonResponse $response 'Finalization preflight'
@@ -144,6 +208,7 @@ function Invoke-Preflight([string] $CurrentTip)
 		$exitCode = if ($response.ExitCode -eq 2) { 2 } else { 1 }
 		Throw-Preparation $exitCode "preflight.$($preflightResult.code)" "Finalization preflight failed: $($preflightResult.message)"
 	}
+	Assert-PlanAddRequestResult $preflightResult
 	return $preflightResult
 }
 
@@ -341,6 +406,7 @@ try
 	{
 		Throw-Preparation 2 'preflight.final-identity-mismatch' 'Final preflight did not bind the approved session tip and primary tip.'
 	}
+	$result.planAddRequests.items = @($result.preflight.final.planAddRequests.items)
 	if ($FixtureFailure -ceq 'final-dirty')
 	{
 		[IO.File]::WriteAllText((Join-Path $script:CurrentIdentity 'fixture-final-dirty.tmp'), 'fixture', [Text.UTF8Encoding]::new($false))

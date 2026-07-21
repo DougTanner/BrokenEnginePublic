@@ -25,7 +25,7 @@ void Server::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick,
 	// Heap: scratch grows until steady state
 	mSendScratch.clear();
 	mFrameStreamBuf.mpTarget = &mSendScratch;
-	mFrameStream << *pFrame;
+	game::NetworkSessionContract::WriteFrame(mFrameStream, *pFrame);
 
 	// LZ4 compress
 	int iCompressedSize = CompressToBuffer(mSendScratch.data(), static_cast<int>(mSendScratch.size()));

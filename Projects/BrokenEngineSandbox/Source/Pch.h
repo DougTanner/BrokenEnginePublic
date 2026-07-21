@@ -3,6 +3,7 @@
 #include "ExternalHeaders.h"
 
 inline constexpr bool kbDesyncRecovery = true; // DT: Recovery enabled; confirm in playtest
+inline constexpr bool kbDesyncDebugFrames = false; // Manual client/server diagnostic switch; both targets must match
 inline constexpr bool kbFrameDispatch = true;
 inline constexpr bool kbLogging = true;
 inline constexpr bool kbInvincibility = true;
@@ -102,6 +103,7 @@ inline constexpr LogLevel keLogLevelInput = keLogLevelDefault;
 #endif
 #include "Ui/WindDepositsWrappers.h"
 #include "Frame/Frame.h"
+#include "Network/NetworkSessionContract.h"
 #include "Engine.h"
 
 inline constexpr engine::NetworkSimulationLevel keNetworkSimulation = engine::NetworkSimulationLevel::kChina; // DT: TEMP kDisabled;

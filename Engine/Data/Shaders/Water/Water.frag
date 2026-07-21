@@ -165,7 +165,7 @@ void main()
 	// Per-sample rotation (in each group below): m2UvRotX = R(-θ) rotates worldUV → texUV (texture pattern appears
 	// CCW-rotated by θ in world). m2NormalRotX = R(+θ) is its inverse, applied to the sampled tangent-space
 	// normal.xy to bring it back into world frame.
-	// Note: reducedOrigin is already rotated on the CPU (GlobalUniforms.cpp uses the same per-sample
+	// Note: reducedOrigin is already rotated on the CPU (WaterUniforms.cpp uses the same per-sample
 	// rotation angle to rotate cameraXY before fmod). Rotating it again here would double-rotate
 	// AND break precision: the wrap shift sizeMult*10 must be integer for fract() to absorb it,
 	// but R*(sizeMult*10, 0) is non-integer for arbitrary θ. So m2UvRot is applied to the
@@ -459,6 +459,9 @@ void main()
 	vec3 f3SunContribution     = fEffectiveShadow      * (fSunScalar     * f3BaseDarkened + f3SkyboxSpecularDarkened);
 	vec3 f3AmbientContribution = fAmbientShadowApplied *  fAmbientScalar * f3BaseDarkened;
 	f4OutColor.xyz = f3SunContribution + f3AmbientContribution;
+	// Cubemap-colored 0.5 ambient floor lifts only darker shadowed water; componentwise max preserves
+	// brighter lighting/highlights, while fAmbientShadowApplied keeps Affect Ambient control.
+	f4OutColor.xyz = max(f4OutColor.xyz, 0.5f * fAmbientShadowApplied * globalLayout.f4AmbientColor.xyz * f3SkyboxColor);
 
 	// Terrain elevation (for water transparency)
 	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, globalLayout.fWaterTerrainFadeClamp, 1.0f);

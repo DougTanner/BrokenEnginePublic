@@ -145,8 +145,12 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 				.clearValueCount = static_cast<uint32_t>(std::size(pSpreadClearValues)),
 				.pClearValues = pSpreadClearValues,
 			};
+			// Draw indirect so RenderLightingSpreadIndirect can drop the instance count to 0 on a frame with no
+			// light deposit, without re-recording this CB. Begin/end and the clear stay unconditional: the
+			// pSpreadClearValues LOAD_OP_CLEAR still zeroes all 6 attachments, which is exactly what the gather
+			// over an all-zero deposit would have written.
 			vkCmdBeginRenderPass(vkCommandBuffer, &vkSpreadRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			gpPipelineManager->mSpreadPipelines[iPass].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(uiPassWidth), static_cast<float>(uiPassHeight), static_cast<float>(iPass), 0.0f});
+			gpPipelineManager->mSpreadPipelines[iPass].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {static_cast<float>(uiPassWidth), static_cast<float>(uiPassHeight), static_cast<float>(iPass), 0.0f});
 			vkCmdEndRenderPass(vkCommandBuffer);
 
 			// Barrier between spread passes (color attachment write → fragment shader read for next pass)

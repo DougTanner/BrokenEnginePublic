@@ -1,25 +1,15 @@
 # PipelineManager
 
-**Global**: `gpPipelineManager`
+**Global:** `gpPipelineManager`
 
-Loads all SPIR-V shader modules from pack chunks at construction and creates all graphics and compute pipelines (~60 static plus dynamic per-collection). Shaders are stored in a CRC-keyed `mShaders` map and referenced by pipelines via pointer.
+Loads SPIR-V from pack chunks and owns fixed engine pipelines plus CRC-keyed dynamic collection pipelines. Validate shader metadata and byte ranges before module creation; pipelines retain pointers into the manager's stable shader map.
 
-## Static Pipelines
+## Pipeline Families
 
-Indexed by `Pipelines` enum, covering shadows, terrain, water, particles, smoke, wind, and a debug texture visualization pipeline (debug builds only, gated on `kbDebugInput`). Smoke and wind spread pipelines are compute pipelines; smoke clear pipelines (`kPipelineSmokeClearA`/`kPipelineSmokeClearB`) remain fragment-shader render-pass pipelines. Wind pipelines include `kPipelineWindOccupancyDilateA`/`B` (compact pass) and `kPipelineWindSpreadComputeA`/`B` (spread pass).
+Fixed pipelines implement renderer passes and utility compute work. Lighting follows deposit, spread, combine, then temporal accumulation; separable blur pipelines pre-process registered light textures.
 
-## Lighting Pipelines
+Collections register dynamic pipelines by behavior and model role. These maps repopulate lazily after pipeline-tier recreation, so new renderable collections must use the established idempotent registration path rather than requiring command-buffer re-recording for each scene CRC.
 
-Lighting pipelines are stored as named members rather than in the `Pipelines` enum: an array of spread pipelines (fragment MRT, one per spread pass, each writing all three spread textures; each spread pipeline binds the terrain elevation texture as an additional sampler for height-aware attenuation), and a combine pipeline (compute, tone maps all three channels in one dispatch, reading from all spread pass outputs).
+## Descriptor Validity
 
-Two static compute pipelines (`kPipelineLightingBlurH`, `kPipelineLightingBlurV`) implement separable Gaussian blur for pre-blurring light type textures at load time. Their descriptors are updated per-texture before each blur dispatch via `UpdateStorageImageDescriptor()` and `UpdateCombinedImageSamplerDescriptor()`.
-
-## Dynamic Pipelines (`mDynamicPipelines`)
-
-Delegated to the `DynamicPipelines` sub-object (`DynamicPipelines.h/.cpp`), owned as a member of PipelineManager. Collections register pipelines during CreatePipelines() phase via `gpPipelineManager->mDynamicPipelines.Create*()`. Two indexing systems: `DynamicPipelineType` for non-model pipelines (lighting, visible lights, billboards, smoke, wind deposit, hex shields) and `DynamicModelPipelineType` for model pipelines (regular and shadow). Both stored as CRC-keyed maps accessed via `mDynamicPipelines.mPipelineMaps` and `mDynamicPipelines.mModelPipelineMaps`.
-
-`ModelPipelineSpec` configures model pipeline creation with scene CRC, pipeline info, and a shadow-mode flag. DynamicPipelines holds a reference to PipelineManager's shader map for shader lookups during pipeline creation.
-
-## Recreation
-
-Pipeline-tier destroy events (`Graphics::Destroy` with `meDestroyType >= kPipelines`) call `mpPipelineManager.reset()` and re-run the constructor. Static pipelines rebuild directly; dynamic pipelines repopulate lazily as collections issue their per-frame render code (idempotent `mPipelineMaps[type].contains(crc)` checks). Texture recreation stays selective (driven by `DestroyFlags`); only pipeline recreation is unconditional. Descriptor staleness is caught at the top of `CommandBufferRecordGlobal::Record` by `VerifyAllDescriptorGenerations()` (the Main recorder does not verify).
+Global command-buffer recording verifies cached texture descriptor snapshots. Texture creation and transferred-image adoption increment the live generation; destruction is detected through a null live image because it does not increment generation. Preserve both checks when changing texture lifetime or descriptor registration.

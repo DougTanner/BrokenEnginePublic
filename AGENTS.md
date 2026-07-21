@@ -43,8 +43,10 @@ The only place a role's model and effort are written down; skills name a role an
 - Every review is `reviewer` — no higher-capability exception. Locating is `locator`, judgment is `researcher`, style review is mechanical so `mechanic`
 - `codex-review` is the sole skill that may name a model — it routes around one being unavailable
 
-For ChatGPT Codex: Fable -> gpt-5.6-sol, Opus -> gpt-5.6-terra, Sonnet -> gpt-5.6-luna
+ChatGPT Codex: Fable -> gpt-5.6-sol, Opus -> gpt-5.6-terra, Sonnet -> gpt-5.6-luna
 	Temp Note: Codex does not currently expose model names for subagents, so we are using gpt-5.6-sol high (which currently is picked up by all subagents)
+	
+Claude Code: If Fable is not available, fall back to Opus.
 
 ## IMPORTANT: Change Workflow (YOU MUST follow this when changing anything tracked in this repository)
 
@@ -121,7 +123,8 @@ Convergence applies only to steps this workflow routes and does not trigger. An 
 - **KISS, YAGNI, DRY:** Reuse existing mechanisms. Extract helpers only for current duplication; never abstract for hypothetical use. Mirrored patterns stay parallel.
 - Add backward compatibility only after explicit user consent. Without that consent, keep one current format, path, or behavior and remove obsolete compatibility code.
 - **Error handling at trust boundaries only**: assume function parameters from within the codebase are valid — no defensive validation between our own functions. Do validate anything opaque to the current code unit: network input, file reads, OS/third-party API results.
-- **No useless ASSERTs**: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it; prefer making the condition impossible in calling code or recovering gracefully. Resolution ladder: repo-code-review skill §2c.
+- **No useless ASSERTs**: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it; prefer making the condition impossible in calling code or recovering gracefully. Resolution ladder: `/repo-code-review`.
+- **Comment the non-obvious, not the mechanism**: never explain a language feature or established house pattern the declaration already shows. Comment what the code cannot say — an invariant, a required ordering, a consequence. Review: `/code-style-review`.
 - Do not add unit tests
 - **Response style**: Stay concise — no pleasantries, hedging, or restating the request. Terse ≠ incomplete: cut the words around the facts, never the facts — when the user (or output style) asks for explanation, provide it fully. Never compress errors, irreversible-action confirmations, or order-sensitive step sequences. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
 

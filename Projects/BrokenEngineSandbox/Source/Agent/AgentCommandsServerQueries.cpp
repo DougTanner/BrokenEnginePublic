@@ -77,6 +77,7 @@ nlohmann::json ExtractSpaceships(const Frame& rFrame, int64_t iOffset, int64_t i
 			{"pos", Vec3ToJson(rInterp.pVecPositions[i])},
 			{"dir", Vec3ToJson(rInterp.pVecDirections[i])},
 			{"health", rPost.pfHealths[i]},
+			{"deltaRotation", rInterp.pfDeltaRotations[i]},
 			{"alignment", rPost.pAlignments[i].Value()},
 		});
 	}
@@ -98,6 +99,8 @@ nlohmann::json ExtractMissiles(const Frame& rFrame, int64_t iOffset, int64_t iLi
 			{"index", i},
 			{"pos", Vec3ToJson(rInterp.pVecPositions[i])},
 			{"dir", Vec3ToJson(rInterp.pVecDirections[i])},
+			{"deltaRotation", rPost.pfDeltaRotations[i]},
+			{"deltaRotationDelay", rPost.pfDeltaRotationDelays[i]},
 			{"alignment", rPost.pAlignments[i].Value()},
 		});
 	}

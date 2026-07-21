@@ -111,6 +111,10 @@ void HexShieldsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 	gpProfileManager->SetCount(kCpuCounterHexShieldsRendered, siRendered);
 	gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineHexShields].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 	gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineHexShieldsLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
+	// Feeds the spread-chain gate (RenderLightingSpreadIndirect); pair any change here with the deposit write above.
+	// Counts shields whose fLightingIntensity is 0 (the deposit draws them and contributes nothing): deliberate and
+	// conservative — the gate only ever stays open too long, never suppresses a real light.
+	giLightingDepositInstances += siRendered;
 }
 
 } // namespace engine

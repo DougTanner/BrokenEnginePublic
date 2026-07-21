@@ -71,36 +71,17 @@ void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rI
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	// Zero-init all members
+	ZeroMemberRow(uiSpawnIndex, rInterpolate.Members());
 	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorSetW(XMVectorZero(), 1.0f);
-	rInterpolate.pf4Transforms[0][uiSpawnIndex] = {};
-	rInterpolate.pf4Transforms[1][uiSpawnIndex] = {};
-	rInterpolate.pf4Transforms[2][uiSpawnIndex] = {};
-	rInterpolate.pf4TransformNormals[0][uiSpawnIndex] = {};
-	rInterpolate.pf4TransformNormals[1][uiSpawnIndex] = {};
-	rInterpolate.pf4TransformNormals[2][uiSpawnIndex] = {};
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
-	{
-		rInterpolate.pf4Directions[j][uiSpawnIndex] = {};
-		rInterpolate.pfVertIntensities[j][uiSpawnIndex] = 0.0f;
-		rInterpolate.pfFragIntensities[j][uiSpawnIndex] = 0.0f;
-	}
-	rInterpolate.pfLightingIntensities[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfSizes[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfColorMixes[uiSpawnIndex] = 0.0f;
 }
 
 void HexShieldsPostRender::Remove(game::Frame& __restrict rFrame, hex_shields_t& rId)
 {
-	ASSERT(rId.IsValid());
-
 	HexShieldsInterpolate& rInterpolate = rFrame.interpolate.hexShields;
 	HexShieldsPostRender& rPostRender = rFrame.postRender.hexShields;
 
-	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-
-	rId = {};
+	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 }
 
 void HexShieldsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

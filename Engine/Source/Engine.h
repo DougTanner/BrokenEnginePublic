@@ -15,6 +15,7 @@
 // Network (shared)
 #include "Network/NetworkManager.h"
 #include "Network/NetworkProtocol.h"
+#include "Network/NetworkSessionContract.h"
 #include "Network/NetworkSerialization.h"
 #include "Network/NetworkSimulation.h"
 
@@ -63,12 +64,8 @@
 // Graphics debug
 #include "Graphics/Debug/DebugRender.h"
 
-// Audio (shared helpers first, then voices before managers: AudioManager uses StaticVoices and StreamingVoices)
+// Audio (StaticVoice/StreamingVoice headers deliberately not aggregated)
 #include "Audio/AudioUtility.h"
-#include "Audio/StaticVoice.h"
-#include "Audio/StreamingVoice.h"
-#include "Audio/StaticVoices.h"
-#include "Audio/StreamingVoices.h"
 #include "Audio/AudioManager.h"
 
 // Input
@@ -81,7 +78,7 @@
 // Network client
 #include "Network/NetworkDiscoveryScanner.h"
 #include "Network/Client/Client.h"
-#include "Network/Client/ClientSessionBase.h"
+#include "Network/Client/ClientSessionRuntime.h"
 
 // Graphics (Islands is client-only GPU rendering)
 #include "Graphics/Islands.h"
@@ -94,7 +91,7 @@
 #if defined(BT_SERVER)
 #include "Network/NetworkDiscoveryResponder.h"
 #include "Network/Server/Server.h"
-#include "Network/Server/ServerSessionBase.h"
+#include "Network/Server/ServerSessionRuntime.h"
 #endif
 
 // Engine base

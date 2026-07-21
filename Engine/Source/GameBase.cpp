@@ -45,7 +45,7 @@ void GameBase::ClientUpdate()
 
 	game::gpClientSession->Poll();
 
-	if (game::gpClientSession->IsStalled())
+	if (game::gpClientSession->mpDesyncManager->IsStalled())
 	{
 		return;
 	}
@@ -65,7 +65,8 @@ void GameBase::ClientUpdate()
 	// sim toward the bare target, so this clamp engages only on genuine arrival stalls (loss bursts),
 	// not per-packet jitter, while StatusChanges still normally arrive before their tick simulates.
 	// Extreme "sim way behind target" is handled by the snap path in Reconcile.
-	int64_t iCeiling = game::gpClientSession->GetSimTickCeiling();
+	const engine::ClientSessionRuntime& rRuntime = *game::gpClientSession->mpRuntime;
+	int64_t iCeiling = rRuntime.miLatestServerTick < 0 ? -1 : rRuntime.miLatestServerTick - rRuntime.miCurrentTargetBehind + engine::kiSimCeilingSlackTicks;
 	int64_t iAbsorbedTicks = 0;
 	if (iCeiling >= 0 && iFullTicks > 0)
 	{
@@ -124,7 +125,12 @@ void GameBase::ServerUpdate()
 {
 	common::LogTickScope logTickScope(miTickCounter);
 
-	game::gpServerSession->PreTickNetwork();
+	NetworkTimeState networkTimeState {
+		.bFastForward = mTimeStep.miTimeMultiply > 1,
+		.iExpectedUpdateIntervalMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(mTimeStep.SimToWall(game::NetworkSessionContract::kTickDuration)).count(),
+		.iExpectedUpdatesPerSecond = kiTickRate * mTimeStep.miTimeMultiply / mTimeStep.miTimeDivide,
+	};
+	game::gpServerSession->mpRuntime->Poll(networkTimeState);
 
 	// Drain agent commands with the debug-control packets, before SaveLoadReplay/PrepareActiveSet so
 	// flag-setting commands are consumed the same update and injected StatusChanges enter the broadcast snapshot.
@@ -135,7 +141,7 @@ void GameBase::ServerUpdate()
 
 	game::gpGame->mGameSaveLoad.SaveLoadReplay();
 
-	game::gpServerSession->WaitForTick(mTimeStep);
+	game::gpServerSession->mpRuntime->WaitForTick(mTimeStep);
 
 	int64_t iFullTicks = mTimeStep.TickRealtime();
 	game::gpServerSession->BroadcastTimespeedIfChanged();
@@ -196,14 +202,14 @@ void GameBase::ServerUpdate()
 	}
 	if (iFullTicks > 0)
 	{
-		game::gpServerSession->SendResends(miTickCounter);
+		game::gpServerSession->mpRuntime->CompleteUpdate(1, miTickCounter);
 	}
 	else
 	{
 		// Zero-tick update (paused, or an occasional clock/timescale remainder): service the persist-until-served
 		// subscription/resync queues so a client can connect to a paused server and receive full state (the per-tick
-		// BroadcastTick consumers never run here).
-		game::gpServerSession->ServicePausedNetwork();
+		// CompleteTick consumers never run here).
+		game::gpServerSession->mpRuntime->CompleteUpdate(0, miTickCounter);
 	}
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, CpuStopFlags::kSmoothNow);
 
@@ -276,7 +282,7 @@ void GameBase::FinalizeFrameTick()
 
 	SwapFrames();
 
-	game::gpServerSession->BroadcastTick(miTickCounter);
+	game::gpServerSession->mpRuntime->CompleteTick(miTickCounter);
 
 	for (auto& [rCoord, rFrameInput] : game::gpGame->mFrameInputs)
 	{
@@ -585,7 +591,7 @@ void GameBase::Render()
 			// Still deferred (minimized / off-screen): this branch loops every frame with no vkQueuePresentKHR to
 			// throttle it, so pace it to the sim tick's remaining time (game::kTickNs minus this iteration's elapsed
 			// wall time) — the minimized loop holds ~32 Hz instead of busy-spinning a core and re-issuing a
-			// vkGetPhysicalDeviceSurfaceCapabilitiesKHR per spin. Mirrors ServerSessionBase::WaitForTick's high-resolution
+			// vkGetPhysicalDeviceSurfaceCapabilitiesKHR per spin. Mirrors ServerSessionRuntime::WaitForTick's high-resolution
 			// waitable timer minus its precision spin (nothing minimized needs sub-ms accuracy).
 			if (mMinimizedThrottleTimer == nullptr)
 			{

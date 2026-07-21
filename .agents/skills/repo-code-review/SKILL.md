@@ -1,263 +1,268 @@
 ---
 name: repo-code-review
-description: Reviews C++ code changes made this session for bugs, correctness, and Broken Engine pattern violations — XMVECTOR W invariants, allocation-tracker / LOG formatting discipline, useless-ASSERT discipline, collection integrity, determinism, client/server guard scope and affinity. Use as the correctness review for C++ changes, when the user says "review my changes", "check my code", or "code review". Do not use for shader-only or non-C++ changes. Triages size only when the change exposes a cohesive split. Logic and correctness only — formatting/style belongs to code-style-review.
-allowed-tools: [Read, Write, Grep, Glob, WebFetch, Bash, PowerShell]
+description: >-
+  Review session-changed C++ for reachable correctness defects and Broken
+  Engine contract violations, including trust boundaries, allocation tracking,
+  ASSERT use, SOA collections, determinism, XMVECTOR W roles, frame phases,
+  client/server affinity, and integration. Use after C++ changes or when the
+  user asks to review, check, or audit C++ code. Excludes shader-only and
+  non-C++ changes; style and formatting belong to code-style-review.
+allowed-tools: [Read, Grep, Glob, Bash, PowerShell]
 ---
 
-# Code Review
-
-Reviews this session's C++ changes for **logic and correctness** — formatting/style is owned by `/code-style-review`.
-
-Run one evidence-complete pass over the supplied C++ change. The caller
-adjudicates the union of review evidence once; do not request a duplicate or
-consensus review because another reviewer reached a different conclusion.
-After accepted fixes, re-review only the fixed regions and directly affected
-call paths. A later review wave requires a concrete failure that remains
-reproducible after that focused check.
-
-## Instructions
-
-### 1. Identify Modified Code
-
-Use the implementation handoff and conversation history to find all files that
-were edited during this session. Focus on:
-- New functions/methods added
-- Modified logic in existing functions
-- New data structures or classes
-- Integration points where new code connects to existing systems
-
-Return concise inline findings. A correctness review is not a final-evidence
-gate; findings, verification requests, and residuals are handed directly to
-the manager.
-
-### 2. Review for General Bugs
-
-Check each modified section for: uninitialized variables (struct members especially), array/vector bounds, resource leaks (RAII everywhere — no manual `new`/`delete`/`malloc`/`free`), control-flow logic errors (loop conditions, early returns), narrowing conversions, and math errors (integer division, float precision, sign).
-
-The project assumes parameters from within the codebase are valid — do not flag missing null checks or validation between our own functions. Only flag pointer/bounds issues on data from external sources (file I/O, network, user input).
-
-### 2b. Memory & Allocation Discipline (Broken Engine specific)
-
-The main loop runs under an allocation tracker that `DEBUG_BREAK()`s on heap allocations. Flag:
-
-- **Local `std::vector` / `std::string` in hot paths** — must use `gpThreadLocal->mWorkbuffer` instead (see `Common/AGENTS.md`).
-- **Heap allocation in main loop without `ScopedSuppressAllocationTracking`** — any unavoidable heap use needs the guard plus a `// Heap:` comment justifying it (see `Engine/Source/Memory/AGENTS.md`).
-- **Allocating `LOG` format specs** — in allocation-tracked code only (Game and Engine; the offline DataPacker has no allocation tracker — do not flag it), flag any `LOG(...)` containing a float format spec such as `{:.Nf}`, `{:e}`, `{:g}`, width/precision like `{:>10}`, `{:#x}` (integer specs follow the same scope), or `std::format`/`std::format_to`/`std::to_string`/`std::ostringstream`. These go through heap-allocating `std::format` paths and trip the allocation tracker. Correct forms:
-	- Wrap each float arg with `common::Wb(value, precision)` and each `XMVECTOR` arg with `common::WbV2`/`WbV3`/`WbV4` (logs 2/3/4 lanes — pick by needed fidelity); the placeholder stays `{}`.
-	- For loop/lambda-driven content, pre-build via `common::ScopedWorkbufferArena builder = rWorkbuffer.Push(); builder.Append(...)`/`AppendFloat(...)` and emit as `LOG(cat, lvl, "{}", builder)` — the arena has its own `std::formatter` (emits `View()`), so no call-site `.View()` is needed.
-	- Plain `{}` on integers and the named formatters in `Common/Log/LogFormatters.h` (XMVECTOR, Flags, chrono durations, paths, etc.) are safe.
-- **Standard-library header placement** — new `#include <std>` in a `.h`/`.cpp` should move to `Common/ExternalHeaders.h`.
-
-### 2c. ASSERT Discipline (Broken Engine specific)
-
-`ASSERT` is active in **all** build configs and throws `std::runtime_error` on failure (`common::Assert`, `Common/ErrorUtils.cpp`) — it is not a debug-only no-op. A failing ASSERT *is* a crash; on a bare `std::thread` (loading thread, upload thread) the throw is worse than the fault it replaces: uncaught → `std::terminate`, bypassing the `HandleException` crash-report path.
-
-**Flag any ASSERT added this session that merely throws one line before the code would crash anyway** (the classic agent anti-pattern). Test: if the ASSERT were deleted, what happens on the failing path?
-
-- **Immediate fault at the same spot** (null dereference, OOB fault) → the ASSERT is useless; it adds a false impression of safety. Require removal or replacement per the ladder below.
-- **Silent wrong behavior surfacing far away** (garbage texels, CRC desync, corrupted save, wrong-but-plausible value) → the ASSERT has real diagnostic value; keep it. Example: the zlib `uncompress` result check in `FileManager::LoadChunk` — without it a corrupt payload renders garbage with no fault.
-
-Resolution ladder for a flagged ASSERT, in order of preference:
-
-1. **Make the condition impossible in calling code.** Fix the caller or establish the invariant at the source — e.g., validate external data once at the trust boundary where it enters (file read, network receive), so downstream code needs no check at all.
-2. **Recover / handle gracefully** if the condition is genuinely reachable (external data): `LOG(kError)` naming the bad input, `DEBUG_BREAK()` (debugger-only, no release crash), then fail through the function's *existing* failure channel — return false, skip the item, mark-ready-with-zeroed-data, etc. Never throw, and never trade the crash for a hang: check for condition-variable waiters that need notifying and loops that stop progressing (e.g., a 0-byte `ReadFile` in a `while (copied < size)` loop).
-3. **Plain not-null ASSERTs** guarding an immediate dereference: delete them — the null-dereference crash is equally immediate and equally diagnosable in a debugger/crash dump.
-4. **Static analyzer fallout** is handled case-by-case: if the analyzer's path is genuinely reachable, add a real (analyzer-visible) guard per step 2; if it is provably impossible, suppress with `NOLINT(clang-analyzer-...)` plus a comment stating the invariant. Note `ASSERT` never silences clang-analyzer — its `_Analysis_assume_` is MSVC-only and `common::Assert` lives in another TU — so adding an ASSERT to appease the analyzer is doubly useless.
-
-### 2d. Changelog / Edit-History Comments (Broken Engine specific)
-
-Comments explain what the current code does and why — never what it used to do or what a change did. This repo keeps no changelogs in source; git history is the forensic record. Flag any comment **added or edited this session** that narrates edit history instead of present-state rationale — require removal, or rewording to a present-tense reason when the comment carries a real one.
-
-Telltale patterns to flag:
-- Session/process narration: "this session", "this run", "added this session", "landed", "now-landed", "has been removed", "dropped", "as part of the X refactor".
-- Before/after narration: "was X", "used to be", "previously", "changed from/to", "renamed from", "moved from", "replaces the old …", "the deleted / now-removed `<symbol>`", and "no longer" when it recounts a past edit rather than a current condition.
-- Dated or commit-referenced notes: "as of <date/version>", parenthetical dates, commit hashes, "// TODO(2024): removed …".
-
-Not a finding: a comment stating a current invariant, gotcha, or still-relevant bug/driver workaround — even one using "never"/"no longer" for a present condition (e.g. "the thread is no longer running at this point"). Test: does the sentence describe present behavior, or narrate an edit? Attributions to external sources/papers are also fine.
-
-Reword, don't just delete, when the comment carries a real reason — keep the rationale, drop the history: "eliminates the duplicate sum the two passes used to evaluate via the now-removed GerstnerLow/Medium helpers" → "eliminates the duplicate sum the two passes would otherwise each evaluate".
-
-The same no-changelog rule applies to any AGENTS.md, plan, or other doc this session touched — flag stray "we did this" narration wherever this session introduced it.
-
-### 3. Verify Broken Engine Patterns
-
-#### Collection Integrity
-
-If a collection struct gained, lost, or changed an SOA member pointer, verify against the `add-collection-member` skill's checklist (authoritative). Spot-check the high-failure steps:
-
-1. Pointer in the correct tuple: `SharedMembers()` (cross-build), `ClientMembers()` (client-only, inside `#ifdef BT_CLIENT`), or `Members()` (unsplit collections). A member missing from the tuple corrupts memory — allocation, CRC, serialization, and swap-and-pop all iterate the tuple.
-2. `AllocateAndCopy()` memcpy added for members that persist across frames (those not handled by the Update load/save pattern).
-3. Update-loop load/save is unconditional — a save skipped by an early-exit branch leaves uninitialized memory and breaks determinism.
-4. Initialized in `Spawn()` / `Add()`; sync-pattern collections must zero-init all Interpolate fields in `Add()`.
-5. `LogDifferences()` updated for shared members; `Transfer()` data updated if the collection supports cross-cell transfer.
-6. `kiVersion` bumped if the serialization layout changed (the collection's own constant, plus `Frame::kiVersion` for game collections) — old save files fail to load otherwise.
-
-#### Manager Patterns
-
-If modifying or adding managers:
-- Global pointers use `gp*` naming convention (e.g., `gpGraphics`, `gpAudioManager`)
-- Managers created in correct initialization order (check `Main.cpp`)
-- No circular dependencies between managers
-
-#### Engine → Game Layering
-
-Engine→game access is sanctioned by design — do **not** flag engine code reading `game::gp*` globals, calling `game::` static functions, or referencing game types/constants/compile-time symbols (see `Engine/Source/AGENTS.md` → Hub Conventions). The real violation is the reverse direction: engine *types* naming game concepts — e.g. an `engine::PacketType` enumerator only the game uses, or an engine class `friend`-ed to a game class. Flag only those. When engine code uses a Base-class global where a game-derived one exists (`GameBase` vs `game::gpGame`, `CameraBase` vs `Camera`), flag it — prefer the game version.
-
-#### Client/Server Guard Scope
-
-- Flag file-wide `#if defined(BT_CLIENT)` / `BT_SERVER` wrappers where a single function or block guard would suffice. Narrow is better.
-- For collections with client-only fields, verify the `SharedMembers()` + `ClientMembers()` + `std::tuple_cat` pattern is used. Server build's `Members()` returns `SharedMembers()` only.
-
-#### Flags over Multiple Booleans
-
-If a struct or function grew to 2+ `bool` members/parameters in this change, flag it — use `common::Flags<EnumType>` instead (see `Common/AGENTS.md`). This is a hard flag, not a suggestion.
-
-#### Frame Phase Separation
-
-If modifying frame update code:
-- **Interpolate phase**: GPU-interpolated state only (positions, rotations, scales)
-- **PostRender phase**: Non-interpolated state (flags, IDs, game logic, velocities)
-- `AllocateAndCopy()` must be called before `Update()` logic accesses current frame data
-- Verify modifications happen in the correct phase
-
-#### XMVECTOR W Invariant
-
-Every constructed or returned `XMVECTOR` must carry the right W lane for its role (core rule in root `AGENTS.md` → Key Patterns → "XMVECTOR W invariant"). Failure is silent: `XMVector3Normalize` divides all four lanes by the 3D length, `XMVectorMultiplyAdd` propagates all four lanes, `XMVectorSetZ` leaves W untouched — a stray W survives every "3D" op and accumulates across ticks. Flag these as **bugs**, not style:
-
-- **`XMVectorSet(x, y, z, W)` with wrong W for the value's role.** Position → `1.0f`. Direction / velocity / normal / axis / offset-added-to-position / color-alpha-meant-to-be-transparent → `0.0f`. Opaque color alpha → `1.0f`.
-- **Function return or out-param with wrong W.** Inspect every `XMVECTOR`-returning function and every `XMVECTOR*` out-param added/modified: does *every* code path (including early returns, A*-miss, empty-input) write a correct-W value? Out-params should be initialized at function entry with a valid-W default so no path leaks an uninitialized or wrong-W value.
-- **Consumer-side `XMVectorSetW(..., 1.0f)` laundering a producer bug.** If you see a consumer defensively stamping W right after reading a function's return or out-param, flag the **producer** — that's the real bug. Defensive stamps are anti-patterns; the only legitimate `SetW` is the `W=1.0` clamp after a `MultiplyAdd`-based position integration.
-- **Subtract-then-normalize where operands have mismatched W.** `XMVector3Normalize(XMVectorSetZ(XMVectorSubtract(a, b), 0.0f))`: if `a` and `b` are both positions (`W=1`), the difference has `W=0` naturally. If one has `W=0` and the other has `W=1`, the difference has `W=±1`, and `Normalize` scales it to `W ≈ ±1/|xyz|` which poisons downstream consumers. Trace both operands' W origins.
-- **Inheriting W from input via `XMVectorGetW(input)` in a return value.** Silent propagation of whatever W the caller passed. Emit an explicit literal matching the output's role.
-- **Offset constants added to positions built with `W=1.0`.** Offsets added via `XMVectorAdd` to a W=1 position must themselves be W=0; a W=1 offset produces a W=2 result.
-
-If `common::ValidateVector<IS_POSITION>()` was added, removed, or moved, verify it's present at every Collection spawn / transfer boundary touched by the change.
-
-#### RAII Compliance
-
-- No manual `delete` or `free` calls anywhere
-- VMA allocator used for Vulkan memory (not malloc)
-- GPU resources wrapped in RAII classes (Buffer, Texture, Pipeline, CommandBuffer)
-- Use `common::AlignedUniquePtr` for 64-byte aligned allocations (SIMD data)
-
-### 4. Flag Guard-Affinity Changes
-
-vcxproj membership/filter mechanics belong to the conditional
-`update-vcxproj` role — never grep the project XML here. This review owns
-affinity only:
-
-- Flag the required affinity (client-only / server-only) of any file created this session that is fully wrapped in `#if defined(BT_CLIENT)` / `BT_SERVER`, and any existing file that gained or lost a file-wide guard (its membership must change).
-- Exception: guardless engine files may be client-only by design via client-vcxproj membership + the `Engine.h` BT_CLIENT aggregation span (root `AGENTS.md` → Directory Structure) — check before flagging.
-
-### 5. Verify Determinism (Replay-Sensitive Code)
-
-If the code affects game state that participates in replay:
-- CRC calculations updated if any serialized state was modified
-- Use `common::RandomEngine` for RNG (never `rand()`, `std::rand()`, or unseeded `std::mt19937`)
-- No platform-specific operations in replay code path
-- No wall-clock time dependencies (use frame delta time instead)
-- **Multithreading**: inside `gpMultithreading->Dispatch()` lambdas, no write to shared state without per-thread accumulators + reduce. Floating-point reductions must preserve order.
-- **Phase ordering**: reads in Update phase must not depend on values written later in PostRender. Interpolate↔PostRender boundaries enforce this at the collection level — verify any new field lives in the correct phase.
-
-### 6. Check Common Library Usage
-
-Verify existing `common::` utilities are used instead of reimplementing. `Common/AGENTS.md` is the authoritative, current catalog — Read it and check the changed code against it. High-frequency offenders: hashing (`common::Crc` family, `CrcConsteval` where compile-time evaluation must be guaranteed), aligned SIMD memory (`AlignedUniquePtr`/`MakeAligned`), binary stream I/O (`common::Read`/`Write`), math helpers (`Distance`, `DirectionTo`, `RoundUp`), packed-color conversion/lerp (`ColorToVector`, `ColorLerp`), and `common::Flags<ENUM>` over raw bools/bitfields.
-
-### 7. File Size Check
-
-For each modified `.cpp` file, run `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>` and check its `bt-token-v1` estimate (normalized UTF-8 bytes divided by four, rounded up; this is a deterministic size metric, not an exact model-token count):
-- **Over 10,000 bt-token-v1**: Record an observation only when the changed region adds a distinct responsibility or the review identifies a concrete cohesive split. Do not create a required follow-up merely because a one-line change touched an already-large file; that expands scope without improving the current change's correctness.
-- **5,000-10,000 bt-token-v1**: Record an observation only if you identified a natural split point during the review (e.g., distinct responsibility groups, client/server code that could separate, utility functions that belong in a `*Utils` file). Do not flag cohesive files with no split.
-- **Struct splitting**: Structs with static methods (e.g., SOA collections) can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). Classes must NOT be split this way — extract independent classes instead. See `/reduce-file` skill
-
-### 8. Implementation Assessment
-
-Evaluate the changes holistically:
-- **Completeness** - Does the implementation fully address the user's request?
-- **Integration** - Were all callers, related systems, and edge cases updated? Integration-missed tripwires — grep, don't trust the diff narrative:
-	- Changed function semantics (units, W convention, frame phase, ownership, a default) → grep every caller; the diff shows only the call sites the implementer remembered.
-	- Mirrored patterns half-applied: client edit without server counterpart, per-collection pattern applied to N−1 of N collections, C++ struct changed without its shared GLSL header (and vice versa), Spawn updated but Transfer/AllocateAndCopy/LogDifferences not.
-	- New enum value → grep every switch/dispatch/serialization table over that enum.
-	- Anything renamed → grep comments, AGENTS.md, plans, and shared headers for the old name.
-- **Minimality** - No unnecessary refactoring, extra features, error handling, or cosmetic changes beyond what was requested. Flag over-built code added this session: an abstraction (base class, template, callback, indirection layer) with exactly one implementation/user and no second on the horizon; a config value, parameter, or option that never varies at any call site; speculative "for later" scaffolding no current code path exercises; reimplementation of an existing `common::` or stdlib facility (§6 owns the `common::` catalog check).
-- **New duplication** - Flag (required) when the diff introduces a near-copy (~50+ bt-token-v1, or a repeated multi-condition check) of logic that already exists in the repo — verify by grepping a distinctive fragment of each substantial new block; require calling or extracting a shared helper. Exception: deliberate mirrored patterns (client/server pairs, per-collection boilerplate) stay parallel — do not recommend abstracting them.
-- **Workaround justification test** - A workaround that needs a paragraph-long comment to justify why it is OK is itself a required finding: the code is wrong — require fixing the underlying code, not accepting the justification.
-- **Function size**: Inspect modified functions around 500 bt-token-v1 and treat 1,000 bt-token-v1 as a soft maximum. Some functions are legitimately large; flag "function does too much" and recommend a split only when a natural responsibility boundary exists. Add `-StartLine <n> -EndLine <n>` to the measurement command for the inclusive function range.
-
-Micro-simplification opportunities, nesting-depth preferences, and style complaints are outside this correctness review and are not findings. Duplication of existing repository logic remains the §8 New-duplication check; `/code-style-review` owns style.
-
-### 9. Severity Prefixes
-
-Report only findings that require action:
-
-- *(no prefix)* — Required change. Must address.
-- **Critical:** — Blocks the change. Data loss, broken functionality, determinism break, allocation tracker violation.
-
-File-size observations are informational rather than findings. They do not change PASS to NEEDS FIXES and do not trigger edits, retesting, re-review, or follow-up planning without a separate user request.
-
-### 10. Honesty (Anti-Sycophancy)
-
-- **Don't rubber-stamp.** "LGTM" without evidence of review helps no one.
-- **Don't soften real issues.** "This might be a minor concern" when it's a bug that will hit production is dishonest.
-- **Quantify problems when possible.** "This will allocate ~200 bytes per frame and trip the allocation tracker" beats "this could be slow."
-- **Push back on approaches with clear problems.** Sycophancy is a failure mode in reviews.
-
-Severity calibration — worked examples (severity comes from the invariant surface hit, not the code pattern):
-
-- Local `std::vector` in a once-at-startup load function: not a finding — the allocation tracker covers the main loop only. The same vector in a per-tick `Update()`: **Critical:** (tracker `DEBUG_BREAK()`).
-- `==` float compare in Interpolate-only visual code: not a finding — outside the CRC, cannot desync. The same compare gating a write to PostRender (CRC'd) state: **Critical:** — divergent rounding across machines is a desync source.
-
-### 11. API Verification
-
-For non-obvious API calls — Vulkan 1.2 entry points (especially extensions), DirectXMath alignment-sensitive ops, C++23 features new to the project, third-party library calls used at fewer than ~3 existing call sites — verify against the official spec before accepting the call. This review normally runs inside a subagent, which does not spawn further subagents and should not pull large spec pages into its context: emit each needed check as an entry under `### API Verification Requests` in the output — the API/symbol, the spec URL, and exactly what to confirm plus which finding depends on it — and the caller dispatches `locator` subagents to resolve them. Use WebFetch directly only for a small targeted page (a single man-page-style entry), citing the URL or section in the review note.
-
-- Vulkan 1.2 spec: https://registry.khronos.org/vulkan/specs/1.2-extensions/man/html/
-- DirectXMath: https://learn.microsoft.com/en-us/windows/win32/dxmath/ovw-xnamath-reference
-- C++23 / STL: https://en.cppreference.com/
-
-Skip verification for STL basics, `XMVector3Normalize`-class staples, and patterns already used at multiple call sites in the engine — those are battle-tested. Training data contains outdated patterns that look correct but break against current versions.
-
-If WebFetch turns up nothing authoritative, mark the finding:
-
-> UNVERIFIED: I could not find official documentation for this pattern. This is based on training data and may be outdated. Verify before using in production.
-
-## Output Format
-
-Include issue sections only where findings exist. Include `File Size Observations`
-when a qualifying informational observation exists; it does not affect the
-recommendation. Omit empty sections.
-
+# Repository C++ Review
+
+Run one fresh `reviewer` pass. Findings only: do not edit, run mutating
+commands, implement fixes, invoke other agents, or delegate. Review logic and
+correctness, not style, formatting, naming, general comment quality, or
+documentation.
+
+## Required Inputs
+
+Require a self-contained brief containing:
+
+- the fixed baseline, complete immutable C++ diff, and exact changed
+  files/regions, separated from pre-existing and concurrently owned changes;
+- approved intent, plan and deltas, affected contracts, and declared
+  invariants;
+- implementation handoff, acceptance criteria, affected-site triggers, and any
+  prior findings relevant to a focused re-review;
+- checkout path and applicable repository instructions.
+
+Return `BLOCKED` when the diff boundary, intent, or invariants are missing or
+moving. Do not reconstruct them from a mutable merge base or expand a supplied
+review into an unbounded repository audit. After an accepted fix, review only
+the fixed region and directly affected paths unless a reproducible failure
+justifies another wave.
+
+## Workflow
+
+1. Read the changed regions in full-function context, their applicable
+   `AGENTS.md`, and the producers, consumers, callers, and mirrored paths needed
+   to trace the declared contracts. Diff-only inspection is insufficient.
+2. Search changed signatures, semantics, enum values, layouts, ownership,
+   guards, frame phases, and serialization identities across every affected
+   site. Check substantial new logic against existing helpers and deliberate
+   mirrored patterns.
+3. Apply the relevant checks below. Turn a checklist concern into a finding
+   only when a concrete changed path makes the failure reachable.
+4. Try to disprove each candidate finding against guards, caller preconditions,
+   lifecycle, and current repository contracts. Report the smallest correction,
+   without implementing it.
+5. Emit an atomic `/verify-external-claims` request for every candidate finding
+   that depends on a non-obvious external API, language, specification, OS, or
+   library fact. Do not browse or present that fact as confirmed.
+6. Measure changed `.cpp` files with
+   `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`.
+   Record a size observation only when the changed region exposes a concrete
+   cohesive split. Return it as a manager follow-up candidate; never reduce the
+   file or prescribe an inline reduction during review.
+7. Return the report and the conditional `/update-vcxproj` trigger. Never read
+   or grep project XML in this review.
+
+## Correctness Checks
+
+### General logic and ownership
+
+Trace initialization, lifetime, aliasing, ranges, conversions, arithmetic,
+branch and early-return behavior, RAII cleanup, GPU-resource ownership, and
+error-path progress. Internal callers may rely on established preconditions;
+do not demand defensive checks between trusted code units. Validate opaque
+file, network, OS, user, and third-party data at its owning trust boundary.
+
+### Changed comments
+
+Treat a changed comment as a correctness issue only when it asserts a materially
+false runtime or contract fact. Changelog narration, wording, formatting, and
+documentation coherence belong outside this review.
+
+Route comments that merely explain a language feature or established house
+pattern to `/code-style-review`; they are not correctness findings.
+
+### Trust boundaries and failure channels
+
+Require validation before externally controlled sizes, counts, indices, or
+payloads can allocate, iterate, index, or mutate destination state. Preserve
+the owning subsystem's established failure channel; there is no universal
+"never throw" or "catch everything" policy.
+
+- Network variable payload handlers parse into bounded local state before
+  applying destination state. [`Client::Receive`](/Engine/Source/Network/Client/Client.cpp)
+  drops and logs one corrupt inbound packet; [`Server::Receive`](/Engine/Source/Network/Server/Server.cpp)
+  additionally records the contract violation. Keep their handshake, budget,
+  and packet-specific policies distinct.
+- Invalid persisted grid data follows
+  [`GameSaveLoad::ReadGrid`](/Projects/BrokenEngineSandbox/Source/Save/GameSaveLoad.cpp):
+  clear partial grid/fleet state, log, and return `false`; apply the global-ID
+  counter only after the complete read succeeds.
+- Corrupt boot-required eager animation data follows
+  [`LoadAnimationDataFromEagerChunks`](/Engine/Source/Graphics/AnimationData.cpp):
+  log the asset identity at `kError` and rethrow to the boot crash-report path.
+- For asynchronous per-chunk failures, trace the owning worker's published
+  completion and waiter/progress contract before accepting any return, throw,
+  or skip path.
+
+### Allocation-tracked paths and logging
+
+Flag reachable heap allocation while Engine/Game tracking is active unless the
+existing design requires it and `ScopedSuppressAllocationTracking` carries the
+required `// Heap:` rationale. Startup, teardown, offline tools, and other
+untracked paths do not become findings merely because they allocate.
+
+Use `gpThreadLocal->mWorkbuffer` for tracked temporary data. Follow
+[`GameBase::BuildAndDispatchFrameTicks`](/Engine/Source/GameBase.cpp) for a
+scoped workbuffer-backed list whose lifetime covers synchronous dispatch. For
+loop-built dynamic log text, follow the current
+[`CrcValidateLoop`](/Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplayCrc.cpp)
+`ScopedWorkbufferArena` construction. Verify changed tracked logs use the
+repository's allocation-free wrappers and formatters rather than temporary
+strings or allocating formatting paths.
+
+### ASSERT behavior
+
+`ASSERT` throws in every configuration. For each added or changed assertion,
+compare behavior with the assertion removed:
+
+- If the next operation fails immediately at the same location, the assertion
+  is useless; require removal or make the invariant impossible at its source.
+- If the condition is externally reachable, require the trust boundary's
+  existing failure channel, selected from the subsystem policy above rather
+  than a blanket return or throw rule. Preserve progress and waiter notification.
+- If failure would otherwise silently corrupt state, output, or determinism,
+  the assertion may carry real diagnostic value.
+
+Do not accept an `ASSERT` added only to silence an analyzer. Require an
+analyzer-visible reachable guard, or a narrow suppression that states the proven
+invariant.
+
+### Collections, persistence, and identity
+
+When a `Collection<T>` gains, loses, reorders, or changes a `* __restrict`
+column, load the authoritative
+[`add-collection-member`](../add-collection-member/SKILL.md) skill and verify its
+complete live-variant checklist. Do not substitute a copied checklist here.
+Treat unresolved CRC membership, tuple order/subset, versioning, unconditional
+persistence, creation initialization, transfer, hydration, or identity behavior
+as correctness contracts, not style.
+
+For other persisted or wire-visible layouts, trace version/identity updates,
+read/write order, bounds, CRC participation, compatibility intent, and every
+producer and consumer. Do not infer backward compatibility authority.
+
+### Determinism, threading, and frame phases
+
+For CRC-fed or replay state, check deterministic RNG and math, stable iteration
+and reduction order, serialization/CRC coverage, and absence of wall-clock or
+platform-dependent decisions. Dispatched workers may write only owned state or
+per-thread accumulators; reductions, especially floating-point reductions, must
+preserve the declared order.
+
+Keep Interpolate data visual/client-only and PostRender data committed and
+deterministic. Verify `AllocateAndCopy()` precedes current-frame access and that
+no Update read depends on a later phase write.
+
+### XMVECTOR W applicability
+
+Apply the W rule only when the changed `XMVECTOR` semantically represents a
+position (`W=1`), direction/velocity/normal/offset (`W=0`), or color (the
+declared alpha). Do not impose those roles on quaternions, planes, matrix rows,
+generic four-lane data, masks, or packed payloads; derive their lane contract
+from the owning type.
+
+For applicable values, trace every constructor, return, out-parameter path,
+early return, arithmetic input, and collection spawn/transfer boundary. Flag
+mismatched position subtraction, position-plus-offset construction, inherited
+input W where the output role is fixed, and consumer-side stamping that merely
+hides a producer error. Accept an explicit post-integration position clamp when
+the owning math contract requires it.
+
+### Integration, layering, and build affinity
+
+Search all callers when a signature, unit, default, ownership rule, W role, or
+phase changes. Search every switch/dispatch/serialization table for changed
+enums and both CPU/GLSL consumers for shared headers. Check client/server and
+per-collection mirrors without abstracting deliberate parallel boilerplate.
+
+Engine code may call game hooks and use game globals/types; flag the reverse
+ownership leak only when an engine-owned type acquires a game-specific concept.
+Prefer game-derived aggregation surfaces where repository instructions require
+them.
+
+Verify guard placement from source and aggregation context. Emit an
+`/update-vcxproj` trigger for every added or removed C++ file and every existing
+file that gained or lost a whole-file `BT_CLIENT`/`BT_SERVER` guard. Do not
+inspect membership or filters here.
+
+### Public state and forwarding APIs
+
+For each changed interface, flag a getter, setter, drain, take, `Is*`, `Can*`,
+or equivalent whose entire implementation is one state access, assignment, or
+pass-through call when the underlying state or component can be accessed
+independently. Require direct public access. Private state is justified only
+when one complete multi-statement operation preserves an invariant or required
+ordering. Do not apply this check to semantic codecs or serialization adapters.
+
+### Minimality and duplication
+
+Flag incomplete integration and reachable edge failures. Flag overbuilt code
+only when the change adds an unused option, one-use indirection with no required
+contract, or speculative path with no current consumer. Flag substantial new
+near-copies or repeated multi-condition logic after proving an existing helper
+fits. Deliberate client/server and collection mirrors remain parallel.
+
+Exclude micro-simplifications, style preferences, naming, header placement,
+formatting, and general documentation checks.
+
+## External Claim Packet
+
+Emit one proposition per packet; the caller routes it through
+`/verify-external-claims`:
+
+```markdown
+### API Verification Request
+- API/symbol/rule: <one external rule>
+- Proposition: <exact statement that must be true or false>
+- Applicability: <version, target, feature/extension, compile mode, and local evidence>
+- Candidate official source: <direct official URL/section, or exact source needed>
+- Dependent candidate finding: <path:line, failure, and why the verdict matters>
 ```
-## Code Review Results
 
-### Files Reviewed
-- [list of modified files with paths]
+Pending verification makes the review `NEEDS_ACTION`; it is not a confirmed
+finding until the caller receives `VERIFIED` evidence.
 
-### Bugs Found
-- file:line - Description of bug and suggested fix
+## Output
 
-### Engine Pattern Issues
-- ✗ [pattern name] - [details of what's wrong and how to fix]
+Order findings by impact. `Critical` means data loss, broken functionality,
+determinism failure, or an equivalent contract breach; every other reported
+finding is `Required`. Omit empty optional sections.
 
-### File Size Observations
-- file (N bt-token-v1) - concrete split opportunity and `/reduce-file <path>`
+```markdown
+## C++ Review Results
 
-### Implementation Issues
-- [Description of required completeness, integration, or minimality issue]
+### Findings
+- `path:line` — **Critical | Required:** <reachable failure, evidence, smallest correction>
 
 ### API Verification Requests
-- <api/symbol> — <spec URL> — <what to confirm, and which finding depends on it>
+<atomic packets>
+
+### Size Observations
+- `path` (`N bt-token-v1`) — <cohesive split and why it is a manager follow-up candidate>
+
+### Files Reviewed
+- `path` — <regions and affected paths traced>
 
 ### Recommendation
-[PASS / NEEDS FIXES]
-Brief summary of overall assessment.
-```
+PASS | NEEDS FIXES | BLOCKED
 
-If no issues were found in any category, output the Files Reviewed list and "PASS — no issues found." Append this final footer in every case, including a clean PASS:
-
-```text
-Files changed: none
+Status: PASS | NEEDS_ACTION | BLOCKED
+Changed files: none
 Functions/regions touched: none
-Residuals:
-- <pre-existing issue or incomplete review item, or none>
+Decisive checks: <reads, searches, traces, and measurements>
+Project membership trigger: /update-vcxproj — <paths/reason> | none
+Build required: none
+Residuals: <pre-existing defect, incomplete trace, pending external verdict, or none>
 ```
+
+For a clean review, state `PASS — no issues found`, list the evidence and files,
+and keep the unchanged footer. Never return `LGTM` without decisive trace
+evidence.

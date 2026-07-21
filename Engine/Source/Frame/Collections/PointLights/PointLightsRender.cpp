@@ -156,6 +156,7 @@ void PointLightsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 	gpProfileManager->SetCount(kCpuCounterPointLights, siTotalCount);
 	gpProfileManager->SetCount(kCpuCounterPointLightsRendered, siRendered);
 	gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineAxisAlignedLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
+	giLightingDepositInstances += siRendered; // Feeds the spread-chain gate (RenderLightingSpreadIndirect); pair any change here with the deposit write above
 	gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 }
 

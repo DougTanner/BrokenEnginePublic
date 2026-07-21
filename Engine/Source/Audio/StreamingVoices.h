@@ -17,6 +17,7 @@ class StreamingVoices
 {
 public:
 
+	StreamingVoices();
 	~StreamingVoices();
 
 	void Init(AudioEngine* pAudioEngine);

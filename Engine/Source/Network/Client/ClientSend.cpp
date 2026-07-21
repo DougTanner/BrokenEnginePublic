@@ -9,7 +9,7 @@ namespace engine
 
 bool Client::SendAck()
 {
-	if (!CanSend())
+	if (!(mStateFlags & ClientStateFlags::kConnected) || mpServerPeer == nullptr)
 	{
 		return false;
 	}
@@ -64,7 +64,7 @@ bool Client::SendAck()
 
 void Client::SendSpawnRequest(ClientRequestFlags_t flags)
 {
-	if (!CanSend())
+	if (!(mStateFlags & ClientStateFlags::kConnected) || mpServerPeer == nullptr)
 	{
 		return;
 	}
@@ -79,7 +79,7 @@ void Client::SendSpawnRequest(ClientRequestFlags_t flags)
 
 void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual)
 {
-	if (!CanSend())
+	if (!(mStateFlags & ClientStateFlags::kConnected) || mpServerPeer == nullptr)
 	{
 		return;
 	}
@@ -93,7 +93,7 @@ void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expe
 
 void Client::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 {
-	if (!CanSend())
+	if (!(mStateFlags & ClientStateFlags::kConnected) || mpServerPeer == nullptr)
 	{
 		return;
 	}
@@ -106,7 +106,7 @@ void Client::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 
 bool Client::SendSubscribe(GridCoord coord)
 {
-	if (!CanSend())
+	if (!(mStateFlags & ClientStateFlags::kConnected) || mpServerPeer == nullptr)
 	{
 		return false;
 	}
@@ -128,6 +128,7 @@ bool Client::SendSubscribe(GridCoord coord)
 
 			mCoordSlots.at(i).coord = coord;
 			mCoordSlots.at(i).eState = CoordSubscriptionState::kSubscribing;
+			mCoordSlots.at(i).transitionStartTime = std::chrono::steady_clock::now();
 			mCoordSlots.at(i).ackState.iAckFloor = -1;
 			mCoordSlots.at(i).ackState.uiReceivedBitfieldLow = 0;
 			mCoordSlots.at(i).ackState.uiReceivedBitfieldHigh = 0;
@@ -148,18 +149,21 @@ bool Client::SendSubscribe(GridCoord coord)
 
 void Client::SendUnsubscribe(int64_t iSlot)
 {
-	if (!CanSend())
+	if (!(mStateFlags & ClientStateFlags::kConnected) || mpServerPeer == nullptr)
 	{
 		return;
 	}
 
-	mCoordSlots.at(iSlot).eState = CoordSubscriptionState::kUnsubscribing;
-	SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(iSlot));
+	ClientCoordSlot& rSlot = mCoordSlots.at(iSlot);
+	rSlot.eState = CoordSubscriptionState::kUnsubscribing;
+	rSlot.transitionStartTime = std::chrono::steady_clock::now();
+	// [1B type][1B slot][2B epoch]
+	SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(iSlot), rSlot.ackState.uiEpoch);
 }
 
 void Client::SendResyncRequest()
 {
-	if (!CanSend())
+	if (!(mStateFlags & ClientStateFlags::kConnected) || mpServerPeer == nullptr)
 	{
 		return;
 	}
@@ -176,7 +180,7 @@ void Client::SendHello()
 
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientHello));
 	rWorkbuffer.PushBack<uint32_t>(kuiProtocolVersion);
-	rWorkbuffer.PushBack<int64_t>(game::Frame::kiVersion);
+	rWorkbuffer.PushBack<int64_t>(game::NetworkSessionContract::GetFrameVersion());
 	rWorkbuffer.PushBack<common::crc_t>(gpFileManager->GetPackIntegrityToken());
 	rWorkbuffer.Append(std::string_view(kpcBuildConfigName));
 	rWorkbuffer.PushBack<uint8_t>(0); // null terminator for config string

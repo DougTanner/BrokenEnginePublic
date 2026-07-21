@@ -1,107 +1,99 @@
 ---
 name: adversarial-review
 description: >-
-  Bounded falsification review of C++ changes made this session. Use
-  automatically only for Tier-3 changes or when the correctness review leaves
-  one concrete reachable failure hypothesis needing independent falsification.
-  ALSO use when the user asks to "attack this change", "assume it's broken",
-  "find reasons this fails", or wants an adversarial second opinion on a diff.
-  Findings only — never edits. Logic and correctness only; style belongs to
-  code-style-review.
-allowed-tools: [Read, Write, Grep, Glob, PowerShell]
+  Bounded fresh-eyes falsification review for every artifact type changed by a
+  Tier-3 change. Use automatically only for Tier-3 changes or when the root
+  Change Workflow leaves one concrete reachable unresolved failure hypothesis
+  after correctness review. Also use when the user asks to "attack this
+  change", "assume it's broken", "find reasons this fails", or requests an
+  adversarial second opinion on a supplied diff. Findings only; never edits.
+allowed-tools: [Read, Grep, Glob, PowerShell]
 ---
 
 # Adversarial Falsification Review
 
-Try to falsify the change within a bounded scope. Do not optimize for rejection,
-verify checklists, assess style, or implement fixes. Automatic invocation is
-limited to an approved Tier-3 change or one explicit unresolved reachable
-failure hypothesis from the correctness review. User-requested adversarial
-review may start from the supplied diff, but the same evidence threshold
-applies.
+Run in one fresh delegated `reviewer`. Do not edit files, run mutating commands,
+implement fixes, or delegate further. Review logic and correctness; leave style
+to the artifact's domain review.
 
-## Inputs (from caller)
+## Inputs
 
-Implementation handoff with changed regions, residuals, and focus areas; the
-plan document or intent summary; and the approved risk tier and concrete Tier-3
-trigger or exact unresolved failure hypothesis. If invoked directly with no
-briefing, reconstruct the change set from conversation history.
+Require the implementation handoff and complete changed-artifact list; plan or
+intent with declared invariants; approved Tier-3 triggers or the exact unresolved
+reachable hypothesis; and relevant prior findings, residuals, and focus areas.
 
-## Reporting Mode
-
-Return the bounded falsification result inline. It is not a final-evidence
-gate.
+For a direct user request about a supplied diff, treat the supplied intent,
+declared invariants, and behavioral or contract claims expressed by the diff as
+the authorized hypotheses. If no briefing exists, reconstruct these inputs from
+conversation history. Do not turn either case into an unbounded repository audit.
 
 ## Method
 
-Start from each Tier-3 trigger or supplied failure hypothesis and define the
-smallest trace that could prove or refute it. Trace outward until the hypothesis
-is proven or dies — diff-only reading is insufficient evidence. Read the
-callers, callees, data producers/consumers, and sibling paths needed for that
-trace, then stop. Do not expand a dying hypothesis into unrelated edge cases or
-invent a replacement hypothesis merely to produce a finding. Relevant failure
-surfaces include:
+1. For Tier 3, enumerate authorized hypotheses for every changed artifact type,
+   grounded in the recorded Tier-3 triggers. Otherwise use the one unresolved
+   hypothesis supplied by the caller. Define the smallest concrete trace that
+   could prove or refute each.
+2. Read the changed region and the callers, consumers, schemas, instructions,
+   generated outputs, or sibling paths necessary for that trace. Diff-only
+   reading is insufficient. Stop when the hypothesis dies or becomes proven.
+3. Test the contract appropriate to the artifact. For code and shaders, trace
+   logic, integration, lifetime, threading, determinism, edge states, and build
+   reachability. For scripts, project metadata, schemas, and data, trace inputs,
+   mutations, failure handling, compatibility, and consumers. For skills, plans,
+   workflow, and documentation, trace discovery and invocation policy,
+   executable instructions, authority boundaries, acceptance semantics, links,
+   and contradictions with governing instructions.
+4. Scale depth to the authorized risk. Do not replace a falsified hypothesis
+   with unrelated edge cases merely to produce a finding. When all authorized
+   hypotheses die, return PASS and stop.
 
-- Logic: inverted/off-by-one conditions, early returns skipping required work, order-of-operations
-- Integration: callers whose assumptions the change silently violates; semantics changed without every call site following
-- Lifetime/ownership: dangling references, use-after-move, pointers into reallocated storage (SOA collections resize)
-- Threading: shared state written inside `Dispatch()` lambdas, cross-thread visibility, waits that can now hang
-- Determinism: float-op ordering, RNG draw-count changes, phase placement (Update vs PostRender), anything CRC'd
-- Edge paths: empty input, first/last tick, count==0/1/max, failed I/O, client-only vs server-only build reachability
-- Interactions the implementer wouldn't have tested: the change plus an existing feature, save/load round-trip, cell transfer
-- Newly legal states: code elsewhere that assumed a configuration impossible which the change now legitimizes (e.g. a fallback path behind a deleted `ASSERT(false)`), traced under the now-legal state within the authorized trace scope
+## Evidence Rules
 
-Scale trace depth to the authorized risk trigger: a one-line fix in isolated
-code does not warrant sweeping every subsystem; a semantics change to a shared
-function may require tracing every caller. When all authorized hypotheses die,
-return PASS and stop.
+Every finding must cite a `file:line` actually read in this review and give a
+reachable, in-scope, material scenario: specific input or state leads to a
+wrong outcome, violated governing contract, or failed approved acceptance
+criterion. Drop suspicions that cannot establish reachability, scope, and
+impact; do not soften them into optional advice.
 
-## Evidence rule (anti-confabulation)
+Before reporting, try to refute the finding by checking alternate explanations,
+guards, established preconditions, and governing invariants. Report only defects
+introduced or newly exposed by the supplied change. Put proven pre-existing or
+out-of-scope defects in `Residuals`; keep in-scope structural acceptance failures
+as findings. Exclude style issues and diagnostics a prescribed compiler,
+validator, or static check directly catches.
 
-Every finding must name `file:line` plus a concrete, reachable, in-scope,
-material failure scenario: specific input/state → specific wrong outcome
-(crash, desync, corruption, wrong value, hang, or failed approved acceptance
-criterion). A suspicion that survives tracing becomes a finding; one that
-cannot establish reachability, scope, and material impact is dropped, not
-softened into a hedge — no "might be risky", no "Consider:" items.
-Trust-boundary inputs that cannot reach the changed path, hypothetical polish,
-and unrelated baseline defects are not findings. Zero findings is a valid
-outcome: state what was falsified and return PASS without further review.
-
-Before reporting a finding, flip stance and try to refute it: look for the alternate explanation, a guard elsewhere, a caller that establishes the precondition, an invariant that makes the bad state unreachable. Only findings that survive the refutation attempt are reported — if not certain the issue is real, don't flag it. Every `file:line` cited must come from a file actually Read during this review, never inferred from the diff, the plan, or memory.
-
-Findings are material defects introduced or newly exposed by this session's
-change only. A proven pre-existing or out-of-scope bug noticed while tracing
-goes in the residuals footer for possible follow-up routing, not in Findings.
-An in-scope structural acceptance failure remains a blocking finding; do not
-relabel it as follow-up work. Also excluded: anything the compiler or
-clang-tidy catches.
-
-## API Verification
-
-For non-obvious API usage a finding depends on (Vulkan entry points, DirectXMath alignment ops, rarely-used third-party calls), do not pull spec pages into context — emit an entry under `### API Verification Requests` (API/symbol, spec URL, exactly what to confirm, which finding depends on it); the caller resolves via `locator` subagents.
+For any finding that depends on a non-obvious external API, language,
+specification, or library claim, emit one atomic verification request containing
+the symbol or rule, exact proposition, dependent candidate finding, applicable
+version/configuration, and candidate official source. The caller routes each
+request through `verify-external-claims`; do not present the claim as confirmed
+until that verdict returns.
 
 ## Output
 
-```
+```markdown
 ## Adversarial Review Results
 
 ### Findings
-- file:line — [Critical: | (required)] failure scenario: <input/state → wrong outcome>, and why the code produces it
+- `path:line` — **Critical:** or **Required:** — <input/state -> material wrong outcome, and why>
+- none
 
 ### API Verification Requests
-- <api/symbol> — <spec URL> — <what to confirm, and which finding depends on it>
+- <symbol/rule> — <exact proposition> — <dependent candidate finding> — <applicability> — <official source>
+- none
 
 ### Traced Clean
-[Only if no findings: authorized hypotheses, what was traced, why each was
-falsified, and `PASS — bounded falsification complete; stop.`]
+<Only when there are no findings: hypotheses traced, decisive refutation, and
+`PASS — bounded falsification complete; stop.`>
+
+Status: PASS | NEEDS_ACTION | BLOCKED
+Changed files: none
+Decisive checks: <trace/read and result for each authorized hypothesis>
+Build required: none
+Residuals: <pre-existing defect, incomplete trace, pending external verdict, or none>
 ```
 
-Severity: **Critical:** = data loss, broken functionality, determinism break, allocation-tracker violation; no prefix = required fix. Nothing optional — anything below "required" fails the evidence rule and is dropped. Append this final footer in every case:
-
-```text
-Files changed: none
-Functions/regions touched: none
-Residuals:
-- <pre-existing issue or incomplete review item, or none>
-```
+Use `NEEDS_ACTION` for findings or pending external verification and `BLOCKED`
+only when required evidence could not be obtained. Critical means data loss,
+broken functionality, determinism failure, or equivalent contract breach;
+everything else reported is required, never optional.

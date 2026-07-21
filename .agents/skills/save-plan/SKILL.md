@@ -1,60 +1,42 @@
 ---
 name: save-plan
-description: Saves the current plan-mode plan from the user's home `.claude/plans/` directory into the repo's planning tree — `Documents/Plans/` for refactors/bugfixes or `Documents/Features/` for new capabilities — as a PascalCase `.md` file in the correct area subdirectory, then asks WorktreeCli to add its scored queue row from a structured request. Optional argument overrides the filename (e.g., `/save-plan MyPlan`).
-argument-hint: [filename]
-allowed-tools: [Read, Write, Edit, Bash, Glob]
+description: Save an explicitly supplied, complete plan-mode proposal into the correct Broken Engine planning tree and prepare its approval-bound WorktreeCli add request. Use only when the user explicitly invokes `/save-plan` or `$save-plan`, optionally with a PascalCase Markdown filename override.
+argument-hint: [PascalCase.md]
+allowed-tools: [Read, Write, Edit, Glob, Grep, PowerShell]
 disable-model-invocation: true
 ---
 
 # Save Plan
 
-Saves the current plan-mode plan from the user's home `.claude/plans/` directory (`C:/Users/<user>/.claude/plans/` on Windows, `~/.claude/plans/` on Unix) into the repo's planning tree.
+Persist one complete plan-mode proposal and stage its queue request for landing.
 
-## Instructions
+## Preconditions and source
 
-1. **Find the plan file**: Use the plan file path from the conversation's plan-mode context — the harness provides the absolute path (e.g., `C:/Users/<user>/.claude/plans/1-foo.md`); never guess a relative `.claude/plans/` path. Read it. If no plan path appears in the conversation, list the home `.claude/plans/` directory newest-first and ask the user which file to save; if the directory is missing or empty, report that there is no plan to save and stop.
+Require a registered wrapper session: confirm the current checkout is a registered Git worktree and equals both `BROKEN_ENGINE_WORKTREE_PATH` and `BROKEN_ENGINE_WORKTREECLI_SESSION_WORKTREE`, `BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE` is `session`, and `BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER` is nonempty. Stop otherwise.
 
-2. **Pick the destination**: Refactor/bugfix plans go in `Documents/Plans/`; brand-new capabilities go in `Documents/Features/` (deciding test in `Documents/AGENTS.md`: does the plan add a capability the engine didn't have?). If it reads as a feature, confirm the tree with the user before saving. Plans live in an area subdirectory (`Engine/`, `Frame/`, `Graphics/`, `Network/`, ...), never at the tree root — pick the area matching the plan's subject, creating the folder only if no existing area fits.
+Use exactly one client-provided source:
 
-3. **Determine filename**: If the user passed a filename argument (e.g., `/save-plan MyPlan`), use it, appending `.md` if absent. Otherwise derive a concise PascalCase name from the plan's `#` title — drop filler words, remove spaces and special characters, use `.md`:
-   - `# Fix Partial Full State: Deferred Injection` → `DeferredFullStateInjection.md`
-   - `# Add Player Respawn Logic` → `AddPlayerRespawnLogic.md`
+- Codex: the latest complete `<proposed_plan>...</proposed_plan>` block in the current conversation. Remove the enclosing tags and preserve the body.
+- Claude Code: an absolute plan-file path explicitly supplied with the invocation. Read exactly that file.
 
-   If the plan has no `#` title heading, derive the name from the plan's content — plan-mode file stems end in random slug words (e.g., `...-generic-pearl.md`), so do not reuse the stem verbatim.
+Never list, search, or infer a plan from either client's home plan store. Stop and request the required source when it is absent, incomplete, or ambiguous.
 
-4. **Handle collisions**: If the target file already exists, ask the user whether to overwrite or pick a new name. Do not silently overwrite.
+## Validate and place
 
-5. **Score and dependencies**: Read the destination tree's AGENTS.md (`Documents/Plans/AGENTS.md` or `Documents/Features/AGENTS.md`) and the canonical scoring anchors in `Documents/AGENTS.md`. Decide `tier`, `effort`, `impact`, `risks`, and a one-line `notes` summary. Identify any directional prerequisites as normalized repository-relative plan identities in `dependsOn`. Do not edit a queue row directly (the queue is machine-local state) and do not encode mandatory nondirectional constraints as dependencies. If the new plan creates or changes such a constraint, its reciprocal `## Coordination` sections are plan-body prose edited directly: update every existing counterpart in the same change set. A race with a concurrent counterpart edit resolves as a merge conflict at landing, not a queue failure.
+1. Read `Documents/AGENTS.md` and the destination tree's `AGENTS.md`. Require the body to satisfy the current plan-file contract, including its decision-complete design, out-of-scope boundary, risk trigger and exposed invariants, and observable acceptance criteria when needed. Never invent a missing decision; ask the user.
+2. Run the provisioned WorktreeCli `plan order validate --repo <absolute-common-dir> --worktree <checkout>`. Require exit `0` and `ok: true`; record non-blocking stale-baseline `missing-plan-file` notices and treat returned `rows` as the only executable inventory. Search live plan files to reject duplicates and identify dependencies or reciprocal `## Coordination` edits. Never read or edit the queue store.
+3. Classify the body into `Documents/Plans/` or `Documents/Features/`, choose an existing subject-area directory, and derive a concise PascalCase filename from the title. Ask when classification or area is materially ambiguous.
+4. If supplied, require the filename override to case-sensitively match `^[A-Z][A-Za-z0-9]*\.md$`; reject separators, directories, other extensions, and non-PascalCase names. Never overwrite a collision; request another name.
+5. Ground queue tier, effort, impact, risks, notes, and normalized directional `dependsOn` identities in the body, inventory, and canonical anchors. Stop for any material unsupported choice.
 
-6. **Save the plan**: Write the plan content to `<tree>/<area>/<filename>` before queue insertion. On a wrapper session the plan file and its staged row are prospective session state until the session lands; on the user's own checkout (worktree == primary) the add publishes immediately.
+## Save and stage
 
-7. **Create the add request**: Write a uniquely named JSON request beneath the current session worktree's `Temp/`. Use schema version 1 and exactly one independent sequence containing one entry:
+Write the tag-free plan body to `<tree>/<area>/<filename>`. Write a uniquely named request under the session worktree's `Temp/` using schema version `1`, operation `add`, and one independent sequence:
 
-   ```json
-   {
-     "schemaVersion": 1,
-     "operation": "add",
-     "sequences": [[{
-       "queue": "plans",
-       "plan": "Documents/Plans/<area>/<filename>",
-       "tier": "Small",
-       "effort": 2,
-       "impact": 3,
-       "risks": 1,
-       "notes": "One-line summary",
-       "dependsOn": ["Documents/Plans/<area>/<prerequisite>.md"]
-     }]]
-   }
-   ```
+```json
+{"schemaVersion":1,"operation":"add","sequences":[[{"queue":"plans","plan":"Documents/Plans/<area>/<filename>","tier":"Small","effort":2,"impact":3,"risks":1,"notes":"One-line outcome","dependsOn":["Documents/Plans/<area>/<prerequisite>.md"]}]]}
+```
 
-   Use `queue: "features"` and a `Documents/Features/...` plan identity for the feature tree. Omit `dependsOn` when empty. Do not supply `score`; WorktreeCli computes `Effort - Impact + Risks`.
+Use matching `features` identities for features. Omit `dependsOn` when empty and never supply `score`. Do not invoke `plan order add`, request a receipt, mutate or unlock queue state, or publish the row.
 
-8. **Ask WorktreeCli to index it**: Use the current checkout's provisioned `Tools/WorktreeCli/Platforms/VisualStudio2026/Output/WorktreeCli.exe`, the canonical Git common directory, registered session checkout, an owner token generated by WorktreeCli `lock token`, the wrapper/session label, and the request's `Temp/` repository-relative path:
-
-   ```text
-   plan order add --repo <common-dir> --worktree <checkout> --owner <token> --session <label> --request <Temp repo-rel> [--plans-order ...] [--features-order ...]
-   ```
-
-   Let WorktreeCli validate both queues, compute the score, acquire the existing queue locks, and write the row into the machine-local queue store. Never edit an executable queue row directly. On the user's own checkout this add publishes immediately; in a wrapper session the staged request instead publishes at landing (finalize submits it post-advance), so an unlanded session leaves the plan and request as retryable orphans. If add fails, report its exact diagnostics and leave the plan plus request as retryable orphans; do not claim the plan was indexed and do not try to repair a queue row by hand.
-
-9. **Report**: Confirm the saved repository-relative path, request path, destination queue, scoring inputs, dependencies, and WorktreeCli add receipt.
+Report the plan path, request path, queue, scoring inputs, dependencies and Coordination, source/contract/inventory checks, and changed files. Pass the complete staged-request path list through `/verify-changes` to `/finalize-changes`; finalization owns post-landing publication.

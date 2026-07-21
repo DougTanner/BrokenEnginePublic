@@ -22,15 +22,7 @@ void PushersInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restr
 {
 	PushersInterpolate& __restrict rCurrent = rFrameInterpolate.pushers;
 	const PushersInterpolate& rPrevious = rPreviousFrame.interpolate.pushers;
-
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));
-		std::memcpy(rCurrent.pfRadii, rPrevious.pfRadii, rCurrent.iCount * sizeof(rCurrent.pfRadii[0]));
-		std::memcpy(rCurrent.pfIntensities, rPrevious.pfIntensities, rCurrent.iCount * sizeof(rCurrent.pfIntensities[0]));
-		std::memcpy(rCurrent.pfPowers, rPrevious.pfPowers, rCurrent.iCount * sizeof(rCurrent.pfPowers[0]));
-		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
-	}
+	CopyMemberRows(rCurrent.iCount, rCurrent.Members(), rPrevious.Members());
 }
 
 void XM_CALLCONV PushersInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
@@ -200,23 +192,15 @@ void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
-	rInterpolate.pfRadii[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfIntensities[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfPowers[uiSpawnIndex] = 0.0f;
-	rInterpolate.pFlags[uiSpawnIndex] = {};
+	ZeroMemberRow(uiSpawnIndex, rInterpolate.Members());
 }
 
 void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
 {
-	ASSERT(rId.IsValid());
-
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;
 
-	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-
-	rId = {};
+	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 }
 
 void PushersPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

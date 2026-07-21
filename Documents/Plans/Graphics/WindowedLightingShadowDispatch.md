@@ -4,7 +4,7 @@
 
 The shadow and lighting (deposit / spread / combine / temporal) passes process the **entire** headroom texture every frame, even though only the centered visible window — ~1/3–1/4 of the texture at *every* settled height, now that the texel ramp holds a steady-state target at every height — is live:
 
-- **Combine / temporal**: `vkCmdDispatch(uiCombineWidth/tile, uiCombineHeight/tile, 1)` over the full combine extent (`CommandBufferRecordMain.cpp:414-417` and `:441-442`); the shaders early-out outside the window (write `0` / blend) but the workgroups still launch and the writes still touch every texel.
+- **Combine / temporal**: `vkCmdDispatch(uiCombineWidth/tile, uiCombineHeight/tile, 1)` over the full combine extent (`CommandBufferRecordMain.cpp:193` and `:219`); the shaders early-out outside the window (write `0` / blend) but the workgroups still launch and the writes still touch every texel.
 - **Shadow**: `Shadow.comp` is dispatched full-texture; outside the window (+`kiShadowWindowMargin`) it writes the no-shadow fill (`Shadow.comp:23-28`). `ShadowBlurH/V.comp` and `ShadowTemporal.comp` are likewise full-texture-dispatched with a window early-out.
 - **Deposit**: `LOAD_OP_CLEAR` over the whole attachment every frame (`RenderTargetTexturesLighting.cpp` lighting render pass).
 - **Spread**: the runtime pass count (default 40) MRT passes each rasterize the full texture; the `LightingSpread.frag` window early-out makes off-window texels a cheap passthrough copy, but it is still a full-texture write per pass.
@@ -44,7 +44,7 @@ Off-window texels are no longer written and hold stale data from prior frames / 
 - `Engine/Source/Graphics/Objects/Pipeline.h/.cpp` — `WriteIndirectComputeBuffer(...)` + `RecordComputeIndirect(...)` (shared with the same plan).
 - `Engine/Source/Graphics/Managers/PipelineManager.cpp` — add `kIndirectHostVisible` to the shadow / combine / temporal compute pipeline flags; the deposit/spread graphics pipelines gain `kDynamicScissor` (or equivalent dynamic-state flag).
 - `Engine/Source/Graphics/Managers/CommandBufferRecordGlobal.cpp` — shadow + blur + shadow-temporal dispatch → indirect.
-- `Engine/Source/Graphics/Managers/CommandBufferRecordMain.cpp` — combine/temporal dispatch (`:414-417`, `:441-442`) → indirect; deposit + spread `vkCmdSetScissor`; remove the 4 history `RecordCopyImageFrom` calls if the temporal-writes-history option lands.
+- `Engine/Source/Graphics/Managers/CommandBufferRecordMain.cpp` — combine/temporal dispatch (`:193`, `:219`) → indirect; deposit + spread `vkCmdSetScissor`; remove the 4 history `RecordCopyImageFrom` calls if the temporal-writes-history option lands.
 - `Engine/Data/Shaders/Shadow/Shadow.comp`, `ShadowBlurH/V.comp`, `ShadowTemporal.comp` — invocation min-texel offset; temporal optionally writes history.
 - `Engine/Data/Shaders/Lighting/LightCombine.comp`, `LightingTemporal.comp` — invocation min-texel offset; temporal optionally writes the four history images.
 - `Engine/Source/Graphics/Render/GlobalUniforms.cpp` (shadow) and `LightingUniforms.cpp` (`PopulateLightingParameters`) — write the per-pass indirect dispatch group counts (window+margin / tile) and any min-texel offset uniform while preserving the shared area/latch helpers in `Render.h`.
@@ -70,7 +70,7 @@ Off-window texels are no longer written and hold stale data from prior frames / 
 ## Coordination
 
 - `Documents/Plans/Graphics/Managers/Architecture_BindlessSlotLifecycle.md`: mandatory reciprocal pipeline-cluster exclusion; never interleave because BindlessSlotLifecycle executes alone.
-- `Documents/Plans/Graphics/LightingSpreadEmptySkipCadence.md`: never interleave the shared LightingUniforms/recording-region edits; land sequentially with citation refresh.
+- `Documents/Plans/Graphics/LightingRefreshCadence.md`: never interleave the shared LightingUniforms/recording-region edits; co-schedule in one session or land sequentially with citation refresh. Both plans convert the same combine (`CommandBufferRecordMain.cpp:193`) and temporal (`:219`) dispatches to indirect — whichever lands first performs the conversion.
 
 ## Notes
 

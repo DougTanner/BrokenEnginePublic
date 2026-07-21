@@ -6,4 +6,4 @@ Client-only 3D spatial audio source data. Pure data carrier — no playback, no 
 
 - **Looping voices only**: tracked entries here are always looping. Fire-and-forget cues use `AudioManager::PlayOneShot3d` instead of adding a tracked slot.
 - **Position forced W=1 in `Sync`**: explicitly set rather than trusting the caller, so listener-distance math gets point semantics (root `../../../../../AGENTS.md` "XMVECTOR W invariant").
-- **Dedicated UUID stream**: spawns mint IDs from `GenerateSoundUuid()`, a separate counter from the shared entity sequence, so client-side sound churn never perturbs determinism.
+- **Dedicated UUID stream**: spawns give the generator-based insertion helper a callable that invokes `GenerateSoundUuid()` exactly once; the separate counter keeps client-side sound churn from perturbing determinism.

@@ -26,12 +26,12 @@ if (fCausticStrength > 0.0f)
 
 - Adding into `f3DepthColor` (pre-mix) means caustics fade out with wave height/depth exactly like the rest of the floor color, and inherit directional lighting, height darken, and the shadow split downstream — physically sensible (light hits floor, travels back up).
 - Ordering note: `f3SunOrMoon` is currently computed after the depth-LUT block — hoist it (pure reorder, no logic change) so the caustics tint can use the sun/moon `max`-combine (moonlit caustics at night).
-- UV: caustics live on the sea floor, so sample at the *un-displaced* position (`f2InInitialPosition`-based), NOT the wave-displaced one. MUST follow the precision-safe sampling pact (`fract()`-wrapped UV + `textureGrad`, CPU-reduced origin/time per layer supplied like the color-noise path in `GlobalUniforms.cpp`).
+- UV: caustics live on the sea floor, so sample at the *un-displaced* position (`f2InInitialPosition`-based), NOT the wave-displaced one. MUST follow the precision-safe sampling pact (`fract()`-wrapped UV + `textureGrad`, CPU-reduced origin/time per layer supplied like the color-noise path in `WaterUniforms.cpp`).
 - Branch is warp-coherent in deep water regions (`fCausticStrength` varies smoothly with terrain), acceptable.
 
 ### New uniforms / sliders
 
-~8 new `GlobalLayout` floats: `fWaterCausticsDepthMin/Max`, `fWaterCausticsScaleOne/Two`, `fWaterCausticsSpeedOne/Two`, `fWaterCausticsIntensity`, `fWaterCausticsSharpness`. Wrappers in `WaterWrappersBase.{h,cpp}`, a "Caustics" slider block in `RenderWaterSection()` (`TweaksScreenWater.cpp`), uploads + reduced origins/times in `GlobalUniforms.cpp`. Intensity 0 disables (no separate toggle).
+~8 new `GlobalLayout` floats: `fWaterCausticsDepthMin/Max`, `fWaterCausticsScaleOne/Two`, `fWaterCausticsSpeedOne/Two`, `fWaterCausticsIntensity`, `fWaterCausticsSharpness`. Wrappers in `WaterWrappersBase.{h,cpp}`, a "Caustics" slider block in `RenderWaterSection()` (`TweaksScreenWater.cpp`), uploads + reduced origins/times in `WaterUniforms.cpp`. Intensity 0 disables (no separate toggle).
 
 ## Critical files
 
@@ -39,7 +39,7 @@ if (fCausticStrength > 0.0f)
 - `Engine/Data/Shaders/ShaderLayoutsBase.h` — new `GlobalLayout` floats
 - `Engine/Source/Ui/WaterWrappersBase.{h,cpp}` — wrappers
 - `Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenWater.cpp` — sliders
-- `Engine/Source/Graphics/Render/GlobalUniforms.cpp` — uploads + caustics-noise reduced origins/times
+- `Engine/Source/Graphics/Render/WaterUniforms.cpp` — uploads + caustics-noise reduced origins/times
 
 ## Out of scope
 

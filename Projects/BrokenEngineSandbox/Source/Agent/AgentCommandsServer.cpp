@@ -6,6 +6,7 @@
 #include "Game.h"
 #include "Network/Server/ServerBroadcaster.h"
 #include "Network/Server/ServerClientManager.h"
+#include "Network/Server/ServerFleetManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace game
@@ -80,7 +81,7 @@ void CommandStatus([[maybe_unused]] const nlohmann::json& rParams, nlohmann::jso
 	rResult["replaying"] = gpGame->mGameSaveLoad.IsReplaying();
 
 	int64_t iClientCount = 0;
-	for (const engine::ClientConnection& rClient : engine::gpServer->GetClients())
+	for (const engine::ClientConnection& rClient : engine::gpServer->mClients)
 	{
 		if (rClient.bHandshakeComplete)
 		{
@@ -97,6 +98,7 @@ void CommandStatus([[maybe_unused]] const nlohmann::json& rParams, nlohmann::jso
 	rResult["activeCoords"] = std::move(activeCoords);
 
 	rResult["nextGlobalId"] = gpGame->NextGlobalId();
+	rResult["pendingFlagshipUpdateCount"] = std::ssize(gpServerSession->mpFleetManager->mNavigation.mPendingFlagshipUpdates);
 }
 
 void CommandPause(const nlohmann::json& rParams, nlohmann::json& rResult)
@@ -134,6 +136,11 @@ void CommandSave(const nlohmann::json& rParams, nlohmann::json& rResult)
 
 void CommandLoad(const nlohmann::json& rParams, nlohmann::json& rResult)
 {
+	if (rParams.contains("pauseAfterLoad") && !rParams.at("pauseAfterLoad").is_boolean())
+	{
+		throw std::runtime_error("load requires bool 'pauseAfterLoad'");
+	}
+	bool bPauseAfterLoad = rParams.value("pauseAfterLoad", false);
 	std::filesystem::path file = rParams.contains("file") ? BareFilenameParam(rParams.at("file")) : gpGame->QuicksaveFile();
 
 	bool bResetToFresh = false;
@@ -144,8 +151,14 @@ void CommandLoad(const nlohmann::json& rParams, nlohmann::json& rResult)
 		gpGame->mGameSaveLoad.ServerReset();
 		bResetToFresh = true;
 	}
+	if (bPauseAfterLoad)
+	{
+		gpGame->mGameFlags.Set(engine::GameFlags::kPaused);
+	}
 	rResult["file"] = PathToUtf8(file);
 	rResult["resetToFresh"] = bResetToFresh;
+	rResult["paused"] = static_cast<bool>(gpGame->mGameFlags & engine::GameFlags::kPaused);
+	rResult["pendingFlagshipUpdateCount"] = std::ssize(gpServerSession->mpFleetManager->mNavigation.mPendingFlagshipUpdates);
 }
 
 void CommandReset([[maybe_unused]] const nlohmann::json& rParams, nlohmann::json& rResult)

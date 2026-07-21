@@ -46,9 +46,11 @@ namespace toolcli
 			std::wstring queue;
 			std::wstring plan;
 			std::wstring request;
+			std::wstring requestSha256;
 			std::wstring plansOrder = std::wstring(kPlansOrderDefault);
 			std::wstring featuresOrder = std::wstring(kFeaturesOrderDefault);
 			bool bForce = false;
+			bool bRequestSha256Specified = false;
 		};
 
 		struct Diagnostic
@@ -173,6 +175,14 @@ namespace toolcli
 			return coordination::HashSha256(value);
 		}
 
+		bool IsLowercaseSha256(std::wstring_view value)
+		{
+			return value.size() == 64 && std::all_of(value.begin(), value.end(), [](wchar_t cCharacter)
+			{
+				return (cCharacter >= L'0' && cCharacter <= L'9') || (cCharacter >= L'a' && cCharacter <= L'f');
+			});
+		}
+
 		bool ParseArguments(int iArgumentCount, wchar_t* pArgumentValues[], Arguments& rArguments)
 		{
 			for (int i = 4; i < iArgumentCount; ++i)
@@ -219,6 +229,11 @@ namespace toolcli
 				else if (argument == L"--request")
 				{
 					pDestination = &rArguments.request;
+				}
+				else if (argument == L"--request-sha256")
+				{
+					pDestination = &rArguments.requestSha256;
+					rArguments.bRequestSha256Specified = true;
 				}
 				else if (argument == L"--plans-order")
 				{
@@ -1334,6 +1349,15 @@ namespace toolcli
 				Fail("request is not a safe bounded strict-UTF-8 file beneath Temp");
 				return false;
 			}
+			if (rArguments.bRequestSha256Specified)
+			{
+				const std::optional<std::string> requestSha256 = Sha256(bytes);
+				if (!requestSha256 || *requestSha256 != WideToUtf8(rArguments.requestSha256))
+				{
+					Fail("request SHA-256 does not match --request-sha256");
+					return false;
+				}
+			}
 			try
 			{
 				rRequest = nlohmann::json::parse(bytes);
@@ -2384,6 +2408,11 @@ namespace toolcli
 		Arguments arguments;
 		if (!ParseArguments(iArgumentCount, pArgumentValues, arguments))
 		{
+			return kiExitFailure;
+		}
+		if (arguments.bRequestSha256Specified && (verb != L"add" || !IsLowercaseSha256(arguments.requestSha256)))
+		{
+			Fail("--request-sha256 is valid only for plan order add and requires 64 lowercase hexadecimal characters");
 			return kiExitFailure;
 		}
 		std::wstring repository;

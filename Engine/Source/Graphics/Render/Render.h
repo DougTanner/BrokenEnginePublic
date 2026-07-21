@@ -95,8 +95,10 @@ inline int64_t giLightingSpreadStartActivePixelsX = 0; // Profile GPU-screen rea
 inline int64_t giLightingSpreadStartActivePixelsY = 0; // Profile GPU-screen readout: cropped on-screen window height in start-pass spread texels
 inline int64_t giLightingSpreadEndActivePixelsX = 0; // Profile GPU-screen readout: cropped on-screen window width in end-pass (gSpreadTextureMultiplierEnd) spread texels
 inline int64_t giLightingSpreadEndActivePixelsY = 0; // Profile GPU-screen readout: cropped on-screen window height in end-pass spread texels
+inline int64_t giLightingDepositInstances = 0; // Light-deposit quads this frame. Reset at the top of RenderFrameMain, accumulated by the three deposit EndRender writers (AreaLights, PointLights, HexShields), consumed by RenderLightingSpreadIndirect to gate the spread chain
 void RenderLightingGlobal(int64_t iCommandBuffer);
 void RenderLightingMain(int64_t iCommandBuffer);
+void RenderLightingSpreadIndirect(int64_t iCommandBuffer);
 
 // Smoke
 inline bool gbSmokeClear = true;
@@ -107,6 +109,9 @@ void RenderSmokeGlobal(int64_t iCommandBuffer);
 inline int64_t giWindTextureIndex = 0; // 0 = write TextureOne, 1 = write TextureTwo
 
 void RenderWindGlobal(int64_t iCommandBuffer);
+
+// Water
+void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent);
 
 } // namespace engine
 

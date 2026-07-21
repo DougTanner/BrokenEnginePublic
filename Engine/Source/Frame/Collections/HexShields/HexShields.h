@@ -68,6 +68,10 @@ struct HexShieldsInterpolate : public Collection<HexShieldsInterpolate, Collecti
 		                rSelf.pf4Directions, rSelf.pfVertIntensities, rSelf.pfFragIntensities,
 		                rSelf.pfLightingIntensities, rSelf.pfSizes, rSelf.pfColorMixes);
 	}
+	auto PersistentMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecPositions, rSelf.puiTypeIndices, rSelf.pfLightingIntensities, rSelf.pfSizes, rSelf.pfColorMixes);
+	}
 
 	// Graphics resources
 	static void GraphicsResources();

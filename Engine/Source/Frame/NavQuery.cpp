@@ -169,8 +169,7 @@ bool PointInAnyPolygon(XMFLOAT2 f2Point, const XMFLOAT2* pVertices, const NavDat
 			continue;
 		}
 
-		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
-		int32_t iEnd = (iPoly + 1 < rNavData.polygonOffsets.size()) ? rNavData.polygonOffsets.at(iPoly + 1) : static_cast<int32_t>(rNavData.vertices.size());
+		auto [iStart, iEnd] = PolygonRange(rNavData.polygonOffsets, iPoly, static_cast<int32_t>(rNavData.vertices.size()));
 		int32_t iCount = iEnd - iStart;
 
 		if (PointInPolygon(f2Point, &pVertices[iStart], iCount))
@@ -207,8 +206,7 @@ XMFLOAT2 NearestPolygonEdgePoint(XMFLOAT2 f2Position, const XMFLOAT2* pVertices,
 			continue;
 		}
 
-		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
-		int32_t iEnd = (iPoly + 1 < rNavData.polygonOffsets.size()) ? rNavData.polygonOffsets.at(iPoly + 1) : static_cast<int32_t>(rNavData.vertices.size());
+		auto [iStart, iEnd] = PolygonRange(rNavData.polygonOffsets, iPoly, static_cast<int32_t>(rNavData.vertices.size()));
 		int32_t iCount = iEnd - iStart;
 
 		for (int32_t i = 0; i < iCount; ++i)
@@ -271,37 +269,44 @@ struct AStarMemory
 	int32_t* pHeapPos = nullptr;  // per-node position in pOpenSet (-1 = not in heap)
 };
 
-constexpr int64_t ComputeAStarMemorySize(int32_t iTotalNodes, int32_t iVertexCount)
+struct AStarMemoryLayout
+{
+	int64_t iGCostOffset = 0;
+	int64_t iFCostOffset = 0;
+	int64_t iParentOffset = 0;
+	int64_t iOpenSetOffset = 0;
+	int64_t iHeapPositionOffset = 0;
+	int64_t iClosedOffset = 0;
+	int64_t iStartVisibleOffset = 0;
+	int64_t iByteCount = 0;
+};
+
+constexpr AStarMemoryLayout ComputeAStarMemoryLayout(int32_t iTotalNodes, int32_t iVertexCount)
 {
 	// Layout: all 4-byte types first (float, int32_t), then bool arrays last to avoid alignment issues
-	int64_t iSize = 0;
-	iSize += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(float));     // pGCost
-	iSize += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(float));     // pFCost
-	iSize += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(int32_t));   // pParent
-	iSize += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(int32_t));   // pOpenSet
-	iSize += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(int32_t));   // pHeapPos
-	iSize += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(bool));      // pClosed
-	iSize += static_cast<int64_t>(iVertexCount) * static_cast<int64_t>(sizeof(bool));     // pStartVisible
-	return iSize;
+	AStarMemoryLayout layout {};
+	layout.iFCostOffset = layout.iGCostOffset + static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(float));
+	layout.iParentOffset = layout.iFCostOffset + static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(float));
+	layout.iOpenSetOffset = layout.iParentOffset + static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(int32_t));
+	layout.iHeapPositionOffset = layout.iOpenSetOffset + static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(int32_t));
+	layout.iClosedOffset = layout.iHeapPositionOffset + static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(int32_t));
+	layout.iStartVisibleOffset = layout.iClosedOffset + static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(bool));
+	layout.iByteCount = layout.iStartVisibleOffset + static_cast<int64_t>(iVertexCount) * static_cast<int64_t>(sizeof(bool));
+	return layout;
 }
 
-AStarMemory PartitionAStarMemory(std::byte* pMemory, int32_t iTotalNodes)
+AStarMemory BindAStarMemory(std::byte* pMemory, const AStarMemoryLayout& rLayout)
 {
-	// Layout: all 4-byte types first, then bool arrays last to avoid alignment issues
-	AStarMemory memory {};
-	memory.pGCost = reinterpret_cast<float*>(pMemory);
-	pMemory += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(float));
-	memory.pFCost = reinterpret_cast<float*>(pMemory);
-	pMemory += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(float));
-	memory.pParent = reinterpret_cast<int32_t*>(pMemory);
-	pMemory += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(int32_t));
-	memory.pOpenSet = reinterpret_cast<int32_t*>(pMemory);
-	pMemory += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(int32_t));
-	memory.pHeapPos = reinterpret_cast<int32_t*>(pMemory);
-	pMemory += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(int32_t));
-	memory.pClosed = reinterpret_cast<bool*>(pMemory);
-	pMemory += static_cast<int64_t>(iTotalNodes) * static_cast<int64_t>(sizeof(bool));
-	memory.pStartVisible = reinterpret_cast<bool*>(pMemory);
+	AStarMemory memory
+	{
+		.pGCost = reinterpret_cast<float*>(pMemory + rLayout.iGCostOffset),
+		.pFCost = reinterpret_cast<float*>(pMemory + rLayout.iFCostOffset),
+		.pParent = reinterpret_cast<int32_t*>(pMemory + rLayout.iParentOffset),
+		.pClosed = reinterpret_cast<bool*>(pMemory + rLayout.iClosedOffset),
+		.pStartVisible = reinterpret_cast<bool*>(pMemory + rLayout.iStartVisibleOffset),
+		.pOpenSet = reinterpret_cast<int32_t*>(pMemory + rLayout.iOpenSetOffset),
+		.pHeapPos = reinterpret_cast<int32_t*>(pMemory + rLayout.iHeapPositionOffset),
+	};
 	return memory;
 }
 
@@ -399,7 +404,7 @@ struct AStarHeap
 
 // A* pathfinding on the visibility graph with temporary start/end nodes
 // Returns the direction toward the first waypoint, or zero vector if no path found
-XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, const NavData& rNavData, const AStarMemory& rMemory, XMVECTOR* pOutNextWaypoint)
+XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, const NavData& rNavData, const AStarMemory& rMemory, float fBaseHeight, XMVECTOR* pOutNextWaypoint)
 {
 	int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
 	int32_t iStartNode = iVertexCount;
@@ -462,7 +467,7 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 			XMFLOAT2 f2Waypoint = GetPosition(iNode);
 			if (pOutNextWaypoint != nullptr)
 			{
-				*pOutNextWaypoint = XMVectorSet(f2Waypoint.x, f2Waypoint.y, gBaseHeight.Get(), 1.0f);
+				*pOutNextWaypoint = XMVectorSet(f2Waypoint.x, f2Waypoint.y, fBaseHeight, 1.0f);
 			}
 			XMVECTOR vecDirection = XMVectorSet(f2Waypoint.x - f2Start.x, f2Waypoint.y - f2Start.y, 0.0f, 0.0f);
 			return XMVector3Normalize(vecDirection);
@@ -501,16 +506,13 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 
 		if (iCurrent == iStartNode)
 		{
+			// The sole caller enters A* only after this post-snap start-to-end segment tested blocked.
 			for (int32_t i = 0; i < iVertexCount; ++i)
 			{
 				if (rMemory.pStartVisible[i])
 				{
 					TryNeighbor(i);
 				}
-			}
-			if (!SegmentBlockedByObstacle(f2Start, f2End, pVertices, rNavData))
-			{
-				TryNeighbor(iEndNode);
 			}
 		}
 		else if (iCurrent < iVertexCount)
@@ -541,8 +543,9 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 
 // A*-miss fallback: when A* finds no path, steer toward the nearest start-visible obstacle vertex.
 // Writes the refined waypoint when one is found; returns the steering direction (zero if none).
-XMVECTOR NavMissFallbackDirection(XMFLOAT2 f2Position, const XMFLOAT2* pVertices, const NavData& rNavData, int32_t iVertexCount, float fBaseHeight, XMVECTOR* pOutNextWaypoint)
+XMVECTOR NavMissFallbackDirection(XMFLOAT2 f2Position, const XMFLOAT2* pVertices, const NavData& rNavData, float fBaseHeight, XMVECTOR* pOutNextWaypoint)
 {
+	int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
 	float fBestDist = std::numeric_limits<float>::max();
 	XMFLOAT2 f2BestVertex = f2Position;
 	bool bFound = false;
@@ -624,11 +627,11 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 	int32_t iTotalNodes = iVertexCount + 2;
 
 	// Workbuffer allocation for A* scratch memory only (vertices already world-space in NavData)
-	int64_t iAStarBytes = ComputeAStarMemorySize(iTotalNodes, iVertexCount);
+	AStarMemoryLayout aStarMemoryLayout = ComputeAStarMemoryLayout(iTotalNodes, iVertexCount);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	auto pMemory = rWorkbuffer.PushBuffer<std::byte*>(iAStarBytes);
-	AStarMemory aStarMemory = PartitionAStarMemory(pMemory, iTotalNodes);
+	auto pMemory = rWorkbuffer.PushBuffer<std::byte*>(aStarMemoryLayout.iByteCount);
+	AStarMemory aStarMemory = BindAStarMemory(pMemory, aStarMemoryLayout);
 
 	const XMFLOAT2* pVertices = rNavData.vertices.data();
 
@@ -676,12 +679,12 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 	else
 	{
 		// A* pathfinding on visibility graph
-		vecResult = AStarPath(f2Position, f2Destination, pVertices, rNavData, aStarMemory, pOutNextWaypoint);
+		vecResult = AStarPath(f2Position, f2Destination, pVertices, rNavData, aStarMemory, fBaseHeight, pOutNextWaypoint);
 
 		// Fallback: if A* found no path, move toward nearest visible obstacle vertex
 		if (XMVectorGetX(XMVector3LengthSq(vecResult)) < 1e-8f)
 		{
-			vecResult = NavMissFallbackDirection(f2Position, pVertices, rNavData, iVertexCount, fBaseHeight, pOutNextWaypoint);
+			vecResult = NavMissFallbackDirection(f2Position, pVertices, rNavData, fBaseHeight, pOutNextWaypoint);
 		}
 	}
 

@@ -66,18 +66,7 @@ void XM_CALLCONV SyncExplosionTrail(game::FrameInterpolate& rFrameInterpolate, s
 
 void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, const ExplosionsInterpolate& rPrevious)
 {
-	Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-#if defined(BT_CLIENT)
-	// Copy child IDs
-	if (rCurrent.iCount > 0)
-	{
-		for (int64_t j = 0; j < kiMaxExplosionTrails; ++j)
-		{
-			std::memcpy(rCurrent.pTrails[j], rPrevious.pTrails[j], rCurrent.iCount * sizeof(rCurrent.pTrails[j][0]));
-		}
-	}
-#endif // BT_CLIENT
+	AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious)

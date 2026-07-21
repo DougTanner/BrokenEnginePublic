@@ -40,47 +40,47 @@ const TweaksSliderMapRegistrar gSoundRegistrar
 
 void TweaksScreenBase::RenderSoundSection()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kSound);
+	const int64_t iSection = giTweakSectionSound;
 
 	if (ImGui::BeginTabBar("SoundTabs"))
 	{
-		if (BeginSubtab("Volumes", kiSection, 0))
+		if (BeginSubtab("Volumes", iSection, 0))
 		{
 			// Engine settings rendered inline (no outer table) so the game-side hook can own its own 2-column table at full sub-tab width.
 			WrapperSeparatorText("Settings");
-			WrapperSlider("Master", kiSection, 1.0f, "Master Volume");
-			WrapperSlider("Music", kiSection, 1.0f, "Music Volume");
-			WrapperSlider("Sound", kiSection, 1.0f, "Sound Volume");
+			WrapperSlider("Master", iSection, 1.0f, "Master Volume");
+			WrapperSlider("Music", iSection, 1.0f, "Music Volume");
+			WrapperSlider("Sound", iSection, 1.0f, "Sound Volume");
 
 			RenderSoundEffects();
 
 			ImGui::EndTabItem();
 		}
-		if (BeginSubtab("Tweaks", kiSection, 1))
+		if (BeginSubtab("Tweaks", iSection, 1))
 		{
 			WrapperSeparatorText("Listener Distance Start");
-			WrapperSlider("Start Height", kiSection, 2.0f, "Listener Distance Start Start Height");
-			WrapperSlider("End Height", kiSection, 2.0f, "Listener Distance Start End Height");
-			WrapperSlider("Low", kiSection, 2.0f, "Listener Distance Start Low");
-			WrapperSlider("High", kiSection, 2.0f, "Listener Distance Start High");
+			WrapperSlider("Start Height", iSection, 2.0f, "Listener Distance Start Start Height");
+			WrapperSlider("End Height", iSection, 2.0f, "Listener Distance Start End Height");
+			WrapperSlider("Low", iSection, 2.0f, "Listener Distance Start Low");
+			WrapperSlider("High", iSection, 2.0f, "Listener Distance Start High");
 
 			WrapperSeparatorText("Listener Distance End");
-			WrapperSlider("Start Height", kiSection, 2.0f, "Listener Distance End Start Height");
-			WrapperSlider("End Height", kiSection, 2.0f, "Listener Distance End End Height");
-			WrapperSlider("Low", kiSection, 2.0f, "Listener Distance End Low");
-			WrapperSlider("High", kiSection, 2.0f, "Listener Distance End High");
+			WrapperSlider("Start Height", iSection, 2.0f, "Listener Distance End Start Height");
+			WrapperSlider("End Height", iSection, 2.0f, "Listener Distance End End Height");
+			WrapperSlider("Low", iSection, 2.0f, "Listener Distance End Low");
+			WrapperSlider("High", iSection, 2.0f, "Listener Distance End High");
 
 			WrapperSeparatorText("Listener Curve");
-			WrapperSlider("Start Height", kiSection, 2.0f, "Listener Curve Start Height");
-			WrapperSlider("End Height", kiSection, 2.0f, "Listener Curve End Height");
-			WrapperSlider("Low", kiSection, 2.0f, "Listener Curve Low");
-			WrapperSlider("High", kiSection, 2.0f, "Listener Curve High");
+			WrapperSlider("Start Height", iSection, 2.0f, "Listener Curve Start Height");
+			WrapperSlider("End Height", iSection, 2.0f, "Listener Curve End Height");
+			WrapperSlider("Low", iSection, 2.0f, "Listener Curve Low");
+			WrapperSlider("High", iSection, 2.0f, "Listener Curve High");
 
 			WrapperSeparatorText("Listener Audible Floor");
-			WrapperSlider("Start Height", kiSection, 2.0f, "Listener Audible Floor Start Height");
-			WrapperSlider("End Height", kiSection, 2.0f, "Listener Audible Floor End Height");
-			WrapperSlider("Low", kiSection, 2.0f, "Listener Audible Floor Low");
-			WrapperSlider("High", kiSection, 2.0f, "Listener Audible Floor High");
+			WrapperSlider("Start Height", iSection, 2.0f, "Listener Audible Floor Start Height");
+			WrapperSlider("End Height", iSection, 2.0f, "Listener Audible Floor End Height");
+			WrapperSlider("Low", iSection, 2.0f, "Listener Audible Floor Low");
+			WrapperSlider("High", iSection, 2.0f, "Listener Audible Floor High");
 
 			ImGui::EndTabItem();
 		}

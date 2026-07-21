@@ -1,12 +1,27 @@
 # WorktreeCli
 
-Standalone Windows console application for repository meta-management. It owns serialized MSBuild invocation, landing leases, queue/row claims, and executable plan-order parsing/mutation; it never connects to a game endpoint or manages a harness lock.
+Standalone Windows console application for repository coordination. It owns serialized MSBuild invocation, landing leases, machine-local plan queues, row claims, and queue validation/mutation. It never connects to a game endpoint or owns the AgentHarness lock.
 
-- Use `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` only from the provisioned primary Output link. Source changes build through AgentTools candidate production and session-landing promotion (see `/compile`).
-- `lock token|claim|status|refresh|recover|release|steal` operates only on landing locks identified by `--repo`; do not add `--domain` or harness-key support.
-- Landing-lock command responses expose lease identity, timing, and validation state but omit private record provenance such as `claimantPid`; process provenance never represents lease liveness.
-- `plan` and `build` preserve their existing schemas, failure modes, atomicity, and exit codes. `0` is success, `2` is a state conflict/negative result, and `1` is usage, transport, or OS failure.
-- `build` writes exactly one `broken-engine-build-result/v1` JSON object to stdout (human progress goes to stderr) and retains the complete combined MSBuild stdout+stderr stream, in observed read order, in the ignored `Temp\AgentBuildLogs\` file named by `retainedLog.path` under the invoking worktree. Structured `diagnostics` are parsed from that stream by the single reader in `BuildCommand.cpp`; a retained-log failure is a visible result failure (`exitCode` stays MSBuild's once launched, `1` for tool failures). `BROKEN_ENGINE_MSBUILD_PATH` pins MSBuild discovery (an invalid pin fails discovery); `BROKEN_ENGINE_BUILD_LOCK_WAIT_SECONDS` may only shorten the 660-second lock wait and exists for fixtures.
-- Coordination state lives under `%LOCALAPPDATA%\BrokenEngineLocks` (`plan-queue` locks, `plan-row` claims, landing locks). The scored plan-queue rows also live here, as **machine-local state** under `plan-queue-state\<sha256(repo-common-dir)>\Plans-Order.md` and `Features-Order.md` — the queue is no longer a tracked repository file. `plan order init` seeds the store once per repo/machine (from the tracked `Order.md` files when they still exist, else empty header-only tables; idempotent, refuses to overwrite a non-empty store without `--force`). The `--plans-order` / `--features-order` strings persist only as logical queue identities, keeping the queue-lock and row-claim keys byte-identical. `plan order complete` no longer deletes the plan file (the session removes it with `git rm`; `complete` removes only the row and tolerates an already-absent file) and the retired `--reapply` flag no longer exists — a queue can never appear in a rebase conflict. `plan order validate` and the add/update/complete gates demote a `missing-plan-file` to a non-blocking notice when the row is held by a live claim or when the plan file exists in the primary checkout but not the validated session worktree (stale wrapper baseline after a primary advance); a plan absent from both trees with no live claim stays a blocking diagnostic. An unreadable or schema-invalid `plan-row` claim file is skipped by enumeration-wide validation with a stderr diagnostic naming its path, while operations targeting that specific row still fail loudly with the path named; the tool never deletes or overwrites the corrupt file. Recovery: delete exactly the `.lock` file named by the diagnostic. Valid-format claims keep strict validation and block exactly as before.
-- Keep source/header membership synchronized between `WorktreeCli.vcxproj` and `.filters`. Shared Windows/coordination code lives in `Tools/ToolCommon` and is compiled by both tool projects.
-- Worktree session admission and maintenance use `.agents/scripts/WorktreeCliSessionExclusion.psm1`; bootstrap and provisioning require both WorktreeCli and AgentHarness outputs to be valid.
+## Executable and Commands
+
+Use `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` through the provisioned primary Output link. Routine linked-worktree workflows do not build or modify that output; source changes use the `/compile` candidate/promotion path.
+
+- `lock token|claim|status|refresh|recover|release|steal` operates on landing locks identified by `--repo`. Lease state, not claimant process provenance, determines liveness.
+- `plan` owns queue initialization/validation, add/update/claim/complete operations, and owner/session claims. Queue lifecycle and authoring policy live in [`Documents/Plans/AGENTS.md`](../../Documents/Plans/AGENTS.md).
+- `plan order add --request-sha256` optionally binds the transaction to the exact bounded request bytes read before JSON parsing. Finalization always supplies this approval-bound digest; generic callers may omit it.
+- `build` prints one `broken-engine-build-result/v1` JSON object to stdout; human progress goes to stderr. It retains the combined MSBuild stream in the invoking worktree's ignored `Temp\AgentBuildLogs\` path and parses structured diagnostics from that same stream.
+- Exit code `0` is success, `2` is a state conflict or negative result, and `1` is usage, transport, or OS failure.
+
+`BROKEN_ENGINE_MSBUILD_PATH` pins discovery and fails when invalid. `BROKEN_ENGINE_BUILD_LOCK_WAIT_SECONDS` may only shorten the standard lock wait and exists for fixtures.
+
+## Coordination State
+
+Locks, claims, and scored queue rows live under `%LOCALAPPDATA%\BrokenEngineLocks`. Queue files are keyed by the Git common directory. `plan order init` is idempotent and refuses to overwrite non-empty state without explicit force.
+
+Validation reports a missing plan as non-blocking only when a live claim owns it or primary contains it while the session has a stale wrapper baseline. A plan absent from both trees without a claim blocks validation.
+
+Enumeration skips unreadable or schema-invalid claim records and reports the exact path; operations targeting that record fail. Recovery removes only the diagnosed `.lock` file. Never broadly delete coordination state.
+
+## Project Ownership
+
+Keep source membership synchronized between `WorktreeCli.vcxproj` and `.filters`. Shared Windows and coordination code belongs in `Tools/ToolCommon` and is compiled into both tools. Wrapper admission and maintenance use `.agents/scripts/WorktreeCliSessionExclusion.psm1`; bootstrap checks both WorktreeCli and AgentHarness outputs.

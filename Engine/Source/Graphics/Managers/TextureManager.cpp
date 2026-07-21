@@ -230,7 +230,7 @@ TextureManager::TextureManager()
 	// Graphics/DynamicIslandLoadingFollowups.md Follow-up 1.
 	gpIslandTerrain->ResetTextureSlots();
 
-	// Island textures load dynamically per ClientDataReceiver::ApplyReceivedStaticData. Slot 0 is
+	// Island textures load dynamically per ClientSession::ApplyReceivedStaticData. Slot 0 is
 	// a permanent neutral placeholder; higher slots alias slot 0 until AcquireTextureSlot binds a
 	// real Texture* and RestorationSweep adopts the loaded chunks.
 	for (int64_t i = 0; i < static_cast<int64_t>(shaders::kiMaxIslands); ++i)
@@ -350,30 +350,13 @@ void TextureManager::CreateSamplers()
 		gMipLodBias.Reset(gpInstanceManager->mVkPhysicalDeviceProperties.limits.maxSamplerLodBias);
 	}
 
-	// Vulkan spec only mandates SAMPLED_IMAGE_FILTER_LINEAR_BIT for the 16-bit-float family. R32_SFLOAT
-	// (used by the smoke ping-pong textures) is optional; on devices without the bit, sampling a R32_SFLOAT
-	// image with VK_FILTER_LINEAR is undefined per spec — silently aliased or corrupted output with no
-	// validation message. Query once and downgrade the smoke sampler to VK_FILTER_NEAREST so the engine
-	// still boots; the warning surfaces in the launch log. (The per-island elevation heightmap is R16_SFLOAT,
-	// whose linear filter is spec-mandated, so kSamplerSlotElevation stays LINEAR unconditionally below.)
-	const bool bR32SFloatLinearSupported = SupportsLinearFilter(VK_FORMAT_R32_SFLOAT);
-
-	const VkFilter eSmokeFilter = bR32SFloatLinearSupported ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
-	// One-shot — CreateSamplers re-runs on anisotropy/lod-bias setting changes and device-lost recovery.
-	static bool sbWarnedR32SFloatLinear = false;
-	if (!bR32SFloatLinearSupported && !sbWarnedR32SFloatLinear)
-	{
-		LOG(kGraphics, kWarning, "VK_FORMAT_R32_SFLOAT does not advertise VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT — falling back to VK_FILTER_NEAREST for the smoke ping-pong sampler. Smoke will appear blocky.\n");
-		sbWarnedR32SFloatLinear = true;
-	}
-
 	VkSamplerCreateInfo smokeVkSamplerCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.magFilter = eSmokeFilter,
-		.minFilter = eSmokeFilter,
+		.magFilter = VK_FILTER_LINEAR,
+		.minFilter = VK_FILTER_LINEAR,
 		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
 		.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
 		.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
@@ -427,7 +410,7 @@ void TextureManager::CreateSamplers()
 
 	// Dedicated sampler for the per-island R16_SFLOAT heightmap (IslandTerrain bindless elevation array).
 	// Mirrors mpSamplers[kSamplerSlotClamp]; R16_SFLOAT linear filtering is spec-mandated (16-bit-float family),
-	// so this stays LINEAR unconditionally — no device-support downgrade, unlike the R32_SFLOAT smoke sampler.
+	// so this stays LINEAR unconditionally.
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotElevation]));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotElevation], "Elevation");
 

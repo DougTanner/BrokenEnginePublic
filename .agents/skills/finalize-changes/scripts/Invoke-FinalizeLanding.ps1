@@ -19,7 +19,10 @@
 # tip equals the landed commit, so plan files and Temp/ requests resolve there),
 # then `plan order validate` against primary whenever a complete or add ran, and
 # finally releases the retained row claim. Every publication step is safe to rerun
-# after a crash: complete tolerates the already-removed row, add is retry-idempotent.
+# after a crash. Reinvoke this sidecar with the same approval-bound inputs when
+# the session remains at ApprovedSessionCommit and primary contains it; its
+# post-advance recovery path revalidates request hashes, resumes idempotent
+# publication, and releases the row claim without replaying the primary advance.
 #
 # Universal acquired-lock safe-stop rule (owned here): on any cancellation,
 # blocker, or failure, the landing claim follows the clear-worktree
@@ -45,11 +48,15 @@ param(
 	[switch] $HasPlanRowClaim,
 	[string] $PlanOrder,
 	[string] $Plan,
-	[string[]] $PlanAddRequestPaths
+	[Parameter(Mandatory)][ValidateSet('none', 'list')][string] $PlanAddRequestDisposition,
+	[string[]] $PlanAddRequestPaths,
+	[string[]] $PlanAddRequestSha256
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$planAddRequestPathsBound = $PSBoundParameters.ContainsKey('PlanAddRequestPaths')
+$planAddRequestSha256Bound = $PSBoundParameters.ContainsKey('PlanAddRequestSha256')
 
 $commonModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
 if (-not (Test-Path -LiteralPath $commonModule)) {
@@ -67,7 +74,7 @@ $result = [ordered]@{
 	tips = [ordered]@{ approvedSession = $ApprovedSessionCommit; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip; current = $null; primary = $null }
 	locks = [ordered]@{ landingOwner = $null; landingClaimed = $false; landingReleased = $false }
 	planRow = [ordered]@{ requested = $HasPlanRowClaim.IsPresent; released = $false; order = $PlanOrder; plan = $Plan }
-	queuePublication = [ordered]@{ completed = $false; complete = $null; added = [Collections.Generic.List[object]]::new(); validated = $false }
+	queuePublication = [ordered]@{ requestDisposition = $PlanAddRequestDisposition; requests = @(); completed = $false; complete = $null; added = [Collections.Generic.List[object]]::new(); validated = $false }
 	cleanup = [ordered]@{ worktreesClear = $null; worktreeProblems = @() }
 	residuals = [Collections.Generic.List[string]]::new()
 }
@@ -81,6 +88,8 @@ $script:CanonicalPlanKey = $null
 $script:FailureExitCode = 0
 $script:FailureCode = $null
 $script:FailureMessage = $null
+$script:CertifiedPlanAddRequests = @()
+$script:PlanCompletionTerminalProven = $false
 
 function Throw-Landing([int] $ExitCode, [string] $Code, [string] $Message) {
 	$exception = [InvalidOperationException]::new($Message)
@@ -105,6 +114,54 @@ function Invoke-WorktreeCli([string[]] $Arguments) {
 	return Invoke-FinalizeNativeText $script:WorktreeCliPath $Arguments $script:CurrentIdentity.Worktree
 }
 
+function New-PlanAddRequestItemsJson {
+	$paths = @()
+	$hashes = @()
+	if ($planAddRequestPathsBound) { $paths = @($PlanAddRequestPaths) }
+	if ($planAddRequestSha256Bound) { $hashes = @($PlanAddRequestSha256) }
+	if ($PlanAddRequestDisposition -ceq 'none') {
+		if ($paths.Count -ne 0 -or $hashes.Count -ne 0) { Throw-Landing 1 'input.plan-add-request-invalid' 'PlanAddRequestDisposition none forbids request paths and hashes.' }
+		return $null
+	}
+	if ($paths.Count -eq 0 -or $hashes.Count -ne $paths.Count) { Throw-Landing 1 'input.plan-add-request-invalid' 'PlanAddRequestDisposition list requires one SHA-256 per request path.' }
+	$items = [Collections.Generic.List[object]]::new()
+	for ($index = 0; $index -lt $paths.Count; ++$index) {
+		$path = $paths[$index]
+		$sha256 = $hashes[$index]
+		if ([string]::IsNullOrWhiteSpace($path) -or [string]::IsNullOrWhiteSpace($sha256)) { Throw-Landing 1 'input.plan-add-request-invalid' "Plan-add request path and SHA-256 at index $index must not be null or blank." }
+		if ($sha256 -cnotmatch '^[0-9a-f]{64}$') { Throw-Landing 1 'input.plan-add-request-invalid' "Plan-add request SHA-256 at index $index must be 64 lowercase hexadecimal characters." }
+		$items.Add([ordered]@{ path = $path; sha256 = $sha256 })
+	}
+	return ConvertTo-Json -InputObject $items.ToArray() -Depth 4 -Compress
+}
+
+function Assert-PlanAddRequestResult($PreflightResult) {
+	if ($null -eq $PreflightResult.planAddRequests -or $PreflightResult.planAddRequests.disposition -cne $PlanAddRequestDisposition) {
+		Throw-Landing 1 'preflight.request-disposition-invalid' 'Finalization preflight returned a different plan-add request disposition.'
+	}
+	$paths = @()
+	$hashes = @()
+	if ($planAddRequestPathsBound) { $paths = @($PlanAddRequestPaths) }
+	if ($planAddRequestSha256Bound) { $hashes = @($PlanAddRequestSha256) }
+	$items = @($PreflightResult.planAddRequests.items)
+	if ($items.Count -ne $paths.Count) { Throw-Landing 1 'preflight.request-count-invalid' 'Finalization preflight returned a different plan-add request count.' }
+	for ($index = 0; $index -lt $items.Count; ++$index) {
+		$item = $items[$index]
+		if ($null -eq $item) { Throw-Landing 1 'preflight.request-identity-invalid' "Finalization preflight returned a null plan-add request at index $index." }
+		$properties = @($item.PSObject.Properties.Name)
+		if (@('suppliedPath', 'repositoryRelativePath', 'identity', 'sha256') | Where-Object { $properties -cnotcontains $_ }) {
+			Throw-Landing 1 'preflight.request-identity-invalid' "Finalization preflight omitted plan-add request identity fields at index $index."
+		}
+		if ([string]::IsNullOrWhiteSpace([string]$item.suppliedPath) -or
+			[string]::IsNullOrWhiteSpace([string]$item.repositoryRelativePath) -or
+			[string]::IsNullOrWhiteSpace([string]$item.identity) -or
+			[string]$item.suppliedPath -cne $paths[$index] -or [string]$item.sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+			[string]$item.sha256 -cne $hashes[$index]) {
+			Throw-Landing 1 'preflight.request-identity-invalid' "Finalization preflight returned an invalid, reordered, or re-paired plan-add request at index $index."
+		}
+	}
+}
+
 function Invoke-Preflight([string] $Checkpoint, [string] $CurrentTip, [string] $PrimaryTip) {
 	$preflight = Join-Path $PSScriptRoot 'Test-FinalizePreflight.ps1'
 	$arguments = [Collections.Generic.List[string]]::new()
@@ -122,12 +179,18 @@ function Invoke-Preflight([string] $Checkpoint, [string] $CurrentTip, [string] $
 	)) { $arguments.Add($argument) }
 	foreach ($argument in @('-SessionOwner', $SessionOwner, '-WaitSeconds', '60')) { $arguments.Add($argument) }
 	if ($HasPlanRowClaim) { $arguments.Add('-HasPlanRowClaim') }
+	foreach ($argument in @('-PlanAddRequestDisposition', $PlanAddRequestDisposition)) { $arguments.Add($argument) }
+	$requestItemsJson = New-PlanAddRequestItemsJson
+	if ($null -ne $requestItemsJson) {
+		foreach ($argument in @('-PlanAddRequestItemsJson', $requestItemsJson)) { $arguments.Add($argument) }
+	}
 	$response = Invoke-FinalizeNativeText 'pwsh.exe' $arguments.ToArray() $script:CurrentIdentity.Worktree
 	$preflightResult = Get-JsonResponse $response "finalization preflight $Checkpoint"
 	if ($response.ExitCode -ne 0 -or $preflightResult.status -cne 'pass' -or $preflightResult.code -cne 'ok') {
 		$exitCode = if ($response.ExitCode -eq 2) { 2 } else { 1 }
 		Throw-Landing $exitCode "preflight.$($preflightResult.code)" "$Checkpoint preflight failed: $($preflightResult.message)"
 	}
+	Assert-PlanAddRequestResult $preflightResult
 	return $preflightResult
 }
 
@@ -221,36 +284,91 @@ function Resolve-PlanKeys([string] $Order, [string] $Plan) {
 	return @{ Relative = $normalizedPlan; Canonical = $prefix + $normalizedPlan }
 }
 
-function Release-PlanRowClaim {
-	if (-not $HasPlanRowClaim) { return }
+function Resolve-PlanRowStatus([int] $ExitCode, $Status) {
+	$properties = @($Status.PSObject.Properties.Name)
+	if ($ExitCode -eq 0) {
+		if (-not ($properties -ccontains 'ownedByRequester') -or $Status.ownedByRequester -isnot [bool]) {
+			Throw-Landing 2 'plan-row.status-failed' 'Final plan-row claim state is unreadable or invalid.'
+		}
+		if ($Status.ownedByRequester) { return 'owned' }
+		Throw-Landing 2 'plan-row.not-owned' 'Final plan-row claim is owned by another session.'
+	}
+	if ($ExitCode -eq 2) {
+		if ($properties -ccontains 'held' -and $Status.held -is [bool] -and $Status.held -eq $false) { return 'absent' }
+		Throw-Landing 2 'plan-row.status-failed' 'Final plan-row claim state is unreadable or invalid.'
+	}
+	Throw-Landing 1 'plan-row.status-failed' 'Final plan-row claim state is unreadable or invalid.'
+}
+
+function Get-PlanRowStatus {
 	$response = Invoke-WorktreeCli @('plan', 'row', 'status', '--repo', $result.identities.gitCommonDirectory, '--order', $PlanOrder, '--plan', $script:PlanRowKey, '--owner', $SessionOwner)
 	$status = Get-JsonResponse $response 'plan row status'
-	if ($response.ExitCode -ne 0 -or -not $status.ownedByRequester) {
-		Throw-Landing 2 'plan-row.not-owned' 'Final plan-row claim is absent or not owned by the session owner.'
+	return [pscustomobject]@{ State = Resolve-PlanRowStatus $response.ExitCode $status }
+}
+
+function Test-PlanCompletionTerminal {
+	$rowStatus = Get-PlanRowStatus
+	if ($rowStatus.State -ceq 'owned') { return $false }
+
+	$response = Invoke-WorktreeCli @('plan', 'order', 'validate', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:PrimaryIdentity.Worktree)
+	$validation = Get-JsonResponse $response 'terminal plan completion validation'
+	if ($response.ExitCode -ne 0 -or -not $validation.ok) {
+		Throw-Landing 2 'queue.complete-terminal-unproven' 'Absent plan-row claim does not have a valid terminal queue state.'
 	}
+	$targetRows = @($validation.rows | Where-Object { $_.plan -ceq $script:CanonicalPlanKey })
+	if ($targetRows.Count -ne 0) {
+		Throw-Landing 2 'queue.complete-terminal-unproven' 'Absent plan-row claim still has a live queue row.'
+	}
+	$primaryPlanPath = Join-Path $script:PrimaryIdentity.Worktree $script:CanonicalPlanKey
+	if (Test-Path -LiteralPath $primaryPlanPath) {
+		Throw-Landing 2 'queue.complete-terminal-unproven' 'Absent plan-row claim still has a primary plan file.'
+	}
+	if ((Get-PlanRowStatus).State -cne 'absent') {
+		Throw-Landing 2 'queue.complete-terminal-unproven' 'Plan-row claim changed while proving terminal completion.'
+	}
+
+	$script:PlanCompletionTerminalProven = $true
+	$result.queuePublication.complete = [ordered]@{
+		schemaVersion = 1
+		operation = 'complete'
+		handled = $true
+		alreadyTerminal = $true
+		plan = $script:CanonicalPlanKey
+	}
+	$result.queuePublication.completed = $true
+	$result.planRow.released = $true
+	return $true
+}
+
+function Release-PlanRowClaim {
+	if (-not $HasPlanRowClaim) { return }
+	if ($script:PlanCompletionTerminalProven) { return }
+	if ((Get-PlanRowStatus).State -cne 'owned') { Throw-Landing 2 'plan-row.not-owned' 'Final plan-row claim is absent or not owned by the session owner.' }
 	$response = Invoke-WorktreeCli @('plan', 'row', 'unclaim', '--repo', $result.identities.gitCommonDirectory, '--order', $PlanOrder, '--plan', $script:PlanRowKey, '--owner', $SessionOwner)
 	if ($response.ExitCode -ne 0) { Throw-Landing 2 'plan-row.unclaim-failed' 'Final plan-row unclaim failed.' }
-	$response = Invoke-WorktreeCli @('plan', 'row', 'status', '--repo', $result.identities.gitCommonDirectory, '--order', $PlanOrder, '--plan', $script:PlanRowKey, '--owner', $SessionOwner)
-	$status = Get-JsonResponse $response 'plan row absence'
-	if ($response.ExitCode -ne 2 -or $status.held) { Throw-Landing 2 'plan-row.still-held' 'Final plan-row claim was not proven absent.' }
+	if ((Get-PlanRowStatus).State -cne 'absent') { Throw-Landing 2 'plan-row.still-held' 'Final plan-row claim was not proven absent.' }
 	$result.planRow.released = $true
 }
 
 function Complete-LandedState {
 	$publishRan = $false
 	if ($HasPlanRowClaim) {
-		$response = Invoke-WorktreeCli @('plan', 'order', 'complete', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:PrimaryIdentity.Worktree, '--owner', $SessionOwner, '--session', $SessionLabel, '--plan', $script:CanonicalPlanKey)
-		$completion = Get-JsonResponse $response 'post-landing plan order complete'
-		$result.queuePublication.complete = $completion
-		if ($response.ExitCode -ne 0 -and -not ($completion.PSObject.Properties.Name -ccontains 'handled' -and $completion.handled)) {
-			Throw-Landing $(if ($response.ExitCode -eq 2) { 2 } else { 1 }) 'queue.complete-failed' "Post-landing plan order complete failed: $($response.Stdout.Trim())$($response.Stderr.Trim())"
+		if (-not (Test-PlanCompletionTerminal)) {
+			$response = Invoke-WorktreeCli @('plan', 'order', 'complete', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:PrimaryIdentity.Worktree, '--owner', $SessionOwner, '--session', $SessionLabel, '--plan', $script:CanonicalPlanKey)
+			$completion = Get-JsonResponse $response 'post-landing plan order complete'
+			$result.queuePublication.complete = $completion
+			if ($response.ExitCode -ne 0 -and -not ($completion.PSObject.Properties.Name -ccontains 'handled' -and $completion.handled)) {
+				Throw-Landing $(if ($response.ExitCode -eq 2) { 2 } else { 1 }) 'queue.complete-failed' "Post-landing plan order complete failed: $($response.Stdout.Trim())$($response.Stderr.Trim())"
+			}
+			$result.queuePublication.completed = $true
 		}
-		$result.queuePublication.completed = $true
 		$publishRan = $true
 	}
-	foreach ($request in @($PlanAddRequestPaths)) {
-		if ([string]::IsNullOrWhiteSpace($request)) { continue }
-		$response = Invoke-WorktreeCli @('plan', 'order', 'add', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:CurrentIdentity.Worktree, '--owner', $SessionOwner, '--session', $SessionLabel, '--request', $request)
+	foreach ($requestItem in @($script:CertifiedPlanAddRequests)) {
+		$request = [string]$requestItem.repositoryRelativePath
+		$requestSha256 = [string]$requestItem.sha256
+		if ([string]::IsNullOrWhiteSpace($request) -or $requestSha256 -cnotmatch '^[0-9a-f]{64}$') { Throw-Landing 1 'queue.certification-invalid' 'Certified plan-add request is incomplete before publication.' }
+		$response = Invoke-WorktreeCli @('plan', 'order', 'add', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:CurrentIdentity.Worktree, '--owner', $SessionOwner, '--session', $SessionLabel, '--request', $request, '--request-sha256', $requestSha256)
 		$added = Get-JsonResponse $response "post-landing plan order add $request"
 		$result.queuePublication.added.Add($added)
 		if ($response.ExitCode -ne 0 -and -not ($added.PSObject.Properties.Name -ccontains 'handled' -and $added.handled)) {
@@ -306,10 +424,23 @@ try {
 	$result.identities.primaryBranch = $script:PrimaryIdentity.Branch
 	$result.tips.current = $script:CurrentIdentity.Head
 	$result.tips.primary = $script:PrimaryIdentity.Head
+	if ($script:CurrentIdentity.Head -ceq $ApprovedSessionCommit -and
+		(Test-FinalizeGitSuccess $script:PrimaryIdentity.Worktree @('merge-base', '--is-ancestor', $ApprovedSessionCommit, $script:PrimaryIdentity.Head))) {
+		$preflight = Invoke-Preflight 'post-advance-recovery' $ApprovedSessionCommit $script:PrimaryIdentity.Head
+		$script:WorktreeCliPath = [string]$preflight.worktreeCli.path
+		$result.queuePublication.requests = @($preflight.planAddRequests.items)
+		$script:CertifiedPlanAddRequests = @($preflight.planAddRequests.items)
+		$result.primaryAdvanced = $true
+		Complete-LandedState
+		[Console]::Out.Write(($result | ConvertTo-Json -Depth 12 -Compress))
+		exit 0
+	}
 
 	$preflight = Invoke-Preflight 'pre-mutation' $ExpectedCurrentTip $ExpectedPrimaryTip
 	if ($preflight.tips.current -cne $ApprovedSessionCommit) { Throw-Landing 2 'approval.session-tip-changed' 'Session tip is not the explicit user-approved commit.' }
 	$script:WorktreeCliPath = [string] $preflight.worktreeCli.path
+	$result.queuePublication.requests = @($preflight.planAddRequests.items)
+	$script:CertifiedPlanAddRequests = @($preflight.planAddRequests.items)
 	$result.identities.currentWorktree = [string] $preflight.identities.currentWorktree
 	$result.identities.primaryWorktree = [string] $preflight.identities.primaryWorktree
 	$result.identities.gitCommonDirectory = [string] $preflight.identities.gitCommonDirectory

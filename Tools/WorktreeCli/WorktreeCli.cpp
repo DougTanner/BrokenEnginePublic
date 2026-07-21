@@ -23,7 +23,8 @@ namespace toolcli
 			rOutput << "       WorktreeCli.exe plan row unclaim --repo COMMON-DIR --order PATH --plan PATH --owner TOKEN\n";
 			rOutput << "       WorktreeCli.exe plan order init --repo COMMON-DIR --worktree CHECKOUT [--force] [--plans-order PATH] [--features-order PATH]\n";
 			rOutput << "       WorktreeCli.exe plan order validate --repo COMMON-DIR --worktree CHECKOUT [--plans-order PATH] [--features-order PATH]\n";
-			rOutput << "       WorktreeCli.exe plan order <add|update> --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL [--plans-order PATH] [--features-order PATH]\n";
+			rOutput << "       WorktreeCli.exe plan order add --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL [--request-sha256 SHA256] [--plans-order PATH] [--features-order PATH]\n";
+			rOutput << "       WorktreeCli.exe plan order update --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL [--plans-order PATH] [--features-order PATH]\n";
 			rOutput << "       WorktreeCli.exe plan order claim-next --repo COMMON-DIR --primary-worktree CHECKOUT --worktree CHECKOUT --branch TARGET --owner TOKEN --session TOKEN --queue <plans|features> [--plan PATH] [--plans-order PATH] [--features-order PATH]\n";
 			rOutput << "       WorktreeCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH [--plans-order PATH] [--features-order PATH]\n";
 			rOutput << "       WorktreeCli.exe build [--files <cpp...> --] <project-or-solution> <MSBuild args...>\n";

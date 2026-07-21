@@ -1,26 +1,26 @@
 [CmdletBinding()]
 param(
 	[string] $Commit = 'HEAD',
-	[string] $RepositoryRoot = (Get-Location).Path
+	[string] $RepositoryRoot = (Get-Location).Path,
+	[string] $SessionId,
+	[ValidateRange(1, 1440)]
+	[int] $WindowMinutes = 360,
+	[string] $SessionStoreRoot,
+	[string] $ArchivedSessionStoreRoot
 )
 
 $ErrorActionPreference = 'Stop'
 
-function Resolve-RipgrepPath {
-	$onPath = (Get-Command rg -ErrorAction SilentlyContinue).Source
-	if (-not [string]::IsNullOrWhiteSpace($onPath)) { return $onPath }
-	$codexBin = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin\*\rg.exe'
-	$bundled = Get-ChildItem -Path $codexBin -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-	if ($null -ne $bundled) { return $bundled.FullName }
-	throw "ripgrep not found: no 'rg' on PATH and no rg.exe under '$codexBin'."
-}
-
-$ripgrepPath = Resolve-RipgrepPath
-
-function Invoke-Git([string[]] $Arguments) {
-	$output = @(& git -C $RepositoryRoot @Arguments 2>&1)
-	if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join '; ')" }
-	return $output
+function ConvertTo-UtcTimestamp([string] $Value) {
+	if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+	try {
+		return ([DateTimeOffset]::Parse(
+			$Value,
+			[Globalization.CultureInfo]::InvariantCulture,
+			[Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal
+		)).ToUniversalTime()
+	}
+	catch { return $null }
 }
 
 function Get-StringProperty($Object, [string] $Name) {
@@ -30,44 +30,61 @@ function Get-StringProperty($Object, [string] $Name) {
 	return [string] $property.Value
 }
 
-function ConvertTo-UtcTimestamp([string] $Value) {
-	if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+function Invoke-Git([string[]] $Arguments) {
+	$output = @(& git -C $RepositoryRoot @Arguments 2>&1)
+	if ($LASTEXITCODE -ne 0) { throw 'Git metadata query failed.' }
+	return $output
+}
+
+function Test-PathWithin([string] $Candidate, [string] $Root) {
 	try {
-		$parsed = [DateTimeOffset]::Parse(
-			$Value,
-			[Globalization.CultureInfo]::InvariantCulture,
-			[Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal
-		)
-		return $parsed.ToUniversalTime()
+		$candidatePath = [IO.Path]::GetFullPath($Candidate).TrimEnd([char[]]@('\', '/'))
+		$rootPath = [IO.Path]::GetFullPath($Root).TrimEnd([char[]]@('\', '/'))
 	}
-	catch { return $null }
+	catch { return $false }
+	return $candidatePath.Equals($rootPath, [StringComparison]::OrdinalIgnoreCase) -or
+		$candidatePath.StartsWith("$rootPath$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::OrdinalIgnoreCase)
 }
 
-function Get-ToolInputTexts($Payload) {
-	$texts = [System.Collections.Generic.List[string]]::new()
-	foreach ($propertyName in @('input', 'arguments')) {
-		$value = Get-StringProperty $Payload $propertyName
-		if ([string]::IsNullOrWhiteSpace($value)) { continue }
-		$texts.Add($value)
-		try {
-			$decoded = $value | ConvertFrom-Json -Depth 32 -DateKind String
-			foreach ($nestedName in @('command', 'script')) {
-				$nestedValue = Get-StringProperty $decoded $nestedName
-				if (-not [string]::IsNullOrWhiteSpace($nestedValue)) { $texts.Add($nestedValue) }
-			}
+function Get-Locator([string] $Path) {
+	foreach ($store in @(
+		@{ Name = 'sessions'; Root = $SessionStoreRoot },
+		@{ Name = 'archived_sessions'; Root = $ArchivedSessionStoreRoot }
+	)) {
+		if (-not [string]::IsNullOrWhiteSpace($store.Root) -and (Test-PathWithin $Path $store.Root)) {
+			$relative = [IO.Path]::GetRelativePath($store.Root, $Path).Replace('\', '/')
+			return "$($store.Name)/$relative"
 		}
-		catch {}
 	}
-	return $texts.ToArray()
+	return [IO.Path]::GetFileName($Path)
 }
 
-function Get-TranscriptLinesShared([string] $Path) {
+function Get-TranscriptMetadata([string] $Path) {
 	$stream = [IO.FileStream]::new($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
 	$reader = [IO.StreamReader]::new($stream)
 	try {
+		$start = $null
+		$end = $null
+		$cwd = $null
+		$id = $null
 		while (($line = $reader.ReadLine()) -ne $null) {
-			Write-Output $line
+			if ([string]::IsNullOrWhiteSpace($line)) { continue }
+			$record = $line | ConvertFrom-Json -Depth 64 -DateKind String
+			$eventTime = ConvertTo-UtcTimestamp (Get-StringProperty $record 'timestamp')
+			if ($null -ne $eventTime) {
+				if ($null -eq $start -or $eventTime -lt $start) { $start = $eventTime }
+				if ($null -eq $end -or $eventTime -gt $end) { $end = $eventTime }
+			}
+			if ($record.type -eq 'session_meta') {
+				$cwd = Get-StringProperty $record.payload 'cwd'
+				$id = Get-StringProperty $record.payload 'session_id'
+				if ([string]::IsNullOrWhiteSpace($id)) { $id = Get-StringProperty $record.payload 'id' }
+			}
 		}
+		if ($null -eq $start -or $null -eq $end -or [string]::IsNullOrWhiteSpace($cwd) -or [string]::IsNullOrWhiteSpace($id)) {
+			throw 'Required session metadata is missing.'
+		}
+		return [pscustomobject]@{ SessionId = $id; Start = $start; End = $end; Cwd = $cwd }
 	}
 	finally {
 		$reader.Dispose()
@@ -75,107 +92,126 @@ function Get-TranscriptLinesShared([string] $Path) {
 	}
 }
 
-$RepositoryRoot = [IO.Path]::GetFullPath($RepositoryRoot)
-$commitHash = @(Invoke-Git @('rev-parse', "$Commit^{commit}"))[0].Trim()
-$shortHash = @(Invoke-Git @('rev-parse', '--short=12', $commitHash))[0].Trim()
-$commitSubject = @(Invoke-Git @('show', '-s', '--format=%s', $commitHash))[0].Trim()
-$commitTimestamp = ConvertTo-UtcTimestamp (@(Invoke-Git @('show', '-s', '--format=%cI', $commitHash))[0].Trim())
-$containingBranches = @(Invoke-Git @('branch', '--all', '--contains', $commitHash) | ForEach-Object { $_.Trim().TrimStart([char[]]@('*', '+')).Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-
-$userProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
-$roots = @(
-	(Join-Path $userProfile '.codex\sessions'),
-	(Join-Path $userProfile '.codex\archived_sessions')
-)
-$escapedHash = [regex]::Escape($commitHash)
-$escapedShortHash = [regex]::Escape($shortHash)
-$escapedSubject = [regex]::Escape($commitSubject)
-$candidates = [System.Collections.Generic.List[object]]::new()
-
-foreach ($root in $roots) {
-	if (-not (Test-Path -LiteralPath $root)) { continue }
-	$rgArguments = @('--files-with-matches', '--ignore-case', '--fixed-strings', '--glob', '*.jsonl', '-e', $commitHash, '-e', $shortHash)
-	if (-not [string]::IsNullOrWhiteSpace($commitSubject)) { $rgArguments += @('-e', $commitSubject) }
-	$rgArguments += @('--', $root)
-	$matchingPaths = @(& $ripgrepPath @rgArguments 2>$null)
-	$rgExitCode = $LASTEXITCODE
-	if ($rgExitCode -gt 1) { throw "rg Codex transcript search failed beneath '$root' with exit code $rgExitCode." }
-
-	foreach ($matchingPath in $matchingPaths) {
-		$hasFullHash = $false
-		$hasShortHash = $false
-		$hasSubject = $false
-		$hasCommitCommand = $false
-		$hasLandingCommand = $false
-		$sessionStart = $null
-		$sessionEnd = $null
-		$sessionCwd = $null
-		$sessionBranch = $null
-		$sessionId = $null
-		try {
-			foreach ($line in Get-TranscriptLinesShared $matchingPath) {
-				if (-not $hasFullHash) { $hasFullHash = $line.IndexOf($commitHash, [StringComparison]::OrdinalIgnoreCase) -ge 0 }
-				if (-not $hasShortHash) { $hasShortHash = $line.IndexOf($shortHash, [StringComparison]::OrdinalIgnoreCase) -ge 0 }
-				if (-not $hasSubject) { $hasSubject = (-not [string]::IsNullOrWhiteSpace($commitSubject)) -and ($line.IndexOf($commitSubject, [StringComparison]::OrdinalIgnoreCase) -ge 0) }
-				try { $record = $line | ConvertFrom-Json -Depth 64 -DateKind String }
-				catch { continue }
-				$eventTime = ConvertTo-UtcTimestamp (Get-StringProperty $record 'timestamp')
-				if ($null -ne $eventTime) {
-					if ($null -eq $sessionStart -or $eventTime -lt $sessionStart) { $sessionStart = $eventTime }
-					if ($null -eq $sessionEnd -or $eventTime -gt $sessionEnd) { $sessionEnd = $eventTime }
-				}
-				$payload = $record.payload
-				if ($record.type -eq 'session_meta') {
-					$sessionCwd = Get-StringProperty $payload 'cwd'
-					$sessionId = Get-StringProperty $payload 'session_id'
-					if ([string]::IsNullOrWhiteSpace($sessionId)) { $sessionId = Get-StringProperty $payload 'id' }
-					if ($null -ne $payload -and $null -ne $payload.git) { $sessionBranch = Get-StringProperty $payload.git 'branch' }
-				}
-				foreach ($toolText in Get-ToolInputTexts $payload) {
-					if ($toolText -match '\bgit(?:\s+-C\s+(?:"[^"]*"|\S+))?\s+commit\b') { $hasCommitCommand = $true }
-					if ($toolText -match 'Invoke-FinalizeLanding\.ps1|\bgit(?:\s+-C\s+(?:"[^"]*"|\S+))?\s+rebase\b') { $hasLandingCommand = $true }
-				}
-			}
-		}
-		catch { continue }
-
-		$spansCommit = ($null -ne $sessionStart) -and ($null -ne $sessionEnd) -and ($sessionStart -le $commitTimestamp) -and ($sessionEnd -ge $commitTimestamp)
-		$isCandidate = $spansCommit -and (($hasFullHash -or $hasShortHash) -or ($hasSubject -and ($hasCommitCommand -or $hasLandingCommand)))
-		if (-not $isCandidate) { continue }
-
-		$evidence = [System.Collections.Generic.List[string]]::new()
-		$score = 0
-		if ($hasFullHash) { $evidence.Add('contains full commit hash'); $score += 4 }
-		if ($hasShortHash) { $evidence.Add('contains short commit hash'); $score += 2 }
-		if ($hasSubject) { $evidence.Add('contains commit subject'); $score += 2 }
-		if ($hasCommitCommand) { $evidence.Add('contains decoded git commit command'); $score += 3 }
-		if ($hasLandingCommand) { $evidence.Add('contains decoded landing or rebase command'); $score += 2 }
-		if ($spansCommit) { $evidence.Add('session time spans commit timestamp'); $score += 3 }
-		if ($null -ne $sessionBranch -and $containingBranches -contains $sessionBranch) { $evidence.Add('session branch contains commit'); $score += 2 }
-		$candidates.Add([pscustomobject]@{
-			client = 'codex'
-			path = $matchingPath
-			sessionId = $sessionId
-			score = $score
-			sessionStartUtc = if ($null -eq $sessionStart) { $null } else { $sessionStart.ToString('O') }
-			sessionEndUtc = if ($null -eq $sessionEnd) { $null } else { $sessionEnd.ToString('O') }
-			cwd = $sessionCwd
-			branch = $sessionBranch
-			evidence = @($evidence)
-		})
-	}
+function Add-Files([Collections.Generic.Dictionary[string, IO.FileInfo]] $Files, [string] $Root, [string] $Filter, [switch] $Recurse) {
+	if ([string]::IsNullOrWhiteSpace($Root) -or -not (Test-Path -LiteralPath $Root -PathType Container)) { return }
+	$parameters = @{ LiteralPath = $Root; File = $true; Filter = $Filter; ErrorAction = 'Stop' }
+	if ($Recurse) { $parameters.Recurse = $true }
+	foreach ($file in Get-ChildItem @parameters) { $Files[$file.FullName] = $file }
 }
 
-[pscustomobject]@{
-	schema = 'broken-engine-codex-transcript-candidates/v1'
-	commit = [pscustomobject]@{
-		hash = $commitHash
-		shortHash = $shortHash
-		subject = $commitSubject
-		committedUtc = $commitTimestamp.ToString('O')
-		containingBranches = @($containingBranches)
+function Write-Result($Result, [int] $ExitCode) {
+	$Result | ConvertTo-Json -Depth 8
+	$global:LASTEXITCODE = $ExitCode
+	exit $ExitCode
+}
+
+try {
+	$RepositoryRoot = [IO.Path]::GetFullPath($RepositoryRoot)
+	$actualRoot = @(Invoke-Git @('rev-parse', '--show-toplevel'))[0].Trim()
+	if (-not ([IO.Path]::GetFullPath($actualRoot)).Equals($RepositoryRoot, [StringComparison]::OrdinalIgnoreCase)) {
+		throw 'RepositoryRoot is not the selected Git worktree root.'
 	}
-	searchRoots = @($roots | Where-Object { Test-Path -LiteralPath $_ })
-	candidates = @($candidates | Sort-Object @{ Expression = 'score'; Descending = $true }, @{ Expression = 'sessionStartUtc'; Descending = $false }, path)
-} | ConvertTo-Json -Depth 8
-$global:LASTEXITCODE = 0
+	$commitHash = @(Invoke-Git @('rev-parse', "$Commit^{commit}"))[0].Trim()
+	$commitTimestamp = ConvertTo-UtcTimestamp (@(Invoke-Git @('show', '-s', '--format=%cI', $commitHash))[0].Trim())
+	if ($null -eq $commitTimestamp) { throw 'Commit timestamp is invalid.' }
+	if (-not [string]::IsNullOrWhiteSpace($SessionId) -and $SessionId -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+		throw 'SessionId must be an exact lowercase UUID.'
+	}
+
+	$userProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
+	if ([string]::IsNullOrWhiteSpace($SessionStoreRoot)) { $SessionStoreRoot = Join-Path $userProfile '.codex\sessions' }
+	if ([string]::IsNullOrWhiteSpace($ArchivedSessionStoreRoot)) { $ArchivedSessionStoreRoot = Join-Path $userProfile '.codex\archived_sessions' }
+	$SessionStoreRoot = [IO.Path]::GetFullPath($SessionStoreRoot)
+	$ArchivedSessionStoreRoot = [IO.Path]::GetFullPath($ArchivedSessionStoreRoot)
+
+	$files = [Collections.Generic.Dictionary[string, IO.FileInfo]]::new([StringComparer]::OrdinalIgnoreCase)
+	$selection = if ([string]::IsNullOrWhiteSpace($SessionId)) { 'bounded-commit-window' } else { 'explicit-session-id' }
+	$windowStart = $commitTimestamp.AddMinutes(-$WindowMinutes)
+	$windowEnd = $commitTimestamp.AddMinutes($WindowMinutes)
+	if ($selection -eq 'explicit-session-id') {
+		Add-Files $files $SessionStoreRoot "*-$SessionId.jsonl" -Recurse
+		Add-Files $files $ArchivedSessionStoreRoot "*-$SessionId.jsonl"
+	}
+	else {
+		for ($date = $windowStart.Date; $date -le $windowEnd.Date; $date = $date.AddDays(1)) {
+			$dateText = $date.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
+			$dateDirectory = Join-Path $SessionStoreRoot ($date.ToString('yyyy\\MM\\dd', [Globalization.CultureInfo]::InvariantCulture))
+			Add-Files $files $dateDirectory 'rollout-*.jsonl'
+			Add-Files $files $SessionStoreRoot "rollout-$dateText*.jsonl"
+			Add-Files $files $ArchivedSessionStoreRoot "rollout-$dateText*.jsonl"
+		}
+	}
+
+	$candidates = [Collections.Generic.List[object]]::new()
+	$readErrors = [Collections.Generic.List[object]]::new()
+	foreach ($file in $files.Values) {
+		$locator = Get-Locator $file.FullName
+		try { $metadata = Get-TranscriptMetadata $file.FullName }
+		catch {
+			$readErrors.Add([pscustomobject]@{ locator = $locator; code = 'transcript.read-failed'; message = 'Transcript metadata could not be read.' })
+			continue
+		}
+		if ($selection -eq 'explicit-session-id' -and $metadata.SessionId -cne $SessionId) { continue }
+		if (-not (Test-PathWithin $metadata.Cwd $RepositoryRoot)) { continue }
+		if ($metadata.Start -gt $commitTimestamp -or $metadata.End -lt $commitTimestamp) { continue }
+		if ($selection -eq 'bounded-commit-window' -and ($metadata.Start -lt $windowStart -or $metadata.Start -gt $windowEnd)) { continue }
+		$candidates.Add([pscustomobject]@{
+			client = 'codex'
+			locator = $locator
+			sessionId = $metadata.SessionId
+			sessionStartUtc = $metadata.Start.ToString('O')
+			sessionEndUtc = $metadata.End.ToString('O')
+		})
+	}
+
+	$result = [ordered]@{
+		schemaVersion = 'broken-engine-agent-session-transcript/v2'
+		status = 'blocked'
+		code = $null
+		message = $null
+		commit = [ordered]@{ hash = $commitHash; committedUtc = $commitTimestamp.ToString('O') }
+		selection = [ordered]@{
+			mode = $selection
+			sessionId = if ($selection -eq 'explicit-session-id') { $SessionId } else { $null }
+			windowStartUtc = if ($selection -eq 'bounded-commit-window') { $windowStart.ToString('O') } else { $null }
+			windowEndUtc = if ($selection -eq 'bounded-commit-window') { $windowEnd.ToString('O') } else { $null }
+		}
+		candidate = $null
+		candidates = @($candidates)
+		readErrors = @($readErrors)
+	}
+	if ($readErrors.Count -ne 0) {
+		$result.code = 'transcript.read-error'
+		$result.message = 'One or more bounded transcript metadata reads failed.'
+		Write-Result $result 2
+	}
+	if ($candidates.Count -eq 0) {
+		$result.code = 'transcript.not-found'
+		$result.message = 'No transcript matched the commit time and selected worktree.'
+		Write-Result $result 2
+	}
+	if ($candidates.Count -ne 1) {
+		$result.code = 'transcript.ambiguous'
+		$result.message = 'Multiple transcripts matched; rerun with an exact SessionId.'
+		Write-Result $result 2
+	}
+	$result.status = 'pass'
+	$result.code = 'transcript.found'
+	$result.message = 'One transcript matched the bounded metadata constraints.'
+	$result.candidate = $candidates[0]
+	$result.candidates = @()
+	Write-Result $result 0
+}
+catch {
+	Write-Result ([ordered]@{
+		schemaVersion = 'broken-engine-agent-session-transcript/v2'
+		status = 'blocked'
+		code = 'finder.setup-error'
+		message = 'Transcript finder setup or input validation failed.'
+		commit = $null
+		selection = $null
+		candidate = $null
+		candidates = @()
+		readErrors = @()
+	}) 2
+}

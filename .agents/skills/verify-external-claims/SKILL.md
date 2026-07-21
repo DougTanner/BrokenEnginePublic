@@ -2,83 +2,99 @@
 name: verify-external-claims
 description: >-
   Verify reviewer-requested external API, language, specification, or library
-  documentation claims without editing the repository. Use this skill when a
-  Broken Engine review emits an API Verification Request or an accepted finding
-  depends on non-obvious Vulkan, GLSL, DirectXMath, C++23, operating-system, or
-  third-party behavior. Uses primary official sources, checks version and
-  extension applicability, and returns VERIFIED, REFUTED, or UNRESOLVED with
-  direct links or exact citations. Read-only evidence role; never implements or
-  recommends a fix.
-allowed-tools: [Read, Write, Grep, Glob, WebFetch, WebSearch, PowerShell]
+  claims through one evidence-locating delegate without editing the repository.
+  Use when a Broken Engine review, plan audit, grill, or finding-resolution pass
+  needs an authoritative verdict on non-obvious Vulkan, GLSL, DirectXMath,
+  C++23, operating-system, or third-party behavior. Returns one VERIFIED,
+  REFUTED, or UNRESOLVED verdict per atomic claim with repository applicability
+  and primary-source evidence kept separate.
+allowed-tools: [Read, Grep, Glob, Agent]
 ---
 
 # Verify External Claims
 
-Resolve a narrowly stated external claim for the main agent. This is an evidence role, not code review or implementation.
+Resolve requested external facts for caller adjudication. This is a read-only
+evidence workflow: never edit, recommend a fix, review surrounding code, or
+decide whether a dependent finding or plan choice is accepted.
 
-## Inputs
+## Claim Packets
 
-Require one or more claims containing:
+Require each request to contain:
 
-- API, symbol, rule, or behavior to verify
-- Exact proposition that must be true or false
-- Dependent finding and why the result matters
-- Candidate official URL or specification, when the reviewer supplied one
-- Relevant project version, target, extension/feature enablement, or compile mode
-- Return the result inline; a later final-evidence gate records a verified claim once when relevant
+- a stable claim ID, API/symbol/rule, and one falsifiable proposition;
+- the dependent finding, item, or decision and why the verdict matters;
+- applicable project target, version, platform, extensions/features, flags, or
+  constraints, plus the smallest relevant repository paths or symbols;
+- a candidate official URL or exact upstream identifier when known.
 
-Read only the minimum local configuration, headers, or call site needed to determine which external version and conditions apply. Do not independently review the surrounding change.
+Preserve supplied IDs. Before delegation, assign missing IDs as `VEC-EXT-###`
+in input order and split compound propositions into separately suffixed IDs
+without changing their meaning. Candidate URLs are discovery hints, not
+evidence.
 
-## Source Rules
+## Delegation
 
-Use primary official sources:
+The main session dispatches exactly one self-contained `locator` containing all
+claim packets, applicable repository instructions, the checkout path, and the
+minimum local read/search scope. Do not dispatch one agent per claim or ask the
+locator to inspect unrelated code.
 
-- Normative specification or standards publication for language/API guarantees
-- Official vendor or project documentation for implementation-defined behavior
-- Official upstream headers or source for library-version-specific facts when published documentation does not define them
+Instruct the locator to:
 
-Do not use blogs, forums, Stack Overflow, search-result snippets, AI summaries, or unsourced mirrors as evidence. Search may locate the authoritative page, but the final citation must point to the primary source itself.
+1. Establish repository applicability independently for every claim. Cite
+   exact `path:line` evidence for target/version, platform, enabled extensions
+   or features, compile flags, and relevant preconditions. Missing applicable
+   configuration makes that proposition `UNRESOLVED`.
+2. Use the host's official browse/search mechanism to locate primary evidence:
+   a normative specification or standard, official vendor/project
+   documentation, or official upstream headers/source for version-specific
+   facts. Never use memory, search snippets, blogs, forums, AI summaries, or
+   unofficial mirrors.
+3. Identify each authoritative source by title/project and applicable
+   version, revision, tag, or commit. Give the exact section, anchor, page/table,
+   symbol, or source location and the shortest decisive quotation or faithful
+   rule statement. Add an official immutable link when available.
+4. Return exactly one `VERIFIED`, `REFUTED`, or `UNRESOLVED` verdict per stable
+   ID. `VERIFIED` requires both an authoritative rule and proven repository
+   applicability. `REFUTED` requires completed authoritative evidence that
+   contradicts the proposition or proves an unmet precondition. State the
+   precise missing evidence for `UNRESOLVED`.
+5. Make no repository changes, recommendations, or finding adjudications.
 
-Confirm applicability before deciding: version, platform, feature/extension enablement, required flags, object state, alignment, lifetime, and documented preconditions. A rule from a newer spec or an optional extension does not verify behavior in the repository's configured target.
+Official upstream headers and locally pinned standards may use an exact
+citation without a URL. If the host cannot dispatch the locator, return
+`BLOCKED`; do not investigate from memory. If the locator runs but official
+browsing, a primary source, or applicability evidence is unavailable, preserve
+the affected verdict as `UNRESOLVED`.
 
-Quote only the shortest decisive official text. When direct quotation is unavailable or ambiguous, cite an exact section, anchor, page/table number, header symbol, or upstream source location and explain the rule in your own words. Never fill a documentation gap from memory.
+## Result Handling
 
-## Verdicts
+Check that the returned evidence preserves every ID, separates local
+applicability from source identity, and directly decides each proposition. Do
+not upgrade incomplete evidence. All `VERIFIED` and `REFUTED` results are
+completed evidence returned to the caller for adjudication; a refutation is not
+itself permission to dismiss or modify the dependent finding.
 
-Return exactly one result per proposition:
-
-- `VERIFIED` — authoritative evidence directly establishes the proposition under the repository's applicable conditions.
-- `REFUTED` — authoritative evidence directly contradicts it or establishes an unmet precondition.
-- `UNRESOLVED` — no accessible primary source decides it, applicable version/configuration cannot be established, or official sources conflict.
-
-Do not convert an unresolved claim into a recommendation. State what precise evidence is missing so the caller can retain, reject, or reframe the dependent finding.
-
-## Read-Only Boundary
-
-Do not edit files, run mutating commands, implement fixes, or adjudicate whether the dependent code finding should be accepted. Report the external fact and its direct implication for the requested proposition; the main agent owns the finding decision.
+Use `PASS` only when every claim is `VERIFIED` or `REFUTED`. Any `UNRESOLVED`
+claim makes the report `NEEDS_ACTION`. Use `BLOCKED` only when the required
+locator cannot be dispatched or its result cannot be obtained at all.
 
 ## Report
 
-Return the complete report inline. Keep every proposition verdict and
-unresolved evidence request visible. Use this structure for each proposition:
+Return the complete evidence inline:
 
-```markdown
-## External Claim Verification
-
-### <API/symbol or rule>
-- Result: VERIFIED | REFUTED | UNRESOLVED
-- Proposition: <exact claim checked>
-- Applicability: <repository version/configuration and how it was established>
-- Evidence: <short direct quote or precise official section/header/source citation>
-- Official source: <direct link>
-- Dependent finding: <what this result establishes for the caller; no fix recommendation>
-
-### Files Changed and Regions Touched
-- none
-
-### Residuals
-- <unresolved proposition and exact missing evidence>
-- none
+```text
+Status: PASS | NEEDS_ACTION | BLOCKED
+Sources:
+- <claim ID> — <official source identity and version/revision/tag/commit; exact section/symbol/citation; optional official immutable link | none — exact unavailable evidence>
+Decisive evidence:
+- <claim ID> — applicability: <path:line and target/version/extensions/features/flags | none — exact missing configuration>; rule: <short decisive evidence | none — exact missing primary evidence>
+Per-proposition verdicts:
+- <claim ID> — VERIFIED | REFUTED | UNRESOLVED — <exact proposition> — <direct implication for dependent item, without adjudication>
+Changed files: none
+Build required: none
+Residuals: <each unresolved claim and exact missing evidence, or none>
 ```
 
-When verifying multiple propositions, repeat the API/symbol subsection and keep one final files/residuals footer. Preserve exact citations and links; do not replace them with a summary.
+Keep `Residuals` last. Preserve exact citations; do not replace evidence with a
+summary.

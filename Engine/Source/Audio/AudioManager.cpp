@@ -2,6 +2,9 @@
 
 #if defined(BT_CLIENT)
 
+#include "StaticVoices.h"
+#include "StreamingVoices.h"
+
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -251,11 +254,13 @@ void AudioManager::InitializeAudioSubsystems(const std::wstring& rSelectedDevice
 	// One-time ownership attach — exactly once against the stable engine, even when silent. RegisterNotify
 	// deliberately follows ConfigureLiveGraph so the initial pin attempt cannot deliver an OnReset here.
 	mpAudioEngine->RegisterNotify(this, false);
-	mStaticVoices.Init(mpAudioEngine.get(), &miMasteringVoiceChannels);
-	mStreamingVoices.Init(mpAudioEngine.get());
+	mpStaticVoices->Init(mpAudioEngine.get(), &miMasteringVoiceChannels);
+	mpStreamingVoices->Init(mpAudioEngine.get());
 }
 
 AudioManager::AudioManager()
+: mpStaticVoices(std::make_unique<StaticVoices>())
+, mpStreamingVoices(std::make_unique<StreamingVoices>())
 {
 	ASSERT(gpAudioManager == nullptr);
 
@@ -307,13 +312,18 @@ AudioManager::~AudioManager()
 
 void AudioManager::SetNextMusicTrackCallback(std::function<common::crc_t()> callback)
 {
-	mStreamingVoices.SetNextTrackCallback(std::move(callback));
+	mpStreamingVoices->SetNextTrackCallback(std::move(callback));
+}
+
+void AudioManager::SkipNextStaticVoiceInvalidation()
+{
+	mpStaticVoices->SkipNextInvalidation();
 }
 
 void AudioManager::ClearVoices(bool bNullVoicesBeforeDestroy)
 {
-	mStaticVoices.Clear(bNullVoicesBeforeDestroy);
-	mStreamingVoices.Clear(bNullVoicesBeforeDestroy);
+	mpStaticVoices->Clear(bNullVoicesBeforeDestroy);
+	mpStreamingVoices->Clear(bNullVoicesBeforeDestroy);
 }
 
 void AudioManager::Suspend()
@@ -328,7 +338,7 @@ void AudioManager::Suspend()
 	mpAudioEngine->Suspend();
 
 	// Processing thread is now stopped — DestroyVoice returns instantly
-	LOG(kAudio, kInfo, "Suspend: destroying {} static voices, {} streams", mStaticVoices.GetVoiceCount(), mStreamingVoices.GetStreamCount());
+	LOG(kAudio, kInfo, "Suspend: destroying {} static voices, {} streams", mpStaticVoices->GetVoiceCount(), mpStreamingVoices->GetStreamCount());
 	ClearVoices(false);
 }
 
@@ -350,7 +360,7 @@ void AudioManager::PlayMusic(common::crc_t uiAudioCrc)
 	{
 		return;
 	}
-	mStreamingVoices.Play(uiAudioCrc);
+	mpStreamingVoices->Play(uiAudioCrc);
 }
 
 void AudioManager::PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioCrc, bool b3d, float fVolume, float fPitch, float fPitchRange)
@@ -359,7 +369,7 @@ void AudioManager::PlayOneShot(const game::Frame& rFrame, common::crc_t uiAudioC
 	{
 		return;
 	}
-	mStaticVoices.PlayOneShot(rFrame, uiAudioCrc, b3d, fVolume, fPitch, fPitchRange);
+	mpStaticVoices->PlayOneShot(rFrame, uiAudioCrc, b3d, fVolume, fPitch, fPitchRange);
 }
 
 void XM_CALLCONV AudioManager::PlayOneShot3d(const game::Frame& rFrame, common::crc_t uiAudioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch, float fPitchRange)
@@ -368,7 +378,7 @@ void XM_CALLCONV AudioManager::PlayOneShot3d(const game::Frame& rFrame, common::
 	{
 		return;
 	}
-	mStaticVoices.PlayOneShot3d(rFrame, uiAudioCrc, vecPosition, fVolume, fPitch, fPitchRange);
+	mpStaticVoices->PlayOneShot3d(rFrame, uiAudioCrc, vecPosition, fVolume, fPitch, fPitchRange);
 }
 
 void AudioManager::FinishDeviceReset()
@@ -531,21 +541,21 @@ void AudioManager::Update(const game::Frame* pFrame)
 
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 
-	mStreamingVoices.CheckTrackTransition();
-	mStreamingVoices.Update(fDeltaTime);
+	mpStreamingVoices->CheckTrackTransition();
+	mpStreamingVoices->Update(fDeltaTime);
 
 	if (pFrame != nullptr)
 	{
 		// Listener position must update first — UpdateLifecycle's priority/cull pass
 		// reads mVecListenerPosition and mfEffectiveFadeEnd computed here.
-		mStaticVoices.UpdateListenerPosition();
-		mStaticVoices.UpdateLifecycle(*pFrame, fDeltaTime);
+		mpStaticVoices->UpdateListenerPosition();
+		mpStaticVoices->UpdateLifecycle(*pFrame, fDeltaTime);
 	}
 
-	mStaticVoices.UpdateVolumes();
+	mpStaticVoices->UpdateVolumes();
 
-	gpProfileManager->SetCount(kCpuCounterSounds, mStaticVoices.GetVoiceCount());
-	gpProfileManager->SetCount(kCpuCounterStreams, mStreamingVoices.GetStreamCount());
+	gpProfileManager->SetCount(kCpuCounterSounds, mpStaticVoices->GetVoiceCount());
+	gpProfileManager->SetCount(kCpuCounterStreams, mpStreamingVoices->GetStreamCount());
 
 	mpAudioEngine->Update();
 }

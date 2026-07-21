@@ -1,294 +1,125 @@
 ---
 name: glsl-review
-description: Reviews GLSL shader changes (.vert .frag .comp and related stages) for correctness, performance, Broken Engine conventions, and missing rationale for non-trivial algorithm constraints. Use this skill after editing shader source under Engine/Data/Shaders/ or Projects/*/Data/Shaders/ to catch NaN/Inf hazards, divergent branching, early-Z regressions, descriptor-set mistakes, scalar-block-layout violations, undocumented mathematical or grid assumptions, and the NVIDIA `inverse()` compiler-hang bug. ALSO use proactively when the user asks to review, audit, or verify shader code.
-allowed-tools: [Read, Grep, Glob, WebFetch, Bash, PowerShell]
+description: >-
+  Review changed Vulkan GLSL shaders and shader-facing shared headers for
+  correctness, performance, Broken Engine layout and binding contracts, and
+  missing rationale. Use after changing .vert, .frag, .comp, other GLSL stages,
+  .glsl includes, or dual-language headers under Engine/Data/Shaders or
+  Projects/*/Data/Shaders, and when the user asks to review, audit, or verify
+  shader code. Covers NaN/Inf hazards, synchronization, derivatives, scalar
+  layout, CPU/GLSL dependency propagation, descriptor indexing, and the
+  repository inverse() ban.
+allowed-tools: [Read, Grep, Glob, Bash, PowerShell]
 paths: ["**/*.vert", "**/*.frag", "**/*.comp", "**/*.geom", "**/*.tesc", "**/*.tese", "**/*.mesh", "**/*.task", "**/*.rgen", "**/*.rmiss", "**/*.rchit", "**/*.rahit", "**/*.rint", "**/*.rcall", "**/*.glsl", "**/Data/Shaders/**/*.h"]
 ---
 
-# GLSL Shader Review
+# GLSL Review
 
-Reviews GLSL shader changes for **correctness** (NaN/Inf, wrong math, wrong precision, coordinate/space confusion), **performance** (divergence, early-Z, dependent fetches, dynamic loops, hot-path `inverse()`), and **Broken Engine conventions** (scalar block layout, descriptor sets, bindless indexing, NVIDIA `inverse()` ban).
+Review findings only; never edit. Cover correctness and performance, not style. Treat source-adjacent rationale as required only when a non-obvious mathematical, numerical, coordinate, ordering, layout, or hardware assumption carries correctness or measured performance.
 
-Sibling to `/repo-code-review` — that skill covers C++; this one covers shaders. Style/formatting is out of scope; maintainability review is limited to the algorithm-rationale rule below.
+Read [the footgun reference](references/shader-footguns.md) when a changed region touches synchronization, subgroup operations, implicit derivatives, shared CPU/GLSL layout, clip coordinates, numerically guarded math, or a performance heuristic.
 
-**Principle — no suppression rules.** Describe invariants and flag deviations; never instruct reviewers to ignore specific existing code. "Don't flag X — it's deliberate / legacy / slated for replacement" goes stale the moment the code changes or gains callers, and hides legitimate findings. When an implementation is a known tradeoff, report the tradeoff (e.g., "Phong rather than Blinn-Phong — cheaper-to-rewrite vs. wait-for-Ward-migration") and let the reviewer decide. Parser-level carve-outs (e.g., ignoring `inverse(` inside comments) are fine — they prevent false positives, not real findings.
+## Workflow
 
-## Instructions
+1. Derive the exact changed shader files and regions from the implementation handoff, conversation, or fixed-baseline diff. Include transitive shader headers and any dual-language header under `Engine/Data/Shaders/` or `Projects/*/Data/Shaders/`.
+2. Read the applicable shader `AGENTS.md`, each changed file, its nearby producers/consumers, and the relevant whole function. Search `ShaderFunctions.h` and family `*Common.h` files before recommending new helper logic.
+3. Trace every changed shader-facing header in both directions:
+   - shader entry points that transitively `#include` it;
+   - C++ consumers, including the project `ShaderLayouts.h` wrapper and PCH inclusion path;
+   - DataPacker dependency capture from preprocessing (`-MD`/`-MF`) through dependency fingerprinting.
+4. Review changed dual-language declarations against the actual block qualifier and CPU representation. Compare field order, scalar widths, array strides, offsets, descriptor constants, writes, and binding roles. Do not infer layout from a generic `vec3` rule when `layout(scalar)` applies.
+5. Apply the checks below. Report only reachable failures supported by the changed code and repository evidence. Do not turn a generic checklist item into a finding.
+6. Emit an atomic external-claim packet for every finding that depends on a non-obvious GLSL, Vulkan, extension, device, or compiler claim. Do not browse directly. Keep locally provable repository-contract findings separate.
+7. Return the report. A shader-facing shared header has both C++ and GLSL surfaces, so explicitly require `/repo-code-review` as the sibling domain review when such a header changed; this review does not replace it.
 
-### 1. Identify Modified Shaders
+## Broken Engine Contracts
 
-Use the implementation handoff or conversation history to identify shader files
-edited in this session — any `.vert`,
-`.frag`, `.comp`, `.geom`, `.tesc`, `.tese`, `.mesh`, `.task`, ray-tracing
-stages (`.rgen` etc.), `.glsl`, and shared headers under
-`Engine/Data/Shaders/**/*.h` or `Projects/*/Data/Shaders/**/*.h`. Include
-`ShaderLayoutsBase.h`, `ShaderLayouts.h`, `ShaderFunctions.h`, and any
-`*Common.h` that shaders `#include`.
+- Flag every executable matrix `inverse(...)` call with a `mat3` or `mat4` operand/result. Ignore comments and string literals. The repository requires CPU-precomputed inverse transforms; inspect the current shared layout and upload path rather than relying on a stale line number.
+- Require the repository's scalar-layout contract for shared UBO/SSBO data. Uniform blocks inherit the global scalar default; storage blocks must acquire scalar layout explicitly by block or shader default. Flag introduced `std140`/`std430`, unqualified storage blocks, and CPU/GLSL size or order mismatches.
+- Enforce descriptor roles: set 0 global, set 1 per-pipeline, set 2 per-material. Verify shared binding constants against C++ layout creation and writes.
+- Require `nonuniformEXT(index)` when a descriptor-array index may vary between invocations. Prove compile-time or dynamically uniform indices before exempting them.
+- Treat changes to shader-facing shared headers as both C++ and GLSL changes. Verify that every affected shader entry point reaches the header through the include graph so DataPacker records it in that shader's dependency file.
 
-For each modified file, focus the review on the *changed* regions, but always skim the whole file for nearby interactions that the change may have broken.
+## Correctness Checks
 
-Return concise inline findings. Shader review is not a final-evidence gate.
+### Values and math
 
----
+- Trace possible domains for division, `sqrt`, `normalize`, `pow`, `asin`/`acos`, `log`/`log2`, and `atan(y, x)`. Require a guard only when the bad domain is reachable.
+- Preserve denominator sign when negative values are valid. `max(x, epsilon)` is correct only when `x` is proven nonnegative; otherwise use a sign-preserving clamp such as `x >= 0.0 ? max(x, epsilon) : min(x, -epsilon)`.
+- Check normal reconstruction, color-space and alpha conventions, matrix order, coordinate-space conversions, shadow-bias direction, BRDF weighting, and renormalization after interpolation.
+- Treat Kahan summation as an accuracy technique, not a determinism guarantee. Parallel or reordered sums still require a fixed reduction order or another proven deterministic representation.
+- Require the same expression plus appropriate `invariant` qualification only when separate pipelines must produce invariant outputs; do not claim a qualifier alone guarantees arbitrary cross-program bit identity without verification.
 
-### 2. Broken Engine Rules (hard flags — project-specific)
+### Stages, interpolation, and sampling
 
-These are repo conventions enforced by the pipeline itself. Any violation is a bug, not a style opinion.
+- Require `flat` for integer varyings and matching interface types, locations, and interpolation qualifiers between producer and consumer stages.
+- Qualify derivative findings by stage. `dFdx`, `dFdy`, `fwidth`, and fragment implicit-LOD behavior depend on fragment-stage derivative rules unless an applicable extension establishes otherwise. Do not apply the fragment divergence rule indiscriminately to vertex or compute sampling.
+- Distinguish `texture` from `texelFetch`: `texelFetch` uses integer texel coordinates and, when its overload requires one, an explicit LOD or sample; it performs no filtering and uses no implicit derivatives. Do not say it ignores sampler objects.
+- Treat vertex `gl_Position` as homogeneous clip coordinates. Perspective division by `w` is a fixed-function operation; flag manual division or invalid/non-finite `w` only when the transform and intended convention make it wrong.
+- Verify Vulkan viewport, depth, Y, and framebuffer-origin assumptions against the actual pipeline state before reporting a coordinate mismatch.
 
-#### 2a. NVIDIA `inverse()` hang
+### Compute synchronization and storage
 
-**Never call `inverse()` on `mat3`/`mat4` inside any shader.** NVIDIA's compiler hangs indefinitely during pipeline creation when it encounters this. Precompute the inverse on the CPU and pass it in via a buffer.
+- Separate execution convergence, memory visibility/order, access qualification, and race prevention. `barrier()`, `memoryBarrier*`, `coherent`, and atomics are not interchangeable.
+- Require workgroup barriers to be reached in uniform control flow. Account for the shared-memory synchronization defined for `barrier()` itself, and require the applicable additional memory operation for other storage classes rather than generalizing shared-memory behavior to buffers or images.
+- Do not accept `coherent` plus a barrier as prevention for two invocations concurrently writing the same non-atomic location. Require exclusive ownership, a proven partition, or a supported atomic operation.
+- Do not claim an in-shader workgroup barrier synchronizes separate workgroups. Cross-workgroup communication requires a design with an applicable dispatch/pipeline synchronization boundary or another proven mechanism.
+- Check atomic type/format support and distinguish atomicity of one location from ordering or visibility of surrounding non-atomic data.
 
-Reference pattern — see `Engine/Data/Shaders/Model/ModelCommon.h:50`, which stores a CPU-precomputed normal matrix as `vec4 normalMatrix[3]` (transpose(inverse(mat3(matrix))), stored as three `vec4`s).
+## Performance Review
 
-Flag any call site: `inverse(` followed by a variable or expression in shader code. Ignore occurrences inside comments and string literals — the canonical reference pattern's comment at `ModelCommon.h:50` legitimately contains the text `transpose(inverse(mat3(matrix)))`.
+- Require evidence before asserting device-, driver-, or compiler-specific cost. Accept a capture, target-device limit/property, compiler output, SPIR-V/disassembly, or a documented repository production constraint. Otherwise request measurement or emit external verification; do not report folklore as a defect.
+- Inspect hot-path `pow`, transcendental functions, normalization, dependent reads, loop bounds, SSBO/image access, workgroup dimensions, bank layout, divergence, `discard`, and depth writes only where the changed path is demonstrably hot or contract-significant.
+- For a positive integer exponent, compare semantics and generated code. `x * x * x` contains two multiplications, not one; do not assume how `pow` lowers without compiler evidence.
+- Do not impose universal subgroup width, workgroup-size, bank-count, FP16-throughput, occupancy, or early-Z cost thresholds. Establish the target device and evidence first.
 
-#### 2b. Scalar block layout only
+## Vulkan and Extension Checks
 
-Every UBO/SSBO in this repo uses scalar layout. `Engine/Data/Shaders/ShaderLayoutsBase.h:83` sets the global uniform default (`layout(scalar) uniform;`); SSBO blocks declare `scalar` explicitly per block (e.g., `Model/ModelCommon.h:40`) or via a per-shader `layout(scalar) buffer;`. Flag any `std140` or `std430` qualifier added to shader code, and any new SSBO block with no layout qualifier at all — unqualified buffer blocks default to std430, silently mismatching the scalar-packed C++ struct. The DataPacker passes `--scalar-block-layout` to `spirv-opt`; mismatched layout qualifiers silently break CPU/GPU struct alignment.
+- Baseline subgroup support is described by `VkPhysicalDeviceSubgroupProperties`: verify supported stages and operations. Do not require `VK_EXT_subgroup_size_control` merely to use subgroup operations; require it only when code requests or depends on subgroup-size control/full-subgroup behavior, then verify its features and limits.
+- Verify push-constant size/stage ranges, storage image formats, atomics, descriptor indexing, stage-specific built-ins, and optional shader extensions against the repository's Vulkan 1.2 target and enabled device features.
+- Treat debug-only extensions and printf paths according to their actual compile guards and shipping configuration.
 
-Corollary: **plain `float[]` arrays are 4-byte stride**, not 16-byte. Flag shared C++/GLSL structs that add explicit 4×float-aligned padding after each float array element — that padding is dead under scalar layout and indicates the author expected std140 rules.
+## External Claim Packets
 
-#### 2c. Descriptor set discipline
+Emit one proposition per packet so `/verify-external-claims` can return one verdict without adjudicating the code finding:
 
-The engine fixes set indices by role:
-
-- **Set 0** — global
-- **Set 1** — per-pipeline
-- **Set 2** — per-material (models only today)
-
-Flag any `layout(set = N, binding = M)` where the role doesn't match the set number — e.g., a per-material texture declared in set 0, or a pipeline SSBO declared in set 2.
-
-#### 2d. Bindless textures require `nonuniformEXT`
-
-Bindless textures are declared as unsized arrays with separate samplers (`texture2D myTextures[]`). **Any dynamic index that is not a compile-time constant must be wrapped in `nonuniformEXT(...)`.** Missing this gives undefined behavior on most drivers and artifacts that only show up on specific hardware. Flag any `myTextures[someVariable]` or `sampler2D(myTextures[i], mySampler)` where `i` is not trivially uniform.
-
-#### 2e. Dual-language header sync
-
-When `ShaderLayoutsBase.h`, `ShaderLayouts.h`, or any `*Common.h` struct is modified, the C++ side sees it through DirectXMath types and the GLSL side sees it through `vec`/`mat` types via `#if defined(BT_ENGINE)` switching (see `Engine/Data/Shaders/ShaderLayoutsBase.h:10`). Flag:
-
-- A struct field added/removed/reordered on one side of the `BT_ENGINE` guard but not the other.
-- A type whose C++ and GLSL representations differ in size/alignment under scalar layout (e.g., `XMFLOAT3` vs `vec3`, array stride assumptions).
-- `#include` of the header from a C++ file that isn't also in the DataPacker's `.d` depfile path — stale caches won't rebuild. See `ExportShader::CheckDirty` in `DataPacker/Source/ExportJobs/ExportShaderDependencies.cpp` for the `.d`-depfile parse path.
-
-#### 2f. Prefer shared helpers in `ShaderFunctions.h`
-
-Before flagging a correctness issue, check whether `Engine/Data/Shaders/ShaderFunctions.h` already provides the utility being reinvented — transforms and projection (`Rotate`, `Transform`, `WorldToVisibleArea`, `VisibleAreaToWorld`), lighting (`SunLighting`, `Specular`, `ReadLighting`, `IntensityLighting`, `DirectionalLighting`, `WaterLighting`, `AmbientLighting`), smoke (`SmokeShadow`, `AddSmoke`, `BlendSmoke`), `LightingDepositEdgeFade`, and more. The header gains helpers over time; skim it for the full list. If a new shader re-implements one by hand, flag it and recommend the shared version.
-
----
-
-### 3. Correctness Footguns (universal — shader semantics)
-
-Walk the changed code against this list. The detailed rationale for each item lives in `references/shader-footguns.md` — read that if a finding needs extra context or you need to explain "why" in the review report.
-
-#### NaN / Inf sources
-
-Flag any of the following without a guard (`max`, `clamp`, or an explicit epsilon):
-
-- `sqrt(x)` where `x` could be negative
-- `1.0 / x`, `a / x` where `x` could be zero
-- `normalize(v)` where `v` could be the zero vector — use `length(v) > epsilon` guard or `v / max(length(v), 1e-6)`
-- `pow(x, y)` where `x` could be negative and `y` is non-integer (undefined; many drivers return NaN)
-- `asin(x)` / `acos(x)` without `clamp(x, -1.0, 1.0)`
-- `log(x)`, `log2(x)` where `x` could be `<= 0`
-- `atan(y, x)` at `(0, 0)` — implementation-defined
-- Reconstructing a normal's Z as `sqrt(1 - dot(xy, xy))` without `max(0, ...)`
-- Fresnel at grazing angles producing unbounded values (clamp the `pow` base)
-
-The defensive pattern `any(isnan(color))` / `any(isinf(color))` is acceptable as a late-stage guard but should not substitute for fixing the source.
-
-#### Precision hazards
-
-- **Subtracting near-equal large floats** (e.g., two world-space positions far from origin) — catastrophic cancellation. Move the subtract into a space closer to origin first.
-- **Accumulating many small contributions into a float** — use Kahan summation or sort by magnitude if the count is large and order matters.
-- **Depth-comparison equality** — if a depth or position must exactly match across two passes, both writers must share the same expression and be qualified `invariant`.
-
-No precision qualifiers (`mediump`, `highp`, `lowp`) should appear in this repo — desktop Vulkan GLSL 460 ignores them. Flag any new ones as dead code.
-
-#### Interpolation qualifiers
-
-- Integer varyings, instance/material IDs, and flags must be `flat`. Silent linear interpolation of an ID produces nonsense indices.
-- Screen-space attributes that must not perspective-correct (e.g., post-process UVs written from a fullscreen triangle) should be `noperspective`.
-- `invariant gl_Position` when two pipelines must produce identical depth.
-
-#### Coordinate-system and API conventions
-
-Vulkan differs from legacy OpenGL. Flag:
-
-- Code assuming `gl_FragCoord` origin is bottom-left (Vulkan is top-left unless overridden).
-- NDC depth range assumed `[-1, 1]` — Vulkan is `[0, 1]`.
-- Missing Y-flip in clip space when porting an OpenGL shader.
-- sRGB vs linear color space: samples from sRGB-view textures are auto-linearized; samples from UNORM views are not. Flag gamma applied twice or not at all.
-- Premultiplied vs straight alpha mixed in the same blend equation.
-- `texture()` vs `texelFetch()` confusion — `texelFetch` takes integer pixel coords and ignores samplers; `texture` uses filtered UV sampling.
-
-#### Math / algorithm mistakes
-
-Catch these by reading the intent, not pattern-matching:
-
-- Lerping two unit vectors and using the result without renormalizing.
-- Lerping directions/quaternions that should be slerped.
-- Column-major vs row-major matrix multiply order (`v * M` vs `M * v`) — GLSL defaults to column-major.
-- Blinn-Phong written as `pow(dot(H, N), n)` using the wrong half-vector (`H = normalize(L + V)`, not `L + N`).
-- BRDF energy not conserved (diffuse + specular > 1 somewhere).
-- Normal-map Z reconstruction without `max(0, ...)`.
-- Shadow bias sign wrong for the depth convention.
-- Tangent-space normal applied in world space or vice versa — this repo uses `dFdx`/`dFdy` tangent reconstruction in `Model.frag`; verify consistency.
-
-#### Algorithm rationale
-
-Flag new or materially changed non-trivial logic when correctness or performance depends on a non-obvious mathematical, numerical, coordinate/grid, ordering, or hardware assumption and no source-adjacent comment states the rationale or invariant. Require enough explanation to preserve the proof obligation, fallback, or guard; do not request line-by-line narration, comments for standard shader operations, or restatement of code that is already self-explanatory.
-
----
-
-### 4. Performance Footguns
-
-#### 4a. Hot-path cost
-
-Flag in fragment or inner compute loops:
-
-- `inverse()` anywhere (see §2a — but worth restating: it's a NaN footgun *and* a driver hang *and* a perf disaster).
-- `pow(x, k)` where `k` is a compile-time positive integer — expand to multiplications.
-- `pow(x, k)` in a `for` loop with a non-constant `k` — the compiler can't lower it.
-- Trig (`sin`/`cos`/`tan`/`asin`/`acos`/`atan`) inside per-fragment or inner-loop code where a polynomial approximation or LUT would do.
-- Per-fragment `length(v)` when `dot(v, v)` (squared) suffices for a comparison.
-- `normalize()` applied to a vector that's already normalized.
-- `normalize()` around `reflect(I, N)` when both `I` and `N` are unit at the call site — `reflect(unit, unit)` is unit by identity, and sign-flip wrappers (leading `-`, componentwise `vec3(±1, ±1, ±1)` multiply, single-axis flip) preserve magnitude. Conversely, flag *removal* of `normalize()` around `reflect(...)` when either input cannot be proven unit at the call site. Details and current call sites: *Algorithmic / Math Mistakes → `reflect(unit, unit)` is already unit* in `references/shader-footguns.md`.
-
-#### 4b. Divergence and early-Z
-
-- **`discard`** (and the `demote` keyword from `GLSL_EXT_demote_to_helper_invocation`) disables early-Z on most hardware for the whole draw. If the draw has a depth prepass or the fragment is expensive, flag `discard` and suggest moving the alpha-test into the prepass or using `VK_EXT_shader_demote_to_helper_invocation` with care.
-- **Divergent branching** on values that vary across a subgroup — particularly dynamic UV sampling inside an `if` block — causes both paths to execute. For pure-uniform branches (push constants, per-draw), divergence is free.
-- **`texture()` sampling inside `if`/`for`** needs implicit-LOD derivatives; undefined behavior if a subgroup has disagreeing control flow. Use `textureLod` / `textureGrad` inside dynamic branches.
-
-#### 4c. Memory access patterns
-
-- **Dependent texture reads**: sampling a texture with a UV that was itself produced by another texture read — prefetch-hostile, slow. Flag if a simpler formulation exists.
-- **SSBO read inside a hot loop** when the value could be hoisted to a uniform or a local.
-- **Compute shared-memory bank conflicts**: consecutive threads writing to addresses `N*kStride` where `kStride % 32 == 0` — flag and recommend padding.
-- **`memoryBarrier*` at the wrong scope**: `memoryBarrierShared` for inter-workgroup data doesn't work; use `memoryBarrierBuffer` + `barrier()` at the right place.
-- **Workgroup size** too small (<32) wastes lanes on desktop; too large (>256) hurts occupancy on some hardware. Flag `local_size_x * local_size_y * local_size_z` that falls outside `[32, 256]` without a comment explaining why.
-
-#### 4d. `imageStore` / `imageLoad` correctness
-
-- Writes to the same image from multiple invocations without `coherent` + barriers race.
-- `readonly` / `writeonly` qualifiers missing where the shader only reads or only writes — loses driver optimizations.
-
----
-
-### 5. Vulkan-Specific Footguns
-
-- **Push constants** are capped (128 bytes guaranteed, often 256) — flag pushes that overflow.
-- **Specialization constants** (`layout(constant_id = N)`) baked into SPIR-V at pipeline-create; changing them at runtime requires pipeline re-creation. Flag uses where a plain uniform would suffice.
-- **`gl_Layer` / `gl_ViewportIndex`** require `multiViewport` / `geometryShader` / `shaderOutputLayer` features — verify the device actually enables them.
-- **Subgroup operations** (`subgroupBallot`, `subgroupBroadcast`, `subgroupAdd`, etc.) require `VK_EXT_subgroup_size_control` and feature flags. Flag uses without a comment documenting the feature requirement.
-- **`VK_KHR_shader_non_semantic_info`** is needed for `debugPrintfEXT` — remind the user to remove printf before shipping.
-- **Varying component budget**: Vulkan guarantees at least 64 output components (16 vec4s) between stages; some drivers silently truncate beyond that. Flag fragment-shader inputs that push past 16 `location` slots.
-
----
-
-### 6. Compute-Shader-Specific Review (`.comp`)
-
-In addition to §4:
-
-- Are `barrier()` calls symmetric across all threads (no barrier inside a divergent branch)?
-- Is `shared` memory initialized before the first read across threads (needs a barrier)?
-- Does the dispatch dimension computation on the CPU round up correctly vs the `local_size`? (That's a C++ concern, but flag any shader that assumes a fixed grid shape.)
-- Are atomic operations (`atomicAdd`, etc.) on a type the image/buffer format actually supports?
-
----
-
-### 7. Stage-Specific Quick Checks
-
-#### Vertex (`.vert`)
-- `gl_Position.w` divided correctly (normally handled by the pipeline, but verify if emitting clip-space manually).
-- Attribute `layout(location = N)` matches the C++ `VkVertexInputAttributeDescription` — mismatches show as zero/garbage attributes, no validation error on most drivers.
-
-#### Fragment (`.frag`)
-- See §4b on `discard` and divergence.
-- `gl_FragDepth` writes disable early-Z for the whole pipeline; flag any new `gl_FragDepth` assignment.
-- Output `location`s match the render pass's color attachments; MRT writers must write all enabled attachments or the others get undefined values.
-
-(Geometry, tessellation, mesh/task, and ray-tracing stages are not currently used in the repo. If one starts being used, see `references/shader-footguns.md` for stage-specific checks.)
-
----
-
-### 8. File-Size and Complexity
-
-- Shaders over ~5,000 bt-token-v1: flag as `RECOMMEND` splitting into multiple stages via `#include`d helpers. Measure with `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`; `bt-token-v1` is a deterministic normalized-byte estimate, not an exact model-token count. The repo's convention is one shader per file with shared logic in `ShaderFunctions.h` or subdirectory `*Common.h`.
-- Functions over ~1,000 bt-token-v1 inside a fragment shader: flag if a natural split exists (lighting term, material evaluation, tone mapping). Measure the inclusive function range with `-StartLine` and `-EndLine`.
-
----
-
-### 9. API Verification
-
-For non-obvious GLSL/Vulkan calls — extension intrinsics, recent SPIR-V opcodes, GLSL features beyond `#version 460`, subgroup ops, ray-tracing intrinsics, image-format-specific atomics — verify against the official spec before accepting the call. This review normally runs inside a subagent, which does not spawn further subagents and should not pull large spec pages into its context: emit each needed check as an entry under `### API Verification Requests` in the output — the API/symbol, the spec URL, and exactly what to confirm plus which finding depends on it — and the caller dispatches `locator` subagents to resolve them. Use WebFetch directly only for a small targeted page (a single man-page-style entry), citing the URL or section in the review note.
-
-- Khronos GLSL spec (4.60): https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.60.html
-- Vulkan 1.2 spec: https://registry.khronos.org/vulkan/specs/1.2-extensions/man/html/
-- SPIR-V Extended Instructions for GLSL: https://registry.khronos.org/SPIR-V/specs/unified1/GLSL.std.450.html
-- Khronos GLSL extensions: https://github.com/KhronosGroup/GLSL/tree/main/extensions
-
-Skip verification for `texture()`/`texelFetch`-class staples, basic intrinsics (`mix`/`smoothstep`/`clamp`), and patterns already used at multiple shader sites. Training data lags Vulkan extension churn; an extension may have been promoted to core, deprecated, or had its semantics tightened.
-
-If WebFetch turns up nothing authoritative, mark the finding:
-
-> UNVERIFIED: I could not find official documentation for this pattern. This is based on training data and may be outdated. Verify before using in production.
-
----
-
-## Output Format
-
-Only include sections where issues were found. Omit empty sections entirely.
-
+```markdown
+### External Claim Verification Request
+- API/symbol/rule: <one rule>
+- Proposition: <exact statement that must be true or false>
+- Applicability: Vulkan 1.2, shader stage, enabled extension/feature, format, and relevant local configuration
+- Candidate official source: <direct official URL and section/anchor>
+- Dependent finding: <file:line finding and why its severity depends on this proposition>
 ```
+
+Use only the official source set in the reference. If the proposition cannot be made atomic, split it. Keep the finding pending until the caller obtains `VERIFIED`, `REFUTED`, or `UNRESOLVED` evidence.
+
+## Output
+
+Order findings by severity and omit empty sections:
+
+```markdown
 ## GLSL Review Results
 
+### Findings
+- P1 `path:line` — failure, reachable evidence, and smallest correction
+
+### External Claim Verification Requests
+<atomic packets>
+
 ### Files Reviewed
-- [list of modified shader files with paths]
-
-### Broken Engine Rule Violations (hard)
-- file:line - Violation and fix (inverse() ban, std140/std430, descriptor set, bindless nonuniformEXT, header sync)
-
-### Correctness Issues
-- file:line - NaN/Inf source, coord-system mix-up, wrong math, or interpolation-qualifier bug with fix
-
-### Performance Issues
-- file:line - Divergence, early-Z kill, hot-path inverse/pow/trig, dependent fetch, memory-access hazard
-
-### Algorithm Documentation Issues
-- file:line - Non-obvious correctness/performance assumption that needs a source-adjacent rationale or invariant
-
-### Vulkan / API Issues
-- file:line - Push-constant overflow, missing feature flag, subgroup-op hazard
-
-### File Size Warnings
-- file (N bt-token-v1) - [RECOMMEND] split or extract into ShaderFunctions.h
-
-### API Verification Requests
-- <api/symbol> — <spec URL> — <what to confirm, and which finding depends on it>
+- `path`
 
 ### Recommendation
-[PASS / NEEDS FIXES]
-Brief summary.
-```
+PASS | NEEDS FIXES
 
-If no issues in any category: "PASS — no issues found." plus the Files Reviewed list.
-
-Append this final footer in every case:
-
-```text
+Status: PASS | NEEDS_ACTION | BLOCKED
 Files changed: none
 Functions/regions touched: none
+Decisive checks: <reads, searches, traces, and external-claim dispositions>
+Build required: none
 Residuals:
-- <pre-existing issue or incomplete review item, or none>
+- <pending verification, pre-existing issue, incomplete review item, or none>
 ```
 
----
-
-## See Also
-
-- `references/shader-footguns.md` — exhaustive catalog with rationale per item, sourced from Khronos GLSL spec, NVIDIA/AMD best-practice guides, and Arm Mali docs.
-- `Engine/Data/Shaders/AGENTS.md` — repo-level shader architecture (scalar layout, bindless, descriptor sets, NVIDIA bug).
-- `Engine/Data/Shaders/ShaderFunctions.h` — shared utilities you should reach for before reimplementing.
-- `/repo-code-review` — sibling skill for C++ changes.
+If no issue is found, return `PASS — no issues found`, list the files reviewed, and include the unchanged footer.

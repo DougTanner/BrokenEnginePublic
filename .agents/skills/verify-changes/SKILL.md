@@ -3,101 +3,152 @@ name: verify-changes
 description: >-
   Verify final-evidence-gate changes — queue mutation or completion,
   reconciliation, requested primary commit or landing, shared build/bootstrap
-  work, or Tier-3 integration — with a final-tree acceptance table. Work
-  without such a gate uses proportionate direct checks and an inline completion
-  summary instead.
-allowed-tools: [Read, Grep, Glob, Agent, "Bash(git diff *)", "Bash(git status *)", "Bash(git ls-files *)", PowerShell]
+  work, or Tier-3 integration — with a read-only final-tree acceptance table.
+allowed-tools: [Read, Grep, Glob, "Bash(git diff *)", "Bash(git status *)", "Bash(git ls-files *)", PowerShell]
 ---
 
 # Verify Changes
 
-Use this skill only when a final-evidence gate (root `AGENTS.md` definition)
-applies. Work without such a gate — any tier — reports its direct checks,
-changed files, and residuals inline without a final-tree acceptance table.
-Completed `/next-plan` routes also follow the [canonical execution-gate
-contract](../next-plan/references/execution-gates.md).
+Run only when the root `AGENTS.md` final-evidence gate applies. Use a fresh
+context separate from implementation and review. This is a read-only verifier:
+do not delegate, edit files, resolve findings, build, launch a runtime or
+harness, mutate the queue, or create an evidence artifact. Inspect the final
+tree and validate supplied evidence; return missing or stale work to the caller.
 
 ## Inputs
 
 Require:
 
-- Absolute adopted worktree path and fixed session-start baseline commit; the primary checkout is valid only for an explicitly user-authorized `primary-commit`
-- Final approved plan and caller-supplied approved-delta summary (`none` is valid)
-- Manager execution-control record: approved risk tier and concrete triggers,
-  required and conditional roles, triggered-role dispositions, and the initial
-  acceptance matrix
-- Accumulated inline implementation, review, hygiene, build, and residual handoffs with their decisive checks
+- absolute adopted checkout, fixed session-start baseline commit, and route:
+  `session-finalization` or explicitly authorized `primary-commit`;
+- final approved plan and approved deltas (`none` is valid);
+- execution-control record with tier/triggers, required/conditional roles and
+  dispositions, initial acceptance matrix, and every declared invariant;
+- caller-owned paths plus complete implementation, propagation, check, review,
+  hygiene, build, external-claim, fix, and residual handoffs in execution order.
 
-If lifecycle identity or required evidence is missing or ambiguous, return `BLOCKED`; do not rediscover a movable baseline or invent acceptance criteria.
-Block when any handoff shows an unapproved plan delta. Only main may apply an exact user-approved delta before verification.
+Do not rediscover a movable baseline, invent a criterion, or accept an
+unapproved delta. Require the adopted path to equal its Git top level, the
+baseline to resolve exactly, and primary checkout use only on the
+`primary-commit` route.
 
-## Workflow
+## Final Manifest
 
-1. Require the current checkout to be the adopted worktree and the supplied baseline to be its fixed session-start commit. Inventory the final diff from that baseline, including untracked files.
-2. Build an acceptance table from the final approved plan plus approved-delta
-   summary, the execution-control record, every changed behavior visible in the
-   diff, and every test obligation or residual in supplied handoffs. Every row
-   has exactly these decision fields:
-   `criterion/behavior -> decisive check -> expected result -> independent signal
-   if this duplicates another check (otherwise none) -> status/evidence`.
-   One decisive check may cover several criteria. Do not duplicate a check unless
-   the row names the distinct independent signal it adds.
-   The table also carries exactly one row per required review from the
-   execution-control record: skill name, `delegated|inline`, findings count, and a
-   one-word disposition (`accepted-fixed | refuted | mixed | none`) — recorded only, never
-   a new validation stage or reason to re-run a review. Documentation, skill,
-   tooling, and configuration changes require the strongest applicable static or
-   functional check; they do not receive an automatic runtime skip.
-   When the diff contains a changed `.agents/skills/*/SKILL.md`, invoke `/validate-skill` once for each changed skill and record its complete decisive result. That shared workflow is the only skill-validation contract: do not substitute a client-installed validator or abbreviated frontmatter check. Require `Validation: PASS`; `FAIL`, `BLOCKED`, `INVALID`, `SETUP_ERROR`, result/exit mismatch, or inability to run the validator makes the table non-passing.
-3. Apply the approved tier as a ceiling on exploratory work, never as permission
-   to weaken a criterion:
-   - **Tier 1:** decisive static/schema/link/validator checks plus affected-target
-     compilation when C++ changed. Do not add runtime scenarios without an
-     approved criterion or exposed behavior requiring one.
-   - **Tier 2:** Tier-1 checks plus the smallest observable behavior scenario for
-     each approved runtime/tool behavior.
-   - **Tier 3:** lower-tier checks plus only the invariant/integration checks the
-     change actually exposes: client/server, replay/determinism/CRC, wire or
-     serialization/save compatibility, threading, trust boundary, or shared
-     build/bootstrap coordination.
-   For an applicable runtime check, have an `implementer` subagent invoke `/agent-harness`,
-   using a self-contained fresh Claude prompt or Codex `fork_turns:"none"` with
-   the baseline, final plan/deltas, execution-control record, and residual chain.
-   Use the plan's Verification section when present; otherwise derive the smallest
-   live scenario that decisively covers the approved criterion.
-4. Mark each testable item `PASS`, `FAIL`, `BLOCKED`, or `UNVERIFIED`, with exact evidence. Never use `SKIPPED` to dispose of an in-scope item. Evidence names the command or harness scenario, exit/verdict, and the decisive output, query, screenshot, log, or artifact location.
-5. Return each decisive failure and its evidence to the main session for its one
-   Intent (`conformance | plan_delta`) and Scope (`non_structural | structural`)
-   adjudication. Main sends only accepted `conformance + non_structural` work to
-   an `implementer` subagent invoking `/resolve-findings`; plan deltas require user
-   approval. An accepted in-scope structural acceptance failure remains a blocker
-   pending user direction; only proven pre-existing or out-of-scope structural
-   residuals route to the conditional `/create-follow-up-plans` role. After an
-   eligible fix, rerun the failed check and only the checks whose evidence the
-   changed bytes invalidate. Default to
-   one focused fix/retest round; a second requires a still-reproducible decisive
-   blocker and examines only affected regions/checks.
-6. Treat a check requiring new authority, hardware, or external coordination as `BLOCKED`. Report the blocker to the main session for a user decision; do not acquire the authority, silently narrow the check, convert it to a follow-up, or accept a waiver. Only an explicit user revision to scope or acceptance criteria can remove the original obligation. Rebuild the table from the revision and verify every revised criterion.
-   Record every touched non-worktree state as `unchanged`, `intentionally persisted under owner contract`, `restored`, or `residual`, with exact path, owning contract/serialization mechanism, and evidence.
-7. When the final tree changes an executable plan file (the queue itself is machine-local state and never appears in a git diff), set `$WorktreeCli` to the current checkout's provisioned `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe`. In a session worktree, run `plan order validate --repo <canonical-git-common-dir> --worktree <session-worktree>` and require exit `0`, JSON `ok: true`, and no diagnostics. A `missing-plan-file` notice for a foreign row whose plan landed on primary after the session baseline is the expected stale-baseline condition (execution-gate contract, state 3): record it as evidence, never as a failure or blocker. A completed-plan row claim remains intentionally owner-held until finalization/landing: record its owner-qualified `ownedByRequester: true` status, not an absence expectation. When calling the row API directly, use the plan key relative to the queue directory. Otherwise record `plan-order validation: not triggered — no executable-plan change`; do not run it merely because another repository file changed.
-8. Return `PASS` only when every in-scope testable item is `PASS`. Any `FAIL`, `SKIPPED`, `BLOCKED`, or `UNVERIFIED` item makes the overall result non-passing and prevents landing. Once the complete matrix passes, stop: do not add exploratory variants, consensus reruns, or unrelated checks. Loop only when changed bytes invalidate earlier evidence or a decisive check fails. A later conflict-free rebase onto an advanced primary does not invalidate this result — `/finalize-changes` owns reconciliation and its overlap check.
+1. Derive the tracked manifest from `git diff --name-status <baseline> --` and
+   append `git ls-files --others --exclude-standard`. Preserve status, rename
+   source/destination, and untracked identity. This covers committed, staged,
+   and unstaged changes from the fixed baseline.
+2. Reconcile every entry against the caller-owned path list and handoffs. Block
+   on an unowned entry, an owned path absent from the manifest without an
+   explained no-change disposition, a status mismatch, or a handoff claiming
+   bytes outside its ownership. Return the manifest inline; no hashes or report
+   file are required.
+3. A caller fix ends the current run. On re-entry, recompute and reconcile the
+   whole manifest, add the fix handoff, and invalidate only evidence affected by
+   the new bytes. Require the handoff sequence to prove no later manifest edit
+   invalidated each accepted check, review, build, receipt, or data snapshot.
+4. Inventory touched ignored or non-worktree state from the handoffs. Require
+   its exact path, owner contract or serialization mechanism, evidence, and one
+   disposition: `unchanged`, `intentionally persisted`, `restored`, or
+   `residual`. A residual is non-passing.
 
-## Output
+## Acceptance Audit
 
-Follow [`../../references/subagent-reporting.md`](../../references/subagent-reporting.md).
-Return the complete result inline:
+Build one inline row per approved criterion, invariant, visible changed
+behavior, required test/review, and handed-off residual. Use:
 
-- `Verification: PASS | BLOCKED`
-- Adopted worktree and fixed baseline
-- Changed files, one per line (`git status`-derived; no hashes required)
-- Acceptance-table entries: criterion/behavior, decisive check, expected result,
-  independent signal for any duplicate (otherwise `none`), status, and exact
-  evidence
-- One row per required review: skill name, `delegated|inline`, findings count,
-  one-word disposition
-- Session `plan order validate` result when triggered
-- Fix/retest rounds and repository mutations, or `none`
-- Failed, blocked, skipped, or unverified items, or `none`
-- Residuals: blocker or `none` (always last)
+`criterion | decisive check | status | evidence`
 
-On a non-passing result, use `Verification: BLOCKED` and preserve each actual item status and evidence in the blocker list.
+Statuses are `PASS`, `FAIL`, `BLOCKED`, or `UNVERIFIED`; never use `SKIPPED`.
+Evidence names the exact command/scenario, exit or verdict, decisive output,
+and artifact/log path when applicable. One check may cover several rows;
+duplicate checks must name their distinct independent signal. Apply the
+approved tier as an exploration
+ceiling, not permission to weaken a criterion: Tier 1 uses decisive static,
+schema, link, validator, and affected-target compile evidence; Tier 2 adds the
+smallest approved observable scenario; Tier 3 adds only exposed invariant and
+integration evidence. Skill changes require the complete `/validate-skill`
+`Validation: PASS` handoff, including self-check, target command/exit/output,
+semantic review, and no Critical finding.
+
+For each required review, add:
+
+`review | delegated/inline | findings | accepted-fixed | refuted | unresolved | evidence`
+
+Require the counts to reconcile, every accepted finding to have fix and
+recheck evidence, and zero unresolved accepted findings. Do not rerun reviews.
+
+For each external/API proposition, add:
+
+`proposition | version/configuration | official source | verdict | dependent finding | evidence`
+
+Keep the proposition stable and atomic. Accept `VERIFIED` only with an
+applicable primary official source. Accept `REFUTED` only when the handoffs
+include the manager's explicit disposition of its dependent finding.
+`UNRESOLVED` and unadjudicated refutations are non-passing. Do not silently
+discard or rewrite a proposition, verdict, or dependent finding; a changed
+proposition is a new request.
+
+### Build evidence
+
+For every requested build, require one authoritative
+`broken-engine-build-result/v1` record and expose:
+
+- target and worktree root, exact arguments, selected files, and invalidated
+  objects;
+- status, process exit code, failure kind, lock result, MSBuild discovery,
+  launch, and exit;
+- retained-log path and `complete`, relevant structured diagnostics, every
+  error and tool message, truncation state, plus relevant changed-file warnings;
+- started time and elapsed time; and
+- for game builds, data mode and trigger, `RunDataPacker`, canonical data and
+  generated-include paths, prepared-data or generation authority, Gaea-guard
+  disposition, selected-data snapshot, and primary snapshot when Local.
+
+Require schema/result/exit consistency, complete retained log, intended target
+and selection, all requested targets, snapshot consistency across consumers,
+and no later manifest edit that invalidates the build. Terminal text is not a
+substitute. A truncated diagnostic set requires the retained log.
+
+For a non-Markdown AgentTools change, also require successful candidate
+production, a `broken-engine-agenttools-candidate/v2` receipt with recorded
+path and SHA-256, identical before/after source manifests, current-tree
+membership/byte match, immutable executable hash match, and capability result.
+For an already committed candidate, record read-only
+`broken-engine-agenttools-certification-result/v1` `status: pass`, `code: ok`,
+and exact expected-commit/tree match. An ordinary session or `primary-commit`
+prevalidation cannot certify its uncommitted tree: record `/finalize-changes`
+certification against the reconciled candidate as a mandatory pre-approval
+obligation, never as evidence already passed. Any receipt, certification, or
+tree mismatch requires a rebuilt candidate.
+
+### Executable-plan validation
+
+For a changed executable plan in a session worktree, use the current checkout's
+provisioned `Tools/WorktreeCli/Platforms/VisualStudio2026/Output/WorktreeCli.exe`
+and record the read-only session prevalidation from `plan order validate --repo
+<canonical-common-dir> --worktree <session-worktree>`. Require exit `0`, `ok:
+true`, and no failing diagnostic. An `ok: true` foreign-row `missing-plan-file`
+stale-baseline notice is evidence, not failure; an owner-held completed row is
+expected until finalization. Otherwise record
+`not triggered — no executable-plan change`.
+
+Do not represent session prevalidation as primary validation. On the
+`primary-commit` route, post-commit primary validation and any owner-unclaim are
+`/finalize-changes` obligations and cannot be claimed by this pre-commit audit.
+
+## Decision and Output
+
+Return `Verification: PASS` only when the manifest reconciles and every in-scope
+item passes with current evidence. Any failure, blocker, unverified item,
+unresolved claim, unadjudicated refutation, stale evidence, or missing input
+returns `Verification: BLOCKED`. Consolidate all such items once; do not retry,
+fix, waive, downgrade, or create a follow-up. The caller adjudicates and routes
+work, then starts a new verification run after any mutation. Stop when the
+matrix passes.
+
+Follow [`../../references/subagent-reporting.md`](../../references/subagent-reporting.md)
+and return: verification result; route, adopted checkout, and baseline; inline
+manifest; acceptance, review, and API rows; plan prevalidation; AgentTools
+pre-approval obligation when applicable; fix/re-entry history or `none`;
+non-passing items or `none`; and `Residuals: <blocker or none>` last.

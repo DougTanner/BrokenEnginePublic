@@ -1,64 +1,45 @@
-# `DataPacker/Source/ExportJobs/`
+# DataPacker Export Jobs
 
-Asset-specific processors that convert raw files into cached binary chunks. One subclass per asset type: Texture, Shader, Scene, Island, Model, Audio, Raw. Each is matched and driven by the parent's `RunExportJobs<T>` template (see `../AGENTS.md`).
+Asset processors convert source files into cached `.pack` chunks. The parent [`RunExportJobs<T>`](../AGENTS.md) orchestration discovers each job by `Handles()` and assembles its output.
 
-## ExportJob Pipeline
+## Shared Pipeline
 
-Abstract base owns dirty-checking and cache I/O; derived classes implement `Export()` and optionally override `CheckDirty()` / `CleanupOnFailure()`, `GetInputFingerprint()` for composite inputs, or `UpdateCacheMetadata()` for job-specific metadata committed with a successful export.
+- `ExportJob` owns content-fingerprint dirty checks, cache metadata, chunk I/O, and failure cleanup. `%TEMP%/DataPacker/<project>` holds versioned chunks and fingerprints; checkout-local packs and manifests can be rebuilt from clean shared chunks without re-exporting sources.
+- A successful export writes derived metadata before the primary fingerprint. Interrupted or failed work therefore remains dirty, and jobs remove incomplete sidecars in `CleanupOnFailure()`.
+- `ExportJob::Version(N)` folds in `sizeof(common::ChunkHeader)`. Jobs that serialize additional payload structs also fold in their sizes. Same-size reorder or semantic changes need the owning manual version bump.
+- Each job constructs a `common::ThreadLocal` on its worker and uses that thread's workbuffer. Keep job output and scratch isolated from other parallel exports.
+- `AllocateHeaderAndData` is normally called once per export. Scene animation data is appended afterward; its chunk size excludes that section and a header pointer captured before vector growth is invalid after reallocation.
+- `BT_DATAPACKER_FORBID_EXPENSIVE_EXPORT=1` must fail before dirty Gaea or texture encoding begins. Clean cached outputs remain readable under this guard.
 
-- **Cache layout**: `%TEMP%/DataPacker/<project>` stores `.chunk` files (magic + version + `ChunkHeader` + aligned data) beside versioned `.meta` input fingerprints. The primary fingerprint is removed before mutating a chunk and rewritten only after derived metadata commits, so any interrupted write remains dirty. Legacy timestamp `.txt` metadata is upgraded only when its timestamp still matches the current input; otherwise the job exports normally.
-- **Version convention**: `GetVersion()` returns `ExportJob::Version(N)` (folds in `sizeof(common::ChunkHeader)`) so header-layout changes auto-invalidate caches. Scene and Model also fold in the `sizeof` of each `common::` payload struct they serialize, so payload size changes auto-dirty caches; same-size reorders still need the raw `N` bumped by hand (the `DataFile.h` static_assert beside each struct names the owning job). `ExportShader` passes `Version(15 + VK_HEADER_VERSION)` to force re-export on SDK upgrades.
-- **Allocation contract**: each `Export()` calls `AllocateHeaderAndData` exactly once; the base populates magic/crc/flags/path afterward. One exception: the scene animation section is appended by growing `mHeaderAndData` after the allocate, so the scene chunk's `iSize` excludes it and the returned header pointer must not be dereferenced after the resize (it can reallocate).
-- **Clean path**: `RunExport()` skips `Export()` and streams cached bytes back when not dirty. Missing checkout-local packs/manifests are assembled from these shared chunks without re-exporting their inputs.
-- **Per-job workbuffer**: `RunExport()` constructs a `common::ThreadLocal` — jobs run on worker threads with isolated `gpThreadLocal->mWorkbuffer`.
-- **Intermediate cleanup**: jobs that produce sidecar files track them and override `CleanupOnFailure()` to unlink on throw.
+## Matching and Routing
 
-## Handles() and ChunkFlags
+`Handles()` determines both ownership and initial chunk flags. Filename tags and path components are load-bearing inputs: `[C]` marks cubemaps, `[BC4]`/`[BC5]`/`[BC7]` select block formats, and a `Raw` component marks raw assets. Shader stage flags and compression flags are added by their owning jobs. Scene discovery ignores `Intermediates` paths so generated Gaea meshes do not become standalone scenes.
 
-The flags `Handles()` returns tag the chunk (cubemap bit for `[C]` textures, `kRaw` for files under a `Raw/` path component); processors may add flags after matching (shader stage bits in `ExportShader`'s constructor, `kLz4Compressed` during texture export). `ExportScene` claims `.gltf` but skips paths containing an `Intermediates` component — Gaea's Mesher emits `Mesh.gltf` bake artifacts there that must not become standalone scenes.
+Regular images generate a full mip chain; raw BCn/R16 and half-float intermediates preserve their supplied mip/face layout; KTX and live six-face cubemaps preserve cubemap ordering. Every final texture chunk is LZ4-compressed. Regular-path BC5 textures also publish the per-mip slope-variance data consumed by water shading; raw and cubemap paths do not synthesize it.
 
-## Island Chunk Ingest
+Texture encoding and chunk routing are described in [Texture/AGENTS.md](Texture/AGENTS.md). Island/Gaea ingest is described in [Island/AGENTS.md](Island/AGENTS.md).
 
-The Gaea bake, archetype patching, crop/downsample, and route split all live in the `Island/` bake TUs — orchestration documented in `../AGENTS.md`. One mutable cache at `%TEMP%/DataPacker/<project>/Gaea/Islands/...` holds route-level raw Gaea outputs and leaf-level geometry; `BakeVersion.meta` fingerprints `Island.json`, the resolved `.terrain`, route identity, and bake version, while `SplitVersion.meta` fingerprints split shape and version. A split-only mismatch reuses the raw route bake. `BakedDimensions.json` is written last per cached leaf and proves completion; `ExportIsland::Handles()` maps source leaf paths into the cache and ingests each complete leaf as one `kIsland` chunk. The source tree retains chunk identity and tracked BC outputs only.
+## Scene and Model
 
-With `BT_DATAPACKER_FORBID_EXPENSIVE_EXPORT=1`, a dirty route throws immediately before the Gaea process launch. This verification guard does not affect clean cached routes.
+Scene export is two-phase. A versioned `.PreExport` marker governs generation of model and block-compressed texture intermediates; the main phase writes scene metadata and optional animation data. Pre-export also removes orphaned scene texture intermediates so recursive texture discovery cannot ship stale assets. Generated assets are referenced by relative-path CRC.
 
-Per leaf, `Export()` emits four BC texture intermediates — each later chunked independently via ExportTexture's raw path and referenced from the `kIsland` chunk by CRC — plus the `kIsland` chunk itself:
-- **Color** (sRGB) → BC7, **Normals** (EXR) → BC5, **AmbientOcclusion** (`.r16`) → BC4, and a packed **material mask** BC7 RGBA (R=rock, G=sand, B=snow, A=flow) built from four grayscale PNGs, 4×-downsized to match the heightmap footprint.
-- **Underwater flattening**: `Texture::MaskByHeightmap` runs *before* `MakeMipmaps`, overwriting texels below `common::kfUnderwaterMaskThresholdMeters` with per-format flat values (color RGB 0 with alpha pinned 255 so BC7 keeps no-alpha mode; normals → tangent (0,0,1); AO/masks → 0). Flattening pre-mip lets the constant runs propagate down every mip, maximizing RDO + zlib compression while preserving camera-visible shallow water for clean beaches.
-- **`kIsland` payload**: `[heightmap halfs][mesh XY pairs][mesh indices][valid-area hull]`. The downsampled `R32_SFLOAT` meter heightmap is read once and reused for the masks and the payload (no separate elevation chunk); the masks and hull consume the full-precision float in-memory, while the payload heightmap is quantized to R16 IEEE halfs before writing. The mesh is stripped to float2 XY — `Terrain.vert` re-derives Z from the elevation sampler. `BuildValidAreaHull` produces the CCW convex hull (Andrew's monotone chain, O(H) via per-row extremes) of above-threshold pixels in island-local meters; producer-side asserts verify CCW + convexity since the runtime SAT (`common::ConvexHullsOverlap`) requires both. Consumed by `IslandChainPlacement` hull-overlap packing on both client and server, plus client-only debug render (see [Engine/Source/Frame/AGENTS.md](../../../Engine/Source/Frame/AGENTS.md)).
+When multiple mesh nodes reuse one glTF material, preserve distinct material entries while retaining the source material index used for texture lookup.
 
-Island chunk dirtiness fingerprints the cached leaf geometry plus the route's shared Color, Normals, and material-mask sources. These large shared-cache inputs use the persistent fingerprint sidecars described in `../AGENTS.md`, keeping clean runs metadata-bound without weakening content-based invalidation. JPEG diagnostics use the parallel `%TEMP%/DataPacker/<project>/Gaea/Diagnostics/Islands/...` tree and are never written into Git worktrees.
+## Cubemap Pre-pass
 
-## Scene Two-Phase
+Irradiance and prefiltered cubemaps are generated before ordinary export jobs. Their cache fingerprints cover the source KTX or all six faces, and incomplete writes remain dirty. Prefiltered radiance is face-major/mip-minor to match runtime upload order. The resulting half-float intermediates are consumed through texture raw routing.
 
-A `.PreExport` marker stamped with the job's version forces re-running `PreExport` when stale, even when the main chunk is clean. `PreExport` emits `.MODEL` geometry and per-texture block-compressed intermediates routed by material usage (BC4 occlusion, BC5 normals, BC7 otherwise) — both later chunked independently by `ExportModel` and ExportTexture's raw path and referenced from the scene chunk by relative-path CRC. Each `PreExport` also sweeps orphaned `<scene>.Texture*` intermediates (left by a removed/renumbered/re-formatted source texture) — else ExportTexture's recursive scan ships them as stale texture chunks. `MainExport` assembles the scene chunk and optional animation section. Primitives from different mesh nodes sharing one glTF material split into distinct material entries while preserving the source index for texture lookup.
+## Shader Dependencies
 
-## IBL Cubemaps
+Shader export records every dependency from `glslc -MD` as an input-root index, root-relative path, and content fingerprint. Never persist absolute worktree paths. Missing or changed dependencies recompile the shader; Vulkan SDK header-version changes also invalidate shader chunks.
 
-`GenerateIrradianceCubemaps` / `GeneratePreFilteredCubemaps` are free functions (not `ExportJob`s) run as a pre-pass over `[C]`-tagged `.ktx` files and `[C]` face-image directories. Their `%TEMP%` metadata fingerprints the source KTX or all six face inputs; dirty markers prevent interrupted writes from appearing clean, and current legacy outputs can acquire metadata without regeneration. Pre-filtered radiance is written **face-major / mip-minor** to match `TextureUploadManager`'s iteration order. The `.R16G16B16A16_SFLOAT` outputs are later picked up by ExportTexture's raw path.
+## Audio Policy
 
-## Texture Routing
-
-`ExportTexture::Export` resolves a `VkFormat` from filename tags (`[BC4]`, `[BC5]`, `[BC7]`, `[C]` cubemap) and explicit format extensions, then dispatches to one of four paths:
-- **KTX cubemap** (`.ktx`): gli-loaded, LZ4-compressed, kept as `R16G16B16A16_SFLOAT`.
-- **Raw passthrough** (BCn / R16 / R16G16B16A16_SFLOAT intermediates): no mip generation, but every chunk is transcoded to an LZ4 payload. BCn/R16 intermediates from `Texture::Save` are zlib streams *on disk* (that intermediate format is unchanged) — inflated to raw bytes then LZ4-compressed, uncompressed size from 2D mip math. The IBL `.R16G16B16A16_SFLOAT` (6 packed faces) is raw half-floats on disk — LZ4-compressed directly, sized from its on-disk payload rather than 2D mip math.
-- **Live cubemap** (`[C]` directory of 6 face PNGs/JPGs): each face encoded, concatenated, LZ4-compressed.
-- **Regular texture** (PNG/TGA/JPG): full mip chain then LZ4. BC5 sources on this path additionally get a per-mip Toksvig slope-variance table baked into the chunk header (decoded normals box-averaged without renormalizing, padded past the real chain with the last value) — the water shader's specular mip handoff consumes it; the raw/KTX paths leave the table zeroed.
-
-All four paths set `kLz4Compressed` and emit LZ4HC (`LZ4HC_CLEVEL_MAX`, via the `Lz4Compress` helper beside `ZlibCompress`) payloads; the passthrough's zlib BCn/R16 intermediates are inflated then re-compressed to LZ4 (the on-disk intermediate format stays zlib — `Texture::Save`/`MigrateLegacyIntermediates` are unchanged). `ChunkHeader` carries both compressed-on-disk and uncompressed sizes, and the runtime `FileManager` LZ4-decompresses at chunk load (see [Engine/Source/File/AGENTS.md](../../../Engine/Source/File/AGENTS.md)). The zlib→LZ4 switch bumped both `DataHeader::kiVersion` (dirties every manifest, forcing a full re-export) and `ExportTexture::GetVersion` (dirties each per-job `.chunk` cache so re-export re-encodes rather than streaming a stale zlib chunk back). The raw-passthrough intermediate starts with an optional 8-byte `kiTextureIntermediateMagic`, then 3× `int64_t` width/height/mipcount, then the payload; the reader tolerates legacy pre-magic files (IBL outputs stay legacy-shaped since their writer is the cubemap pre-pass above). The producing `Texture::Save` and the startup legacy-migration pass live in `Texture/` (documented in `../AGENTS.md`).
-
-The safe-verification environment guard described by the parent blocks at `ExportTexture::Export` before any texture path begins and again in the shared RDO encoder, covering callers that encode without going through `ExportTexture`. Clean cached texture jobs remain readable because neither guard runs unless export work starts.
-
-## Shader Dirty Tracking
-
-`ExportShader` parses Makefile-style `.d` depfiles from `glslc -MD`, then stores each transitive dependency as an engine/project input-root index, root-relative path, and content fingerprint. Dirty checks resolve those paths in the current worktree and recompile when a dependency is missing or its fingerprint changes; absolute paths from the compiling worktree are not retained in reusable metadata.
-
-## Audio Repair
-
-`ExportAudio` decodes both accepted source formats (16-bit PCM, 32-bit float `.wav`) into one interleaved float buffer, runs `audiorepair::RepairAudio` (`AudioRepair.{h,cpp}`) in place, resamples to `audiorepair::kiAudioExportSampleRate` (48 kHz) via `audiorepair::Resample`, then performs the single lround-based int16 conversion — a defect-free 16-bit *48 kHz* source round-trips bit-exactly, and source `.wav` files are never modified (repairs/resample affect packed output only). The header's `nSamplesPerSec`/`nAvgBytesPerSec` are written at 48 kHz. `Resample` is an offline Kaiser-windowed sinc (~32 taps/output, quality over speed), per-channel over the interleaved buffer, DC-gain normalized; it no-ops (and logs nothing) when the source is already 48 kHz, else logs one `kInfo` line. It runs *after* `RepairAudio` (loop-seam validation and edge fades ran at the source rate; their effect scales through the resample, and loop assets resample whole-buffer so the seam is no longer sample-exact — accepted). The engine pins its mastering voice to the same 48 kHz (`kiMasteringSampleRate`) so source rate == mastering rate and XAudio2 bypasses per-voice SRC. Bumping `kiAudioExportSampleRate` requires an `ExportAudio::GetVersion` bump to force re-export. Repair passes run in load-bearing order: non-finite scrub → per-channel DC-offset removal → flat-top declip with spline reconstruction of short clipped runs (long or too-numerous runs read as intentional limiting and are warn-only) → whole-file peak normalization (placed after declip to absorb reconstruction overshoot) → loop-seam validation *or* short raised-cosine edge fades. Each applied fix logs one `kWarning` line with measured values; clean files are silent.
-
-Asset classification selects the policy: a filename stem ending `_loop` marks a whole-buffer runtime loop (never edge-faded; the seam is validated instead), and a `Music` path component marks a loudness-mastered asset (safe fixes only — declip and edge fades become warn-only, since the runtime crossfade already covers music edges). Policy toggles live in `AudioRepair.h`; flipping one requires an `ExportAudio::GetVersion` bump to force re-export.
+Audio export produces interleaved 48 kHz PCM for the runtime mastering rate. Repairs operate only on packed output and run before resampling; source files are never modified. `_loop` filename stems use seam validation instead of edge fades, and a `Music` path component limits repair to safe transformations. Policy, repair-order, or export-rate changes require an `ExportAudio` version bump.
 
 ## See Also
-- `../AGENTS.md` — DataPacker orchestration, output structure, and the shared `RunExportJobs<T>` template.
+
+- [`../AGENTS.md`](../AGENTS.md) - DataPacker orchestration and output assembly
+- [`Island/AGENTS.md`](Island/AGENTS.md) - Gaea route caches, split lifecycle, and island payloads
+- [`Texture/AGENTS.md`](Texture/AGENTS.md) - texture intermediates, RDO, migration, and chunk formats
+- [`../../../Common/AGENTS.md`](../../../Common/AGENTS.md) - shared chunk and serialization contracts

@@ -1,14 +1,16 @@
-# /Engine/Source/Frame/Collections/WindRadials/
+# WindRadials - Controlled Wind Deposits
 
-Client-only stationary wind-deposit splats — each radial deposits an outward impulse into the GPU wind field over a short keyframe lifetime. Spawned only by [Explosions](../Explosions/AGENTS.md), which also registers the controller type (`Register()` here is an empty stub).
+Client-only wind radials are stationary, fire-and-forget splats spawned by explosions. Their short controller lifetime deposits outward impulse into the GPU wind field.
 
-## Unique Aspects
+## Invariants
 
-- Custom 2-scalar controller keyframes (intensity + size, no position track) hold normalized multipliers scaled by per-instance base magnitudes passed to `AddControlled`, which writes base × keyframe[0] immediately so the radial renders correctly on its spawn frame
-- Fire-and-forget with no IDs (`kIdToIndex` unused); PostRender has zero SOA members and exists only to keep the paired `iCount` in lockstep — `Destroy` (controller-expiry reaping) is its only phase with logic
-- `AllocateAndCopy` memcpys only the controller arrays; position/intensity/size are derived data fully rewritten by `Update` each frame (position passed through from the previous frame). When the wind setting is disabled, `Update` and render early-out but `Destroy` still runs so rows expire on schedule — a row alive across a disable→enable toggle re-reads stale previous-frame data on the first re-enabled `Update`; know this before changing the copy/skip behavior
-- Each radial renders one axis-aligned quad (visibility-culled, projected to base height); per-quad `params.w = 1.0` is the radial flag — `WindDeposit.frag` derives an outward per-fragment direction from the quad center instead of using the CPU-supplied direction trail quads carry
-- Shares the A/B ping-pong wind-deposit indirect-count pattern with [WindTrails](../WindTrails/AGENTS.md); on quad-buffer resize `BeginRender` rewrites the SSBO descriptor on both pipelines
+- Controller keyframes are multipliers for each instance's base intensity and size; no normalization invariant is enforced.
+- `PersistentMembers()` copies controller/start-time metadata and the base intensity/size. When wind is enabled, `Update` carries position from the previous frame and recomputes derived intensity/size.
+- Disabling wind skips animation update and rendering, but expiry still runs. A row surviving a disable/enable transition can read stale previous-frame derived data on the first re-enabled update, so copy and early-out behavior must be changed together.
+- The radial shader derives outward direction from the splat center. This differs from directional wind trails even though both share the wind-deposit ping-pong buffers.
+- Buffer resize must refresh the wind-deposit descriptor for both ping-pong pipelines.
 
 ## See Also
-- `../AGENTS.md` - Collection framework, Controller pattern, three-phase render
+
+- [../AGENTS.md](../AGENTS.md) - Collection and controller conventions
+- [../WindTrails/AGENTS.md](../WindTrails/AGENTS.md) - Directional wind deposits

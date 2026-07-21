@@ -27,8 +27,6 @@ public:
 
 	void ShiftFlagshipAfterDeath(const engine::ClientGuid& rGuid, int64_t iFleetIndex, Fleet& rFleet);
 
-private:
-
 	std::vector<PendingFlagshipUpdate> mPendingFlagshipUpdates;
 };
 

@@ -1,5 +1,7 @@
 # ParticleManager
 
-**Global**: `gpParticleManager`
+**Global:** `gpParticleManager`
 
-GPU-based particle system with compute shader spawning and physics simulation. Two particle types (long trails and square explosions) sharing the same compute shaders. Fixed capacity with bitfield allocation tracking. Spawn is thread-safe via `mSpawnMutex` (called from worker threads during parallel frame tick dispatch), update is parallel (independent particles). Supports per-particle texture selection via the global bindless texture array.
+Stages CPU particle spawns for fixed-capacity GPU compute allocation and simulation. Worker spawns first cull by visible area and intensity, then append under the spawn mutex during joined frame-tick work.
+
+`RenderGlobal` runs after the worker join, copies staged spawns into the current framebuffer's mapped storage, and clears CPU staging. Bindless texture-index assignment mutates descriptor bookkeeping while spawning; its safety relies on this tick/render phase exclusion. Keep that exclusion if spawn or descriptor work moves between phases.

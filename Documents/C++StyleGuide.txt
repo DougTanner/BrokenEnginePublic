@@ -64,11 +64,11 @@ Use the following rules for C++ code
 
 11. Use C++-style casts, static_cast reinterpret_cast etc...: static_cast<data::DataTypes>(i)
 
-12. For duration and time use std::chorono, use chrono_literals suffixes for example:
-	Nanoseconds - std::chorono::nanoseconds durationNanoseconds = 10ns;
+12. For duration and time use std::chrono, use chrono_literals suffixes for example:
+	Nanoseconds - std::chrono::nanoseconds durationNanoseconds = 10ns;
 	Microseconds - us
 	Milliseconds - ms
-	Seconds - std::chorono::seconds seekSeconds = 1s;
+	Seconds - std::chrono::seconds seekSeconds = 1s;
 
 13. Default to int64_t: int64_t iCount = 0;
     -Use int8_t, int16_t when packing into structs and arrays (if higher range of larger types is not required)
@@ -82,6 +82,7 @@ Use the following rules for C++ code
 	b) The type is obvious from a template parameter to the right
 	c) It is an iterator
 	d) It is a structured binding: auto [it, bInserted] = map.try_emplace(key, value);
+	e) It is a lambda expression assigned directly to the variable: auto callback = []() {};
 
 IMPORTANT do not use auto in range-based for loops
 
@@ -189,7 +190,9 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
 48. Don't add extra curly brackets for scope to force close std::fstream, instead use .close() when no longer needed: fileStream.close();
 
-49. Default to "public:" for class members. "protected:" and "private:" are reserved for the specific case where modifying one member always (or sometimes) requires modifying another at the same time — in that case, hide both members and expose a single setter function that mutates them together to keep the invariant. Do not use getters/setters as a default access pattern; expose the member directly instead.
+49. Class state is public by default and is read or mutated directly. Do not add getter, setter, drain, take, `Is*`, `Can*`, or other accessor methods for independently readable or mutable state. Do not add a function whose implementation is only one state access, one assignment, or one pass-through call; spreading its braces and statement across several lines does not make it acceptable. Put the member or composed component in `public:` and perform the operation at the caller.
+
+	`protected:` and `private:` are reserved for state whose members must be mutated together to preserve an invariant or operation order. The function protecting that state must contain the complete multi-statement mutation; a trivial accessor or forwarding layer is never justified. This rule targets state access and pass-through APIs, not a semantic codec or serialization adapter whose call defines the layer contract.
 
 50. if () statements compare booleans they don't take pointers:
 

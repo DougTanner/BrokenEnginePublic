@@ -32,30 +32,30 @@ const engine::TweaksSliderMapRegistrar gWindDepositsRegistrar
 
 void TweaksScreen::RenderWindDepositsTab()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(engine::TweakSection::kWind);
+	const int64_t iSection = engine::giTweakSectionWind;
 
 	WrapperSeparatorText("Player");
-	WrapperSlider("Player Deposit Width", kiSection);
-	WrapperSlider("Player Deposit Intensity", kiSection);
-	WrapperSlider("Player Deposit Length Multiplier", kiSection);
+	WrapperSlider("Player Deposit Width", iSection);
+	WrapperSlider("Player Deposit Intensity", iSection);
+	WrapperSlider("Player Deposit Length Multiplier", iSection);
 
 	WrapperSeparatorText("Spaceships");
-	WrapperSlider("Spaceships Deposit Width", kiSection);
-	WrapperSlider("Spaceships Deposit Intensity", kiSection);
-	WrapperSlider("Spaceships Deposit Length Multiplier", kiSection);
+	WrapperSlider("Spaceships Deposit Width", iSection);
+	WrapperSlider("Spaceships Deposit Intensity", iSection);
+	WrapperSlider("Spaceships Deposit Length Multiplier", iSection);
 
 	WrapperSeparatorText("Player Blasters");
-	WrapperSlider("Player Blasters Deposit Width", kiSection);
-	WrapperSlider("Player Blasters Deposit Intensity", kiSection);
-	WrapperSlider("Blasters Deposit Length Multiplier", kiSection);
+	WrapperSlider("Player Blasters Deposit Width", iSection);
+	WrapperSlider("Player Blasters Deposit Intensity", iSection);
+	WrapperSlider("Blasters Deposit Length Multiplier", iSection);
 
 	WrapperSeparatorText("Spaceships Blasters");
-	WrapperSlider("Spaceships Blasters Deposit Width", kiSection);
-	WrapperSlider("Spaceships Blasters Deposit Intensity", kiSection);
+	WrapperSlider("Spaceships Blasters Deposit Width", iSection);
+	WrapperSlider("Spaceships Blasters Deposit Intensity", iSection);
 
 	WrapperSeparatorText("Explosions");
-	WrapperSlider("Explosions Deposit Width", kiSection);
-	WrapperSlider("Explosions Deposit Intensity", kiSection);
+	WrapperSlider("Explosions Deposit Width", iSection);
+	WrapperSlider("Explosions Deposit Intensity", iSection);
 }
 
 } // namespace game

@@ -1,23 +1,11 @@
-# Quads Shaders - Instanced Quad Vertex Shaders
+# Quad Shaders - Reusable Instanced Vertex Paths
 
-## Overview
+This family supplies fullscreen, world-visible-area, and compact axis-aligned quad vertices for many fragment pipelines.
 
-Vertex-stage family for instanced quad rendering, mixed and matched with fragment shaders per pipeline. All four read corner positions from the shared 4-vertex unit-square buffer (`BufferManager::mQuadsVertexBuffer`, location 0); per-instance data comes from a `readonly` SSBO indexed by `gl_InstanceIndex`.
+## Invariants
 
-## Shaders
-
-- **QuadsFullscreen.vert** - Maps the unit square straight to NDC; no instance data. Used by fullscreen/RTT passes (debug texture, lighting spread, smoke clear).
-- **QuadsAxisAligned.vert** - Axis-aligned quads emitted directly in NDC (no projection), with a packed-uint color varying; UI-space quads (profiler text).
-- **QuadsVisibleArea.vert** - Fully general quads via `QuadLayout`: per-vertex world positions/texcoords (corner-to-array index derived as `2*v + u`), so quads need not be axis-aligned or rectangular. Projects world XY against the push-constant-selected visible area; outputs world position and world center (average of the 4 vertices) for deposit fragment shaders.
-- **QuadsAxisAlignedVisibleArea.vert** - Compact world-space rect form via `AxisAlignedQuadLayout`. Rotates each corner around the quad center by `fRotation` (radians; 0 = identity, so non-rotating consumers need no caller action), then projects through the same visible-area selection. Forwards the per-instance bindless texture slot (flat) so the terrain elevation G-buffer frag routes its per-island sampler index per quad, decoupled from `gl_InstanceIndex`; island placement is the only producer of nonzero rotation/slot values. (`Terrain.vert` duplicates the rotation `(cos, sin)` computation at its own location for `Terrain.frag`'s BC5 normal rotation.)
-
-## Architecture Notes
-
-- **Visible-area selection**: push-constant integer picks the projection space — 0 camera, 1 shadow extra, 2 smoke, 3 lighting. One vert serves four render-target coordinate spaces without pipeline permutations, which matters because command buffers are recorded once and resubmitted.
-- **Texcoord lerp** `(1-t)*min + t*max` across a texture rect allows flipped/sub-rect sampling per instance.
-- **Degenerate-quad culling**: zero-size rects collapse to degenerate triangles — free GPU-side culling that lets fixed-size instance SSBOs (e.g., island placements) stay fully drawn under record-once command buffers.
-- `f4Params`/`pf4Params` are opaque pass-throughs; semantics belong to the paired frag.
-
-## Shared-vert interface rule
-
-These verts pair with many frags (terrain G-buffer, deposits, lighting, smoke, wind), so vert/frag interfaces must stay matched: a frag input with no matching vert output is a Vulkan error (`VUID-RuntimeSpirv-OpEntryPoint-08743`); an unconsumed vert output is only informational (`WARNING-Shader-OutputNotConsumed`). Any location a shared frag reads must exist on both `*VisibleArea.vert` files — e.g., the texture slot (location 7) is mirrored, with `QuadsVisibleArea.vert` writing a dummy `0`. Locations 3 and 6 are unused/skipped in both interfaces; respect the mirroring rule before reusing them. Frag-side dummy inputs are named `*Unused` to flag intent.
+- A push constant selects camera, shadow, smoke, or lighting projection for visible-area variants. This allows record-once command buffers to reuse the same pipelines across target spaces.
+- Zero-size rectangles intentionally collapse to degenerate triangles, allowing fixed-capacity instance buffers to cull entries without changing recorded draw counts.
+- General quads carry explicit corner positions; compact axis-aligned quads derive corners from center, size, and rotation. Texture slots are instance data and are independent of `gl_InstanceIndex`.
+- Fragment inputs shared by the general and axis-aligned visible-area variants require compatible outputs from both vertex shaders. Keep their stage interfaces mirrored semantically; do not rely on one consumer's unused locations.
+- Opaque pass-through parameters belong to the paired fragment shader, not this shared vertex family.

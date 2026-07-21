@@ -106,6 +106,7 @@ function Get-NextPlanContext([switch] $AllowPrimaryAdvance) {
 		throw (New-NextPlanStateBlocker 'Provisioned WorktreeCli does not support --help.')
 	}
 	foreach ($capability in @(
+		'WorktreeCli.exe plan row status --repo COMMON-DIR --order PATH --plan PATH [--owner TOKEN]',
 		'WorktreeCli.exe plan order validate --repo COMMON-DIR --worktree CHECKOUT',
 		'WorktreeCli.exe plan order claim-next --repo COMMON-DIR --primary-worktree CHECKOUT --worktree CHECKOUT --branch TARGET --owner TOKEN --session TOKEN --queue <plans|features>',
 		'WorktreeCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH'

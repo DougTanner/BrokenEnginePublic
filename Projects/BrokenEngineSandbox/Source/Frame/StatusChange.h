@@ -100,6 +100,7 @@ struct TransferData
 			rSelf.fArrivalGracePeriod,
 			rSelf.fNavigationDelay,
 			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fNextJitter,
+			rSelf.fDeltaRotation,
 			rSelf.globalPlayerId,
 			rSelf.fleetWantedCoord,
 			rSelf.uiPendingFleetWantedCoordTicks,
@@ -156,6 +157,9 @@ struct TransferData
 	float fDeltaRotationDelay = 0.0f;
 	float fTime = 0.0f;
 	float fNextJitter = 0.0f;
+
+	// Live turn rate (spaceship and missile transfers)
+	float fDeltaRotation = 0.0f;
 
 	// Global player ID (player transfers only)
 	engine::global_id_t globalPlayerId {};

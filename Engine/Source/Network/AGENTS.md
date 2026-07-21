@@ -1,41 +1,37 @@
-# `/Engine/Source/Network/` - Networking
+# Engine Network - Transport and Protocol Infrastructure
 
-## Overview
+Shared ENet transport, slot subscriptions, ACK state, discovery, wire cursors, and hostile-input enforcement. Game packet payloads and reconciliation policy belong to [game Network](../../../Projects/BrokenEngineSandbox/Source/Network/AGENTS.md); flow and timing details live in [Network architecture](../../../Documents/Architecture/Network.md).
 
-Client/server networking over ENet reliable UDP with slot-based coord subscriptions, LZ4-compressed binary serialization, and LAN discovery. The reconciliation / ACK-resend / clock-correction / epoch-guard machinery is specified in [Documents/Architecture/Network.md](../../../Documents/Architecture/Network.md) — do not duplicate it here or in leaves. (Handshake, subscription/epoch wire format, discovery, and static-data messages are *not* in that spec; they live in these AGENTS.md files and the code.)
+## Transport Contracts
 
-## Hub Conventions (children do not re-document these)
+- Use `NetworkManager` channel helpers for control and per-coordinate reliable/unreliable channels. All sends go through `SendPacket`; fixed arithmetic or `GridCoord` payloads use `SendSimplePacket`.
+- Each coordinate slot has independent ACK floor, bitfield, and epoch state. Epoch mismatch drops stale traffic after slot reuse; unsubscribe carries the observed epoch, so a stale request cannot free a reused slot while the server still ACKs the no-op.
+- Engine packet types remain below `kGamePacketStart`; game packets are forwarded opaquely.
+- The handshake verifies protocol version, deterministic Frame version, and ordered island-manifest identity before accepting a peer.
+- Cursor primitives are unchecked. Validate exact fixed layouts or gate every variable-length read with `BoundedCursor` before passing its cursor to a primitive.
+- Client-to-server packet additions require a contract row, size and semantic validation, handshake/debug gating where applicable, per-tick rate limits, and violation reporting through the server contract path. Send commands at tick cadence, not render cadence.
+- ENet service, discovery polling, sends, and simulation queues are main-thread-only. Their workbuffer and state have no locking by design.
 
-- **Smoothness over input latency**: under adverse network conditions the engine prioritizes smooth rendering over client → server → client command latency — players set simulation state and leave it, so a delayed command is acceptable while a visible stutter is not. This is why the client sim deliberately runs behind (`targetBehind`, plus `kiSimCeilingSlackTicks` between the clock-servo target and the hard ceiling) and the renderer holds an extra committed tick (`kiRenderBehindTicks`). When tuning any of these, prefer adding buffer/delay over anything that stalls, snaps, or bursts the presented simulation.
-- **Channel math**: channel 0 reliable control, channel 1 control unreliable (carries the client->server ACK stream), channels `2 + slot*2` (reliable) / `2 + slot*2 + 1` (unreliable) per coord slot. Always use `NetworkManager::CoordSlot*` / `ChannelToSlot` / `IsCoordChannel` / `IsUnreliableChannel` — never hardcode.
-- **Send path**: all sends (engine and game) go through `NetworkManager::SendPacket`; it wraps ENet's internal alloc with `ScopedSuppressAllocationTracking`. For simple fixed-payload packets (type byte + arithmetic / `GridCoord` args), use the `SendSimplePacket` member template on `Client` / `Server` rather than recreating the workbuffer-push boilerplate; its per-arg serializer is the `PushSimplePacketArg` dispatcher in `NetworkCursor.h` (arithmetic and `GridCoord` only — unwrap enums/ids/flags at the call site).
-- **Serialization helpers**: `NetworkCursor.h` holds the shared cursor read/write primitives used by every `Network*.cpp`; the `Read*`/`Write*` primitives do no bounds checking, so callers own buffer sizing. For variable-length payloads it also provides `BoundedCursor`, a bounds-tracking wrapper callers check (`Has`/`Remaining`) before handing its cursor to the unchecked reads. It is intentionally not aggregated into `Engine.h` — include it directly where needed.
-- **Slot ACK model**: independent `AckState` per slot (int64 floor + 128-bit bitfield + uint16 epoch). Epoch mismatch silently drops stale packets; makes slot reuse across rapid (un)subscribe cycles safe.
-- **Game-layer opacity**: packet types `>= kGamePacketStart` are forwarded as raw bytes; engine never interprets them.
-- **Handshake compatibility**: client Hello carries the wire-protocol version, deterministic frame version, and ordered Islands-manifest integrity token. The server accepts the connection only when all three match; mismatch uses the normal rejection response so the client shows the reason and disconnects. Generated island-data changes therefore require matching regenerated data on both peers.
-- **Client→server contract (every new client→server `PacketType`/`GamePacketType`)**: in the same change — (1) add its contract row (size min/max, per-tick cap, handshake gate, debug gate if debug-only) to `GetClientPacketContract` / `GetGamePacketContract`; (2) read via `BoundedCursor` or exact-size-validated fixed layout; (3) finite/range-clamp semantic fields (pattern: `ValidateNavigationDelay`); (4) report malformed/over-budget input through `Server::RecordContractViolation` (drop → count → disconnect; never per-packet logs); (5) send at tick-rate cadence, never per render frame. Enforcement model + the full per-packet table live in [Network.md](../../../Documents/Architecture/Network.md) "Client → Server Contract".
-- **ENet tuning** (both sides): peer throttle disabled so reconciliation stalls don't drop unreliable traffic; 1 MB socket send/recv buffers.
-- **Drain-per-poll**: `Poll()` on both sides clears most pending buffers at entry (spawn requests, disconnects, received game packets); the game layer must consume those within the tick or data is lost. The server's new-subscription and resync queues are the exception — their consumers (`SendNewSubscriptionFullStates` / `HandleResyncRequests`) run post-tick from `BroadcastTick`, so `Server::Poll` leaves them intact and each consumer clears them once serviced. On a zero-tick update (paused, or an occasional clock/timescale remainder) `BroadcastTick` doesn't run, so `GameBase::ServerUpdate` calls `game::ServerSession::ServicePausedNetwork` to service the same two queues — a client can therefore connect to a paused server and receive full state.
-- **Endianness**: cursor helpers `memcpy` directly — x64 little-endian only, no byte swap.
-- **Tick-rate independence**: `kiNetworkBufferSize=128` and `kiJitterSafetyUs` do not scale with physics rate; the jitter safety margin is fixed wall-clock time.
-- **Main thread only — no locks by design**: every `enet_host_service` call, discovery socket poll, and send runs on the main frame loop; sim state and `SendPacket`'s workbuffer use are unsynchronized because nothing else touches them. Asserted at the Poll/tick entry points.
+## Timing and Polling
 
-## Key Classes
+- Rendering smoothness takes priority over command round-trip latency. Client simulation and presentation intentionally retain buffered committed ticks; tuning should preserve smooth pacing rather than introduce stalls or bursts.
+- Both peers drain transient poll outputs each update. New-subscription and resync requests persist until broadcast servicing, including the paused/zero-tick path.
+- Network simulation injects deterministic one-way delay and burst loss above ENet. Reliable packets may be delayed but are never deliberately dropped, and each channel preserves FIFO release order.
+- Wire serialization is little-endian x64. Network buffer capacity is tick-rate-independent; jitter safety is wall-clock time.
 
-- **NetworkManager** - Thin singleton owned by a `unique_ptr` in `Main.cpp` (no global handle — all surface is `static`): ENet init/deinit plus channel math and `SendPacket` helper. No runtime state.
-- **NetworkProtocol** - Wire protocol header (inline constexpr): packet types, spawn/respawn request flags, protocol/discovery/timing constants, `ClientGuid`, `AckState`.
-- **NetworkSimulation** - Compile-time latency/loss injection with regional presets; toggle is `keNetworkSimulation` in the game's `Pch.h` (recompile to change level). Zero overhead when disabled via `if constexpr`. One-way delay per direction; the delayed-packet queue is the only heap user (suppressed). Reliable packets are also delayed (never dropped) in per-channel monotonic FIFO release order (sim sits above ENet, which can't retransmit an injected reliable loss). Bursty loss model: a drop makes further consecutive drops on that channel more likely up to a cap. The loss/delay RNG is constant-seeded and owned by each Client/Server (not a clock-seeded function-local static) — simulated runs are reproducible and reset when the peer object is reconstructed (e.g. client reconnect). Shared dispatch/enqueue/purge helpers (`DispatchOrEnqueue`, `ProcessOrFlush`, `PurgeDelayedForSlot`) live in `NetworkSimulation.h`; Client and Server call these rather than duplicating the queue logic. Per-region `NetworkSimulationBounds` supply the CRC/replay-depth tolerances the game profiler's Network screen validates reconciliation metrics against. Gotcha: its drop log parses the tick from a fixed byte offset mirroring the coord-packet header layout (defined in Client/Server send code) — log-only, but it misreports if that layout changes.
-- **NetworkDiscoveryResponder** (`BT_SERVER`) / **NetworkDiscoveryScanner** (`BT_CLIENT`) - Discovery split into platform-gated halves sharing wire format. Raw Winsock UDP (not ENet), non-blocking, port `kuiDefaultPort+1`, 4-byte magic `"BRKN"`. Normally the scanner pings loopback before broadcasting to the LAN so a local server wins the race. With `--loopback-only`, scanner and responder bind loopback and the scanner skips LAN broadcast; the client and server ENet hosts also bind loopback. The reply is the bare magic with no payload, so the client connects to the responder's address on the default game port.
-- **NetworkSerialization** - `StatusChange` batch (de)serializer declared here, implemented in the game layer (wire format is game-specific). Compressed form is `uint32` uncompressed-size prefix + LZ4 payload.
+## Ownership
 
-## Architecture Notes
-
-- **GUID identity**: clients persist server-assigned `ClientGuid` to disk so player state survives reconnect.
-- **Subscription lifecycle**: `kUnsubscribed -> kSubscribing -> kWaitingFullState -> kActive -> kUnsubscribing`. Full state and subscribe-accept can arrive in either order across channels; both sides reconcile.
+- `NetworkManager` owns ENet lifetime, channel math, and the allocation-suppressed send path.
+- `NetworkProtocol` owns shared packet identifiers, compatibility constants, slot identity, and ACK structures.
+- Client and server leaves own the side-specific transport peers, receive buffers, contracts, slots, and packet handling.
+- `ClientSessionRuntime` and `ServerSessionRuntime` own reusable connection/discovery, subscription/queue, clock/pacing, poll, flush, resend, and reset sequencing. Canonical game sessions compose them and supply synchronous typed policy hooks.
+- `game::NetworkSessionContract` supplies Frame/status types, protocol constants, codecs, and game packet contracts at compile time. Runtimes use no virtual session base, runtime type erasure, or additional global manager.
+- `NetworkSerialization` declares the game-defined status-change codec without owning its payload format.
 
 ## See Also
 
-- `Client/AGENTS.md` - Client peer and `ClientSessionBase`
-- `Server/AGENTS.md` - Server host and `ServerSessionBase`
-- [Network.md](../../../Documents/Architecture/Network.md) - Protocol flow, ACK/resend, clock correction
-- [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md) - Update when rollback, replay, full-state injection, or reconciliation integration changes
+- [Client](Client/AGENTS.md) - Client transport peer, receive guards, slot state, and metrics
+- [Server](Server/AGENTS.md) - Server transport host, contracts, slots, and resend state
+- [Game Network](../../../Projects/BrokenEngineSandbox/Source/Network/AGENTS.md) - Concrete session policy and game wire payloads
+- [Network architecture](../../../Documents/Architecture/Network.md) - Protocol flow and ACK/reconciliation timing
+- [Game reconciliation](../../../Documents/Architecture/GameReconciliation.md) - Rollback and replay integration

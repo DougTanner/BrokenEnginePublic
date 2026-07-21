@@ -38,50 +38,50 @@ const TweaksSliderMapRegistrar gWindRegistrar
 
 void TweaksScreenBase::RenderWindSection()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kWind);
+	const int64_t iSection = giTweakSectionWind;
 
 	if (ImGui::BeginTabBar("WindTabs"))
 	{
-		if (BeginSubtab("Wind", kiSection, 0))
+		if (BeginSubtab("Wind", iSection, 0))
 		{
 			WrapperSeparatorText("Time & Global");
-			WrapperSlider("Wind Time Scale", kiSection);
-			WrapperSlider("Wind Threshold Low", kiSection);
-			WrapperSlider("Wind Threshold High", kiSection);
+			WrapperSlider("Wind Time Scale", iSection);
+			WrapperSlider("Wind Threshold Low", iSection);
+			WrapperSlider("Wind Threshold High", iSection);
 
 			WrapperSeparatorText("Propagation");
 			if (ImGui::BeginTable("WindPropagation", 2))
 			{
-				ImGui::TableNextColumn(); WrapperSlider("Wind Advection Scale Low", kiSection, 1.0f);
-				ImGui::TableNextColumn(); WrapperSlider("Wind Advection Scale High", kiSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Advection Scale Low", iSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Advection Scale High", iSection, 1.0f);
 
-				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Scale Low", kiSection, 1.0f);
-				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Scale High", kiSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Scale Low", iSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Scale High", iSection, 1.0f);
 
-				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Amount Low", kiSection, 1.0f);
-				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Amount High", kiSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Amount Low", iSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Amount High", iSection, 1.0f);
 
-				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Speed Low", kiSection, 1.0f);
-				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Speed High", kiSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Speed Low", iSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Speed High", iSection, 1.0f);
 
-				ImGui::TableNextColumn(); WrapperSlider("Wind Vorticity Confinement Low", kiSection, 1.0f);
-				ImGui::TableNextColumn(); WrapperSlider("Wind Vorticity Confinement High", kiSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Vorticity Confinement Low", iSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Vorticity Confinement High", iSection, 1.0f);
 
-				ImGui::TableNextColumn(); WrapperSlider("Wind Decay Low", kiSection, 1.0f);
-				ImGui::TableNextColumn(); WrapperSlider("Wind Decay High", kiSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Decay Low", iSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Decay High", iSection, 1.0f);
 
-				ImGui::TableNextColumn(); WrapperSlider("Wind Momentum Low", kiSection, 1.0f);
-				ImGui::TableNextColumn(); WrapperSlider("Wind Momentum High", kiSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Momentum Low", iSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Momentum High", iSection, 1.0f);
 
-				ImGui::TableNextColumn(); WrapperSlider("Wind Diffusion Low", kiSection, 1.0f);
-				ImGui::TableNextColumn(); WrapperSlider("Wind Diffusion High", kiSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Diffusion Low", iSection, 1.0f);
+				ImGui::TableNextColumn(); WrapperSlider("Wind Diffusion High", iSection, 1.0f);
 
 				ImGui::EndTable();
 			}
 
 			ImGui::EndTabItem();
 		}
-		if (BeginSubtab("Deposits", kiSection, 1))
+		if (BeginSubtab("Deposits", iSection, 1))
 		{
 			RenderWindDepositsTab();
 

@@ -114,31 +114,18 @@ void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& 
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	// Zero-init all members
+	ZeroMemberRow(uiSpawnIndex, rInterpolate.Members());
 	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorSetW(XMVectorZero(), 1.0f);
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	rInterpolate.pfRotations[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfVisibleAreas[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfVisibleIntensities[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfLightingAreas[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfLightingIntensities[uiSpawnIndex] = 0.0f;
-
-	// Controller fields: not controlled
 	rInterpolate.puiControllerTypeIndices[uiSpawnIndex] = kuiInvalidControllerType;
-	rInterpolate.pfStartTimes[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfBaseRotations[uiSpawnIndex] = 0.0f;
 }
 
 void PointLightsPostRender::Remove(game::Frame& __restrict rFrame, point_lights_t& rId)
 {
-	ASSERT(rId.IsValid());
-
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
 
-	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-
-	rId = {};
+	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 }
 
 void XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition, float fRotation)

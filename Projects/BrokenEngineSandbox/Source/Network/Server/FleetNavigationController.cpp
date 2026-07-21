@@ -56,7 +56,8 @@ void FleetNavigationController::TickFleetTimers(std::unordered_map<engine::Clien
 			// the (likely already-negative) timer fires immediately — that's the un-freeze property.
 			// Using mfLastDeltaTime (= iFullTicks * kfDeltaTime, set by GameBase::ServerUpdate after
 			// the pause / time-scale resolution) keeps the timer in lockstep with frame-tick
-			// progression: zero during pause, scaled by mTimeStep under fast-forward / slow-mo.
+			// progression. BuildFrameInputs calls this only for an advancing update, with the delta
+			// scaled by mTimeStep under fast-forward / slow-mo.
 			if (rFlagship.coord == rFleet.wantedCoord)
 			{
 				rFleet.fFrameChangeTimer -= gpGame->mfLastDeltaTime;

@@ -45,58 +45,58 @@ const engine::TweaksSliderMapRegistrar gSoundEffectsRegistrar
 
 void TweaksScreen::RenderSoundEffects()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(engine::TweakSection::kSound);
+	const int64_t iSection = engine::giTweakSectionSound;
 
 	if (ImGui::BeginTable("SoundEffectsColumns", 2))
 	{
 		ImGui::TableNextColumn();
 
 		WrapperSeparatorText("Blasters - Player");
-		WrapperSlider("Volume", kiSection, 1.0f, "Player Blaster Volume");
+		WrapperSlider("Volume", iSection, 1.0f, "Player Blaster Volume");
 
 		WrapperSeparatorText("Blasters - Enemy");
-		WrapperSlider("Volume", kiSection, 1.0f, "Enemy Blaster Volume");
+		WrapperSlider("Volume", iSection, 1.0f, "Enemy Blaster Volume");
 
 		WrapperSeparatorText("Blasters - Terrain Impact");
-		WrapperSlider("Volume", kiSection, 1.0f, "Terrain Impact Volume");
+		WrapperSlider("Volume", iSection, 1.0f, "Terrain Impact Volume");
 
 		WrapperSeparatorText("Missiles");
-		WrapperSlider("Launch Volume", kiSection, 1.0f, "Missile Launch Volume");
-		WrapperSlider("Loop Volume", kiSection, 1.0f, "Missile Loop Volume");
+		WrapperSlider("Launch Volume", iSection, 1.0f, "Missile Launch Volume");
+		WrapperSlider("Loop Volume", iSection, 1.0f, "Missile Loop Volume");
 
 		WrapperSeparatorText("Explosions");
-		WrapperSlider("Volume", kiSection, 1.0f, "Explosion Volume");
+		WrapperSlider("Volume", iSection, 1.0f, "Explosion Volume");
 
 		WrapperSeparatorText("Players - Shield");
-		WrapperSlider("Hit Volume Base", kiSection, 1.0f, "Shield Hit Volume Base");
-		WrapperSlider("Hit Volume Scale", kiSection, 1.0f, "Shield Hit Volume Scale");
-		WrapperSlider("Down Volume", kiSection, 1.0f, "Shield Down Volume");
+		WrapperSlider("Hit Volume Base", iSection, 1.0f, "Shield Hit Volume Base");
+		WrapperSlider("Hit Volume Scale", iSection, 1.0f, "Shield Hit Volume Scale");
+		WrapperSlider("Down Volume", iSection, 1.0f, "Shield Down Volume");
 
 		WrapperSeparatorText("Players - Armor");
-		WrapperSlider("Hit Volume Base", kiSection, 1.0f, "Armor Hit Volume Base");
-		WrapperSlider("Hit Volume Scale", kiSection, 1.0f, "Armor Hit Volume Scale");
+		WrapperSlider("Hit Volume Base", iSection, 1.0f, "Armor Hit Volume Base");
+		WrapperSlider("Hit Volume Scale", iSection, 1.0f, "Armor Hit Volume Scale");
 
 		WrapperSeparatorText("Spaceships");
-		WrapperSlider("Death Volume", kiSection, 1.0f, "Spaceship Death Volume");
-		WrapperSlider("Hit Volume", kiSection, 1.0f, "Spaceship Hit Volume");
+		WrapperSlider("Death Volume", iSection, 1.0f, "Spaceship Death Volume");
+		WrapperSlider("Hit Volume", iSection, 1.0f, "Spaceship Hit Volume");
 
 		ImGui::TableNextColumn();
 
 		WrapperSeparatorText("Blasters - Player");
-		WrapperSlider("Pitch Min", kiSection, 1.0f, "Player Blaster Pitch Min");
-		WrapperSlider("Pitch Random", kiSection, 1.0f, "Player Blaster Pitch Random");
+		WrapperSlider("Pitch Min", iSection, 1.0f, "Player Blaster Pitch Min");
+		WrapperSlider("Pitch Random", iSection, 1.0f, "Player Blaster Pitch Random");
 
 		WrapperSeparatorText("Blasters - Enemy");
-		WrapperSlider("Pitch Min", kiSection, 1.0f, "Enemy Blaster Pitch Min");
-		WrapperSlider("Pitch Random", kiSection, 1.0f, "Enemy Blaster Pitch Random");
+		WrapperSlider("Pitch Min", iSection, 1.0f, "Enemy Blaster Pitch Min");
+		WrapperSlider("Pitch Random", iSection, 1.0f, "Enemy Blaster Pitch Random");
 
 		WrapperSeparatorText("Missiles");
-		WrapperSlider("Pitch Min", kiSection, 1.0f, "Missile Pitch Min");
-		WrapperSlider("Pitch Random", kiSection, 1.0f, "Missile Pitch Random");
+		WrapperSlider("Pitch Min", iSection, 1.0f, "Missile Pitch Min");
+		WrapperSlider("Pitch Random", iSection, 1.0f, "Missile Pitch Random");
 
 		WrapperSeparatorText("Spaceships");
-		WrapperSlider("Death Pitch Min", kiSection, 1.0f, "Spaceship Death Pitch Min");
-		WrapperSlider("Death Pitch Random", kiSection, 1.0f, "Spaceship Death Pitch Random");
+		WrapperSlider("Death Pitch Min", iSection, 1.0f, "Spaceship Death Pitch Min");
+		WrapperSlider("Death Pitch Random", iSection, 1.0f, "Spaceship Death Pitch Random");
 
 		ImGui::EndTable();
 	}

@@ -205,6 +205,7 @@ DeviceManager::DeviceManager()
 		.drawIndirectFirstInstance = VK_TRUE,
 		.samplerAnisotropy = VK_TRUE,
 		.textureCompressionBC = VK_TRUE,
+		.shaderStorageImageExtendedFormats = VK_TRUE,
 		.shaderInt64 = kbShaderRealtimeClock ? VK_TRUE : VK_FALSE,
 	#if !defined(ENABLE_32_BIT_BOOL)
 		.shaderInt16 = VK_TRUE,

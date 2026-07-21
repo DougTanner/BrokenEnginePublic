@@ -456,8 +456,8 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentPostRender.pfNextSecondarySpawnTimes[iIndex] = rInfo.fNextSecondarySpawnTime;
 	rCurrentPostRender.pVecVelocities[iIndex] = rInfo.vecVelocity;
 	rCurrentPostRender.pVecWantedDirections[iIndex] = rInfo.vecDirection;
-	rCurrentPostRender.pfArmors[iIndex] = rInfo.fArmor > 0.0f ? rInfo.fArmor : kfPlayerArmor;
-	rCurrentPostRender.pfShields[iIndex] = rInfo.fShield > 0.0f ? rInfo.fShield : kfPlayerShield;
+	rCurrentPostRender.pfArmors[iIndex] = rInfo.bTransfer ? rInfo.fArmor : kfPlayerArmor;
+	rCurrentPostRender.pfShields[iIndex] = rInfo.bTransfer ? rInfo.fShield : kfPlayerShield;
 	rCurrentPostRender.pfShieldCooldowns[iIndex] = rInfo.fShieldCooldown;
 	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
 	rCurrentPostRender.pfShieldDownSoundCooldowns[iIndex] = rInfo.fShieldDownSoundCooldown;

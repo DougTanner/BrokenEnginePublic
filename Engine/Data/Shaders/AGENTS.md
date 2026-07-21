@@ -1,56 +1,31 @@
-# Shaders - Vulkan GLSL Shader Source
+# Shaders - Shared Vulkan GLSL
 
 ## Overview
 
-GLSL shader source for the Vulkan 1.2 pipeline, compiled to SPIR-V by the DataPacker. Shaders share data structure definitions with C++ through dual-language headers that preprocessor-switch between DirectXMath and GLSL types. Per-shader-family sources live in subdirectories with their own AGENTS.md (see *See Also*); this hub documents the shared includes, cross-cutting conventions, and the standalone top-level shaders.
+Vulkan 1.2 GLSL compiled to SPIR-V by DataPacker. The project `ShaderLayouts.h` wrapper extends engine `ShaderLayoutsBase.h`, keeping CPU and shader layouts single-sourced.
 
-## Shared Includes
+## Shared Contract
 
-Nearly every shader `#include "ShaderLayouts.h"` — the per-project wrapper (`Projects/*/Data/Shaders/`) that includes the engine's `ShaderLayoutsBase.h`, giving the game a layout-extension point (exceptions: a few self-contained shaders that need no layouts, e.g. the UI depth prepass below, the debug wireframe frag, the BRDF LUT pair). The shared GLSL helper headers live here at top level:
+- `BT_ENGINE` selects C++ versus GLSL declarations; it is not a client-affinity guard. Layout headers are consumed by client and server builds.
+- Uniform blocks inherit scalar layout from `ShaderLayoutsBase.h`; storage blocks declare it explicitly where the CPU/GLSL contract requires it. Preserve CPU/GLSL field types, alignment, and order together; plain scalar arrays in scalar-layout blocks retain scalar stride.
+- Descriptor ownership is semantic: Set 0 is global, Set 1 is per-pipeline, and Set 2 is per-material. Binding constants live in the shared layout header and must match C++ layout/writes.
+- Bindless texture indices require `nonuniformEXT()`. Push constants select projection/render modes where command buffers are recorded once.
+- `ShaderFunctions.h` owns shared transforms, projection, normal mapping, smoke blending, and lighting helpers. `ShaderRandom.h` mirrors the engine's 32-bit RNG family.
 
-- **ShaderLayoutsBase.h** — dual-language struct definitions (UBO/SSBO/push-constant layouts), shader-wide scalar constants, and `ke*` `VkFormat` constants. `BT_ENGINE` selects DirectXMath types + `constexpr` (C++) vs. GLSL vec types + extension directives. Compile-time debug toggles (`debugPrintfEXT`, shader realtime clock) live at the top of this file so shader extension enablement and the matching C++ `kb*` constants flip with a single switch. Global Set-0 binding numbers are defined here as `kiGlobalBinding*` constants and consumed by both the GLSL `layout(set=0, binding=...)` qualifiers in every shader and the C++ descriptor layout/writes in `TextureDescriptors` — the single source of truth for Set-0 slot assignments. Set-1 per-pipeline binding numbers (`kiWaterBinding*` for water displacement, `kiModelBinding*` for mesh data and joint matrices) use the same dual-language mechanism — single-sourced here, consumed by both the GLSL `layout(set=1, ...)` qualifiers in the water and model shaders and the C++ descriptor writes in `PipelineManager` and `BufferManager`.
-- **ShaderFunctions.h** — shared fragment/vertex helpers: transforms, EWNS directional/ambient/water lighting, specular, smoke blending, visible-area projection, normal-map sampling.
-- **ShaderRandom.h** — xorshift32 + splitmix32 RNG mirroring `common::RandomEngine`; 32-bit because GLSL `uint` is universal (uint64 needs an extension).
+## Lighting and Vector Invariants
 
-## Standalone Shaders
+- Directional lighting uses four EWNS channels. Light-source deposits derive directional weights from world-space source offsets; surface-normal deposits use the projected blended normal. Keep the documented epsilon fallbacks at family leaves.
+- Skip redundant normalization only where the identity is proven: `reflect(I, N)` preserves length for unit inputs, and `cross(a, b)` is unit only for unit orthogonal inputs.
+- Do not call GLSL `inverse()` on matrices. Supply inverse transforms from the CPU or use a proven family-specific alternative.
 
-- **Clear.frag** — writes the push-constant pipeline color; VS-out interface declared-but-unused so it matches paired fullscreen vertex shaders and avoids validation warnings.
-- **Log.vert** — fullscreen vertex shader that emits per-frame `debugPrintfEXT` diagnostics (frame/render number).
-- **HdrResolve.frag** — fullscreen pass resolving the F16 HDR scene target to the swapchain: exposure → ACES filmic (Narkowicz) → saturation/contrast/temperature color grading → gamma. The single final-frame tone map — material shaders output linear HDR, and the lighting-combine Uchimura is a separate pre-material light compression, not a frame tonemapper.
-- **DebugTexture.frag** — render-target visualizer; branches on a format selector to decode each debug-view family (EWNS directional including combined-direction modes, linear, terrain elevation, plain RGB/grayscale), applying the same Uchimura tone map as the lighting combine pass to the float16 lighting-directional view (combined-direction modes skip tone mapping).
+## Top-Level Shaders
 
-## Ui Shaders
+- HDR resolve performs the final frame tone map and color grading; material shaders output linear HDR.
+- Debug texture display decodes renderer targets, including EWNS views.
+- The UI depth prepass is self-contained and expands opaque ImGui rectangles to populate depth before world rendering.
 
-The `Ui/` subdirectory has no AGENTS.md of its own; documented here:
+## Family Documentation
 
-- **UiDepthPrepass.vert/.frag** — depth-only prepass writing depth under opaque ImGui rects so the world behind them is early-Z rejected. Self-contained (declares its own scalar layout instead of including `ShaderLayouts.h`); expands two triangles per rect from `gl_VertexIndex` reading an unsized rect SSBO, with an empty fragment shader.
+- [Debug](Debug/AGENTS.md), [Lighting](Lighting/AGENTS.md), [Model](Model/AGENTS.md), [Objects](Objects/AGENTS.md), [Particles](Particles/AGENTS.md), [Quads](Quads/AGENTS.md), [Shadow](Shadow/AGENTS.md), [Smoke](Smoke/AGENTS.md), [Terrain](Terrain/AGENTS.md), [Water](Water/AGENTS.md), [Wind](Wind/AGENTS.md)
 
-## Architecture Notes
-
-- **Scalar block layout**: All uniform and storage buffers use `GL_EXT_scalar_block_layout` with a global `layout(scalar) uniform;` directive. Struct members are tightly packed with C++ alignment rules (no std140 padding), keeping CPU/GPU layouts in sync. DataPacker passes `--scalar-block-layout` to spirv-opt. Plain `float[]` arrays are 4-byte stride, not 16-byte.
-- **`BT_ENGINE` is the language discriminator, not `BT_CLIENT`**: it is defined in both client and server builds, so layout structs and constants are visible to the headless server — no `BT_CLIENT` guards in these files.
-- **Constant naming**: `kf` floats, `ki` ints, `ke` enum-like / `VkFormat` constants, `kb` bools.
-- **Bindless textures**: Unsized `texture2D[]` arrays with separate samplers and `nonuniformEXT()` dynamic indexing.
-- **Multi-set descriptors**: Set 0 = global (UBOs, samplers, bindless textures), Set 1 = per-pipeline (SSBOs, combined image samplers), Set 2 = per-material (models only).
-- **Push-constant render modes**: Vertex shaders select camera/visible-area/shadow projection without separate pipeline permutations.
-- **Four-channel EWNS directional lighting**: RGB stored as separate render targets with EWNS directional weights. Rationale: directional and ambient EWNS samples are summed first, then passed together through the normal-weighted path so both contributions are normal-weighted consistently.
-- **World-space directional deposit**: *Light-source* deposit shaders compute EWNS direction weights from the fragment's world-space offset to the light's center using cos^2 lobe weighting, with an epsilon fallback to omnidirectional near the center. *Surface-normal* deposit shaders (e.g. `HexShieldLighting.frag`) instead project the blended center-normal's XY, with a zero-deposit epsilon fallback — see `Objects/AGENTS.md`.
-- **Unit-preserving identities (skip the redundant `normalize()`)**: `reflect(I, N)` is unit when both `I` and `N` are unit (and stays unit under a leading or single-axis sign flip); `cross(a, b)` is unit when `a`, `b` are unit and orthogonal. Callers that pre-normalize their inputs consume the result directly as a direction, saving one `rsqrt + 3 muls` per call site. The `Specular(...)` helper in `ShaderFunctions.h` relies on this (parameters typed as direction normals). Family-specific call sites are documented in the relevant child AGENTS.md (Water, Model, Objects, Particles).
-
-## Known Issues
-
-**NVIDIA driver bug**: never call `inverse()` on mat3/mat4 in shaders — NVIDIA's compiler hangs indefinitely during pipeline creation. Precompute inverse matrices on the CPU and pass via buffers. This is the sole confirmed trigger — large `mat4[]` arrays are not a cause: the engine dynamically indexes the large runtime-sized `mat4 jointMatrices[]` SSBO hang-free. The joint-matrix buffer split is a layout choice (no embedded per-mesh joint cap), independent of this bug.
-
-## See Also
-
-- `Debug/AGENTS.md`
-- `Lighting/AGENTS.md`
-- `Quads/AGENTS.md`
-- `Model/AGENTS.md`
-- `Objects/AGENTS.md`
-- `Particles/AGENTS.md`
-- `Shadow/AGENTS.md`
-- `Smoke/AGENTS.md`
-- `Terrain/AGENTS.md`
-- `Water/AGENTS.md`
-- `Wind/AGENTS.md`
+Family documents own algorithms and local correctness constraints; they do not repeat layouts, bindings, EWNS, or the `inverse()` rule.

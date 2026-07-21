@@ -28,24 +28,24 @@ const engine::TweaksSliderMapRegistrar gHexShieldRegistrar
 
 void TweaksScreen::RenderHexShieldSection()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(engine::TweakSection::kHexShield);
+	const int64_t iSection = giTweakSectionHexShield;
 
 	WrapperSeparatorText("Edge");
-	WrapperSlider("Grow", kiSection);
-	WrapperSlider("Edge Distance", kiSection);
-	WrapperSlider("Edge Power", kiSection);
-	WrapperSlider("Edge Multiplier", kiSection);
+	WrapperSlider("Grow", iSection);
+	WrapperSlider("Edge Distance", iSection);
+	WrapperSlider("Edge Power", iSection);
+	WrapperSlider("Edge Multiplier", iSection);
 
 	WrapperSeparatorText("Wave");
-	WrapperSlider("Wave Multiplier", kiSection);
-	WrapperSlider("Wave Dot", kiSection);
-	WrapperSlider("Wave Intensity", kiSection);
-	WrapperSlider("Wave Intensity Power", kiSection);
-	WrapperSlider("Wave Falloff Power", kiSection);
+	WrapperSlider("Wave Multiplier", iSection);
+	WrapperSlider("Wave Dot", iSection);
+	WrapperSlider("Wave Intensity", iSection);
+	WrapperSlider("Wave Intensity Power", iSection);
+	WrapperSlider("Wave Falloff Power", iSection);
 
 	WrapperSeparatorText("Direction");
-	WrapperSlider("Direction Falloff Power", kiSection);
-	WrapperSlider("Direction Multiplier", kiSection);
+	WrapperSlider("Direction Falloff Power", iSection);
+	WrapperSlider("Direction Multiplier", iSection);
 }
 
 } // namespace game

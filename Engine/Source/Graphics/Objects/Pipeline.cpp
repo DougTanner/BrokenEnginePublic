@@ -117,7 +117,7 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 		mInfo.pDescriptorInfos[i + 2].flags = kCombinedSamplers;
 		mInfo.pDescriptorInfos[i + 2].pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture;
 
-		// The smoke sampler (kSamplerSmoke) is the format-aware sampler for R32_SFLOAT smoke ping-pong textures (LINEAR/NEAREST per device capability — see TextureManager::CreateSamplers). Same CLAMP_TO_BORDER + INT_TRANSPARENT_BLACK as the border sampler; aniso/lodbias are no-ops at mipLevels = 1.
+		// The smoke sampler (kSamplerSmoke) uses LINEAR filtering for R16_SFLOAT smoke ping-pong textures. Same CLAMP_TO_BORDER + INT_TRANSPARENT_BLACK as the border sampler; aniso/lodbias are no-ops at mipLevels = 1.
 		mInfo.pDescriptorInfos[i + 3].flags = {kCombinedSamplers, kSamplerSmoke};
 		mInfo.pDescriptorInfos[i + 3].pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne;
 
@@ -232,7 +232,7 @@ void Pipeline::Destroy() noexcept
 	// mModelMaterialsStorageBuffer is deliberately NOT torn down here — its member Buffer dtor owns the free.
 	// The mDeviceLocalVkBuffer == VK_NULL_HANDLE guard in WriteModelDescriptor (PipelineDescriptorWriter.cpp)
 	// exists to build the buffer once across Write()'s per-framebuffer loop, not to support in-place
-	// re-Create() reuse: model pipelines are rebuild-only (fresh objects every time — see Objects/AGENTS.md),
+	// re-Create() reuse: model pipelines are rebuild-only (fresh objects every time),
 	// so a Destroy() on a pipeline holding this buffer is only ever followed by destruction. If an in-place
 	// re-Create with a different scene ever appears, destroy the buffer here or the guard keeps stale materials.
 }

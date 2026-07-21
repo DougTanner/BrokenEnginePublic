@@ -34,7 +34,8 @@ Source: /external-architecture-review on `Engine/Source/Network` (recursive). Ev
 
 ## Coordination
 
-- Never interleave with the remaining wire-break batch `Documents/Plans/Network/SubscriptionLifecycleRaceHardening.md`, `Documents/Plans/Network/FleetRequestsByGuid.md`, `Documents/Plans/Network/WireFormatPairingGameSide.md`; WireFormatPairingGameSide depends on this plan, while the other batch members may sequence either way with citation refresh. The pack-integrity handshake already landed independently at protocol version 6.
+- `Documents/Plans/Network/StatusChangeWireVersionGate.md` decides when a wire-layout change must bump `kuiProtocolVersion`; whichever of the two lands second follows the rule the first established.
+- Never interleave with the remaining wire-break batch `Documents/Plans/Network/FleetRequestsByGuid.md` and `Documents/Plans/Network/WireFormatPairingGameSide.md`; WireFormatPairingGameSide depends on this plan, while FleetRequestsByGuid may sequence either way with citation refresh. Subscription-lifecycle epoch hardening landed independently at protocol version 7; its permanent wire contract is in `Documents/Architecture/Network.md`.
 
 ## Notes
 

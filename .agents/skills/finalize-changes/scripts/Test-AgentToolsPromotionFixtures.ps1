@@ -1,6 +1,6 @@
 # Deterministic fixtures for Invoke-AgentToolsPromotion.ps1 against a scratch
-# primary repository: receipt identity, dirty candidate, unlanded commit,
-# candidate/source mismatch, registered-session and held-maintenance blocking,
+# primary repository: v2-only receipt identity, source and binary tampering,
+# unlanded commit, candidate/source mismatch, session and maintenance blocking,
 # cooperating-session promotion, first-rollout and re-promotion success,
 # failed post-promotion capability validation with verified rollback, and a
 # second-replacement failure with verified rollback. Requires a real
@@ -23,6 +23,7 @@ Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\WorktreeCliSessionExclu
 $script:Failures = [Collections.Generic.List[string]]::new()
 $promotionScript = Join-Path $PSScriptRoot 'Invoke-AgentToolsPromotion.ps1'
 $capabilitySource = Join-Path $PSScriptRoot '..\..\..\scripts\Test-AgentToolsCapabilities.ps1'
+$moduleSource = Join-Path $PSScriptRoot '..\..\..\scripts'
 $WorktreeCliExecutable = (Get-Item -LiteralPath $WorktreeCliExecutable -ErrorAction Stop).FullName
 $AgentHarnessExecutable = (Get-Item -LiteralPath $AgentHarnessExecutable -ErrorAction Stop).FullName
 
@@ -40,15 +41,51 @@ function Invoke-ScratchGit([string] $Root, [string[]] $Arguments) {
 	return $output
 }
 
-$primary = Join-Path ([IO.Path]::GetTempPath()) "BrokenEnginePromotionFixtures\$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+function Assert-SafeScratchRoot([string] $Parent, [string] $Root, [string] $ExpectedLeaf) {
+	$parentPath = [IO.Path]::GetFullPath($Parent).TrimEnd('\', '/')
+	$rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+	if ((Split-Path -Parent $rootPath) -cne $parentPath -or (Split-Path -Leaf $rootPath) -cne $ExpectedLeaf -or $ExpectedLeaf -cnotmatch '^[0-9a-f]{32}$') {
+		throw "Fixture scratch root failed containment validation: '$rootPath'."
+	}
+	return $rootPath
+}
+
+$scratchParent = Join-Path ([IO.Path]::GetTempPath()) 'BrokenEnginePromotionFixtures'
+$scratchLeaf = [guid]::NewGuid().ToString('N')
+$scratchBase = Assert-SafeScratchRoot $scratchParent (Join-Path $scratchParent $scratchLeaf) $scratchLeaf
+$primary = Join-Path $scratchBase 'primary'
+$localAppData = Join-Path $scratchBase 'local-app-data'
+$previousLocalAppData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
+$initialOwner = $null
+$initialRegistered = $false
+$sessionOwner = $null
+$sessionRegistered = $false
+$maintenanceOwner = $null
+$maintenanceHeld = $false
+$fixtureExitCode = 0
+
+try {
 New-Item -ItemType Directory -Force $primary | Out-Null
+New-Item -ItemType Directory -Force $localAppData | Out-Null
+[Environment]::SetEnvironmentVariable('LOCALAPPDATA', $localAppData)
 Invoke-ScratchGit $primary @('init', '-b', 'main') | Out-Null
 foreach ($tree in @('Tools\WorktreeCli', 'Tools\AgentHarness', 'Tools\ToolCommon')) {
 	New-Item -ItemType Directory -Force (Join-Path $primary $tree) | Out-Null
 	Set-Content (Join-Path $primary "$tree\source.txt") "fixture $tree"
 }
+$submoduleSource = Join-Path $scratchBase 'tinygltf-source'
+New-Item -ItemType Directory -Force $submoduleSource | Out-Null
+Invoke-ScratchGit $submoduleSource @('init', '-b', 'main') | Out-Null
+Set-Content (Join-Path $submoduleSource 'json.hpp') 'fixture json'
+Invoke-ScratchGit $submoduleSource @('add', 'json.hpp') | Out-Null
+Invoke-ScratchGit $submoduleSource @('commit', '-m', 'fixture json base') | Out-Null
+$baseJsonOwner = (@(Invoke-ScratchGit $submoduleSource @('rev-parse', 'HEAD')))[0].Trim()
+Invoke-ScratchGit $primary @('-c', 'protocol.file.allow=always', 'submodule', 'add', '--quiet', $submoduleSource, 'ThirdParty/tinygltf') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $primary '.agents\scripts') | Out-Null
 Copy-Item -LiteralPath $capabilitySource -Destination (Join-Path $primary '.agents\scripts\Test-AgentToolsCapabilities.ps1') -Force
+foreach ($module in @('AgentScriptCommon.psm1', 'WorktreeCliSessionExclusion.psm1')) {
+	Copy-Item -LiteralPath (Join-Path $moduleSource $module) -Destination (Join-Path $primary ".agents\scripts\$module") -Force
+}
 Set-Content (Join-Path $primary '.gitignore') "Temp`nOutput"
 Invoke-ScratchGit $primary @('add', '-A') | Out-Null
 Invoke-ScratchGit $primary @('commit', '-m', 'fixture base') | Out-Null
@@ -57,9 +94,11 @@ $landed = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
 # Initialize the scratch repository's isolated coordination ledger.
 $initialOwner = [guid]::NewGuid().ToString()
 Register-WorktreeCliSession -RepositoryRoot $primary -Owner $initialOwner -Label 'fixture-init' -Worktree $primary -LegacySessionsClosed | Out-Null
+$initialRegistered = $true
 Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $initialOwner
+$initialRegistered = $false
 
-function New-CandidateReceipt([string] $Root, [string] $WorktreeCliSource, [string] $AgentHarnessSource, [bool] $Dirty = $false, [string] $Suffix = '') {
+function New-CandidateReceipt([string] $Root, [string] $WorktreeCliSource, [string] $AgentHarnessSource, [string] $Suffix = '') {
 	$candidateRoot = Join-Path $Root "Temp\AgentToolsCandidate$Suffix"
 	$paths = [ordered]@{}
 	foreach ($entry in @(@('WorktreeCli', $WorktreeCliSource), @('AgentHarness', $AgentHarnessSource))) {
@@ -69,29 +108,58 @@ function New-CandidateReceipt([string] $Root, [string] $WorktreeCliSource, [stri
 		Copy-Item -LiteralPath $entry[1] -Destination $destination -Force
 		$paths[$entry[0]] = $destination
 	}
-	$trees = @(Invoke-ScratchGit $Root @('rev-parse', 'HEAD:Tools/WorktreeCli', 'HEAD:Tools/AgentHarness', 'HEAD:Tools/ToolCommon')) | ForEach-Object { $_.Trim() }
+	$sourcePaths = @(Invoke-ScratchGit $Root @('-c', 'core.quotePath=false', 'ls-files', '--cached', '--others', '--exclude-standard', '--', 'Tools/WorktreeCli', 'Tools/AgentHarness', 'Tools/ToolCommon')) | ForEach-Object { $_.Trim().Replace('\', '/') }
+	$sourcePaths += 'ThirdParty/tinygltf/json.hpp'
+	$sourcePaths = @($sourcePaths | Select-Object -Unique)
+	[Array]::Sort($sourcePaths, [StringComparer]::Ordinal)
+	$manifest = @()
+	$digestLines = [Collections.Generic.List[string]]::new()
+	foreach ($sourcePath in $sourcePaths) {
+		$fullPath = Join-Path $Root ($sourcePath.Replace('/', '\'))
+		$item = Get-Item -LiteralPath $fullPath -Force
+		$sha256 = Get-Sha256 $fullPath
+		$gitBlob = (@(Invoke-ScratchGit $Root @('hash-object', "--path=$sourcePath", '--', $fullPath)))[0].Trim()
+		$manifest += [ordered]@{ path = $sourcePath; bytes = $item.Length; sha256 = $sha256; gitBlob = $gitBlob }
+		$digestLines.Add("$sourcePath`0$($item.Length)`0$sha256`0$gitBlob")
+	}
+	$digestText = (($digestLines -join "`n") + "`n")
+	$digest = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.UTF8Encoding]::new($false).GetBytes($digestText))).ToLowerInvariant()
+	$fixtureLog = Join-Path $candidateRoot 'fixture.read.tlog'
+	[IO.File]::WriteAllText($fixtureLog, 'fixture dependency evidence')
+	$fixtureLogItem = Get-Item -LiteralPath $fixtureLog
+	$toolItem = Get-Item -LiteralPath $WorktreeCliSource
+	$capabilityItem = Get-Item -LiteralPath $capabilitySource
+	$absentWorktreeCli = [ordered]@{ path = (Join-Path $Root 'canonical-WorktreeCli.exe'); present = $false; bytes = $null; sha256 = $null; lastWriteUtc = $null }
+	$absentAgentHarness = [ordered]@{ path = (Join-Path $Root 'canonical-AgentHarness.exe'); present = $false; bytes = $null; sha256 = $null; lastWriteUtc = $null }
 	$receipt = [ordered]@{
-		schemaVersion = 'broken-engine-agenttools-candidate/v1'
+		schemaVersion = 'broken-engine-agenttools-candidate/v2'
 		createdAt = [DateTime]::UtcNow.ToString('O')
-		worktree = $Root
-		sourceCommit = (@(Invoke-ScratchGit $Root @('rev-parse', 'HEAD')))[0].Trim()
-		toolTreeHashes = [ordered]@{ worktreeCli = $trees[0]; agentHarness = $trees[1]; toolCommon = $trees[2] }
-		dirtyToolPaths = $Dirty
-		msBuild = 'fixture'
+		checkout = [ordered]@{ root = $Root; gitCommonDirectory = (Join-Path $Root '.git'); sourceCommit = (@(Invoke-ScratchGit $Root @('rev-parse', 'HEAD')))[0].Trim() }
+		source = [ordered]@{
+			algorithm = 'sorted-path-bytes-sha256-clean-filter-blob/v1'
+			before = [ordered]@{ digest = $digest; manifest = $manifest }
+			after = [ordered]@{ digest = $digest; manifest = $manifest }
+			compilerDependencies = [ordered]@{ logs = @([ordered]@{ path = $fixtureLog; bytes = $fixtureLogItem.Length; sha256 = (Get-Sha256 $fixtureLog) }); repoLocalInputs = @($sourcePaths); blocker = $null }
+		}
+		toolchain = [ordered]@{ msBuild = [ordered]@{ path = $toolItem.FullName; bytes = $toolItem.Length; sha256 = (Get-Sha256 $toolItem.FullName); fileVersion = 'fixture'; productVersion = 'fixture' }; configuration = 'Release'; platform = 'x64' }
 		executables = [ordered]@{
 			WorktreeCli = [ordered]@{ path = $paths.WorktreeCli; sha256 = (Get-Sha256 $paths.WorktreeCli); bytes = (Get-Item $paths.WorktreeCli).Length }
 			AgentHarness = [ordered]@{ path = $paths.AgentHarness; sha256 = (Get-Sha256 $paths.AgentHarness); bytes = (Get-Item $paths.AgentHarness).Length }
 		}
-		canonical = [ordered]@{ unchanged = $true }
-		capabilityCheck = 'pass'
+		canonical = [ordered]@{
+			before = [ordered]@{ worktreeCli = $absentWorktreeCli; agentHarness = $absentAgentHarness }
+			after = [ordered]@{ worktreeCli = $absentWorktreeCli; agentHarness = $absentAgentHarness }
+			unchanged = $true
+		}
+		capability = [ordered]@{ status = 'pass'; script = [ordered]@{ path = $capabilityItem.FullName; bytes = $capabilityItem.Length; sha256 = (Get-Sha256 $capabilityItem.FullName) } }
 	}
 	$receiptPath = Join-Path $candidateRoot 'candidate-receipt.json'
 	[IO.File]::WriteAllText($receiptPath, ($receipt | ConvertTo-Json -Depth 100), [Text.UTF8Encoding]::new($false))
 	return [pscustomobject]@{ Path = $receiptPath; Sha256 = (Get-Sha256 $receiptPath) }
 }
 
-function Invoke-Promotion([string] $ReceiptPath, [string] $ReceiptSha256, [string] $Commit, [string[]] $Extra = @()) {
-	$stdout = @(& "$PSHOME\pwsh.exe" -NoProfile -File $promotionScript -PrimaryRoot $primary -CandidateReceiptPath $ReceiptPath -CandidateReceiptSha256 $ReceiptSha256 -LandedCommit $Commit @Extra 2>$null)
+function Invoke-Promotion([string] $ReceiptPath, [string] $ReceiptSha256, [string] $Commit, [string[]] $Extra = @(), [string] $Script = $promotionScript) {
+	$stdout = @(& "$PSHOME\pwsh.exe" -NoProfile -File $Script -PrimaryRoot $primary -CandidateReceiptPath $ReceiptPath -CandidateReceiptSha256 $ReceiptSha256 -LandedCommit $Commit @Extra 2>$null)
 	$text = ($stdout -join "`n").Trim()
 	$json = $null
 	try { if (-not [string]::IsNullOrWhiteSpace($text)) { $json = $text | ConvertFrom-Json -Depth 32 -ErrorAction Stop } } catch { }
@@ -114,14 +182,40 @@ $receipt = New-CandidateReceipt $primary $WorktreeCliExecutable $AgentHarnessExe
 $tamperedPath = "$($receipt.Path).tampered.json"
 [IO.File]::WriteAllText($tamperedPath, ([IO.File]::ReadAllText($receipt.Path) + ' '))
 $run = Invoke-Promotion $tamperedPath $receipt.Sha256 $landed
-Assert-Outcome $run 'receipt-identity' 2 'promotion.receipt-identity'
+Assert-Outcome $run 'receipt-identity' 2 'promotion.certification.receipt-identity'
 
-# 2. Dirty candidate blocks.
-$dirtyReceipt = New-CandidateReceipt $primary $WorktreeCliExecutable $AgentHarnessExecutable $true 'Dirty'
-$run = Invoke-Promotion $dirtyReceipt.Path $dirtyReceipt.Sha256 $landed
-Assert-Outcome $run 'dirty-candidate' 2 'promotion.dirty-candidate'
+# 2. Legacy v1 receipts are rejected without compatibility fallback.
+$legacyPath = Join-Path $primary 'Temp\legacy-v1.json'
+[IO.File]::WriteAllText($legacyPath, '{"schemaVersion":"broken-engine-agenttools-candidate/v1"}')
+$run = Invoke-Promotion $legacyPath (Get-Sha256 $legacyPath) $landed
+Assert-Outcome $run 'legacy-v1' 2 'promotion.certification.receipt-schema'
 
-# 3. Unlanded commit blocks.
+# 3. Current source bytes changing after candidate production requires rebuild.
+$sourcePath = Join-Path $primary 'Tools\ToolCommon\source.txt'
+$sourceBefore = [IO.File]::ReadAllText($sourcePath)
+[IO.File]::WriteAllText($sourcePath, 'changed after candidate')
+$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed
+Assert-Outcome $run 'source-tamper' 2 'promotion.certification.source-bytes'
+[IO.File]::WriteAllText($sourcePath, $sourceBefore)
+
+# 4. Candidate binary tampering requires rebuild before coordination.
+$binaryReceipt = New-CandidateReceipt $primary $WorktreeCliExecutable $AgentHarnessExecutable 'BinaryTamper'
+[IO.File]::WriteAllText((Get-Content -LiteralPath $binaryReceipt.Path -Raw | ConvertFrom-Json -Depth 100).executables.AgentHarness.path, 'tampered binary')
+$run = Invoke-Promotion $binaryReceipt.Path $binaryReceipt.Sha256 $landed
+Assert-Outcome $run 'binary-tamper' 2 'promotion.certification.candidate-identity'
+
+# 5. A real submodule checkout advanced beyond the superproject gitlink cannot
+# substitute its current json.hpp blob for the expected gitlink commit's blob.
+$jsonCheckout = Join-Path $primary 'ThirdParty\tinygltf'
+Set-Content (Join-Path $jsonCheckout 'json.hpp') 'fixture json advanced outside superproject'
+Invoke-ScratchGit $jsonCheckout @('add', 'json.hpp') | Out-Null
+Invoke-ScratchGit $jsonCheckout @('commit', '-m', 'advanced json not recorded by superproject') | Out-Null
+$submoduleMismatchReceipt = New-CandidateReceipt $primary $WorktreeCliExecutable $AgentHarnessExecutable 'SubmoduleMismatch'
+$run = Invoke-Promotion $submoduleMismatchReceipt.Path $submoduleMismatchReceipt.Sha256 $landed
+Assert-Outcome $run 'submodule-gitlink-mismatch' 2 'promotion.certification.commit-mismatch'
+Invoke-ScratchGit $jsonCheckout @('checkout', '--detach', $baseJsonOwner) | Out-Null
+
+# 6. Unlanded commit blocks.
 Invoke-ScratchGit $primary @('checkout', '-q', '-b', 'side') | Out-Null
 Set-Content (Join-Path $primary 'Tools\ToolCommon\side.txt') 'unlanded'
 Invoke-ScratchGit $primary @('add', '-A') | Out-Null
@@ -131,14 +225,15 @@ Invoke-ScratchGit $primary @('checkout', '-q', 'main') | Out-Null
 $run = Invoke-Promotion $receipt.Path $receipt.Sha256 $unlanded
 Assert-Outcome $run 'not-landed' 2 'promotion.not-landed'
 
-# 4. Registered foreign session blocks; the cooperating session does not self-block.
+# 6. Registered foreign session blocks; the cooperating session does not self-block.
 $sessionOwner = [guid]::NewGuid().ToString()
 Register-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner -Label 'fixture-session' -Worktree $primary | Out-Null
+$sessionRegistered = $true
 try {
 	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed @('-WaitSeconds', '2')
 	Assert-Outcome $run 'session-blocked' 2 'promotion.coordination-blocked'
 
-	# 5. First-rollout success with the registered session cooperating.
+	# 7. First-rollout success with the registered session cooperating.
 	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed @('-WaitSeconds', '5', '-CooperatingSessionOwner', $sessionOwner)
 	Assert-Outcome $run 'first-rollout' 0 'ok'
 	if ($null -ne $run.Json -and $run.Json.status -ceq 'pass') {
@@ -148,26 +243,29 @@ try {
 		Assert-True ($promotionReceipt.schemaVersion -ceq 'broken-engine-agenttools-promotion/v1') 'first-rollout receipt schema'
 		Assert-True ($promotionReceipt.previous.WorktreeCli.present -eq $false) 'first-rollout previous absent'
 		$stamp = (Get-Content -LiteralPath (Join-Path $primary 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output\AgentToolsSourceStamp.txt') -Raw).Trim() -split "`n" | ForEach-Object { $_.Trim() }
-		$expectedTrees = @(Invoke-ScratchGit $primary @('rev-parse', "${landed}:Tools/WorktreeCli", "${landed}:Tools/AgentHarness", "${landed}:Tools/ToolCommon")) | ForEach-Object { $_.Trim() }
+		$expectedTrees = @($promotionReceipt.certifiedSource.commitIdentities.worktreeCli, $promotionReceipt.certifiedSource.commitIdentities.agentHarness, $promotionReceipt.certifiedSource.commitIdentities.toolCommon)
 		Assert-True (($stamp -join '|') -ceq ($expectedTrees -join '|')) 'first-rollout source stamp'
 	}
 }
 finally {
 	Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner
+	$sessionRegistered = $false
 }
 
-# 6. Held maintenance blocks.
+# 8. Held maintenance blocks.
 $maintenanceOwner = [guid]::NewGuid().ToString()
 Enter-WorktreeCliMaintenance -RepositoryRoot $primary -Owner $maintenanceOwner -Label 'fixture-maintenance' -Worktree $primary | Out-Null
+$maintenanceHeld = $true
 try {
 	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed @('-WaitSeconds', '2')
 	Assert-Outcome $run 'maintenance-blocked' 2 'promotion.coordination-blocked'
 }
 finally {
 	Exit-WorktreeCliMaintenance -RepositoryRoot $primary -Owner $maintenanceOwner
+	$maintenanceHeld = $false
 }
 
-# 7. Re-promotion over an existing pair records the previous identities.
+# 9. Re-promotion over an existing pair records the previous identities.
 $run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed
 Assert-Outcome $run 're-promotion' 0 'ok'
 if ($null -ne $run.Json -and $run.Json.status -ceq 'pass') {
@@ -176,12 +274,12 @@ if ($null -ne $run.Json -and $run.Json.status -ceq 'pass') {
 	Assert-True ($promotionReceipt.previous.WorktreeCli.sha256 -ceq (Get-Sha256 $WorktreeCliExecutable)) 're-promotion previous hash recorded'
 }
 
-# 8. Failed post-promotion capability validation rolls back the complete pair.
+# 10. Failed post-promotion capability validation rolls back the complete pair.
 $beforeWorktreeCli = Get-Sha256 $canonicalWorktreeCli
 $beforeAgentHarness = Get-Sha256 $canonicalAgentHarness
 $garbagePath = Join-Path $primary 'Temp\garbage-agentharness.exe'
-Set-Content -LiteralPath $garbagePath 'this is not a portable executable'
-$garbageReceipt = New-CandidateReceipt $primary $WorktreeCliExecutable $garbagePath $false 'Garbage'
+Copy-Item -LiteralPath $WorktreeCliExecutable -Destination $garbagePath -Force
+$garbageReceipt = New-CandidateReceipt $primary $WorktreeCliExecutable $garbagePath 'Garbage'
 $run = Invoke-Promotion $garbageReceipt.Path $garbageReceipt.Sha256 $landed
 Assert-Outcome $run 'capability-rollback' 2 'promotion.rolled-back'
 if ($null -ne $run.Json) {
@@ -190,7 +288,7 @@ if ($null -ne $run.Json) {
 	Assert-True ((Get-Sha256 $canonicalAgentHarness) -ceq $beforeAgentHarness) 'capability-rollback canonical AgentHarness intact'
 }
 
-# 9. Second-replacement failure (canonical AgentHarness held open) rolls back the first replacement.
+# 11. Second-replacement failure (canonical AgentHarness held open) rolls back the first replacement.
 $holder = [IO.File]::Open($canonicalAgentHarness, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
 try {
 	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed
@@ -205,7 +303,7 @@ if ($null -ne $run.Json) {
 	Assert-True ((Get-Sha256 $canonicalAgentHarness) -ceq $beforeAgentHarness) 'replacement-rollback canonical AgentHarness intact'
 }
 
-# 10. Locked source stamp: the pair replaces but the stamp write and its rollback restore
+# 12. Locked source stamp: the pair replaces but the stamp write and its rollback restore
 # both fail, which must be reported as a failed rollback, never as verified.
 $stampPath = Join-Path $primary 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output\AgentToolsSourceStamp.txt'
 $stampHolder = [IO.File]::Open($stampPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
@@ -220,18 +318,92 @@ if ($null -ne $run.Json) {
 	Assert-True ($run.Json.rollback -ceq 'failed') 'stamp-rollback-failed reported honestly'
 }
 
-# 11. Candidate/source mismatch after primary advanced its tool trees.
+# 14. The certification result remains authoritative if the receipt path is
+# swapped after certification. Promotion must not reopen the tampered receipt.
+$fixtureScriptDirectory = Join-Path $primary '.agents\skills\finalize-changes\scripts'
+New-Item -ItemType Directory -Force $fixtureScriptDirectory | Out-Null
+$fixturePromotionScript = Join-Path $fixtureScriptDirectory 'Invoke-AgentToolsPromotion.ps1'
+Copy-Item -LiteralPath $promotionScript -Destination $fixturePromotionScript -Force
+$fixtureCertificationScript = Join-Path $fixtureScriptDirectory 'Test-AgentToolsCandidateCertification.ps1'
+$fixtureCertification = @'
+[CmdletBinding()]
+param(
+	[string] $RepositoryRoot,
+	[string] $WorktreeRoot,
+	[string] $CandidateReceiptPath,
+	[string] $CandidateReceiptSha256,
+	[string] $ExpectedCommit
+)
+$ErrorActionPreference = 'Stop'
+$receipt = [IO.File]::ReadAllText($CandidateReceiptPath) | ConvertFrom-Json -Depth 100
+$trees = @(& git -C $RepositoryRoot rev-parse "$ExpectedCommit`:Tools/WorktreeCli" "$ExpectedCommit`:Tools/AgentHarness" "$ExpectedCommit`:Tools/ToolCommon")
+if ($LASTEXITCODE -ne 0 -or $trees.Count -ne 3) { throw 'fixture tree lookup failed' }
+$certification = [ordered]@{
+	schemaVersion = 'broken-engine-agenttools-certification-result/v1'
+	status = 'pass'
+	code = 'ok'
+	message = 'fixture certification passed before receipt swap'
+	receipt = [ordered]@{ path = $CandidateReceiptPath; sha256 = $CandidateReceiptSha256; schemaVersion = $receipt.schemaVersion }
+	expectedCommit = $ExpectedCommit
+	source = [ordered]@{
+		digest = $receipt.source.after.digest
+		manifestCount = @($receipt.source.after.manifest).Count
+		commitIdentities = [ordered]@{ worktreeCli = $trees[0].Trim(); agentHarness = $trees[1].Trim(); toolCommon = $trees[2].Trim() }
+		primaryResolvedJson = [ordered]@{ path = 'ThirdParty/tinygltf/json.hpp'; ownerGitObject = 'fixture'; gitBlob = 'fixture' }
+	}
+	executables = $receipt.executables
+}
+[IO.File]::WriteAllText($CandidateReceiptPath, [IO.File]::ReadAllText($env:BROKEN_ENGINE_SWAP_RECEIPT_PATH), [Text.UTF8Encoding]::new($false))
+[Console]::Out.Write(($certification | ConvertTo-Json -Depth 100 -Compress))
+exit 0
+'@
+[IO.File]::WriteAllText($fixtureCertificationScript, $fixtureCertification, [Text.UTF8Encoding]::new($false))
+$swapReceipt = New-CandidateReceipt $primary $WorktreeCliExecutable $AgentHarnessExecutable 'ReceiptSwap'
+$previousSwapReceiptPath = [Environment]::GetEnvironmentVariable('BROKEN_ENGINE_SWAP_RECEIPT_PATH')
+try {
+	[Environment]::SetEnvironmentVariable('BROKEN_ENGINE_SWAP_RECEIPT_PATH', $garbageReceipt.Path)
+	$run = Invoke-Promotion -ReceiptPath $swapReceipt.Path -ReceiptSha256 $swapReceipt.Sha256 -Commit $landed -Script $fixturePromotionScript
+}
+finally {
+	[Environment]::SetEnvironmentVariable('BROKEN_ENGINE_SWAP_RECEIPT_PATH', $previousSwapReceiptPath)
+}
+Assert-Outcome $run 'post-certification-receipt-swap' 0 'ok'
+if ($null -ne $run.Json -and $run.Json.status -ceq 'pass') {
+	Assert-True ((Get-Sha256 $canonicalWorktreeCli) -ceq (Get-Sha256 $WorktreeCliExecutable)) 'receipt-swap certified WorktreeCli promoted'
+	Assert-True ((Get-Sha256 $canonicalAgentHarness) -ceq (Get-Sha256 $AgentHarnessExecutable)) 'receipt-swap certified AgentHarness promoted'
+}
+
+# 15. Candidate/source mismatch after primary advanced its tool trees.
 Set-Content (Join-Path $primary 'Tools\ToolCommon\source.txt') 'fixture changed'
 Invoke-ScratchGit $primary @('add', '-A') | Out-Null
 Invoke-ScratchGit $primary @('commit', '-m', 'tool change') | Out-Null
 $newLanded = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
 $run = Invoke-Promotion $receipt.Path $receipt.Sha256 $newLanded
-Assert-Outcome $run 'source-mismatch' 2 'promotion.source-mismatch'
+Assert-Outcome $run 'source-mismatch' 2 'promotion.certification.source-bytes'
 
 Write-Host ''
 if ($script:Failures.Count -gt 0) {
 	Write-Host "AgentTools promotion fixtures FAILED ($($script:Failures.Count) assertion(s))."
-	exit 1
+	$fixtureExitCode = 1
 }
-Write-Host 'AgentTools promotion fixtures passed (11 scenarios).'
-exit 0
+else {
+	Write-Host 'AgentTools promotion fixtures passed.'
+}
+}
+finally {
+	if ($initialRegistered -and $null -ne $initialOwner) {
+		try { Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $initialOwner } catch { }
+	}
+	if ($maintenanceHeld -and $null -ne $maintenanceOwner) {
+		try { Exit-WorktreeCliMaintenance -RepositoryRoot $primary -Owner $maintenanceOwner } catch { }
+	}
+	if ($sessionRegistered -and $null -ne $sessionOwner) {
+		try { Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner } catch { }
+	}
+	[Environment]::SetEnvironmentVariable('LOCALAPPDATA', $previousLocalAppData)
+	$validatedScratch = Assert-SafeScratchRoot $scratchParent $scratchBase $scratchLeaf
+	if (Test-Path -LiteralPath $validatedScratch) {
+		Remove-Item -LiteralPath $validatedScratch -Recurse -Force -Confirm:$false
+	}
+}
+exit $fixtureExitCode

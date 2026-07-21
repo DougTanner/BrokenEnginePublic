@@ -1,11 +1,20 @@
-# `/Projects/BrokenEngineSandbox/Source/Server/` - Server Display
+# Server - Headless Monitoring Window
 
-GDI-based monitoring window for the headless server build (`BT_SERVER` only). Renders simulation stats, memory usage, and a visual grid map via `WM_PAINT` — no GPU or Vulkan dependency. Game-layer code (`game::` namespace) because it reads the concrete game collections (plus the engine-owned explosions collection) and game profile counters (`game::kCpuCounter*`).
+Server-only GDI monitoring for simulation statistics, profiling, memory, and the active-coordinate map. It has no Vulkan dependency.
 
-Per-tick stat aggregation (entity counts across `mActiveCoords`, mimalloc memory stats, smoothed CPU timers) runs in `ServerUpdateDisplayStats()` and is gated on `kbProfiling` — paint reads the resulting profile counters/timers, not the live frames, for those numbers. With `kbProfiling` false the counts, timers, and Profile tab stay at zero while tick/time and the map remain live — intentional, not a bug. Memory lines come from `mi_stats_*` and compile out under `ENABLE_CRT_DEBUG_HEAP`.
+## Ownership and Cadence
 
-## Architecture Notes
+- Engine `Main.cpp` owns the window, message loop, and repaint scheduling. Game code owns statistic aggregation, paint content, and click handling because it reads concrete game collections and profile counters.
+- Statistic aggregation runs per tick only when `kbProfiling`; when disabled, profile counters and the Profile tab remain empty while tick/time and the map stay live.
+- Full-window painting is throttled and double-buffered to keep the server loop responsive; click-driven invalidation may repaint immediately.
+- The map renders North (+y) upward and distinguishes client-authorized, active, idle, and subscribed coordinates.
 
-The window itself (HWND lifecycle, `WndProc`, throttled `InvalidateRect`) lives in engine `Main.cpp`, which calls the three `game::` entry points — `ServerUpdateDisplayStats()`, `PaintServerDisplay(HWND)`, `HandleServerClick(HWND, x, y)` — directly (the composition-root engine→game call pattern); those call sites also carry the broad `ScopedSuppressAllocationTracking` wraps for GDI/`InvalidateRect` allocations. `ServerUpdateDisplayStats()` runs every tick, but the full-window repaint is throttled to every `kiServerDisplayRepaintTicks` (8) ticks — the window shows only coarse stats/map, and the full-window GDI paint (back-buffer blit, per-cell fills) is the dominant server CPU cost at 32 Hz; clicks still repaint immediately via the `WM_LBUTTONDOWN` `InvalidateRect`. GDI double-buffering with `WM_ERASEBKGND` suppressed eliminates flicker; the back-buffer DC/bitmap, font, and palette brushes/pens are file-static, created on first paint (bitmap recreated on client-size change) and reclaimed only at process teardown rather than rebuilt per paint. Layout: fixed left stats panel (tick/time read from the `kOriginCoord` frame, counts from profile counters, client count from `engine::gpServer->GetClients()`) plus a tabbed right panel (Map, Profile). Map cell fill encodes per-cell state from `mActiveCoords` and the client list: client-authorized (blue), otherwise active (green), otherwise idle (gray); cells any client has subscribed get a red interior border. The grid auto-scales to active coords with 1-cell padding, renders world North (+y) upward (screen Y flipped), and labels active cells with entity counts read live from that cell's frame (bypassing the counters) plus per-cell client counts from the client list. Tab state and hit-rects are file-static — one window per process.
+## Profile Presentation
 
-Profile-tab text is produced by the engine formatters shared with the client ImGui profile screens (`engine::FormatCpuTimersText`/`FormatCpuCountersText`), written into `gpThreadLocal->mWorkbuffer` under a RAII `ScopedWorkbufferArena`; row visibility uses one `TickVisibilityCadence()` call per paint so timer and counter rows re-evaluate together (see [Engine/Source/Profile/AGENTS.md](../../../../Engine/Source/Profile/AGENTS.md)). Zero rows remain hidden in this UI, including when profiling is disabled. The server agent `query_profile` instead returns every raw timer/counter row, including zero values, for automated inspection. The text is also appended to a file-static `std::string` cache so the Copy button pushes the last-painted text to the clipboard; that mutation is the one local `ScopedSuppressAllocationTracking` in this directory.
+- Reuse the engine CPU timer/counter formatters and one `TickVisibilityCadence` decision per paint so timer and counter rows change visibility together.
+- Build transient text in the thread-local workbuffer. UI rows hide sustained zeros, while the server agent profile query returns raw rows including zeros.
+
+## See Also
+
+- [Engine Profile](../../../../Engine/Source/Profile/AGENTS.md)
+- [Game Profile](../Profile/AGENTS.md)

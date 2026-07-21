@@ -14,16 +14,7 @@ void SmokeTrailsInterpolate::Register()
 
 void SmokeTrailsInterpolate::AllocateAndCopy(SmokeTrailsInterpolate& rCurrent, const SmokeTrailsInterpolate& rPrevious)
 {
-	Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
-		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));
-		std::memcpy(rCurrent.pVecSmoothedPositions, rPrevious.pVecSmoothedPositions, rCurrent.iCount * sizeof(rCurrent.pVecSmoothedPositions[0]));
-		std::memcpy(rCurrent.pfIntensities, rPrevious.pfIntensities, rCurrent.iCount * sizeof(rCurrent.pfIntensities[0]));
-		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, rCurrent.iCount * sizeof(rCurrent.pfStartTimes[0]));
-	}
+	AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void SmokeTrailsPostRender::AllocateAndCopy(SmokeTrailsPostRender& rCurrent, const SmokeTrailsPostRender& rPrevious)
@@ -107,15 +98,9 @@ void SmokeTrailsPostRender::Add(game::Frame& __restrict rFrame, smoke_trails_t& 
 
 	rId = id;
 	rPostRender.puiIds[iSpawnIndex] = id;
+	ZeroMemberRow(iSpawnIndex, rInterpolate.Members());
 	rInterpolate.puiTypeIndices[iSpawnIndex] = uiTypeIndex;
-	rInterpolate.pVecPositions[iSpawnIndex] = XMVectorZero();
-	rInterpolate.pVecSmoothedPositions[iSpawnIndex] = XMVectorZero();
-	rInterpolate.pfIntensities[iSpawnIndex] = 0.0f;
-	if (reuseId.IsValid())
-	{
-		rInterpolate.pfStartTimes[iSpawnIndex] = 0.0f;
-	}
-	else
+	if (!reuseId.IsValid())
 	{
 		rInterpolate.pfStartTimes[iSpawnIndex] = rFrame.interpolate.fCurrentTime;
 	}
@@ -123,14 +108,10 @@ void SmokeTrailsPostRender::Add(game::Frame& __restrict rFrame, smoke_trails_t& 
 
 void SmokeTrailsPostRender::Remove(game::Frame& __restrict rFrame, smoke_trails_t& rId)
 {
-	ASSERT(rId.IsValid());
-
 	SmokeTrailsInterpolate& rInterpolate = rFrame.interpolate.smokeTrails;
 	SmokeTrailsPostRender& rPostRender = rFrame.postRender.smokeTrails;
 
-	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-
-	rId = {};
+	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 }
 
 void SmokeTrailsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

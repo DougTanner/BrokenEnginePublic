@@ -39,7 +39,7 @@ static std::unique_ptr<game::Frame> DecompressAndReadFrame(const uint8_t*& pCurs
 
 	std::istringstream frameStream(std::move(decompressed), std::ios::binary);
 	std::unique_ptr<game::Frame> pFrame = std::make_unique<game::Frame>();
-	pFrame->ServerRead(frameStream);
+	game::NetworkSessionContract::ReadFrame(frameStream, *pFrame);
 	return pFrame;
 }
 
@@ -54,15 +54,24 @@ bool Client::RemoveCancelledSubscription(GridCoord coord)
 	return false;
 }
 
-void Client::ClearSubscribingPlaceholder(GridCoord coord)
+int64_t Client::FindSubscribingPlaceholder(GridCoord coord) const
 {
 	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
 		if (mCoordSlots.at(i).eState == CoordSubscriptionState::kSubscribing && mCoordSlots.at(i).coord == coord)
 		{
-			mCoordSlots.at(i) = {};
-			break;
+			return i;
 		}
+	}
+	return -1;
+}
+
+void Client::ClearSubscribingPlaceholder(GridCoord coord)
+{
+	int64_t iSlot = FindSubscribingPlaceholder(coord);
+	if (iSlot >= 0)
+	{
+		mCoordSlots.at(iSlot) = {};
 	}
 }
 
@@ -73,7 +82,11 @@ Client::FullStateFlags_t Client::ClassifyFullState(uint8_t uiSlotIndex, uint16_t
 	// Full state arrived before SubscribeAccept (different ENet channels)
 	if (rSlot.eState == CoordSubscriptionState::kUnsubscribed)
 	{
-		return { FullStateFlags::kClearPlaceholder, FullStateFlags::kCommit };
+		if (FindSubscribingPlaceholder(coord) >= 0)
+		{
+			return { FullStateFlags::kClearPlaceholder, FullStateFlags::kCommit };
+		}
+		return FullStateFlags::kRejectAsGhost;
 	}
 
 	if (rSlot.eState == CoordSubscriptionState::kWaitingFullState
@@ -186,7 +199,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	if (actions & FullStateFlags::kRejectAsGhost)
 	{
 		RemoveCancelledSubscription(coord);
-		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
+		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex, uiEpoch);
 		LOG(kNetwork, kVerbose, "Client::ServerCoordFullState coord mismatch, sent unsubscribe for ghost Slot: {} Coord: ({},{}) SlotCoord: ({},{})", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y);
 		return;
 	}
@@ -205,7 +218,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	// Late cancellation: the kSubscribing slot was dropped between subscribe and full-state arrival
 	if (RemoveCancelledSubscription(coord))
 	{
-		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
+		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex, uiEpoch);
 		LOG(kNetwork, kVerbose, "Client::ServerCoordFullState cancelled, sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		rSlot = {};
 		return;
@@ -224,6 +237,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	rSlot.ackState.uiReceivedBitfieldHigh = 0;
 	rSlot.ackState.uiEpoch = uiEpoch;
 	rSlot.eState = CoordSubscriptionState::kActive;
+	rSlot.transitionStartTime = {};
 }
 
 void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
@@ -315,8 +329,8 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 			{
 				int64_t iIntervalUs = std::chrono::duration_cast<std::chrono::microseconds>(now - mLastUpdateArrival).count();
 				// Server broadcast cadence is wall-scaled by the debug timescale; expect the scaled wall interval, not the fixed sim tick period
-				int64_t iExpectedUs = std::chrono::duration_cast<std::chrono::microseconds>(game::gpGame->mTimeStep.SimToWall(game::kTickNs)).count();
-				int64_t iDeviation = std::abs(iIntervalUs - iExpectedUs);
+				int64_t iExpectedMicroseconds = mTimeState.iExpectedUpdateIntervalMicroseconds;
+				int64_t iDeviation = std::abs(iIntervalUs - iExpectedMicroseconds);
 				mSmoothedJitterUs = iDeviation;
 				mSmoothedJitterUs.Update();
 			}
@@ -351,7 +365,7 @@ void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool 
 
 	if (iCompressedSize > 0)
 	{
-		int64_t iCount = DecompressStatusChangeBatch(pCursor, iCompressedSize, mStatusChangeScratch.data(), kiMaxStatusChangesPerCell);
+		int64_t iCount = game::NetworkSessionContract::DecompressStatusChanges(pCursor, iCompressedSize, mStatusChangeScratch.data(), kiMaxStatusChangesPerCell);
 		// Heap: exact-size copy out of the reused 1024-cap decode scratch, so the buffered update carries no capacity slack
 		update.statusChanges.assign(mStatusChangeScratch.begin(), mStatusChangeScratch.begin() + iCount);
 	}
@@ -468,7 +482,7 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	if (uiSlotIndex >= std::ssize(mCoordSlots))
 	{
 		LOG(kNetwork, kWarning, "Client::ServerSubscribeAccept Out-of-range, unsubscribing Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
-		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
+		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex, uiEpoch);
 		return;
 	}
 
@@ -478,7 +492,7 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	if (actions & SubscribeAcceptFlags::kRejectGhost)
 	{
 		LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Ignoring Slot: {} Coord: ({},{}) SlotCoord: ({},{}) State: {}", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y, static_cast<int>(rSlot.eState));
-		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
+		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex, uiEpoch);
 		RemoveCancelledSubscription(coord);
 		LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		return;
@@ -508,6 +522,7 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	{
 		rSlot.coord = coord;
 		rSlot.eState = CoordSubscriptionState::kWaitingFullState;
+		rSlot.transitionStartTime = std::chrono::steady_clock::now();
 		rSlot.ackState.iAckFloor = -1;
 		rSlot.ackState.uiReceivedBitfieldLow = 0;
 		rSlot.ackState.uiReceivedBitfieldHigh = 0;

@@ -1,40 +1,35 @@
-# Network/Client/ - Client Session and Reconciliation
+# Network Client - Session and Reconciliation
 
-## Overview
+Client-only game networking. `ClientSession` is the game-policy façade over `engine::ClientSessionRuntime`; it owns receive adoption, reconciliation, and desync/gameplay policy.
 
-Client-side networking: connection lifecycle, server data ingestion, rollback-and-replay reconciliation, and desync detection/recovery. Three managers owned by `ClientSession` via `unique_ptr`; driven once per frame by `engine::GameBase::ClientUpdate()` through the `game::gpClientSession` global (Poll → UpdateSubscriptions → Reconcile). Client-only (`BT_CLIENT`).
+## Ownership
 
-## Key Classes
+- `engine::ClientSessionRuntime` owns connection/GUID/discovery, subscription state, clock state, ordered drains, and ACK/flush. `ClientSession` supplies desired coordinates and applies static data, full states, game packets, and tick updates to `CoordFrames`; static-data arrival also requests matching terrain textures.
+- `ClientReconciler` dispatches each coordinate once per client update. Workers write only their assigned `CoordFrames`; result merging, first-wins desync selection, visual-error aggregation, and cross-coordinate player-transfer migration run after dispatch.
+- `ClientDesyncManager` coordinates debug capture, resync, and repeated-desync disconnect policy.
 
-- **ClientSession** - Top-level orchestrator inheriting `engine::ClientSessionBase`. Drives connection, server-load reset, clock correction/snap, queue-based subscriptions, game-packet sends, and decode of the server timescale broadcast. Delegates to three owned managers below. Subscription bookkeeping lives in `ClientSessionSubscriptions.cpp`.
-- **ClientDataReceiver** - Applies incoming static data, full states, and per-tick updates into `CoordFrames`. Static-data application also drives lazy island-texture acquisition: each placement triggers a per-CRC texture-slot mint so terrain GPU residency follows subscription arrivals.
-- **ClientReconciler** - Single-pass per `ClientUpdate()`. Per-coord work runs in parallel via `common::gpMultithreading` on `CoordFrames` entries directly (no marshaling layer); merge of profiling, first-wins desync, and visual-error offset runs on the main thread post-dispatch.
-- **ClientDesyncManager** - Desync detection, debug-frame capture, resync coordination, and frequency-based escalation to disconnect.
-- **ReconcileReplay** - Stateless pipeline helpers (declared in `ReconcileReplay.h`) split across four siblings: `ReconcileReplay.cpp` (per-coord orchestration — fast-path gate, rollback-base selection, primary replay, two-tier fallback, output layout, writeback); `ReconcileReplayCrc.cpp` (the CRC fast-path walk that advances `iConfirmedTick` and reports the lowest unresolved mismatch); `ReconcileReplayTick.cpp` (tick-level primitives — rollback, replay-range scan, per-tick run + CRC validation, forward-step, catch-up); `ReconcileReplayClientState.cpp` (cross-coord transfer migration of the client player).
+## Session Policy
 
-## Architecture Notes
+- Persist the client GUID in the versioned app-data `ClientGuid.bin`: load it before connecting, then let the transport's accept callback write it atomically so an interrupted write cannot orphan persistent server state.
+- Disconnect clears transport and discovery objects, every coordinate's client state, subscription intent, the latest-server pacing baseline, active correction error/target, correction-log cadence, reconciliation, and desync recovery.
+- Preserve subscription orchestration order: remove stale coordinates, recover timed-out transitional slots, rebuild the desired queue, then fill available slots. Adopt each poll's static data before full states and full states before delta updates; stale deltas are skipped and duplicate ticks keep the first arrival.
+- LAN discovery stops after recording a found address. A scan timeout records the timeout, replaces the scanner, and immediately starts a fresh scan.
 
-- **CRC fast path is primary**: each coord first walks its `serverUpdates` against the speculative ring; matching frames advance `iConfirmedTick` in place and the coord catches up forward without re-simulating. Full rollback-and-replay is the fallback, entered when the walk finds an unresolved mismatch or pending full state past confirmed, or pending updates with no ring frame to compare against.
-- **Render-behind retention**: the fast path keeps `kiRenderBehindTicks` frames *before* the confirmed match as the new ring head so the renderer always has prev-tails for interpolation; `iConfirmedOffset` tracks head-to-confirmed delta.
-- Rollback is **shrunk-by-default** (one tick before the lowest unresolved mismatch, only if that base frame was CRC-validated). Full rollback to `iConfirmedTick` is the fallback; cases enumerated in [Network.md](../../../../../Documents/Architecture/Network.md).
-- **Per-frame replay bound**: replay runs to `iMaxConsecutive`; `ReconcileCatchUpCoord` then forward-sims the remainder to `iTargetTick` unconditionally, so replay count does not bound per-frame `RunFrameTick` cost. The real per-frame bound is the ring budget `iBudget = kiNetworkBufferSize - iReplayWriteCount`.
-- **Server-load reset**: a load notification drains/clears all coord, clock, identity, fleet, and reconciler state so the client re-bootstraps from the post-load server tick.
-- Sticky subscriptions: unwanted coords remain active for `kStickySubscriptionDuration` to avoid flicker during transitions. The desired set (current cell + `mVisibleNeighbors`, or origin when unfocused) feeds a subscribe/unsubscribe queue throttled by the engine's slot budget; `SubscriptionChangeReason` tags each recompute for logging.
-- Soft desync recovery: CRC mismatch triggers resync; repeated desyncs within a short window escalate to disconnect.
-- Visual error offset accumulates on `gpGame` after full replay of the client coord, resetting to zero if it exceeds `Game::kfVisualErrorMaxDistance` rather than accumulating unboundedly.
-- Initial full state sets `gpGame` tick behind `latestServerTick` by a jitter-safety floor so sim starts at the steady-state clock target — avoids startup freeze. Offset is clamped at the server's current tick so a fresh-from-save server (tick below the floor) doesn't drive the client tick negative.
-- Hard clock snap (bypassing gradual correction) triggers on large clock error only. Snapped tick is clamped at zero for the same fresh-from-save reason as the initial-state path.
+## Reconciliation Invariants
 
-## Invariants & Parallelism
+- A server-validated tick is frozen and must not be simulated again. Matching speculative CRCs advance confirmation without replay; unresolved mismatches or due pending authoritative state enter rollback and replay. Future full states stay queued until due; a due state beyond an update gap becomes the authoritative ring base.
+- Preserve render-behind history when advancing confirmed state. Replay and catch-up must remain within the coordinate ring budget.
+- Apply transfer `StatusChange`s after each tick, matching server Destroy/Spawn order, and recompute the Frame CRC when transfers modify the result.
+- Server-load notification clears coord, clock, identity, fleet, subscription, and reconciler state before the client accepts post-load data.
+- Player-event, timespeed, and fleet-sync handlers have independent log-and-continue exception boundaries. Static-data, full-state, and tick-update adoption remain outside those catches.
+- Sticky desired subscriptions reduce visible churn; the engine slot queue owns transport throttling. During a real debug-frame wait or the synthetic full-state fixture stall, transport polling and receive-buffer drains continue while subscription updates, simulation, and reconciliation remain stalled.
 
-- **No cross-coord writes during dispatch**: per-coord workers touch only their own `CoordFrames` entry; first-wins desync selection and flag aggregation run on the main thread post-dispatch. The lone cross-coord read (transfer migration matching the client player against a destination coord's result) runs single-threaded in `ReconcileReplayClientState.cpp` after the merge. Per-frame `mWorks` grows via `resize()` (never per-frame `clear()`) so each `CoordScratch::replayStack` retains allocated capacity across `Run()` calls.
-- **Validated ticks are frozen**: a tick at or below `iHighWaterValidatedTick` (client CRC matched the server) must never re-simulate; re-sim attempts trip `DEBUG_BREAK()`. Full replay also `DEBUG_BREAK()`s if it would repeat identical work (unchanged `iConfirmedTick` + `serverUpdates` count, no pending full state).
-- Transfer `StatusChange`s apply *after* each tick (matching server Destroy/Spawn ordering); when transfers occurred, the frame CRC is recomputed — required for fast-path matching.
-- **Stalled short-circuit**: while a debug frame is outstanding, poll/reconcile return early.
-- High-frequency logs (mismatch, clock error, visual error) use hysteresis / cooldown / periodic emission, plus per-coord stuck-state dedup.
+Speculative and provisional CRC mismatches log at `kDebug`. Only a mismatch that survives full rollback/replay is a confirmed desync, logs at `kError`, and triggers recovery policy. A confirmed mismatch always reports the differing CRCs. With `kbDesyncDebugFrames` enabled, the client requests the server snapshot, stalls until the response or `kDesyncDebugTimeout`, compares any response, then recovers or disconnects. With it disabled, the client never requests or stalls for a real desync and immediately follows `kbDesyncRecovery`; repeated recoveries within the configured window escalate to disconnect.
+
+Detailed fast-path, rollback-base, clock, and full-state behavior belongs in the architecture documents rather than this leaf.
 
 ## See Also
 
-- `../AGENTS.md` - Parent hub (packet types, wire format, StatusChange batch)
-- [Game Reconciliation](../../../../../Documents/Architecture/GameReconciliation.md) - Update when rollback, replay, full-state injection, or desync handling changes
-- [Network Architecture](../../../../../Documents/Architecture/Network.md)
+- [Game Network](../AGENTS.md)
+- [Game reconciliation](../../../../../Documents/Architecture/GameReconciliation.md)
+- [Network architecture](../../../../../Documents/Architecture/Network.md)

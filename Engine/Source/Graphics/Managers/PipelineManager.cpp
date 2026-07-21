@@ -183,13 +183,18 @@ void PipelineManager::CreateLightingPipelines()
 
 	// Spread pipelines (radial directional spread, fragment shader with MRT)
 	// Pass 0 reads deposit textures, passes 1+ read previous pass spread textures
+	// kIndirectHostVisible gives each pass a per-framebuffer VkDrawIndexedIndirectCommand slot so
+	// RenderLightingSpreadIndirect can gate the whole chain to zero instances on a frame that deposited no
+	// light, without re-recording the Main CB (same flag set as kPipelineSmokeClearA/B below). The flag also
+	// defers the Pipeline::Create texture request to the first WriteIndirectBuffer with instances, which is a
+	// no-op here: these pipelines bind only render-target textures, never disk-loaded chunks.
 	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
 	{
 		mSpreadPipelineNames[iPass] = std::format("LightingSpread{}", iPass);
 		mSpreadPipelines[iPass].Create(
 		{
 			.name = mSpreadPipelineNames[iPass],
-			.flags = {kRenderTarget, kPushConstants},
+			.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
 			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingSpreadfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 			.vkRenderPass = rTextures.mSpreadVkRenderPass,

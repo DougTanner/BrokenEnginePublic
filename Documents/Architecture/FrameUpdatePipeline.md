@@ -76,7 +76,7 @@ flowchart TD
         ts["TimeStep::TickRealtime()<br/>compute iFullTicks"]:::physics
         subs["ClientSession::UpdateDesiredCoords()<br/>+ UpdateSubscriptions()<br/>unsubscribe stale, rebuild, subscribe"]:::network
         prepare_active["PrepareActiveSet()"]:::physics
-        clamp["Clamp iFullTicks to<br/>GetSimTickCeiling()<br/>(servo target + slack)<br/>(AbsorbUnusedTicks)"]:::network
+        clamp["Clamp iFullTicks to<br/>runtime clock-state ceiling<br/>(latest tick - target behind + slack)<br/>(AbsorbUnusedTicks)"]:::network
         advance["Advance miTickCounter +<br/>mfCurrentTime"]:::physics
         reconcile["ClientSession::Reconcile()<br/>single pass: drop validated,<br/>replay mismatches, forward sim<br/>to target tick"]:::network
 
@@ -108,7 +108,7 @@ flowchart TD
 
 ## Server Main Loop
 
-Main.cpp calls `ServerUpdate()` then `ServerUpdateDisplayStats()`. Network orchestration is encapsulated within `GameBase::ServerUpdate()`, which delegates to `ServerSession` and `ServerSessionBase` methods.
+Main.cpp calls `ServerUpdate()` then `ServerUpdateDisplayStats()`. Network orchestration is encapsulated within `GameBase::ServerUpdate()`, which delegates phase operations through the runtime owned by `ServerSession`.
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
@@ -123,13 +123,12 @@ flowchart TD
     msgs["ProcessMessages()"]:::server
 
     subgraph tick_frames ["GameBase::ServerUpdate()"]
-        pre_tick["ServerSession::PreTickNetwork()"]:::network
+        pre_tick["ServerSessionRuntime::Poll()"]:::network
         agent_drain["AgentCommandServer::Drain()<br/>(dev, if --agent-port)"]:::agent
 
-        quickload{"GameSaveLoad::Quickload()?"}:::server
         save_load_replay["GameSaveLoad::SaveLoadReplay()"]:::server
 
-        wait_tick["ServerSessionBase::WaitForTick()"]:::server
+        wait_tick["ServerSessionRuntime::WaitForTick()"]:::server
 
         ts["TimeStep::TickRealtime()<br/>compute iFullTicks"]:::physics
         prepare_active["PrepareActiveSet()"]:::physics
@@ -142,7 +141,7 @@ flowchart TD
             dispatch_s["Dispatch RunFrameTick()"]:::physics
             harvest["HarvestTransfers()"]:::physics
             frame_swap["SwapFrames()"]:::physics
-            broadcast_tick["ServerSession::BroadcastTick()"]:::network
+            broadcast_tick["ServerSessionRuntime::CompleteTick()"]:::network
             prepare_tick --> sync_replay --> replay_terminal
             replay_terminal -->|No| dispatch_s --> harvest --> frame_swap
             replay_terminal -->|Yes| replay_reload
@@ -150,12 +149,11 @@ flowchart TD
         end
 
         tick_branch{"iFullTicks > 0?"}:::physics
-        resends["ServerSession::SendResends()"]:::network
-        service_paused["ServerSession::ServicePausedNetwork()<br/>(build navData + drain<br/>resync/new-subscription queues)"]:::network
-        autosave["GameSaveLoad::TickAutosave()<br/>+ Quicksave()"]:::server
+        resends["ServerSessionRuntime::CompleteUpdate()<br/>(resends)"]:::network
+        service_paused["ServerSessionRuntime::CompleteUpdate()<br/>(build navData + drain<br/>resync/new-subscription queues)"]:::network
+        autosave["GameSaveLoad::TickAutosave()"]:::server
 
-        pre_tick --> agent_drain --> quickload
-        quickload -->|No| save_load_replay --> wait_tick --> ts --> prepare_active --> physics_loop
+        pre_tick --> agent_drain --> save_load_replay --> wait_tick --> ts --> prepare_active --> physics_loop
         broadcast_tick --> tick_branch
         replay_reload --> tick_branch
         tick_branch -->|Yes| resends --> autosave
@@ -165,7 +163,6 @@ flowchart TD
     display["ServerUpdateDisplayStats()"]:::server
 
     start --> msgs --> tick_frames --> display
-    quickload -->|"Yes: ComputeActiveSet(),<br/>early-return whole update"| display
     display -->|next iteration| start
 ```
 

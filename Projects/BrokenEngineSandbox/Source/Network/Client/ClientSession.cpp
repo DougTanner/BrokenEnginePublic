@@ -34,14 +34,14 @@ ClientSession::ClientSession()
 	ASSERT(gpClientSession == nullptr);
 
 	gpClientSession = this;
-	miCoordSlots = kiDesiredCoordSlots;
-	mpDataReceiver = std::make_unique<ClientDataReceiver>();
 	mpDesyncManager = std::make_unique<ClientDesyncManager>();
 	mpReconciler = std::make_unique<ClientReconciler>();
+	mpRuntime = std::make_unique<engine::ClientSessionRuntime>(*this);
 }
 
 ClientSession::~ClientSession()
 {
+	mpRuntime.reset();
 	if (gpClientSession == this)
 	{
 		gpClientSession = nullptr;
@@ -51,7 +51,7 @@ ClientSession::~ClientSession()
 template <typename TLogFunction, typename... TArgs>
 void ClientSession::SendGameRequest(GamePacketType ePacketType, const TLogFunction& rLogFunction, const TArgs&... rArgs)
 {
-	if (!CanSend())
+	if (mpRuntime->mpClient == nullptr || !(mpRuntime->mpClient->mStateFlags & engine::Client::ClientStateFlags::kConnected) || mpRuntime->mpClient->mpServerPeer == nullptr)
 	{
 		return;
 	}
@@ -63,75 +63,74 @@ void ClientSession::SendGameRequest(GamePacketType ePacketType, const TLogFuncti
 	}
 
 	rLogFunction();
-	mpClientNetwork->SendSimplePacket(ePacketType, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, rArgs...);
+	engine::gpClient->SendSimplePacket(ePacketType, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, rArgs...);
 }
 
-std::chrono::nanoseconds ClientSession::ComputeClockCorrectionNs(int64_t iPreReconcileTick)
+void ClientSession::ProcessReceivedGamePackets()
 {
-	std::chrono::nanoseconds correction = ClientSessionBase::ComputeClockCorrectionNs(iPreReconcileTick, kTickNs);
-	gpProfileManager->SetClockCorrection(miClockOffset, miClockTargetBehind, miClockError);
-
-	return correction;
-}
-
-void ClientSession::PollNetwork()
-{
-	// Heap: ENet polling allocates packets, DrainReceived* moves vectors, stringstream serialization
-	ScopedSuppressAllocationTracking suppress;
-
-	if (!PollConnection())
-	{
-		return;
-	}
-
-	if (mpClientNetwork->DrainLoadNotification())
-	{
-		ResetForServerLoad();
-	}
 
 	// Parse and process player events from raw game packets
-	common::ScopedWorkbufferArena playerEventsArena = common::gpThreadLocal->mWorkbuffer.Push();
-	ParsePlayerEvents(mpClientNetwork->DrainReceivedGamePackets(), playerEventsArena);
-	std::span<const ReceivedPlayerEvent> playerEvents = playerEventsArena.Span<const ReceivedPlayerEvent>();
-	for (const ReceivedPlayerEvent& rEvent : playerEvents)
+	try
 	{
-		ApplyPlayerEvent(rEvent);
+		common::ScopedWorkbufferArena playerEventsArena = common::gpThreadLocal->mWorkbuffer.Push();
+		ParsePlayerEvents(mpRuntime->mpClient->mReceivedGamePackets, playerEventsArena);
+		const ReceivedPlayerEvent* pPlayerEvents = playerEventsArena.Data<ReceivedPlayerEvent>();
+		int64_t iPlayerEventCount = playerEventsArena.Count<ReceivedPlayerEvent>();
+		for (int64_t i = 0; i < iPlayerEventCount; ++i)
+		{
+			ApplyPlayerEvent(pPlayerEvents[i]);
+		}
+	}
+	catch (const std::exception& rException)
+	{
+		LOG(kNetwork, kWarning, "ClientSession::ProcessReceivedGamePackets failed processing player events: {}", rException.what());
 	}
 
 	// Apply server timespeed updates from remaining game packets
-	for (const std::pair<uint8_t, std::vector<uint8_t>>& rPacket : mpClientNetwork->DrainReceivedGamePackets())
+	try
 	{
-		if (static_cast<GamePacketType>(rPacket.first) != GamePacketType::kServerTimespeedUpdate)
+		for (const std::pair<uint8_t, std::vector<uint8_t>>& rPacket : mpRuntime->mpClient->mReceivedGamePackets)
 		{
-			continue;
+			if (static_cast<GamePacketType>(rPacket.first) != GamePacketType::kServerTimespeedUpdate)
+			{
+				continue;
+			}
+			// 8B multiply + 8B divide = 16 bytes (type byte already stripped)
+			if (rPacket.second.size() < 16)
+			{
+				continue;
+			}
+			const uint8_t* pCursor = rPacket.second.data();
+			int64_t iMultiply = engine::ReadInt64(pCursor);
+			int64_t iDivide = engine::ReadInt64(pCursor);
+			LOG(kNetwork, kDebug, "ClientSession::ServerTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
+			gpGame->mTimeStep.SetTimeScale(iMultiply, iDivide);
 		}
-		// 8B multiply + 8B divide = 16 bytes (type byte already stripped)
-		if (rPacket.second.size() < 16)
-		{
-			continue;
-		}
-		const uint8_t* pCursor = rPacket.second.data();
-		int64_t iMultiply = engine::ReadInt64(pCursor);
-		int64_t iDivide = engine::ReadInt64(pCursor);
-		LOG(kNetwork, kDebug, "ClientSession::ServerTimespeedUpdate Multiply: {} Divide: {}", iMultiply, iDivide);
-		gpGame->mTimeStep.SetTimeScale(iMultiply, iDivide);
+	}
+	catch (const std::exception& rException)
+	{
+		LOG(kNetwork, kWarning, "ClientSession::ProcessReceivedGamePackets failed processing server timespeed updates: {}", rException.what());
 	}
 
 	// Parse fleet sync from remaining game packets
-	std::vector<Fleet> receivedFleets;
-	if (ParseFleetSync(mpClientNetwork->DrainReceivedGamePackets(), receivedFleets))
+	try
 	{
-		engine::GridCoord preFleetCoord = gpGame->mClientGridCoord;
-		gpGame->SyncFleets(std::move(receivedFleets));
-		if (gpGame->mClientGridCoord != preFleetCoord)
+		std::vector<Fleet> receivedFleets;
+		if (ParseFleetSync(mpRuntime->mpClient->mReceivedGamePackets, receivedFleets))
 		{
-			UpdateDesiredCoords(SubscriptionChangeReason::kFleetSync);
+			engine::GridCoord preFleetCoord = gpGame->mClientGridCoord;
+			gpGame->SyncFleets(std::move(receivedFleets));
+			if (gpGame->mClientGridCoord != preFleetCoord)
+			{
+				UpdateDesiredCoords(SubscriptionChangeReason::kFleetSync);
+			}
 		}
 	}
+	catch (const std::exception& rException)
+	{
+		LOG(kNetwork, kWarning, "ClientSession::ProcessReceivedGamePackets failed processing fleet sync: {}", rException.what());
+	}
 
-	mpDataReceiver->ApplyReceivedStaticData();
-	mpDataReceiver->ApplyReceivedFullStates();
-	mpDataReceiver->ApplyReceivedUpdates();
 }
 
 void ClientSession::ApplyPlayerEvent(const ReceivedPlayerEvent& rEvent)
@@ -184,32 +183,19 @@ void ClientSession::UpdatePlayerCoord(engine::global_id_t globalPlayerId, engine
 void ClientSession::Poll()
 {
 	ASSERT(common::gpMultithreading->IsMainThread());
-
-	// Poll network and send ACK before reconciliation so server gets acknowledgement ASAP
-	{
-		// Heap: ENet polling
-		ScopedSuppressAllocationTracking suppress;
-		PollNetwork();
-	}
-
-	gpProfileManager->CpuStart(engine::kCpuTimerNetworkSend);
-	{
-		// Heap: SendAck constructs ACK packet, Flush emits queued ENet sends
-		ScopedSuppressAllocationTracking suppress;
-		if (mpClientNetwork != nullptr)
-		{
-			if (mpClientNetwork->SendAck())
-			{
-				mpClientNetwork->Flush();
-			}
-		}
-	}
-	gpProfileManager->CpuStop(engine::kCpuTimerNetworkSend, engine::CpuStopFlags::kSmoothNow);
+	// Heap: transport receive buffers and game packet/frame adoption
+	ScopedSuppressAllocationTracking suppress;
+	engine::NetworkTimeState networkTimeState {
+		.bFastForward = gpGame->mTimeStep.miTimeMultiply > 1,
+		.iExpectedUpdateIntervalMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(gpGame->mTimeStep.SimToWall(NetworkSessionContract::kTickDuration)).count(),
+		.iExpectedUpdatesPerSecond = engine::kiTickRate * gpGame->mTimeStep.miTimeMultiply / gpGame->mTimeStep.miTimeDivide,
+	};
+	mpRuntime->PollAndDrain(networkTimeState);
 }
 
 void ClientSession::Reconcile()
 {
-	if (IsStalled())
+	if (mpDesyncManager->IsStalled())
 	{
 		return;
 	}
@@ -219,7 +205,7 @@ void ClientSession::Reconcile()
 		// Heap: reconciliation deserialization and map operations
 		ScopedSuppressAllocationTracking suppress;
 		int64_t iCurrentTick = gpGame->TickCounter();
-		if (mpClientNetwork != nullptr)
+		if (engine::gpClient != nullptr)
 		{
 			ReconcileDesyncInfo desyncInfo = mpReconciler->Run();
 			if (desyncInfo.bDesync)
@@ -227,19 +213,20 @@ void ClientSession::Reconcile()
 				mpDesyncManager->OnDesyncDetected(std::move(desyncInfo));
 			}
 		}
-		std::chrono::nanoseconds clockCorrectionNs = ComputeClockCorrectionNs(iCurrentTick);
+		std::chrono::nanoseconds clockCorrectionNs = mpRuntime->EvaluateClock(iCurrentTick);
+		gpProfileManager->SetClockCorrection(mpRuntime->miClockOffset, mpRuntime->miClockTargetBehind, mpRuntime->miClockError);
 
-		if (miLatestServerTick >= 0 && std::abs(miClockError) >= engine::kiClockSnapThreshold)
+		if (mpRuntime->miLatestServerTick >= 0 && std::abs(mpRuntime->miClockError) >= engine::kiClockSnapThreshold)
 		{
 			// Snap tick counter to recover from extreme clock error. Sim runs BEHIND latestServerTick.
 			// Clamp at 0 so a fresh post-load server (latestServerTick < currentTargetBehind)
 			// doesn't drive the client tick negative.
-			int64_t iSnapTick = std::max<int64_t>(0, miLatestServerTick - miCurrentTargetBehind);
-			LOG(kNetwork, kWarning, "ClientSession::Reconcile Clock snap OldTick: {} NewTick: {} LatestServerTick: {} TargetBehind: {}", iCurrentTick, iSnapTick, miLatestServerTick, miCurrentTargetBehind);
+			int64_t iSnapTick = std::max<int64_t>(0, mpRuntime->miLatestServerTick - mpRuntime->miCurrentTargetBehind);
+			LOG(kNetwork, kWarning, "ClientSession::Reconcile Clock snap OldTick: {} NewTick: {} LatestServerTick: {} TargetBehind: {}", iCurrentTick, iSnapTick, mpRuntime->miLatestServerTick, mpRuntime->miCurrentTargetBehind);
 			gpGame->SetTickCounter(iSnapTick);
 			gpGame->mTimeStep.ClearAccumulator();
 			gpGame->ResetRenderClock();
-			miClockError = 0;
+			mpRuntime->miClockError = 0;
 		}
 		else
 		{
@@ -252,54 +239,22 @@ void ClientSession::Reconcile()
 void ClientSession::ConnectToServer(std::string_view serverAddress)
 {
 	gpGame->mModalMessage[0] = '\0';
-	ClientSessionBase::ConnectToServer(serverAddress, engine::kuiDefaultPort, kiDesiredCoordSlots);
+	mpRuntime->Connect(serverAddress, engine::kuiDefaultPort, NetworkSessionContract::kiCoordSlots);
 }
 
-void ClientSession::ConnectToDiscoveredServer()
+void ClientSession::OnConnectionRejected(const char* pcReason)
 {
-	mSessionFlags.Clear(engine::SessionStateFlags::kServerDiscovered);
-	ConnectToServer(mcDiscoveredAddress);
+	std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "%s", pcReason);
+	gpGame->meUiState = UiState::kModal;
 }
 
-void ClientSession::DisconnectFromServer()
+void ClientSession::OnConnectionFailed()
 {
-	// Heap: ClientNetwork destructor triggers ENet disconnect and cleanup
-	ScopedSuppressAllocationTracking suppress;
-
-	mpReconciler->Reset();
-	DisconnectFromServerBase();
-	mpDesyncManager->Reset();
-	mDesiredCoords.clear();
-	mUnwantedTimestamps.clear();
+	std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Connection failed");
+	gpGame->meUiState = UiState::kModal;
 }
 
-bool ClientSession::PollConnectionStatus()
-{
-	if (!mpClientNetwork->IsConnectionAccepted())
-	{
-		const char* pRejection = mpClientNetwork->GetRejectionReason();
-		if (pRejection != nullptr)
-		{
-			std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "%s", pRejection);
-			DisconnectFromServer();
-			gpGame->meUiState = UiState::kModal;
-			return false;
-		}
-
-		if (mpClientNetwork->WasDisconnected())
-		{
-			std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Connection failed");
-			DisconnectFromServer();
-			gpGame->meUiState = UiState::kModal;
-			return false;
-		}
-
-		return false;
-	}
-	return true;
-}
-
-void ClientSession::TryEnterGame()
+void ClientSession::OnConnectionAccepted()
 {
 	if (gpGame->InMainMenu())
 	{
@@ -311,61 +266,31 @@ void ClientSession::TryEnterGame()
 	}
 }
 
-bool ClientSession::PollConnection()
+void ClientSession::PollDesyncState()
 {
-	PollLANDiscovery();
-
-	if (mpClientNetwork == nullptr)
-	{
-		return false;
-	}
-
-	mpClientNetwork->Poll();
-
-	if (!PollConnectionStatus())
-	{
-		return false;
-	}
-
-	TryEnterGame();
-
 	mpDesyncManager->PollDebugFrameResponse();
 	mpDesyncManager->PollDesyncTimeout();
-
-	if (mpClientNetwork->WasDisconnected())
-	{
-		gpGame->ChangeFrame(GameFlags::kMainMenu);
-		if (gpGame->mModalMessage[0] == '\0')
-		{
-			std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Connection lost");
-		}
-		gpGame->meUiState = gpGame->mModalMessage[0] != '\0' ? UiState::kModal : UiState::kPause;
-		return false;
-	}
-
-	// Waiting for debug frame response — skip normal processing
-	if (IsStalled())
-	{
-		return false;
-	}
-
-	return true;
 }
 
-void ClientSession::ResetForServerLoad()
+void ClientSession::OnConnectionLost()
 {
-	LOG(kDefault, kDebug, "ClientSession::ResetForServerLoad");
+	gpGame->ChangeFrame(GameFlags::kMainMenu);
+	if (gpGame->mModalMessage[0] == '\0')
+	{
+		std::snprintf(gpGame->mModalMessage, sizeof(gpGame->mModalMessage), "Connection lost");
+	}
+	gpGame->meUiState = UiState::kModal;
+}
+
+void ClientSession::OnServerLoad()
+{
+	LOG(kDefault, kDebug, "ClientSession::OnServerLoad");
 
 	// Reset tick counter and time step — server tick resets to the saved value
 	gpGame->SetTickCounter(0);
 	gpGame->mTimeStep.ClearAccumulator();
 	gpGame->mTimeStep.mRealTime.Reset();
 	gpGame->ResetRenderClock();
-
-	// Reset clock correction state
-	miLatestServerTick = -1;
-	miClockError = 0;
-	miCurrentTargetBehind = 0;
 
 	// Clear player identity — server will reassign
 	gpGame->mClientPlayerIds.clear();
@@ -379,9 +304,6 @@ void ClientSession::ResetForServerLoad()
 	// Clear fleet state — server will re-sync
 	gpGame->mFleetSelection.Clear();
 
-	// Force-reset all client coord slots
-	mpClientNetwork->ResetAllSlots();
-
 	// Clear local coord frames (stale pre-load data). Reset render-progress fields first
 	// so that any entry re-emplaced by a racing packet in the same frame starts clean.
 	for (auto& [rCoord, rCoordFrames] : gpGame->mCoordFrames)
@@ -390,26 +312,25 @@ void ClientSession::ResetForServerLoad()
 	}
 	gpGame->mCoordFrames.clear();
 
-	// Reset reconciler, subscription, and desync state
+	// Reset game-owned reconciliation and desync state.
 	mpReconciler->Reset();
-	ClearSubscriptionState();
 	mpDesyncManager->Reset();
-
-	// Clear stale coord data from this poll cycle (game packets preserved for assign processing)
-	mpClientNetwork->DrainReceivedFullStates().clear();
-	for (std::vector<engine::ReceivedCoordUpdate>& rSlotUpdates : mpClientNetwork->DrainReceivedCoordUpdates())
-	{
-		rSlotUpdates.clear();
-	}
 }
 
-void ClientSession::ClearSubscriptionState()
+void ClientSession::OnRuntimeDisconnected()
 {
-	mDesiredCoords.clear();
-	mUnwantedTimestamps.clear();
-	mSubscriptionQueue.clear();
+	mpReconciler->Reset();
+	for (auto& [rCoord, rFrames] : gpGame->mCoordFrames)
+	{
+		rFrames.ResetClientState();
+	}
+	mpDesyncManager->Reset();
 }
 
+void ClientSession::OnCoordReleased(engine::GridCoord coord)
+{
+	gpGame->mCoordFrames.erase(coord);
+}
 void ClientSession::SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles, float fNavigationDelay)
 {
 	SendGameRequest(GamePacketType::kClientUpdatePlayerRequest, [&]

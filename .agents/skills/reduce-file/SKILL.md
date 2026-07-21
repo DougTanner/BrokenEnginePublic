@@ -1,226 +1,132 @@
 ---
 name: reduce-file
-description: Analyzes a C++ file that exceeds bt-token-v1 size guidelines (5,000-10,000) and produces a structured plan for refactoring or splitting it into smaller files. Invoke when executing a plan that calls for reducing an oversized file (e.g., one pulled by /next-plan), or when the user runs /reduce-file. Do not run inline during review passes — flagged files route to a follow-up plan in `Documents/Plans/` instead.
+description: >-
+  Analyze or reduce oversized C++ headers and implementation files. Use for a
+  standalone /reduce-file request, when preparing a decision-complete reduction
+  plan, or when an approved plan assigns a file-size reduction. During code
+  review, report only a qualifying size observation and defer planning.
 argument-hint: <file-path>
-allowed-tools: [Read, Grep, Glob, Bash, AskUserQuestion]
+allowed-tools: [Read, Write, Edit, Glob, Grep, PowerShell]
 ---
 
 # Reduce File
 
-Analyzes a C++ source file that exceeds the project's `bt-token-v1` size guidelines (5,000-10,000) and produces a structured plan for reducing it — either through extracting helpers to utility files, extracting new classes, or splitting struct implementations across multiple `.cpp` files.
+Find the smallest cohesive boundary that brings an oversized C++ file below its
+threshold without scattering ownership or disguising size.
 
-Interactive — runs in the main session (it asks the user about direction in step 2 and for the final option choice); do not dispatch it to a subagent.
+## Context
 
-> **IMPORTANT — never split a `class` across multiple `.cpp` files to reduce size.** Determine first whether the oversized type is a `class` (instance methods + member data) or a `struct` of static methods (e.g. an SOA collection). Scattering a class's member-function definitions across sibling TUs (`Foo::A()` in `Foo.cpp`, `Foo::B()` in `FooMore.cpp`) does **not** fix the oversized *class* — it only hides its measured size and destroys the one-place-to-reason-about-its-invariants property. The only sanctioned reductions for an oversized **class** are: **(a)** extract free functions/helpers to `*Utils.{h,cpp}`; or **(b)** extract an *independent class* that owns a cohesive slice of the data+behavior, which the original class holds as a member and delegates to (Option B below). Only **structs of static methods** may be split across `.cpp` files by responsibility (core/update/render). If neither (a) nor (b) yields a clean boundary, the correct outcome is **accept-and-document** (add a size-accepted comment at the top of the file so future passes stop re-flagging it) — never a member scatter. This is enforced by `repo-code-review` §7 (File Size Check): "Classes must NOT be split this way — extract independent classes instead." A plan that says "`/reduce-file` split of `Foo.cpp`" where `Foo` is a class must be read as **(a)/(b)/accept-and-document**, not a member scatter.
+Choose exactly one mode from the invocation:
 
-## Key Principles
+- **Review observation:** While reviewing a change, measure the modified file
+  and apply the review's qualification rules. Report only the size and concrete
+  cohesive split opportunity. Do not map the file, draft a plan, or edit code;
+  route an accepted out-of-scope residual through `/create-follow-up-plans`.
+- **Standalone or pre-approval analysis:** Inspect the target and return one
+  evidence-backed material plan choice. Do not ask the user to select among
+  speculative options. Produce the decision-complete draft inline; do not write
+  or queue a plan unless the user explicitly authorizes that action.
+- **Approved-plan execution:** Treat the approved plan and deltas as the decision
+  authority. Implement its assigned reduction without reopening settled design
+  choices. Stop and report a contradiction if repository evidence invalidates a
+  material plan assumption.
 
-- **Free functions / helpers**: Extract to `*Utils.h`/`*Utils.cpp` files. This is the lightest-weight option and should be considered first.
-- **Classes** (instance methods, member data): Each class gets its own `.h` and `.cpp` pair. The goal is to identify groups of data + behavior that form a natural class, then move that data and its methods into a new class that the original class delegates to.
-- **Structs with static methods** (e.g., SOA collections): Can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). Static-method structs only — never split a class (instance methods, member data) across `.cpp` files, since that scatters the implementation without fixing the oversized class; use Option B (Extract New Classes) instead.
+If no path is supplied, ask for one. Never add a source marker declaring an
+oversized file accepted.
 
-## Arguments
+## Qualify the Target
 
-The user provides a file path as the argument:
+Run:
+
+```powershell
+pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>
 ```
-/reduce-file Projects/BrokenEngineSandbox/Source/Game.cpp
+
+`bt-token-v1` is normalized UTF-8 bytes divided by four, rounded up.
+
+- `.h`: reduction threshold is **over 5,000**.
+- `.cpp`: reduction threshold is **over 10,000**.
+
+At or below the applicable threshold, report the measurement and return no
+reduction plan. Reject other extensions. Record the original size and, after an
+approved implementation, the resulting size of every changed or new file.
+
+## Analyze the Boundary
+
+Read applicable `AGENTS.md` files, the full target, its declaration or
+implementation counterpart, direct callers and dependencies, nearby helpers,
+and project membership. Map:
+
+- declarations and definitions with line ranges and approximate sizes;
+- preprocessor affinity, templates, inline code, anonymous-namespace items,
+  constants, local types, and global definitions;
+- responsibility groups, call chains, and data each group reads or writes;
+- symbols shared across proposed boundaries and include/circular-dependency
+  consequences.
+
+In approved-plan execution, use this map only to verify the approved boundary
+and discover affected sites; do not choose a different design. Otherwise choose
+the least disruptive cohesive reduction:
+
+1. Move independent free functions, constants, or local types into an existing
+   suitable utility pair, or a new `*Utils.h` / `*Utils.cpp` pair.
+2. Extract a cohesive stateful responsibility into a new class. A concrete,
+   non-template class keeps one `.h` / `.cpp` pair. The original object owns it
+   by value unless a concrete lifetime, polymorphism, ABI, or dependency reason
+   requires a pointer. Never introduce global ownership.
+3. Split implementations by responsibility only when the declaration is a
+   static-method struct. Keep its declarations in one header.
+
+Never distribute one concrete class's member definitions across sibling `.cpp`
+files merely to reduce the measured file. Template definitions remain inline in
+headers unless an existing explicit-instantiation design proves otherwise.
+
+Prefer an existing suitable helper over a new abstraction. A proposed class
+must own meaningful data and behavior; do not wrap stateless functions in a
+class. Preserve narrow client/server guards and current public interfaces unless
+the approved design requires a change.
+
+## Standalone Plan Draft
+
+Return one recommended design with:
+
+```markdown
+## File Reduction: <file>
+**Measured size:** <n> bt-token-v1; threshold <n>
+**Classification:** <concrete class | template | static-method struct | other>
+
+### Evidence and boundary
+- <responsibility, symbols, line ranges, coupling, scope>
+
+### Design
+- <files retained/created and exact declarations, definitions, or data moved>
+- <ownership, interface, shared-symbol, include, and affinity decisions>
+- <ordered implementation steps that keep the tree buildable>
+
+### Expected sizes
+- `<file>`: ~<n> bt-token-v1 (from <n>)
+
+### Critical files
+- `<path>` — <reason>
+
+### Out of scope
+- <explicit exclusions>
+
+### Risks and verification
+- <risk> -> <decisive check>
 ```
 
-If no argument is provided, ask the user which file to analyze.
+The draft must choose the boundary, filenames, ownership, interface shape,
+shared-symbol placement, and implementation order. Include all affected files
+and consuming build targets; do not leave alternative designs for a later
+implementer to decide.
 
-## Instructions
+## Approved Execution
 
-### 1. Measure the File
-
-Run `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>` on the file and determine severity. `bt-token-v1` is normalized UTF-8 bytes divided by four, rounded up; it is a deterministic size estimate, not an exact model-token count:
-- **5,000-10,000 bt-token-v1**: Look for refactoring opportunities (soft guideline)
-- **Over 10,000 bt-token-v1**: File should be reduced or receive an accepted cohesive exception (hard guideline, requires human approval of split plan)
-
-Report the bt-token-v1 estimate upfront.
-
-### 2. Consider Alternatives
-
-Before mapping the file, ask the user whether they have other approaches in mind, constraints that favor one splitting strategy, or a preferred direction (e.g., "keep the core logic here and extract helpers") — align the analysis with their intent rather than assuming a direction.
-
-### 3. Map the File Structure
-
-Build a complete map of the file's contents. For each function/method/struct, record:
-- **Name** and line range (start-end)
-- **Approximate bt-token-v1 estimate**
-- **Scope guards**: Is it inside `#ifdef BT_CLIENT`, `#ifdef BT_SERVER`, or unguarded (shared)?
-- **Access pattern**: Is it `static`, a free function, a method, a class definition?
-
-Also identify:
-- **Anonymous namespace items** (structs, constants, helper functions)
-- **Constants and global definitions**
-- **Include directives**
-
-### 4. Identify Responsibilities
-
-Group the functions into logical responsibilities based on:
-- **Naming patterns**: Methods with shared prefixes (e.g., `Reconcile*`, `*Server`)
-- **`#ifdef` boundaries**: Code gated by the same preprocessor guard
-- **Data coupling**: Functions that operate on the same struct or member variables
-- **Call chains**: Functions that primarily call each other
-
-For each responsibility group, calculate:
-- Total bt-token-v1 estimate
-- Whether it's client-only, server-only, or shared
-- Key data types it operates on
-- **Which member variables** the group reads/writes (critical for identifying what data moves to the new class)
-
-### 5. Identify Shared Symbols
-
-Find symbols (functions, constants, structs) defined in this file that are used across multiple responsibility groups. These are the "seams" that need special handling during a split:
-- **Free functions in anonymous namespaces** called from multiple groups
-- **Constants** used across groups
-- **Local structs** used across groups
-
-For each shared symbol, note which groups use it and propose where it should live after the split (stay in original file, move to header, move to a specific new file).
-
-### 6. Analyze Dependencies
-
-For each responsibility group, determine what includes it needs:
-- Which headers are required by the functions in that group?
-- Are there any circular dependencies that would complicate a split?
-
-### 7. Propose Options
-
-Present options in priority order. Not all options apply to every file — include only those that are relevant.
-
-#### Option A: Extract Helper Functions to Utils Files (preferred for free functions)
-
-Identify free functions, anonymous namespace helpers, utility logic, shared constants, and local structs that can be extracted to `*Utils.h`/`*Utils.cpp` files.
-
-- **Check for existing `*Utils` files** in the same directory first — add to those before creating new ones
-- **Create new `*Utils.h`/`*Utils.cpp`** if none exist
-- **Existing pattern examples**: `FrameUtils.h`, `GraphicsUtils.h`, `TerrainUtils.h`, `MenuUtils.h`
-- Move shared constants and structs to utils files where appropriate
-- Candidates: free functions, anonymous namespace helpers that aren't tightly coupled to the class, computation helpers, formatting/conversion logic
-
-#### Option B: Extract New Classes (when responsibilities are clearly distinct)
-
-For each proposed new class:
-- **Class name**: Following existing naming conventions
-- **New files**: `ClassName.h` and `ClassName.cpp`
-- **Extracted data**: Which member variables move from the original class to the new class
-- **Extracted methods**: Which methods move to the new class
-- **Size estimate**: Approximate bt-token-v1 for the new `.h` and `.cpp`
-- **Scope guard**: Whether the files are wrapped in `#ifdef`
-- **Includes needed**: What headers the new files require
-- **Delegation pattern**: How the original class uses the new class (owns it as a member? pointer? global?)
-- **Implementation order**: Break into incremental steps where the program compiles and works after each step (e.g., 1. Create new file with class shell, 2. Move first method group, 3. Move data members, 4. Update callers)
-
-Also state:
-- What remains in the original class and its reduced bt-token-v1 estimate
-- How the original class's header changes (removed members, new includes/forward declarations)
-
-The extracted class must be a genuine abstraction — it should own the data it operates on and present a meaningful interface. Don't create a class that just wraps free functions with no state.
-
-#### Option C: Split Struct Implementation Across Multiple .cpp Files (structs with static methods ONLY — never classes)
-
-This applies to structs whose interface is a set of static methods (common for SOA collections). The struct definition stays in a single `.h`; the static method implementations are split across multiple `.cpp` files by responsibility.
-
-For each proposed `.cpp` file:
-- **File name**: `StructName<Responsibility>.cpp` (e.g., `BlastersUpdate.cpp`, `BlastersRender.cpp`)
-- **Methods moved**: Which static methods go into this file
-- **Size estimate**: Approximate bt-token-v1 for the new `.cpp`
-- **Scope guard**: Whether the file is wrapped in `#ifdef`
-- **Includes needed**: What headers the new file requires
-- **Implementation order**: Break into incremental steps where the program compiles after each step (e.g., 1. Create new .cpp, 2. Move first method group, 3. Update vcxproj and vcxproj.filters (filter must mirror on-disk directory), 4. Verify build)
-
-Also state:
-- What remains in the original `.cpp` and its reduced bt-token-v1 estimate
-- The `.h` file does not change (all methods remain declared there)
-
-### 8. Highlight Risks
-
-Flag any complications:
-- Functions that straddle responsibility boundaries
-- Shared mutable state between groups
-- Template or inline functions that must stay in headers
-- `friend` declarations that create coupling
-- Virtual method overrides that must stay together
-- Data that is tightly coupled across groups (hard to separate into distinct classes)
-
-### 9. Decision Document
-
-Summarize the key decisions in the chosen option. Reference modules and responsibilities, not specific file paths (which become outdated):
-- **Modules affected**: Which logical modules change
-- **Interfaces changed**: New public APIs introduced, old ones removed
-- **Architectural decisions**: Why this split boundary was chosen
-- **Out of scope**: What was considered but explicitly excluded from this refactoring
-
-## Output Format
-
-Default template — adapt as needed and omit option sections that don't apply.
-
-## File Analysis: `<filename>`
-
-**Size**: `<bt-token-v1>` (`<severity>`)
-
-### Responsibility Groups
-
-| # | Responsibility | bt-token-v1 | Scope | Key Types | Member Variables |
-|---|---------------|-------|-------|-----------|-----------------|
-| 1 | `<name>`      | ~`<n>` | shared/client/server | `<types>` | `<vars>` |
-| 2 | `<name>`      | ~`<n>` | shared/client/server | `<types>` | `<vars>` |
-
-### Shared Symbols
-- `<symbol>` (`<type>`) — used by groups `<X, Y>`. Recommendation: `<action>`
-
-### Dependencies
-- **Group `<name>`**: requires `<headers>`. Circular dependency risks: `<none or description>`
-
-### Option A: Extract to Utils Files (preferred)
-
-**Target file**: `<ExistingOrNewUtils>.h` / `<ExistingOrNewUtils>.cpp`
-- `<function/constant/struct to extract>`
-- `<function/constant/struct to extract>`
-
-**Target file**: `<AnotherUtils>.h` / `<AnotherUtils>.cpp` (if needed)
-- `<function/constant/struct to extract>`
-
-**Estimated result**: ~`<n>` bt-token-v1 (down from `<original>`)
-
-### Option B: Extract New Classes
-
-#### `<ClassName>` (`<ClassName>.h` / `<ClassName>.cpp`)
-- **Purpose**: `<what this class represents>`
-- **Extracted data**: `<member variables that move to this class>`
-- **Extracted methods**: `<methods that become methods of this class>`
-- **~bt-token-v1**: `<header>` + `<implementation>`
-- **Scope**: `<shared/client/server>`
-- **Delegation**: `<how the original class uses this — member, pointer, global, etc.>`
-
-**Original class after extraction**:
-- **Removed members**: `<list>`
-- **New members/includes**: `<list>`
-- **~bt-token-v1**: `<header>` + `<implementation>` (down from `<original>`)
-
-### Option C: Split Struct Implementation
-
-**Header** (unchanged): `<StructName>.h`
-
-#### `<StructName><Responsibility>.cpp`
-- **Methods**: `<static methods in this file>`
-- **~bt-token-v1**: `<n>`
-- **Scope**: `<shared/client/server>`
-
-#### `<StructName><Responsibility2>.cpp`
-- **Methods**: `<static methods in this file>`
-- **~bt-token-v1**: `<n>`
-- **Scope**: `<shared/client/server>`
-
-**Original `.cpp` after split**: ~`<n>` bt-token-v1 (down from `<original>`)
-
-### Shared Symbol Resolution
-- `<symbol>`: `<where it goes and why>`
-
-### Risks
-- `<risk 1>`
-- `<risk 2>`
-
----
-
-After presenting the analysis, ask the user which option they'd like to proceed with. If they choose a class extraction or struct split, the output can be used directly as input to a planning document.
+Make only the approved moves and required caller/include propagation. For every
+added or removed `.cpp` or `.h`, route project and filter membership through
+`/update-vcxproj`; do not hand-edit project XML. Every new `.cpp` or `.h` also
+requires an affected-target build through `/compile`. Remeasure every changed
+and new C++ file, run focused static checks, and report any file still above its
+applicable threshold. Return exact changed regions, affected-site triggers,
+build targets, checks, and residuals to the parent Change Workflow.

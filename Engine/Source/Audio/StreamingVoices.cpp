@@ -9,6 +9,8 @@
 namespace engine
 {
 
+StreamingVoices::StreamingVoices() = default;
+
 StreamingVoices::~StreamingVoices()
 {
 	// Defensive: drain any in-flight worker fill before members tear down. ~AudioManager always calls Clear first

@@ -21,7 +21,6 @@ constexpr float kfModelScale = 0.15f;
 
 // Spaceship rendering
 constexpr float kfRoll = 0.2f;
-constexpr float kfFreezeTimeBlaster = 0.025f;
 
 void SpaceshipsInterpolate::GraphicsResources()
 {
@@ -182,8 +181,7 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 			XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rModelLayout.f3x4Transform[0]), matTransform);
 			XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rModelLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 
-			float fFreezeColor = std::clamp(rCurrent.pfFreezeTimes[i] / kfFreezeTimeBlaster, 0.0f, 1.0f);
-			rModelLayout.f4ColorAdd = {0.5f * fFreezeColor, 0.25f * fFreezeColor, 0.25f * fFreezeColor, 0.0f};
+			rModelLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
 			rModelLayout.uiMeshDataBase = 0;
 
 			if (pAnimationData != nullptr)

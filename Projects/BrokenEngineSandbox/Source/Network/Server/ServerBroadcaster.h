@@ -2,6 +2,13 @@
 
 #if defined(BT_SERVER)
 
+namespace engine
+{
+
+class ServerSessionRuntime;
+
+} // namespace engine
+
 namespace game
 {
 
@@ -18,7 +25,7 @@ class ServerBroadcaster
 public:
 
 	void BuildFrameInputs();
-	void BroadcastStatusChanges(int64_t iTick);
+	void BuildTickPublication(int64_t iTick, engine::ServerSessionRuntime& rRuntime, common::ScopedWorkbufferArena& rPublicationArena);
 	void ProcessUpdatePlayerRequests();
 
 	void QueueUpdatePlayerRequest(const PendingUpdatePlayerRequest& rRequest);

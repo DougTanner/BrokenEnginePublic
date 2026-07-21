@@ -1,10 +1,11 @@
 # Promotes a validated AgentTools candidate pair (WorktreeCli.exe + AgentHarness.exe)
 # to canonical primary Output during an approved session landing. Requires the
-# candidate receipt written by New-AgentToolsCandidate.ps1 with its SHA-256, and a
-# landed commit already contained in the primary branch whose Tools/WorktreeCli,
-# Tools/AgentHarness, and Tools/ToolCommon tree hashes equal the receipt's — that
-# binding makes promotion impossible from an ordinary routine build or an unlanded
-# session tree. Promotion runs inside the WorktreeCli exclusion ledger's
+# v2 candidate receipt written by New-AgentToolsCandidate.ps1 with its SHA-256,
+# and a landed commit already contained in the primary branch. The read-only
+# certification sidecar binds the receipt, executable hashes, stable source
+# manifest, current source bytes, and every expected-commit clean-filter blob
+# inside coordination immediately before canonical replacement. Promotion runs
+# inside the WorktreeCli exclusion ledger's
 # exclusive-operation window (other registered sessions and held maintenance
 # block; the invoking landing session passes itself as -CooperatingSessionOwner
 # so its own live claim does not self-block).
@@ -84,47 +85,12 @@ try {
 		throw "PrimaryRoot must be the primary checkout with an ordinary .git directory: '$primaryRoot'."
 	}
 
-	if ($CandidateReceiptSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'CandidateReceiptSha256 must be 64 lowercase hexadecimal characters.' }
-	if (-not (Test-Path -LiteralPath $CandidateReceiptPath -PathType Leaf)) { throw "Candidate receipt is missing: '$CandidateReceiptPath'." }
-	$actualReceiptHash = (Get-FileHash -LiteralPath $CandidateReceiptPath -Algorithm SHA256).Hash.ToLowerInvariant()
-	if ($actualReceiptHash -cne $CandidateReceiptSha256) {
-		Complete-Promotion 2 'blocked' 'promotion.receipt-identity' "Candidate receipt hash mismatch: expected $CandidateReceiptSha256, found $actualReceiptHash."
-	}
-	$receipt = Get-Content -LiteralPath $CandidateReceiptPath -Raw | ConvertFrom-Json -Depth 32
-	if ($receipt.schemaVersion -cne 'broken-engine-agenttools-candidate/v1') {
-		throw "Candidate receipt has unexpected schema '$($receipt.schemaVersion)'."
-	}
-	if ($receipt.dirtyToolPaths) {
-		Complete-Promotion 2 'blocked' 'promotion.dirty-candidate' 'Candidate was built from a dirty AgentTools source tree; rebuild the candidate from the reconciled commit.'
-	}
-
-	$candidates = [ordered]@{
-		WorktreeCli = $receipt.executables.WorktreeCli
-		AgentHarness = $receipt.executables.AgentHarness
-	}
-	foreach ($name in @('WorktreeCli', 'AgentHarness')) {
-		$candidate = $candidates[$name]
-		$identity = Get-ExecutableIdentity $candidate.path
-		if (-not $identity.present -or $identity.bytes -eq 0) {
-			Complete-Promotion 2 'blocked' 'promotion.candidate-missing' "Candidate executable is missing or invalid: '$($candidate.path)'."
-		}
-		if ($identity.sha256 -cne $candidate.sha256.ToLowerInvariant()) {
-			Complete-Promotion 2 'blocked' 'promotion.candidate-identity' "Candidate executable no longer matches its receipt hash: '$($candidate.path)'."
-		}
-	}
-
-	if ($LandedCommit -notmatch '^[0-9a-fA-F]{40}$') { throw 'LandedCommit must be a full commit hash.' }
+	if ($LandedCommit -cnotmatch '^[0-9a-f]{40}$') { throw 'LandedCommit must be a full lowercase commit hash.' }
 	& git -C $primaryRoot merge-base --is-ancestor $LandedCommit HEAD
 	if ($LASTEXITCODE -ne 0) {
 		Complete-Promotion 2 'blocked' 'promotion.not-landed' "Landed commit '$LandedCommit' is not contained in the primary branch; promotion is impossible from an unlanded tree."
 	}
-	$landedTrees = @(Invoke-AgentGit @('-C', $primaryRoot, 'rev-parse', "${LandedCommit}:Tools/WorktreeCli", "${LandedCommit}:Tools/AgentHarness", "${LandedCommit}:Tools/ToolCommon")) | ForEach-Object { $_.Trim() }
-	if ($landedTrees.Count -ne 3) { throw 'Unable to resolve landed AgentTools tree hashes.' }
-	if ($landedTrees[0] -cne $receipt.toolTreeHashes.worktreeCli -or
-		$landedTrees[1] -cne $receipt.toolTreeHashes.agentHarness -or
-		$landedTrees[2] -cne $receipt.toolTreeHashes.toolCommon) {
-		Complete-Promotion 2 'blocked' 'promotion.source-mismatch' 'Candidate tool source trees do not match the landed commit; rebuild the candidate from the landed source.'
-	}
+	$certificationScript = Join-Path $PSScriptRoot 'Test-AgentToolsCandidateCertification.ps1'
 
 	$worktreeCliOutput = Join-Path $primaryRoot 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
 	$agentHarnessOutput = Join-Path $primaryRoot 'Tools\AgentHarness\Platforms\VisualStudio2026\Output'
@@ -143,6 +109,23 @@ try {
 	if (-not (Test-Path -LiteralPath $capabilityScript -PathType Leaf)) { throw "AgentTools capability checker is missing: '$capabilityScript'." }
 
 	$promotionAction = {
+		$certificationOutput = @(& "$PSHOME\pwsh.exe" -NoProfile -File $certificationScript `
+			-RepositoryRoot $primaryRoot -WorktreeRoot $primaryRoot `
+			-CandidateReceiptPath $CandidateReceiptPath -CandidateReceiptSha256 $CandidateReceiptSha256 `
+			-ExpectedCommit $LandedCommit 2>$null)
+		$certificationExit = $LASTEXITCODE
+		try { $certification = ($certificationOutput -join "`n") | ConvertFrom-Json -Depth 100 -ErrorAction Stop }
+		catch { throw "AgentTools certification returned invalid JSON: $($certificationOutput -join ' ')" }
+		if ($certificationExit -ne 0 -or $certification.status -cne 'pass' -or $certification.code -cne 'ok') {
+			$exit = if ($certificationExit -eq 2) { 2 } else { 1 }
+			Complete-Promotion $exit $(if ($exit -eq 2) { 'blocked' } else { 'error' }) "promotion.$($certification.code)" "Candidate certification failed: $($certification.message)"
+		}
+		$candidates = [ordered]@{ WorktreeCli = $certification.executables.WorktreeCli; AgentHarness = $certification.executables.AgentHarness }
+		$certifiedTrees = @(
+			[string]$certification.source.commitIdentities.worktreeCli,
+			[string]$certification.source.commitIdentities.agentHarness,
+			[string]$certification.source.commitIdentities.toolCommon
+		)
 		$previous = [ordered]@{
 			WorktreeCli = Get-ExecutableIdentity $canonical.WorktreeCli
 			AgentHarness = Get-ExecutableIdentity $canonical.AgentHarness
@@ -181,7 +164,7 @@ try {
 			}
 			# The stamp is part of the promoted state (bootstrap drift detection reads it);
 			# a stamp failure rolls the pair back rather than leaving stale drift evidence.
-			[IO.File]::WriteAllText($stampPath, ($landedTrees -join "`n") + "`n")
+			[IO.File]::WriteAllText($stampPath, ($certifiedTrees -join "`n") + "`n")
 		}
 		catch {
 			$failure = $_.Exception.Message
@@ -232,7 +215,12 @@ try {
 			promotedAt = [DateTime]::UtcNow.ToString('O')
 			primaryRoot = $primaryRoot
 			landedCommit = $LandedCommit
-			toolTreeHashes = $receipt.toolTreeHashes
+			certifiedSource = [ordered]@{
+				digest = $certification.source.digest
+				manifestCount = $certification.source.manifestCount
+				commitIdentities = $certification.source.commitIdentities
+				primaryResolvedJson = $certification.source.primaryResolvedJson
+			}
 			candidateReceipt = [ordered]@{ path = $CandidateReceiptPath; sha256 = $CandidateReceiptSha256 }
 			previous = $previous
 			candidate = [ordered]@{

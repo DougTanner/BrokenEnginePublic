@@ -290,16 +290,12 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
 		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
 		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
-		float fFreezeTime = rPrevious.pfFreezeTimes[i];
 #if defined(BT_CLIENT)
 		float fAnimationTime = rPrevious.pfAnimationTimes[i];
 #endif
 
-		// Add velocity to position (unless frozen)
-		if (fFreezeTime <= 0.0f)
-		{
-			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
-		}
+		// Add velocity to position
+		vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
 		// Enforce W=1.0 — prevents drift via MultiplyAdd's 4-lane propagation.
 		vecPosition = XMVectorSetW(vecPosition, 1.0f);
 
@@ -329,7 +325,6 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		rCurrent.pVecDirections[i] = vecDirection;
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
-		rCurrent.pfFreezeTimes[i] = fFreezeTime;
 #if defined(BT_CLIENT)
 		rCurrent.pfAnimationTimes[i] = fAnimationTime;
 #endif
@@ -425,6 +420,7 @@ void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [
 				.fHealth = rCurrentPostRender.pfHealths[i],
 				.fNextBlasterSpawnTime = rCurrentPostRender.pfNextBlasterSpawnTimes[i],
 				.fArrivalGracePeriod = rCurrentPostRender.pfArrivalGracePeriods[i],
+				.fDeltaRotation = rCurrentInterpolate.pfDeltaRotations[i],
 			},
 			.iPushedTick = rFrame.interpolate.iTick,
 		};
@@ -605,8 +601,7 @@ void SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, const SpawnInfo& rInf
 	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
-	rCurrentInterpolate.pfDeltaRotations[iIndex] = 0.0f;
-	rCurrentInterpolate.pfFreezeTimes[iIndex] = 0.0f;
+	rCurrentInterpolate.pfDeltaRotations[iIndex] = rInfo.fDeltaRotation;
 #if defined(BT_CLIENT)
 	rCurrentInterpolate.pfAnimationTimes[iIndex] = 0.0f;
 #endif
@@ -694,7 +689,6 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 
 		// Load from Interpolate (these are now in Interpolate)
 		float fDeltaRotation = rPreviousInterpolate.pfDeltaRotations[i];
-		float fFreezeTime = rPreviousInterpolate.pfFreezeTimes[i] - fDeltaTime;
 
 		// Find nearest alive player (shared input for RegenerateHealth + ComputeSteering)
 		XMVECTOR vecNearestPlayer = XMVectorZero();
@@ -727,7 +721,6 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 
 		// Save to Interpolate (these are now in Interpolate)
 		rCurrentInterpolate.pfDeltaRotations[i] = fDeltaRotation;
-		rCurrentInterpolate.pfFreezeTimes[i] = fFreezeTime;
 	}
 
 	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, rStaticData, 0, rFrame.interpolate.pSpaceships->iCount);
@@ -747,7 +740,6 @@ bool SpaceshipsInterpolate::LogDifferences(const SpaceshipsInterpolate& rOther) 
 		bEqual &= common::LogDifference<"puiPushers">(i, puiPushers[i], rOther.puiPushers[i]);
 		bEqual &= common::LogDifference<"puiTargets">(i, puiTargets[i], rOther.puiTargets[i]);
 		bEqual &= common::LogDifference<"pfDeltaRotations">(i, pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
-		bEqual &= common::LogDifference<"pfFreezeTimes">(i, pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
 	}
 
 	return bEqual;

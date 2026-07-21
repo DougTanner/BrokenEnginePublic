@@ -28,12 +28,12 @@ Pass the fetched displacement W through as a new varying (`layout (location = 4)
 ### Fragment composition (`Water.frag`)
 
 1. **Shore foam**: `fShoreFoam = smoothstep` window on `-fTerrainElevation` — full near the beach, zero past `fWaterFoamShoreDepth`. Combined factor = `max(fInFoamFactor, fShoreFoam)`.
-2. **Noise breakup**: sample `noiseTextureSampler` (binding 7, already bound) at a foam scale/speed. MUST follow the precision-safe sampling pact (Water/AGENTS.md): `fract()`-wrapped UV + `textureGrad` with derivatives of the camera-relative position, CPU-reduced origin/time supplied like the color-noise path in `GlobalUniforms.cpp` — plain world-space UVs jitter far from origin.
+2. **Noise breakup**: sample `noiseTextureSampler` (binding 7, already bound) at a foam scale/speed. MUST follow the precision-safe sampling pact (Water/AGENTS.md): `fract()`-wrapped UV + `textureGrad` with derivatives of the camera-relative position, CPU-reduced origin/time supplied like the color-noise path in `WaterUniforms.cpp` — plain world-space UVs jitter far from origin.
 3. **Blend**: foam is diffuse — mix the base color toward the foam albedo *before* the shadow-apply site (i.e. into `f3LightingColor` ahead of the `f3BaseDarkened` computation) so height darken, the sun/ambient shadow split, and `fSunScalar`/`fAmbientScalar` all apply naturally. Scale `f3SkyboxSpecular` down by the foam amount — foam is not specular.
 
 ### New uniforms / sliders
 
-~7 new `GlobalLayout` floats (`ShaderLayoutsBase.h`): `fWaterFoamJacobianStart`, `fWaterFoamShoreDepthMin/Max`, `fWaterFoamIntensity`, `fWaterFoamNoiseScale`, `fWaterFoamNoiseSpeed`, `fWaterFoamTint`. Wrappers in `WaterWrappersBase.{h,cpp}`, a "Foam" slider block in `RenderWaterSection()` (`TweaksScreenWater.cpp`, `TweakSection::kWater`), uploads + foam-noise reduced origin/time in `GlobalUniforms.cpp`.
+~7 new `GlobalLayout` floats (`ShaderLayoutsBase.h`): `fWaterFoamJacobianStart`, `fWaterFoamShoreDepthMin/Max`, `fWaterFoamIntensity`, `fWaterFoamNoiseScale`, `fWaterFoamNoiseSpeed`, `fWaterFoamTint`. Wrappers in `WaterWrappersBase.{h,cpp}`, a "Foam" slider block in `RenderWaterSection()` (`TweaksScreenWater.cpp`, `engine::giTweakSectionWater`), uploads + foam-noise reduced origin/time in `WaterUniforms.cpp`.
 
 ## Critical files
 
@@ -43,7 +43,7 @@ Pass the fetched displacement W through as a new varying (`layout (location = 4)
 - `Engine/Data/Shaders/ShaderLayoutsBase.h` — new `GlobalLayout` floats
 - `Engine/Source/Ui/WaterWrappersBase.{h,cpp}` — wrappers
 - `Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenWater.cpp` — sliders
-- `Engine/Source/Graphics/Render/GlobalUniforms.cpp` — uploads, reduced origin/time for foam noise
+- `Engine/Source/Graphics/Render/WaterUniforms.cpp` — uploads, reduced origin/time for foam noise
 
 ## Out of scope
 

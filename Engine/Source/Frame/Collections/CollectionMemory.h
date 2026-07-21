@@ -94,6 +94,23 @@ void AssignAndCopyAligned(T& member, int64_t iCapacity, int64_t iCount, std::byt
 // ============================================================================
 // Orchestrate memory management for Structure-of-Arrays collections.
 
+// Resets collection to null state by releasing buffer and zeroing member pointers.
+template <typename TStruct, typename TTuple>
+void ResetDataToNull(TStruct& rStruct, TTuple&& members)
+{
+	rStruct.pData.reset();
+	rStruct.iCapacity = 0;
+
+	// Null each member (array or single pointer) via the shared member-pointer visitor.
+	std::apply([&](auto&... memberPtrRefs)
+	{
+		(ForEachMemberPointer(memberPtrRefs, [](auto& elementPtrRef)
+		{
+			elementPtrRef = nullptr;
+		}), ...);
+	}, std::forward<TTuple>(members));
+}
+
 // Allocates single contiguous buffer and positions member array pointers within it. Used during initial allocation and deserialization.
 // Reuses the existing buffer when it is already large enough (avoids reallocation when deserializing into an already-allocated
 // collection, e.g. replay-load). iExistingLayoutCapacity is the collection's last-recorded capacity (rStruct.iCapacity captured
@@ -114,29 +131,20 @@ void AllocateAndAssign(TStruct& rStruct, int64_t iCapacity, TTuple&& members, in
 	{
 		int64_t iBufferSize = 0;
 		((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
+		iBufferSize = std::max<int64_t>(iBufferSize, 1);
+
+		common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
+		if (pNewData == nullptr)
+		{
+			ResetDataToNull(rStruct, members);
+			throw common::CorruptStreamException("AllocateAndAssign");
+		}
 
 		rStruct.iCapacity = iCapacity;
-		rStruct.pData = common::MakeAligned<std::byte>(iBufferSize);
+		rStruct.pData = std::move(pNewData);
 
 		std::byte* pCurrent = rStruct.pData.get();
 		(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
-	}, std::forward<TTuple>(members));
-}
-
-// Resets collection to null state by releasing buffer and zeroing member pointers.
-template <typename TStruct, typename TTuple>
-void ResetDataToNull(TStruct& rStruct, TTuple&& members)
-{
-	rStruct.pData.reset();
-	rStruct.iCapacity = 0;
-
-	// Null each member (array or single pointer) via the shared member-pointer visitor.
-	std::apply([&](auto&... memberPtrRefs)
-	{
-		(ForEachMemberPointer(memberPtrRefs, [](auto& elementPtrRef)
-		{
-			elementPtrRef = nullptr;
-		}), ...);
 	}, std::forward<TTuple>(members));
 }
 
@@ -146,6 +154,30 @@ concept HasIdToIndex = requires(T& rStruct)
 {
 	rStruct.idToIndexMap;
 };
+
+template <typename T>
+concept HasPersistentMembers = requires(const T& rStruct)
+{
+	rStruct.PersistentMembers();
+};
+
+// True when every entry of rSubsetMembers refers to one of rFullMembers' member arrays. Compared by
+// address — element types repeat across members, so a type-level check cannot express containment.
+template <typename TSubsetTuple, typename TFullTuple>
+inline bool IsMemberTupleSubset(const TSubsetTuple& rSubsetMembers, const TFullTuple& rFullMembers)
+{
+	return std::apply([&](const auto&... rSubsetMemberPointers)
+	{
+		return ([&](const auto& rSubsetMemberPointer)
+		{
+			return std::apply([&](const auto&... rFullMemberPointers)
+			{
+				// Compare via uintptr_t: clang rejects static_cast<const void*> on &(T* __restrict) as casting away __restrict
+				return ((reinterpret_cast<uintptr_t>(&rSubsetMemberPointer) == reinterpret_cast<uintptr_t>(&rFullMemberPointers)) || ...);
+			}, rFullMembers);
+		}(rSubsetMemberPointers) && ...);
+	}, rSubsetMembers);
+}
 
 // Copies metadata and reallocates buffer for AllocateAndCopy() phase. Resets null previous-frame data.
 // Used in AllocateAndCopy() static methods to prepare collections before Update() phase.
@@ -179,15 +211,103 @@ void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 		{
 			int64_t iBufferSize = 0;
 			((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
+			iBufferSize = std::max<int64_t>(iBufferSize, 1);
+
+			common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
+			if (pNewData == nullptr)
+			{
+				throw std::bad_alloc();
+			}
 
 			rCurrent.iCapacity = iCapacity;
-			rCurrent.pData = common::MakeAligned<std::byte>(iBufferSize);
+			rCurrent.pData = std::move(pNewData);
 
 			std::byte* pCurrent = rCurrent.pData.get();
 			(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
 
 			ASSERT(rCurrent.iCount <= rCurrent.iCapacity);
 		}, std::forward<TTuple>(members));
+	}
+}
+
+// Copies one corresponding member array for the live row count.
+template <typename TCurrentPointer, typename TPreviousPointer>
+void CopyMemberPointerRows(int64_t iCount, TCurrentPointer& rCurrentPointer, const TPreviousPointer& rPreviousPointer)
+{
+	using CurrentPointer = std::remove_reference_t<decltype(rCurrentPointer)>;
+	using PreviousPointer = std::remove_reference_t<decltype(rPreviousPointer)>;
+	static_assert(std::is_pointer_v<CurrentPointer> && std::is_pointer_v<PreviousPointer>, "Collection members must be pointers");
+
+	using CurrentElement = std::remove_pointer_t<CurrentPointer>;
+	using PreviousElement = std::remove_pointer_t<PreviousPointer>;
+	static_assert(std::is_same_v<CurrentElement, PreviousElement>, "Corresponding collection member element types must match");
+
+	std::memcpy(rCurrentPointer, rPreviousPointer, iCount * sizeof(CurrentElement));
+}
+
+// Copies one corresponding Members() tuple entry. C arrays of member pointers are copied in index order.
+template <typename TCurrentMember, typename TPreviousMember>
+void CopyMemberEntryRows(int64_t iCount, TCurrentMember& rCurrentMember, const TPreviousMember& rPreviousMember)
+{
+	constexpr bool kbCurrentIsArray = std::is_array_v<TCurrentMember>;
+	constexpr bool kbPreviousIsArray = std::is_array_v<TPreviousMember>;
+	static_assert(kbCurrentIsArray == kbPreviousIsArray, "Corresponding collection member shapes must match");
+
+	if constexpr (kbCurrentIsArray && kbPreviousIsArray)
+	{
+		constexpr size_t kuiCurrentExtent = std::extent_v<TCurrentMember>;
+		constexpr size_t kuiPreviousExtent = std::extent_v<TPreviousMember>;
+		static_assert(kuiCurrentExtent == kuiPreviousExtent, "Corresponding collection member array extents must match");
+		for (size_t i = 0; i < kuiCurrentExtent; ++i)
+		{
+			CopyMemberPointerRows(iCount, rCurrentMember[i], rPreviousMember[i]);
+		}
+	}
+	else
+	{
+		CopyMemberPointerRows(iCount, rCurrentMember, rPreviousMember);
+	}
+}
+
+template <typename TCurrentTuple, typename TPreviousTuple, size_t... INDICES>
+void CopyMemberRows(int64_t iCount, TCurrentTuple&& currentMembers, TPreviousTuple&& previousMembers, std::index_sequence<INDICES...>)
+{
+	(CopyMemberEntryRows(iCount, std::get<INDICES>(currentMembers), std::get<INDICES>(previousMembers)), ...);
+}
+
+// Copies corresponding member arrays in stable tuple order, and array entries in stable index order.
+template <typename TCurrentTuple, typename TPreviousTuple>
+void CopyMemberRows(int64_t iCount, TCurrentTuple&& currentMembers, TPreviousTuple&& previousMembers)
+{
+	using CurrentTuple = std::remove_reference_t<TCurrentTuple>;
+	using PreviousTuple = std::remove_reference_t<TPreviousTuple>;
+	constexpr size_t kuiCurrentSize = std::tuple_size_v<CurrentTuple>;
+	constexpr size_t kuiPreviousSize = std::tuple_size_v<PreviousTuple>;
+	static_assert(kuiCurrentSize == kuiPreviousSize, "Corresponding collection member tuples must have matching arity");
+
+	if constexpr (kuiCurrentSize == kuiPreviousSize)
+	{
+		if (iCount > 0)
+		{
+			CopyMemberRows(iCount, std::forward<TCurrentTuple>(currentMembers), std::forward<TPreviousTuple>(previousMembers), std::make_index_sequence<kuiCurrentSize> {});
+		}
+	}
+}
+
+// Allocates the exact previous-frame capacity, then copies either PersistentMembers() or all Members().
+template <typename TStruct>
+void AllocateAndCopyMembers(TStruct& rCurrent, const TStruct& rPrevious)
+{
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if constexpr (HasPersistentMembers<TStruct>)
+	{
+		ASSERT(IsMemberTupleSubset(rCurrent.PersistentMembers(), rCurrent.Members()));
+		CopyMemberRows(rCurrent.iCount, rCurrent.PersistentMembers(), rPrevious.PersistentMembers());
+	}
+	else
+	{
+		CopyMemberRows(rCurrent.iCount, rCurrent.Members(), rPrevious.Members());
 	}
 }
 
@@ -215,8 +335,14 @@ void GrowCapacityWithCopy(TStruct& rStruct, int64_t iNewCapacity, int64_t iCurre
 	{
 		int64_t iBufferSize = 0;
 		((iBufferSize += CalculateBufferSize(iNewCapacity, memberPtrRefs)), ...);
+		iBufferSize = std::max<int64_t>(iBufferSize, 1);
 
 		common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
+		if (pNewData == nullptr)
+		{
+			throw std::bad_alloc();
+		}
+
 		std::byte* pCurrent = pNewData.get();
 		(AssignAndCopyAligned(memberPtrRefs, iNewCapacity, iCurrentCount, pCurrent), ...);
 		rStruct.pData = std::move(pNewData);
@@ -239,6 +365,19 @@ void SwapElement(TStruct& rStruct, int64_t i, TTuple&& members)
 		(ForEachMemberPointer(memberPtrRefs, [&](auto& elementPtrRef)
 		{
 			elementPtrRef[i] = elementPtrRef[rStruct.iCount - 1];
+		}), ...);
+	}, std::forward<TTuple>(members));
+}
+
+// Value-initializes every Members() entry at one row before collection-specific defaults are applied.
+template <typename TTuple>
+void ZeroMemberRow(int64_t i, TTuple&& members)
+{
+	std::apply([&](auto&... rMemberPointers)
+	{
+		(ForEachMemberPointer(rMemberPointers, [&](auto& rElementPointer)
+		{
+			rElementPointer[i] = {};
 		}), ...);
 	}, std::forward<TTuple>(members));
 }

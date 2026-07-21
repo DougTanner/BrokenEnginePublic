@@ -551,7 +551,7 @@ bool Game::ShouldShowInGameUi()
 void Game::ChangeFrame(GameFlags_t gameFlags)
 {
 #if defined(BT_CLIENT)
-	gpClientSession->DisconnectFromServer();
+	gpClientSession->mpRuntime->Disconnect();
 #endif
 
 	if ((gameFlags & GameFlags::kMainMenu && InMainMenu()) ||
@@ -864,9 +864,9 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 
 		if (rMenuInput.flags & MenuInputFlags::kConnectLocal && InMainMenu())
 		{
-			if (gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered)
+			if (gpClientSession->mpRuntime->mStateFlags & engine::ClientSessionStateFlags::kServerDiscovered)
 			{
-				gpClientSession->ConnectToDiscoveredServer();
+				gpClientSession->mpRuntime->ConnectToDiscoveredServer(engine::kuiDefaultPort, NetworkSessionContract::kiCoordSlots);
 			}
 			else
 			{
@@ -885,7 +885,7 @@ void Game::ProcessDebugInput(const MenuInput& rMenuInput)
 			it->second.staticData.elevationGrid = {};
 			it->second.staticData.islandRenderQueries = {};
 
-			// Pre-mint the texture slot now (mirrors ClientDataReceiver::ApplyReceivedStaticData) so the
+			// Pre-mint the texture slot now (mirrors ClientSession::ApplyReceivedStaticData) so the
 			// elevation upload and chunk loads are in-flight before UpdateActiveIslands references the
 			// slot this same frame. AcquireTextureSlot is idempotent (hot-path early return).
 			for (const engine::IslandPlacement& rPlacement : it->second.staticData.islands)

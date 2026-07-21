@@ -61,16 +61,16 @@ void MainMenuScreen::Render()
 	MenuHeading("BROKEN ENGINE", kfMainMenuHeadingScale);
 
 	// Auto-start discovery when main menu is shown
-	if (gpClientSession->mpDiscoveryScanner == nullptr && !(gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered))
+	if (gpClientSession->mpRuntime->mpDiscoveryScanner == nullptr && !(gpClientSession->mpRuntime->mStateFlags & engine::ClientSessionStateFlags::kServerDiscovered))
 	{
-		gpClientSession->StartServerDiscovery();
+		gpClientSession->mpRuntime->StartDiscovery();
 	}
 
 	// Auto-launch server
 	if constexpr (kbAutoRunServer)
 	{
 		static bool sbServerLaunched = false;
-		if (!sbServerLaunched && (gpClientSession->mSessionFlags & engine::SessionStateFlags::kDiscoveryScanTimedOut))
+		if (!sbServerLaunched && (gpClientSession->mpRuntime->mStateFlags & engine::ClientSessionStateFlags::kDiscoveryScanTimedOut))
 		{
 			sbServerLaunched = true;
 			// Heap: std::filesystem::path allocates; one-time server launch path
@@ -95,20 +95,20 @@ void MainMenuScreen::Render()
 	if constexpr (kbAutoConnect)
 	{
 		static bool sbConnected = false;
-		if (!sbConnected && (gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered))
+		if (!sbConnected && (gpClientSession->mpRuntime->mStateFlags & engine::ClientSessionStateFlags::kServerDiscovered))
 		{
 			sbConnected = true;
-			gpClientSession->ConnectToDiscoveredServer();
+			gpClientSession->mpRuntime->ConnectToDiscoveredServer(engine::kuiDefaultPort, NetworkSessionContract::kiCoordSlots);
 		}
 	}
 
 	// Local Server button (discovers localhost + LAN)
-	if (gpClientSession->mSessionFlags & engine::SessionStateFlags::kServerDiscovered)
+	if (gpClientSession->mpRuntime->mStateFlags & engine::ClientSessionStateFlags::kServerDiscovered)
 	{
 		CenterMenuItem(fContentStartX, fContentWidth, fButtonWidth);
 		if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[0]))
 		{
-			gpClientSession->ConnectToDiscoveredServer();
+			gpClientSession->mpRuntime->ConnectToDiscoveredServer(engine::kuiDefaultPort, NetworkSessionContract::kiCoordSlots);
 		}
 	}
 	else

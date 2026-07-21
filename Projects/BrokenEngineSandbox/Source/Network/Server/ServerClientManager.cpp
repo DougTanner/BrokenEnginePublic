@@ -37,7 +37,7 @@ void ServerClientManager::ProcessSpawnRequests()
 	// Heap: vector push_back for spawn StatusChanges
 	ScopedSuppressAllocationTracking suppress;
 
-	for (const engine::PendingSpawnRequest& rRequest : engine::gpServer->DrainPendingSpawnRequests())
+	for (const engine::PendingSpawnRequest& rRequest : gpServerSession->mpRuntime->mpServer->mPendingSpawnRequests)
 	{
 		const engine::ClientConnection* pClient = engine::gpServer->FindClient(rRequest.iClientId);
 		if (pClient == nullptr)
@@ -63,7 +63,7 @@ void ServerClientManager::NewClients()
 	// Heap: vector push_back for waiting clients
 	ScopedSuppressAllocationTracking suppress;
 
-	std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+	std::vector<engine::ClientConnection>& rClients = engine::gpServer->mClients;
 	for (engine::ClientConnection& rClient : rClients)
 	{
 		std::vector<engine::global_id_t>& rNewClientOwnedIds = gpServerSession->mClientOwnedPlayerIds.try_emplace(rClient.iClientId).first->second;
@@ -244,7 +244,7 @@ void ServerClientManager::Disconnects()
 	// Heap: drain disconnect events; per-client owned-id map mutations and fleet-manager bookkeeping
 	ScopedSuppressAllocationTracking suppress;
 
-	for (const engine::PendingDisconnect& rDisconnect : engine::gpServer->DrainPendingDisconnects())
+	for (const engine::PendingDisconnect& rDisconnect : gpServerSession->mpRuntime->mpServer->mPendingDisconnects)
 	{
 		LOG(kNetwork, kVerbose, "ServerClientManager::Disconnects Client: {} Players: {}", rDisconnect.iClientId, gpServerSession->mClientOwnedPlayerIds.try_emplace(rDisconnect.iClientId).first->second.size());
 		mDeadClientIds.erase(rDisconnect.iClientId);
@@ -262,11 +262,11 @@ void ServerClientManager::Disconnects()
 	}
 
 	// Unpause and reset timespeed when the last client disconnects so the server resumes ticking at 1x for the next
-	// connection. State-tracked on the non-empty -> empty transition (not GetClients().empty() alone, which would
+	// connection. State-tracked on the non-empty -> empty transition (not mClients.empty() alone, which would
 	// clobber commanded state every update) so the edge is caught regardless of removal path — including ClientHello
 	// rejects that call Server::RemoveClient without minting a PendingDisconnect. An agent-paused server that was
 	// already empty keeps its commanded pause/timescale.
-	bool bHasClients = !engine::gpServer->GetClients().empty();
+	bool bHasClients = !engine::gpServer->mClients.empty();
 	if (mbHadClients && !bHasClients)
 	{
 		gpGame->mGameFlags.Clear(engine::GameFlags::kPaused);
@@ -280,7 +280,7 @@ void ServerClientManager::Disconnects()
 
 void ServerClientManager::DetectPlayerDeaths()
 {
-	std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+	std::vector<engine::ClientConnection>& rClients = engine::gpServer->mClients;
 	for (engine::ClientConnection& rClient : rClients)
 	{
 		std::vector<engine::global_id_t>& rDeathOwnedIds = gpServerSession->mClientOwnedPlayerIds.try_emplace(rClient.iClientId).first->second;

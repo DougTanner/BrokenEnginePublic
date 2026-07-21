@@ -98,7 +98,14 @@
     <TargetName>$(ProjectName)</TargetName>
     <CustomBuildBeforeTargets />
     <LinkIncremental>false</LinkIncremental>
-    <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)BrokenEngineAnalysis.ruleset</CodeAnalysisRuleSet>
+    <!-- Analysis diagnostics reach the post-link NativeCodeAnalysis task, not cl's console, so
+         TreatWarningAsError never sees them; this is what makes them fail the build. It takes effect
+         wherever RunCodeAnalysis is true - including the Release default set just below, so Visual
+         Studio Release builds enforce as well - and is inert only for agent builds, which pass
+         /p:RunCodeAnalysis=false. Keep CodeAnalysisNeverReportRuleErrors unset or the task silently
+         drops back to warnings. -->
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
     <RunCodeAnalysis>true</RunCodeAnalysis>
     <CustomBuildAfterTargets>PreBuildEvent</CustomBuildAfterTargets>
     <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
@@ -366,8 +373,10 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkProtocol.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSessionContract.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSimulation.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\Server.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionRuntime.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerTypes.h" />
     <ClInclude Include="..\..\Source\Server\ServerDisplay.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h" />
@@ -408,7 +417,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\Source\Network\Server\ServerBroadcaster.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerClientManager.h" />
     <ClInclude Include="..\..\Source\Network\GamePacketType.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.h" />
+    <ClInclude Include="..\..\Source\Network\NetworkSessionContract.h" />
     <ClInclude Include="..\..\Source\Input\Input.h" />
     <ClInclude Include="..\..\Source\Pch.h" />
     <ClInclude Include="..\..\Source\Ui\Localization.h" />
@@ -479,9 +488,9 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkManager.cpp" />
     <ClCompile Include="..\..\Source\Network\NetworkSerialization.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\Server.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionRuntime.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerReceive.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSend.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.cpp" />
     <ClCompile Include="..\..\Source\Server\ServerDisplay.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileScreens.cpp" />

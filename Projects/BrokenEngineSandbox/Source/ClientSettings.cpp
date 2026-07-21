@@ -183,16 +183,16 @@ void ResetGraphicsSettings()
 
 struct TweaksSettings
 {
-	static constexpr int64_t kiVersion = 13;
+	static constexpr int64_t kiVersion = 14;
 
 	bool bShowImGui = false;
-	common::Flags<engine::TweakSectionFlags> sectionVisible {};
-	float fWindowPositionX[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	float fWindowPositionY[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	int8_t iActiveSubtab[static_cast<size_t>(engine::TweakSection::kCount)] {};
+	uint8_t uiPad[3] {};
 	float fSunAngle = 1.15f;
-	common::Flags<engine::TweakSectionFlags> sectionCollapsed {};
+	// Engine-owned layout POD, embedded by value: one array bound and one sizeof for the whole program.
+	engine::TweakSectionState sectionState {};
 };
+static_assert(std::is_trivially_copyable_v<TweaksSettings>);
+static_assert(sizeof(TweaksSettings) == 304, "kiVersion must be bumped with this layout");
 static constexpr char kpcTweaksSettingsPath[] = "TweaksSettings.bin";
 
 void SaveTweaksSettings()
@@ -202,23 +202,10 @@ void SaveTweaksSettings()
 		return;
 	}
 
-	common::Flags<engine::TweakSectionFlags> sectionVisible {};
-	ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	int8_t iActiveSubtab[static_cast<size_t>(engine::TweakSection::kCount)] {};
-	common::Flags<engine::TweakSectionFlags> sectionCollapsed {};
-	engine::gpImGuiManager->mpTweaksScreen->SaveState(sectionVisible, f2WindowPositions, iActiveSubtab, sectionCollapsed);
-
 	TweaksSettings settings {};
 	settings.bShowImGui = gpGame->mbShowImGui;
-	settings.sectionVisible = sectionVisible;
-	settings.sectionCollapsed = sectionCollapsed;
-	for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
-	{
-		settings.fWindowPositionX[i] = f2WindowPositions[i].x;
-		settings.fWindowPositionY[i] = f2WindowPositions[i].y;
-		settings.iActiveSubtab[i] = iActiveSubtab[i];
-	}
 	settings.fSunAngle = engine::gSunAngleOverride.Get();
+	engine::gpImGuiManager->mpTweaksScreen->SaveState(settings.sectionState);
 
 	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcTweaksSettingsPath, settings);
 }
@@ -234,15 +221,7 @@ void LoadTweaksSettings()
 	if (engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcTweaksSettingsPath, settings))
 	{
 		gpGame->mbShowImGui = settings.bShowImGui;
-
-		ImVec2 f2WindowPositions[static_cast<size_t>(engine::TweakSection::kCount)] {};
-		for (size_t i = 0; i < static_cast<size_t>(engine::TweakSection::kCount); ++i)
-		{
-			f2WindowPositions[i] = {settings.fWindowPositionX[i], settings.fWindowPositionY[i]};
-		}
-
-		engine::gpImGuiManager->mpTweaksScreen->LoadState(settings.sectionVisible, f2WindowPositions, settings.iActiveSubtab, settings.sectionCollapsed);
-
+		engine::gpImGuiManager->mpTweaksScreen->LoadState(settings.sectionState);
 		engine::gSunAngleOverride.Set(settings.fSunAngle);
 	}
 	else

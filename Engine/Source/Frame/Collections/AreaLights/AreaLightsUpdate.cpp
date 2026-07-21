@@ -42,24 +42,17 @@ void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rI
 	auto [uiSpawnIndex, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
+	ZeroMemberRow(uiSpawnIndex, rInterpolate.Members());
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 	rInterpolate.pfIntensityMultipliers[uiSpawnIndex] = 1.0f;
-	for (int64_t j = 0; j < 4; ++j)
-	{
-		rInterpolate.pVecVisiblePositions[j][uiSpawnIndex] = XMVectorZero();
-	}
 }
 
 void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t& rId)
 {
-	ASSERT(rId.IsValid());
-
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
 
-	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-
-	rId = {};
+	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 }
 
 void AreaLightsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

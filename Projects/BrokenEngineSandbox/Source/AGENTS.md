@@ -1,48 +1,39 @@
-# BrokenEngineSandbox - Sample Game Implementation
+# BrokenEngineSandbox Source - Game Layer
 
 ## Overview
 
-Tech demo that demonstrates and stress-tests engine features — not a game: no human player or win condition. AI-driven spaceship fleets (flagship + wingmen) fight continuously spawning enemies over the island ocean. All game code lives in the `game` namespace.
+Game implementation built on Engine and Common. `Game` owns the per-side sessions, unbounded coord-frame orchestration, shared fleet data, client selection/settings, and server persistence.
 
-## Frame Purity Constraint
+## Ownership
 
-Frame update code is purely functional: it relies only on explicit function parameters and never queries Game (`gpGame`). Client-only render code under `Frame/` is exempt. The Frame does not privilege any player index — all players are AI-driven; one is the **flagship** that others follow. Flagship-tracking responsibilities (camera shake, death transitions, respawn orchestration) are Game-level, not Frame.
+- `Fleet` is the shared data model and uses server-minted persistent identifiers. `FleetSelection` is client-only focus and navigation UI state.
+- `ClientSession` and `ServerSession` are game-policy façades that compose engine-owned session runtimes. See [Network](Network/AGENTS.md).
+- `GameSaveLoad` is server-only and owns save/load/replay. Its persistence and replay contracts live in [Save](Save/AGENTS.md).
+- Agent commands are game-dispatched while transport, synthetic input, and UI snapshots are engine-owned. See [Agent](Agent/AGENTS.md).
 
-## Key Classes/Systems
+## Architecture
 
-- **Game** (`Game.h`/`Game.cpp`) - Central coordinator inheriting from `engine::GameBase`, accessed via `gpGame`. Owns lifecycle, multi-frame grid orchestration, cross-grid entity transfers, the `ClientSession`/`ServerSession`, and (server-only) the `GameSaveLoad` save/load/replay subsystem; holds a `FleetSelection` member and forwards its fleet-navigation API.
-- **FleetSelection** (`FleetSelection.h`/`.cpp`, client-only) - Owns the client fleet list and focus state; drives which grid cell the camera follows.
-- **Fleet** (`Fleet.h`) - Client-side grouping of player entities for focus/selection and shared navigation intent. Each fleet carries a server-minted random 128-bit identifier that is stable across disconnect/reconnect/save-load and used by clients to refer to fleets persistently.
-- **Settings/transfer free functions** - Client-only persisted-settings save/load/reset lives in `ClientSettings.{h,cpp}` (`game::` free functions); the shared spawn-side of cross-grid transfers is the `game::SpawnTransfer` free function in `SpawnTransfer.{h,cpp}`.
-- **ClientSession** / **ServerSession** - Per-side networking orchestration owned by `Game`. See `Network/AGENTS.md`.
+- Client subscriptions cover the current cell plus visible neighbors within the authorized 3x3 ring. Change the client coord through `Game::SetClientGridCoord()` so the visible-neighbor cache is invalidated.
+- Cross-cell transfers are serialized `StatusChange`s carrying spawn state. They are removed from `FrameInput` before normal Spawn processing.
+- Player/enemy alignments are copied into each new `FramePostRender`; frame code reads the snapshot, not `gpGame`.
+- Persisted client settings are versioned POD written through the engine versioned-file helpers. Bump the owning version on layout change.
+- Save/replay compatibility is gated by `Frame::kiVersion`; `Version.h::kiGameVersion` is informational.
+- `Pch.h` owns compile-time switches. `kbDesyncDebugFrames` is a manual, disabled-by-default diagnostic switch that must match between client and server; it controls full-frame buffering/serving and client debug-frame stalling without changing the wire contract.
+- The game PCH force-includes shared aggregation/layout headers. Consumer TUs do not repeat those includes; DataPacker has a separate PCH.
 
-## Architecture Notes
+## Subsystems
 
-- **Deterministic floating-point**: `/fp:strict` in vcxproj ensures cross-hardware determinism for CRC-based reconciliation. See [Documents/FloatingPointDeterminism.txt](../../../Documents/FloatingPointDeterminism.txt).
-- **Client-driven subscriptions**: Client computes its own active set (current cell + any cells in the immediate 3x3 ring whose footprint overlaps the camera's zoom-dependent `f4LargeVisibleArea`); server only sees the resulting subscription list. Local-only frames outside the active set are evicted; confirmed frames are kept. The 3x3 clamp is explicit — at extreme zoom-out the VisibleArea can extend beyond the ring and would otherwise add cells the server doesn't authorize. Write the client grid coord only through `Game::SetClientGridCoord()` — the visible-neighbor cache stores absolute coords and the setter invalidates it.
-- **Cross-grid transfers**: Entity hand-off between grid cells is expressed as transfer `StatusChange`s carrying fully-serialized spawn state, dispatched per collection type and stripped from `FrameInput` before the normal Spawn phase.
-- **Alignments**: `playerAlignment` / `enemyAlignment` are owned by `Game` and copied onto each new `Frame::postRender`. Frame code reads them from `postRender`, never from `gpGame`.
-- **Engine dependency direction**: Engine code may read or call game symbols by contract; do not decouple sanctioned Engine→game access. Do not introduce game-specific concepts into engine-owned types. See [Engine Source](../../../Engine/Source/AGENTS.md).
-- **Versioned persisted settings**: Sound/graphics/tweaks settings plus per-client UI/session state (focused fleet identifier, focused ship global ID, camera zoom target) are client-only POD structs with an embedded `kiVersion`, round-tripped through `engine::{Write,Read}VersionedFile` into `kAppDataDirectory`. Bump the struct version on layout change. Session state is captured each frame and re-persisted only when the diff against the last-written copy changes.
-- **Save/load/replay** (`Save/GameSaveLoad`, server-only, driven by engine server loop): grid saves are atomic and coord-key sorted. Externally reported saves use the write result. Replay manifest is the generation commit marker: start invalidates it before replacing files; stop publishes a valid marker only after every writer and metadata write succeeds. Loading validates the marker before reading components. A recording writer's first eviction is terminal; it retains that coord's last complete Frame and cannot resume. Playback readers retire independently at recorded endpoints; replay loops only after the last retires. A terminal writer missing its retained Frame deletes sibling files, but later writers and metadata are still attempted. Replay checks each tick's checksum against resimulation. Successful loads preserve the simulation clock; direct loads resynchronize clients to it. Nav/elevation data is derived, not persisted; clients receive server-built nav data. Fresh-game paths reset fleet manager explicitly. Save/replay reads are all-or-nothing trust boundaries: corrupt or truncated input falls back to a clean fresh game.
-- **Versioning**: the save/replay format is gated by `game::Frame::kiVersion` (composition documented in `Frame/AGENTS.md`) — collection version bumps propagate automatically. `Version.h`'s `kiGameVersion` is informational only (startup log, crash report, Vulkan application version); it gates nothing.
-- **Compile-time toggles**: `Pch.h` holds `inline constexpr` flags for frame dispatch parallelism, desync recovery, render thread, network simulation, the agent command layer (`kbAgent`), and per-configuration debug/profile knobs. It also defines per-category compile-floor log-level overrides before including `Common.h` (runtime thresholds default `kInfo`; see [Common/AGENTS.md](../../../Common/AGENTS.md) Logging).
-- **Pch.h-provided headers (do not re-`#include`)**: `Pch.h` force-includes `ExternalHeaders.h`, `Log/LogTypes.h`, `Common.h`, `Shaders/ShaderLayouts.h`, `Ui/WindDepositsWrappers.h`, `Frame/Frame.h`, and `Engine.h` in every client/server TU; it also force-includes `Ui/HexShieldWrappers.h` in client TUs only. Consumer TUs must not redundantly include these headers. DataPacker uses a separate, leaner PCH (`ExternalHeaders.h`/`Log/LogTypes.h`/`Common.h` only), so its sources are unaffected by the game-Pch-only headers.
-- Detailed networking flow: [Game Reconciliation](../../../Documents/Architecture/GameReconciliation.md) and [Network Architecture](../../../Documents/Architecture/Network.md). Update the affected document when reconciliation structure or protocol flow changes.
-
-## Subdirectories
-
-- [Agent/](Agent/) - JSON command dispatcher, compiled on both sides and activated by `kbAgent`. Shared commands cover process/log control. Client commands drive capture, UI/input automation, scene queries, and settled window state through engine agent facilities; server commands drive sim/save/replay control, StatusChange injection, Frame queries, and raw profile queries. Server save/load `file` values are appdata-relative trust boundaries: require a non-empty bare filename with no embedded NUL, separators, `..`, `:`, or Windows reserved device basename. Client capture `path` values deliberately accept full paths. Replay commands throw when `kbDebugInput` is disabled.
-- [Frame/](Frame/AGENTS.md) - Game state, physics tick pipeline, SOA collections
-- [Graphics/](Graphics/AGENTS.md) - Camera controller
-- [Input/](Input/AGENTS.md) - Keyboard/mouse and gamepad input pipeline
-- [Network/](Network/AGENTS.md) - Sessions, packet types, serialization
-- [Profile/](Profile/AGENTS.md) - Game CPU profiling counters
-- [Save/](Save/) - Save/load/replay (`game::GameSaveLoad`, server-only)
-- [Server/](Server/AGENTS.md) - GDI monitoring window (server-only)
-- [Ui/](Ui/AGENTS.md) - ImGui HUD, menus, settings
+- [Agent](Agent/AGENTS.md) - Harness command dispatch, queries, and network diagnostic probes
+- [Frame](Frame/AGENTS.md) - Game simulation and collections
+- [Graphics](Graphics/AGENTS.md) - Camera controller
+- [Input](Input/AGENTS.md) - Game input mapping
+- [Network](Network/AGENTS.md) - Game protocol and sessions
+- [Profile](Profile/AGENTS.md) - Game profiling counters
+- [Save](Save/AGENTS.md) - Server save/load/replay
+- [Server](Server/AGENTS.md) - Server monitoring window
+- [Ui](Ui/AGENTS.md) - HUD and settings
 
 ## See Also
 
 - [Engine Source](../../../Engine/Source/AGENTS.md)
-- [Common Utilities](../../../Common/AGENTS.md)
+- [Floating-point determinism](../../../Documents/FloatingPointDeterminism.txt)

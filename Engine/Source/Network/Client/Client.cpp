@@ -9,6 +9,13 @@
 namespace engine
 {
 
+namespace
+{
+
+constexpr std::chrono::seconds kSubscriptionTransitionTimeout = 5s;
+
+} // namespace
+
 Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots, const ClientGuid& rGuid, GuidAssignedCallback pfnGuidAssigned)
 {
 	ASSERT(gpClient == nullptr);
@@ -97,9 +104,39 @@ void Client::ResetAllSlots()
 	mCancelledSubscriptions.clear();
 }
 
-void Client::Poll()
+void Client::RecoverTimedOutSubscriptions()
+{
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
+	{
+		ClientCoordSlot& rSlot = mCoordSlots.at(i);
+		if (rSlot.eState == CoordSubscriptionState::kUnsubscribed
+			|| rSlot.eState == CoordSubscriptionState::kActive
+			|| now - rSlot.transitionStartTime < kSubscriptionTransitionTimeout)
+		{
+			continue;
+		}
+
+		switch (rSlot.eState)
+		{
+			case CoordSubscriptionState::kSubscribing:
+			case CoordSubscriptionState::kUnsubscribing:
+				rSlot = {};
+				break;
+			case CoordSubscriptionState::kWaitingFullState:
+				SendUnsubscribe(i);
+				break;
+			case CoordSubscriptionState::kUnsubscribed:
+			case CoordSubscriptionState::kActive:
+				break;
+		}
+	}
+}
+
+void Client::Poll(const NetworkTimeState& rTimeState)
 {
 	ASSERT(common::gpMultithreading->IsMainThread());
+	mTimeState = rTimeState;
 
 	if (mpHost == nullptr)
 	{
@@ -151,7 +188,7 @@ void Client::Poll()
 				LOG(kNetwork, kInfo, "ENET_EVENT_TYPE_DISCONNECT");
 				break;
 			case ENET_EVENT_TYPE_RECEIVE:
-				DispatchIncoming(event);
+				DispatchIncoming(event, rTimeState.bFastForward);
 				break;
 			case ENET_EVENT_TYPE_NONE:
 				break;
@@ -161,9 +198,10 @@ void Client::Poll()
 	// Process delayed packets whose release time has passed (or flush all when bypassing simulation)
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
-		bool bFastForward = game::gpGame->mTimeStep.miTimeMultiply > 1;
-		NetworkSimulation::ProcessOrFlush(mDelayedPackets, bFastForward,
-			[this](const DelayedPacket& rPacket) { Receive(rPacket.data.data(), rPacket.data.size()); });
+		NetworkSimulation::ProcessOrFlush(mDelayedPackets, rTimeState.bFastForward, [this](const DelayedPacket& rPacket)
+		{
+			Receive(rPacket.data.data(), rPacket.data.size());
+		});
 	}
 
 	// Track bandwidth deltas from host-level cumulative counters
@@ -175,12 +213,11 @@ void Client::Poll()
 	muiPrevSentData = uiSentData;
 }
 
-void Client::DispatchIncoming(ENetEvent& rEvent)
+void Client::DispatchIncoming(ENetEvent& rEvent, bool bFastForward)
 {
 	if constexpr (keNetworkSimulation != engine::NetworkSimulationLevel::kDisabled)
 	{
 		constexpr NetworkSimulationConfig kSimConfig = GetNetworkSimulationConfig(keNetworkSimulation);
-		bool bFastForward = game::gpGame->mTimeStep.miTimeMultiply > 1;
 		NetworkSimulation::DispatchOrEnqueue(mDelayedPackets, mNetworkSimState, kSimConfig, bFastForward, rEvent,
 			[this](ENetEvent& rInner) { Receive(rInner); });
 	}
@@ -337,32 +374,6 @@ void Client::Disconnect()
 		enet_peer_disconnect(mpServerPeer, 0);
 		mStateFlags.Clear(ClientStateFlags::kConnected);
 	}
-}
-
-float Client::GetPacketLossPercent()
-{
-	int64_t iActiveSlots = 0;
-	for (const ClientCoordSlot& rSlot : mCoordSlots)
-	{
-		if (rSlot.eState == CoordSubscriptionState::kActive)
-		{
-			++iActiveSlots;
-		}
-	}
-	// Received-frame count is a wall-clock window; the server's per-second broadcast rate scales with the debug timescale
-	const TimeStep& rTimeStep = game::gpGame->mTimeStep;
-	int64_t iExpected = kiTickRate * iActiveSlots * rTimeStep.miTimeMultiply / rTimeStep.miTimeDivide;
-	if (iExpected <= 0)
-	{
-		return 0.0f;
-	}
-	int64_t iReceived = mFramesReceived.Get();
-	int64_t iLost = iExpected - iReceived;
-	if (iLost <= 0)
-	{
-		return 0.0f;
-	}
-	return static_cast<float>(iLost) * 100.0f / static_cast<float>(iExpected);
 }
 
 } // namespace engine

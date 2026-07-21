@@ -22,6 +22,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.fHealth = rData.fHealth,
 				.fNextBlasterSpawnTime = rData.fNextBlasterSpawnTime,
 				.fArrivalGracePeriod = kfArrivalGracePeriod,
+				.fDeltaRotation = rData.fDeltaRotation,
 			});
 			break;
 
@@ -59,8 +60,10 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.flags = missileFlags,
 				.alignment = rData.alignment,
 				.fDeltaRotationDelay = rData.fDeltaRotationDelay,
+				.fDeltaRotation = rData.fDeltaRotation,
 				.fTime = rData.fTime,
 				.fNextJitter = rData.fNextJitter,
+				.bTransfer = true,
 #if defined(BT_CLIENT)
 				.smokeTrailId = rData.smokeTrailId,
 #endif
@@ -91,6 +94,7 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.fleetWantedCoord = rData.fleetWantedCoord,
 				.uiPendingFleetWantedCoordTicks = rData.uiPendingFleetWantedCoordTicks,
 				.uiPendingWeaponModeTicks = rData.uiPendingWeaponModeTicks,
+				.bTransfer = true,
 			});
 			break;
 

@@ -1,32 +1,26 @@
-# Frame - Game-Specific Frame State and Simulation
+# Frame - Game Simulation
 
 ## Overview
 
-Game frame state extending the engine base structs in `FrameBase.h` with collections for players, blasters, missiles, spaceships, and targets. Fixed timestep from `engine::kiTickRate`, phase-separated (FrameInterpolate, FramePostRender) for deterministic replay and shared-CRC validation. World-space cells are `Frame::kfCellWidth` × `kfCellHeight` engine units; each cell's deterministic island layout lives in `engine::FrameStaticData::islands` (built engine-side — see the engine frame docs), shared by client and server without broadcast. `Frame::kiVersion` adds `engine::kiNavDataVersion` and every collection's `kiVersion` to a game base constant; bumping any sub-version invalidates persisted frames.
+Game frame state extends the engine base with space-combat collections and deterministic phase hooks. Each cell derives its island elevation and navigation inputs from packed static data.
 
-Frame purity constraint is documented in the parent (`../AGENTS.md`) and must be respected here.
+Update [Frame Update Pipeline](../../../../Documents/Architecture/FrameUpdatePipeline.md) when phase order or participation changes.
 
-See also: [Frame Update Pipeline](../../../../Documents/Architecture/FrameUpdatePipeline.md) — update this diagram if game frame phase ordering or participation changes.
+## Invariants
 
-## Key Classes/Systems
-
-- **Frame / FrameInterpolate / FramePostRender** - Hierarchical frame structures extending engine base classes. Collections held via `std::unique_ptr` with forward declarations in `Frame.h`; concrete types live in `FrameCollections.h` which also exposes tuple/type-list aliases used by engine `ForEach*` dispatch. `Frame::GetMissileTarget` is the shared enemy-target query used by missile/player homing — it prefers under-subscribed targets (load-balances volleys) and registers a subscriber on success, so it mutates the frame and call order within a tick is part of the deterministic stream
-- **FrameTick** - `RunFrameTick(ActiveFrameRef, ...)` is the unified physics pipeline shared by GameBase parallel dispatch and client reconciliation replay. Asserts MXCSR `_DN_FLUSH` + `_RC_NEAR` at entry because external APIs (audio, Vulkan) can corrupt rounding mode and break `/fp:strict` determinism. On a coord's first tick it lazily builds the purely-derived per-cell data (server-only NavData from placements; the elevation grid on both sides) before any sim phase
-- **TerrainUtils** - Stateless AI terrain-following helpers: gradient contour-following with elevation correction and mountain look-ahead (open-ocean and far-from-center cases steer back toward island center), consumed by Players; and a separate front/side elevation-sampling obstacle-avoidance that nudges delta-rotation away from rising terrain, consumed by Spaceships. Also provides deterministic point-segment traces against the piecewise-constant elevation grid (floor-grid DDA) and frame bounds, returning normalized tick time for collision cutoffs
-- **StatusChange.h** - Network-serialized cross-cell migration and behavior-update payloads. Wire format is hand-written per type in `Network/NetworkSerialization.cpp` (see [Network/AGENTS.md](../Network/AGENTS.md)); payloads never enter the frame `sharedCrc` — payload `SharedMembers()` feeds build-shared equality only. `IsTransferType` relies on the transfer enum values staying contiguous, which a `static_assert` enforces. Distinct from the transient in-frame `TransferRequest` buffer which is not serialized and not in the CRC
-- **HealthDamage.h** - Combat balance constants plus `CollisionCategory`/`CollidesWith` bitmask pairs defining the collision matrix; alignment filter layered on top for same-team rejection
-
-## Architecture Notes
-
-- **Phase separation**: FrameInterpolate (velocity integration, sync) and FramePostRender (collision, transfer, destroy, spawn) strictly separated for deterministic replay. `RunFrameTick` runs them in order: Interpolate → PostRender Update → Collision (PreCollision / engine collide / PostCollision / AreaDamage) → Transfer → Destroy → Spawn, then stamps `sharedCrc` — after all phases and before the server transfer harvest, so transfer-spawned arrivals enter the next tick's CRC on both sides. The game level owns clearing the engine per-tick queues: PostCollision ends with `engine::Collision::Clear()`, AreaDamage with `engine::AreaDamage::Clear()`
-- **Per-cell derived data**: NavData and the elevation grid (`kiElevationGridDim` resolution) are deterministically derived from island placements + shared heightmaps, so both sides rebuild bit-identical copies on a coord's first tick — kept out of the CRC and never serialized (client receives prebuilt server-only NavData over the wire)
-- **Two-tier collection dispatch**: Players are invoked explicitly because they carry hand-written player-only logic; Blasters/Missiles/Spaceships/Targets auto-dispatch via `engine::ForEach*` over the `GameInterpolateTypes`/`GamePostRenderTypes` aliases in `FrameCollections.h`. Desync diff-logging folds over the same tuples (Players again explicit, for their `SharedCrcMembers` handling). Add a new collection by registering it in those tuple helpers
-- **Spaceship spawning**: `Spawn` ticks a fixed-interval timer that places an enemy chevron group per spawn pulse, rasterizing the cell into a validity grid (in-bounds, terrain-clear, away from alive players) and scoring candidate anchors for best chevron fit
-- **Delayed StatusChange activation**: behavior-changing StatusChanges (weapon mode, fleet wanted-coord) carry `uint8_t` countdown fields rather than an absolute activation tick; the receiving collection stores them in pending SOA fields, decrements each PostRender Update, and applies the change at zero. Countdowns ride in `TransferData` so a mid-countdown cell transfer keeps draining. Entity transfers, spawns, and destroys apply immediately
-- **`Frame.h` inline helpers**: the frame-bounds/transfer helpers use the `vecArea` lane convention x=minX, y=maxY, z=maxX, w=minY (matches `common::InsideArea`) — easy to get wrong. Seed per-coord RNG streams via `SeedFromGridCoord(coord, multiplier)` with a distinct multiplier per use case (decorrelates streams; rationale in the header comment)
-- **Serialization/CRC protocol**: `Crcs()` hashes the shared subset only (`SharedCrcMembers()` for players, `SharedCollectionCrc` for auto-dispatched collections). `SharedCrcMembers()` must be a subset of `SharedMembers()` (asserted) — an entry outside it would CRC client-local state and cause permanent false desync. `Write()`/`Read()` covers full `Members()` for save/load; `ServerRead()` consumes only the shared subset for replication. Arrival-grace timing for transfers is documented at the [Collections hub](Collections/AGENTS.md)
+- `RunFrameTick` is shared by server simulation and client replay. It verifies the required floating-point environment before advancing deterministic state.
+- Interpolate precedes PostRender update, collision, transfer, destroy, and spawn. Shared CRC is stamped after those phases and before server transfer harvest.
+- Players use explicit dispatch for player-specific logic; other game collections use the tuples in `FrameCollections.h`. Register new collections in the correct tuple and preserve deterministic ordering.
+- `SharedCrcMembers()` is a subset of `SharedMembers()`. Full `Write()`/`Read()` is build-local; `ServerRead()` consumes the shared cross-build format. Both paths require exact Interpolate/PostRender count and capacity parity across every registered collection pair; build-local reads replace the destination only after the full frame passes that check.
+- `Frame::kiVersion` composes navigation and collection versions. Bump its base when CRC semantics change without a contributing version bump.
+- Normalize a non-finite spaceship-spawn timer at save/replay and full-state read boundaries before its drain loop; finite values remain unchanged.
+- Navigation and elevation are deterministic derived data excluded from both the CRC and persisted frame payload. Server-built navigation is sent to clients.
+- Status changes are consumed here, but their serialized tags and append-only wire rule are owned by [game Network](../Network/AGENTS.md).
+- Delayed behavior updates use countdowns that transfer with the entity; transfer/spawn/destroy status changes apply immediately.
+- Bounds helpers use the `vecArea` lane convention expected by `common::InsideArea`. Seed coord-local RNG streams with distinct multipliers.
 
 ## See Also
 
-- Engine base frame: `../../../../Engine/Source/Frame/AGENTS.md`
-- Game object collections: `Collections/AGENTS.md`
+- [Engine frame](../../../../Engine/Source/Frame/AGENTS.md)
+- [Game collections](Collections/AGENTS.md)
+- [Game reconciliation](../../../../Documents/Architecture/GameReconciliation.md)

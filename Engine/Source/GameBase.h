@@ -187,8 +187,8 @@ public:
 	// Sim-clock delta covered by the most recent ServerUpdate / ClientUpdate iteration.
 	// Equals iFullTicks * kfDeltaTime — zero during pause, scales with mTimeStep multiplier.
 	// For per-tick systems (those running inside the for-iFullTicks loop), keep using kfDeltaTime.
-	// For systems that run once per Update iteration but represent sim-time progression
-	// (e.g. ServerFleetManager::TickFleetTimers), use this so they pause cleanly and respect
+	// For systems outside the per-tick loop that run once per advancing Update and represent
+	// sim-time progression (e.g. ServerFleetManager::TickFleetTimers), use this to respect
 	// time-scaling without each one re-deriving the delta.
 	float mfLastDeltaTime = 0.0f;
 #if defined(BT_CLIENT)

@@ -11,19 +11,24 @@ but must link here rather than define another approval or stop rule.
 Queue validation, claim, current-code inspection, execution-card citation
 corrections (the claimed plan file itself is never edited during execution),
 classification, and execution-card preparation do not require approval and do
-not create an approval gate. A claim or execution-card summary is never a
-substitute for the complete resolved plan.
+not create an approval gate. Start only when the latest user request explicitly
+invokes `/next-plan` or `$next-plan`; an invocation in unrelated history is not
+current authority. Once started, approval and blocker-resolution turns continue
+the active claimed workflow.
 
 <!-- next-plan-gate:implementation-approval -->
 
 ## 2. Complete-plan implementation approval
 
-Present the complete resolved plan, including its full execution card — which
-opens with the plain-language what and why summary — scope, invariants, role
-dispositions, acceptance criteria, and unresolved decisions. On a host that
-exposes plan mode, ask through the plan-approval UI: write the resolved plan to
-the host plan file and present it; plan-mode approval is the affirmative
-response. Hosts without plan mode ask the one approval question directly.
+Present the complete resolved plan, including its full execution card, scope,
+invariants, role dispositions, acceptance criteria, and unresolved decisions.
+A claim or card summary is never a substitute.
+
+On Codex in Plan Mode, return one complete `proposed_plan` and end the turn;
+never enter or exit Plan Mode. A later explicit request to implement that latest
+unchanged proposal is approval. On another host with a native plan-approval UI,
+present the same complete proposal through that UI. Without either surface, ask
+one direct approval question after the presentation.
 
 A plain affirmative response approves only that exact, most recently displayed
 presentation, and the transcript records it — no separate approval artifact is
@@ -46,47 +51,48 @@ A material scope or acceptance change returns to state 2. A safety blocker may
 stop the workflow, but clearing it resumes the same approved route without
 creating a new discretionary approval gate.
 
-### Primary-advance recovery
+### Primary advance
 
-The primary branch advancing under an open session is expected
-parallel-session behavior, never a reason to abandon the session or request a
-fresh wrapper. The session continues at its wrapper baseline and rebases only
-during `/finalize-changes` reconciliation, when its verified commit is ready to
-land. A primary advance voids nothing: the claim, the approval, and completed
-work all survive it.
-
-The one place an advance can block is the claim itself, when primary moved
-between wrapper creation and the claim (WorktreeCli requires primary and
-session at the same head to claim). Recover in place without user input:
-fast-forward the session branch to the current primary tip, re-baseline
-`BROKEN_ENGINE_BASELINE` to that tip for subsequent tool invocations, and claim.
-The claim no longer requires a clean session tree, so there is no stash step;
-`plan-byte-mismatch` (primary plan bytes) is the sole plan-content guard, and
-`git-operation-in-progress` still applies.
-
-A second recoverable condition is the stale-baseline queue notice: after the
-claim, a plan file and row landing on primary produce a row whose file exists
-on primary but not in this session's older tree. WorktreeCli reports that case
-as a non-blocking `missing-plan-file` notice, and any `ok: true` gate in this
-workflow accepts it. Record the notice as evidence and continue — the
-reconciliation rebase resolves it. It is never grounds to rebase mid-workflow,
-stop for user direction, or treat validation, verification, or a queue
-mutation as blocked. Only a `missing-plan-file` whose plan is absent from
-primary as well remains a genuine blocking diagnostic.
+Before claim, recover an advanced primary only from a clean session tree:
+rebase onto the primary tip, verify the tree remains clean, re-baseline
+`BROKEN_ENGINE_BASELINE`, then claim. After claim, stay at that baseline until
+`/finalize-changes`; claim, approval, and completed work survive further primary
+advances. An `ok: true` stale-baseline `missing-plan-file` notice is
+non-blocking and reconciliation resolves it. A plan-digest mismatch is terminal.
 
 <!-- next-plan-gate:primary-mutation-confirmation -->
 
 ## 4. Landing confirmation
 
-When landing updates canonical shared parent infrastructure, including an
-AgentTools promotion, require the canonical session ledger to show no live
-session other than the current cooperating owner and no maintenance
-claim before presenting landing confirmation. If it is not quiescent, release
-any reconcile or landing lease, retain the candidate and claims, and tell the
-user to wait until every other active session has ended and any maintenance
-claim has cleared. After the user reports that they have ended, recheck the
-ledger; that report clears only the safety blocker and does not authorize
-landing. Present the normal landing confirmation only after the recheck passes.
+### Canonical shared artifacts
+
+A canonical shared artifact is a mutable machine-level resource outside Git
+history that a landing replaces or rewrites and live wrapper worktrees consume.
+The current exhaustive trigger is AgentTools promotion: a landed diff containing
+any non-Markdown path under `Tools/WorktreeCli/`, `Tools/AgentHarness/`, or
+`Tools/ToolCommon/` replaces the canonical primary `WorktreeCli.exe` and
+`AgentHarness.exe` pair used by linked worktrees.
+
+Ordinary Git landing is not a shared-artifact mutation, regardless of tracked
+path. This explicitly excludes source, shader, script, skill, plan, and
+documentation changes under `Common/`, `Engine/`, `Projects/`, `.agents/`, and
+Markdown-only changes under the AgentTools trees. AgentTools candidate builds
+under a worktree's `Temp/`, read-only consumption of primary generated data in
+Shared build mode, queue publication, and lock or claim updates are also not
+shared-artifact mutations. A workflow that adds another mutation of a canonical
+output consumed by live worktrees must add its exact trigger here before using
+this gate.
+
+Only when a landing includes a canonical shared-artifact mutation defined above,
+require the canonical session ledger to show no live session other than the
+current cooperating owner and no maintenance claim before presenting landing
+confirmation. Do not apply ledger quiescence to the excluded operations. If the
+ledger is not quiescent, release any reconcile or landing lease, retain the
+candidate and claims, and tell the user to wait until every other active session
+has ended and any maintenance claim has cleared. After the user reports that
+they have ended, recheck the ledger; that report clears only the safety blocker
+and does not authorize landing. Present the normal landing confirmation only
+after the recheck passes.
 
 Immediately before the one operation that mutates primary history, state in one
 short summary: what the change is in one sentence, the changed-file count and

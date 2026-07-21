@@ -1,6 +1,6 @@
 ---
 name: validate-skill
-description: Validate repository skills with the authoritative mechanical and semantic contract. Use after creating, revising, auditing, or final-tree verifying any `.agents/skills/*/SKILL.md`, and whenever skill frontmatter, invocation controls, trigger quality, tool grants, bundled links, or progressive disclosure need review.
+description: Validate repository skill packages with the authoritative Claude and Codex mechanical and semantic contracts. Use after creating, revising, auditing, or final-tree verifying any `.agents/skills/*/SKILL.md`, and whenever frontmatter, `agents/openai.yaml`, invocation policy, trigger quality, bundled links, or progressive disclosure need review.
 allowed-tools: [Read, Grep, Glob, PowerShell]
 ---
 
@@ -10,7 +10,7 @@ Validate skills without modifying them. Mechanical failures and Critical semanti
 
 ## Inputs
 
-Accept one repository skill directory or its `SKILL.md`. Disposable validation fixtures may be outside `.agents/skills/` only when the mechanical command uses `-Fixture`.
+Accept one repository skill directory or its `SKILL.md`. The optional Codex `agents/openai.yaml` is validated with the package. Disposable fixtures may be outside `.agents/skills/` only with `-Fixture`.
 
 Read [`references/frontmatter-schema.md`](references/frontmatter-schema.md) completely before interpreting frontmatter or a mechanical diagnostic. It is the authoritative repository schema; do not substitute a client-installed validator or a reduced prose check.
 
@@ -25,14 +25,15 @@ Read [`references/frontmatter-schema.md`](references/frontmatter-schema.md) comp
    Require `VALID` and exit `0`. Report `BLOCKED` if the command cannot run, returns `SETUP_ERROR`/2, or the validator does not validate its own skill. Do not continue with a weaker check.
 2. Run the same command once for the target. Use `-Fixture` only for a deliberately disposable fixture outside `.agents/skills/`. Capture the exact command, exit status, and complete output.
 3. Treat `INVALID`/1 as a mechanical Critical finding. Treat `SETUP_ERROR`/2, an unrecognized result class, or a result/exit mismatch as `BLOCKED`.
-4. Review semantic behavior from the target `SKILL.md` and its directly referenced resources. Also search every tracked repository `AGENTS.md` and `.agents/skills/*/SKILL.md` for inbound references to the target skill. Classify each match by surrounding workflow text: an instruction that the model invoke, chain to, or use the target programmatically is a workflow requirement; a command shown only for a user to type is a user-invocation example and does not conflict with disabled model invocation.
-   - **Critical:** the description says the skill is manual-only or must never auto-trigger, but `disable-model-invocation: true` is absent.
-   - **Critical:** `disable-model-invocation: true` is present, but an `AGENTS.md` or another skill requires the model to invoke or chain to it programmatically. Distinguish user-invocation examples from model workflow requirements.
-   - **Recommended:** make the description state both what the skill does and concrete trigger contexts, with the key use case first.
-   - **Recommended:** remove tool grants the workflow never uses, and declare grants needed by prescribed commands.
+4. Review semantic behavior from `SKILL.md`, directly referenced resources, and a present Codex sidecar. Search inbound references across tracked workflow Markdown and agent-role definitions, including every `AGENTS.md`, skill, `.agents/references/`, `Documents/`, `.claude/agents/`, and `.codex/agents/` definition. Classify surrounding text: model invocation/chaining is a workflow requirement; a command only the user types is an example.
+   - Treat Claude `disable-model-invocation` and Codex `policy.allow_implicit_invocation` as independent controls. Never require a Codex sidecar merely because the Claude flag is true. A platform-neutral or Codex-specific manual-only promise requires Codex policy `false`; a Claude-only promise requires the Claude flag. A disabled policy that conflicts with an inbound workflow requirement is **Critical** for that client.
+   - **Critical:** `description` lacks material trigger contexts. Codex discovery sees `name` and `description`, not `when_to_use` or the body.
+   - **Recommended:** remove unused Claude pre-approvals and add those needed by prescribed commands. Keep body tool and delegation bounds authoritative; Codex dependencies wire external tools and grant no execution authority.
    - **Recommended:** keep instructions imperative, general, and concise; include an example for a non-trivial required output format.
    - **Recommended:** measure large bodies with `.agents/scripts/Measure-Tokens.ps1`; consider progressive disclosure above 10,000 `bt-token-v1`, target at most 15,000, and give reference files over 2,000 a table of contents.
 5. List confirmed passes under Accurate checks. Do not promote ordinary quality advice to Critical unless discovery or invocation is concretely incorrect.
+
+For validator changes, run the disposable `VALID`/`INVALID`/`SETUP_ERROR` matrix in the schema reference. Do not commit fixture packages.
 
 ## Output
 

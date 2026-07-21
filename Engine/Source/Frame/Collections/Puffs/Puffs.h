@@ -85,6 +85,10 @@ struct PuffsInterpolate : public Collection<PuffsInterpolate>,
 	{
 		return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pfAreas, rSelf.pfRotations, rSelf.puiControllerTypeIndices, rSelf.pfStartTimes);
 	}
+	auto PersistentMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.puiTypeIndices, rSelf.puiControllerTypeIndices, rSelf.pfStartTimes);
+	}
 
 	// Graphics resources
 	static void GraphicsResources();

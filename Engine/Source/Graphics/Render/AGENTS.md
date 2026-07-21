@@ -1,54 +1,28 @@
-# Render - GPU Uniform Buffer Population
+# Render - Per-Frame GPU Data
 
-## Overview
+Client-only population of mapped Global and Main layouts before their record-once command buffers submit. Each render subsystem owns its layout region; tunable-dependent staging remains separate from per-frame phase state.
 
-Client-only per-subsystem files populate the host-visible `GlobalLayout` / `MainLayout` buffers before submission, providing the per-frame state path required by record-once command buffers. Each file owns its layout region and reads author tunables through `g*` wrapper accessors.
+## Ordering and Publication
 
-A downstream pass may zero an upstream count only when its amplitude clamps to zero and the matching array write is skipped; gate both writes together so shaders never consume an unwritten region.
+- Global population precedes Main. Within Global, Smoke precedes Wind because wind consumes smoke's current and previous world areas.
+- Main rendering runs collection `BeginRender`, per-coord `Render`, collection `EndRender`, lighting-spread gate publication, then debug publication, with the camera coord first. The no-renderable-coord path still runs begin/end publication so every indirect count reaches zero instead of ghost-drawing prior-frame instances.
+- The lighting spread chain draws indirectly, gated on the frame's light-deposit total that the deposit collections accumulate during `EndRender`; that dependency is why the gate publishes after `EndRender` on both paths. Publishing zero instances is correct only because each spread pass clears its attachments to the same result the skipped draw would have produced — [Lighting shaders](../../../Data/Shaders/Lighting/AGENTS.md) owns the shader-side half of that equivalence.
+- Downstream amplitude gates may clear an upstream count only when they also skip the corresponding array write. Keep count and data publication paired.
+- Write-combined mapped layouts are write-only. Compute dependent values in CPU staging state and copy each populated region once.
 
-## Ordering Contract
+## Precision and History
 
-- Global population precedes Main: Main consumes elapsed time, and Wind's flipped ping-pong index routes later deposits to the texture that spread will not overwrite.
-- Smoke population precedes Wind within Global because wind shaders consume smoke's current and previous world areas. Both writes reach the same mapped layout before one submission, so this CPU order documents the shader dependency rather than creating separate GPU synchronization.
+- Water phase and camera-relative UV origins are computed in `double`, reduced with `std::fmod`, then cast to float. Integrate reduced phase from per-frame size, speed, and delta time so tunable changes do not jump.
+- Rotate camera origins into the shader's pattern space before reduction, and preserve integral shader-side wrap multipliers. These CPU reductions are the precision owner for distant-world water sampling.
+- Shadow and lighting footprints snap to their deposit grids and publish current/previous areas for temporal sampling. Recreation resets seed history from the current area for one frame.
+- Smoke and wind spread remap through current and previous world areas. Their enable, disable, recreate, and occupancy paths must clear or drain stale tiles without relying on command-buffer re-recording.
 
-## Main Pass Phases
+## Area Roles
 
-`RenderFrameMain` runs collection `BeginRender` → per-coord `Render` → `EndRender` → debug overlays, with the camera rendered first for stable index zero. It also writes the paired water LOD draw range and active-quad dimensions used by compute and vertex stages. If no coord is renderable, it still runs the begin/end pairs to flush entity, effect, and debug indirect counts; record-once command buffers would otherwise ghost-draw stale instances. Water and lighting keep their last self-consistent parameters because they always draw independently of coord contents.
+The visible area anchors water and geometry coverage. Shadow uses a sunward-expanded, texel-snapped footprint; lighting uses the light-deposit grid shared by spread, combine, and temporal passes. Grid snapping and camera-height policy belong to [Graphics](../AGENTS.md).
 
-## Day Cycle
+## See Also
 
-Global population resolves the sun angle into sun/moon colors, ambient light, night gates, and shadow terms. Only resolved floats reach shaders; day-fraction policy stays CPU-side.
-
-## Debug Overlays
-
-`kbDebugRender` gates no-depth-test line/circle overlays for coord-frame, island-placement, valid-area-hull, and navigation data, all positioned from static coord-frame data. Valid-area hulls use the underwater-mask threshold depth that defines their boundary. The game-specific collection debug pass reads the fully interpolated frame.
-
-## Camera-Relative Double Precision
-
-Compute phase and UV origins in `double`, reduce them with `std::fmod`, then cast to float so distant-world coordinates retain precision. Reduction moduli must keep shader-side size multipliers integral.
-
-- Integrate reduced time from `size * speed * dt`; recomputing from total playtime jumps when size or speed changes.
-- Rotate camera origins by the shader's inverse pattern rotation before reduction. Rotate scrolling deltas by the difference between scroll and pattern directions so the shader restores the intended world direction; shader-side rotation before wrapping creates non-integral wrap jumps. Rotation preserves the delta's √2 magnitude, keeping direction-independent speed and the per-component fmod-10 wrap valid for every direction.
-
-## World-Area Uniforms
-
-Global population writes the world-area extents sampled by shaders; snap-grid and temporal rationale lives in the parent CameraBase section. Shadow and lighting also publish their previous footprint and temporal blend:
-
-- `f4VisibleArea` — the camera's snapped render-visible rectangle; anchors the water vertex grid and the water displacement / Jacobian-normal textures.
-- `f4ShadowArea` — texel size derives from the analytic straight-down frustum width, snaps through integer texel indices, and clamps the live-height sub-window to the texture. The extra area extends sunward for the wider elevation target.
-- `f4LightingArea` — snapped to the deposit texel grid specifically (deposit is where lights rasterize, so its grid must pan in integer texels); spread/combine/temporal resample the same world rectangle at their own resolutions.
-
-## Camera-Height-Conditional Uniforms
-
-Resolve camera-height-dependent values CPU-side and upload one float. Author controls use `HeightLerpWrapperQuartet`; hard-coded variants use `engine::LerpAtHeight`. Shared fade endpoints remain single-sourced on the game camera.
-
-## Buffer & Dispatch Patterns
-
-- Uniform layouts reinterpret persistent-mapped, per-command-buffer buffers under scalar layout. Never read back from these write-combined maps; compute dependent intermediates in a file-static staging copy and copy the populated region once. Split tunable-dependent cached work from per-frame phase work.
-- Binary compute gates use indirect buffers; water displacement instead writes workgroup dimensions for its active LOD sub-region.
-- Cross-file or externally-reset state lives as `inline` globals in `Render.h`; single-file edge detectors / latches stay function-local statics — do not promote. All latches assume the entry points run exactly once per frame.
-- Shadow/lighting recreate resets force one pure-current frame with previous area equal to current, reseeding rebuilt history textures despite persistent function-local latches.
-- Wind textures hard-clear once at creation/recreate; occupancy-active spreading and exact-zero decay then maintain valid contents without a reset flag.
-- Smoke render population gates the indirect fullscreen clears used on enable/disable/recreate edges. `RenderTargetTextures` and `BufferManager` own creation-time texture and occupancy zeroing; command-buffer and shader paths own stale-tile drainage.
-- The `giShadow*` / `giLighting*` pixel-count globals in `Render.h` exist solely as readouts for `Profile/ProfileScreens.cpp`.
-- Smoke/wind spread is scale-aware: shaders reconstruct world position from the current world-area uniform and remap to the previous-frame texcoord, so no per-command-buffer spread-quad storage buffer is needed.
+- [Graphics](../AGENTS.md) - Renderer lifecycle and camera/world grids
+- [Water shaders](../../../Data/Shaders/Water/AGENTS.md) - Shader-side phase and sampling constraints
+- [Smoke shaders](../../../Data/Shaders/Smoke/AGENTS.md) and [Wind shaders](../../../Data/Shaders/Wind/AGENTS.md) - Temporal remapping

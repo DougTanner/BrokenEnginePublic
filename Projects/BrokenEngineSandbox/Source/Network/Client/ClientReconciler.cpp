@@ -133,11 +133,11 @@ ReconcileDesyncInfo ClientReconciler::Run()
 			{
 				if (rScratch.iDesyncTick >= 0)
 				{
-					LOG(kNetwork, kError, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, static_cast<bool>(rScratch.flags & kCrcFastPath), static_cast<bool>(rScratch.flags & kReplayed), static_cast<bool>(rScratch.flags & kShrunkRollback), rScratch.iDesyncTick);
+					LOG(kNetwork, kDebug, "Reconcile post-replay Rollback/replay exhausted with unresolved CRC mismatch Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, static_cast<bool>(rScratch.flags & kCrcFastPath), static_cast<bool>(rScratch.flags & kReplayed), static_cast<bool>(rScratch.flags & kShrunkRollback), rScratch.iDesyncTick);
 				}
 				else
 				{
-					LOG(kNetwork, kDebug, "Reconcile post-replay Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, static_cast<bool>(rScratch.flags & kCrcFastPath), static_cast<bool>(rScratch.flags & kReplayed), static_cast<bool>(rScratch.flags & kShrunkRollback), rScratch.iDesyncTick);
+					LOG(kNetwork, kDebug, "Reconcile post-replay Reconciliation resimulation completed without an unresolved CRC mismatch Coord: ({},{}) NewConfirmedTick: {} Validated: {}/{} CrcFastPath: {} Replayed: {} ShrunkRollback: {} DesyncTick: {}", rWork.coord.x, rWork.coord.y, rScratch.iNewConfirmedTick, rScratch.iLastValidatedIndex + 1, rScratch.iReplayStackCount, static_cast<bool>(rScratch.flags & kCrcFastPath), static_cast<bool>(rScratch.flags & kReplayed), static_cast<bool>(rScratch.flags & kShrunkRollback), rScratch.iDesyncTick);
 				}
 			}
 		}
@@ -148,7 +148,7 @@ ReconcileDesyncInfo ClientReconciler::Run()
 		char acExpected[20] {}, acActual[20] {};
 		common::ToHex(std::span<char, 20>(acExpected), pDesyncWork->scratch.desyncExpectedCrc);
 		common::ToHex(std::span<char, 20>(acActual), pDesyncWork->scratch.desyncActualCrc);
-		LOG(kNetwork, kError, "Reconcile Desync Summary Coord: ({},{}) DesyncTick: {} ExpectedCrc: {} ActualCrc: {} ReplayTicks: {} NewConfirmed: {}", pDesyncWork->coord.x, pDesyncWork->coord.y, pDesyncWork->scratch.iDesyncTick, acExpected, acActual, pDesyncWork->scratch.iReplayStackCount, pDesyncWork->scratch.iNewConfirmedTick);
+		LOG(kNetwork, kError, "CONFIRMED DESYNC after full rollback/replay Coord: ({},{}) DesyncTick: {} ExpectedCrc: {} ActualCrc: {} ReplayTicks: {} NewConfirmed: {}", pDesyncWork->coord.x, pDesyncWork->coord.y, pDesyncWork->scratch.iDesyncTick, acExpected, acActual, pDesyncWork->scratch.iReplayStackCount, pDesyncWork->scratch.iNewConfirmedTick);
 
 		ReconcileDesyncInfo desyncInfo;
 		desyncInfo.bDesync = true;

@@ -42,23 +42,16 @@ void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId,
 	auto [uiSpawnIndex, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
+	ZeroMemberRow(uiSpawnIndex, rInterpolate.Members());
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	rInterpolate.pFlags[uiSpawnIndex] = {};
-	rInterpolate.pfRotations[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfExtra[uiSpawnIndex] = 0.0f;
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
 }
 
 void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t& rId)
 {
-	ASSERT(rId.IsValid());
-
 	BillboardsInterpolate& rInterpolate = rFrame.interpolate.billboards;
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;
 
-	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-
-	rId = {};
+	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 }
 
 void BillboardsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

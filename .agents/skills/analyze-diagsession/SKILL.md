@@ -1,89 +1,149 @@
 ---
 name: analyze-diagsession
-description: Analyzes Visual Studio .diagsession CPU profiling dumps (client/server captures) — extracts the ETW trace, symbolizes with xperf against the build's PDBs, computes per-process hotspot shares, interprets build-config overhead vs real algorithmic cost, and creates scored plan files in Documents/Plans/ for the optimizations found. Use whenever the user provides or mentions .diagsession files, profiling dumps/captures, or asks to examine a profile for hotspots / performance problems — even if they only attach the files and say "look at these".
+description: >-
+  Analyze Visual Studio .diagsession and extracted ETL CPU captures for the
+  Broken Engine client or server. Extract and symbolize traces, compute
+  per-process hotspot shares, distinguish sampled build overhead from
+  actionable algorithmic cost, inspect source attribution, and report or route
+  evidence-backed optimization plan proposals. Use when the user supplies a
+  Visual Studio .diagsession or its CPU ETL trace, or explicitly asks to analyze
+  one of those captures.
 allowed-tools: [Read, Bash, PowerShell, Grep, Glob, Agent]
 ---
 
-# Analyze .diagsession CPU Profiles
+# Analyze Visual Studio CPU Captures
 
-Deliverable: a hotspot report (per-process shares, interpreted) and scored plan files registered through WorktreeCli for each actionable optimization. Plan *execution* is out of scope — that belongs to the Change Workflow / `/next-plan`.
+Deliver a per-process hotspot report and evidence-backed plan proposals. Plan
+execution remains in the Change Workflow.
 
-## Scripts vs subagents (who does what)
+## Roles
 
-Deterministic work goes to scripts/tools, judgment goes to models — per root AGENTS.md delegation roles:
-
-- **Deterministic scripts (no subagent)**: extraction, xperf invocations, share computation (`scripts/profile_shares.py`), PDB GUID checks, grepping profile text. Never ask a subagent to parse or summarize what a script parses exactly.
-- **`locator` subagents**: code searches to gather context for hotspot functions — must return verbatim quotes + file:line, never summarize; fan out one agent per hotspot cluster in a single message. **`builder` subagents**: any build verification via `/compile`.
-- **`implementer` subagent**: writes the plan files and submits their structured WorktreeCli add request (step 7) — new-content authoring role.
-- **Main session**: interprets the numbers against §5's rubric, decides which hotspots become plans, writes the user-facing report.
+- Use deterministic tools for extraction, xperf, share computation, PDB checks,
+  and profile-text searches.
+- Use `locator` agents for source context: verbatim quotes and file:line only,
+  one agent per independent hotspot cluster.
+- Use `builder` through `/compile` only when build verification is required.
+- Main interprets measurements, confirms source attribution, and reports.
 
 ## 1. Extract
 
-`.diagsession` is an OPC/ZIP package. Copy to the scratchpad, rename `.zip`, `unzip`. The CPU data is the ETL file (`*/sc.user*.etl`, tens of MB); the `.counters` file is JSON metadata only. `metadata.xml` names the tools used.
+`.diagsession` is an OPC/ZIP package. Extract it without renaming or a
+platform-specific archive command:
 
-## 2. Symbolize with xperf
+```text
+python -m zipfile -e <capture.diagsession> <scratch-directory>
+```
 
-xperf lives at `C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\xperf.exe`. Invoke the repository sidecar from the repository root so Claude/Git Bash and Codex/PowerShell use the same fixed tool lookup, symbol paths, arguments, and exit code:
+The CPU trace is `*/sc.user*.etl`; `.counters` is JSON metadata and
+`metadata.xml` identifies the capture tools. Keep extraction in disposable
+scratch space.
+
+## 2. Symbolize
+
+From repository root, run:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .agents/skills/analyze-diagsession/scripts/Invoke-DiagSessionSymbolization.ps1 -EtlPath <etl-path> -RepositoryRoot <repo-root> -OutputPath <profile-output-path>
+pwsh -NoProfile -ExecutionPolicy Bypass -File .agents/skills/analyze-diagsession/scripts/Invoke-DiagSessionSymbolization.ps1 -EtlPath <etl> -RepositoryRoot <repo> -OutputPath <profile.txt>
 ```
 
-Pass `-SymbolCacheRoot <short-path>` only when the default `%TEMP%` cache root is unsuitable. The sidecar sets `_NT_SYMBOL_PATH` and `_NT_SYMCACHE_PATH` only on the xperf child process.
+Use `-SymbolCacheRoot <short-path>` only when `%TEMP%` is unsuitable. The
+sidecar scopes `_NT_SYMBOL_PATH` and `_NT_SYMCACHE_PATH` to xperf.
 
-Pitfalls (each cost real time once):
-- **`_NT_SYMCACHE_PATH` must be a short path.** A deep scratchpad path fails with `0x80070003` (path-not-found) on longer PDB names while shorter ones succeed — maddeningly partial.
-- The MS symbol server entry is what resolves `ntdll`/`ntoskrnl` — without it, OS time is one opaque "Unknown" blob. First run downloads symbols: run in background / timeout 600000.
-- If a first-party module stays "Unknown": compare the trace's expected PDB GUID/age (`xperf -i <etl> -a symcache -dbgid`) against the on-disk PDB before suspecting anything else.
-- Each trace carries image rundown only for its capture target — the other exe's modules may show unsymbolized. Analyze each dump for its own process.
+- xperf is expected at the Windows Performance Toolkit path encoded by the
+  sidecar. Allow up to 600000 ms on a first symbol-server run.
+- Keep the symbol cache path short; deep paths can fail partially with
+  `0x80070003`.
+- If a first-party module remains `Unknown`, compare the trace PDB GUID/age
+  (`xperf -i <etl> -a symcache -dbgid`) with the build PDB.
+- Each trace normally contains image rundown for its capture target; analyze
+  client and server traces separately.
 
-## 3. Detect the build configuration — it changes everything downstream
+## 3. Establish build evidence
 
-The config is embedded in the module names in the trace (`BrokenEngineSandbox.Debug.exe`, `.Profile`, unsuffixed = Release). Confirm before interpreting; a Debug capture and a Profile capture of the same scene have almost disjoint hotspot lists.
+Module names definitively identify the captured target configuration:
+`BrokenEngineSandbox.Debug.exe`, `.Profile`, or unsuffixed Release. Record that
+before interpreting samples.
 
-**Debug traces** — expect build-machinery costs and separate them from algorithmic cost:
+The following symbols are definitive evidence only when present in sampled
+code; absence from a flat sample does not prove a flag or feature is disabled:
 
-| Marker in profile | Meaning |
+| Present marker | Evidence |
 |---|---|
-| `__CheckForDebuggerJustMyCode` | `/JMC` — should be **absent** (Debug sets `SupportJustMyCode=false`); reappearance = config regression |
-| `RtlEnter/LeaveCriticalSection` + `std::_Lockit`, `_Debug_lt_pred`, `_Iterator_base12` | Iterator-debug machinery — should be entirely **absent** (Debug pins level 0); any of it reappearing = a vcxproj lost the `_ITERATOR_DEBUG_LEVEL=0` define. `_Iterator_base12` means any level > 0 leaked in; `_Lockit`/`_Debug_lt_pred` mean level 2 specifically |
-| `_RTC_CheckStackVars` | `/RTC` — deliberate, keep |
-| `VkLayer_khronos_validation.dll` | Vulkan validation (`kbVulkanDebugLayers`) — deliberate in Debug, accepted cost; do not plan its removal |
-| `MoveSmall4/8`, `memset_repstos` | CRT memcpy/memset helpers, not codebase symbols |
-| Walls of tiny `XMVector*`/`std::` self-weight | No inlining in Debug — attribute to their callers via code inspection |
+| `__CheckForDebuggerJustMyCode` | `/JMC` instrumentation; unexpected in current Debug projects |
+| `_Iterator_base12` | checked-iterator machinery above level 0 |
+| `_Debug_lt_pred` | level-2 checked STL machinery |
+| `_RTC_CheckStackVars` | deliberate Debug `/RTC` instrumentation |
+| `VkLayer_khronos_validation.dll` | deliberate Debug Vulkan validation activity |
 
-Debug plan recommendations may include config-level fixes; Profile/Release plans must be algorithmic/data-layout.
+Treat `std::_Lockit`, walls of tiny `XMVector*`/`std::` leaves, and a hotspot
+that disappears in an optimized capture as attribution hints, not configuration
+proof. Confirm compiler/project settings and caller context before proposing a
+config regression. Debug no-inlining can smear one operation across leaves;
+Profile/Release shapes are stronger algorithmic evidence, but disappearance is
+still only a sampling observation. `BT_PROFILE` timer-overlay cost is expected.
 
-**Profile/Release traces** — optimized and inlined: leaf costs fold into callers, so self-weight lands on real functions and is directly actionable. None of the Debug markers above should appear (validation layers off outside Debug); if one does, that itself is the finding. `BT_PROFILE` builds also carry the engine CPU/GPU timer overlay — its cost is expected.
+`MoveSmall4/8`, `memcpy`, `memset`, and `memset_repstos` are CRT helpers rather
+than source attribution. Cluster them under inspected callers; a significant
+share remains investigable as excess copying, clearing, or data movement.
 
-## 4. Compute shares
+## 4. Compute per-process shares
 
-```bash
-python .claude/skills/analyze-diagsession/scripts/profile_shares.py out_profile.txt --process BrokenEngineSandbox [--top N]
+```text
+python .agents/skills/analyze-diagsession/scripts/profile_shares.py <profile.txt> --process BrokenEngineSandbox [--top N]
 ```
 
-Weights ≈ sampled µs. Judge everything as **share of that process's own total** — the file's global % column includes Idle and other processes. `xperf -a profile` output is **flat self-weight only** (no call trees): state caller attribution as code-inspection inference in the report, not measured fact.
+Weights approximate sampled microseconds. Use each process's own total, not the
+global percentage that includes Idle and other processes. xperf profile output
+is flat self-weight, so label caller attribution from source inspection as an
+inference rather than a measurement. A parser diagnostic and nonzero exit means
+the input or process selection must be corrected before interpretation.
 
-## 5. Interpret — when a hotspot justifies a plan
+## 5. Decide what is actionable
 
-Judge by share of the process's own total (§4), after clustering sibling leaves under one cause (mandatory in Debug — no inlining smears one algorithm across dozens of tiny frames):
+Cluster sibling leaves under one cause, especially in Debug:
 
-- **< 1%**: never a plan on its own — mention in the report at most.
-- **1–3%**: plan only if the fix is Effort 1–2 (Quick Win/Small), or several such hotspots share one root cause — cluster them into a single plan.
-- **3–10%**: plan-worthy when the cost is algorithmic/data-layout; state expected gain as the measured share (it is the upper bound).
-- **≥ 10%**: always chase to root cause, even when it looks like config overhead — confirm which it is.
-- **Config overhead never becomes an algorithmic plan.** Debug-only machinery (§3 table) yields at most a config-regression plan (JMC back on, iterator-debug-level define lost); accepted costs (Vulkan validation, `/RTC`, `BT_PROFILE` overlay) yield none.
-- **Cross-capture triangulation**: a hotspot in both client and server captures is sim-side — any optimization must be bit-identical (`/fp:strict`, same float ops, same order) and the plan must say so. Client-only hotspots are render/interpolate-side, free of that constraint.
-- **Trust Profile/Release shapes over Debug shapes**: a Debug-only hotspot absent from a Profile capture of the same scene is build machinery, not a finding.
+- Below 1%: never a standalone plan.
+- 1–3%: plan only for Effort 1–2 or a shared clustered root cause.
+- 3–10%: plan algorithmic/data-layout cost; measured share is the gain ceiling.
+- At least 10%: always investigate the root cause, including config-looking or
+  memory-helper cost.
 
-## 6. Gather code context
+Accepted Debug costs (`/RTC`, Vulkan validation) and expected Profile overlay
+cost yield no plan. A proven configuration regression may yield a config plan;
+Profile/Release findings should target algorithm or data layout.
 
-For each top hotspot cluster (skip OS/driver/CRT), fan out `locator` agents in one message: full function bodies, call sites with enclosing loop headers, container/comparator types behind `std::` template hits. Verbatim quotes + file:line only.
+Capture membership only narrows the source search. Do not infer simulation,
+render phase, or determinism from client/server presence or absence. Before
+classifying a hotspot or drafting a plan, inspect its call sites and enclosing
+frame phase, and confirm whether its inputs or writes can affect PostRender/CRC
+state. Only confirmed PostRender exposure triggers the bit-identical constraint
+(`same float operations and order`, `/fp:strict`). Record client-only visual or
+Interpolate classification only after the same source confirmation.
 
-## 7. Report, then plans
+## 6. Gather source context and report
 
-Report to the user first: per-process table of top shares, config-overhead vs algorithmic split, expected gain per item.
+For each top non-OS/driver cluster, gather full function bodies, call sites with
+enclosing loop and frame-phase context, and container/comparator types behind
+template hits. Include memory helpers when their clustered share is material.
 
-Then dispatch one `implementer` subagent to write and register the plan files. It must read `Documents/Plans/AGENTS.md` (file shape, required `## Out of scope`, structured dependencies, and Coordination policy) and the canonical scoring anchors it links in `Documents/AGENTS.md`, re-verify every code citation against current source, state invariant exposure per plan (determinism/CRC/`kiVersion` — sim-path optimizations must be **bit-identical**: same float ops, same order, `/fp:strict`), and pre-stage grill decisions in `## Notes`. No 'Verification' sections.
+Report first:
 
-Write the plan files first, then create one schema-version `1` request beneath the session worktree's `Temp/` with `operation: "add"` and prerequisite-first `sequences`. Each entry supplies `queue`, normalized repository-relative `plan`, `tier`, `effort`, `impact`, `risks`, `notes`, and optional `dependsOn`; WorktreeCli computes Score. Put independent plans in separate sequences, invoke `plan order add --repo <common-dir> --worktree <session-worktree> --owner <token> --session <label> --request <Temp repo-relative JSON>`, require successful unlocks, then require `plan order validate --repo <common-dir> --worktree <session-worktree>` to report `ok: true`. Never parse or edit either `Order.md`. Directional prerequisites use `dependsOn`; mandatory nondirectional constraints require reciprocal `## Coordination` updates through the atomic multi-plan workflow, while ordinary overlap may remain a nonblocking one-sided warning in plan prose.
+- capture, target process, and module-proven configuration;
+- top per-process shares and clustered causes;
+- measured facts versus source-attribution inferences;
+- build overhead versus algorithmic/data-movement cost;
+- confirmed frame phase and PostRender/CRC exposure;
+- expected gain ceiling and actionable plan proposals.
+
+## 7. Route plan proposals
+
+Do not author plan files or mutate the queue directly. Route proven optimization
+residuals through `/create-follow-up-plans`, which owns duplicate checks, plan
+shape, scoring, and staged WorktreeCli requests. It requires a wrapper worktree
+with a live session claim. With no live claim, report the proposed plan title,
+evidence, scope, tier/scoring rationale, invariants, and acceptance checks to the
+user without creating tracked plan files.
+
+When plans are staged, complete `/verify-changes` and `/finalize-changes`.
+Queue-add submission occurs only through finalization after the plan files land;
+never submit a new-plan add request before landing.

@@ -22,16 +22,17 @@ namespace game
 ServerSession::ServerSession()
 {
 	ASSERT(gpServerSession == nullptr);
-
 	gpServerSession = this;
 	mpFleetManager = std::make_unique<ServerFleetManager>();
 	mpTransferManager = std::make_unique<ServerTransferManager>();
 	mpBroadcaster = std::make_unique<ServerBroadcaster>();
 	mpClientManager = std::make_unique<ServerClientManager>();
+	mpRuntime = std::make_unique<engine::ServerSessionRuntime>(*this, engine::kuiDefaultPort);
 }
 
 ServerSession::~ServerSession()
 {
+	mpRuntime.reset();
 	gpServerSession = nullptr;
 }
 
@@ -61,83 +62,6 @@ void ServerSession::PrepareTick()
 	}
 }
 
-void ServerSession::BroadcastTick(int64_t iTick)
-{
-	ASSERT(common::gpMultithreading->IsMainThread());
-
-	// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
-	ScopedSuppressAllocationTracking suppress;
-
-	HandleResyncRequests();
-	if (!gpGame->mGameSaveLoad.IsReplaying())
-	{
-		// Replay inputs never include live queued spawns; any new player belongs to the recording.
-		mpClientManager->FinalizeNewClients();
-	}
-	mpClientManager->DetectPlayerDeaths();
-	mpFleetManager->DetectDisconnectedPlayerDeaths();
-	{
-		// BroadcastStatusChanges migrated its per-tick scratch to the workbuffer and is armed by design:
-		// re-arm the tracker across it so a stray heap
-		// allocation introduced there still trips, despite this function's blanket suppress.
-		ScopedResumeAllocationTracking resume;
-		mpBroadcaster->BroadcastStatusChanges(iTick);
-	}
-	mpBroadcaster->ClearBroadcastStatusChanges();
-	SubscriptionUpdates();
-	engine::gpServer->Flush();
-}
-
-// Services the persist-until-served resync/new-subscription queues on a zero-tick update (paused, or an occasional
-// clock/timescale remainder) so a client can connect to a paused server and receive full state — BroadcastTick's
-// per-tick consumers never run at iFullTicks == 0.
-void ServerSession::ServicePausedNetwork()
-{
-	// Heap: BuildCellNavData, SendCoordStaticData/FullState, and resync sends allocate for serialization and compression (mirrors BroadcastTick)
-	ScopedSuppressAllocationTracking suppress;
-
-	// A coord first subscribed while paused was created by PrepareActiveSet with empty NavData (RunFrameTick builds it
-	// lazily, but never runs at iFullTicks == 0). SendNewSubscriptionFullStates below ships NavData in the static-data
-	// message — the only path clients receive it (resyncs re-send frames, not static data) — so build it here first,
-	// reusing RunFrameTick's exact server-only call and bNavDataBuilt gate. NavData derives only from islands (not the
-	// elevation grid), so no ordering vs the other lazy caches is required; clients build their own elevation grid.
-	for (const engine::PendingNewSubscription& rSub : engine::gpServer->DrainPendingNewSubscriptions())
-	{
-		auto frameIt = gpGame->mCoordFrames.find(rSub.coord);
-		if (frameIt == gpGame->mCoordFrames.end())
-		{
-			continue;
-		}
-		engine::FrameStaticData& rStaticData = frameIt->second.staticData;
-		if (!rStaticData.bNavDataBuilt && !rStaticData.islands.empty())
-		{
-			engine::BuildCellNavData(rStaticData.navData, rStaticData.islands);
-			rStaticData.bNavDataBuilt = true;
-		}
-	}
-
-	HandleResyncRequests();
-	SendNewSubscriptionFullStates();
-	engine::gpServer->Flush();
-}
-
-void ServerSession::SendResends(int64_t iTick)
-{
-	// Heap: ENet packet creation per resend in engine::Server::SendResends
-	ScopedSuppressAllocationTracking suppress;
-	std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
-	for (engine::ClientConnection& rClient : rClients)
-	{
-		engine::gpServer->SendResends(rClient, iTick);
-	}
-}
-
-void ServerSession::WaitForTick(engine::TimeStep& rTimeStep)
-{
-	std::chrono::nanoseconds scaledTickNs = rTimeStep.SimToWall(kTickNs);
-	ServerSessionBase::WaitForTick(rTimeStep, scaledTickNs);
-}
-
 // Clamp a wire-supplied navigation delay before it enters server-authoritative sim state.
 // Range [0.0f, 60.0f] matches the UI slider (HudScreen.cpp); NaN/Inf substitute the Fleet::fNavigationDelay default (60.0f)
 // so a hostile non-finite value can't freeze fleet navigation (every fFrameChangeTimer <= 0 comparison against NaN is false).
@@ -148,7 +72,7 @@ static float ValidateNavigationDelay(float fDelay)
 
 void ServerSession::ParseReceivedGamePackets()
 {
-	for (const engine::ReceivedGamePacket& rPacket : engine::gpServer->DrainReceivedGamePackets())
+	for (const engine::ReceivedGamePacket& rPacket : mpRuntime->mpServer->mReceivedGamePackets)
 	{
 		GamePacketType eType = static_cast<GamePacketType>(rPacket.uiPacketType);
 
@@ -161,7 +85,7 @@ void ServerSession::ParseReceivedGamePackets()
 			continue;
 		}
 
-		engine::ClientPacketContract contract = GetGamePacketContract(eType);
+		engine::ClientPacketContract contract = NetworkSessionContract::GetClientPacketContract(eType);
 		int64_t iFullSize = static_cast<int64_t>(rPacket.payload.size()) + 1; // + type byte (already stripped from payload)
 
 		if (contract.iMaxSize == 0)
@@ -336,7 +260,7 @@ void ServerSession::ParseReceivedGamePackets()
 		catch (const std::exception& rException)
 		{
 			// Trust boundary: an untrusted game packet's handler can throw (corrupt count/size from a reader,
-			// .at(), file I/O). ParseReceivedGamePackets runs in PreTickNetwork — a different call stack than
+			// .at(), file I/O). ParseReceivedGamePackets runs after the engine network poll — a different call stack than
 			// engine Server::Receive — so an uncaught throw would tear down ServerUpdate. Drop the single
 			// packet and continue, parity with Server::Receive/Client::Receive.
 			LOG(kNetwork, kDebug, "ServerSession::ParseReceivedGamePackets dropped corrupt packet (type {}) Client: {}: {}", static_cast<uint8_t>(eType), rPacket.iClientId, rException.what());
@@ -346,13 +270,19 @@ void ServerSession::ParseReceivedGamePackets()
 	}
 }
 
-void ServerSession::PreTickNetwork()
+void ServerSession::BeforeNetworkPoll()
 {
-	// Heap: ENet polling and game server methods allocate vectors for inputs, spawns, and status changes
-	ScopedSuppressAllocationTracking suppress;
-	mpBroadcaster->ClearPendingRequests();
+	// mfLastDeltaTime still describes the previous update here. A zero-delta update could not consume
+	// injected player requests, so retain them; a positive delta keeps their existing one-update lifetime.
+	if (gpGame->mfLastDeltaTime > 0.0f)
+	{
+		mpBroadcaster->ClearPendingRequests();
+	}
 	mpFleetManager->ClearPendingRequests();
-	PollNetworkBase();
+}
+
+void ServerSession::AfterNetworkPoll()
+{
 	ParseReceivedGamePackets();
 	mpClientManager->Disconnects();
 	mpClientManager->NewClients();
@@ -363,9 +293,37 @@ void ServerSession::PreTickNetwork()
 	mpClientManager->ProcessSpawnRequests();
 }
 
+void ServerSession::FinalizeTickClients()
+{
+	if (!gpGame->mGameSaveLoad.IsReplaying())
+	{
+		mpClientManager->FinalizeNewClients();
+	}
+	mpClientManager->DetectPlayerDeaths();
+	mpFleetManager->DetectDisconnectedPlayerDeaths();
+}
+
+void ServerSession::PreparePausedSubscriptions()
+{
+	for (const engine::PendingNewSubscription& rSub : mpRuntime->mpServer->mPendingNewSubscriptions)
+	{
+		auto it = gpGame->mCoordFrames.find(rSub.coord);
+		if (it == gpGame->mCoordFrames.end())
+		{
+			continue;
+		}
+		engine::FrameStaticData& rStaticData = it->second.staticData;
+		if (!rStaticData.bNavDataBuilt && !rStaticData.islands.empty())
+		{
+			engine::BuildCellNavData(rStaticData.navData, rStaticData.islands);
+			rStaticData.bNavDataBuilt = true;
+		}
+	}
+}
+
 void ServerSession::AddSubscribedCoords()
 {
-	const std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+	const std::vector<engine::ClientConnection>& rClients = engine::gpServer->mClients;
 	for (const engine::ClientConnection& rClient : rClients)
 	{
 		for (int64_t i = 0; i < std::ssize(rClient.coordSubscriptions); ++i)
@@ -483,7 +441,7 @@ void ServerSession::BroadcastTimespeedIfChanged()
 	int64_t iDivide = gpGame->mTimeStep.miTimeDivide;
 	LOG(kNetwork, kDebug, "ServerSession::BroadcastTimespeedIfChanged Multiply: {} Divide: {}", iMultiply, iDivide);
 
-	for (engine::ClientConnection& rClient : engine::gpServer->GetClients())
+	for (engine::ClientConnection& rClient : engine::gpServer->mClients)
 	{
 		if (!rClient.bHandshakeComplete)
 		{
@@ -537,9 +495,39 @@ void ServerSession::SubscriptionUpdates()
 	rPendingUpdates.clear();
 }
 
+void ServerSession::SendNewSubscriptionFullStates()
+{
+	std::vector<engine::PendingNewSubscription>& rNewSubscriptions = mpRuntime->mpServer->mPendingNewSubscriptions;
+	for (const engine::PendingNewSubscription& rSubscription : rNewSubscriptions)
+	{
+		const engine::ClientConnection* pClient = engine::gpServer->FindClient(rSubscription.iClientId);
+		bool bSlotStillValid = (pClient != nullptr
+			&& rSubscription.iSlot < std::ssize(pClient->coordSubscriptions)
+			&& (pClient->coordSubscriptions.at(rSubscription.iSlot).flags & engine::SubscriptionFlags::kActive)
+			&& pClient->coordSubscriptions.at(rSubscription.iSlot).coord == rSubscription.coord);
+		if (!bSlotStillValid)
+		{
+			continue;
+		}
+
+		auto it = gpGame->mCoordFrames.find(rSubscription.coord);
+		if (it != gpGame->mCoordFrames.end())
+		{
+			mpRuntime->mpServer->SendCoordStaticData(rSubscription.iClientId, rSubscription.iSlot, rSubscription.coord, it->second.staticData);
+			mpRuntime->mpServer->SendCoordFullState(rSubscription.iClientId, rSubscription.iSlot, gpGame->TickCounter(), rSubscription.coord, it->second.pCurrent.get());
+		}
+	}
+
+	// Persist-until-served: Server::Poll leaves this queue intact, so clear it here once serviced. A subscribe
+	// accepted while the server is paused (iFullTicks == 0) stays queued across polls until it is serviced —
+	// either by the next tick's ServerSessionRuntime::CompleteTick or, while still paused, by
+	// ServerSessionRuntime::CompleteUpdate from GameBase::ServerUpdate — and its full state is sent.
+	rNewSubscriptions.clear();
+}
+
 void ServerSession::HandleResyncRequests()
 {
-	std::vector<int64_t>& rResyncClientIds = engine::gpServer->DrainPendingResyncClientIds();
+	std::vector<int64_t>& rResyncClientIds = mpRuntime->mpServer->mPendingResyncClientIds;
 	if (rResyncClientIds.empty())
 	{
 		return;
@@ -572,7 +560,7 @@ void ServerSession::HandleResyncRequests()
 				continue;
 			}
 
-			engine::gpServer->SendCoordFullState(iClientId, iSlot, gpGame->TickCounter(), coord, frameIt->second.pCurrent.get());
+			mpRuntime->mpServer->SendCoordFullState(iClientId, iSlot, gpGame->TickCounter(), coord, frameIt->second.pCurrent.get());
 		}
 	}
 
@@ -587,10 +575,10 @@ void ServerSession::ResetClientsForLoad()
 	// Heap: re-link rebuilds owned-id vectors and authorizedCoords; pending state cleared across managers
 	ScopedSuppressAllocationTracking suppress;
 
-	engine::gpServer->BroadcastLoadNotification();
+	mpRuntime->mpServer->BroadcastLoadNotification();
 
 	mpFleetManager->mNavigation.ClearPendingFlagshipUpdates();
-	std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+	std::vector<engine::ClientConnection>& rClients = engine::gpServer->mClients;
 
 	// Try to re-link each client to their players by GUID
 	for (engine::ClientConnection& rClient : rClients)
@@ -627,13 +615,7 @@ void ServerSession::ResetClientsForLoad()
 	mpFleetManager->ClearPendingRequests();
 	// Pending flagship updates were cleared at the start of this function via mNavigation.ClearPendingFlagshipUpdates(); fleet restoration above re-queued entries — do NOT clear again here.
 
-	// Clear stale ring buffers and pending events
-	engine::gpServer->ClearBufferedFrames();
-	engine::gpServer->DrainPendingSpawnRequests().clear();
-	engine::gpServer->DrainPendingNewSubscriptions().clear();
-	engine::gpServer->DrainPendingResyncClientIds().clear();
-
-	engine::gpServer->Flush();
+	mpRuntime->ResetTransportForLoad();
 }
 
 bool ServerSession::TryRelinkClientForLoad(engine::ClientConnection& rClient, std::vector<engine::global_id_t>& rLoadOwnedIds)

@@ -21,7 +21,7 @@ Split out of the retired `WaterFoamAndRefraction.txt` (foam went to `WaterFoam.m
 
 ### New uniforms / sliders
 
-~2 new `GlobalLayout` floats: `fWaterRefractionStrength`, `fWaterRefractionDepthClamp`. Wrappers in `WaterWrappersBase.{h,cpp}`, sliders in `RenderWaterSection()` (`TweaksScreenWater.cpp`), uploads in `GlobalUniforms.cpp`. Strength 0 disables.
+~2 new `GlobalLayout` floats: `fWaterRefractionStrength`, `fWaterRefractionDepthClamp`. Wrappers in `WaterWrappersBase.{h,cpp}`, sliders in `RenderWaterSection()` (`TweaksScreenWater.cpp`), uploads in `WaterUniforms.cpp`. Strength 0 disables.
 
 ## Critical files
 
@@ -29,7 +29,7 @@ Split out of the retired `WaterFoamAndRefraction.txt` (foam went to `WaterFoam.m
 - `Engine/Source/Graphics/Managers/RenderTargetTextures.{h,cpp}` — `mSceneColorCopyTexture`
 - `Engine/Source/Graphics/Managers/PipelineManager.cpp` — water pipeline descriptor for the new sampler
 - `Engine/Data/Shaders/Water/Water.frag` — refraction sampling + blend + alpha interaction
-- `Engine/Data/Shaders/ShaderLayoutsBase.h`, `Engine/Source/Ui/WaterWrappersBase.{h,cpp}`, `Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenWater.cpp`, `Engine/Source/Graphics/Render/GlobalUniforms.cpp` — uniforms/sliders
+- `Engine/Data/Shaders/ShaderLayoutsBase.h`, `Engine/Source/Ui/WaterWrappersBase.{h,cpp}`, `Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenWater.cpp`, `Engine/Source/Graphics/Render/WaterUniforms.cpp` — uniforms/sliders
 
 ## Out of scope
 

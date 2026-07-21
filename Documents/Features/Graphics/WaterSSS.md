@@ -26,7 +26,7 @@ f3LightingColor += fSSS * f3WaterSSSColor * f3SunOrMoon;
 
 ### New uniforms / sliders
 
-~7 new `GlobalLayout` floats: `fWaterSSSIntensity`, `fWaterSSSHeightBase`, `fWaterSSSHeightScale`, `fWaterSSSSunPower`, `fWaterSSSColorR/G/B`. Wrappers in `WaterWrappersBase.{h,cpp}`, an "SSS" slider block in `RenderWaterSection()` (`TweaksScreenWater.cpp`), uploads in `GlobalUniforms.cpp`. Intensity 0 disables.
+~7 new `GlobalLayout` floats: `fWaterSSSIntensity`, `fWaterSSSHeightBase`, `fWaterSSSHeightScale`, `fWaterSSSSunPower`, `fWaterSSSColorR/G/B`. Wrappers in `WaterWrappersBase.{h,cpp}`, an "SSS" slider block in `RenderWaterSection()` (`TweaksScreenWater.cpp`), uploads in `WaterUniforms.cpp`. Intensity 0 disables.
 
 ## Critical files
 
@@ -34,7 +34,7 @@ f3LightingColor += fSSS * f3WaterSSSColor * f3SunOrMoon;
 - `Engine/Data/Shaders/ShaderLayoutsBase.h` — new `GlobalLayout` floats
 - `Engine/Source/Ui/WaterWrappersBase.{h,cpp}` — wrappers
 - `Engine/Source/Ui/Screens/TweaksScreen/TweaksScreenWater.cpp` — sliders
-- `Engine/Source/Graphics/Render/GlobalUniforms.cpp` — uploads
+- `Engine/Source/Graphics/Render/WaterUniforms.cpp` — uploads
 
 ## Out of scope
 

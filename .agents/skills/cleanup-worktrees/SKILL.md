@@ -15,43 +15,26 @@ script's safety checks; no second confirmation is required.
 ## Run
 
 1. Accept either no argument or `preview`. Stop on any other argument.
-2. Resolve the current repository root with `git rev-parse --show-toplevel`.
-3. Run the bundled script from the repository-owned shared skill path. In
-   Codex's PowerShell 7 terminal:
-
-   Default cleanup:
-
-   ```powershell
-   $RepositoryRoot = (git rev-parse --show-toplevel).Trim()
-   $Script = Join-Path $RepositoryRoot '.agents/skills/cleanup-worktrees/scripts/cleanup-worktrees.ps1'
-   pwsh -NoProfile -ExecutionPolicy Bypass -File $Script
-   ```
-
-   Preview instead:
+2. Start in the primary checkout, never a session worktree. Resolve that root
+   with `git rev-parse --show-toplevel`. The script blocks if the checkout's Git
+   directory differs from its common Git directory; do not work around it.
+3. Run the repository-owned script with no switch for cleanup or `-Preview` for
+   preview. In Codex's PowerShell 7 terminal:
 
    ```powershell
    $RepositoryRoot = (git rev-parse --show-toplevel).Trim()
    $Script = Join-Path $RepositoryRoot '.agents/skills/cleanup-worktrees/scripts/cleanup-worktrees.ps1'
-   pwsh -NoProfile -ExecutionPolicy Bypass -File $Script -Preview
+   $CleanupMode = @() # Use @('-Preview') for preview.
+   pwsh -NoProfile -ExecutionPolicy Bypass -File $Script @CleanupMode
    ```
 
-   In Claude Code's Git Bash terminal, convert the script path before invoking
-   Windows PowerShell 7:
-
-   Default cleanup:
+   In Claude Code's Git Bash terminal, convert the script path first:
 
    ```bash
    repository_root="$(git rev-parse --show-toplevel)"
    script="$(cygpath -w "$repository_root/.agents/skills/cleanup-worktrees/scripts/cleanup-worktrees.ps1")"
-   pwsh -NoProfile -ExecutionPolicy Bypass -File "$script"
-   ```
-
-   Preview instead:
-
-   ```bash
-   repository_root="$(git rev-parse --show-toplevel)"
-   script="$(cygpath -w "$repository_root/.agents/skills/cleanup-worktrees/scripts/cleanup-worktrees.ps1")"
-   pwsh -NoProfile -ExecutionPolicy Bypass -File "$script" -Preview
+   cleanup_mode=() # Use cleanup_mode=(-Preview) for preview.
+   pwsh -NoProfile -ExecutionPolicy Bypass -File "$script" "${cleanup_mode[@]}"
    ```
 
 Do not recreate failed commands with broader Git or filesystem operations. The
@@ -73,4 +56,5 @@ Return the script's complete report, including:
 - removed worktrees and branches
 - retained worktrees with exact reasons
 - reported `refs/codex/snapshots/*` refs
-- residuals as the final line
+- residuals as the final line, with distinct errors and one retained-worktree
+  count instead of duplicated retained entries

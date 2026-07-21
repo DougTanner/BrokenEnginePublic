@@ -2,9 +2,15 @@
 
 #if defined(BT_SERVER)
 
-#include "Network/Server/ServerSessionBase.h"
-
 #include "Network/PlayerEvents.h"
+
+namespace engine
+{
+
+class NetworkDiscoveryResponder;
+class ServerSessionRuntime;
+
+} // namespace engine
 
 namespace game
 {
@@ -21,19 +27,14 @@ struct SubscriptionUpdate
 	engine::global_id_t globalPlayerId {};
 };
 
-class ServerSession : public engine::ServerSessionBase
+class ServerSession
 {
 public:
 
 	ServerSession();
-	~ServerSession() override;
+	~ServerSession();
 
-	void PreTickNetwork();
 	void PrepareTick();
-	void BroadcastTick(int64_t iTick);
-	void ServicePausedNetwork(); // service persist-until-served subscription/resync queues on zero-tick (paused) updates so clients can connect to a paused server
-	void SendResends(int64_t iTick);
-	void WaitForTick(engine::TimeStep& rTimeStep);
 	void ComputeActiveSet();
 	void ParseReceivedGamePackets();
 	void SendAssignPlayer(int64_t iClientId, engine::global_id_t globalId, engine::GridCoord coord);
@@ -43,6 +44,7 @@ public:
 
 	void SendTimespeedToNewClient(ENetPeer* pPeer);
 	void SubscriptionUpdates();
+	void SendNewSubscriptionFullStates();
 	void HandleResyncRequests();
 	void ResetClientsForLoad();
 	void WriteFleetData(std::fstream& rFileStream) const;
@@ -54,8 +56,15 @@ public:
 	std::unique_ptr<ServerTransferManager> mpTransferManager;
 	std::unique_ptr<ServerBroadcaster> mpBroadcaster;
 	std::unique_ptr<ServerClientManager> mpClientManager;
+	std::unique_ptr<engine::ServerSessionRuntime> mpRuntime;
 
 private:
+	friend class engine::ServerSessionRuntime;
+
+	void BeforeNetworkPoll();
+	void AfterNetworkPoll();
+	void FinalizeTickClients();
+	void PreparePausedSubscriptions();
 
 	// ComputeActiveSet helpers
 	void AddSubscribedCoords();
@@ -64,6 +73,7 @@ private:
 
 	// ResetClientsForLoad helpers
 	bool TryRelinkClientForLoad(engine::ClientConnection& rClient, std::vector<engine::global_id_t>& rLoadOwnedIds);
+
 };
 
 inline ServerSession* gpServerSession = nullptr;

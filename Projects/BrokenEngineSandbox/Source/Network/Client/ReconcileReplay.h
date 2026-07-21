@@ -20,6 +20,11 @@ struct CrcFastPathCoordResult
 	int64_t iLowestUnresolvedMismatch = -1;
 };
 
+inline bool HasDuePendingFullState(const engine::CoordFrames& rFrames, int64_t iTargetTick)
+{
+	return rFrames.pendingFullState.has_value() && rFrames.pendingFullState->iTick <= iTargetTick;
+}
+
 CrcFastPathCoordResult CrcFastPathProcessCoord(CoordWork& rWork, int64_t iTargetTick);
 
 void ReconcileCoord(CoordWork& rWork, const ReconcileInputs& rInputs);

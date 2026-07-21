@@ -30,6 +30,7 @@ static void SerializeSpaceshipTransfer(uint8_t*& pCursor, const game::TransferDa
 	WriteFloat(pCursor, rData.fHealth);
 	WriteFloat(pCursor, rData.fNextBlasterSpawnTime);
 	WriteFloat(pCursor, rData.fArrivalGracePeriod);
+	WriteFloat(pCursor, rData.fDeltaRotation);
 }
 
 static void SerializeMissileTransfer(uint8_t*& pCursor, const game::TransferData& rData)
@@ -42,6 +43,7 @@ static void SerializeMissileTransfer(uint8_t*& pCursor, const game::TransferData
 	WriteFloat(pCursor, rData.fDeltaRotationDelay);
 	WriteFloat(pCursor, rData.fTime);
 	WriteFloat(pCursor, rData.fNextJitter);
+	WriteFloat(pCursor, rData.fDeltaRotation);
 #if defined(BT_CLIENT)
 	int64_t iSmokeTrailId = rData.smokeTrailId.ToUuid().Value();
 #else
@@ -95,6 +97,7 @@ static void DeserializeSpaceshipTransfer(const uint8_t*& pCursor, game::Transfer
 	rData.fHealth = ReadFloat(pCursor);
 	rData.fNextBlasterSpawnTime = ReadFloat(pCursor);
 	rData.fArrivalGracePeriod = ReadFloat(pCursor);
+	rData.fDeltaRotation = ReadFloat(pCursor);
 }
 
 static void DeserializeMissileTransfer(const uint8_t*& pCursor, game::TransferData& rData)
@@ -107,6 +110,7 @@ static void DeserializeMissileTransfer(const uint8_t*& pCursor, game::TransferDa
 	rData.fDeltaRotationDelay = ReadFloat(pCursor);
 	rData.fTime = ReadFloat(pCursor);
 	rData.fNextJitter = ReadFloat(pCursor);
+	rData.fDeltaRotation = ReadFloat(pCursor);
 	[[maybe_unused]] int64_t iSmokeTrailId = ReadInt64(pCursor);
 #if defined(BT_CLIENT)
 	rData.smokeTrailId = smoke_trails_t(engine::uuid_t(iSmokeTrailId));
@@ -157,8 +161,8 @@ static int64_t StatusChangeItemWireSize(game::StatusChangeType eType)
 		case game::StatusChangeType::kSpawnPlayer:       return kiI64 + kiU8 + kiCoord + kiU8;
 		case game::StatusChangeType::kRespawnPlayer:     return 0;
 		case game::StatusChangeType::kTransferBlaster:   return 2 * kiVec4 + kiU8 + kiU32 + 3 * kiF32;
-		case game::StatusChangeType::kTransferSpaceship: return 3 * kiVec4 + kiU32 + 3 * kiF32;
-		case game::StatusChangeType::kTransferMissile:   return 3 * kiVec4 + kiU32 + 4 * kiF32 + kiI64;
+		case game::StatusChangeType::kTransferSpaceship: return 3 * kiVec4 + kiU32 + 4 * kiF32;
+		case game::StatusChangeType::kTransferMissile:   return 3 * kiVec4 + kiU32 + 5 * kiF32 + kiI64;
 		case game::StatusChangeType::kTransferPlayer:    return 3 * kiVec4 + kiU32 + 11 * kiF32 + kiU16 + kiI64 + kiCoord + 2 * kiU8;
 		case game::StatusChangeType::kDestroyPlayer:     return kiI64;
 		case game::StatusChangeType::kUpdatePlayer:      return kiI64 + kiU8 + kiF32 + kiU8;

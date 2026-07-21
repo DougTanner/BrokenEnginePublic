@@ -34,13 +34,31 @@ public:
 
 	// Every open frame starts 16-byte aligned (RawPush/RawPushBuffer round the base up to 16), so every PushBuffer<T>
 	// reservation is SIMD-safe (XMVECTOR/XMMATRIX movaps) by construction.
-	// String building. Append/View/Span are valid only within an open frame (Push()/PushBuffer()) — a read/append at
+	// String building. Append/View/Data/Count/Span are valid only within an open frame (Push()/PushBuffer()) — a read/append at
 	// depth 0 (no open frame) is asserted, since miBase/miSize are frame-relative.
 	void Append(std::string_view text);
 	void Append(std::wstring_view text);
 	void Append(int64_t iValue);
 	void AppendFloat(float fValue, int iPrecision);
 	std::string_view View() const;
+	template <typename T>
+	const T* Data() const
+	{
+		ASSERT(miDepth > 0);
+		return reinterpret_cast<const T*>(mBuffer.data() + miBase);
+	}
+	template <typename T>
+	T* Data()
+	{
+		ASSERT(miDepth > 0);
+		return reinterpret_cast<T*>(mBuffer.data() + miBase);
+	}
+	template <typename T>
+	int64_t Count() const
+	{
+		ASSERT(miDepth > 0);
+		return (miSize - miBase) / static_cast<int64_t>(sizeof(T));
+	}
 
 	// Typed element append
 	template<typename T>
@@ -184,6 +202,21 @@ public:
 	void AppendFloat(float fValue, int iPrecision)  { mBuffer.AppendFloat(fValue, iPrecision); }
 	template<typename T> void PushBack(const T& rValue) { mBuffer.PushBack(rValue); }
 	std::string_view View() const                   { return mBuffer.View(); }
+	template <typename T>
+	const T* Data() const
+	{
+		return mBuffer.Data<T>();
+	}
+	template <typename T>
+	T* Data()
+	{
+		return mBuffer.Data<T>();
+	}
+	template <typename T>
+	int64_t Count() const
+	{
+		return mBuffer.Count<T>();
+	}
 	template<typename T> std::span<const T> Span() const { return mBuffer.Span<T>(); }
 	template<typename T> std::span<T> Span()             { return mBuffer.Span<T>(); }
 	void ShrinkLastPushBuffer(int64_t iActualSize)  { mBuffer.ShrinkLastPushBuffer(iActualSize); }

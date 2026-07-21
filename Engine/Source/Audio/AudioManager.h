@@ -2,9 +2,6 @@
 
 #if defined(BT_CLIENT)
 
-#include "StaticVoices.h"
-#include "StreamingVoices.h"
-
 namespace game
 {
 
@@ -37,6 +34,9 @@ enum class AudioManagerFlags : uint8_t
 };
 using AudioManagerFlags_t = common::Flags<AudioManagerFlags>;
 
+class StaticVoices;
+class StreamingVoices;
+
 class AudioManager : public IVoiceNotify
 {
 public:
@@ -52,7 +52,7 @@ public:
 	void PlayMusic(common::crc_t uiAudioCrc);
 	void SetNextMusicTrackCallback(std::function<common::crc_t()> callback);
 
-	void SkipNextStaticVoiceInvalidation() { mStaticVoices.SkipNextInvalidation(); }
+	void SkipNextStaticVoiceInvalidation();
 
 	void Suspend();
 	void Resume();
@@ -82,8 +82,9 @@ private:
 
 	common::Timer mRealTime;
 	std::unique_ptr<AudioEngine> mpAudioEngine;
-	StaticVoices mStaticVoices;
-	StreamingVoices mStreamingVoices;
+	// Declared after mpAudioEngine so both are destroyed first: they retain its raw pointer.
+	std::unique_ptr<StaticVoices> mpStaticVoices;
+	std::unique_ptr<StreamingVoices> mpStreamingVoices;
 
 	std::atomic<bool> mbSuspended = false;
 	std::atomic<bool> mbClearVoicesRequested = false;

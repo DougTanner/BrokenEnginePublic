@@ -178,9 +178,20 @@ try {
 	Invoke-Git $script:session @('rebase',$advancedTip) | Out-Null
 	$env:BROKEN_ENGINE_BASELINE = $advancedTip
 
-	# The claim gate no longer requires clean trees: dirty the session first, then claim successfully.
-	Set-Utf8File (Join-Path $script:session 'Dirty.txt') "uncommitted work tolerated by the relaxed claim gate`n"
-	$claim = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Queue','plans','-Plan',$plan) 0
+	# Recovery must leave the session clean. Dirty state is rejected before queue access.
+	Set-Utf8File (Join-Path $script:session 'Dirty.txt') "uncommitted claim blocker`n"
+	$dirtyClaim = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Queue','plans','-Plan',$plan) 2
+	Assert-True ($dirtyClaim.code -ceq 'claim.context-conflict') 'A dirty session worktree was not a deterministic claim blocker.'
+	Remove-Item -LiteralPath (Join-Path $script:session 'Dirty.txt') -Force
+
+	# Orphan plans are queue-authoring errors even though WorktreeCli reports them as notices.
+	$orphanPath = Join-Path $primary 'Documents/Plans/Orphan.md'
+	Set-Utf8File $orphanPath "# Orphan`n"
+	$orphanClaim = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Queue','plans','-Plan',$plan) 2
+	Assert-True ($orphanClaim.code -ceq 'queue.orphan-plan') 'An orphan plan notice did not stop the next-plan workflow.'
+	Remove-Item -LiteralPath $orphanPath -Force
+
+	$claim = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 0
 	Assert-True ($claim.status -ceq 'pass' -and $claim.claim.plan -ceq $plan) 'Claim result did not bind the selected plan.'
 	Assert-True ($claim.claim.primaryCommit -ceq $advancedTip) 'Recovered claim did not bind the advanced primary tip.'
 
@@ -193,7 +204,12 @@ try {
 	# Phase 1 completion is git-rm-only: it stages the plan-file deletion but leaves the queue row and
 	# owner-held claim in place (the row is removed post-landing by Invoke-FinalizeLanding.ps1).
 	Set-Utf8File (Join-Path $script:session 'Source/Implemented.txt') "implemented`n"
-	$completion = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-Plan',$plan) 0
+	$originalPlanBytes = [IO.File]::ReadAllBytes((Join-Path $script:session $plan))
+	Set-Utf8File (Join-Path $script:session $plan) "# Changed after claim`n"
+	$mismatchedCompletion = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-Plan',$plan,'-PlanSha256',$claim.claim.planSha256) 2
+	Assert-True ($mismatchedCompletion.code -ceq 'completion.plan-byte-mismatch') 'Changed plan bytes were not a deterministic completion blocker.'
+	[IO.File]::WriteAllBytes((Join-Path $script:session $plan), $originalPlanBytes)
+	$completion = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-Plan',$plan,'-PlanSha256',$claim.claim.planSha256) 0
 	Assert-True (-not $completion.workflowTerminal -and $completion.nextAction -ceq 'finalize-changes') 'Completion incorrectly became a terminal workflow result.'
 	Assert-True (-not (Test-Path -LiteralPath (Join-Path $script:session $plan))) 'Completion retained the selected plan file.'
 	$stagedDeletion = Invoke-Git $script:session @('status','--porcelain','--',$plan)
@@ -202,13 +218,13 @@ try {
 	Assert-True ($rowStatus.ownedByRequester) 'Completion did not retain the owner-held row claim.'
 	$postCompleteValidation = ConvertFrom-SingleJson (Invoke-Process $fixtureExecutable @('plan','order','validate','--repo',$common,'--worktree',$primary) $primary) 0 'post-completion validate'
 	Assert-True (@($postCompleteValidation.rows | Where-Object plan -CEQ $plan).Count -eq 1) 'Completion removed the queue row; row removal must wait for landing.'
-	$missingPlan = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-Plan',$plan) 2
+	$missingPlan = Invoke-Sidecar 'Complete-NextPlan.ps1' @('-Plan',$plan,'-PlanSha256',$claim.claim.planSha256) 2
 	Assert-True ($missingPlan.code -ceq 'completion.plan-missing') 'A completed (missing) plan was not a deterministic completion blocker.'
 
 	[pscustomobject]@{
 		schemaVersion = 'broken-engine-next-plan-sidecar-fixtures/v1'
 		status = 'pass'
-		cases = @('missing environment rejection','invalid worktree rejection','live exclusion-ledger binding','wrong Output rejection','machine-local store seed via init','pre-claim primary-advance blocker','in-place pre-claim recovery','relaxed clean-tree claim gate','wrapper-derived claim','mid-workflow primary-advance tolerance','git-rm-only completion with retained row','missing-plan rejection')
+		cases = @('missing environment rejection','invalid worktree rejection','live exclusion-ledger binding','wrong Output rejection','machine-local store seed via init','pre-claim primary-advance blocker','clean in-place recovery','dirty-tree claim rejection','orphan-plan stop','default Plans wrapper-derived claim','mid-workflow primary-advance tolerance','completion plan-digest mismatch','git-rm-only completion with retained row','missing-plan rejection')
 	} | ConvertTo-Json -Depth 5
 }
 finally {

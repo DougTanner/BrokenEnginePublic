@@ -16,7 +16,7 @@ layout (set = 1, binding = 1) uniform sampler2D textureSampler;
 layout (set = 1, binding = 2) uniform sampler2D noiseTextureSampler;
 layout (set = 1, binding = 3) uniform sampler2D windTextureSamplerOne;
 layout (set = 1, binding = 4) uniform sampler2D windTextureSamplerTwo;
-layout (set = 1, binding = 5, r32f) uniform writeonly image2D outputImage;
+layout (set = 1, binding = 5, r16f) uniform writeonly image2D outputImage;
 
 // Active tile list: [VkDispatchIndirectCommand (3 uint32s)] [packed tile indices...]
 layout (set = 1, binding = 6) buffer activeTileBuffer

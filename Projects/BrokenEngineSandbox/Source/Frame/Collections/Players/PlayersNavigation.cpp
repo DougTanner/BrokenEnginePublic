@@ -283,6 +283,17 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 	if (riNavDirection == 5)
 	{
 		// Following flagship via NavQuery pathfinding.
+		// No arrival check and no no-flagship fallback here, deliberately. When the flagship row is gone the
+		// proximity scan above is a no-op, but on the nominal path a follower stalls for one tick only:
+		// ServerFleetManager::OnPlayerDeath -> FleetNavigationController::ShiftFlagshipAfterDeath moves the
+		// fleet's flagship index after the removal tick, ProcessFlagshipUpdates drains that into a kUpdateFleet
+		// whose Spawn-phase handler writes kIsFlagship, and the next Update finds the new flagship or takes the
+		// fleet-override path above. Two cases stall longer and are not fixed here, because an in-frame exit
+		// would rewrite CRC'd nav flags and invalidate every existing replay: the promoted ship itself holds
+		// mode 5 — it now fails the proximity scan's !kIsFlagship guard, and ShiftFlagshipAfterDeath aims
+		// wantedCoord at its own coord, so the fleet override cannot fire either — until TickFleetTimers issues
+		// a new cardinal after fNavigationDelay; and agent-injected players belong to no Fleet, so they never
+		// receive that kUpdateFleet at all (harness-only).
 		// Mirror mode 4's three entry draws (island pick + footprint X + footprint Y) so flipping
 		// between modes 4 and 5 does not desync the shared random stream. Only the draw COUNT matters:
 		// every common::Random advances the engine exactly once regardless of the max argument, so the

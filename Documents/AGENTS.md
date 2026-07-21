@@ -24,7 +24,7 @@ Deciding test: *does this plan give the engine a capability it didn't have befor
 
 ## Scoring Anchors (canonical — both queues reference here)
 
-Each queue row carries `Score = Effort − Impact + Risks`; lower = higher priority. Scores are not comparable across the two files (originally one sort, later split). Calibrate against neighbouring rows; do not default to the middle. These scores — and the row order they produce — are rough estimates that serve only as a quick tiebreaker for pick-next order, not a precise or enforced ranking; approximate placement is sufficient and not worth policing. Size-removal anchors use the deterministic `bt-token-v1` estimate from [Measure-Tokens.ps1](../.agents/scripts/Measure-Tokens.ps1), not exact model tokens.
+Each queue row carries `Score = Effort − Impact + Risks`; lower = higher priority. Scores are not comparable across the two queues. Calibrate against neighbouring rows; do not default to the middle. Scores and row order are rough pick-next tiebreakers, not an enforced ranking. Size-removal anchors use the deterministic `bt-token-v1` estimate from [Measure-Tokens.ps1](../.agents/scripts/Measure-Tokens.ps1), not exact model tokens.
 
 **Effort** (size of change):
 

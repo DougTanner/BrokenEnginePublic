@@ -20,12 +20,9 @@ public:
 	void ClearAccumulator();
 
 	// Push ticks worth of time back into the accumulator (used by the client sim ceiling clamp when
-	// wall-clock wanted more ticks than GetSimTickCeiling() allows). TickRealtime's existing
+	// wall-clock wanted more ticks than the session ceiling allows). TickRealtime's existing
 	// kiMaxAccumulatorTicks cap bounds total growth during long stalls.
 	void AbsorbUnusedTicks(int64_t iTicks);
-
-	// Get current time multiplier
-	int64_t GetTimeMultiplier() const { return miTimeMultiply; }
 
 	// Convert a wall-clock duration into sim-clock duration using the current time ratio.
 	// Same formula as TickRealtime's accumulator step — keep the two in sync.
@@ -35,7 +32,7 @@ public:
 	}
 
 	// Inverse of WallToSim: convert a sim-clock duration into the wall-clock duration it occupies
-	// at the current time ratio. Use for waiters/sleepers (e.g. ServerSession::WaitForTick) that
+	// at the current time ratio. Use for waiters/sleepers (e.g. ServerSessionRuntime::WaitForTick) that
 	// need real-time pacing for a fixed amount of sim time.
 	std::chrono::nanoseconds SimToWall(std::chrono::nanoseconds simNs) const
 	{

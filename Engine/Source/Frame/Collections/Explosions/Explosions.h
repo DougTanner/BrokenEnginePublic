@@ -182,6 +182,14 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 		return rSelf.SharedMembers();
 #endif
 	}
+	auto PersistentMembers([[maybe_unused]] this auto&& rSelf)
+	{
+#if defined(BT_CLIENT)
+		return std::tie(rSelf.pTrails);
+#else
+		return std::tie();
+#endif
+	}
 
 	// Utility
 	bool LogDifferences(const ExplosionsInterpolate& rOther) const;

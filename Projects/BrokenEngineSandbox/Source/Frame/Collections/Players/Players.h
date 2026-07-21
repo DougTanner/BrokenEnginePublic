@@ -190,7 +190,7 @@ inline void SetNavWaypointIndex(PlayerFlags_t& rFlags, int8_t iIndex)
 
 struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 18;
+	static constexpr int64_t kiVersion = 19;
 
 	// Collision layer (set each frame in PreCollision)
 	// thread_local: parallel per-Frame tick via Dispatch
@@ -337,6 +337,8 @@ public:
 		engine::GridCoord fleetWantedCoord {};
 		uint8_t uiPendingFleetWantedCoordTicks = 0;
 		uint8_t uiPendingWeaponModeTicks = 0;
+		// Arrival from a neighbouring cell: restore every carried value verbatim instead of defaulting.
+		bool bTransfer = false;
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

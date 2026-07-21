@@ -119,11 +119,11 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 
 void TweaksScreenBase::RenderWaterSection()
 {
-	static constexpr int64_t kiSection = static_cast<int64_t>(TweakSection::kWater);
+	const int64_t iSection = giTweakSectionWater;
 
 	if (ImGui::BeginTabBar("WaterTabs"))
 	{
-		if (BeginSubtab("Specular", kiSection, 0))
+		if (BeginSubtab("Specular", iSection, 0))
 		{
 			if (ImGui::BeginTable("WaterSpecularColumns", 2))
 			{
@@ -131,149 +131,149 @@ void TweaksScreenBase::RenderWaterSection()
 
 				WrapperSeparatorText("Normals");
 				ChevronIndexSelector("Sample 1", gWaterNormalIndexOne, TextureManager::kpWaterNormalNames, TextureManager::kiWaterNormalCount);
-				WrapperSlider("Size 1", kiSection, 1.0f);
-				WrapperSlider("Weight Min 1", kiSection, 1.0f);
-				WrapperSlider("Weight Max 1", kiSection, 1.0f);
-				WrapperSlider("Rotation 1", kiSection, 1.0f);
-				WrapperSlider("Speed Min 1", kiSection, 1.0f);
-				WrapperSlider("Speed Max 1", kiSection, 1.0f);
-				WrapperSlider("Speed Direction 1", kiSection, 1.0f);
+				WrapperSlider("Size 1", iSection, 1.0f);
+				WrapperSlider("Weight Min 1", iSection, 1.0f);
+				WrapperSlider("Weight Max 1", iSection, 1.0f);
+				WrapperSlider("Rotation 1", iSection, 1.0f);
+				WrapperSlider("Speed Min 1", iSection, 1.0f);
+				WrapperSlider("Speed Max 1", iSection, 1.0f);
+				WrapperSlider("Speed Direction 1", iSection, 1.0f);
 
 				ChevronIndexSelector("Sample 2", gWaterNormalIndexTwo, TextureManager::kpWaterNormalNames, TextureManager::kiWaterNormalCount);
-				WrapperSlider("Size 2", kiSection, 1.0f);
-				WrapperSlider("Weight Min 2", kiSection, 1.0f);
-				WrapperSlider("Weight Max 2", kiSection, 1.0f);
-				WrapperSlider("Rotation 2", kiSection, 1.0f);
-				WrapperSlider("Speed Min 2", kiSection, 1.0f);
-				WrapperSlider("Speed Max 2", kiSection, 1.0f);
-				WrapperSlider("Speed Direction 2", kiSection, 1.0f);
+				WrapperSlider("Size 2", iSection, 1.0f);
+				WrapperSlider("Weight Min 2", iSection, 1.0f);
+				WrapperSlider("Weight Max 2", iSection, 1.0f);
+				WrapperSlider("Rotation 2", iSection, 1.0f);
+				WrapperSlider("Speed Min 2", iSection, 1.0f);
+				WrapperSlider("Speed Max 2", iSection, 1.0f);
+				WrapperSlider("Speed Direction 2", iSection, 1.0f);
 
 				ChevronIndexSelector("Sample 3", gWaterNormalIndexThree, TextureManager::kpWaterNormalNames, TextureManager::kiWaterNormalCount);
-				WrapperSlider("Size 3", kiSection, 1.0f);
-				WrapperSlider("Weight Min 3", kiSection, 1.0f);
-				WrapperSlider("Weight Max 3", kiSection, 1.0f);
-				WrapperSlider("Rotation 3", kiSection, 1.0f);
-				WrapperSlider("Speed Min 3", kiSection, 1.0f);
-				WrapperSlider("Speed Max 3", kiSection, 1.0f);
-				WrapperSlider("Speed Direction 3", kiSection, 1.0f);
+				WrapperSlider("Size 3", iSection, 1.0f);
+				WrapperSlider("Weight Min 3", iSection, 1.0f);
+				WrapperSlider("Weight Max 3", iSection, 1.0f);
+				WrapperSlider("Rotation 3", iSection, 1.0f);
+				WrapperSlider("Speed Min 3", iSection, 1.0f);
+				WrapperSlider("Speed Max 3", iSection, 1.0f);
+				WrapperSlider("Speed Direction 3", iSection, 1.0f);
 
-				WrapperSlider("Depth Reflection Feather", kiSection, 1.0f);
-				WrapperSlider("Wave Normal Blend (Global)", kiSection, 1.0f);
+				WrapperSlider("Depth Reflection Feather", iSection, 1.0f);
+				WrapperSlider("Wave Normal Blend (Global)", iSection, 1.0f);
 
 				ImGui::TableNextColumn();
 
 				WrapperSeparatorText("Skybox");
-				WrapperSlider("Sun Bias", kiSection, 1.0f);
-				WrapperSlider("Normal Soften Sunrise", kiSection, 1.0f);
-				WrapperSlider("Normal Soften Noon", kiSection, 1.0f);
-				WrapperSlider("Normal Blend Wave", kiSection, 1.0f);
-				WrapperSlider("Intensity", kiSection, 1.0f);
-				WrapperSlider("Add", kiSection, 1.0f);
-				WrapperSlider("Skybox 1", kiSection, 1.0f);
-				WrapperSlider("Skybox 1 Power", kiSection, 1.0f);
-				WrapperSlider("Skybox 2", kiSection, 1.0f);
-				WrapperSlider("Skybox 2 Power", kiSection, 1.0f);
-				WrapperSlider("Skybox 3", kiSection, 1.0f);
-				WrapperSlider("Skybox 3 Power", kiSection, 1.0f);
-				WrapperSlider("Skybox Lod", kiSection, 1.0f);
-				WrapperSlider("Spec AA Variance", kiSection, 1.0f);
-				WrapperSlider("Spec AA Threshold", kiSection, 1.0f);
-				WrapperSlider("Spec AA Mip Scale", kiSection, 1.0f);
-				WrapperSlider("Normal Mip Bias", kiSection, 1.0f);
+				WrapperSlider("Sun Bias", iSection, 1.0f);
+				WrapperSlider("Normal Soften Sunrise", iSection, 1.0f);
+				WrapperSlider("Normal Soften Noon", iSection, 1.0f);
+				WrapperSlider("Normal Blend Wave", iSection, 1.0f);
+				WrapperSlider("Intensity", iSection, 1.0f);
+				WrapperSlider("Add", iSection, 1.0f);
+				WrapperSlider("Skybox 1", iSection, 1.0f);
+				WrapperSlider("Skybox 1 Power", iSection, 1.0f);
+				WrapperSlider("Skybox 2", iSection, 1.0f);
+				WrapperSlider("Skybox 2 Power", iSection, 1.0f);
+				WrapperSlider("Skybox 3", iSection, 1.0f);
+				WrapperSlider("Skybox 3 Power", iSection, 1.0f);
+				WrapperSlider("Skybox Lod", iSection, 1.0f);
+				WrapperSlider("Spec AA Variance", iSection, 1.0f);
+				WrapperSlider("Spec AA Threshold", iSection, 1.0f);
+				WrapperSlider("Spec AA Mip Scale", iSection, 1.0f);
+				WrapperSlider("Normal Mip Bias", iSection, 1.0f);
 
 				WrapperSeparatorText("Height Darken");
-				WrapperSlider("Height Darken Top", kiSection, 1.0f);
-				WrapperSlider("Height Darken Bottom", kiSection, 1.0f);
-				WrapperSlider("Height Darken Target", kiSection, 1.0f);
-				WrapperSlider("Height Darken Source", kiSection, 1.0f);
-				WrapperSlider("Height Darken Lighting", kiSection, 1.0f);
+				WrapperSlider("Height Darken Top", iSection, 1.0f);
+				WrapperSlider("Height Darken Bottom", iSection, 1.0f);
+				WrapperSlider("Height Darken Target", iSection, 1.0f);
+				WrapperSlider("Height Darken Source", iSection, 1.0f);
+				WrapperSlider("Height Darken Lighting", iSection, 1.0f);
 
 				ImGui::EndTable();
 			}
 			ImGui::EndTabItem();
 		}
-		if (BeginSubtab("Low", kiSection, 1))
+		if (BeginSubtab("Low", iSection, 1))
 		{
 			RenderWaveCountRadioButtons(gWaterLowCount);
 
 			WrapperSeparatorText("Wave");
-			WrapperSlider("Low Max", kiSection);
-			WrapperSlider("Angle", kiSection);
-			WrapperSlider("Wavelength", kiSection);
-			WrapperSlider("Amplitude", kiSection);
-			WrapperSlider("Speed", kiSection);
-			WrapperSlider("Steepness", kiSection);
+			WrapperSlider("Low Max", iSection);
+			WrapperSlider("Angle", iSection);
+			WrapperSlider("Wavelength", iSection);
+			WrapperSlider("Amplitude", iSection);
+			WrapperSlider("Speed", iSection);
+			WrapperSlider("Steepness", iSection);
 
 			WrapperSeparatorText("Adjustments");
-			WrapperSlider("Angle Adjust", kiSection);
-			WrapperSlider("Wavelength Adjust", kiSection);
-			WrapperSlider("Amplitude Adjust", kiSection);
-			WrapperSlider("Speed Adjust", kiSection);
+			WrapperSlider("Angle Adjust", iSection);
+			WrapperSlider("Wavelength Adjust", iSection);
+			WrapperSlider("Amplitude Adjust", iSection);
+			WrapperSlider("Speed Adjust", iSection);
 
 			WrapperSeparatorText("Beach Fade");
-			WrapperSlider("Beach Fade Top", kiSection);
-			WrapperSlider("Beach Fade Bottom", kiSection);
+			WrapperSlider("Beach Fade Top", iSection);
+			WrapperSlider("Beach Fade Bottom", iSection);
 
 			WrapperSeparatorText("Camera Fade");
-			WrapperSlider("Low Camera Fade Start", kiSection);
-			WrapperSlider("Low Camera Fade End", kiSection);
+			WrapperSlider("Low Camera Fade Start", iSection);
+			WrapperSlider("Low Camera Fade End", iSection);
 
 			ImGui::EndTabItem();
 		}
-		if (BeginSubtab("Medium", kiSection, 2))
+		if (BeginSubtab("Medium", iSection, 2))
 		{
 			RenderWaveCountRadioButtons(gWaterMediumCount);
 
 			WrapperSeparatorText("Wave");
-			WrapperSlider("Medium Wavelength", kiSection);
-			WrapperSlider("Medium Amplitude", kiSection);
-			WrapperSlider("Medium Speed", kiSection);
-			WrapperSlider("Medium Steepness", kiSection);
+			WrapperSlider("Medium Wavelength", iSection);
+			WrapperSlider("Medium Amplitude", iSection);
+			WrapperSlider("Medium Speed", iSection);
+			WrapperSlider("Medium Steepness", iSection);
 
 			WrapperSeparatorText("Adjustments");
-			WrapperSlider("Medium Angle Adjust", kiSection);
-			WrapperSlider("Medium Wavelength Adjust", kiSection);
-			WrapperSlider("Medium Amplitude Adjust", kiSection);
-			WrapperSlider("Medium Speed Adjust", kiSection);
+			WrapperSlider("Medium Angle Adjust", iSection);
+			WrapperSlider("Medium Wavelength Adjust", iSection);
+			WrapperSlider("Medium Amplitude Adjust", iSection);
+			WrapperSlider("Medium Speed Adjust", iSection);
 
 			WrapperSeparatorText("Camera Fade");
-			WrapperSlider("Medium Camera Fade Start", kiSection);
-			WrapperSlider("Medium Camera Fade End", kiSection);
+			WrapperSlider("Medium Camera Fade Start", iSection);
+			WrapperSlider("Medium Camera Fade End", iSection);
 
 			ImGui::EndTabItem();
 		}
-		if (BeginSubtab("Depth", kiSection, 3))
+		if (BeginSubtab("Depth", iSection, 3))
 		{
 			WrapperSeparatorText("Terrain Fade");
-			WrapperSlider("Water Terrain Height", kiSection);
-			WrapperSlider("DT: TEMP Z Offset", kiSection); // DT: TEMP
-			WrapperSlider("Water Terrain Fade", kiSection);
-			WrapperSlider("Water Terrain Fade Clamp", kiSection);
+			WrapperSlider("Water Terrain Height", iSection);
+			WrapperSlider("DT: TEMP Z Offset", iSection); // DT: TEMP
+			WrapperSlider("Water Terrain Fade", iSection);
+			WrapperSlider("Water Terrain Fade Clamp", iSection);
 
 			WrapperSeparatorText("Surface");
-			WrapperSlider("Water Height", kiSection);
-			WrapperSlider("Water Early Out", kiSection);
+			WrapperSlider("Water Height", iSection);
+			WrapperSlider("Water Early Out", iSection);
 
 			WrapperSeparatorText("Depth Color");
-			WrapperSlider("Water Depth Lut Feather", kiSection);
-			WrapperSlider("Water Depth Lut Sunset Fade Power", kiSection);
-			WrapperSlider("Water Depth Lut Sunset Fade Intensity", kiSection);
-			WrapperSlider("Water Depth Color Feather", kiSection);
-			WrapperSlider("Water Depth Color Floor", kiSection);
-			WrapperSlider("Undersea Compression", kiSection);
-			WrapperSlider("Water Color Bottom", kiSection);
-			WrapperSlider("Water Color Height", kiSection);
+			WrapperSlider("Water Depth Lut Feather", iSection);
+			WrapperSlider("Water Depth Lut Sunset Fade Power", iSection);
+			WrapperSlider("Water Depth Lut Sunset Fade Intensity", iSection);
+			WrapperSlider("Water Depth Color Feather", iSection);
+			WrapperSlider("Water Depth Color Floor", iSection);
+			WrapperSlider("Undersea Compression", iSection);
+			WrapperSlider("Water Color Bottom", iSection);
+			WrapperSlider("Water Color Height", iSection);
 
 			WrapperSeparatorText("Fresnel");
-			WrapperSlider("Water Fresnel", kiSection);
+			WrapperSlider("Water Fresnel", iSection);
 
 			WrapperSeparatorText("Color Noise");
-			WrapperSlider("Water Color Noise Frequency", kiSection);
-			WrapperSlider("Water Color Noise Amount", kiSection);
-			WrapperSlider("Water Color Noise Weight One", kiSection);
-			WrapperSlider("Water Color Noise Multiplier One", kiSection);
-			WrapperSlider("Water Color Noise Weight Two", kiSection);
-			WrapperSlider("Water Color Noise Multiplier Two", kiSection);
+			WrapperSlider("Water Color Noise Frequency", iSection);
+			WrapperSlider("Water Color Noise Amount", iSection);
+			WrapperSlider("Water Color Noise Weight One", iSection);
+			WrapperSlider("Water Color Noise Multiplier One", iSection);
+			WrapperSlider("Water Color Noise Weight Two", iSection);
+			WrapperSlider("Water Color Noise Multiplier Two", iSection);
 
 			ImGui::EndTabItem();
 		}

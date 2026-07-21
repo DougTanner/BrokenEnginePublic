@@ -1,68 +1,103 @@
 ---
 name: update-vcxproj
 description: >-
-  Adds or verifies source-file membership in .vcxproj and .vcxproj.filters
-  project files (BrokenEngineSandbox client/server, DataPacker) — client/server
-  affinity from BT_CLIENT/BT_SERVER guard scope, filter paths mirroring on-disk
-  directories, new-filter GUIDs, shader <None> items. Use when .cpp/.h/shader
-  files are added or removed, or when an existing file gains or loses a
-  file-wide BT_CLIENT/BT_SERVER guard (affinity change).
-  Designed for a `mechanic` subagent — the project XML is large; work via Grep
-  anchors, report per-file results, never echo the XML.
+  Verify or reconcile Visual Studio project and filter membership for added,
+  removed, renamed, or whole-file-affinity-changed C++, headers, generated
+  headers, shaders, DataPacker files, and AgentTools sources. Use after those
+  file or BT_CLIENT/BT_SERVER guard changes to enforce exact client/server/tool
+  ownership, XML validity, mirrored filters, and unique filter GUIDs.
 allowed-tools: [Read, Write, Edit, Grep, Glob, PowerShell]
 ---
 
 # Update vcxproj Membership
 
-Add new files to, or verify existing files against, the MSBuild project files. Two modes — infer from the invocation:
+Main dispatches one `mechanic` with the affected paths, change kind, fixed
+baseline, ownership snapshot, and requested mode. The mechanic never delegates
+or edits source. Project-membership work is not a final-evidence gate.
 
-For a delegated call, use concise inline reporting. Project-membership work is
-not a final-evidence gate.
+Read root `AGENTS.md`, every `AGENTS.md` governing each affected path, and
+`Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md`. Scoped
+authority may narrow ownership; naming conventions and neighboring entries are
+evidence only. Stop on an authority conflict.
 
-- **Add** — wire the given files into the correct project(s) and filters.
-- **Remove** — remove deleted files from every project and filter file that references them.
-- **Verify** — check each given file's membership and filter path; report pass/fail without editing unless asked to fix.
+## Modes
 
-In the C++ change process, invoke this role only when a file was added or
-removed, or an existing file gained or lost a file-wide build-affinity guard.
-Verify only those affected files, fix each `FAIL` through Add mode, then
-reverify it. Ordinary edits to existing files do not trigger project-membership
-verification. This skill owns project membership and filter mechanics; callers
-do not hand-edit project XML.
+Accept exactly one explicit mode:
 
-## Rules
+- **verify** — read-only. Diagnose every affected path and project/filter pair.
+- **fix** — reconcile additions, removals, renames, and whole-file affinity
+  changes, then run the complete verify checks. Remove stale old-name and
+  forbidden-project entries; do not remove empty filter definitions as cleanup.
 
-Read `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md` first — the authoritative rule source (inclusion rules, filter-path mirroring, affinity naming conventions, shader handling). Orientation summary:
+Do not infer a mutation request. An ordinary edit without a whole-file affinity
+change does not trigger this skill.
 
-- Affinity follows preprocessor-guard scope: shared files (no or partial `BT_CLIENT`/`BT_SERVER` guards) go in **both** game projects; fully wrapped files go **only** in the matching project — and must be removed from the opposite one if the guard scope changed.
-- Game projects: `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj` (client) and `BrokenEngineSandboxServer.vcxproj`, each with a sibling `.filters` — a shared file touches four files. There is no engine vcxproj; engine sources compile into the game projects. DataPacker sources go in `DataPacker/Platforms/VisualStudio2026/DataPacker.vcxproj`.
-- Filter paths mirror the on-disk directory: `Engine/Source/<path>` → `Engine\<path>`, game `Source/<path>` → `Game\<path>`, `Common[/<sub>]` → `Common[\<sub>]`, `DataPacker/Source/<path>` → `DataPacker\<path>`. Generated headers use `$(GameDataDirectory)\*.h` project items and the flat `DataFiles` filter; verify the property-based form rather than replacing it with `Output\Data`. A new filter needs a `<Filter Include>` entry with a unique GUID (`{8-4-4-4-12}` lowercase hex; any value unique within the file), and every ancestor filter must exist.
-- Shader stage sources (`Engine/Data/Shaders/**` `.frag`/`.vert`/`.comp`) are `<None>` items in the client project only — DataPacker compiles them, not MSBuild. Shader `.h` files are ordinary `ClInclude`.
+## Ownership
 
-## Workflow
+Classify special cases before generic extensions:
 
-1. For each existing file, determine affinity: Grep it for a file-wide `#if defined(BT_CLIENT)` / `BT_SERVER` wrap. A guardless engine file appearing only in the client project may be a leaf-documented forced-include exception; verify that documentation and report NOTE rather than FAIL. `Engine.h` aggregation spans alone do not establish affinity. For a removed file, confirm it is absent on disk and locate its exact existing project/filter entries instead.
-2. Find the insertion/verification anchor by Grep-ing the vcxproj and .filters for an existing entry of the same element type from the same directory; if none exists (new directory), anchor on the nearest ancestor-directory entry of the same type and extend its relative path. Do not Read whole project files; use Grep anchors to keep the large XML out of context.
-3. Add mode: Edit each missing entry next to its anchor (`ClCompile` for `.cpp`, `ClInclude` for `.h` including shader headers, `None` for shader stage sources), matching the sibling entries' form; add the mirrored filter entry, creating missing `<Filter Include>` GUIDs. Remove mode: delete the removed file's exact project and filter entries from every affected project; do not remove now-empty `<Filter Include>` groups as incidental cleanup.
-4. Verify mode: for existing files, confirm presence in the correct project(s), absence from the wrong one, and that the filter path mirrors the directory; for removed files, confirm no project or filter entry remains.
-5. After integrating newer primary-branch commits into a session branch, rerun the applicable Add or Remove mode for the session's affected files, then Verify mode for every affected project and filter. Do not hand-merge vcxproj membership or filter mechanics; if both changes assign conflicting affinity or membership semantics, stop for user resolution.
+| Path/type | Intended project ownership | Item/filter |
+| --- | --- | --- |
+| GLSL stage/include sources (`.vert`, `.frag`, `.comp`, `.geom`, `.tesc`, `.tese`, `.mesh`, `.task`, `.rgen`, `.rmiss`, `.rchit`, `.rahit`, `.rint`, `.rcall`, `.glsl`) under `Engine/Data/Shaders/**` or `Projects/*/Data/Shaders/**` | game client only | `None`; mirror `Engine\Data\Shaders[\<directories>]` or `Game\Data\Shaders[\<directories>]` |
+| `$(GameDataDirectory)\*.h` generated headers | game projects selected by scoped authority; omit client-only `Shader.h` from server | `ClInclude`; flat `DataFiles` |
+| `.h` under `Engine/Data/Shaders/**` or `Projects/*/Data/Shaders/**` | dual C++/GLSL contract headers use scoped game affinity; GLSL-only include headers use client only | `ClInclude` for C++-consumed headers, otherwise `None`; mirror the owning `Engine\Data\Shaders[...]` or `Game\Data\Shaders[...]` path |
+| `Tools/ToolCommon/**` source/header | AgentHarness and WorktreeCli | `ClCompile`/`ClInclude`; `ToolCommon[\<directories>]` |
+| `Tools/AgentHarness/**` source/header | AgentHarness | `ClCompile`/`ClInclude`; `AgentHarness[\<directories>]` |
+| `Tools/WorktreeCli/**` source/header | WorktreeCli | `ClCompile`/`ClInclude`; `WorktreeCli[\<directories>]` |
+| `DataPacker/Source/**` source/header | DataPacker | `ClCompile`/`ClInclude`; `DataPacker[\<directories>]` |
+| `Engine/Source/**` source/header | game client, server, or both by structural affinity | `ClCompile`/`ClInclude`; `Engine[\<directories>]` |
+| `Projects/BrokenEngineSandbox/Source/**` source/header | game client, server, or both by structural affinity | `ClCompile`/`ClInclude`; `Game[\<directories>]` |
+| `Common/**` source/header | game client and server; also DataPacker only when scoped authority assigns it | `ClCompile`/`ClInclude`; `Common[\<directories>]` |
+
+For engine/game files, determine affinity structurally, not from a guard match
+or `Engine.h` aggregation span. Skip a UTF-8 BOM, whitespace, and comments;
+allow a header's `#pragma once` and a leading include/comment prologue. A
+whole-file guard is the next directive, is exactly `#if defined(BT_CLIENT)` or
+`#if defined(BT_SERVER)`, and its matching final `#endif` encloses all remaining
+substantive declarations or definitions; only whitespace/comments may follow.
+Anything else is shared. Preserve a scoped, documented forced-include exception
+and report it as `NOTE`.
+
+## Reconcile and Verify
+
+Use targeted searches around same-directory, same-item-type anchors; never load
+or echo whole project XML. Match existing relative-path form. For a new filter,
+create missing ancestors and a lowercase-hex `{8-4-4-4-12}` GUID unique within
+that filters file.
+
+For every affected project and filters file:
+
+1. Parse XML with an XML parser and fail on any parse error.
+2. Require each intended item exactly once and each forbidden or stale item zero
+   times, including old paths for removals/renames.
+3. Require exactly one matching filters item for each intended project item,
+   the expected mirrored filter text, and zero forbidden/stale filters items.
+4. Require every referenced filter and ancestor declaration exactly once and
+   every `UniqueIdentifier` value unique case-insensitively within the file.
+5. In fix mode, re-run all checks after edits. Leave any failed invariant as a
+   visible `FAIL`; never report a partial reconciliation as success.
 
 ## Report
 
-Return the complete report inline. Keep any
-affinity conflict requiring user resolution visible. One line per file — never echo XML:
-
-```
-<path> — client|server|both|DataPacker — filter <Filter\Path> — added|verified|NOTE <detail>|FAIL <what's wrong>
-```
-
-Append this final footer:
+Return one line per file and one indented result per relevant project; this
+keeps multi-project ownership explicit without XML output:
 
 ```text
-Files changed:
-- <project/filter path, or none>
-Functions/regions touched:
-- <project item/filter group, or none>
-Residuals:
-- <unfixed FAIL, unresolved NOTE, or none>
+<path> — <client|server|both|DataPacker|AgentHarness|WorktreeCli|AgentTools>
+  <project> — filter <path|none> — verified|fixed|NOTE <detail>|FAIL <detail>
 ```
+
+Then return:
+
+```text
+Files changed: <project/filter paths, or none>
+Regions touched: <item groups/filter declarations, or none>
+Build required: <exact /compile target — Configuration|x64 for each affected compiled project, or none for verify-only/None-only membership>
+Reviewer focus: <authority, affinity, or XML risk, or none>
+Residuals: <FAIL/conflict/NOTE requiring action, or none>
+```
+
+Use `Debug|x64` for game client/server unless the approved acceptance matrix
+names another configuration, `Release|x64` for DataPacker, and the AgentTools
+candidate-production route for AgentHarness, WorktreeCli, or ToolCommon source
+membership. Never claim a build ran.

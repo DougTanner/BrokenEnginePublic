@@ -8,10 +8,32 @@ namespace game
 
 using enum GameFlags;
 
+template <typename INTERPOLATE, typename POST_RENDER>
+static void ValidateCollectionPair(const INTERPOLATE& rInterpolate, const POST_RENDER& rPostRender)
+{
+	if (rInterpolate.iCount != rPostRender.iCount || rInterpolate.iCapacity != rPostRender.iCapacity)
+	{
+		throw common::CorruptStreamException("Frame collection pair count/capacity mismatch");
+	}
+}
+
+template <typename INTERPOLATE_TUPLE, typename POST_RENDER_TUPLE, size_t... INDICES>
+static void ValidateCollectionPairs(const INTERPOLATE_TUPLE& rInterpolateCollections, const POST_RENDER_TUPLE& rPostRenderCollections, std::index_sequence<INDICES...>)
+{
+	(ValidateCollectionPair(std::get<INDICES>(rInterpolateCollections), std::get<INDICES>(rPostRenderCollections)), ...);
+}
+
+template <typename INTERPOLATE_TUPLE, typename POST_RENDER_TUPLE>
+static void ValidateCollectionPairs(const INTERPOLATE_TUPLE& rInterpolateCollections, const POST_RENDER_TUPLE& rPostRenderCollections)
+{
+	static_assert(std::tuple_size_v<INTERPOLATE_TUPLE> == std::tuple_size_v<POST_RENDER_TUPLE>);
+	ValidateCollectionPairs(rInterpolateCollections, rPostRenderCollections, std::make_index_sequence<std::tuple_size_v<INTERPOLATE_TUPLE>> {});
+}
+
 // Bump this base on any change that shifts computed frame CRCs without bumping a collection's own kiVersion
 // — notably the CRC mixing algorithm/constants in Common/Crc.h. This gate is the only thing distinguishing
 // "data desynced" from "checksum algorithm changed"; skipping the bump makes straddling replays false-desync.
-const int64_t Frame::kiVersion = 119 + engine::kiNavDataVersion + BlastersInterpolate::kiVersion + BlastersPostRender::kiVersion + MissilesInterpolate::kiVersion + MissilesPostRender::kiVersion + PlayersInterpolate::kiVersion + PlayersPostRender::kiVersion + SpaceshipsInterpolate::kiVersion + SpaceshipsPostRender::kiVersion + TargetsInterpolate::kiVersion + TargetsPostRender::kiVersion + engine::ExplosionsInterpolate::kiVersion + engine::PushersInterpolate::kiVersion + engine::PushersPostRender::kiVersion + engine::ExplosionsPostRender::kiVersion;
+const int64_t Frame::kiVersion = 120 + engine::kiNavDataVersion + BlastersInterpolate::kiVersion + BlastersPostRender::kiVersion + MissilesInterpolate::kiVersion + MissilesPostRender::kiVersion + PlayersInterpolate::kiVersion + PlayersPostRender::kiVersion + SpaceshipsInterpolate::kiVersion + SpaceshipsPostRender::kiVersion + TargetsInterpolate::kiVersion + TargetsPostRender::kiVersion + engine::ExplosionsInterpolate::kiVersion + engine::PushersInterpolate::kiVersion + engine::PushersPostRender::kiVersion + engine::ExplosionsPostRender::kiVersion;
 
 // FrameInterpolate
 FrameInterpolate::FrameInterpolate()
@@ -592,6 +614,7 @@ void FrameInterpolate::Read(std::istream& rStream)
 	static_cast<engine::FrameInterpolateBase&>(*this).Read(rStream);
 
 	common::Read(rStream, fSpawnTimer);
+	fSpawnTimer = std::isfinite(fSpawnTimer) ? fSpawnTimer : 0.0f;
 	common::Read(rStream, gameFlags);
 
 	engine::CollectionRead(rStream, *pPlayers, pPlayers->Members());
@@ -607,6 +630,7 @@ void FrameInterpolate::ServerRead(std::istream& rStream)
 	static_cast<engine::FrameInterpolateBase&>(*this).ServerRead(rStream);
 
 	common::Read(rStream, fSpawnTimer);
+	fSpawnTimer = std::isfinite(fSpawnTimer) ? fSpawnTimer : 0.0f;
 	common::Read(rStream, gameFlags);
 
 	engine::SharedCollectionRead(rStream, *pPlayers);
@@ -718,6 +742,12 @@ void Frame::ServerRead(std::istream& rStream)
 {
 	interpolate.ServerRead(rStream);
 	postRender.ServerRead(rStream);
+
+	engine::FrameInterpolateBase& rInterpolateBase = interpolate;
+	engine::FramePostRenderBase& rPostRenderBase = postRender;
+	ValidateCollectionPairs(rInterpolateBase.ServerCollections(), rPostRenderBase.ServerCollections());
+	ValidateCollectionPair(*interpolate.pPlayers, *postRender.pPlayers);
+	ValidateCollectionPairs(GameInterpolateCollections(interpolate), GamePostRenderCollections(postRender));
 }
 
 std::ostream& operator<<(std::ostream& rStream, const Frame& rCurrent)
@@ -729,8 +759,16 @@ std::ostream& operator<<(std::ostream& rStream, const Frame& rCurrent)
 
 std::istream& operator>>(std::istream& rStream, Frame& rCurrent)
 {
-	rCurrent.interpolate.Read(rStream);
-	rCurrent.postRender.Read(rStream);
+	Frame loadedFrame;
+	loadedFrame.interpolate.Read(rStream);
+	loadedFrame.postRender.Read(rStream);
+
+	engine::FrameInterpolateBase& rInterpolateBase = loadedFrame.interpolate;
+	engine::FramePostRenderBase& rPostRenderBase = loadedFrame.postRender;
+	ValidateCollectionPairs(rInterpolateBase.Collections(), rPostRenderBase.Collections());
+	ValidateCollectionPair(*loadedFrame.interpolate.pPlayers, *loadedFrame.postRender.pPlayers);
+	ValidateCollectionPairs(GameInterpolateCollections(loadedFrame.interpolate), GamePostRenderCollections(loadedFrame.postRender));
+	rCurrent = std::move(loadedFrame);
 	return rStream;
 }
 

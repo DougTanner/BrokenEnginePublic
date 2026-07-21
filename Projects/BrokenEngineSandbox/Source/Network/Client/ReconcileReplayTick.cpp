@@ -202,7 +202,7 @@ static bool ReconcileValidateCrcCoord(CoordWork& rWork, int64_t iTick, const eng
 			char acSharedCrc[20] {}, acClientCrc[20] {};
 			common::ToHex(std::span<char, 20>(acSharedCrc), rUpdate.sharedCrc);
 			common::ToHex(std::span<char, 20>(acClientCrc), clientCrc);
-			LOG(kNetwork, kError, "ReconcileValidateCrcCoord Desync Coord: ({},{}) ForTick: {} ServerCrc: {} ClientCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
+			LOG(kNetwork, kDebug, "ReconcileValidateCrcCoord Replay CRC mismatch; reconciliation outcome pending Coord: ({},{}) ForTick: {} ServerCrc: {} ClientCrc: {} ServerStatusChanges: {} ClientStatusChanges: {}", rWork.coord.x, rWork.coord.y, iTick, acSharedCrc, acClientCrc, rUpdate.statusChanges.size(), rFrameInput.statusChanges.size());
 		}
 
 		rScratch.iDesyncTick = iTick;
@@ -248,10 +248,11 @@ void ReconcileReplayCoord(CoordWork& rWork, int64_t iReplayStart, int64_t iRollb
 			break;
 		}
 
-		// Inject pending full state at matching tick
+		// The replay range is target-capped, so a matching pending full state is necessarily due.
 		if (rFrames.pendingFullState.has_value() && rFrames.pendingFullState->iTick == iTick)
 		{
 			ReconcileInjectPendingFullState(rWork);
+			rfTime = rScratch.replayStack.at(0)->interpolate.fCurrentTime;
 			LOG(kNetwork, kVerbose, "ReconcileReplayCoord Injected pending full state Coord: ({},{}) ForTick: {}", rWork.coord.x, rWork.coord.y, iTick);
 		}
 

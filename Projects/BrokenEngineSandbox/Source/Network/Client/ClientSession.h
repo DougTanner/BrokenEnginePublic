@@ -2,10 +2,19 @@
 
 #if defined(BT_CLIENT)
 
-#include "Network/Client/ClientSessionBase.h"
-#include "Network/Client/ClientDataReceiver.h"
+#include "Frame/GridCoord.h"
+
 #include "Network/Client/ClientDesyncManager.h"
 #include "Network/Client/ClientReconciler.h"
+
+namespace engine
+{
+
+class Client;
+class ClientSessionRuntime;
+struct ReceivedDebugFrame;
+
+} // namespace engine
 
 namespace game
 {
@@ -29,34 +38,34 @@ enum class SubscriptionChangeReason : uint8_t
 
 const char* ToString(SubscriptionChangeReason eReason);
 
-class ClientSession : public engine::ClientSessionBase
+class ClientSession
 {
 public:
 
 	ClientSession();
-	~ClientSession() override;
+	~ClientSession();
 
 	// Connection
 	void ConnectToServer(std::string_view serverAddress);
-	void ConnectToDiscoveredServer();
-	void DisconnectFromServer();
 
 	// Main-loop integration
-	void PollNetwork();
 	void Poll();
 	void Reconcile();
 
 	// Subscriptions
 	void UpdateSubscriptions();
 
+	// Update buffering
+	void ApplyReceivedStaticData();
+	void ApplyReceivedFullStates();
+	bool ApplyReceivedUpdates();
+
 	// Queries
-	int64_t GetDesyncTick() const { return mpDesyncManager->GetDesyncTick(); }
-	bool IsStalled() const { return mpDesyncManager->IsStalled(); }
-	bool CanSend() const { return mpClientNetwork != nullptr && mpClientNetwork->CanSend(); }
+	int64_t GetConfirmedTick() const;
+	int64_t GetClientConfirmedTick() const;
+	int64_t GetServerUpdateBufferSize() const;
 
 	// Clock correction
-	std::chrono::nanoseconds ComputeClockCorrectionNs(int64_t iPreReconcileTick);
-
 	// Game packet sends
 	void SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles, float fNavigationDelay);
 	void SendCreateFleetRequest();
@@ -67,33 +76,32 @@ public:
 
 	// Subscriptions
 	void UpdateDesiredCoords(SubscriptionChangeReason eReason);
-	void ClearStickySubscriptions() { mUnwantedTimestamps.clear(); }
-	void ClearSubscriptionState();
 
 	// Managers
-	std::unique_ptr<ClientDataReceiver> mpDataReceiver;
 	std::unique_ptr<ClientDesyncManager> mpDesyncManager;
 	std::unique_ptr<ClientReconciler> mpReconciler;
+	std::unique_ptr<engine::ClientSessionRuntime> mpRuntime;
 
 private:
+	friend class engine::ClientSessionRuntime;
 
-	// Connection helpers
-	bool PollConnection();
-	bool PollConnectionStatus();
-	void TryEnterGame();
-	void ResetForServerLoad();
+	void OnConnectionRejected(const char* pcReason);
+	void OnConnectionFailed();
+	void OnConnectionAccepted();
+	void PollDesyncState();
+	void OnConnectionLost();
+	void OnServerLoad();
+	void OnRuntimeDisconnected();
+	void ProcessReceivedGamePackets();
+	void OnCoordReleased(engine::GridCoord coord);
 
-	// PollNetwork helpers
+	// Game packet helpers
 	void ApplyPlayerEvent(const ReceivedPlayerEvent& rEvent);
 	void UpdatePlayerCoord(engine::global_id_t globalPlayerId, engine::GridCoord coord);
 
 	template <typename TLogFunction, typename... TArgs>
 	void SendGameRequest(GamePacketType ePacketType, const TLogFunction& rLogFunction, const TArgs&... rArgs);
 
-	// Subscription tracking
-	std::vector<engine::GridCoord> mDesiredCoords;
-	std::unordered_map<engine::GridCoord, std::chrono::steady_clock::time_point> mUnwantedTimestamps;
-	static constexpr std::chrono::seconds kStickySubscriptionDuration {2};
 };
 
 inline ClientSession* gpClientSession = nullptr;

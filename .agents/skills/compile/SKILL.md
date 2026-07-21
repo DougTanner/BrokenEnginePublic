@@ -36,27 +36,32 @@ If either primary prebuilt executable is missing, stop: worktree wrappers own Ag
 
 ### AgentTools candidate production and promotion
 
-AgentTools source changes (`Tools/WorktreeCli/**`, `Tools/AgentHarness/**`, `Tools/ToolCommon/**`) never build into or through a canonical `Output` directory or link. They flow through two gated steps:
+AgentTools promotion-triggering changes — any non-Markdown path under `Tools/WorktreeCli/`, `Tools/AgentHarness/`, or `Tools/ToolCommon/` — never build into or through a canonical `Output` directory or link. They flow through two gated steps:
 
-1. **Candidate production** — run the bundled sidecar from the checkout that holds the changes. It builds both solutions into the worktree's ignored `Temp\AgentToolsCandidate\` tree with overridden `OutDir`/`IntDir`, capability-checks the pair, verifies the canonical output identity was untouched, and writes a `broken-engine-agenttools-candidate/v1` receipt binding both executable SHA-256 hashes to the source commit and the three `Tools/` tree hashes:
+1. **Candidate production** — run the bundled sidecar from the checkout that holds the changes. It takes a zero-wait exclusive file lock at that checkout's ignored `Temp\AgentToolsCandidate\.producer.lock`; another producer in the same checkout returns `candidate.concurrent-producer`, while different checkouts remain independent and never use the PC-global session ledger. It then snapshots every nonignored ordinary file under `Tools/WorktreeCli/`, `Tools/AgentHarness/`, and `Tools/ToolCommon/`, plus `ThirdParty/tinygltf/json.hpp`, builds both solutions into run-specific paths below `Temp\AgentToolsCandidate\`, parses the compiler dependency tlogs, capability-checks the pair, and re-snapshots the exact source set. Every repository-local compiler input must be present in the pre-build manifest, and membership, bytes, SHA-256, or clean-filter Git blob identity must remain unchanged:
 
    ```powershell
    & "$ROOT\.agents\skills\compile\scripts\New-AgentToolsCandidate.ps1" -WorktreeRoot $ROOT
    ```
 
-   Exit `0` returns the receipt path/SHA-256 in one JSON result; `2` is a deterministic build or capability blocker. This doubles as the compile check for tool-source changes, and is safe in any registered checkout at any time. A candidate is valid for promotion iff its receipt has `dirtyToolPaths: false` and its three `toolTreeHashes` match the landed commit's tool trees; `sourceCommit` is informational. Tree hashes survive a rebase that leaves tool bytes unchanged, so a rebase alone does not require a rebuild — rebuild only when `dirtyToolPaths: true` or the landed tool trees differ from the receipt. When `BuildCommand.cpp`'s result contract changes, run [`scripts/Test-BuildResultFixtures.ps1`](scripts/Test-BuildResultFixtures.ps1) against the candidate `WorktreeCli.exe`.
+   The producer emits one `broken-engine-agenttools-candidate-result/v1` JSON object. Exit `0` returns a `broken-engine-agenttools-candidate/v2` receipt path/SHA-256; the receipt records the before/after manifest and digest, dependency logs and repository-local compiler inputs, checkout/commit identity, MSBuild identity, executable hashes, capability-check identity, and before/after canonical executable identity. Exit `2` is a deterministic negative result: concurrent producer, source change (`candidate.source-changed`), missing/unbound compiler evidence, build/output/capability failure, or disturbed canonical output. Exit `1` is malformed input, Git/MSBuild discovery, OS, or internal failure. This doubles as the compile check for tool-source changes. It neither waits for other checkouts nor certifies a commit for promotion.
+
+   Finalization owns commit certification: after landing, it accepts v2 only, proves the receipt's source manifest equals the landed clean-filter blobs, rechecks candidate executable hashes, and then promotes. A rebase that preserves all manifest identities does not require a rebuild; any landed source membership or blob mismatch does. When `BuildCommand.cpp`'s result contract changes, run [`scripts/Test-BuildResultFixtures.ps1`](scripts/Test-BuildResultFixtures.ps1) against the candidate `WorktreeCli.exe`.
 
    Candidate production may finish while other wrapper sessions remain active.
-   Its handoff must flag that landing updates canonical shared parent
-   infrastructure; `/finalize-changes` waits for every other active wrapper
-   session to end, rechecks the canonical session ledger, and presents landing
-   confirmation only after that recheck passes.
+   Its handoff must flag AgentTools promotion as a [canonical shared-artifact
+   mutation](../next-plan/references/execution-gates.md#canonical-shared-artifacts);
+   `/finalize-changes` waits for every other active wrapper session to end,
+   rechecks the canonical session ledger, and presents landing confirmation only
+   after that recheck passes.
 
-2. **Promotion** — owned by `/finalize-changes` (`.agents/skills/finalize-changes/scripts/Invoke-AgentToolsPromotion.ps1`) and possible only during an approved session landing, after the landed commit's tool trees match the candidate receipt. Routine builds, this skill, and unlanded session trees cannot promote; do not copy or install either executable elsewhere.
+2. **Promotion** — owned by `/finalize-changes` (`.agents/skills/finalize-changes/scripts/Invoke-AgentToolsPromotion.ps1`) and possible only during an approved session landing, after v2 commit certification succeeds. Routine builds, this skill, and unlanded session trees cannot promote; do not copy or install either executable elsewhere.
 
 If a canonical primary executable is missing or a legacy first rollout applies, wrapper bootstrap (`.agents/scripts/Bootstrap-AgentTools.ps1`) remains the only in-place build path.
 
 ## Determine what to build
+
+Resolve identities once before selecting data mode or changed paths. An explicitly supplied fixed baseline from the caller or approved execution card is authoritative and must not be replaced with a later `HEAD`. Otherwise use `BROKEN_ENGINE_BASELINE` when present, then the selected checkout's current `HEAD`. Resolve `$ROOT` from `BROKEN_ENGINE_WORKTREE_PATH` when present, otherwise from `git rev-parse --show-toplevel` in the caller-supplied/current checkout. Resolve `$PRIMARY` from `BROKEN_ENGINE_PRIMARY_CHECKOUT` when present; otherwise use the parent of the absolute Git common directory (`git -C $ROOT rev-parse --path-format=absolute --git-common-dir`). Canonicalize and validate each path, require `$ROOT` to equal its Git top level, require `$PRIMARY\.git` to be an ordinary directory, and require `$BASELINE` to resolve to a commit. Environment values are wrapper-provided identity hints, not permission to move a supplied baseline.
 
 - Default: BrokenEngineSandbox client Debug.
 - If any changed file is shared (`Common/`, `Engine/`, or non-exclusive game code), build both client and server.
@@ -66,7 +71,7 @@ If a canonical primary executable is missing or a legacy first rollout applies, 
 
 Before any DataPacker, client, or server build, invoke `$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1 -RepositoryRoot $ROOT` and stop on failure. Validated stable primary submodule trees plus shared immutable ThirdParty, WorktreeCli, and AgentHarness Output directories are the only exceptions to worktree-local build artifacts.
 
-For routine work, build the checkout supplied by the caller and use its current `HEAD` as the comparison baseline when one is needed. An isolated session worktree remains appropriate for queue operations, concurrent work, or a final-evidence gate, but is not a prerequisite for a targeted build. Keep existing build serialization and the gated AgentTools candidate/promotion path; do not share mutable build output between checkouts.
+For routine work, build the checkout supplied by the caller. An isolated session worktree remains appropriate for queue operations, concurrent work, or a final-evidence gate, but is not a prerequisite for a targeted build. Keep existing build serialization and the gated AgentTools candidate/promotion path; do not share mutable build output between checkouts.
 
 For a delegated call, return the complete build result inline. A build does not
 create an evidence artifact; a later final-evidence gate records its decisive
@@ -74,7 +79,11 @@ exit status and relevant diagnostics once.
 
 DataPacker's mutex coordinates across worktrees and its shared chunks live under `%TEMP%\DataPacker\<Project>`; do not add another PC-global DataPacker lock or a checkout-local cache copy. Gaea raw and split intermediates use the single mutable `%TEMP%\DataPacker\<Project>\Gaea\Islands` cache; source-tree island leaves retain only tracked BC outputs.
 
-**Run every build synchronously in the foreground and stay in-turn until the `WorktreeCli build` call returns an exit code — only then report. NEVER background a build (`run_in_background`, a `Monitor` watcher, `Start-Job`, or a trailing `&`) and then end your turn to await completion.** A delegated subagent that yields its turn while a build runs is not reliably re-woken when the build finishes, so the workflow stalls half-done — a common failure is ThirdParty completing while the client/server targets are never started — and no result is ever reported. Give each foreground `WorktreeCli build` call the maximum execution timeout the tool allows so WorktreeCli's 660-second lock wait cannot be preempted; a cold first build of a fresh worktree can approach that limit. If a call times out with the build still running, **re-invoke the same `WorktreeCli build` command** — WorktreeCli serializes per target and its incremental/tlog state continues the same build to completion — rather than backgrounding it. If blocking is genuinely unacceptable, poll the build's own output to completion within the same turn (repeated short reads in a loop) and report only once you hold the final per-target exit code; never hand the wait to a fire-and-forget watcher and stop. Ordinary builds do not run DataPacker, Gaea, or texture export; the explicitly authorized Local generation path below is the sole exception. Ordinary builds always preserve `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; the explicit Microsoft PREfast verification mode below is the sole exception to `RunCodeAnalysis=false`. The bundled VS2026 clang-tidy crashes on this codebase.
+### Execution and result discipline
+
+Run each `WorktreeCli build` synchronously in the foreground and remain in-turn until its process exit code and single JSON result are captured. Give the call the maximum available execution timeout so the 660-second target-lock wait is not preempted. Never use `Start-Job`, a trailing `&`, a fire-and-forget watcher, or end a delegated turn while a build is running. If the host call times out while the build continues, re-invoke the identical command; target serialization and incremental tlogs carry it to completion. When a blocking call is unavailable, poll the same invocation to completion in-turn.
+
+Parse and report only the structured result described above after every requested target has returned. Ordinary builds do not run DataPacker, Gaea, or texture export; the authorized Local-generation path is the sole exception. Keep `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; explicit PREfast verification is the sole exception to `RunCodeAnalysis=false`. VS2026 clang-tidy crashes on this codebase.
 
 ## Select runtime data mode
 
@@ -83,6 +92,7 @@ Every worktree game build uses one data mode and one canonical directory for bot
 - **Shared** is the default for ordinary code changes. Set `$GameDataDirectory` to `$PRIMARY\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\Data`; this mode consumes primary generated headers/packs and disables every DataPacker build/export step.
 - **Local** is mandatory when tracked changes from `$BASELINE`, staged changes, unstaged changes, or untracked files touch `DataPacker/**`, `Engine/Data/**`, `Projects/BrokenEngineSandbox/Data/**`, `Common/DataFile.h`, generated-header logic, exporter versions/fingerprints, compression, chunk layout, or pack/manifest contracts. Set `$GameDataDirectory` to `$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\Data`.
 - A user may force Local. Never force Shared over a Local trigger. Local never falls back to Shared data. Generate Local output only with explicit authorization; a user-approved plan or acceptance criterion requiring shader or data repack is authorization.
+- **An absent worktree `Data` output never blocks Local.** A linked worktree that has never generated has no `Output\Data` directory at all; that is the legitimate expected starting state, not missing setup. On an authorized Local generation build DataPacker seeds it from the primary checkout itself — the Local generation section below states the exact mechanism and its conditions. Never stop, ask the user to pre-stage output, or hand-run an export because the directory is absent. The only thing an agent must supply is generation *authorization*; the genuine blockers are validation and environment failures DataPacker reports itself — an unrecognized reparse point, absent primary output, or insufficient disk — never a user-prepared directory.
 - **Deletion-only exception:** pure deletions of source asset files under `Engine/Data/**` or `Projects/BrokenEngineSandbox/Data/**` do not trigger Local when a repository-wide search proves nothing tracked references the deleted asset's generated identity (its generated CRC constant, chunk, or path). With `RunDataPacker=false` the build consumes only pre-existing generated output, which a source deletion cannot alter — the dead chunk persists in the published pack and the unused constant in the generated header until the next real DataPacker export drops both. Record the reference-search evidence with the mode selection. Any addition, modification, rename, exporter, or contract change keeps the Local requirement.
 
 The game projects detect the canonical repository-root Git marker. A linked worktree has a `.git` file and defaults `RunDataPacker=false`; the primary checkout has a `.git` directory and preserves ordinary Local Visual Studio behavior by defaulting true. An explicit Local `RunDataPacker=true` permits deliberate worktree generation; Shared rejects true.
@@ -144,7 +154,7 @@ finally
 
 After that build, require the complete nonempty Local output set and recheck that primary output is unchanged. Set `$RunDataPacker = 'false'` for the other target and every subsequent build.
 
-Without generation authorization, require the same complete nonempty Local output set and explicit confirmation that it was prepared after the current relevant worktree changes. If either check is absent, stop with `Local data is missing or stale; manual worktree DataPacker export required` and do not build, export, or fall back.
+Without generation authorization, require the same complete nonempty Local output set and explicit confirmation that it was prepared after the current relevant worktree changes. If either check is absent, stop with `Local data is missing or stale; Local generation authorization required` and do not build, export, or fall back. The remedy is authorization for the generation build above, which seeds absent worktree output from primary on its own — never a hand-run DataPacker export or user-prepared output directory.
 
 Recheck the primary required-file snapshot after each Local game build; any primary write fails the workflow. After generation and after the last game build, snapshot the complete selected Local output for the harness. Never copy worktree DataPacker/data source changes into `$PRIMARY` to test them.
 
@@ -152,13 +162,24 @@ Recheck the primary required-file snapshot after each Local game build; any prim
 
 Use this mode only when an approved plan explicitly requires Microsoft PREfast verification. Retain every ordinary game-build protection above: the session-claim discipline (wrapper or transient), immutable prebuilt WorktreeCli, worktree provisioning and lifecycle validation, WorktreeCli target serialization, synchronous foreground execution, data-mode selection, canonical `@DataProperties`, complete-data checks, and selected/primary identity snapshots. Do not invoke MSBuild or `/analyze` outside WorktreeCli.
 
-Force Clang-Tidy off and Microsoft code analysis on only for the Release target commands below. Do not override the projects' warnings-as-errors settings:
+Release analysis has two paths, selected by `RunCodeAnalysis`, and both fail the build on a diagnostic:
+
+- **Ordinary Release agent builds already enforce.** With `/p:RunCodeAnalysis=false`, `EnablePREfast=true` in each Release `ClCompile` block still applies — it sits outside the toolchain's `RunMsvcAnalysis` gate — so cl runs `/analyze` writing to the console under `/WX`, against the compiler's default rules and no rule set. Never remove `EnablePREfast` from a Release configuration to quiet a warning; that silently retires this gate.
+- **This mode adds the rule set.** `RunCodeAnalysis=true` applies `/analyze:quiet`, routes per-TU results through `*.nativecodeanalysis.xml`, and re-emits them after link via the `NativeCodeAnalysis` MSBuild task. It is the only path that applies `BrokenEngineAnalysis.ruleset`, so it is the only path that reports the C26xxx Core Guidelines codes. Note both Release configurations set `RunCodeAnalysis=true` themselves, so Visual Studio Release builds take this path too — it is not exclusive to this mode, and a change to the rule set or its allow list changes IDE Release builds as well.
+
+Because those diagnostics never reach cl's console, `TreatWarningAsError` cannot see them; `CodeAnalysisTreatWarningsAsErrors=true` in both Release configurations is what makes the task fail the build. Report **"analysis executed"** and **"policy passed"** as separate facts — a zero exit alone establishes only the second. `RunNativeCodeAnalysis` is an incremental target, so a green incremental run can mean "skipped as up-to-date"; require a rebuild, or positive evidence that this run regenerated the merged `.nativecodeanalysis.xml`, before reporting that analysis ran.
+
+Force Clang-Tidy off and Microsoft code analysis on only for the Release target commands below. Do not override the projects' warnings-as-errors settings, the rule set, or `CodeAnalysisTreatWarningsAsErrors`, and never pass `CodeAnalysisNeverReportRuleErrors` — it disables error promotion silently:
 
 ```powershell
 # BrokenEngineSandbox client Release PREfast, then server Release PREfast.
 & $WorktreeCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln" '/p:Configuration=Release' '/p:Platform=x64' @DataProperties '/p:EnableClangTidyCodeAnalysis=false' '/p:EnableMicrosoftCodeAnalysis=true' '/p:RunCodeAnalysis=true' '/verbosity:minimal'
 & $WorktreeCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln" '/p:Configuration=Release' '/p:Platform=x64' @DataProperties '/p:EnableClangTidyCodeAnalysis=false' '/p:EnableMicrosoftCodeAnalysis=true' '/p:RunCodeAnalysis=true' '/verbosity:minimal'
 ```
+
+`EnableMicrosoftCodeAnalysis=true` is belt-and-braces here: the toolchain forces analysis off only on an explicit `false`, and the Release configurations set it nowhere, so passing it changes nothing today. Keep it so an upstream default change cannot silently disable the mode.
+
+A policy failure surfaces as a **nonzero MSBuild exit after the link step, with the executable already produced** — analysis runs through `AfterBuildLinkTargets`. Existing binaries after a failed run are expected, not a partial success. A failing run also does not write `*.lastcodeanalysissucceeded`, so the failure correctly re-reports on the next build until it is fixed. Report the matched diagnostics from the structured `diagnostics` array, noting `diagnosticsTruncated: true` and pointing at the retained log when the cap elides the rest.
 
 Outside this explicitly authorized mode, keep `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; never infer PREfast authorization from a routine compile, rebuild, or link-error check.
 
@@ -193,9 +214,7 @@ Only `.cpp` inputs already present in the target project are valid. After a head
 
 ## Report results
 
-- For a delegated call, return the complete results inline. Keep
-  overall/per-project status, data mode/path, and decisive blockers visible.
-- Report only after every build has returned an exit code; do not end your turn (or hand back to the caller) while any build is still running. If you delegated this skill, the build ran in the foreground of your turn per the rule above — its exit code is in hand before you report.
+- For a delegated call, return the complete results inline after applying the execution/result discipline above. Keep overall/per-project status, data mode/path, and decisive blockers visible.
 - Read every reported field from the captured `broken-engine-build-result/v1` JSON, never from scraped terminal text.
 - Final status per project: `status` plus `exitCode` and `failureKind`.
 - Every `severity: error` diagnostic's `raw` line verbatim, plus all `messages` entries; note `diagnosticsTruncated: true` and point at the retained log for the remainder.

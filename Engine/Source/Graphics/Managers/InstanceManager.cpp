@@ -473,22 +473,23 @@ void InstanceManager::ValidatePhysicalDeviceCapabilities()
 
 	vkGetPhysicalDeviceFeatures2(mVkPhysicalDevice, &mVkPhysicalDeviceFeatures2);
 
-	// Check required Vulkan 1.2 features
-	struct RequiredVulkan12Feature
+	// Check required Vulkan features
+	struct RequiredFeature
 	{
 		const VkBool32* pFeature = nullptr;
 		const char* pcName = nullptr;
 		const char* pcReason = nullptr;
 	};
-	const RequiredVulkan12Feature pRequiredFeatures[]
+	const RequiredFeature pRequiredFeatures[]
 	{
-		{&mVkPhysicalDeviceVulkan12Features.descriptorBindingStorageBufferUpdateAfterBind, "descriptorBindingStorageBufferUpdateAfterBind", "VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT"},
-		{&mVkPhysicalDeviceVulkan12Features.shaderSampledImageArrayNonUniformIndexing, "shaderSampledImageArrayNonUniformIndexing", "non-uniform descriptor indexing"},
-		{&mVkPhysicalDeviceVulkan12Features.descriptorBindingSampledImageUpdateAfterBind, "descriptorBindingSampledImageUpdateAfterBind", "texture streaming"},
-		{&mVkPhysicalDeviceVulkan12Features.descriptorBindingPartiallyBound, "descriptorBindingPartiallyBound", "bindless texture arrays"},
-		{&mVkPhysicalDeviceVulkan12Features.runtimeDescriptorArray, "runtimeDescriptorArray", "bindless texture arrays"},
+		{.pFeature = &mVkPhysicalDeviceFeatures2.features.shaderStorageImageExtendedFormats, .pcName = "shaderStorageImageExtendedFormats", .pcReason = "R16_SFLOAT smoke storage images"},
+		{.pFeature = &mVkPhysicalDeviceVulkan12Features.descriptorBindingStorageBufferUpdateAfterBind, .pcName = "descriptorBindingStorageBufferUpdateAfterBind", .pcReason = "VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT"},
+		{.pFeature = &mVkPhysicalDeviceVulkan12Features.shaderSampledImageArrayNonUniformIndexing, .pcName = "shaderSampledImageArrayNonUniformIndexing", .pcReason = "non-uniform descriptor indexing"},
+		{.pFeature = &mVkPhysicalDeviceVulkan12Features.descriptorBindingSampledImageUpdateAfterBind, .pcName = "descriptorBindingSampledImageUpdateAfterBind", .pcReason = "texture streaming"},
+		{.pFeature = &mVkPhysicalDeviceVulkan12Features.descriptorBindingPartiallyBound, .pcName = "descriptorBindingPartiallyBound", .pcReason = "bindless texture arrays"},
+		{.pFeature = &mVkPhysicalDeviceVulkan12Features.runtimeDescriptorArray, .pcName = "runtimeDescriptorArray", .pcReason = "bindless texture arrays"},
 	};
-	for (const RequiredVulkan12Feature& rRequiredFeature : pRequiredFeatures)
+	for (const RequiredFeature& rRequiredFeature : pRequiredFeatures)
 	{
 		if (*rRequiredFeature.pFeature != VK_TRUE)
 		{
@@ -503,6 +504,12 @@ void InstanceManager::ValidatePhysicalDeviceCapabilities()
 			throwMessage += " not supported";
 			throw std::runtime_error(throwMessage);
 		}
+	}
+
+	if (!SupportsStorageImage(shaders::keSmokeFormat))
+	{
+		LOG(kGraphics, kError, "Device does not advertise VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT for smoke format {}", string_VkFormat(shaders::keSmokeFormat));
+		throw std::runtime_error("Smoke texture format does not support storage images");
 	}
 
 	ASSERT(mVkPhysicalDeviceFeatures2.features.sampleRateShading == VK_TRUE);

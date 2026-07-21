@@ -1,15 +1,15 @@
-# /Engine/Source/Frame/Collections/Puffs/
+# Puffs - Controlled Smoke Sprites
 
-Client-only fire-and-forget smoke puffs: stationary axis-aligned quads animated by keyframe controllers. Every puff spawns via `AddControlled()` — no plain `Add()` or owner-driven `Sync()` path. Types and controllers are registered by consumers (engine Explosions, game Players/Blasters), not here.
+Client-only stationary smoke puffs are fire-and-forget controlled quads. Consumers register puff types and controllers; this collection has no owner-driven sync path.
 
-## Unique Aspects
+## Invariants
 
-- **Empty PostRender**: zero SOA members — exists only to satisfy the paired-collection protocol. Lifetime state (controller index, start time) lives on the Interpolate side; only `Destroy` has logic (delegates to `DestroyExpiredControlled`)
-- **Custom keyframe/controller types** (`PuffKeyframe`/`PuffControllerType`): exist purely for semantically correct names (area/intensity/rotation vs. the light-centric generic `ControllerKeyframe`); the framework's templated registries and helpers accept them unchanged
-- **Wrapper scaling is live, not baked**: only area and intensity carry per-keyframe `Wrapper*` multiplier arrays (rotation does not), re-applied every frame before interpolation — adjusting a UI wrapper retroactively changes alive puffs. Spawn applies keyframe-0 scaling so the first frame renders correctly
-- **Selective copy**: `AllocateAndCopy` memcpys only type index and controller bookkeeping (controller index, start time); `Update` carries position over from the previous frame unchanged (puffs never move) and recomputes area/intensity/rotation from the controller
-- **Delayed spawns**: passing a future start time to `AddControlled()` holds the puff at keyframe 0 until the delay elapses (negative elapsed time clamps) — used for secondary explosion puffs
-- Render: quads culled via `IsPointVisible` then projected to base height; params pack intensity twice (straight multiplier plus the `pow(.y, fSmokeIntensityFalloff)` input in `Smoke.frag`) and rotation
+- Puff lifetime and animation live in Interpolate; the paired PostRender collection only maintains phase compatibility and expires controlled rows.
+- Area and intensity wrappers are read during every controller update, so wrapper changes affect existing puffs. Rotation is not wrapper-scaled.
+- `PersistentMembers()` copies type/controller/start-time metadata between frames, while animated values are derived again and position is carried forward unchanged.
+- A future start time holds the puff at its first keyframe, supporting delayed secondary effects.
+- Rendered puffs are culled and projected to base height before depositing smoke.
 
 ## See Also
-- `../AGENTS.md` - Collection framework, Controller pattern
+
+- [../AGENTS.md](../AGENTS.md) - Collection and controller conventions

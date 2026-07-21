@@ -28,141 +28,135 @@ void ServerBroadcaster::BuildFrameInputs()
 		gpGame->mFrameInputs.try_emplace(rCoord);
 	}
 
-	// Add spawn StatusChanges for clients waiting for initial spawn
-	for (const ClientSpawnInfo& rInfo : gpServerSession->mpClientManager->mClientsWaitingForSpawn)
+	const bool bAdvancing = gpGame->mfLastDeltaTime > 0.0f;
+	if (bAdvancing)
 	{
-		int64_t iGlobalId = gpGame->GenerateGlobalId();
-
-		bool bIsFlagship = false;
-		engine::GridCoord spawnFleetWantedCoord {};
-		uint8_t spawnPendingFleetTicks = 0;
-		if (rInfo.iFleetIndex >= 0)
+		// Add spawn StatusChanges for clients waiting for initial spawn
+		for (const ClientSpawnInfo& rClientSpawnInformation : gpServerSession->mpClientManager->mClientsWaitingForSpawn)
 		{
-			ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rInfo.clientGuid, rInfo.iFleetIndex, rInfo.iMemberIndex);
-			bIsFlagship = result.bIsFlagship;
-			spawnFleetWantedCoord = result.fleetWantedCoord;
-			spawnPendingFleetTicks = result.uiPendingFleetWantedCoordTicks;
-		}
+			int64_t iGlobalId = gpGame->GenerateGlobalId();
 
-		StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer, .data = SpawnPlayerData{.iGlobalId = iGlobalId, .bIsFlagship = bIsFlagship, .fleetWantedCoord = spawnFleetWantedCoord, .uiPendingFleetWantedCoordTicks = spawnPendingFleetTicks}};
-		gpGame->mFrameInputs.try_emplace(engine::kOriginCoord).first->second.statusChanges.push_back(spawnChange);
-		LOG(kNetwork, kVerbose, "ServerBroadcaster::BuildFrameInputs::kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{}) Flagship: {}", rInfo.iClientId, iGlobalId, engine::kOriginCoord.x, engine::kOriginCoord.y, bIsFlagship);
-	}
-
-	// Inject weapon mode toggle StatusChanges
-	ProcessUpdatePlayerRequests();
-
-	// Tick fleet timers and inject fleet coord updates.
-	// BuildFrameInputs runs every ServerUpdate even when iFullTicks==0 (paused), but the per-tick
-	// loop that consumes statusChanges does not. TickFleetTimers advances fFrameChangeTimer by
-	// gpGame->mfLastDeltaTime (= iFullTicks * kfDeltaTime), which is zero during pause and scaled
-	// during fast-forward / slow-mo. So at iFullTicks==0 the timer doesn't advance, no kUpdateFleet
-	// gets queued, and ProcessFlagshipUpdates harmlessly runs against an empty queue. No explicit
-	// pause gate needed here.
-	gpServerSession->mpFleetManager->TickFleetTimers();
-	gpServerSession->mpFleetManager->ProcessFlagshipUpdates();
-
-	// Drain agent-injected StatusChanges into mFrameInputs so they ride the same broadcast / CRC / replay channel
-	// as real spawns. Entries not consumable this update stay in the map (deferred) and apply on the first update
-	// that can take them, matching the paused deferral. Whole-map defers: the update won't tick (mfLastDeltaTime == 0:
-	// paused / zero-accumulated ticks — the per-tick consumer loop won't run and the next BuildFrameInputs wipes
-	// mFrameInputs); replay playback (LoadDifference overwrites mFrameInputs from the recorded stream); or a client
-	// sits in mClientsWaitingForSpawn (an agent spawn landing the same tick would corrupt the spawn-assignment-by-
-	// snapshot-diff zip). Per-coord defers below: a coord the tick loop won't simulate (inactive, or no committed
-	// pCurrent frame yet).
-	if (gpGame->mfLastDeltaTime > 0.0f && !gpGame->mGameSaveLoad.IsReplaying() && gpServerSession->mpClientManager->mClientsWaitingForSpawn.empty())
-	{
-		for (auto it = mPendingAgentStatusChanges.begin(); it != mPendingAgentStatusChanges.end();)
-		{
-			const engine::GridCoord& rCoord = it->first;
-			auto framesIt = gpGame->mCoordFrames.find(rCoord);
-			bool bActive = std::find(gpGame->mActiveCoords.begin(), gpGame->mActiveCoords.end(), rCoord) != gpGame->mActiveCoords.end();
-			if (!bActive || framesIt == gpGame->mCoordFrames.end() || framesIt->second.pCurrent == nullptr)
+			bool bIsFlagship = false;
+			engine::GridCoord spawnFleetWantedCoord {};
+			uint8_t uiSpawnPendingFleetTicks = 0;
+			if (rClientSpawnInformation.iFleetIndex >= 0)
 			{
-				++it;
-				continue;
+				ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rClientSpawnInformation.clientGuid, rClientSpawnInformation.iFleetIndex, rClientSpawnInformation.iMemberIndex);
+				bIsFlagship = result.bIsFlagship;
+				spawnFleetWantedCoord = result.fleetWantedCoord;
+				uiSpawnPendingFleetTicks = result.uiPendingFleetWantedCoordTicks;
 			}
-			std::vector<StatusChange>& rStatusChanges = gpGame->mFrameInputs.try_emplace(rCoord).first->second.statusChanges;
-			rStatusChanges.insert(rStatusChanges.end(), it->second.begin(), it->second.end());
-			// Sort by type: the broadcast batch emits type-grouped ascending (SerializeStatusChangeBatch) and clients
-			// apply in that wire order, so the server must tick the same order or swap-pop indices diverge → CRC desync.
-			// Stable sort preserves within-type insertion order, matching the serializer's stable type-group scan.
-			std::stable_sort(rStatusChanges.begin(), rStatusChanges.end(), [](const StatusChange& rLhs, const StatusChange& rRhs) { return rLhs.eType < rRhs.eType; });
-			it = mPendingAgentStatusChanges.erase(it);
-		}
-	}
 
-	// Save StatusChanges for broadcasting (transfers handled separately in HarvestTransfers)
-	for (const auto& [rCoord, rFrameInput] : gpGame->mFrameInputs)
-	{
-		if (!rFrameInput.statusChanges.empty())
+			StatusChange spawnChange {.eType = StatusChangeType::kSpawnPlayer, .data = SpawnPlayerData{.iGlobalId = iGlobalId, .bIsFlagship = bIsFlagship, .fleetWantedCoord = spawnFleetWantedCoord, .uiPendingFleetWantedCoordTicks = uiSpawnPendingFleetTicks}};
+			gpGame->mFrameInputs.try_emplace(engine::kOriginCoord).first->second.statusChanges.push_back(spawnChange);
+			LOG(kNetwork, kVerbose, "ServerBroadcaster::BuildFrameInputs::kSpawnPlayer Client: {} GlobalId: {} Coord: ({},{}) Flagship: {}", rClientSpawnInformation.iClientId, iGlobalId, engine::kOriginCoord.x, engine::kOriginCoord.y, bIsFlagship);
+		}
+
+		// Inject weapon mode toggle StatusChanges
+		ProcessUpdatePlayerRequests();
+
+		// Tick fleet timers and inject fleet coord updates only when this update advances. Subtracting
+		// a zero delta does not make TickFleetTimers inert: an already-expired timer can still fire,
+		// consume random state, and queue an update that no frame tick could consume. Deferring the
+		// timer and all queued work here applies them in order on the first advancing update.
+		gpServerSession->mpFleetManager->TickFleetTimers();
+		gpServerSession->mpFleetManager->ProcessFlagshipUpdates();
+
+		// Drain agent-injected StatusChanges into mFrameInputs so they ride the same broadcast / CRC / replay channel
+		// as real spawns. Entries not consumable this update stay in the map (deferred) and apply on the first update
+		// that can take them, matching the paused deferral. Whole-map defers: the update won't tick (mfLastDeltaTime == 0:
+		// paused / zero-accumulated ticks — the per-tick consumer loop won't run and the next BuildFrameInputs wipes
+		// mFrameInputs); replay playback (LoadDifference overwrites mFrameInputs from the recorded stream); or a client
+		// sits in mClientsWaitingForSpawn (an agent spawn landing the same tick would corrupt the spawn-assignment-by-
+		// snapshot-diff zip). Per-coord defers below: a coord the tick loop won't simulate (inactive, or no committed
+		// pCurrent frame yet).
+		if (gpGame->mfLastDeltaTime > 0.0f && !gpGame->mGameSaveLoad.IsReplaying() && gpServerSession->mpClientManager->mClientsWaitingForSpawn.empty())
 		{
-			mBroadcastStatusChanges.insert_or_assign(rCoord, rFrameInput.statusChanges);
+			for (auto it = mPendingAgentStatusChanges.begin(); it != mPendingAgentStatusChanges.end();)
+			{
+				const engine::GridCoord& rCoord = it->first;
+				auto framesIt = gpGame->mCoordFrames.find(rCoord);
+				bool bActive = std::find(gpGame->mActiveCoords.begin(), gpGame->mActiveCoords.end(), rCoord) != gpGame->mActiveCoords.end();
+				if (!bActive || framesIt == gpGame->mCoordFrames.end() || framesIt->second.pCurrent == nullptr)
+				{
+					++it;
+					continue;
+				}
+				std::vector<StatusChange>& rStatusChanges = gpGame->mFrameInputs.try_emplace(rCoord).first->second.statusChanges;
+				rStatusChanges.insert(rStatusChanges.end(), it->second.begin(), it->second.end());
+				// Sort by type: the broadcast batch emits type-grouped ascending (SerializeStatusChangeBatch) and clients
+				// apply in that wire order, so the server must tick the same order or swap-pop indices diverge → CRC desync.
+				// Stable sort preserves within-type insertion order, matching the serializer's stable type-group scan.
+				std::stable_sort(rStatusChanges.begin(), rStatusChanges.end(), [](const StatusChange& rLeft, const StatusChange& rRight)
+				{
+					return rLeft.eType < rRight.eType;
+				});
+				it = mPendingAgentStatusChanges.erase(it);
+			}
 		}
-	}
 
-	// Take snapshot of player IDs at spawn coordinates for FinalizeNewClients
-	if (!gpServerSession->mpClientManager->mClientsWaitingForSpawn.empty() && gpGame->mCoordFrames.contains(engine::kOriginCoord))
-	{
-		gpServerSession->mpClientManager->RefreshPreSpawnSnapshot();
-	}
-	else
-	{
-		gpServerSession->mpClientManager->mPreSpawnPlayerIds.clear();
+		// Save StatusChanges for broadcasting (transfers handled separately in HarvestTransfers)
+		for (const auto& [rCoord, rFrameInput] : gpGame->mFrameInputs)
+		{
+			if (!rFrameInput.statusChanges.empty())
+			{
+				mBroadcastStatusChanges.insert_or_assign(rCoord, rFrameInput.statusChanges);
+			}
+		}
+
+		// Take snapshot of player IDs at spawn coordinates for FinalizeNewClients
+		if (!gpServerSession->mpClientManager->mClientsWaitingForSpawn.empty() && gpGame->mCoordFrames.contains(engine::kOriginCoord))
+		{
+			gpServerSession->mpClientManager->RefreshPreSpawnSnapshot();
+		}
+		else
+		{
+			gpServerSession->mpClientManager->mPreSpawnPlayerIds.clear();
+		}
 	}
 }
 
-void ServerBroadcaster::BroadcastStatusChanges(int64_t iTick)
+void ServerBroadcaster::BuildTickPublication(int64_t iTick, engine::ServerSessionRuntime& rRuntime, common::ScopedWorkbufferArena& rPublicationArena)
 {
+	(void)rPublicationArena;
 	const std::unordered_map<engine::GridCoord, std::vector<StatusChange>>& rTransfers = gpServerSession->mpTransferManager->mTransfers;
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	int64_t iActiveCoordCount = std::ssize(gpGame->mActiveCoords);
 
-	// Buffer per-coord frame data into ring buffers. Each coord's status changes (spawns + transfers)
-	// are gathered into a contiguous workbuffer run; the per-coord GridUpdateData spans into it.
+	auto gridUpdatesAlloc = rWorkbuffer.PushBuffer<std::pair<engine::GridCoord, engine::GridUpdateData>*>(iActiveCoordCount * static_cast<int64_t>(sizeof(std::pair<engine::GridCoord, engine::GridUpdateData>)));
+	std::pair<engine::GridCoord, engine::GridUpdateData>* pGridUpdates = gridUpdatesAlloc;
+	int64_t iGridUpdateCount = 0;
+	common::ScopedWorkbufferArena statusChanges = rWorkbuffer.Push();
+	for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
 	{
-		auto gridUpdatesAlloc = rWorkbuffer.PushBuffer<std::pair<engine::GridCoord, engine::GridUpdateData>*>(iActiveCoordCount * static_cast<int64_t>(sizeof(std::pair<engine::GridCoord, engine::GridUpdateData>)));
-		std::pair<engine::GridCoord, engine::GridUpdateData>* pGridUpdates = gridUpdatesAlloc;
-		int64_t iGridUpdateCount = 0;
-
-		common::ScopedWorkbufferArena statusChanges = rWorkbuffer.Push();
-		for (const engine::GridCoord& rCoord : gpGame->mActiveCoords)
+		engine::GridUpdateData updateData {};
+		updateData.sharedCrc = gpGame->CurrentFrame(rCoord).postRender.sharedCrc;
+		int64_t iRunStart = statusChanges.Count<StatusChange>();
+		if (auto it = mBroadcastStatusChanges.find(rCoord); it != mBroadcastStatusChanges.end())
 		{
-			engine::GridUpdateData updateData {};
-			updateData.sharedCrc = gpGame->CurrentFrame(rCoord).postRender.sharedCrc;
-
-			int64_t iRunStart = std::ssize(statusChanges.Span<const StatusChange>());
-			auto statusChangesIt = mBroadcastStatusChanges.find(rCoord);
-			if (statusChangesIt != mBroadcastStatusChanges.end())
+			for (const StatusChange& rChange : it->second)
 			{
-				for (const StatusChange& rStatusChange : statusChangesIt->second)
-				{
-					statusChanges.PushBack(rStatusChange);
-				}
+				statusChanges.PushBack(rChange);
 			}
-			auto transferIt = rTransfers.find(rCoord);
-			if (transferIt != rTransfers.end())
-			{
-				for (const StatusChange& rTransfer : transferIt->second)
-				{
-					statusChanges.PushBack(rTransfer);
-				}
-			}
-
-			int64_t iRunCount = std::ssize(statusChanges.Span<const StatusChange>()) - iRunStart;
-			if (iRunCount > 0)
-			{
-				updateData.statusChanges = statusChanges.Span<const StatusChange>().subspan(static_cast<size_t>(iRunStart), static_cast<size_t>(iRunCount));
-				LOG(kNetwork, kVerbose, "ServerBroadcaster::BroadcastStatusChanges Coord: ({},{}) Tick: {} StatusChanges: {}", rCoord.x, rCoord.y, iTick, updateData.statusChanges.size());
-			}
-
-			pGridUpdates[iGridUpdateCount++] = {rCoord, updateData};
 		}
-		engine::gpServer->BufferFrame(iTick, std::span<const std::pair<engine::GridCoord, engine::GridUpdateData>>(pGridUpdates, static_cast<size_t>(iGridUpdateCount)));
+		if (auto it = rTransfers.find(rCoord); it != rTransfers.end())
+		{
+			for (const StatusChange& rChange : it->second)
+			{
+				statusChanges.PushBack(rChange);
+			}
+		}
+		int64_t iRunCount = statusChanges.Count<StatusChange>() - iRunStart;
+		if (iRunCount > 0)
+		{
+			updateData.statusChanges = {statusChanges.Data<StatusChange>() + iRunStart, static_cast<size_t>(iRunCount)};
+			LOG(kNetwork, kVerbose, "ServerBroadcaster::BuildTickPublication Coord: ({},{}) Tick: {} StatusChanges: {}", rCoord.x, rCoord.y, iTick, iRunCount);
+		}
+		pGridUpdates[iGridUpdateCount++] = {rCoord, updateData};
 	}
 
-	// Buffer full frame snapshots for debug frame requests
+	if constexpr (kbDesyncDebugFrames)
 	{
 		auto fullFramesAlloc = rWorkbuffer.PushBuffer<std::pair<engine::GridCoord, const game::Frame*>*>(iActiveCoordCount * static_cast<int64_t>(sizeof(std::pair<engine::GridCoord, const game::Frame*>)));
 		std::pair<engine::GridCoord, const game::Frame*>* pFullFrames = fullFramesAlloc;
@@ -171,14 +165,11 @@ void ServerBroadcaster::BroadcastStatusChanges(int64_t iTick)
 		{
 			pFullFrames[iFullFrameCount++] = {rCoord, &gpGame->CurrentFrame(rCoord)};
 		}
-		engine::gpServer->BufferFullFrame(iTick, std::span<const std::pair<engine::GridCoord, const game::Frame*>>(pFullFrames, static_cast<size_t>(iFullFrameCount)));
+		rRuntime.PublishTick(iTick, pGridUpdates, iGridUpdateCount, pFullFrames, iFullFrameCount);
 	}
-
-	// Send per-client updates (server iterates each client's subscribed slots internally)
-	std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
-	for (engine::ClientConnection& rClient : rClients)
+	else
 	{
-		engine::gpServer->SendUpdate(rClient, iTick);
+		rRuntime.PublishTick(iTick, pGridUpdates, iGridUpdateCount, nullptr, 0);
 	}
 }
 

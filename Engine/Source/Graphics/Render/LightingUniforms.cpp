@@ -268,6 +268,30 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fSmokeShadowIntensity = gSmokeShadowIntensity.Get();
 }
 
+void RenderLightingSpreadIndirect(int64_t iCommandBuffer)
+{
+	// Gate the serialized spread chain on this frame's light deposit. Every spread pass begins with LOAD_OP_CLEAR
+	// over all 6 attachments, so a zero-instance draw leaves exactly what the radial gather over an all-zero
+	// deposit would have produced — the empty-scene output is identical (verified byte-for-byte against the
+	// ungated build), just far cheaper: idle kGpuTimerLightingSpread measured 645 us -> 84-92 us (Debug, 1600x904).
+	// Must run after FrameInterpolate::EndRender (the deposit writers accumulate giLightingDepositInstances
+	// there), which is why this is a separate entry point from RenderLightingMain.
+	int64_t iInstanceCount = giLightingDepositInstances > 0 ? 1 : 0;
+
+	// All kiMaxSpreadPasses pipelines, not just the gSpreadPassCount active ones. Which passes the Main CB
+	// actually draws is decided at record time, and the slots come back zeroed from every pipeline recreate
+	// (PipelineCreator::CreateHostVisibleIndirectBuffer), so any pass left unwritten here would draw zero
+	// instances and black out lighting. Writing the full array keeps this loop independent of the recorded
+	// pass count — 40 stores, no reason to make it conditional.
+	// Only the current framebuffer's slot (WriteIndirectBuffer indexes by iCommandBuffer), never all
+	// miIndirectSlotCount slots: the others belong to frames still in flight on the GPU, and that
+	// per-framebuffer slot indexing is what makes this host-visible write race-free.
+	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
+	{
+		gpPipelineManager->mSpreadPipelines[iPass].WriteIndirectBuffer(iCommandBuffer, iInstanceCount);
+	}
+}
+
 } // namespace engine
 
 #endif // defined(BT_CLIENT)

@@ -8,54 +8,87 @@
 namespace engine
 {
 
-static constexpr const char* kpcSectionNames[] =
-{
-	"Pbr",
-	"Terrain",
-	"Water",
-	"Lighting",
-	"Shadow",
-	"Sun/Moon",
-	"Misc",
-	"Sound",
-	"Hex Shield",
-	"Smoke",
-	"Wind",
-	"Particles",
-};
-static_assert(std::size(kpcSectionNames) == static_cast<size_t>(TweakSection::kCount));
+// Registry storage. Startup-only writes, immutable during rendering, and fixed-size so registration never allocates.
+static TweakSectionDesc sSectionDescs[kiMaxTweakSections] {};
+static int64_t siSectionCount = 0;
 
-using RenderSectionFunc = void (TweaksScreenBase::*)();
-static constexpr RenderSectionFunc kRenderSectionFunctions[] =
+// Order-sensitive fold of the registered stable keys: the per-key CRCs are hashed as one byte run, so a
+// reordering, a rename, or a count change all produce a different value.
+static common::crc_t ComputeLayoutCrc()
 {
-	&TweaksScreenBase::RenderPbrSection,
-	&TweaksScreenBase::RenderTerrainSection,
-	&TweaksScreenBase::RenderWaterSection,
-	&TweaksScreenBase::RenderLightingSection,
-	&TweaksScreenBase::RenderShadowSection,
-	&TweaksScreenBase::RenderSunMoonSection,
-	&TweaksScreenBase::RenderMiscSection,
-	&TweaksScreenBase::RenderSoundSection,
-	&TweaksScreenBase::RenderHexShieldSection,
-	&TweaksScreenBase::RenderSmokeSection,
-	&TweaksScreenBase::RenderWindSection,
-	&TweaksScreenBase::RenderParticlesSection,
-};
-static_assert(std::size(kRenderSectionFunctions) == static_cast<size_t>(TweakSection::kCount));
+	common::crc_t crcKeys[kiMaxTweakSections] {};
+	for (int64_t i = 0; i < siSectionCount; ++i)
+	{
+		crcKeys[i] = common::Crc(sSectionDescs[i].stableKey);
+	}
+	return common::Crc(crcKeys, siSectionCount);
+}
 
 // UI scale factor for TweaksScreen
 static constexpr float kfUiScale = 1.5f;
 
+void TweaksScreenBase::RegisterSection(int64_t& riSection, const TweakSectionDesc& rDesc)
+{
+	ASSERT(riSection == kiInvalidTweakSection);
+	ASSERT(siSectionCount < kiMaxTweakSections);
+	riSection = siSectionCount;
+	sSectionDescs[siSectionCount] = rDesc;
+	++siSectionCount;
+}
+
+int64_t TweaksScreenBase::SectionCount()
+{
+	return siSectionCount;
+}
+
+const TweakSectionDesc& TweaksScreenBase::GetSection(int64_t iSection)
+{
+	return sSectionDescs[iSection];
+}
+
+common::Flags<TweakSectionFlags> TweaksScreenBase::AllSectionFlags()
+{
+	return static_cast<TweakSectionFlags>((1u << siSectionCount) - 1u);
+}
+
+void RegisterEngineTweakSections()
+{
+	TweaksScreenBase::RegisterSection(giTweakSectionPbr, {.displayName = "Pbr", .stableKey = "Pbr",
+		.pfnRender = [](TweaksScreenBase& rScreen) { rScreen.RenderPbrSection(); }});
+	TweaksScreenBase::RegisterSection(giTweakSectionTerrain, {.displayName = "Terrain", .stableKey = "Terrain",
+		.pfnRender = [](TweaksScreenBase& rScreen) { rScreen.RenderTerrainSection(); }});
+	TweaksScreenBase::RegisterSection(giTweakSectionWater, {.displayName = "Water", .stableKey = "Water",
+		.pfnRender = [](TweaksScreenBase& rScreen) { rScreen.RenderWaterSection(); }});
+	TweaksScreenBase::RegisterSection(giTweakSectionLighting, {.displayName = "Lighting", .stableKey = "Lighting",
+		.pfnRender = [](TweaksScreenBase& rScreen) { rScreen.RenderLightingSection(); }});
+	TweaksScreenBase::RegisterSection(giTweakSectionShadow, {.displayName = "Shadow", .stableKey = "Shadow",
+		.pfnRender = [](TweaksScreenBase& rScreen) { rScreen.RenderShadowSection(); }});
+	TweaksScreenBase::RegisterSection(giTweakSectionSunMoon, {.displayName = "Sun/Moon", .stableKey = "SunMoon",
+		.pfnRender = [](TweaksScreenBase& rScreen) { rScreen.RenderSunMoonSection(); }});
+	TweaksScreenBase::RegisterSection(giTweakSectionMisc, {.displayName = "Misc", .stableKey = "Misc",
+		.pfnRender = [](TweaksScreenBase& rScreen) { rScreen.RenderMiscSection(); }});
+	TweaksScreenBase::RegisterSection(giTweakSectionSound, {.displayName = "Sound", .stableKey = "Sound",
+		.pfnRender = [](TweaksScreenBase& rScreen) { rScreen.RenderSoundSection(); }});
+	TweaksScreenBase::RegisterSection(giTweakSectionSmoke, {.displayName = "Smoke", .stableKey = "Smoke",
+		.pfnRender = [](TweaksScreenBase& rScreen) { rScreen.RenderSmokeSection(); }});
+	TweaksScreenBase::RegisterSection(giTweakSectionWind, {.displayName = "Wind", .stableKey = "Wind",
+		.pfnRender = [](TweaksScreenBase& rScreen) { rScreen.RenderWindSection(); }});
+}
+
 TweaksScreenBase::TweaksScreenBase()
 {
+	// Every section must already be registered; SectionCount() below is the final count. Registration runs
+	// from Main.cpp rather than here because device loss recreates Graphics, and so this object, in place -
+	// registering here would double-register.
+
 	// Initialize staggered window positions (Y set to 0, will use mfToggleBarBottom at runtime)
 	constexpr float kfStartX = 10.0f;
 	constexpr float kfOffsetX = 30.0f;
 	const float fUiScale = UiScale();
 
-	for (size_t i = 0; i < static_cast<size_t>(TweakSection::kCount); ++i)
+	for (int64_t i = 0; i < SectionCount(); ++i)
 	{
-		mWindowPositions[i] = ImVec2((kfStartX + i * kfOffsetX) * fUiScale, 0.0f);
+		mWindowPositions[i] = ImVec2((kfStartX + static_cast<float>(i) * kfOffsetX) * fUiScale, 0.0f);
 	}
 }
 
@@ -234,18 +267,18 @@ void TweaksScreenBase::Render()
 		RenderToggleBar();
 
 		// Render visible section windows (only the one with active slider when dragging)
-		for (int64_t i = 0; i < static_cast<int64_t>(TweakSection::kCount); ++i)
+		for (int64_t i = 0; i < SectionCount(); ++i)
 		{
 			if (!mActiveSlider.empty())
 			{
 				if (i == miActiveSliderSection)
 				{
-					RenderSectionWindow(static_cast<TweakSection>(i));
+					RenderSectionWindow(i);
 				}
 			}
 			else if (mSectionVisible & SectionFlag(i))
 			{
-				RenderSectionWindow(static_cast<TweakSection>(i));
+				RenderSectionWindow(i);
 			}
 		}
 
@@ -274,7 +307,7 @@ void TweaksScreenBase::RenderToggleBar()
 	float fContentWidth = rIo.DisplaySize.x - ImGui::GetStyle().WindowPadding.x * 2.0f;
 
 	// Calculate button width to fill available space
-	float fButtonWidth = (fContentWidth - ImGui::GetStyle().ItemSpacing.x * (static_cast<int64_t>(TweakSection::kCount) - 1)) / static_cast<int64_t>(TweakSection::kCount);
+	float fButtonWidth = (fContentWidth - ImGui::GetStyle().ItemSpacing.x * (SectionCount() - 1)) / SectionCount();
 
 	// Render toggle buttons with alpha=0 when slider is active to preserve layout
 	if (bSliderActive)
@@ -284,13 +317,13 @@ void TweaksScreenBase::RenderToggleBar()
 
 	// Center text within buttons
 	ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.5f, 0.5f));
-	for (int64_t i = 0; i < static_cast<int64_t>(TweakSection::kCount); ++i)
+	for (int64_t i = 0; i < SectionCount(); ++i)
 	{
 		if (i > 0)
 		{
 			ImGui::SameLine();
 		}
-		if (ImGui::Selectable(kpcSectionNames[i], mSectionVisible & SectionFlag(i), 0, ImVec2(fButtonWidth, 0.0f)))
+		if (ImGui::Selectable(GetSection(i).displayName.data(), mSectionVisible & SectionFlag(i), 0, ImVec2(fButtonWidth, 0.0f)))
 		{
 			mSectionVisible.Toggle(SectionFlag(i));
 		}
@@ -338,26 +371,44 @@ void TweaksScreenBase::WrapperSeparatorText(std::string_view label)
 	}
 }
 
-void TweaksScreenBase::SaveState(common::Flags<TweakSectionFlags>& rSectionVisible, ImVec2* pWindowPositions, int8_t* pActiveSubtab, common::Flags<TweakSectionFlags>& rSectionCollapsed) const
+void TweaksScreenBase::SaveState(TweakSectionState& rState) const
 {
-	rSectionVisible = mSectionVisible;
-	std::memcpy(pWindowPositions, mWindowPositions, sizeof(mWindowPositions));
-	std::memcpy(pActiveSubtab, mActiveSubtab, sizeof(mActiveSubtab));
-	rSectionCollapsed = mSectionCollapsed;
+	// Clear first so unregistered slots and uiPad are written as zeros: two saves of unchanged settings must be byte-identical.
+	rState = {};
+
+	rState.visible = mSectionVisible;
+	rState.collapsed = mSectionCollapsed;
+	for (int64_t i = 0; i < kiMaxTweakSections; ++i)
+	{
+		rState.fWindowPositionX[i] = mWindowPositions[i].x;
+		rState.fWindowPositionY[i] = mWindowPositions[i].y;
+	}
+	std::memcpy(rState.iActiveSubtab, mActiveSubtab, sizeof(mActiveSubtab));
+	rState.crcLayout = ComputeLayoutCrc();
 }
 
-void TweaksScreenBase::LoadState(common::Flags<TweakSectionFlags> sectionVisible, const ImVec2* pWindowPositions, const int8_t* pActiveSubtab, common::Flags<TweakSectionFlags> sectionCollapsed)
+void TweaksScreenBase::LoadState(const TweakSectionState& rState)
 {
-	mSectionVisible = sectionVisible;
-	std::memcpy(mWindowPositions, pWindowPositions, sizeof(mWindowPositions));
-	std::memcpy(mActiveSubtab, pActiveSubtab, sizeof(mActiveSubtab));
-	mSectionCollapsed = sectionCollapsed;
-	mApplySubtab = kAllSectionFlags;
+	if (rState.crcLayout != ComputeLayoutCrc())
+	{
+		// The registered section set changed since the save, so its dense indices no longer name the same
+		// sections. Discard the layout and keep the constructor defaults.
+		LOG(kDefault, kWarning, "LoadTweaks section layout changed, using default layout");
+		return;
+	}
+
+	mSectionVisible = rState.visible;
+	mSectionCollapsed = rState.collapsed;
+	for (int64_t i = 0; i < kiMaxTweakSections; ++i)
+	{
+		mWindowPositions[i] = ImVec2(rState.fWindowPositionX[i], rState.fWindowPositionY[i]);
+	}
+	std::memcpy(mActiveSubtab, rState.iActiveSubtab, sizeof(mActiveSubtab));
+	mApplySubtab = AllSectionFlags();
 }
 
-void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
+void TweaksScreenBase::RenderSectionWindow(int64_t iSection)
 {
-	int64_t iSection = static_cast<int64_t>(eSection);
 	bool bHasActiveSlider = (!mActiveSlider.empty() && miActiveSliderSection == iSection);
 
 	// Make window decorations transparent when a slider is active
@@ -374,7 +425,7 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 	ImGui::SetNextWindowPos(f2InitialPosition, ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowCollapsed(mSectionCollapsed & SectionFlag(iSection), ImGuiCond_FirstUseEver);
 	bool bSectionVisible = (mSectionVisible & SectionFlag(iSection)); // ImGui::Begin writes the close-button [x] state back through this bool*
-	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &bSectionVisible, ImGuiWindowFlags_AlwaysAutoResize);
+	ImGui::Begin(GetSection(iSection).displayName.data(), bHasActiveSlider ? nullptr : &bSectionVisible, ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * kfUiScale);
 	mWindowPositions[iSection] = ImGui::GetWindowPos();
 	mSectionCollapsed.Set(SectionFlag(iSection), ImGui::IsWindowCollapsed());
@@ -383,7 +434,7 @@ void TweaksScreenBase::RenderSectionWindow(TweakSection eSection)
 		mSectionVisible.Set(SectionFlag(iSection), bSectionVisible);
 	}
 
-	(this->*kRenderSectionFunctions[iSection])();
+	GetSection(iSection).pfnRender(*this);
 
 	ImGui::PopFont();
 	ImGui::End();
@@ -411,7 +462,7 @@ void TweaksScreenBase::RunSliderAuditFrame()
 		}
 
 		// Force every section to expose its `miAuditFrame`-th subtab during the synthetic-render pass.
-		for (size_t i = 0; i < static_cast<size_t>(TweakSection::kCount); ++i)
+		for (int64_t i = 0; i < SectionCount(); ++i)
 		{
 			mActiveSubtab[i] = miAuditFrame;
 			mApplySubtab.Set(SectionFlag(i));
@@ -426,9 +477,9 @@ void TweaksScreenBase::RunSliderAuditFrame()
 		static constexpr ImGuiWindowFlags kAuditFlags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus;
 		if (ImGui::Begin("##slider-audit", nullptr, kAuditFlags))
 		{
-			for (size_t i = 0; i < static_cast<size_t>(TweakSection::kCount); ++i)
+			for (int64_t i = 0; i < SectionCount(); ++i)
 			{
-				(this->*kRenderSectionFunctions[i])();
+				GetSection(i).pfnRender(*this);
 			}
 		}
 		ImGui::End();
@@ -438,7 +489,7 @@ void TweaksScreenBase::RunSliderAuditFrame()
 
 		// Restore EVERY frame (not just on completion): the actual UI render later in the same Render() call must draw the user's saved tab, not the audit-cycled one.
 		std::memcpy(mActiveSubtab, mPreAuditSubtab, sizeof(mActiveSubtab));
-		mApplySubtab = kAllSectionFlags;
+		mApplySubtab = AllSectionFlags();
 
 		++miAuditFrame;
 		if (miAuditFrame >= kiAuditFrameCount)

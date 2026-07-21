@@ -67,6 +67,10 @@ struct WindRadialsInterpolate : public Collection<WindRadialsInterpolate>,
 	{
 		return std::tie(rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pfSizes, rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseIntensities, rSelf.pfBaseSizes);
 	}
+	auto PersistentMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseIntensities, rSelf.pfBaseSizes);
+	}
 
 	// Graphics resources
 	static void GraphicsResources();

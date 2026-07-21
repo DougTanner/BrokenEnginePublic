@@ -55,7 +55,7 @@ struct CameraInput
 // Frame
 struct FrameInput
 {
-	static constexpr int64_t kiVersion = 11;
+	static constexpr int64_t kiVersion = 12;
 
 	std::vector<StatusChange> statusChanges;
 

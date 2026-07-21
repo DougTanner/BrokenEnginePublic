@@ -3,6 +3,13 @@
 namespace engine
 {
 
+struct NetworkTimeState
+{
+	bool bFastForward = false;
+	int64_t iExpectedUpdateIntervalMicroseconds = 0;
+	int64_t iExpectedUpdatesPerSecond = 0;
+};
+
 // Packet types for client/server communication
 enum class PacketType : uint8_t
 {
@@ -18,7 +25,7 @@ enum class PacketType : uint8_t
 	kClientHello,
 	kServerConnectionResponse,
 	kClientSubscribe,           // Client requests subscription to a GridCoord
-	kClientUnsubscribe,         // Client releases a coord slot
+	kClientUnsubscribe,         // Client releases a coord slot at the observed epoch
 	kClientResyncRequest,       // Client requests full state re-download after desync recovery
 	kServerSubscribeAccept,     // Server confirms subscription with assigned slot
 	kServerUnsubscribeAck,      // Server confirms unsubscription
@@ -61,7 +68,7 @@ inline constexpr const char* PacketTypeName(PacketType eType)
 }
 
 // Protocol constants
-inline constexpr uint32_t kuiProtocolVersion = 6;
+inline constexpr uint32_t kuiProtocolVersion = 7;
 inline constexpr uint8_t kuiSubscribeRejectSlot = 0xFF; // Sentinel slot in kServerSubscribeAccept: server rejected the subscribe (not adjacent / no free slot)
 inline constexpr uint16_t kuiDefaultPort = 27015;
 inline constexpr int64_t kiMaxResendFrames = 8;
@@ -133,7 +140,7 @@ inline constexpr ClientPacketContract GetClientPacketContract(PacketType eType)
 		case PacketType::kClientDebugFrameRequest: return {17, 17, 8};
 		case PacketType::kClientHello:             return {.iMinSize = 21, .iMaxSize = 101, .iMaxPerTick = 4, .bRequiresHandshake = false}; // pre-handshake by definition
 		case PacketType::kClientSubscribe:         return {9, 9, 64};
-		case PacketType::kClientUnsubscribe:       return {2, 2, 64};
+		case PacketType::kClientUnsubscribe:       return {4, 4, 64};
 		case PacketType::kClientResyncRequest:     return {1, 1, 4};
 		default:                                   return {}; // sentinel: not client-sendable
 	}

@@ -87,7 +87,7 @@ add a call to a new helper:
 
 Where confirmedFrame is the frame at the new confirmed tick.
 
-NEW FUNCTION (in ReconcileReplay.cpp or a new helper in ClientSessionBase.cpp):
+NEW FUNCTION (as a static helper in ReconcileReplay.cpp):
 
   static void RecordInterpolationSnapshot(CoordFrames& rSub, const game::Frame& rFrame)
   {
@@ -276,7 +276,9 @@ Handled naturally by the interpolation function:
 5. SINGLE-PLAYER / OFFLINE MODE
 ================================================================================
 
-No changes needed. When not connected (mpClientNetwork == nullptr),
+No changes needed. When the game session has no accepted connection
+(game::gpClientSession->mpRuntime->mpClient == nullptr, or its public mStateFlags
+lacks engine::Client::ClientStateFlags::kConnectionAccepted),
 iInterpolationCount stays at 0, so the "< 2" check skips interpolation
 and everything renders as today.
 

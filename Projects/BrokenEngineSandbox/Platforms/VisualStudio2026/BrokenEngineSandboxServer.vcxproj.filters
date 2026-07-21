@@ -198,8 +198,8 @@
     <ClInclude Include="..\..\Source\Network\GamePacketType.h">
       <Filter>Game\Network</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.h">
-      <Filter>Engine\Network\Server</Filter>
+    <ClInclude Include="..\..\Source\Network\NetworkSessionContract.h">
+      <Filter>Game\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h">
       <Filter>Engine\Network</Filter>
@@ -216,10 +216,16 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSessionContract.h">
+      <Filter>Engine\Network</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSimulation.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\Server.h">
+      <Filter>Engine\Network\Server</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionRuntime.h">
       <Filter>Engine\Network\Server</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\Server\ServerTypes.h">
@@ -581,13 +587,13 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\Server.cpp">
       <Filter>Engine\Network\Server</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionRuntime.cpp">
+      <Filter>Engine\Network\Server</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerReceive.cpp">
       <Filter>Engine\Network\Server</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSend.cpp">
-      <Filter>Engine\Network\Server</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\Server\ServerSessionBase.cpp">
       <Filter>Engine\Network\Server</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\CrashReport.cpp">

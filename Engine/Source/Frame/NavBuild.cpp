@@ -277,8 +277,7 @@ bool SegmentIntersectsAnyEdge(XMFLOAT2 f2A, XMFLOAT2 f2B, const std::vector<XMFL
 {
 	for (size_t iPoly = 0; iPoly < rPolygonOffsets.size(); ++iPoly)
 	{
-		int32_t iStart = rPolygonOffsets.at(iPoly);
-		int32_t iEnd = (iPoly + 1 < rPolygonOffsets.size()) ? rPolygonOffsets.at(iPoly + 1) : static_cast<int32_t>(rVertices.size());
+		auto [iStart, iEnd] = PolygonRange(rPolygonOffsets, iPoly, static_cast<int32_t>(rVertices.size()));
 		int32_t iCount = iEnd - iStart;
 
 		for (int32_t i = 0; i < iCount; ++i)
@@ -300,8 +299,7 @@ bool MidpointInsideObstacle(XMFLOAT2 f2A, XMFLOAT2 f2B, const std::vector<XMFLOA
 
 	for (size_t iPoly = 0; iPoly < rPolygonOffsets.size(); ++iPoly)
 	{
-		int32_t iStart = rPolygonOffsets.at(iPoly);
-		int32_t iEnd = (iPoly + 1 < rPolygonOffsets.size()) ? rPolygonOffsets.at(iPoly + 1) : static_cast<int32_t>(rVertices.size());
+		auto [iStart, iEnd] = PolygonRange(rPolygonOffsets, iPoly, static_cast<int32_t>(rVertices.size()));
 		int32_t iCount = iEnd - iStart;
 
 		if (PointInPolygon(f2Mid, &rVertices.at(iStart), iCount))
@@ -325,8 +323,7 @@ void BuildVisibilityGraph(NavContour& rContour)
 	std::vector<int32_t> vertexPolygonCount(static_cast<size_t>(iVertexCount), 0);
 	for (size_t iPoly = 0; iPoly < rContour.polygonOffsets.size(); ++iPoly)
 	{
-		int32_t iStart = rContour.polygonOffsets.at(iPoly);
-		int32_t iEnd = (iPoly + 1 < rContour.polygonOffsets.size()) ? rContour.polygonOffsets.at(iPoly + 1) : iVertexCount;
+		auto [iStart, iEnd] = PolygonRange(rContour.polygonOffsets, iPoly, iVertexCount);
 		int32_t iCount = iEnd - iStart;
 		for (int32_t iVertex = iStart; iVertex < iEnd; ++iVertex)
 		{
@@ -543,8 +540,7 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 	int32_t iVertexTotal = static_cast<int32_t>(rContour.vertices.size());
 	for (int32_t iPoly = 0; iPoly < iPolyCount; ++iPoly)
 	{
-		int32_t iStart = rContour.polygonOffsets.at(iPoly);
-		int32_t iEnd = (iPoly + 1 < iPolyCount) ? rContour.polygonOffsets.at(iPoly + 1) : iVertexTotal;
+		auto [iStart, iEnd] = PolygonRange(rContour.polygonOffsets, iPoly, iVertexTotal);
 		int32_t iCount = iEnd - iStart;
 		if (iCount < 3)
 		{

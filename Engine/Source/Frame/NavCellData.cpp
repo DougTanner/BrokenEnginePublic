@@ -22,8 +22,7 @@ void DebugCheckCrossingEdges([[maybe_unused]] const NavData& rNavData)
 		int32_t iPolygonCount = static_cast<int32_t>(rNavData.polygonOffsets.size());
 		for (int32_t iPolyA = 0; iPolyA < iPolygonCount; ++iPolyA)
 		{
-			int32_t iStartA = rNavData.polygonOffsets.at(iPolyA);
-			int32_t iEndA = (iPolyA + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPolyA + 1) : iVertexCount;
+			auto [iStartA, iEndA] = PolygonRange(rNavData.polygonOffsets, iPolyA, iVertexCount);
 			int32_t iCountA = iEndA - iStartA;
 			if (iCountA < 2)
 			{
@@ -39,8 +38,7 @@ void DebugCheckCrossingEdges([[maybe_unused]] const NavData& rNavData)
 
 				for (int32_t iPolyB = iPolyA; iPolyB < iPolygonCount; ++iPolyB)
 				{
-					int32_t iStartB = rNavData.polygonOffsets.at(iPolyB);
-					int32_t iEndB = (iPolyB + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPolyB + 1) : iVertexCount;
+					auto [iStartB, iEndB] = PolygonRange(rNavData.polygonOffsets, iPolyB, iVertexCount);
 					int32_t iCountB = iEndB - iStartB;
 					if (iCountB < 2)
 					{
@@ -150,8 +148,7 @@ void BuildNavAdjacency(NavData& rNavData)
 	}
 	for (int32_t iPoly = 0; iPoly < iPolygonCount; ++iPoly)
 	{
-		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
-		int32_t iEnd = (iPoly + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPoly + 1) : iVertexCount;
+		auto [iStart, iEnd] = PolygonRange(rNavData.polygonOffsets, iPoly, iVertexCount);
 		if (iEnd - iStart < 2)
 		{
 			continue;
@@ -184,8 +181,7 @@ void BuildNavAdjacency(NavData& rNavData)
 	}
 	for (int32_t iPoly = 0; iPoly < iPolygonCount; ++iPoly)
 	{
-		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
-		int32_t iEnd = (iPoly + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPoly + 1) : iVertexCount;
+		auto [iStart, iEnd] = PolygonRange(rNavData.polygonOffsets, iPoly, iVertexCount);
 		int32_t iCount = iEnd - iStart;
 		if (iCount < 2)
 		{
@@ -312,8 +308,7 @@ void BuildNavAcceleration(NavData& rNavData)
 	rNavData.polygonMax.resize(iPolygonCount);
 	for (int32_t iPoly = 0; iPoly < iPolygonCount; ++iPoly)
 	{
-		int32_t iStart = rNavData.polygonOffsets.at(iPoly);
-		int32_t iEnd = (iPoly + 1 < iPolygonCount) ? rNavData.polygonOffsets.at(iPoly + 1) : iVertexCount;
+		auto [iStart, iEnd] = PolygonRange(rNavData.polygonOffsets, iPoly, iVertexCount);
 		int32_t iCount = iEnd - iStart;
 
 		float fPolyMinX = std::numeric_limits<float>::max();

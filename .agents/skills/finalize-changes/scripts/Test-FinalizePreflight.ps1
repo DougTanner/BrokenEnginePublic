@@ -1,7 +1,7 @@
 # Canonical read-only structural preflight for finalization: identity, Git state,
-# WorktreeCli capability, and wrapper-claim checks. Invoked once per landing at the
-# pre-mutation checkpoint inside the landing transaction (other checkpoint labels
-# remain accepted for the primary-commit route).
+# WorktreeCli capability, wrapper-claim, and approval-bound staged-request checks.
+# Approval preparation invokes after-reconciliation checks; landing invokes the
+# pre-mutation check or the post-mutation crash-recovery check.
 #
 # Capability profile: pass -HasPlanRowClaim only when finalization owns a row claim.
 # The machine-local plan queue never appears in the session diff, so landing takes no
@@ -29,11 +29,19 @@ param(
 	[string] $ExpectedPrimaryTip,
 	[string] $SessionOwner,
 	[string] $WaitSeconds = '60',
-	[switch] $HasPlanRowClaim
+	[switch] $HasPlanRowClaim,
+	[Parameter(Mandatory = $true)]
+	[ValidateSet('none', 'list')]
+	[string] $PlanAddRequestDisposition,
+	[string[]] $PlanAddRequestPaths,
+	[string[]] $PlanAddRequestSha256,
+	[string] $PlanAddRequestItemsJson
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$planAddRequestPathsBound = $PSBoundParameters.ContainsKey('PlanAddRequestPaths')
+$planAddRequestSha256Bound = $PSBoundParameters.ContainsKey('PlanAddRequestSha256')
 $workflowModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
 if (-not (Test-Path -LiteralPath $workflowModule)) {
 	$workflowModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
@@ -51,6 +59,7 @@ $result = [ordered]@{
 	tips = [ordered]@{ baseline = $Baseline; current = $null; primary = $null; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip }
 	worktreeCli = [ordered]@{ outputPath = $null; outputLinkTarget = $null; path = $null; capabilityResult = 'not-checked'; requiredCapabilities = @() }
 	claim = [ordered]@{ classification = if ($Mode -eq 'primary-commit') { 'not-required' } else { 'not-checked' }; owner = $SessionOwner; worktree = $null; pid = $null; processStartUtc = $null; actualProcessStartUtc = $null }
+	planAddRequests = [ordered]@{ disposition = $PlanAddRequestDisposition; items = [Collections.Generic.List[object]]::new() }
 }
 $authoritativeSessionWorktree = $null
 
@@ -173,7 +182,7 @@ function Get-WorktreeRecords([string] $Worktree) {
 
 try {
 	Assert-Input (@('session-landing', 'primary-commit') -ccontains $Mode) "Mode is invalid: '$Mode'."
-	Assert-Input (@('initial', 'after-reconciliation', 'pre-mutation', 'post-mutation') -ccontains $Checkpoint) "Checkpoint is invalid: '$Checkpoint'."
+	Assert-Input (@('initial', 'after-reconciliation', 'pre-mutation', 'post-mutation', 'post-advance-recovery') -ccontains $Checkpoint) "Checkpoint is invalid: '$Checkpoint'."
 	foreach ($value in @($CurrentWorktree, $PrimaryWorktree, $CurrentBranch, $PrimaryBranch, $Baseline)) {
 		Assert-Input (-not [string]::IsNullOrWhiteSpace($value)) 'Required string inputs must not be empty.'
 	}
@@ -189,6 +198,48 @@ try {
 	$parsedWaitSeconds = 0
 	Assert-Input ([int]::TryParse($WaitSeconds, [Globalization.NumberStyles]::None, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsedWaitSeconds)) 'WaitSeconds must be an integer between 1 and 660.'
 	Assert-Input ($parsedWaitSeconds -ge 1 -and $parsedWaitSeconds -le 660) 'WaitSeconds must be between 1 and 660.'
+	$requestPaths = @()
+	$requestHashes = @()
+	if ($planAddRequestPathsBound) { $requestPaths = @($PlanAddRequestPaths) }
+	if ($planAddRequestSha256Bound) { $requestHashes = @($PlanAddRequestSha256) }
+	foreach ($requestPath in $requestPaths) { Assert-Input (-not [string]::IsNullOrWhiteSpace($requestPath)) 'PlanAddRequestPaths contains a null or blank element.' }
+	foreach ($requestHash in $requestHashes) { Assert-Input (-not [string]::IsNullOrWhiteSpace($requestHash)) 'PlanAddRequestSha256 contains a null or blank element.' }
+	if ($PSBoundParameters.ContainsKey('PlanAddRequestItemsJson')) {
+		Assert-Input (-not [string]::IsNullOrWhiteSpace($PlanAddRequestItemsJson)) 'PlanAddRequestItemsJson must not be null or blank.'
+		Assert-Input ($requestPaths.Count -eq 0 -and $requestHashes.Count -eq 0) 'PlanAddRequestItemsJson cannot be combined with request path or hash arrays.'
+		try { $transportItems = @($PlanAddRequestItemsJson | ConvertFrom-Json -Depth 8 -ErrorAction Stop) }
+		catch { Complete-Preflight 1 'error' 'input.invalid' "PlanAddRequestItemsJson is invalid JSON: $($_.Exception.Message)" }
+		$transportPaths = [Collections.Generic.List[string]]::new()
+		$transportHashes = [Collections.Generic.List[string]]::new()
+		$hashPropertyCount = 0
+		foreach ($transportItem in $transportItems) {
+			Assert-Input ($null -ne $transportItem -and $transportItem -isnot [string]) 'PlanAddRequestItemsJson entries must be objects.'
+			$properties = @($transportItem.PSObject.Properties.Name)
+			Assert-Input ($properties -ccontains 'path') 'Every PlanAddRequestItemsJson entry requires path.'
+			$path = [string]$transportItem.path
+			Assert-Input (-not [string]::IsNullOrWhiteSpace($path)) 'PlanAddRequestItemsJson contains a null or blank path.'
+			$transportPaths.Add($path)
+			if ($properties -ccontains 'sha256') {
+				$hash = [string]$transportItem.sha256
+				Assert-Input (-not [string]::IsNullOrWhiteSpace($hash)) 'PlanAddRequestItemsJson contains a null or blank SHA-256.'
+				$transportHashes.Add($hash)
+				++$hashPropertyCount
+			}
+		}
+		Assert-Input ($hashPropertyCount -eq 0 -or $hashPropertyCount -eq $transportItems.Count) 'PlanAddRequestItemsJson must provide SHA-256 for every item or none.'
+		$requestPaths = $transportPaths.ToArray()
+		$requestHashes = $transportHashes.ToArray()
+	}
+	if ($PlanAddRequestDisposition -ceq 'none') {
+		Assert-Input ($requestPaths.Count -eq 0 -and $requestHashes.Count -eq 0) 'PlanAddRequestDisposition none forbids request paths and hashes.'
+	}
+	else {
+		Assert-Input ($Mode -ceq 'session-landing') 'Plan add requests are valid only for session landing.'
+		Assert-Input ($requestPaths.Count -gt 0) 'PlanAddRequestDisposition list requires at least one request path.'
+		if ($Checkpoint -in @('pre-mutation', 'post-advance-recovery')) { Assert-Input ($requestHashes.Count -eq $requestPaths.Count) 'Landing and recovery request certification require one SHA-256 per request path.' }
+		else { Assert-Input ($requestHashes.Count -eq 0 -or $requestHashes.Count -eq $requestPaths.Count) 'Request SHA-256 count must be zero or match request paths.' }
+		foreach ($requestHash in $requestHashes) { Assert-Input ($requestHash -cmatch '^[0-9a-f]{64}$') 'Request SHA-256 values must be 64 lowercase hexadecimal characters.' }
+	}
 
 	if ($Mode -eq 'session-landing') {
 		Assert-Input ($SessionOwner -cmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') 'Session landing requires a canonical lowercase SessionOwner GUID.'
@@ -248,6 +299,7 @@ try {
 	if (-not (Test-GitSuccess $currentIdentity @('merge-base', '--is-ancestor', $Baseline, $currentTip)) -or -not (Test-GitSuccess $primaryIdentity @('merge-base', '--is-ancestor', $Baseline, $primaryTip))) { Stop-Validation 'git.baseline-not-ancestor' 'Baseline is not an ancestor of both current and primary tips.' }
 	if ($Mode -eq 'session-landing' -and $Checkpoint -in @('after-reconciliation', 'pre-mutation') -and -not (Test-GitSuccess $currentIdentity @('merge-base', '--is-ancestor', $primaryTip, $currentTip))) { Stop-Validation 'git.session-not-rebased' 'Primary tip is not an ancestor of the reconciled session tip.' }
 	if ($Mode -eq 'session-landing' -and $Checkpoint -eq 'post-mutation' -and $currentTip -cne $primaryTip) { Stop-Validation 'git.post-landing-tip-mismatch' 'Primary and session tips differ after landing.' }
+	if ($Mode -eq 'session-landing' -and $Checkpoint -eq 'post-advance-recovery' -and -not (Test-GitSuccess $primaryIdentity @('merge-base', '--is-ancestor', $currentTip, $primaryTip))) { Stop-Validation 'git.post-landing-not-contained' 'Session tip is not contained in the advanced primary tip.' }
 	foreach ($worktree in @($currentIdentity, $primaryIdentity) | Select-Object -Unique) {
 		foreach ($marker in @('MERGE_HEAD', 'rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'BISECT_LOG', 'sequencer')) {
 			$markerPath = (Invoke-Git $worktree @('rev-parse', '--path-format=absolute', '--git-path', $marker)).Trim()
@@ -255,6 +307,24 @@ try {
 		}
 	}
 	if ($Mode -eq 'session-landing' -and (Invoke-Git $primaryIdentity @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) { Stop-Validation 'git.primary-dirty' 'Primary worktree is not clean for session landing.' }
+	if ($Mode -eq 'session-landing' -and (Invoke-Git $currentIdentity @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) { Stop-Validation 'git.session-dirty' 'Session worktree has remaining staged, unstaged, or untracked status.' }
+
+	if ($PlanAddRequestDisposition -ceq 'list') {
+		$seenRequestIdentities = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+		for ($requestIndex = 0; $requestIndex -lt $requestPaths.Count; ++$requestIndex) {
+			$suppliedPath = $requestPaths[$requestIndex]
+			$candidatePath = if ([IO.Path]::IsPathRooted($suppliedPath)) { $suppliedPath } else { Join-Path $currentIdentity $suppliedPath }
+			$item = Get-Item -LiteralPath $candidatePath -Force -ErrorAction SilentlyContinue
+			if ($null -eq $item -or $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Stop-Validation 'plan-add-request.invalid' "Plan add request must be an ordinary file: '$suppliedPath'." }
+			$identity = Get-ExistingWindowsIdentity $item.FullName 'Plan add request'
+			$relativePath = [IO.Path]::GetRelativePath($currentIdentity, $identity).Replace('\', '/')
+			if ($relativePath -match '(^|/)\.\.(/|$)' -or -not $relativePath.StartsWith('Temp/', [StringComparison]::Ordinal)) { Stop-Validation 'plan-add-request.outside-temp' "Plan add request must resolve beneath session Temp/: '$suppliedPath'." }
+			if (-not $seenRequestIdentities.Add($identity)) { Stop-Validation 'plan-add-request.duplicate' "Plan add request identity was supplied more than once: '$suppliedPath'." }
+			$sha256 = (Get-FileHash -LiteralPath $identity -Algorithm SHA256).Hash.ToLowerInvariant()
+			if ($requestHashes.Count -gt 0 -and ($requestHashes[$requestIndex] -cnotmatch '^[0-9a-f]{64}$' -or $requestHashes[$requestIndex] -cne $sha256)) { Stop-Validation 'plan-add-request.identity-changed' "Plan add request hash differs from its approval-bound identity: '$relativePath'." }
+			$result.planAddRequests.items.Add([ordered]@{ suppliedPath = $suppliedPath; identity = $identity; repositoryRelativePath = $relativePath; bytes = $item.Length; sha256 = $sha256 })
+		}
+	}
 
 	$relativeOutput = 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
 	$primaryOutput = Get-Item -LiteralPath (Join-Path $primaryIdentity $relativeOutput) -Force -ErrorAction Stop
@@ -282,6 +352,11 @@ try {
 		$requiredHelp.Add('WorktreeCli.exe plan row status --repo COMMON-DIR --order PATH --plan PATH [--owner TOKEN]')
 		$requiredHelp.Add('WorktreeCli.exe plan row unclaim --repo COMMON-DIR --order PATH --plan PATH --owner TOKEN')
 		$requiredCapabilities.Add('plan:row:status,unclaim')
+	}
+	if ($PlanAddRequestDisposition -ceq 'list') {
+		$requiredHelp.Add('WorktreeCli.exe plan order add --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL [--request-sha256 SHA256] [--plans-order PATH] [--features-order PATH]')
+		$requiredHelp.Add('WorktreeCli.exe plan order validate --repo COMMON-DIR --worktree CHECKOUT [--plans-order PATH] [--features-order PATH]')
+		$requiredCapabilities.Add('plan:order:add-request-sha256,validate')
 	}
 	$result.worktreeCli.requiredCapabilities = $requiredCapabilities.ToArray()
 	$help = Invoke-NativeText $worktreeCliItem.FullName @('--help') $currentIdentity

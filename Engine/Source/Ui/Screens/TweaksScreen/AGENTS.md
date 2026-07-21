@@ -1,31 +1,20 @@
-# `/Engine/Source/Ui/Screens/TweaksScreen/` - Tweaks Parameter UI (Base)
+# TweaksScreen - Runtime Parameter UI Base
 
-Multi-section ImGui runtime parameter adjustment screen base class, bound to Wrapper globals. Every file is fully `BT_CLIENT`-wrapped (client vcxproj only); the `Render()` body is further gated by `if constexpr (kbDebugInput)` (compile-time elision). Screen state (section visibility, window positions, per-section active subtab, collapsed flag) persists across restarts via `SaveState()`/`LoadState()`; game layer handles disk I/O.
+Client-only, debug-input-gated ImGui screen for engine and game wrapper settings. It persists section visibility, positions, collapse state, and active subtabs; the game layer owns disk I/O.
 
-## Architecture Notes
+## Registration and Layout Contracts
 
-Data-driven: a section-name array plus a parallel function-pointer table drive section rendering, indexed by `TweakSection` and guarded by `static_assert`. Adding a section requires updating the enum, the matching `TweakSectionFlags` bitmask enumerator (kept in lockstep with `TweakSection`), and both arrays in identical order. Display names can lag enum names — `TweakSection::kModel` renders as the "Pbr" section.
-
-**Exclusive-render while dragging**: when a slider is active, only its owning section window renders; others fade to alpha 0 with layout preserved. A sentinel index denotes "slider owned by the toggle bar". Non-slider widgets vary: `ChevronIndexSelector` (discrete-index picker) and `WrapperSeparatorText` push alpha 0 while another slider drags so their layout slot is preserved; the wave-count radio row instead skips rendering entirely, collapsing its slot.
-
-**Subtab restore on load**: tabbed sections persist their active subtab. On load a one-shot apply flag per section drives `ImGuiTabItemFlags_SetSelected` to force-select the saved tab for one frame, then clears so the user can switch freely; while the flag is clear, the rendered tab writes itself back as the active subtab. Engine tabbed sections call `BeginSubtab` for every tab; the game-owned Particle tabs implement the equivalent handshake inline.
-
-**Toggle bar**: full-width bar hosts section show/hide selectables plus a special-cased full-width Sun Angle slider not in the main slider map.
-
-**Slider map lifetime**: `TweaksSliderMap::Get()` returns a function-local static `std::unordered_map` wrapped in `ScopedSuppressAllocationTracking` (STL hash buckets heap-allocate; workbuffer unusable because lifetime is program-wide). Engine and game per-section `.cpp` files populate it at static-init time via anonymous-namespace `TweaksSliderMapRegistrar` instances co-located with the matching `Render*` function — each registrar owns exactly the labels its section consumes. Every registrar feeds one flat keyspace, so keys must be globally unique across all sections; the registrar inserts singly and asserts at static-init on a duplicate key. A slider whose label collides with another section's must pass a distinct `mapKey`.
-
-**Extension hooks**: Pure virtuals for game-only sections (hex shield, particles); default-empty virtual hooks for game-only tabs hosted inside an engine section (e.g., the Wind window's Deposits tab, the Lighting window's Visible/Lighting tabs).
-
-**Ordering convention**: Slider order in each per-section `.cpp` is the source of truth; Wrapper global order in the matching engine `<Tab>WrappersBase.{h,cpp}` (and the game-side per-tab wrapper pair) must match. Composite globals (e.g., `HeightLerpWrapperQuartet`) contribute one slider per member — registrars reach through the struct (`gQuartet.StartHeight`, `gQuartet.EndHeight`, `gQuartet.Low`, `gQuartet.High`) and the four entries occupy adjacent slots in the slider order.
-
-**Label disambiguation**: `WrapperSlider`'s `mapKey` parameter lets display labels drop redundant prefixes while preserving unique ImGui IDs via `"label##mapKey"` when keys collide. Map lookup misses are silent no-ops by design — engine call sites tolerate game-only wrappers; the first-open audit is the backstop. The active-slider tracker is a `std::string_view` of the map key, so every key/label must be a static string literal (dynamic labels would dangle).
-
-**Column layout**: At most one `ImGui::BeginTable("…", N)` per render path — never nest. A `BeginTable` inside a parent table cell inherits that cell's width, squeezing inner columns until the right ones get clipped off-screen. Concretely: if an engine `Render*Section()` calls a game virtual hook whose body opens its own `BeginTable`, the engine side must render its own sliders inline (no outer table wrap) and let the hook own the table at full window width. See `RenderLightingSection` → `RenderLightingEffectsVisibleTab` / `RenderLightingEffectsLightingTab` and `RenderSoundSection` → `RenderSoundEffects` for the canonical pattern.
-
-**Slider width inside tables**: `WrapperSlider`'s `fWidthMultiplier` defaults to `2.0f`, sized for single-column tabs that take the full window width. Inside a multi-column `BeginTable` each cell is already narrower, so callers must pass `1.0f` — otherwise the slider asks for double its cell width, stretching the column off-screen. Canonical: `RenderWaterSection`'s Specular tab (its Depth tab is table-free and keeps the default).
-
-**First-open drift audit** (`kbDebugInput` only): on first open, a multi-frame pass force-rotates each section's active subtab so every slider call site executes; `WrapperSlider` records touched and missed map keys instead of drawing, then warns on orphan map entries and missed lookups. No effect outside debug builds.
+- Sections register once at startup — engine sections first, then game — before the graphics device builds the ImGui screen and before persisted settings load. Registration assigns the dense index identifying a section's window, its bit in the visibility and collapse masks, and its persisted layout slot; the 32-bit mask backing caps the section count. Registration stays out of the screen constructor because device loss reconstructs that object in place.
+- The registry is written only during that startup pass and is immutable while rendering, so render dispatch and label lookup need no synchronization. A section's display label is separate from its persisted stable key, so relabeling a section never discards saved layout.
+- Section layout persists as an engine-owned POD embedded by value in the game settings struct, gated by a CRC over the registered stable keys in order. A mismatch discards the saved layout and keeps constructor defaults, so adding, removing, or reordering sections resets window layout instead of misapplying it.
+- Whole game-owned sections enter through registration; sub-tabs inside an engine section use the base extension hooks.
+- Each slider registrar maps static, globally unique keys to wrappers. Map storage is program-lifetime and allocation suppression is required during its construction. A display label may differ from its key to avoid ImGui ID collisions.
+- Wrapper declaration order and each section's slider order stay aligned. The first-open debug audit visits every subtab and reports missing or orphaned registrations.
+- Tabbed sections persist their active tab. Loading force-selects the saved tab for one frame, after which normal rendering updates the stored selection.
+- A render path uses at most one ImGui table. When a game hook owns a table, its engine parent renders outside one. Sliders inside multi-column tables use the cell-width multiplier rather than the full-window default.
+- While dragging, only the owning section remains visible; the toggle bar and saved window layouts stay stable.
 
 ## See Also
 
-- [Game override](../../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/TweaksScreen/) - `game::TweaksScreen`
+- [Game screens](../../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md) - Screen conventions
+- [Game Tweaks implementation](../../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/TweaksScreen/) - Extension hooks

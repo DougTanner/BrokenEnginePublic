@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-	[string] $Queue,
+	[string] $Queue = 'plans',
 	[string] $Plan
 )
 
@@ -27,7 +27,7 @@ function Complete-Claim([int] $ExitCode, [string] $Status, [string] $Code, [stri
 try {
 	Import-Module (Join-Path $PSScriptRoot 'NextPlanWorkflowCommon.psm1') -Force -DisableNameChecking
 	if ($Queue -cnotin @('plans', 'features')) { throw 'Queue must be plans or features.' }
-	$normalizedPlan = $Plan.Replace('\', '/')
+	$normalizedPlan = if ($null -eq $Plan) { '' } else { $Plan.Replace('\', '/') }
 	if (-not [string]::IsNullOrEmpty($normalizedPlan)) {
 		Assert-NextPlanGitPath $normalizedPlan
 		$expectedPrefix = if ($Queue -ceq 'plans') { 'Documents/Plans/' } else { 'Documents/Features/' }
@@ -36,11 +36,21 @@ try {
 		}
 	}
 	$context = Get-NextPlanContext
+	$status = Invoke-NextPlanProcess 'git.exe' @('-C',$context.Worktree,'status','--porcelain=v1','--untracked-files=all') $context.Worktree
+	if ($status.ExitCode -ne 0) { throw (New-NextPlanStateBlocker 'Could not verify the session worktree is clean before claim.') }
+	if (-not [string]::IsNullOrWhiteSpace($status.Stdout)) {
+		throw (New-NextPlanStateBlocker 'The session worktree must be clean before claim, including after primary-advance recovery.')
+	}
 	$validate = Invoke-NextPlanProcess $context.WorktreeCli @('plan','order','validate','--repo',$context.CommonDirectory,'--worktree',$context.Primary) $context.Worktree
 	$validateJson = ConvertFrom-NextPlanProcessJson $validate 'plan order validate'
 	if ($validate.ExitCode -ne 0 -or -not $validateJson.ok) {
 		$result.claim = $validateJson
 		Complete-Claim ($(if ($validate.ExitCode -eq 2) { 2 } else { 1 })) 'blocked' 'queue.validation-failed' 'Primary queue validation failed.'
+	}
+	$orphanPlans = @($validateJson.notices | Where-Object { $_.code -ceq 'orphan-plan' })
+	if ($orphanPlans.Count -ne 0) {
+		$result.claim = $validateJson
+		Complete-Claim 2 'blocked' 'queue.orphan-plan' 'Primary queue validation reported orphan plan files; repair the queue before claiming.'
 	}
 	$arguments = @(
 		'plan','order','claim-next','--repo',$context.CommonDirectory,

@@ -17,7 +17,7 @@ layout (set = 1, binding = 2) uniform sampler2D noiseTextureSampler;
 layout (set = 1, binding = 3) uniform sampler2D elevationTextureSampler;
 layout (set = 1, binding = 4) uniform sampler2D windTextureSamplerOne;
 layout (set = 1, binding = 5) uniform sampler2D windTextureSamplerTwo;
-layout (set = 1, binding = 6, r32f) uniform writeonly image2D outputImage;
+layout (set = 1, binding = 6, r16f) uniform writeonly image2D outputImage;
 
 // Active tile list: [VkDispatchIndirectCommand (3 uint32s)] [packed tile indices...]
 layout (set = 1, binding = 7) buffer activeTileBuffer
@@ -78,10 +78,23 @@ void main()
 		// f2Texcoord is in [0, 1] by construction (texel center / imageSize) so the inner min(...) is non-negative; outer min clamps to 1.
 		f4Result.x *= min(1.0f, globalLayout.fSmokeEdgeDecayDistanceInv * min(f2Texcoord.x, min(1.0f - f2Texcoord.x, min(f2Texcoord.y, 1.0f - f2Texcoord.y))));
 
-		// Constant subtraction + threshold zeroing to kill low-density smoke faster
-		const float kfSmokeConstantDecay = 0.000000001f;
+		const float kfSmokeHalfMinSubnormal = 5.9604644775390625e-8f;
+		const float kfSmokeHalfFixedPointDecay = 0.99951171875f;
 		const float kfSmokeZeroThreshold = 0.0000001f;
-		f4Result.x -= kfSmokeConstantDecay;
+		// kfSmokeHalfMinSubnormal is 2^-24; kfSmokeHalfFixedPointDecay is 1 - 2^-11.
+		// These exact half-grid identities split the progress proof: the slow-decay branch steps one
+		// positive half encoding, while the faster branch subtracts one minimum half quantum, so the
+		// next R16 store is lower for every positive finite half input.
+		if (globalLayout.fSmokeDecay >= kfSmokeHalfFixedPointDecay)
+		{
+			uint uiHalf = packHalf2x16(vec2(max(0.0f, f4Result.x), 0.0f)) & 0xffffu;
+			uiHalf -= min(uiHalf, 1u);
+			f4Result.x = unpackHalf2x16(uiHalf).x;
+		}
+		else
+		{
+			f4Result.x = max(0.0f, f4Result.x - kfSmokeHalfMinSubnormal);
+		}
 		if (f4Result.x < kfSmokeZeroThreshold)
 			f4Result.x = 0.0f;
 

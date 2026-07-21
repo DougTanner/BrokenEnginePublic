@@ -35,7 +35,7 @@ inline constexpr float kfSpaceshipMaxPusherPushVelocity = kfSpaceshipMaxSpeed * 
 
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 	static constexpr const char* kName = "Spaceships";
 	static constexpr common::crc_t kCrc = common::CrcConsteval("Spaceships");
 
@@ -62,11 +62,10 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 	engine::wind_trail_t* __restrict puiWindTrails = nullptr;
 #endif
 	float* __restrict pfDeltaRotations = nullptr;
-	float* __restrict pfFreezeTimes = nullptr;
 #if defined(BT_CLIENT)
 	float* __restrict pfAnimationTimes = nullptr;
 #endif
-	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets, rSelf.pfDeltaRotations, rSelf.pfFreezeTimes); }
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets, rSelf.pfDeltaRotations); }
 #if defined(BT_CLIENT)
 	auto ClientMembers(this auto&& rSelf)
 	{
@@ -159,6 +158,7 @@ public:
 		float fHealth = 0.0f;
 		float fNextBlasterSpawnTime = 0.0f;
 		float fArrivalGracePeriod = 0.0f;
+		float fDeltaRotation = 0.0f;
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

@@ -160,7 +160,7 @@ bool ServerDisplayContentChanged()
 		Mix(rFrame.interpolate.explosions.iCount);
 	}
 
-	const std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+	const std::vector<engine::ClientConnection>& rClients = engine::gpServer->mClients;
 	Mix(static_cast<int64_t>(rClients.size()));
 	for (const engine::ClientConnection& rClient : rClients)
 	{
@@ -270,7 +270,7 @@ static void PaintGridMap(HDC hdcBuffer, char* pcLine, size_t iLineSize, int iMap
 					}
 				}
 
-				if (!bIsSubscribed && rClient.IsCoordSubscribed(coord))
+				if (!bIsSubscribed && rClient.FindSlotForCoord(coord) >= 0)
 				{
 					bIsSubscribed = true;
 				}
@@ -589,7 +589,7 @@ void PaintServerDisplay(HWND hWnd)
 	float fCurrentTime = rOriginFrame.interpolate.fCurrentTime;
 
 	// Gather connected client info
-	const std::vector<engine::ClientConnection>& rClients = engine::gpServer->GetClients();
+	const std::vector<engine::ClientConnection>& rClients = engine::gpServer->mClients;
 	int64_t iClientCount = static_cast<int64_t>(rClients.size());
 
 	int64_t iActiveCells = static_cast<int64_t>(game::gpGame->mActiveCoords.size());
