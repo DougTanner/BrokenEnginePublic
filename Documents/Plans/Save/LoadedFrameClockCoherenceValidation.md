@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-19T18:49:18.000Z","dependsOn":[]} -->
 # Loaded-Frame Clock Coherence Validation
 
 ## Context

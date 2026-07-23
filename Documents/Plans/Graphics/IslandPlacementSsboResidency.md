@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-02T02:29:26.000Z","dependsOn":[]} -->
 # Island Placement SSBO Residency
 
 Part of the island resident-memory scaling series — see `IslandResidentMemoryScaling_Overview.md`. The smallest resident bucket; lowest priority of the series.

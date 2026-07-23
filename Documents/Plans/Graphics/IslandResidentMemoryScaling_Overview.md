@@ -19,6 +19,14 @@ Island 01's multi-island route table raised the per-template count ~9× to **70 
 
 The heightmap bucket is stored as R16 IEEE half-float (2 bytes/texel, dequantized to float on CPU read via `XMConvertHalfToFloat`), so it sits at ~half its former R32 figure (~181.5 MiB → ~90.75 MiB). Headroom to the `kiMaxIslands=128` cap: ~1.8× → ~630 MiB if the route table grows toward it. The distribution is heavily skewed — the top ~3 islands carry ~25 MiB each; dozens of small islands are <1 MiB — so a concurrent-residency bound pays off disproportionately.
 
+## Server NavContour measurement and decision (`[DEBUG-resmem]`, 70 templates)
+
+Server `NavContour` storage measured **57,264 logical-attributable bytes (55.92 KiB)** and **67,992 capacity-attributable bytes (66.40 KiB)**, with a maximum per-template capacity of **2,544 bytes (2.48 KiB)**. The method counts `sizeof(NavContour)` plus logical size or capacity storage for `vertices`, `polygonOffsets`, `visEdgeA`, and `visEdgeB`; allocator metadata/padding and process heap-arena commitment are excluded.
+
+Against the ~90.77 MiB server island CPU base (~90.75 MiB heightmaps plus 22 KiB hull), capacity-attributable NavContour storage is ~0.071%, well below the 5% budget (~4.54 MiB). At 128 templates, the observed average projects to ~121.4 KiB; applying the observed maximum to every template projects to 318 KiB. Neither projection bounds unknown future topology.
+
+**Decision:** eager server NavContour residency stays. Its capacity-attributable footprint is negligible, so lifecycle or compression complexity is unjustified.
+
 ## Architecture findings (why the naive strategies don't work)
 
 Verified against source; these drive the decomposition:
@@ -36,10 +44,10 @@ Verified against source; these drive the decomposition:
 | `IslandMeshArenaResidency.md` | mesh GPU 119.5 MiB | Large | Stable-handle arena or bindless vertex-pull (record-once-CB constraint). |
 | `IslandHeightmapRouteDedup.md` | heightmap ~90.75 MiB (R16) | Large | Deferred dedup half of the R16 plan: content-address byte-identical heightmap regions shared across routes/leaves and alias one pool region from many templates. Speculative — profile first; likely closes accept-and-document (leaves are disjoint tiles, routes are independent bakes). |
 | `IslandPlacementSsboResidency.md` | SSBO 16.4 MiB | Medium | Compact/share the per-template placement arena; smallest bucket. |
-| `IslandNavContourResidency.md` | NavContour (server) | Medium | Server-side per-template `mNavContour`; resolves on its own measurement — there is no heightmap eviction lifecycle to attach to (the heightmap is compressed in place, not evicted). |
+| `IslandNavContourResidency.md` | NavContour (server), 66.40 KiB capacity-attributable at 70 templates | Medium | Closed by measurement: eager server `mNavContour` residency stays; lifecycle/compression complexity is unjustified. |
 
-Recommended sequence: mesh-CPU reclaim first (clean, best value/effort), then GPU arena and SSBO independently; the heightmap is already R16-compressed in place (biggest single win, landed), with route-dedup as a speculative profile-first follow-up, and NavContour resolving on its own server-side measurement.
+Recommended sequence: mesh-CPU reclaim first (clean, best value/effort), then GPU arena and SSBO independently; the heightmap is already R16-compressed in place (biggest single win, landed), with route-dedup as a speculative profile-first follow-up. NavContour is closed by measurement with eager server residency retained.
 
 ## Instrumentation
 
-The `[DEBUG-resmem]` LOG block (`IslandTerrainResidency.cpp:47-67`, `kError`-tagged) drove the measurement above. `IslandMeshCpuSliceReclaim.md` removes it on landing; re-add if a later plan needs a fresh capture.
+Temporary `[DEBUG-resmem]` boot instrumentation drove the measurements above and was removed after capture. Re-add it only when a later decision needs a fresh measurement.

@@ -1,3 +1,4 @@
+
 # Deterministic fixtures for Invoke-AgentToolsPromotion.ps1 against a scratch
 # primary repository: v2-only receipt identity, source and binary tampering,
 # unlanded commit, candidate/source mismatch, session and maintenance blocking,
@@ -13,7 +14,8 @@ param(
 	[Parameter(Mandatory = $true)]
 	[string] $WorktreeCliExecutable,
 	[Parameter(Mandatory = $true)]
-	[string] $AgentHarnessExecutable
+	[string] $AgentHarnessExecutable,
+	[switch] $SkipStalePairPrecheck
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,12 +29,47 @@ $moduleSource = Join-Path $PSScriptRoot '..\..\..\scripts'
 $WorktreeCliExecutable = (Get-Item -LiteralPath $WorktreeCliExecutable -ErrorAction Stop).FullName
 $AgentHarnessExecutable = (Get-Item -LiteralPath $AgentHarnessExecutable -ErrorAction Stop).FullName
 
+if (-not $SkipStalePairPrecheck) {
+	$scratchParent = Join-Path ([IO.Path]::GetTempPath()) 'BrokenEnginePromotionFixtures'
+	$childrenBefore = if (Test-Path -LiteralPath $scratchParent) { @(Get-ChildItem -LiteralPath $scratchParent -Directory -Force | ForEach-Object FullName | Sort-Object) } else { @() }
+	$precheckLocalAppData = Join-Path ([IO.Path]::GetTempPath()) ('broken-engine-promotion-precheck-' + [guid]::NewGuid().ToString('N'))
+	$previousLocalAppData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
+	try {
+		[Environment]::SetEnvironmentVariable('LOCALAPPDATA', $precheckLocalAppData)
+		$staleOutput = @(& "$PSHOME\pwsh.exe" -NoProfile -File $PSCommandPath -WorktreeCliExecutable "$PSHOME\pwsh.exe" -AgentHarnessExecutable $AgentHarnessExecutable -SkipStalePairPrecheck 2>&1)
+		$staleExitCode = $LASTEXITCODE
+	}
+	finally {
+		[Environment]::SetEnvironmentVariable('LOCALAPPDATA', $previousLocalAppData)
+	}
+	$childrenAfter = if (Test-Path -LiteralPath $scratchParent) { @(Get-ChildItem -LiteralPath $scratchParent -Directory -Force | ForEach-Object FullName | Sort-Object) } else { @() }
+	if ($staleExitCode -eq 0) { throw "Stale WorktreeCli precheck unexpectedly succeeded: $($staleOutput -join '; ')" }
+	if (($childrenBefore -join "`0") -cne ($childrenAfter -join "`0")) { throw 'Stale WorktreeCli precheck created a BrokenEnginePromotionFixtures child.' }
+	if (Test-Path -LiteralPath $precheckLocalAppData) { throw 'Stale WorktreeCli precheck created a coordination ledger.' }
+	Write-Host 'pass stale WorktreeCli capability precheck creates no scratch or ledger'
+}
+
+# Fail before allocating a scratch repository or ledger. These fixtures certify
+# promotion mechanics only for an executable pair that can exercise the current
+# queue-completion and AgentHarness contracts.
+& $capabilitySource -WorktreeCliExecutable $WorktreeCliExecutable -AgentHarnessExecutable $AgentHarnessExecutable | Out-Null
+
 function Assert-True([bool] $Condition, [string] $Name) {
 	if (-not $Condition) { $script:Failures.Add($Name); Write-Host "FAIL $Name" } else { Write-Host "pass $Name" }
 }
 
 function Get-Sha256([string] $Path) {
 	return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Get-BytesOrNull([string] $Path) {
+	if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+	return [IO.File]::ReadAllBytes($Path)
+}
+
+function Test-BytesEqual([byte[]] $Left, [byte[]] $Right) {
+	if ($null -eq $Left -or $null -eq $Right) { return $null -eq $Left -and $null -eq $Right }
+	return [System.Collections.StructuralComparisons]::StructuralEqualityComparer.Equals($Left, $Right)
 }
 
 function Invoke-ScratchGit([string] $Root, [string[]] $Arguments) {
@@ -174,9 +211,146 @@ function Assert-Outcome($Run, [string] $Case, [int] $ExpectedExit, [string] $Exp
 	if ($Run.ExitCode -ne $ExpectedExit -or $Run.Json.code -cne $ExpectedCode) { Write-Host "  message: $($Run.Json.message)" }
 }
 
+function Invoke-PreflightFixture([string[]] $Arguments) {
+	$preflight = Join-Path $PSScriptRoot 'Test-FinalizePreflight.ps1'
+	$stdout = @(& "$PSHOME\pwsh.exe" -NoProfile -File $preflight @Arguments 2>$null)
+	$text = ($stdout -join "`n").Trim()
+	$json = $null
+	try { if (-not [string]::IsNullOrWhiteSpace($text)) { $json = $text | ConvertFrom-Json -Depth 100 -ErrorAction Stop } } catch { }
+	return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Json = $json; Text = $text }
+}
+
+function Invoke-ApprovalPreparationFixture([string[]] $Arguments) {
+	$preparation = Join-Path $PSScriptRoot 'Invoke-FinalizeApprovalPreparation.ps1'
+	$stdout = @(& "$PSHOME\pwsh.exe" -NoProfile -File $preparation @Arguments 2>$null)
+	$text = ($stdout -join "`n").Trim()
+	$json = $null
+	try { if (-not [string]::IsNullOrWhiteSpace($text)) { $json = $text | ConvertFrom-Json -Depth 100 -ErrorAction Stop } } catch { }
+	return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Json = $json; Text = $text }
+}
+
+function Replace-AsciiBytes([string] $Path, [string] $Expected, [string] $Replacement) {
+	if ($Expected.Length -ne $Replacement.Length) { throw 'Fixture byte replacement must preserve length.' }
+	$bytes = [IO.File]::ReadAllBytes($Path)
+	$needle = [Text.Encoding]::ASCII.GetBytes($Expected)
+	$replacementBytes = [Text.Encoding]::ASCII.GetBytes($Replacement)
+	$index = -1
+	for ($start = 0; $start -le $bytes.Length - $needle.Length; ++$start) {
+		$match = $true
+		for ($offset = 0; $offset -lt $needle.Length; ++$offset) { if ($bytes[$start + $offset] -ne $needle[$offset]) { $match = $false; break } }
+		if ($match) { if ($index -ne -1) { throw "Fixture capability marker '$Expected' appeared more than once." }; $index = $start }
+	}
+	if ($index -lt 0) { throw "Fixture executable does not contain capability marker '$Expected'." }
+	[Array]::Copy($replacementBytes, 0, $bytes, $index, $replacementBytes.Length)
+	[IO.File]::WriteAllBytes($Path, $bytes)
+}
+
 $canonicalWorktreeCli = Join-Path $primary 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe'
 $canonicalAgentHarness = Join-Path $primary 'Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe'
 $receipt = New-CandidateReceipt $primary $WorktreeCliExecutable $AgentHarnessExecutable
+
+# Bootstrap only when the canonical tool is stale by the terminal receipt-release
+# capability. The candidate remains receipt/hash certified and is never
+# installed into canonical Output before a landing.
+$bootstrapSession = Join-Path $scratchBase 'bootstrap-session'
+$bootstrapOwner = [guid]::NewGuid().ToString()
+$bootstrapEnvironment = @{}
+Invoke-ScratchGit $primary @('worktree', 'add', '-q', '-b', 'bootstrap-session', $bootstrapSession, $landed) | Out-Null
+try {
+	[IO.File]::WriteAllText((Join-Path $bootstrapSession 'bootstrap.txt'), 'candidate bootstrap fixture', [Text.UTF8Encoding]::new($false))
+	Invoke-ScratchGit $bootstrapSession @('add', 'bootstrap.txt') | Out-Null
+	Invoke-ScratchGit $bootstrapSession @('commit', '-m', 'bootstrap fixture session') | Out-Null
+	$bootstrapTip = (@(Invoke-ScratchGit $bootstrapSession @('rev-parse', 'HEAD')))[0].Trim()
+	$bootstrapOutputParent = Join-Path $bootstrapSession 'Tools\WorktreeCli\Platforms\VisualStudio2026'
+	New-Item -ItemType Directory -Force $bootstrapOutputParent | Out-Null
+	New-Item -ItemType Directory -Force (Split-Path -Parent $canonicalWorktreeCli) | Out-Null
+	New-Item -ItemType Junction -Path (Join-Path $bootstrapOutputParent 'Output') -Target (Split-Path -Parent $canonicalWorktreeCli) | Out-Null
+	Copy-Item -LiteralPath $WorktreeCliExecutable -Destination $canonicalWorktreeCli -Force
+	Replace-AsciiBytes $canonicalWorktreeCli 'WorktreeCli.exe plan release-after-landing' 'WorktreeCli.exe plan release-after-landinx'
+	$bootstrapProvenance = [ordered]@{
+		BROKEN_ENGINE_WORKTREE_PATH = $bootstrapSession
+		BROKEN_ENGINE_SESSION_BRANCH = 'bootstrap-session'
+		BROKEN_ENGINE_PRIMARY_CHECKOUT = $primary
+		BROKEN_ENGINE_TARGET_BRANCH = 'main'
+		BROKEN_ENGINE_BASELINE = $landed
+		BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER = $bootstrapOwner
+	}
+	foreach ($entry in $bootstrapProvenance.GetEnumerator()) { $bootstrapEnvironment[$entry.Key] = [Environment]::GetEnvironmentVariable($entry.Key); [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value) }
+	Register-WorktreeCliSession -RepositoryRoot $primary -Owner $bootstrapOwner -Label 'candidate bootstrap fixture' -Worktree $bootstrapSession | Out-Null
+	$bootstrapArguments = @('-Mode', 'session-landing', '-Checkpoint', 'pre-mutation', '-CurrentWorktree', $bootstrapSession, '-PrimaryWorktree', $primary,
+		'-CurrentBranch', 'bootstrap-session', '-PrimaryBranch', 'main', '-Baseline', $landed, '-ExpectedCurrentTip', $bootstrapTip, '-ExpectedPrimaryTip', $landed,
+		'-SessionOwner', $bootstrapOwner, '-WaitSeconds', '5')
+	$primaryBefore = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
+	$run = Invoke-PreflightFixture $bootstrapArguments
+	Assert-Outcome $run 'bootstrap-stale-canonical-without-candidate' 2 'worktreecli.capability-stale'
+	Assert-True ($primaryBefore -ceq ((@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim())) 'unauthorized candidate fallback leaves primary unchanged'
+	$run = Invoke-PreflightFixture (@($bootstrapArguments) + @('-CandidateReceiptPath', $receipt.Path, '-CandidateReceiptSha256', $receipt.Sha256))
+	Assert-Outcome $run 'bootstrap-certified-candidate' 0 'ok'
+	if ($null -ne $run.Json) {
+		$certifiedWorktreeCliPath = (Get-Item -LiteralPath ((Get-Content -Raw -LiteralPath $receipt.Path | ConvertFrom-Json -Depth 100).executables.WorktreeCli.path)).FullName
+		Assert-True ($run.Json.worktreeCli.selection -ceq 'certified-candidate' -and $run.Json.worktreeCli.path -ceq $certifiedWorktreeCliPath) 'certified candidate is selected only for stale terminal receipt release'
+	}
+	$run = Invoke-PreflightFixture (@($bootstrapArguments) + @('-CandidateReceiptPath', $receipt.Path, '-CandidateReceiptSha256', ('0' * 64)))
+	Assert-Outcome $run 'bootstrap-tampered-candidate' 2 'worktreecli.candidate-certification-failed'
+	Assert-True ($primaryBefore -ceq ((@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim())) 'tampered candidate blocks before primary mutation'
+	Copy-Item -LiteralPath $WorktreeCliExecutable -Destination $canonicalWorktreeCli -Force
+	$run = Invoke-PreflightFixture (@($bootstrapArguments) + @('-CandidateReceiptPath', $receipt.Path, '-CandidateReceiptSha256', $receipt.Sha256))
+	Assert-Outcome $run 'bootstrap-capable-canonical' 0 'ok'
+	if ($null -ne $run.Json) { Assert-True ($run.Json.worktreeCli.selection -ceq 'canonical' -and $run.Json.worktreeCli.candidate -eq $null) 'candidate fallback is not used when canonical is capable' }
+	Replace-AsciiBytes $canonicalWorktreeCli 'WorktreeCli.exe plan release-after-landing' 'WorktreeCli.exe plan release-after-landinx'
+	$approvalArguments = @('-CurrentWorktree', $bootstrapSession, '-PrimaryWorktree', $primary, '-CurrentBranch', 'bootstrap-session', '-PrimaryBranch', 'main',
+		'-Baseline', $landed, '-ExpectedCurrentTip', $bootstrapTip, '-ExpectedPrimaryTip', $landed, '-SessionOwner', $bootstrapOwner, '-WaitSeconds', '5',
+		'-CandidateReceiptPath', $receipt.Path, '-CandidateReceiptSha256', $receipt.Sha256)
+	$run = Invoke-ApprovalPreparationFixture $approvalArguments
+	Assert-Outcome $run 'approval-direct-unclaimed-candidate' 0 'ok'
+	if ($null -ne $run.Json) { Assert-True ($null -ne $run.Json.candidateBootstrap -and [string]::IsNullOrWhiteSpace([string]$run.Json.planClaim.receipt)) 'direct unclaimed approval binds candidate receipt without Plan receipt' }
+	Copy-Item -LiteralPath $WorktreeCliExecutable -Destination $canonicalWorktreeCli -Force
+	Invoke-ScratchGit $primary @('merge', '--ff-only', 'bootstrap-session') | Out-Null
+	$recoveryTip = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
+	Copy-Item -LiteralPath $WorktreeCliExecutable -Destination $canonicalWorktreeCli -Force
+	Replace-AsciiBytes $canonicalWorktreeCli 'WorktreeCli.exe plan release-after-landing' 'WorktreeCli.exe plan release-after-landinx'
+	$recoveryArguments = @('-Mode', 'session-landing', '-Checkpoint', 'post-advance-recovery', '-CurrentWorktree', $bootstrapSession, '-PrimaryWorktree', $primary,
+		'-CurrentBranch', 'bootstrap-session', '-PrimaryBranch', 'main', '-Baseline', $landed, '-ExpectedCurrentTip', $bootstrapTip, '-ExpectedPrimaryTip', $recoveryTip,
+		'-SessionOwner', $bootstrapOwner, '-WaitSeconds', '5')
+	$recoveryLedgerPath = (Get-WorktreeCliRepositoryIdentity $primary).LedgerPath
+	$recoveryLedgerBefore = if (Test-Path -LiteralPath $recoveryLedgerPath) { [IO.File]::ReadAllBytes($recoveryLedgerPath) } else { $null }
+	$run = Invoke-PreflightFixture (@($recoveryArguments) + @('-CandidateReceiptPath', $receipt.Path, '-CandidateReceiptSha256', ('0' * 64)))
+	Assert-Outcome $run 'recovery-tampered-candidate' 2 'worktreecli.candidate-certification-failed'
+	Assert-True ($recoveryTip -ceq ((@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim())) 'recovery-tampered-candidate performs no additional primary mutation'
+	$recoveryLedgerAfter = if (Test-Path -LiteralPath $recoveryLedgerPath) { [IO.File]::ReadAllBytes($recoveryLedgerPath) } else { $null }
+	Assert-True (($null -eq $recoveryLedgerBefore -and $null -eq $recoveryLedgerAfter) -or ($null -ne $recoveryLedgerBefore -and $null -ne $recoveryLedgerAfter -and [System.Collections.StructuralComparisons]::StructuralEqualityComparer.Equals($recoveryLedgerBefore, $recoveryLedgerAfter))) 'recovery-tampered-candidate performs no landing coordination mutation'
+	$run = Invoke-PreflightFixture (@($recoveryArguments) + @('-CandidateReceiptPath', $receipt.Path, '-CandidateReceiptSha256', $receipt.Sha256))
+	Assert-Outcome $run 'recovery-certified-candidate' 0 'ok'
+	if ($null -ne $run.Json) { Assert-True ($run.Json.worktreeCli.selection -ceq 'certified-candidate') 'recovery selects certified candidate for stale canonical completion' }
+}
+finally {
+	try { Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $bootstrapOwner } catch { }
+	foreach ($entry in $bootstrapEnvironment.GetEnumerator()) { [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value) }
+	Invoke-ScratchGit $primary @('worktree', 'remove', '--force', $bootstrapSession) | Out-Null
+	Remove-Item -LiteralPath $canonicalWorktreeCli -Force -ErrorAction SilentlyContinue
+}
+
+# A malformed ledger after pre-approval quiescence must be an authority blocker
+# before the exclusive action can touch either canonical executable.
+$ledgerPath = (Get-WorktreeCliRepositoryIdentity $primary).LedgerPath
+$ledgerBytes = Get-BytesOrNull $ledgerPath
+$canonicalWorktreeCliBefore = Get-BytesOrNull $canonicalWorktreeCli
+$canonicalAgentHarnessBefore = Get-BytesOrNull $canonicalAgentHarness
+[IO.File]::WriteAllText($ledgerPath, '{', [Text.UTF8Encoding]::new($false))
+try {
+	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed
+	Assert-Outcome $run 'malformed-ledger-exclusive-gate' 2 'promotion.coordination-unverifiable'
+	if ($null -ne $run.Json) {
+		Assert-True ($run.Json.disposition -ceq 'authority-required') 'malformed ledger exposes authority-required disposition'
+		Assert-True $run.Json.blocker.requiresUserAuthority 'malformed ledger explicitly requires authority'
+	}
+	Assert-True (Test-BytesEqual $canonicalWorktreeCliBefore (Get-BytesOrNull $canonicalWorktreeCli)) 'malformed ledger leaves canonical WorktreeCli unchanged'
+	Assert-True (Test-BytesEqual $canonicalAgentHarnessBefore (Get-BytesOrNull $canonicalAgentHarness)) 'malformed ledger leaves canonical AgentHarness unchanged'
+}
+finally {
+	if ($null -eq $ledgerBytes) { Remove-Item -LiteralPath $ledgerPath -Force -ErrorAction SilentlyContinue }
+	else { [IO.File]::WriteAllBytes($ledgerPath, $ledgerBytes) }
+}
 
 # 1. Receipt identity: tampered bytes must block.
 $tamperedPath = "$($receipt.Path).tampered.json"
@@ -231,7 +405,12 @@ Register-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner -Label
 $sessionRegistered = $true
 try {
 	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed @('-WaitSeconds', '2')
-	Assert-Outcome $run 'session-blocked' 2 'promotion.coordination-blocked'
+	Assert-Outcome $run 'session-blocked' 2 'promotion.shared-quiescence'
+	if ($null -ne $run.Json) {
+		Assert-True ($run.Json.disposition -ceq 'shared-quiescence') 'session-blocked exposes top-level shared quiescence'
+		Assert-True ($run.Json.blocker.disposition -ceq 'shared-quiescence') 'session-blocked is retryable shared quiescence'
+		Assert-True (-not $run.Json.blocker.requiresUserAuthority) 'session-blocked needs no authority'
+	}
 
 	# 7. First-rollout success with the registered session cooperating.
 	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed @('-WaitSeconds', '5', '-CooperatingSessionOwner', $sessionOwner)
@@ -258,7 +437,12 @@ Enter-WorktreeCliMaintenance -RepositoryRoot $primary -Owner $maintenanceOwner -
 $maintenanceHeld = $true
 try {
 	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed @('-WaitSeconds', '2')
-	Assert-Outcome $run 'maintenance-blocked' 2 'promotion.coordination-blocked'
+	Assert-Outcome $run 'maintenance-blocked' 2 'promotion.shared-quiescence'
+	if ($null -ne $run.Json) {
+		Assert-True ($run.Json.disposition -ceq 'shared-quiescence') 'maintenance-blocked exposes top-level shared quiescence'
+		Assert-True ($run.Json.blocker.disposition -ceq 'shared-quiescence') 'maintenance-blocked is retryable shared quiescence'
+		Assert-True (-not $run.Json.blocker.requiresUserAuthority) 'maintenance-blocked needs no authority'
+	}
 }
 finally {
 	Exit-WorktreeCliMaintenance -RepositoryRoot $primary -Owner $maintenanceOwner

@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-05T03:52:38.000Z","dependsOn":[]} -->
 # Collection::Read Deserialization Index & Capacity-Stride Hardening
 
 ## Context

@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-06-25T02:37:38.000Z","dependsOn":[]} -->
 # Right-size Pipeline's PipelineInfo::pDescriptorInfos array
 
 ## Context

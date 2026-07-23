@@ -1,7 +1,7 @@
 ---
 name: verify-changes
 description: >-
-  Verify final-evidence-gate changes — queue mutation or completion,
+  Verify final-evidence-gate changes — terminal Plan preparation or release,
   reconciliation, requested primary commit or landing, shared build/bootstrap
   work, or Tier-3 integration — with a read-only final-tree acceptance table.
 allowed-tools: [Read, Grep, Glob, "Bash(git diff *)", "Bash(git status *)", "Bash(git ls-files *)", PowerShell]
@@ -12,7 +12,7 @@ allowed-tools: [Read, Grep, Glob, "Bash(git diff *)", "Bash(git status *)", "Bas
 Run only when the root `AGENTS.md` final-evidence gate applies. Use a fresh
 context separate from implementation and review. This is a read-only verifier:
 do not delegate, edit files, resolve findings, build, launch a runtime or
-harness, mutate the queue, or create an evidence artifact. Inspect the final
+harness, mutate Plan claims, or create an evidence artifact. Inspect the final
 tree and validate supplied evidence; return missing or stale work to the caller.
 
 ## Inputs
@@ -122,20 +122,21 @@ certification against the reconciled candidate as a mandatory pre-approval
 obligation, never as evidence already passed. Any receipt, certification, or
 tree mismatch requires a rebuilt candidate.
 
-### Executable-plan validation
+### Executable Plan validation
 
 For a changed executable plan in a session worktree, use the current checkout's
 provisioned `Tools/WorktreeCli/Platforms/VisualStudio2026/Output/WorktreeCli.exe`
-and record the read-only session prevalidation from `plan order validate --repo
-<canonical-common-dir> --worktree <session-worktree>`. Require exit `0`, `ok:
-true`, and no failing diagnostic. An `ok: true` foreign-row `missing-plan-file`
-stale-baseline notice is evidence, not failure; an owner-held completed row is
-expected until finalization. Otherwise record
-`not triggered — no executable-plan change`.
+and record the read-only session prevalidation from `plan validate --repo
+<canonical-common-dir> --worktree <session-worktree> --baseline
+<baseline-commit>`. Require exit `0`, the versioned JSON contract, `status:
+valid`, `code: ok`, and no failing diagnostic. Record stale dependency notices
+and healed claims. Never validate `Documents/Features` as scheduler input.
+Otherwise record `not triggered — no executable-Plan change`.
 
 Do not represent session prevalidation as primary validation. On the
-`primary-commit` route, post-commit primary validation and any owner-unclaim are
-`/finalize-changes` obligations and cannot be claimed by this pre-commit audit.
+`primary-commit` route, post-commit primary validation and any receipt-bound
+terminal claim release are `/finalize-changes` obligations and cannot be claimed
+by this pre-commit audit.
 
 ## Decision and Output
 

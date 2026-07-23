@@ -1,14 +1,15 @@
+
 # `/next-plan` Execution-Gate Contract
 
 <!-- next-plan-gate-contract:v2 -->
 
-This is the single source of truth for the user-visible gates from queue claim
+This is the single source of truth for the user-visible gates from executable Plan claim
 through final primary mutation. Route-specific skills may summarize a state,
 but must link here rather than define another approval or stop rule.
 
 ## 1. Claim and preparation
 
-Queue validation, claim, current-code inspection, execution-card citation
+Plan metadata validation, claim, current-code inspection, execution-card citation
 corrections (the claimed plan file itself is never edited during execution),
 classification, and execution-card preparation do not require approval and do
 not create an approval gate. Start only when the latest user request explicitly
@@ -43,13 +44,17 @@ none of those and never invalidates approval.
 
 After implementation approval, continue without another resume request through
 implementation, propagation, checks, review, accepted fixes, final verification,
-queue completion, reconciliation, and finalization preparation. Queue completion
+Plan terminal preparation, reconciliation, and finalization preparation. Terminal preparation
 is not a terminal result. Do not stop at an implementation handoff or a
 preparation-ready status.
 
 A material scope or acceptance change returns to state 2. A safety blocker may
 stop the workflow, but clearing it resumes the same approved route without
 creating a new discretionary approval gate.
+
+After primary advances, terminal release requires receipt-bound proof that the
+landed primary contains the selected Plan's terminal state. Every new tracked
+Plan metadata creation remains strict.
 
 ### Primary advance
 
@@ -58,7 +63,7 @@ rebase onto the primary tip, verify the tree remains clean, re-baseline
 `BROKEN_ENGINE_BASELINE`, then claim. After claim, stay at that baseline until
 `/finalize-changes`; claim, approval, and completed work survive further primary
 advances. An `ok: true` stale-baseline `missing-plan-file` notice is
-non-blocking and reconciliation resolves it. A plan-digest mismatch is terminal.
+non-blocking and reconciliation resolves it. A Plan-digest mismatch is terminal.
 
 <!-- next-plan-gate:primary-mutation-confirmation -->
 
@@ -78,7 +83,7 @@ path. This explicitly excludes source, shader, script, skill, plan, and
 documentation changes under `Common/`, `Engine/`, `Projects/`, `.agents/`, and
 Markdown-only changes under the AgentTools trees. AgentTools candidate builds
 under a worktree's `Temp/`, read-only consumption of primary generated data in
-Shared build mode, queue publication, and lock or claim updates are also not
+Shared build mode and lock or claim updates are also not
 shared-artifact mutations. A workflow that adds another mutation of a canonical
 output consumed by live worktrees must add its exact trigger here before using
 this gate.
@@ -86,13 +91,19 @@ this gate.
 Only when a landing includes a canonical shared-artifact mutation defined above,
 require the canonical session ledger to show no live session other than the
 current cooperating owner and no maintenance claim before presenting landing
-confirmation. Do not apply ledger quiescence to the excluded operations. If the
-ledger is not quiescent, release any reconcile or landing lease, retain the
-candidate and claims, and tell the user to wait until every other active session
-has ended and any maintenance claim has cleared. After the user reports that
-they have ended, recheck the ledger; that report clears only the safety blocker
-and does not authorize landing. Present the normal landing confirmation only
-after the recheck passes.
+confirmation. Do not apply ledger quiescence to the excluded operations. The
+bounded read-only [`Wait-AgentToolsQuiescence.ps1`](../../finalize-changes/scripts/Wait-AgentToolsQuiescence.ps1)
+sidecar must be invoked with `-RepositoryRoot $PRIMARY`,
+`-CooperatingSessionOwner $env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER`, and
+`-WaitSeconds 55`. It exits `0` with one
+`broken-engine-shared-quiescence/v1` result: `quiescent` or
+`shared-quiescence`, always with `requiresUserAuthority:false`,
+`retryAfterSeconds`, `waitedMilliseconds`, and `liveBlockers`; exit `1` is
+`terminal` with the same no-authority rule. On `shared-quiescence`, release any
+reconcile or landing lease, retain the candidate and claims, and reinvoke after
+`retryAfterSeconds` until quiescent. Reconcile again after it clears because
+primary may have advanced. Present the normal landing confirmation only after
+that recheck passes.
 
 Immediately before the one operation that mutates primary history, state in one
 short summary: what the change is in one sentence, the changed-file count and
@@ -111,9 +122,9 @@ reconciliation decision are not substitutes for it.
 
 Because the confirmation binds the diff, a primary advance after confirmation
 requires nothing from the user: rebase the approved candidate onto the new tip
-and proceed to the landing transaction. The queue is machine-local state, never
-in the tree, so it can never be a rebase conflict; the queue row publishes after
-primary advances. Return to the user for a refreshed summary and response only
+and proceed to the landing transaction. Claim state is PC-local, while scheduler
+metadata is already part of the reconciled Git tree validated before primary
+mutation. Return to the user for a refreshed summary and response only
 when:
 
 - a rebase conflict needs user judgment (the resolution is not mechanical), or

@@ -31,9 +31,9 @@ dispatches every role. Give each role a bounded manifest or report slice and
 forbid child delegation; schedule waves within the host's available concurrency.
 
 Read root and target-applicable `AGENTS.md` files before dispatch. Before plan
-authoring, require the wrapper-created worktree and live WorktreeCli session
-claim required by `create-follow-up-plans`. If they are unavailable, the
-read-only analysis may finish, but plan creation and publication are blocked.
+authoring, require the checkout and fixed baseline needed by
+`create-follow-up-plans`. If they are unavailable, the read-only analysis may
+finish, but plan creation is blocked.
 
 ## Phase 1: Architecture Shape
 
@@ -87,28 +87,27 @@ deep-analysis intent that established each acceptance gap. Treat analysis
 findings as pre-existing or out-of-scope debt, never as permission to fix code.
 
 That skill exclusively owns plan classification, area placement, naming,
-grouping, collision handling, duplicate mapping, live-plan updates,
-Coordination/dependency decisions, scoring, and staged queue requests. Do not
-pre-create plan files, copy a plan or queue schema, parse queue Markdown, or call
-`plan order add` directly. Pass oversized candidates with their required
-`/reduce-file <path>` disposition intact.
+grouping, collision handling, duplicate mapping, live-plan updates, dependency
+decisions, tier triggers, and Plan metadata. Do not pre-create plan files, copy
+the metadata schema, or read or mutate machine-local scheduler data. Pass
+oversized candidates with their required `/reduce-file <path>` disposition intact.
 
 Account for every accepted candidate using the authoring skill's Created,
-Updated existing, Duplicate mappings, or Residuals result. A missing live claim,
+Updated existing, Duplicate mappings, or Residuals result. Invalid metadata,
 validation failure, conflict, or ungrounded item is a visible blocker or
-residual, not grounds for an alternate queue path.
+residual, not grounds for an alternate scheduling path.
 
 ## Phase 5: Verify and Finalize
 
-Run `verify-changes` against the final tracked plan tree, the complete
-`create-follow-up-plans` report, and every staged mutation request. Map scope,
-finding adjudication, candidate accounting, plan validation, and summary data to
-decisive checks. Verification reviewers remain findings-only; route any accepted
-semantic correction back through the owning workflow before re-verification.
+Run `verify-changes` against the final tracked plan tree and the complete
+`create-follow-up-plans` report. Map scope, finding adjudication, candidate
+accounting, plan validation, and summary data to decisive checks. Verification
+reviewers remain findings-only; route any accepted semantic correction back
+through the owning workflow before re-verification.
 
-Then invoke `finalize-changes`. Supply every staged add request so it can publish
-rows only after the plan files land, and follow its user sign-off and claim-release
-contract. Never publish queue additions or advance primary outside that workflow.
+Then invoke `finalize-changes` for the tracked Plan files and follow its user
+sign-off contract. The scheduler discovers landed Plans from Git; never mutate
+machine-local scheduler state as a publication step.
 
 ## Summary
 
@@ -119,13 +118,13 @@ report:
 - architecture and refactor-clean finding counts;
 - created, updated, duplicate-mapped, rejected, and residual items, with every
   oversized file still shown as `run /reduce-file <path>`;
-- each authored plan's final tier, Effort, Impact, Risks, Score, and dependency
+- each authored plan's final tier trigger, acceptance boundary, and dependency
   disposition from `create-follow-up-plans`;
 - one area Debt Score: **LOW** for nearly all Quick Win/Small, **MODERATE** for
   mostly Small/Medium, **HIGH** for multiple Large or any Architectural, and
   **CRITICAL** for several Architectural items or a core-invariant threat;
-- verification result, finalization disposition, and queue publication state.
+- verification result, finalization disposition, and tracked Plan validation state.
 
-The Debt Score is a run retrospective only; never put it in a plan or queue
-request. Do not claim a created plan is queued until finalization confirms its
-post-landing publication.
+The Debt Score is a run retrospective only; never put it in a Plan. Do not call
+a written Plan claimed or scheduler-visible until finalization confirms its
+tracked bytes landed.

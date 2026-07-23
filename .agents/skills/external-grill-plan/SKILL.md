@@ -28,8 +28,8 @@ Require all of the following before starting:
   acceptance criterion with its decisive check and expected result.
 
 Load an exact-path plan once and treat those bytes as the interview snapshot.
-Never edit the plan, queue, code, or any other repository file. Audit findings
-are decision inputs, not permission to patch the snapshot. If the supplied
+Never edit the plan, scheduler claims, code, or any other repository file. Audit
+findings are decision inputs, not permission to patch the snapshot. If the supplied
 revision differs from the audited revision, the audit did not complete, or the
 plan is not Tier 3, stop and return the needed correction to the manager.
 
@@ -143,24 +143,23 @@ logic inseparable from internal engine types.
 A library or design pivot always returns to the manager for incorporation and a
 fresh `/plan-audit`; it never mutates the supplied snapshot in place.
 
-## Queue Context
+## Plan Context
 
-Consult the live queue only when the plan claims a queue dependency, shares
-files or symbols with queued work, or the closing checks reveal likely overlap.
-Never read or parse `Documents/Plans/Order.md`, `Documents/Features/Order.md`, or
-machine-local queue files.
+Consult tracked Plans only when the plan declares a dependency, shares files or
+symbols with another Plan, or the closing checks reveal likely overlap. Never
+read machine-local scheduler claims. `Documents/Features` is manual and outside
+scheduler inventory.
 
 Use the provisioned read-only command:
 
 ```text
-Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe plan order validate --repo <absolute-git-common-dir> --worktree <checkout>
+Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe plan validate --repo <absolute-git-common-dir> --worktree <checkout> --baseline <commit>
 ```
 
-Require exit `0` and JSON `ok: true`; otherwise stop with the exact diagnostic.
-Treat `rows` (`plan`, `queue`, `rowSha256`) as the sole live inventory. Read only
-the relevant referenced plan files to compare scope. Notices caused by a stale
-wrapper baseline remain non-blocking when validation still reports `ok: true`.
-Do not run any queue mutation command.
+Require exit `0`, JSON `status: valid`, and `code: ok`; otherwise stop with the
+exact diagnostic. Treat `plans` entries (`path`, `createdUtc`, `dependsOn`) as
+the tracked inventory. Read only relevant referenced Plan files to compare scope.
+Record non-blocking `notices`; do not run a scheduler mutation command.
 
 ## Closing Checks
 

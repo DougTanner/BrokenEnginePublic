@@ -15,18 +15,11 @@ namespace toolcli
 		void PrintUsage(std::ostream& rOutput)
 		{
 			rOutput << "Usage: WorktreeCli.exe lock <token|claim|status|refresh|recover|release|steal> ...\n";
-			rOutput << "       WorktreeCli.exe plan <queue|row> <verb> ...\n";
-			rOutput << "       WorktreeCli.exe plan queue lock --repo COMMON-DIR --order PATH --owner TOKEN --session TOKEN\n";
-			rOutput << "       WorktreeCli.exe plan queue status --repo COMMON-DIR --order PATH [--owner TOKEN]\n";
-			rOutput << "       WorktreeCli.exe plan queue unlock --repo COMMON-DIR --order PATH --owner TOKEN\n";
-			rOutput << "       WorktreeCli.exe plan row status --repo COMMON-DIR --order PATH --plan PATH [--owner TOKEN]\n";
-			rOutput << "       WorktreeCli.exe plan row unclaim --repo COMMON-DIR --order PATH --plan PATH --owner TOKEN\n";
-			rOutput << "       WorktreeCli.exe plan order init --repo COMMON-DIR --worktree CHECKOUT [--force] [--plans-order PATH] [--features-order PATH]\n";
-			rOutput << "       WorktreeCli.exe plan order validate --repo COMMON-DIR --worktree CHECKOUT [--plans-order PATH] [--features-order PATH]\n";
-			rOutput << "       WorktreeCli.exe plan order add --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL [--request-sha256 SHA256] [--plans-order PATH] [--features-order PATH]\n";
-			rOutput << "       WorktreeCli.exe plan order update --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL [--plans-order PATH] [--features-order PATH]\n";
-			rOutput << "       WorktreeCli.exe plan order claim-next --repo COMMON-DIR --primary-worktree CHECKOUT --worktree CHECKOUT --branch TARGET --owner TOKEN --session TOKEN --queue <plans|features> [--plan PATH] [--plans-order PATH] [--features-order PATH]\n";
-			rOutput << "       WorktreeCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH [--plans-order PATH] [--features-order PATH]\n";
+			rOutput << "       WorktreeCli.exe plan validate --repo COMMON-DIR --worktree CHECKOUT --baseline COMMIT\n";
+			rOutput << "       WorktreeCli.exe plan claim-next --repo COMMON-DIR --primary-worktree PRIMARY --worktree SESSION --branch TARGET --owner TOKEN --session TOKEN --write-claim-receipt Temp/RECEIPT [--plan Documents/Plans/...md]\n";
+			rOutput << "       WorktreeCli.exe plan claim-status|unclaim --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256\n";
+			rOutput << "       WorktreeCli.exe plan prepare-completion|prepare-rejection --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256\n";
+			rOutput << "       WorktreeCli.exe plan release-after-landing --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256 --landed-commit COMMIT\n";
 			rOutput << "       WorktreeCli.exe build [--files <cpp...> --] <project-or-solution> <MSBuild args...>\n";
 			rOutput << "       WorktreeCli.exe --help\n";
 		}

@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-06-12T01:33:02.000Z","dependsOn":[]} -->
 # Architecture: Pipeline Registration Ownership
 
 ## Context

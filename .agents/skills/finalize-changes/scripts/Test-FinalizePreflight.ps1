@@ -1,11 +1,12 @@
+
+
 # Canonical read-only structural preflight for finalization: identity, Git state,
-# WorktreeCli capability, wrapper-claim, and approval-bound staged-request checks.
+# WorktreeCli capability, wrapper-claim, and receipt-bound terminal Plan checks.
 # Approval preparation invokes after-reconciliation checks; landing invokes the
 # pre-mutation check or the post-mutation crash-recovery check.
 #
-# Capability profile: pass -HasPlanRowClaim only when finalization owns a row claim.
-# The machine-local plan queue never appears in the session diff, so landing takes no
-# queue locks and this preflight probes no queue-lock capability. Session mode requires
+# Capability profile validates optional receipt-bound terminal Plan release.
+# This preflight probes no Plan scheduler mutation capability. Session mode requires
 # BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER and the wrapper's authoritative provenance
 # variables to match; primary mode requires neither wrapper provenance nor a session
 # claim.
@@ -13,9 +14,9 @@
 # Emits one broken-engine-finalize-preflight/v1 JSON object: exit 0 with status pass
 # is the only success; exit 2 is a reported deterministic blocker; exit 1 is
 # malformed input or unreadable/internal state. Callers never reconstruct a failed
-# check ad hoc and never search another WorktreeCli path — a missing, empty,
-# wrong-target, or capability-stale executable requires explicitly authorized
-# /compile primary maintenance.
+# check ad hoc and never search another WorktreeCli path. The sole bootstrap
+# exception is an approval-bound v2 candidate receipt/hash when the canonical
+# executable lacks required current scheduler capability during cutover.
 [CmdletBinding()]
 param(
 	[string] $Mode,
@@ -29,19 +30,18 @@ param(
 	[string] $ExpectedPrimaryTip,
 	[string] $SessionOwner,
 	[string] $WaitSeconds = '60',
-	[switch] $HasPlanRowClaim,
-	[Parameter(Mandatory = $true)]
-	[ValidateSet('none', 'list')]
-	[string] $PlanAddRequestDisposition,
-	[string[]] $PlanAddRequestPaths,
-	[string[]] $PlanAddRequestSha256,
-	[string] $PlanAddRequestItemsJson
+	[string] $ClaimReceiptPath,
+	[string] $ClaimReceiptSha256,
+	[string] $CandidateReceiptPath,
+	[string] $CandidateReceiptSha256
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$planAddRequestPathsBound = $PSBoundParameters.ContainsKey('PlanAddRequestPaths')
-$planAddRequestSha256Bound = $PSBoundParameters.ContainsKey('PlanAddRequestSha256')
+$claimReceiptPathBound = $PSBoundParameters.ContainsKey('ClaimReceiptPath')
+$claimReceiptSha256Bound = $PSBoundParameters.ContainsKey('ClaimReceiptSha256')
+$candidateReceiptPathBound = $PSBoundParameters.ContainsKey('CandidateReceiptPath')
+$candidateReceiptSha256Bound = $PSBoundParameters.ContainsKey('CandidateReceiptSha256')
 $workflowModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
 if (-not (Test-Path -LiteralPath $workflowModule)) {
 	$workflowModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
@@ -57,9 +57,9 @@ $result = [ordered]@{
 	checkpoint = $Checkpoint
 	identities = [ordered]@{ currentWorktree = $null; primaryWorktree = $null; gitCommonDirectory = $null; currentBranch = $null; primaryBranch = $null }
 	tips = [ordered]@{ baseline = $Baseline; current = $null; primary = $null; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip }
-	worktreeCli = [ordered]@{ outputPath = $null; outputLinkTarget = $null; path = $null; capabilityResult = 'not-checked'; requiredCapabilities = @() }
+	worktreeCli = [ordered]@{ outputPath = $null; outputLinkTarget = $null; path = $null; selection = 'canonical'; capabilityResult = 'not-checked'; requiredCapabilities = @(); candidate = $null }
 	claim = [ordered]@{ classification = if ($Mode -eq 'primary-commit') { 'not-required' } else { 'not-checked' }; owner = $SessionOwner; worktree = $null; pid = $null; processStartUtc = $null; actualProcessStartUtc = $null }
-	planAddRequests = [ordered]@{ disposition = $PlanAddRequestDisposition; items = [Collections.Generic.List[object]]::new() }
+	planClaim = [ordered]@{ receipt = $ClaimReceiptPath; sha256 = $ClaimReceiptSha256 }
 }
 $authoritativeSessionWorktree = $null
 
@@ -176,6 +176,26 @@ function Test-GitSuccess([string] $Worktree, [string[]] $Arguments) {
 	return (Invoke-NativeText 'git.exe' (@('-C', $Worktree) + $Arguments) $Worktree).ExitCode -eq 0
 }
 
+function Get-CertifiedCandidateWorktreeCli([string] $RepositoryRoot, [string] $WorktreeRoot, [string] $ExpectedCommit) {
+	$certificationScript = Join-Path $PSScriptRoot 'Test-AgentToolsCandidateCertification.ps1'
+	if (-not (Test-Path -LiteralPath $certificationScript -PathType Leaf)) { throw "AgentTools candidate certification script is missing: '$certificationScript'." }
+	$response = Invoke-NativeText 'pwsh.exe' @('-NoProfile', '-File', $certificationScript, '-RepositoryRoot', $RepositoryRoot, '-WorktreeRoot', $WorktreeRoot,
+		'-CandidateReceiptPath', $CandidateReceiptPath, '-CandidateReceiptSha256', $CandidateReceiptSha256, '-ExpectedCommit', $ExpectedCommit) $WorktreeRoot
+	if ([string]::IsNullOrWhiteSpace($response.Stdout)) { throw 'AgentTools candidate certification returned no JSON.' }
+	try { $certification = $response.Stdout.Trim() | ConvertFrom-Json -Depth 100 -ErrorAction Stop }
+	catch { throw "AgentTools candidate certification returned invalid JSON: $($_.Exception.Message)" }
+	if ($response.ExitCode -eq 2 -and $certification.status -ceq 'blocked') {
+		Stop-Validation 'worktreecli.candidate-certification-failed' "Certified WorktreeCli candidate is unavailable: $($certification.message)"
+	}
+	if ($response.ExitCode -ne 0 -or $certification.status -cne 'pass' -or $certification.code -cne 'ok' -or $null -eq $certification.executables.WorktreeCli) {
+		throw "AgentTools candidate certification failed: $($certification.message)"
+	}
+	$candidate = $certification.executables.WorktreeCli
+	if ($candidate.path -isnot [string] -or $candidate.sha256 -isnot [string] -or $candidate.sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+		-not (Test-Path -LiteralPath $candidate.path -PathType Leaf)) { throw 'AgentTools candidate certification returned an invalid WorktreeCli identity.' }
+	return [pscustomobject]@{ Certification = $certification; Executable = (Get-ExistingWindowsIdentity $candidate.path 'Certified WorktreeCli candidate') }
+}
+
 function Get-WorktreeRecords([string] $Worktree) {
 	return @(Get-FinalizeWorktreeRecords $Worktree)
 }
@@ -198,47 +218,12 @@ try {
 	$parsedWaitSeconds = 0
 	Assert-Input ([int]::TryParse($WaitSeconds, [Globalization.NumberStyles]::None, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsedWaitSeconds)) 'WaitSeconds must be an integer between 1 and 660.'
 	Assert-Input ($parsedWaitSeconds -ge 1 -and $parsedWaitSeconds -le 660) 'WaitSeconds must be between 1 and 660.'
-	$requestPaths = @()
-	$requestHashes = @()
-	if ($planAddRequestPathsBound) { $requestPaths = @($PlanAddRequestPaths) }
-	if ($planAddRequestSha256Bound) { $requestHashes = @($PlanAddRequestSha256) }
-	foreach ($requestPath in $requestPaths) { Assert-Input (-not [string]::IsNullOrWhiteSpace($requestPath)) 'PlanAddRequestPaths contains a null or blank element.' }
-	foreach ($requestHash in $requestHashes) { Assert-Input (-not [string]::IsNullOrWhiteSpace($requestHash)) 'PlanAddRequestSha256 contains a null or blank element.' }
-	if ($PSBoundParameters.ContainsKey('PlanAddRequestItemsJson')) {
-		Assert-Input (-not [string]::IsNullOrWhiteSpace($PlanAddRequestItemsJson)) 'PlanAddRequestItemsJson must not be null or blank.'
-		Assert-Input ($requestPaths.Count -eq 0 -and $requestHashes.Count -eq 0) 'PlanAddRequestItemsJson cannot be combined with request path or hash arrays.'
-		try { $transportItems = @($PlanAddRequestItemsJson | ConvertFrom-Json -Depth 8 -ErrorAction Stop) }
-		catch { Complete-Preflight 1 'error' 'input.invalid' "PlanAddRequestItemsJson is invalid JSON: $($_.Exception.Message)" }
-		$transportPaths = [Collections.Generic.List[string]]::new()
-		$transportHashes = [Collections.Generic.List[string]]::new()
-		$hashPropertyCount = 0
-		foreach ($transportItem in $transportItems) {
-			Assert-Input ($null -ne $transportItem -and $transportItem -isnot [string]) 'PlanAddRequestItemsJson entries must be objects.'
-			$properties = @($transportItem.PSObject.Properties.Name)
-			Assert-Input ($properties -ccontains 'path') 'Every PlanAddRequestItemsJson entry requires path.'
-			$path = [string]$transportItem.path
-			Assert-Input (-not [string]::IsNullOrWhiteSpace($path)) 'PlanAddRequestItemsJson contains a null or blank path.'
-			$transportPaths.Add($path)
-			if ($properties -ccontains 'sha256') {
-				$hash = [string]$transportItem.sha256
-				Assert-Input (-not [string]::IsNullOrWhiteSpace($hash)) 'PlanAddRequestItemsJson contains a null or blank SHA-256.'
-				$transportHashes.Add($hash)
-				++$hashPropertyCount
-			}
-		}
-		Assert-Input ($hashPropertyCount -eq 0 -or $hashPropertyCount -eq $transportItems.Count) 'PlanAddRequestItemsJson must provide SHA-256 for every item or none.'
-		$requestPaths = $transportPaths.ToArray()
-		$requestHashes = $transportHashes.ToArray()
-	}
-	if ($PlanAddRequestDisposition -ceq 'none') {
-		Assert-Input ($requestPaths.Count -eq 0 -and $requestHashes.Count -eq 0) 'PlanAddRequestDisposition none forbids request paths and hashes.'
-	}
-	else {
-		Assert-Input ($Mode -ceq 'session-landing') 'Plan add requests are valid only for session landing.'
-		Assert-Input ($requestPaths.Count -gt 0) 'PlanAddRequestDisposition list requires at least one request path.'
-		if ($Checkpoint -in @('pre-mutation', 'post-advance-recovery')) { Assert-Input ($requestHashes.Count -eq $requestPaths.Count) 'Landing and recovery request certification require one SHA-256 per request path.' }
-		else { Assert-Input ($requestHashes.Count -eq 0 -or $requestHashes.Count -eq $requestPaths.Count) 'Request SHA-256 count must be zero or match request paths.' }
-		foreach ($requestHash in $requestHashes) { Assert-Input ($requestHash -cmatch '^[0-9a-f]{64}$') 'Request SHA-256 values must be 64 lowercase hexadecimal characters.' }
+	Assert-Input ($claimReceiptPathBound -eq $claimReceiptSha256Bound) 'Claim receipt path and SHA-256 must be supplied together.'
+	if ($claimReceiptPathBound) { Assert-Input (-not [string]::IsNullOrWhiteSpace($ClaimReceiptPath)) 'ClaimReceiptPath must not be blank.'; Assert-Input ($ClaimReceiptSha256 -cmatch '^[0-9a-f]{64}$') 'ClaimReceiptSha256 must be 64 lowercase hexadecimal characters.' }
+	Assert-Input ($candidateReceiptPathBound -eq $candidateReceiptSha256Bound) 'Candidate receipt path and SHA-256 must be supplied together.'
+	if ($candidateReceiptPathBound) {
+		Assert-Input (-not [string]::IsNullOrWhiteSpace($CandidateReceiptPath)) 'CandidateReceiptPath must not be blank.'
+		Assert-Input ($CandidateReceiptSha256 -cmatch '^[0-9a-f]{64}$') 'CandidateReceiptSha256 must be 64 lowercase hexadecimal characters.'
 	}
 
 	if ($Mode -eq 'session-landing') {
@@ -308,22 +293,19 @@ try {
 	}
 	if ($Mode -eq 'session-landing' -and (Invoke-Git $primaryIdentity @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) { Stop-Validation 'git.primary-dirty' 'Primary worktree is not clean for session landing.' }
 	if ($Mode -eq 'session-landing' -and (Invoke-Git $currentIdentity @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) { Stop-Validation 'git.session-dirty' 'Session worktree has remaining staged, unstaged, or untracked status.' }
-
-	if ($PlanAddRequestDisposition -ceq 'list') {
-		$seenRequestIdentities = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-		for ($requestIndex = 0; $requestIndex -lt $requestPaths.Count; ++$requestIndex) {
-			$suppliedPath = $requestPaths[$requestIndex]
-			$candidatePath = if ([IO.Path]::IsPathRooted($suppliedPath)) { $suppliedPath } else { Join-Path $currentIdentity $suppliedPath }
-			$item = Get-Item -LiteralPath $candidatePath -Force -ErrorAction SilentlyContinue
-			if ($null -eq $item -or $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Stop-Validation 'plan-add-request.invalid' "Plan add request must be an ordinary file: '$suppliedPath'." }
-			$identity = Get-ExistingWindowsIdentity $item.FullName 'Plan add request'
-			$relativePath = [IO.Path]::GetRelativePath($currentIdentity, $identity).Replace('\', '/')
-			if ($relativePath -match '(^|/)\.\.(/|$)' -or -not $relativePath.StartsWith('Temp/', [StringComparison]::Ordinal)) { Stop-Validation 'plan-add-request.outside-temp' "Plan add request must resolve beneath session Temp/: '$suppliedPath'." }
-			if (-not $seenRequestIdentities.Add($identity)) { Stop-Validation 'plan-add-request.duplicate' "Plan add request identity was supplied more than once: '$suppliedPath'." }
-			$sha256 = (Get-FileHash -LiteralPath $identity -Algorithm SHA256).Hash.ToLowerInvariant()
-			if ($requestHashes.Count -gt 0 -and ($requestHashes[$requestIndex] -cnotmatch '^[0-9a-f]{64}$' -or $requestHashes[$requestIndex] -cne $sha256)) { Stop-Validation 'plan-add-request.identity-changed' "Plan add request hash differs from its approval-bound identity: '$relativePath'." }
-			$result.planAddRequests.items.Add([ordered]@{ suppliedPath = $suppliedPath; identity = $identity; repositoryRelativePath = $relativePath; bytes = $item.Length; sha256 = $sha256 })
-		}
+	if ($claimReceiptPathBound) {
+		$receiptPath = if ([IO.Path]::IsPathRooted($ClaimReceiptPath)) { Get-RootPreservingFullPath $ClaimReceiptPath } else { Get-RootPreservingFullPath (Join-Path $currentIdentity $ClaimReceiptPath) }
+		$receiptItem = Get-Item -LiteralPath $receiptPath -Force -ErrorAction SilentlyContinue
+		if ($null -eq $receiptItem -or $receiptItem.PSIsContainer -or ($receiptItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Stop-Validation 'plan-claim-receipt.invalid' 'Claim receipt must be an existing ordinary file.' }
+		$receiptIdentity = Get-ExistingWindowsIdentity $receiptItem.FullName 'Claim receipt'
+		if (-not $receiptIdentity.Equals($receiptPath, [StringComparison]::OrdinalIgnoreCase)) { Stop-Validation 'plan-claim-receipt.reparse' 'Claim receipt must not resolve through a reparse point.' }
+		$tempIdentity = Get-ExistingWindowsIdentity (Join-Path $currentIdentity 'Temp') 'Session Temp'
+		$relativeReceipt = [IO.Path]::GetRelativePath($tempIdentity, $receiptIdentity)
+		if ([IO.Path]::IsPathRooted($relativeReceipt) -or $relativeReceipt -eq '..' -or $relativeReceipt.StartsWith("..$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::Ordinal)) { Stop-Validation 'plan-claim-receipt.outside-temp' 'Claim receipt must be contained by session Temp.' }
+		$receiptSha256 = (Get-FileHash -LiteralPath $receiptIdentity -Algorithm SHA256).Hash.ToLowerInvariant()
+		if ($receiptSha256 -cne $ClaimReceiptSha256) { Stop-Validation 'plan-claim-receipt.identity-changed' 'Claim receipt bytes differ from the approval-bound SHA-256.' }
+		$result.planClaim.receipt = $receiptIdentity
+		$result.planClaim.bytes = $receiptItem.Length
 	}
 
 	$relativeOutput = 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
@@ -348,21 +330,26 @@ try {
 	$requiredCapabilities = [Collections.Generic.List[string]]::new()
 	$requiredHelp.Add('WorktreeCli.exe lock <token|claim|status|refresh|recover|release|steal> ...')
 	$requiredCapabilities.Add('lock:token,claim,status,refresh,recover,release,steal')
-	if ($HasPlanRowClaim) {
-		$requiredHelp.Add('WorktreeCli.exe plan row status --repo COMMON-DIR --order PATH --plan PATH [--owner TOKEN]')
-		$requiredHelp.Add('WorktreeCli.exe plan row unclaim --repo COMMON-DIR --order PATH --plan PATH --owner TOKEN')
-		$requiredCapabilities.Add('plan:row:status,unclaim')
-	}
-	if ($PlanAddRequestDisposition -ceq 'list') {
-		$requiredHelp.Add('WorktreeCli.exe plan order add --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL [--request-sha256 SHA256] [--plans-order PATH] [--features-order PATH]')
-		$requiredHelp.Add('WorktreeCli.exe plan order validate --repo COMMON-DIR --worktree CHECKOUT [--plans-order PATH] [--features-order PATH]')
-		$requiredCapabilities.Add('plan:order:add-request-sha256,validate')
-	}
+	$requiredHelp.Add('WorktreeCli.exe plan validate --repo COMMON-DIR --worktree CHECKOUT --baseline COMMIT')
+	$requiredCapabilities.Add('plan:validate')
+	$requiredHelp.Add('WorktreeCli.exe plan release-after-landing --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256 --landed-commit COMMIT')
+	$requiredCapabilities.Add('plan:release-after-landing')
 	$result.worktreeCli.requiredCapabilities = $requiredCapabilities.ToArray()
 	$help = Invoke-NativeText $worktreeCliItem.FullName @('--help') $currentIdentity
 	if ($help.ExitCode -ne 0) { Stop-Validation 'worktreecli.help-failed' 'Selected WorktreeCli --help failed; run authorized /compile primary maintenance.' }
 	$result.worktreeCli.capabilityResult = 'fail'
-	foreach ($required in $requiredHelp) { if (-not $help.Stdout.Contains($required, [StringComparison]::Ordinal)) { Stop-Validation 'worktreecli.capability-stale' "Selected WorktreeCli lacks finalization capability '$required'; run authorized /compile primary maintenance." } }
+	$missingHelp = @($requiredHelp | Where-Object { -not $help.Stdout.Contains($_, [StringComparison]::Ordinal) })
+	$bootstrapCandidate = $Checkpoint -in @('after-reconciliation', 'pre-mutation', 'post-advance-recovery') -and
+		$missingHelp.Count -ne 0 -and $candidateReceiptPathBound
+	if ($missingHelp.Count -ne 0 -and -not $bootstrapCandidate) {
+		Stop-Validation 'worktreecli.capability-stale' "Selected WorktreeCli lacks finalization capability '$($missingHelp[0])'; run authorized /compile primary maintenance."
+	}
+	if ($bootstrapCandidate) {
+		$candidate = Get-CertifiedCandidateWorktreeCli $primaryIdentity $currentIdentity $currentTip
+		$result.worktreeCli.path = $candidate.Executable
+		$result.worktreeCli.selection = 'certified-candidate'
+		$result.worktreeCli.candidate = [ordered]@{ receiptPath = $CandidateReceiptPath; receiptSha256 = $CandidateReceiptSha256; executablePath = $candidate.Executable; executableSha256 = $candidate.Certification.executables.WorktreeCli.sha256 }
+	}
 	$result.worktreeCli.capabilityResult = 'pass'
 
 	if ($Mode -eq 'session-landing') {

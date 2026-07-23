@@ -1,101 +1,27 @@
 [CmdletBinding()]
-param(
-	[string] $Queue = 'plans',
-	[string] $Plan
-)
-
-$ErrorActionPreference = 'Stop'
-Set-StrictMode -Version Latest
-
-$result = [ordered]@{
-	schemaVersion = 'broken-engine-next-plan-claim-result/v1'
-	status = 'error'
-	code = 'internal.error'
-	message = 'Claim did not run.'
-	receipt = $null
-	claim = $null
-}
-
-function Complete-Claim([int] $ExitCode, [string] $Status, [string] $Code, [string] $Message) {
-	$result.status = $Status
-	$result.code = $Code
-	$result.message = $Message
-	[Console]::Out.Write(($result | ConvertTo-Json -Depth 100 -Compress))
-	exit $ExitCode
-}
-
+param([string] $Plan)
+$ErrorActionPreference='Stop'; Set-StrictMode -Version Latest
+$result=[ordered]@{schemaVersion='broken-engine-next-plan-claim-result/v2';status='error';code='internal.error';message='Claim did not run.';receipt=$null;claim=$null}
+function Complete-Claim([int]$ExitCode,[string]$Status,[string]$Code,[string]$Message){$result.status=$Status;$result.code=$Code;$result.message=$Message;[Console]::Out.Write(($result|ConvertTo-Json -Depth 100 -Compress));exit $ExitCode}
 try {
-	Import-Module (Join-Path $PSScriptRoot 'NextPlanWorkflowCommon.psm1') -Force -DisableNameChecking
-	if ($Queue -cnotin @('plans', 'features')) { throw 'Queue must be plans or features.' }
-	$normalizedPlan = if ($null -eq $Plan) { '' } else { $Plan.Replace('\', '/') }
-	if (-not [string]::IsNullOrEmpty($normalizedPlan)) {
-		Assert-NextPlanGitPath $normalizedPlan
-		$expectedPrefix = if ($Queue -ceq 'plans') { 'Documents/Plans/' } else { 'Documents/Features/' }
-		if (-not $normalizedPlan.StartsWith($expectedPrefix, [StringComparison]::Ordinal)) {
-			throw "Plan does not belong to queue '$Queue'."
-		}
-	}
-	$context = Get-NextPlanContext
-	$status = Invoke-NextPlanProcess 'git.exe' @('-C',$context.Worktree,'status','--porcelain=v1','--untracked-files=all') $context.Worktree
-	if ($status.ExitCode -ne 0) { throw (New-NextPlanStateBlocker 'Could not verify the session worktree is clean before claim.') }
-	if (-not [string]::IsNullOrWhiteSpace($status.Stdout)) {
-		throw (New-NextPlanStateBlocker 'The session worktree must be clean before claim, including after primary-advance recovery.')
-	}
-	$validate = Invoke-NextPlanProcess $context.WorktreeCli @('plan','order','validate','--repo',$context.CommonDirectory,'--worktree',$context.Primary) $context.Worktree
-	$validateJson = ConvertFrom-NextPlanProcessJson $validate 'plan order validate'
-	if ($validate.ExitCode -ne 0 -or -not $validateJson.ok) {
-		$result.claim = $validateJson
-		Complete-Claim ($(if ($validate.ExitCode -eq 2) { 2 } else { 1 })) 'blocked' 'queue.validation-failed' 'Primary queue validation failed.'
-	}
-	$orphanPlans = @($validateJson.notices | Where-Object { $_.code -ceq 'orphan-plan' })
-	if ($orphanPlans.Count -ne 0) {
-		$result.claim = $validateJson
-		Complete-Claim 2 'blocked' 'queue.orphan-plan' 'Primary queue validation reported orphan plan files; repair the queue before claiming.'
-	}
-	$arguments = @(
-		'plan','order','claim-next','--repo',$context.CommonDirectory,
-		'--primary-worktree',$context.Primary,'--worktree',$context.Worktree,
-		'--branch',$context.TargetBranch,'--owner',$context.Owner,'--session',$context.Session,
-		'--queue',$Queue
-	)
-	if (-not [string]::IsNullOrEmpty($normalizedPlan)) { $arguments += @('--plan', $normalizedPlan) }
-	$response = Invoke-NextPlanProcess $context.WorktreeCli $arguments $context.Worktree
-	$claim = ConvertFrom-NextPlanProcessJson $response 'plan order claim-next'
-	$result.claim = $claim
-	if ($response.ExitCode -ne 0 -and -not ($claim.PSObject.Properties.Name -ccontains 'claimed' -and $claim.claimed)) {
-		Complete-Claim ($(if ($response.ExitCode -eq 2) { 2 } else { 1 })) 'blocked' 'claim.rejected' 'WorktreeCli did not create a plan-row claim.'
-	}
-	if (-not $claim.claimed -or $claim.owner -cne $context.Owner -or $claim.primaryCommit -cne $context.Baseline) {
-		throw 'WorktreeCli claim receipt does not match wrapper provenance.'
-	}
-	$order = ([string]$claim.order).Replace('\', '/')
-	Assert-NextPlanGitPath $order
-	$receiptValue = [ordered]@{
-		schemaVersion = 'broken-engine-next-plan-claim/v1'
-		owner = $context.Owner
-		session = $context.Session
-		worktree = $context.Worktree
-		primary = $context.Primary
-		commonDirectory = $context.CommonDirectory
-		sessionBranch = $context.SessionBranch
-		targetBranch = $context.TargetBranch
-		baseline = $context.Baseline
-		queue = $Queue
-		plan = [string]$claim.plan
-		order = $order
-		planSha256 = [string]$claim.planSha256
-		worktreeCliReceipt = $claim
-	}
-	$receiptArtifact = Write-NextPlanJsonArtifact $context.Worktree 'next-plan-claim' $receiptValue
-	$result.receipt = [ordered]@{ path = $receiptArtifact.Path; sha256 = $receiptArtifact.Sha256; bytes = $receiptArtifact.Bytes }
-	if ($response.ExitCode -eq 0) {
-		Complete-Claim 0 'pass' 'ok' 'Plan row was claimed from wrapper-derived state.'
-	}
-	Complete-Claim 2 'blocked' 'claim.unlock-failed' 'The row was claimed, but WorktreeCli reported a queue-unlock failure.'
-}
-catch {
-	if (Get-Command Test-NextPlanStateBlocker -ErrorAction SilentlyContinue) {
-		if (Test-NextPlanStateBlocker $_) { Complete-Claim 2 'blocked' 'claim.context-conflict' $_.Exception.Message }
-	}
-	Complete-Claim 1 'error' 'claim.failed' $_.Exception.Message
-}
+ Import-Module (Join-Path $PSScriptRoot 'NextPlanWorkflowCommon.psm1') -Force -DisableNameChecking
+ if ($Plan) { $Plan=$Plan.Replace('\','/'); Assert-NextPlanGitPath $Plan; if (-not $Plan.StartsWith('Documents/Plans/',[StringComparison]::Ordinal)) { throw 'Only Documents/Plans paths are scheduler inputs.' } }
+ $context=Get-NextPlanContext
+ $status=Invoke-NextPlanProcess 'git.exe' @('-C',$context.Worktree,'status','--porcelain=v1','--untracked-files=all') $context.Worktree
+ if($status.ExitCode -ne 0 -or -not [string]::IsNullOrWhiteSpace($status.Stdout)){throw (New-NextPlanStateBlocker 'Session worktree must be clean before a plan claim.')}
+ $validate=Invoke-NextPlanProcess $context.WorktreeCli @('plan','validate','--repo',$context.CommonDirectory,'--worktree',$context.Primary,'--baseline',$context.Baseline) $context.Worktree
+ $validation=ConvertFrom-NextPlanProcessJson $validate 'plan validate'; $result.validation=$validation
+ if($validate.ExitCode -ne 0){$exit=if($validate.ExitCode -eq 2){2}else{1};Complete-Claim $exit $(if($exit -eq 2){'blocked'}else{'error'}) 'plan.validation-failed' 'Plan validation failed.'}
+ $receiptPath=Join-Path $context.Worktree ('Temp\next-plan-claim-'+[Guid]::NewGuid().ToString('N')+'.json')
+ $args=@('plan','claim-next','--repo',$context.CommonDirectory,'--primary-worktree',$context.Primary,'--worktree',$context.Worktree,'--branch',$context.SessionBranch,'--owner',$context.Owner,'--session',$context.Session,'--write-claim-receipt',$receiptPath);if($Plan){$args+=@('--plan',$Plan)}
+ $response=Invoke-NextPlanProcess $context.WorktreeCli $args $context.Worktree;$claim=ConvertFrom-NextPlanProcessJson $response 'plan claim-next';$result.claim=$claim
+ if($response.ExitCode -ne 0){$exit=if($response.ExitCode -eq 2){2}else{1};Complete-Claim $exit $(if($exit -eq 2){'blocked'}else{'error'}) 'claim.rejected' 'WorktreeCli rejected the plan claim.'}
+ if(-not $claim.claimed){Complete-Claim 0 'pass' 'none-available' 'No eligible Plans plan is available.'}
+ foreach($name in @('plan','digest','receipt')){if($claim.PSObject.Properties.Name -cnotcontains $name){throw "Claim response omitted '$name'."}}
+ if([string]$claim.plan -notlike 'Documents/Plans/*' -or [string]$claim.digest -cnotmatch '^[0-9a-f]{64}$'){throw 'Claim response has an invalid plan identity.'}
+ $receipt=$claim.receipt; foreach($name in @('path','sha256','size')){if($receipt.PSObject.Properties.Name -cnotcontains $name){throw "Claim receipt omitted '$name'."}}
+ $receiptPath=Assert-NextPlanRepositoryPath $context.Worktree ([string]$receipt.path) 'Claim receipt'
+ if([string]$receipt.sha256 -cnotmatch '^[0-9a-f]{64}$' -or (Get-NextPlanFileSha256 $receiptPath) -cne $receipt.sha256){throw 'Claim receipt digest does not match durable receipt bytes.'}
+ $result.receipt=[ordered]@{path=$receiptPath;sha256=[string]$receipt.sha256;bytes=[int64]$receipt.size}
+ Complete-Claim 0 'pass' 'ok' 'Plan claimed from wrapper-derived state.'
+} catch {if(Get-Command Test-NextPlanStateBlocker -ErrorAction SilentlyContinue){if(Test-NextPlanStateBlocker $_){Complete-Claim 2 'blocked' 'claim.context-conflict' $_.Exception.Message}};Complete-Claim 1 'error' 'claim.failed' $_.Exception.Message}

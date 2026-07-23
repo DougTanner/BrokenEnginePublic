@@ -22,7 +22,7 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 - A wait boundary or elapsed time alone never proves a delegate is stuck — judge liveness by transcript/status evidence: recent distinct tool activity, narrowing searches, new evidence, or in-progress synthesis is forward progress; a loop requires repeated equivalent operations or unchanged failures without narrowing or new evidence. Before replacing a running reviewer, request findings gathered so far; a justified replacement continues from them (mechanics: [.agents/references/subagent-reporting.md](.agents/references/subagent-reporting.md))
 - Subagent-to-subagent handoffs go through temporary files; return only the file paths to the parent session
 - Return one inline acceptance table only when a final-evidence gate (defined in the Change Workflow below) applies; format: [.agents/references/subagent-reporting.md](.agents/references/subagent-reporting.md)
-- Isolated worktrees and session claims are required only for queue selection or mutation, shared build/bootstrap coordination, or landing. Ordinary work uses the user-supplied checkout and preserves unrelated changes.
+- Isolated worktrees and session claims are required only for executable Plan selection or claim mutation, shared build/bootstrap coordination, or landing. Ordinary work uses the user-supplied checkout and preserves unrelated changes.
 - Live sessions hold a `git worktree lock`; retained worktrees are removed only by the manual `/cleanup-worktrees` skill or explicit user direction — never recreate its effect with raw Git or filesystem commands.
 
 ### Delegation roles
@@ -57,11 +57,12 @@ The user's request is implementation authority for Tier 1 and Tier 2 changes; ag
 Definitions used throughout this workflow:
 
 - **Execution card** — the short pre-implementation record of goal, out-of-scope boundary, tier trigger, affected interfaces/invariants, acceptance checks, and roles.
-- **Final-evidence gate** — the `/verify-changes` acceptance table plus `/finalize-changes` path required for queue mutation or completion, reconciliation, requested primary commit or landing, a wrapper session completing its work (step 8), shared build/bootstrap work, or Tier-3 integration. Any `/next-plan` claim uses it regardless of tier — "Tier 1 and Tier 2 authorize implementation" governs approval, not finalization.
-- **Objective-terminal** — the session state where every recorded stage is complete or explicitly user-deferred with a queued row in the live plan queue.
-- **Reconciliation** — `/finalize-changes` rebasing the verified session branch onto the current primary tip; a conflict-free rebase needs no re-verification, and conflicts route through the overlap check. A session-worktree queue-validation finding caused solely by plan rows newly landed on primary (their files exist on primary but not at the wrapper baseline) is the expected post-advance condition: WorktreeCli reports it as a non-blocking `missing-plan-file` notice, every `ok: true` gate accepts it, and reconciliation resolves it — it is never a blocker requiring user direction or a mid-workflow rebase.
-- **Queue row** — one plan entry in the machine-local WorktreeCli queue (stored under `%LOCALAPPDATA%\BrokenEngineLocks\plan-queue-state\`, identified by the `Documents/Plans/Order.md` / `Documents/Features/Order.md` logical strings); the plan files it references live in the repo. WorktreeCli is the queue's sole parser and mutator.
+- **Final-evidence gate** — the `/verify-changes` acceptance table plus `/finalize-changes` path required for executable Plan claim mutation or completion, reconciliation, requested primary commit or landing, a wrapper session completing its work (step 8), shared build/bootstrap work, or Tier-3 integration. Any `/next-plan` claim uses it regardless of tier — "Tier 1 and Tier 2 authorize implementation" governs approval, not finalization.
+- **Objective-terminal** — the session state where every recorded stage is complete or explicitly user-deferred with a tracked follow-up Plan when one is required.
+- **Reconciliation** — `/finalize-changes` rebasing the verified session branch onto the current primary tip; a conflict-free rebase needs no re-verification, and conflicts route through the overlap check. A session-worktree validation finding caused solely by executable Plans newly removed from primary (their files exist at the wrapper baseline but not on primary) is the expected post-advance condition: WorktreeCli reports it as a non-blocking `missing-plan-file` notice, every `ok: true` gate accepts it, and reconciliation resolves it — it is never a blocker requiring user direction or a mid-workflow rebase.
+- **Executable Plan** — a tracked `Documents/Plans/**/*.md` file with byte-zero `broken-engine-plan/v1` metadata. WorktreeCli deterministically selects it by immutable `createdUtc` and canonical path; only short-lived PC-local claim records live outside Git. `Documents/Features` is manual.
 - **Wrapper session** — a session started through `.claude/claude-worktree.sh` or `.codex/codex-worktree.ps1`, owning an isolated worktree and a live WorktreeCli session claim.
+	- Retained wrapper sessions reattach only through the same wrapper with its explicit reattach worktree input (`-ReattachWorktree <path>` for Codex; `--reattach-worktree <path>` for Claude). The wrapper reads its private-Git receipt and restores the original session owner; missing, altered, moved, or legacy receipts fail closed. Never reconstruct receipt provenance, adopt an arbitrary worktree, or bypass the wrapper ledger/lock sequence.
 
 ### Risk tiers
 
@@ -75,7 +76,7 @@ A reviewer may escalate the tier when the changed bytes expose a higher-risk sur
 
 ### 1. Approve and classify
 
-At session start, pin the process baseline. Record the complete user objective, every approved stage and deliverable with its disposition, risk tier/triggers, roles, and one check per criterion or grounded invariant. Tier 1 and Tier 2 authorize implementation; Tier 3, queue, reconciliation, and landing work also gets a short execution card.
+At session start, pin the process baseline. Record the complete user objective, every approved stage and deliverable with its disposition, risk tier/triggers, roles, and one check per criterion or grounded invariant. Tier 1 and Tier 2 authorize implementation; Tier 3, executable Plan claim, reconciliation, and landing work also gets a short execution card.
 
 ### 2. Plan review
 
@@ -99,17 +100,17 @@ Run `/code-style-review` only for changed C++, `/validate-skill` only for a chan
 
 ### 7. Verify the acceptance matrix
 
-Map every approved criterion and declared invariant to a decisive check, naming any duplicate's independent signal. Tier 1 uses static, schema, link, and validator checks plus C++ compilation when C++ changed; Tier 2 adds the smallest observable scenario; Tier 3 adds only exposed invariant or integration checks. A passing acceptance matrix completes only the current stage. Route out-of-scope leftovers from the skill executions — work that still needs doing — through `/create-follow-up-plans` when the session holds a live queue claim; otherwise present the proposed follow-up plans to the user.
+Map every approved criterion and declared invariant to a decisive check, naming any duplicate's independent signal. Tier 1 uses static, schema, link, and validator checks plus C++ compilation when C++ changed; Tier 2 adds the smallest observable scenario; Tier 3 adds only exposed invariant or integration checks. A passing acceptance matrix completes only the current stage. Route out-of-scope leftovers from the skill executions — work that still needs doing — through `/create-follow-up-plans` when the session holds a live Plan claim; otherwise present the proposed follow-up plans to the user.
 
 ### 8. Reconcile, audit when triggered, and finalize
 
 When a final-evidence gate applies, produce the `/verify-changes` acceptance table. Run one `/session-audit` only for late semantic fixes, manual conflict resolutions or invalidated assumptions, Tier-3 cross-file integration, or contract-significant regions unseen by review.
 
-Queue work normally uses a registered session worktree. `/finalize-changes` owns commit, landing, and claim release — including the explicitly user-authorized `primary-commit` route — and a session landing still needs final approval before advancing its parent. WorktreeCli is the sole row parser and mutator; validate before queue selection or mutation, after a landing that changes plan files, and after primary completion.
+Executable Plan work normally uses a registered session worktree. `/finalize-changes` owns commit, landing, and claim release — including the explicitly user-authorized `primary-commit` route — and a session landing still needs final approval before advancing its parent. WorktreeCli is the sole metadata scheduler parser and claim mutator; validate before Plan selection or mutation, after a landing that changes Plan files, and after primary completion.
 
 A wrapper session lands by default: once every stage's checks pass, produce the `/verify-changes` acceptance table and proceed to `/finalize-changes` without waiting for a landing request — its landing confirmation is the user's land/defer/decline decision.
 
-Landing and claim release complete only a repository stage. Continue the next recorded stage in the same session or present its approval gate. The session is objective-terminal only when every stage is complete or each unfinished stage was explicitly deferred by the user and has a queued row in the live plan queue.
+Landing and receipt-bound claim release complete only a repository stage. Continue the next recorded stage in the same session or present its approval gate. The session is objective-terminal only when every stage is complete or each unfinished stage was explicitly deferred by the user with a tracked follow-up Plan where needed.
 
 ### Convergence
 
@@ -150,7 +151,7 @@ Convergence applies only to steps this workflow routes and does not trigger. An 
 - `/Tools/ToolCommon/` - Shared Windows and coordination support compiled into both tools - `Tools/ToolCommon/AGENTS.md`
 - `/Tools/WorktreeCli/` - Repository build, landing, and plan coordination - `Tools/WorktreeCli/AGENTS.md`
 - `/ThirdParty/` - External libraries (do not modify) - `ThirdParty/AGENTS.md`
-- `/Documents/` - Style guide (`C++StyleGuide.txt`), Mermaid architecture diagrams and network protocol reference (`Architecture/`), and the plan queues (`Plans/`, `Features/`) - `Documents/AGENTS.md`
+- `/Documents/` - Style guide (`C++StyleGuide.txt`), Mermaid architecture diagrams and network protocol reference (`Architecture/`), executable refactor plans (`Plans/`), and manual feature plans (`Features/`) - `Documents/AGENTS.md`
 
 ## Static Analysis
 

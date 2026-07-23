@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-19T15:51:07.000Z","dependsOn":[]} -->
 # Reduce Water Fragment Shader
 
 ## Context

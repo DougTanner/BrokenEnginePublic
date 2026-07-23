@@ -10,7 +10,7 @@
     <ClCompile Include="..\..\LandingLockCommands.cpp"><Filter>WorktreeCli</Filter></ClCompile>
     <ClCompile Include="..\..\LandingLockLifecycle.cpp"><Filter>WorktreeCli</Filter></ClCompile>
     <ClCompile Include="..\..\PlanCommands.cpp"><Filter>WorktreeCli</Filter></ClCompile>
-    <ClCompile Include="..\..\PlanOrderCommands.cpp"><Filter>WorktreeCli</Filter></ClCompile>
+    <ClCompile Include="..\..\PlanScheduler.cpp"><Filter>WorktreeCli</Filter></ClCompile>
     <ClCompile Include="..\..\..\ToolCommon\CoordinationStore.cpp"><Filter>ToolCommon</Filter></ClCompile>
     <ClCompile Include="..\..\..\ToolCommon\ToolCliCommon.cpp"><Filter>ToolCommon</Filter></ClCompile>
   </ItemGroup>
@@ -19,7 +19,7 @@
     <ClInclude Include="..\..\LandingLockCommands.h"><Filter>WorktreeCli</Filter></ClInclude>
     <ClInclude Include="..\..\LandingLockLifecycle.h"><Filter>WorktreeCli</Filter></ClInclude>
     <ClInclude Include="..\..\PlanCommands.h"><Filter>WorktreeCli</Filter></ClInclude>
-    <ClInclude Include="..\..\PlanOrderCommands.h"><Filter>WorktreeCli</Filter></ClInclude>
+    <ClInclude Include="..\..\PlanScheduler.h"><Filter>WorktreeCli</Filter></ClInclude>
     <ClInclude Include="..\..\..\ToolCommon\CoordinationStore.h"><Filter>ToolCommon</Filter></ClInclude>
     <ClInclude Include="..\..\..\ToolCommon\ToolCliCommon.h"><Filter>ToolCommon</Filter></ClInclude>
   </ItemGroup>

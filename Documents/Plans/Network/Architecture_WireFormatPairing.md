@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-06-11T01:57:56.000Z","dependsOn":[]} -->
 # Architecture: Wire-Format Write/Read Pairing
 
 ## Context

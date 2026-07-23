@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-02T02:29:26.000Z","dependsOn":[]} -->
 # Model Specular Antialiasing
 
 ## Context
@@ -117,5 +118,5 @@ The drop is a one-line flag removal; keep it as the final, separately-confirmed 
 - **Decisions (2026-07-03, both resolved in Design §1/§2):** (1) tuning uniforms — model-specific `fPbrSpecAA*` (separate GGX-alpha² tuning domain from Water's Phong-power domain); (2) widen `D` only (V is a smooth non-aliasing term; matches Water's NDF-only precedent). Verified against `Model.frag:303-304`/`:376-377` — the D/V call pairs and line cites hold in current code.
 - **Compile-time mode + repack:** `MODEL_SPEC_AA_MODE` is edit-and-repack like `WATER_SPEC_AA_MODE` — DataPacker shader rebuild required after any shader edit.
 - **Invariant exposure declared:** client/graphics-only; two new `MainLayout` uniform fields (per-frame, CPU-populated, not serialized/CRC'd); no determinism / CRC / `kiVersion` / `.pack` / wire exposure.
-- **Shared-file overlaps (see `Order.md` Dependencies):** the optional `kSampleShading` drop edits `CreateModelPipeline` in `DynamicPipelines.cpp`, the same function `Meta/ReviewSweepQuickWins.md` item 13 folds the try/catch into — refresh line cites if co-scheduled. The new `MainLayout` fields append to `ShaderLayoutsBase.h`, which `Graphics/WindowedLightingShadowDispatch.md` may also grow — additive, refresh cites. Both overlaps are line-drift only, no logic conflict.
+- **Shared-file overlaps:** the optional `kSampleShading` drop edits `CreateModelPipeline` in `DynamicPipelines.cpp`, the same function `Meta/ReviewSweepQuickWins.md` item 13 folds the try/catch into — refresh line cites if co-scheduled. The new `MainLayout` fields append to `ShaderLayoutsBase.h`, which `Graphics/WindowedLightingShadowDispatch.md` may also grow — additive, refresh cites. Both overlaps are line-drift only, no logic conflict.
 - Expected effort likely Small-Medium: the shader edit is a localized additive change following a landed precedent; the bulk is the uniform/Ui wiring, the sample-shading investigation, and A/B tuning.

@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-20T00:49:13.000Z","dependsOn":["Documents/Plans/Tools/Refactor_BuildCommandReliability.md"]} -->
 # Refactor: Build Command Decomposition
 
 ## Context

@@ -281,11 +281,15 @@ namespace toolcli::coordination
 
 	bool WriteMetadataAtomic(const std::filesystem::path& rPath, const nlohmann::json& rMetadata)
 	{
+		return WriteBytesAtomic(rPath, rMetadata.dump(2) + "\n");
+	}
+
+	bool WriteBytesAtomic(const std::filesystem::path& rPath, std::string_view contents)
+	{
 		static uint32_t suiSequence = 0;
 		const std::filesystem::path targetPath = ExtendedLengthPath(rPath);
 		std::filesystem::path temporaryPath = targetPath;
 		temporaryPath += L".tmp." + std::to_wstring(::GetCurrentProcessId()) + L"." + std::to_wstring(++suiSequence);
-		std::string contents = rMetadata.dump(2) + "\n";
 		Handle hFile(::CreateFileW(temporaryPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_TEMPORARY, nullptr));
 		if (!hFile.IsValid())
 		{

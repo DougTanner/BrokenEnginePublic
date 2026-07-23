@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-18T19:00:04.000Z","dependsOn":[]} -->
 # Tweaks Slider Audit Traversal
 
 ## Context

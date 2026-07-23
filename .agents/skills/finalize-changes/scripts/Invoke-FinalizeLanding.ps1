@@ -1,36 +1,7 @@
-# Exclusive owner of the post-approval session-landing transaction: every lock,
-# Git, cleanup, queue-publication, and row-release action. Callers pass the exact
-# approval-covered session commit, the current/primary identities and expected
-# tips, wrapper owner/session label, any retained row-claim locator, and any
-# post-landing plan-order add-request paths. None of these operations may be
-# assembled as inline PowerShell by a caller.
-#
-# Transaction: runs the single structural pre-mutation preflight, derives the
-# canonical Git common directory, claims the PC-global landing lock, refreshes
-# owner-only leases around every mutation, proves primary is an ancestor with no
-# commits to replay (`git merge-base --is-ancestor`, empty rev-lists, no
-# multi-parent commits), advances primary with `git rebase <approved-session-commit>`
-# (a pure fast-forward ref advance), and conditionally releases the landing lock.
-# The machine-local plan queue never appears in the session diff, so this
-# transaction takes no Plans/Features queue locks — WorktreeCli takes them
-# internally. After the advance it publishes the queue: `plan order complete`
-# against primary (the plan file is already deleted in the landed tree),
-# `plan order add --worktree <session>` for each supplied add-request (the session
-# tip equals the landed commit, so plan files and Temp/ requests resolve there),
-# then `plan order validate` against primary whenever a complete or add ran, and
-# finally releases the retained row claim. Every publication step is safe to rerun
-# after a crash. Reinvoke this sidecar with the same approval-bound inputs when
-# the session remains at ApprovedSessionCommit and primary contains it; its
-# post-advance recovery path revalidates request hashes, resumes idempotent
-# publication, and releases the row claim without replaying the primary advance.
-#
-# Universal acquired-lock safe-stop rule (owned here): on any cancellation,
-# blocker, or failure, the landing claim follows the clear-worktree
-# release/active-retain rule — visited on the normal path and in the finally
-# block, owner-checked, released only while still owned, and retained and reported
-# when it cannot be proven released.
-#
-# Result contract: broken-engine-finalize-landing/v1 JSON; exit 0 before the
+
+
+
+# Exclusive owner of post-approval landing: baseline provenance, structural preflight, locks, ancestry proofs, ref advance, candidate certification, and crash recovery remain mandatory. Scheduler touchpoint is only receipt-bound terminal release after primary advances.
 # caller reports LANDED; exit 2 may report a post-advance blocker but still
 # carries the authoritative lock-cleanup state.
 [CmdletBinding()]
@@ -45,18 +16,19 @@ param(
 	[Parameter(Mandatory)][string] $SessionOwner,
 	[Parameter(Mandatory)][string] $SessionLabel,
 	[Parameter(Mandatory)][string] $ApprovedSessionCommit,
-	[switch] $HasPlanRowClaim,
-	[string] $PlanOrder,
-	[string] $Plan,
-	[Parameter(Mandatory)][ValidateSet('none', 'list')][string] $PlanAddRequestDisposition,
-	[string[]] $PlanAddRequestPaths,
-	[string[]] $PlanAddRequestSha256
+	[string] $ClaimReceiptPath,
+	[string] $ClaimReceiptSha256,
+	[ValidateSet('none', 'completed', 'rejected')][string] $TerminalDisposition = 'none',
+	[string] $CandidateReceiptPath,
+	[string] $CandidateReceiptSha256
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$planAddRequestPathsBound = $PSBoundParameters.ContainsKey('PlanAddRequestPaths')
-$planAddRequestSha256Bound = $PSBoundParameters.ContainsKey('PlanAddRequestSha256')
+$claimReceiptPathBound = $PSBoundParameters.ContainsKey('ClaimReceiptPath')
+$claimReceiptSha256Bound = $PSBoundParameters.ContainsKey('ClaimReceiptSha256')
+$candidateReceiptPathBound = $PSBoundParameters.ContainsKey('CandidateReceiptPath')
+$candidateReceiptSha256Bound = $PSBoundParameters.ContainsKey('CandidateReceiptSha256')
 
 $commonModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
 if (-not (Test-Path -LiteralPath $commonModule)) {
@@ -72,10 +44,15 @@ $result = [ordered]@{
 	primaryAdvanced = $false
 	identities = [ordered]@{ currentWorktree = $null; primaryWorktree = $null; gitCommonDirectory = $null; currentBranch = $null; primaryBranch = $null }
 	tips = [ordered]@{ approvedSession = $ApprovedSessionCommit; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip; current = $null; primary = $null }
-	locks = [ordered]@{ landingOwner = $null; landingClaimed = $false; landingReleased = $false }
-	planRow = [ordered]@{ requested = $HasPlanRowClaim.IsPresent; released = $false; order = $PlanOrder; plan = $Plan }
-	queuePublication = [ordered]@{ requestDisposition = $PlanAddRequestDisposition; requests = @(); completed = $false; complete = $null; added = [Collections.Generic.List[object]]::new(); validated = $false }
+	locks = [ordered]@{ landingOwner = $null; landingClaimed = $false; landingReleased = $false; claim = $null }
+	planClaim = [ordered]@{ requested = $claimReceiptPathBound; released = $false; receipt = $ClaimReceiptPath }
+	planValidation = $null
+	candidateBootstrap = $null
 	cleanup = [ordered]@{ worktreesClear = $null; worktreeProblems = @() }
+	disposition = 'terminal'
+	requiresUserAuthority = $false
+	retryAfterMilliseconds = 0
+	blocker = $null
 	residuals = [Collections.Generic.List[string]]::new()
 }
 $script:WorktreeCliPath = $null
@@ -83,18 +60,21 @@ $script:LandingOwner = $null
 $script:LandingClaimed = $false
 $script:PrimaryIdentity = $null
 $script:CurrentIdentity = $null
-$script:PlanRowKey = $null
-$script:CanonicalPlanKey = $null
+$script:ClaimReceiptPath = $ClaimReceiptPath
+$script:ClaimReceiptSha256 = $ClaimReceiptSha256
+$script:PlanCompletionTerminalProven = $false
+$script:CertifiedForeignDiagnosticFingerprints = $null
 $script:FailureExitCode = 0
 $script:FailureCode = $null
 $script:FailureMessage = $null
-$script:CertifiedPlanAddRequests = @()
-$script:PlanCompletionTerminalProven = $false
 
-function Throw-Landing([int] $ExitCode, [string] $Code, [string] $Message) {
+function Throw-Landing([int] $ExitCode, [string] $Code, [string] $Message, [string] $Disposition = 'terminal', [bool] $RequiresUserAuthority = $false, [int] $RetryAfterMilliseconds = 0) {
 	$exception = [InvalidOperationException]::new($Message)
 	$exception.Data['FinalizeExitCode'] = $ExitCode
 	$exception.Data['FinalizeCode'] = $Code
+	$exception.Data['FinalizeDisposition'] = $Disposition
+	$exception.Data['FinalizeRequiresUserAuthority'] = $RequiresUserAuthority
+	$exception.Data['FinalizeRetryAfterMilliseconds'] = $RetryAfterMilliseconds
 	throw $exception
 }
 
@@ -114,54 +94,6 @@ function Invoke-WorktreeCli([string[]] $Arguments) {
 	return Invoke-FinalizeNativeText $script:WorktreeCliPath $Arguments $script:CurrentIdentity.Worktree
 }
 
-function New-PlanAddRequestItemsJson {
-	$paths = @()
-	$hashes = @()
-	if ($planAddRequestPathsBound) { $paths = @($PlanAddRequestPaths) }
-	if ($planAddRequestSha256Bound) { $hashes = @($PlanAddRequestSha256) }
-	if ($PlanAddRequestDisposition -ceq 'none') {
-		if ($paths.Count -ne 0 -or $hashes.Count -ne 0) { Throw-Landing 1 'input.plan-add-request-invalid' 'PlanAddRequestDisposition none forbids request paths and hashes.' }
-		return $null
-	}
-	if ($paths.Count -eq 0 -or $hashes.Count -ne $paths.Count) { Throw-Landing 1 'input.plan-add-request-invalid' 'PlanAddRequestDisposition list requires one SHA-256 per request path.' }
-	$items = [Collections.Generic.List[object]]::new()
-	for ($index = 0; $index -lt $paths.Count; ++$index) {
-		$path = $paths[$index]
-		$sha256 = $hashes[$index]
-		if ([string]::IsNullOrWhiteSpace($path) -or [string]::IsNullOrWhiteSpace($sha256)) { Throw-Landing 1 'input.plan-add-request-invalid' "Plan-add request path and SHA-256 at index $index must not be null or blank." }
-		if ($sha256 -cnotmatch '^[0-9a-f]{64}$') { Throw-Landing 1 'input.plan-add-request-invalid' "Plan-add request SHA-256 at index $index must be 64 lowercase hexadecimal characters." }
-		$items.Add([ordered]@{ path = $path; sha256 = $sha256 })
-	}
-	return ConvertTo-Json -InputObject $items.ToArray() -Depth 4 -Compress
-}
-
-function Assert-PlanAddRequestResult($PreflightResult) {
-	if ($null -eq $PreflightResult.planAddRequests -or $PreflightResult.planAddRequests.disposition -cne $PlanAddRequestDisposition) {
-		Throw-Landing 1 'preflight.request-disposition-invalid' 'Finalization preflight returned a different plan-add request disposition.'
-	}
-	$paths = @()
-	$hashes = @()
-	if ($planAddRequestPathsBound) { $paths = @($PlanAddRequestPaths) }
-	if ($planAddRequestSha256Bound) { $hashes = @($PlanAddRequestSha256) }
-	$items = @($PreflightResult.planAddRequests.items)
-	if ($items.Count -ne $paths.Count) { Throw-Landing 1 'preflight.request-count-invalid' 'Finalization preflight returned a different plan-add request count.' }
-	for ($index = 0; $index -lt $items.Count; ++$index) {
-		$item = $items[$index]
-		if ($null -eq $item) { Throw-Landing 1 'preflight.request-identity-invalid' "Finalization preflight returned a null plan-add request at index $index." }
-		$properties = @($item.PSObject.Properties.Name)
-		if (@('suppliedPath', 'repositoryRelativePath', 'identity', 'sha256') | Where-Object { $properties -cnotcontains $_ }) {
-			Throw-Landing 1 'preflight.request-identity-invalid' "Finalization preflight omitted plan-add request identity fields at index $index."
-		}
-		if ([string]::IsNullOrWhiteSpace([string]$item.suppliedPath) -or
-			[string]::IsNullOrWhiteSpace([string]$item.repositoryRelativePath) -or
-			[string]::IsNullOrWhiteSpace([string]$item.identity) -or
-			[string]$item.suppliedPath -cne $paths[$index] -or [string]$item.sha256 -cnotmatch '^[0-9a-f]{64}$' -or
-			[string]$item.sha256 -cne $hashes[$index]) {
-			Throw-Landing 1 'preflight.request-identity-invalid' "Finalization preflight returned an invalid, reordered, or re-paired plan-add request at index $index."
-		}
-	}
-}
-
 function Invoke-Preflight([string] $Checkpoint, [string] $CurrentTip, [string] $PrimaryTip) {
 	$preflight = Join-Path $PSScriptRoot 'Test-FinalizePreflight.ps1'
 	$arguments = [Collections.Generic.List[string]]::new()
@@ -178,20 +110,33 @@ function Invoke-Preflight([string] $Checkpoint, [string] $CurrentTip, [string] $
 		'-ExpectedPrimaryTip', $PrimaryTip
 	)) { $arguments.Add($argument) }
 	foreach ($argument in @('-SessionOwner', $SessionOwner, '-WaitSeconds', '60')) { $arguments.Add($argument) }
-	if ($HasPlanRowClaim) { $arguments.Add('-HasPlanRowClaim') }
-	foreach ($argument in @('-PlanAddRequestDisposition', $PlanAddRequestDisposition)) { $arguments.Add($argument) }
-	$requestItemsJson = New-PlanAddRequestItemsJson
-	if ($null -ne $requestItemsJson) {
-		foreach ($argument in @('-PlanAddRequestItemsJson', $requestItemsJson)) { $arguments.Add($argument) }
+	if ($candidateReceiptPathBound) {
+		$arguments.Add('-CandidateReceiptPath')
+		$arguments.Add($CandidateReceiptPath)
+		$arguments.Add('-CandidateReceiptSha256')
+		$arguments.Add($CandidateReceiptSha256)
 	}
+	if ($claimReceiptPathBound) { foreach ($argument in @('-ClaimReceiptPath',$ClaimReceiptPath,'-ClaimReceiptSha256',$ClaimReceiptSha256)) { $arguments.Add($argument) } }
 	$response = Invoke-FinalizeNativeText 'pwsh.exe' $arguments.ToArray() $script:CurrentIdentity.Worktree
 	$preflightResult = Get-JsonResponse $response "finalization preflight $Checkpoint"
 	if ($response.ExitCode -ne 0 -or $preflightResult.status -cne 'pass' -or $preflightResult.code -cne 'ok') {
 		$exitCode = if ($response.ExitCode -eq 2) { 2 } else { 1 }
 		Throw-Landing $exitCode "preflight.$($preflightResult.code)" "$Checkpoint preflight failed: $($preflightResult.message)"
 	}
-	Assert-PlanAddRequestResult $preflightResult
+	$result.candidateBootstrap = $preflightResult.worktreeCli.candidate
 	return $preflightResult
+}
+
+function Assert-ReconciledPlanMetadata {
+	$arguments = @('plan', 'validate', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:CurrentIdentity.Worktree, '--baseline', $Baseline)
+	if ($claimReceiptPathBound) { $arguments += @('--terminal-receipt', $ClaimReceiptPath, '--terminal-receipt-sha256', $ClaimReceiptSha256) }
+	$response = Invoke-WorktreeCli $arguments
+	$validation = Get-JsonResponse $response 'reconciled Plan metadata validation'
+	$result.planValidation = $validation
+	if ($response.ExitCode -ne 0 -or $validation.status -cne 'valid' -or $validation.code -cne 'ok') {
+		$details = if ($validation.PSObject.Properties.Name -ccontains 'diagnostics') { @($validation.diagnostics | ConvertTo-Json -Depth 8 -Compress) -join '' } else { [string]$validation.message }
+		Throw-Landing $(if ($response.ExitCode -eq 2) { 2 } else { 1 }) 'plan.validation-failed' "Reconciled Plan metadata is invalid; primary was not mutated. $details"
+	}
 }
 
 function Assert-LandingOwner {
@@ -254,162 +199,32 @@ function Assert-PrimaryAdvanceState {
 	}
 }
 
-# Accepts the plan in either form (canonical repository-relative or order-relative) and returns both keys:
-# Relative for `plan row` commands, Canonical for `plan order complete` (WorktreeCli rejects an order-relative
-# key there).
-function Resolve-PlanKeys([string] $Order, [string] $Plan) {
-	$normalizedOrder = $Order.Trim().Replace('\', '/')
-	$normalizedPlan = $Plan.Trim().Replace('\', '/')
-	while ($normalizedOrder.StartsWith('./', [StringComparison]::Ordinal)) { $normalizedOrder = $normalizedOrder.Substring(2) }
-	while ($normalizedPlan.StartsWith('./', [StringComparison]::Ordinal)) { $normalizedPlan = $normalizedPlan.Substring(2) }
-	if ([string]::IsNullOrWhiteSpace($normalizedOrder) -or [string]::IsNullOrWhiteSpace($normalizedPlan) -or
-		$normalizedOrder -match '^[A-Za-z]:' -or $normalizedPlan -match '^[A-Za-z]:' -or
-		$normalizedOrder.StartsWith('/', [StringComparison]::Ordinal) -or $normalizedPlan.StartsWith('/', [StringComparison]::Ordinal) -or
-		$normalizedOrder -match '(^|/)(\.|\.\.)(/|$)' -or $normalizedPlan -match '(^|/)(\.|\.\.)(/|$)' -or
-		$normalizedOrder.Contains('//') -or $normalizedPlan.Contains('//') -or $normalizedPlan.EndsWith('/', [StringComparison]::Ordinal)) {
-		Throw-Landing 1 'input.plan-claim-invalid' 'PlanOrder and Plan must be normalized repository-relative paths.'
-	}
-	$orderDirectory = [IO.Path]::GetDirectoryName($normalizedOrder)
-	if ([string]::IsNullOrWhiteSpace($orderDirectory)) {
-		Throw-Landing 1 'input.plan-claim-invalid' 'PlanOrder must have a repository-relative parent directory.'
-	}
-	$orderDirectory = $orderDirectory.Replace('\', '/').TrimEnd('/')
-	$prefix = $orderDirectory + '/'
-	if ($normalizedPlan.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
-		return @{ Relative = $normalizedPlan.Substring($prefix.Length); Canonical = $normalizedPlan }
-	}
-	if ($normalizedPlan.StartsWith('Documents/', [StringComparison]::OrdinalIgnoreCase)) {
-		Throw-Landing 1 'input.plan-claim-invalid' 'Plan is outside the selected PlanOrder directory.'
-	}
-	return @{ Relative = $normalizedPlan; Canonical = $prefix + $normalizedPlan }
-}
-
-function Resolve-PlanRowStatus([int] $ExitCode, $Status) {
-	$properties = @($Status.PSObject.Properties.Name)
-	if ($ExitCode -eq 0) {
-		if (-not ($properties -ccontains 'ownedByRequester') -or $Status.ownedByRequester -isnot [bool]) {
-			Throw-Landing 2 'plan-row.status-failed' 'Final plan-row claim state is unreadable or invalid.'
-		}
-		if ($Status.ownedByRequester) { return 'owned' }
-		Throw-Landing 2 'plan-row.not-owned' 'Final plan-row claim is owned by another session.'
-	}
-	if ($ExitCode -eq 2) {
-		if ($properties -ccontains 'held' -and $Status.held -is [bool] -and $Status.held -eq $false) { return 'absent' }
-		Throw-Landing 2 'plan-row.status-failed' 'Final plan-row claim state is unreadable or invalid.'
-	}
-	Throw-Landing 1 'plan-row.status-failed' 'Final plan-row claim state is unreadable or invalid.'
-}
-
-function Get-PlanRowStatus {
-	$response = Invoke-WorktreeCli @('plan', 'row', 'status', '--repo', $result.identities.gitCommonDirectory, '--order', $PlanOrder, '--plan', $script:PlanRowKey, '--owner', $SessionOwner)
-	$status = Get-JsonResponse $response 'plan row status'
-	return [pscustomobject]@{ State = Resolve-PlanRowStatus $response.ExitCode $status }
-}
-
-function Test-PlanCompletionTerminal {
-	$rowStatus = Get-PlanRowStatus
-	if ($rowStatus.State -ceq 'owned') { return $false }
-
-	$response = Invoke-WorktreeCli @('plan', 'order', 'validate', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:PrimaryIdentity.Worktree)
-	$validation = Get-JsonResponse $response 'terminal plan completion validation'
-	if ($response.ExitCode -ne 0 -or -not $validation.ok) {
-		Throw-Landing 2 'queue.complete-terminal-unproven' 'Absent plan-row claim does not have a valid terminal queue state.'
-	}
-	$targetRows = @($validation.rows | Where-Object { $_.plan -ceq $script:CanonicalPlanKey })
-	if ($targetRows.Count -ne 0) {
-		Throw-Landing 2 'queue.complete-terminal-unproven' 'Absent plan-row claim still has a live queue row.'
-	}
-	$primaryPlanPath = Join-Path $script:PrimaryIdentity.Worktree $script:CanonicalPlanKey
-	if (Test-Path -LiteralPath $primaryPlanPath) {
-		Throw-Landing 2 'queue.complete-terminal-unproven' 'Absent plan-row claim still has a primary plan file.'
-	}
-	if ((Get-PlanRowStatus).State -cne 'absent') {
-		Throw-Landing 2 'queue.complete-terminal-unproven' 'Plan-row claim changed while proving terminal completion.'
-	}
-
-	$script:PlanCompletionTerminalProven = $true
-	$result.queuePublication.complete = [ordered]@{
-		schemaVersion = 1
-		operation = 'complete'
-		handled = $true
-		alreadyTerminal = $true
-		plan = $script:CanonicalPlanKey
-	}
-	$result.queuePublication.completed = $true
-	$result.planRow.released = $true
-	return $true
-}
-
-function Release-PlanRowClaim {
-	if (-not $HasPlanRowClaim) { return }
-	if ($script:PlanCompletionTerminalProven) { return }
-	if ((Get-PlanRowStatus).State -cne 'owned') { Throw-Landing 2 'plan-row.not-owned' 'Final plan-row claim is absent or not owned by the session owner.' }
-	$response = Invoke-WorktreeCli @('plan', 'row', 'unclaim', '--repo', $result.identities.gitCommonDirectory, '--order', $PlanOrder, '--plan', $script:PlanRowKey, '--owner', $SessionOwner)
-	if ($response.ExitCode -ne 0) { Throw-Landing 2 'plan-row.unclaim-failed' 'Final plan-row unclaim failed.' }
-	if ((Get-PlanRowStatus).State -cne 'absent') { Throw-Landing 2 'plan-row.still-held' 'Final plan-row claim was not proven absent.' }
-	$result.planRow.released = $true
-}
-
 function Complete-LandedState {
-	$publishRan = $false
-	if ($HasPlanRowClaim) {
-		if (-not (Test-PlanCompletionTerminal)) {
-			$response = Invoke-WorktreeCli @('plan', 'order', 'complete', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:PrimaryIdentity.Worktree, '--owner', $SessionOwner, '--session', $SessionLabel, '--plan', $script:CanonicalPlanKey)
-			$completion = Get-JsonResponse $response 'post-landing plan order complete'
-			$result.queuePublication.complete = $completion
-			if ($response.ExitCode -ne 0 -and -not ($completion.PSObject.Properties.Name -ccontains 'handled' -and $completion.handled)) {
-				Throw-Landing $(if ($response.ExitCode -eq 2) { 2 } else { 1 }) 'queue.complete-failed' "Post-landing plan order complete failed: $($response.Stdout.Trim())$($response.Stderr.Trim())"
-			}
-			$result.queuePublication.completed = $true
-		}
-		$publishRan = $true
+	if ($claimReceiptPathBound) {
+		$release = Invoke-WorktreeCli @('plan','release-after-landing','--worktree',$script:CurrentIdentity.Worktree,'--claim-receipt',$ClaimReceiptPath,'--claim-receipt-sha256',$ClaimReceiptSha256,'--landed-commit',$ApprovedSessionCommit)
+		$releaseJson = Get-JsonResponse $release 'post-landing plan release'
+		$result.planClaim.release = $releaseJson
+		$hasReleased = $releaseJson.PSObject.Properties.Name -ccontains 'released' -and $releaseJson.released -is [bool] -and $releaseJson.released
+		$hasAlreadyReleased = $releaseJson.PSObject.Properties.Name -ccontains 'alreadyReleased' -and $releaseJson.alreadyReleased -is [bool] -and $releaseJson.alreadyReleased
+		$terminalStateVerified = $releaseJson.PSObject.Properties.Name -ccontains 'terminalStateVerified' -and $releaseJson.terminalStateVerified -is [bool] -and $releaseJson.terminalStateVerified
+		$expectedCode = if ($hasReleased) { 'released' } elseif ($hasAlreadyReleased) { 'already-released' } else { '' }
+		if ($release.ExitCode -ne 0 -or -not $terminalStateVerified -or $hasReleased -eq $hasAlreadyReleased -or $releaseJson.code -cne $expectedCode) { Throw-Landing $(if ($release.ExitCode -eq 2) { 2 } else { 1 }) 'plan.release-failed' 'Receipt-bound Plan release failed after primary advance.' }
+		$result.planClaim.released = $true
 	}
-	foreach ($requestItem in @($script:CertifiedPlanAddRequests)) {
-		$request = [string]$requestItem.repositoryRelativePath
-		$requestSha256 = [string]$requestItem.sha256
-		if ([string]::IsNullOrWhiteSpace($request) -or $requestSha256 -cnotmatch '^[0-9a-f]{64}$') { Throw-Landing 1 'queue.certification-invalid' 'Certified plan-add request is incomplete before publication.' }
-		$response = Invoke-WorktreeCli @('plan', 'order', 'add', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:CurrentIdentity.Worktree, '--owner', $SessionOwner, '--session', $SessionLabel, '--request', $request, '--request-sha256', $requestSha256)
-		$added = Get-JsonResponse $response "post-landing plan order add $request"
-		$result.queuePublication.added.Add($added)
-		if ($response.ExitCode -ne 0 -and -not ($added.PSObject.Properties.Name -ccontains 'handled' -and $added.handled)) {
-			Throw-Landing $(if ($response.ExitCode -eq 2) { 2 } else { 1 }) 'queue.add-failed' "Post-landing plan order add '$request' failed: $($response.Stdout.Trim())$($response.Stderr.Trim())"
-		}
-		$publishRan = $true
-	}
-	if ($publishRan) {
-		$response = Invoke-WorktreeCli @('plan', 'order', 'validate', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:PrimaryIdentity.Worktree)
-		$validation = Get-JsonResponse $response 'landed queue validation'
-		if ($response.ExitCode -ne 0 -or -not $validation.ok) {
-			Throw-Landing 2 'queue.landed-validation-failed' 'Landed primary queue validation failed.'
-		}
-		$result.queuePublication.validated = $true
-	}
-	Release-PlanRowClaim
 	$registration = Test-FinalizeWorktreeRegistration $script:PrimaryIdentity.Worktree $script:CurrentIdentity.Worktree $CurrentBranch $ApprovedSessionCommit
 	if (-not $registration.Registered) { Throw-Landing 2 'session.registration-invalid' $registration.Message }
-	if ((Invoke-FinalizeGit $script:CurrentIdentity.Worktree @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) {
-		Throw-Landing 2 'session.dirty' 'Session worktree is dirty after landing.'
-	}
-	if (-not (Test-FinalizeGitSuccess $script:PrimaryIdentity.Worktree @('merge-base', '--is-ancestor', $ApprovedSessionCommit, (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', 'HEAD')).Trim()))) {
-		Throw-Landing 2 'session.not-contained' 'Session tip is not contained in primary after landing.'
-	}
-	$result.status = 'landed'
-	$result.code = 'ok'
-	$result.message = 'Primary advanced and all owner-held finalization claims were released.'
+	if ((Invoke-FinalizeGit $script:CurrentIdentity.Worktree @('status','--porcelain','-z','--untracked-files=all')).Length -ne 0) { Throw-Landing 2 'session.dirty' 'Session worktree is dirty after landing.' }
+	$result.status='landed';$result.code='ok';$result.message='Primary advanced and post-landing finalization completed.'
 }
 
 try {
 	if ($ApprovedSessionCommit -cnotmatch '^[0-9a-f]{40}$' -or $ExpectedCurrentTip -cnotmatch '^[0-9a-f]{40}$' -or $ExpectedPrimaryTip -cnotmatch '^[0-9a-f]{40}$') {
 		Throw-Landing 1 'input.commit-invalid' 'Approved and expected commits must be lowercase 40-character object IDs.'
 	}
-	if ($HasPlanRowClaim -and ([string]::IsNullOrWhiteSpace($PlanOrder) -or [string]::IsNullOrWhiteSpace($Plan))) {
-		Throw-Landing 1 'input.plan-claim-invalid' 'Plan row release requires PlanOrder and Plan.'
-	}
-	if ($HasPlanRowClaim) {
-		$planKeys = Resolve-PlanKeys $PlanOrder $Plan
-		$script:PlanRowKey = $planKeys.Relative
-		$script:CanonicalPlanKey = $planKeys.Canonical
-		$result.planRow.plan = $script:PlanRowKey
+	if ($claimReceiptPathBound -ne $claimReceiptSha256Bound -or ($claimReceiptPathBound -and ([string]::IsNullOrWhiteSpace($ClaimReceiptPath) -or $ClaimReceiptSha256 -cnotmatch '^[0-9a-f]{64}$'))) { Throw-Landing 1 'input.plan-claim-invalid' 'Claim receipt path and SHA-256 must be supplied together.' }
+	if (($TerminalDisposition -ceq 'none') -ne (-not $claimReceiptPathBound)) { Throw-Landing 1 'input.terminal-disposition-invalid' 'TerminalDisposition and the claim receipt must either both be supplied or both be absent.' }
+	if ($candidateReceiptPathBound -ne $candidateReceiptSha256Bound -or ($candidateReceiptPathBound -and ([string]::IsNullOrWhiteSpace($CandidateReceiptPath) -or $CandidateReceiptSha256 -cnotmatch '^[0-9a-f]{64}$'))) {
+		Throw-Landing 1 'input.candidate-invalid' 'Candidate receipt path and lowercase SHA-256 must be supplied together.'
 	}
 
 	$script:CurrentIdentity = Get-FinalizeGitIdentity $CurrentWorktree 'Session worktree'
@@ -428,8 +243,6 @@ try {
 		(Test-FinalizeGitSuccess $script:PrimaryIdentity.Worktree @('merge-base', '--is-ancestor', $ApprovedSessionCommit, $script:PrimaryIdentity.Head))) {
 		$preflight = Invoke-Preflight 'post-advance-recovery' $ApprovedSessionCommit $script:PrimaryIdentity.Head
 		$script:WorktreeCliPath = [string]$preflight.worktreeCli.path
-		$result.queuePublication.requests = @($preflight.planAddRequests.items)
-		$script:CertifiedPlanAddRequests = @($preflight.planAddRequests.items)
 		$result.primaryAdvanced = $true
 		Complete-LandedState
 		[Console]::Out.Write(($result | ConvertTo-Json -Depth 12 -Compress))
@@ -439,11 +252,27 @@ try {
 	$preflight = Invoke-Preflight 'pre-mutation' $ExpectedCurrentTip $ExpectedPrimaryTip
 	if ($preflight.tips.current -cne $ApprovedSessionCommit) { Throw-Landing 2 'approval.session-tip-changed' 'Session tip is not the explicit user-approved commit.' }
 	$script:WorktreeCliPath = [string] $preflight.worktreeCli.path
-	$result.queuePublication.requests = @($preflight.planAddRequests.items)
-	$script:CertifiedPlanAddRequests = @($preflight.planAddRequests.items)
 	$result.identities.currentWorktree = [string] $preflight.identities.currentWorktree
 	$result.identities.primaryWorktree = [string] $preflight.identities.primaryWorktree
 	$result.identities.gitCommonDirectory = [string] $preflight.identities.gitCommonDirectory
+	if ($claimReceiptPathBound) {
+		$operation = if ($TerminalDisposition -ceq 'rejected') { 'prepare-rejection' } else { 'prepare-completion' }
+		$prepareArguments = @('plan', $operation, '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:CurrentIdentity.Worktree, '--claim-receipt', $ClaimReceiptPath, '--claim-receipt-sha256', $ClaimReceiptSha256)
+		if ($TerminalDisposition -ceq 'rejected') { $prepareArguments += '--user-authorized-rejection' }
+		$preparedResponse = Invoke-WorktreeCli $prepareArguments
+		$prepared = Get-JsonResponse $preparedResponse 'pre-landing terminal preparation'
+		if ($preparedResponse.ExitCode -ne 0 -or -not $prepared.prepared -or $prepared.claimState -cne 'awaiting-landing') {
+			Throw-Landing $(if ($preparedResponse.ExitCode -eq 2) { 2 } else { 1 }) 'plan.prepare-failed' 'Receipt-bound Plan terminal preparation could not be proven before landing.'
+		}
+		if ($prepared.PSObject.Properties.Name -cnotcontains 'disposition' -or $prepared.disposition -isnot [string] -or $prepared.disposition -cne $TerminalDisposition) {
+			Throw-Landing 2 'plan.disposition-mismatch' 'Prepared Plan terminal disposition does not match the approved landing disposition.'
+		}
+		$result.planClaim.preparation = $prepared
+		if ($prepared.PSObject.Properties.Name -ccontains 'changedPaths' -and @($prepared.changedPaths).Count -ne 0) {
+			Throw-Landing 2 'approval.refresh-required' 'Terminal preparation changed Plan metadata after approval; revalidate and obtain refreshed landing confirmation.'
+		}
+	}
+	Assert-ReconciledPlanMetadata
 
 	$tokenResponse = Invoke-WorktreeCli @('lock', 'token')
 	if ($tokenResponse.ExitCode -ne 0 -or $tokenResponse.Stdout.Trim() -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
@@ -451,8 +280,19 @@ try {
 	}
 	$script:LandingOwner = $tokenResponse.Stdout.Trim()
 	$result.locks.landingOwner = $script:LandingOwner
-	$claimResponse = Invoke-WorktreeCli @('lock', 'claim', '--repo', $result.identities.gitCommonDirectory, '--owner', $script:LandingOwner, '--session', $SessionLabel, '--worktree', $script:CurrentIdentity.Worktree, '--lease-seconds', '3600')
-	if ($claimResponse.ExitCode -ne 0) { Throw-Landing 2 'landing-lock.claim-failed' "Landing lock claim failed: $($claimResponse.Stdout.Trim())$($claimResponse.Stderr.Trim())" }
+	$claimOutcome = Invoke-FinalizeLandingLockClaim -WorktreeCliExecutable $script:WorktreeCliPath -GitCommonDirectory $result.identities.gitCommonDirectory -Owner $script:LandingOwner -Session $SessionLabel -Worktree $script:CurrentIdentity.Worktree -LeaseSeconds 3600 -WaitSeconds 55
+	$result.locks.claim = [ordered]@{
+		code = $claimOutcome.Code
+		disposition = $claimOutcome.Disposition
+		requiresUserAuthority = $claimOutcome.RequiresUserAuthority
+		retryAfterMilliseconds = $claimOutcome.RetryAfterMilliseconds
+		attempts = $claimOutcome.Attempts
+		lock = $claimOutcome.Lock
+	}
+	if (-not $claimOutcome.Claimed) {
+		$exitCode = if ($claimOutcome.Disposition -ceq 'terminal') { 1 } else { 2 }
+		Throw-Landing $exitCode 'landing-lock.claim-failed' $claimOutcome.Message $claimOutcome.Disposition $claimOutcome.RequiresUserAuthority $claimOutcome.RetryAfterMilliseconds
+	}
 	$script:LandingClaimed = $true
 	$result.locks.landingClaimed = $true
 	Assert-LandingOwner
@@ -472,6 +312,14 @@ catch {
 	$script:FailureExitCode = if ($_.Exception.Data.Contains('FinalizeExitCode')) { [int] $_.Exception.Data['FinalizeExitCode'] } else { 1 }
 	$script:FailureCode = if ($_.Exception.Data.Contains('FinalizeCode')) { [string] $_.Exception.Data['FinalizeCode'] } else { 'internal.error' }
 	$script:FailureMessage = $_.Exception.Message
+	$result.disposition = if ($_.Exception.Data.Contains('FinalizeDisposition')) { [string] $_.Exception.Data['FinalizeDisposition'] } else { 'terminal' }
+	$result.requiresUserAuthority = if ($_.Exception.Data.Contains('FinalizeRequiresUserAuthority')) { [bool] $_.Exception.Data['FinalizeRequiresUserAuthority'] } else { $false }
+	$result.retryAfterMilliseconds = if ($_.Exception.Data.Contains('FinalizeRetryAfterMilliseconds')) { [int] $_.Exception.Data['FinalizeRetryAfterMilliseconds'] } else { 0 }
+	$result.blocker = [ordered]@{
+		disposition = $result.disposition
+		requiresUserAuthority = $result.requiresUserAuthority
+		retryAfterMilliseconds = $result.retryAfterMilliseconds
+	}
 }
 finally {
 	Release-LandingLockIfSafe

@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-16T02:13:22.000Z","dependsOn":[]} -->
 # Trim Root Agent Memory
 
 ## Context

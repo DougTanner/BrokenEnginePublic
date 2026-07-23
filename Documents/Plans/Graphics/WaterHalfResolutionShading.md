@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-03T02:45:42.000Z","dependsOn":[]} -->
 # Water Half-Resolution Shading (offscreen shade + depth-aware composite)
 
 ## Context

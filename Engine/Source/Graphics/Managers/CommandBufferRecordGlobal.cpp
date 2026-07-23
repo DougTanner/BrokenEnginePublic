@@ -129,6 +129,10 @@ void CommandBufferRecordGlobal::RecordTerrainPasses(VkCommandBuffer vkCommandBuf
 
 void CommandBufferRecordGlobal::RecordWindSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, uint32_t uiWindTilesX, uint32_t uiWindTilesY, Pipeline* pPipelines)
 {
+	// 2026-07-22 Profile, RX 9070 XT driver 32.0.31007.5012, 30+ stable one-second samples.
+	// Median rolling avg (p95 current), parked/panning: 1080p 20/22 (22/23) us;
+	// 4K 104/102 (105/105) us; rolling max 197-441 us; worst 104 < 167 us.
+	// Fixed disabled-state recording accepted: persistent spread state must drain/advance and has no simple disabled-state latch.
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
 
 	uint32_t uiWindDilateGroups = (uiWindTilesX * uiWindTilesY + shaders::kiOccupancyDilateGroupSize - 1) / shaders::kiOccupancyDilateGroupSize;
@@ -341,6 +345,10 @@ void CommandBufferRecordGlobal::RecordSmokeSpreadHalf(VkCommandBuffer vkCommandB
 
 void CommandBufferRecordGlobal::RecordSmokeSpreadPipeline(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, uint32_t uiSmokeTilesX, uint32_t uiSmokeTilesY, Pipeline* pPipelines)
 {
+	// 2026-07-22 Profile, RX 9070 XT driver 32.0.31007.5012, 30+ stable one-second samples.
+	// Median rolling avg (p95 current), parked/panning: 1080p 40/40 (41/40) us;
+	// 4K 120.5/120 (123/123) us; rolling max 197-372 us; worst 120.5 < 167 us.
+	// Fixed disabled-state recording accepted: after the one-shot texture clear, spread must consume/drain stale occupancy, so it cannot simply be omitted on the disabled edge.
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
 
 	uint32_t uiTotalTiles = uiSmokeTilesX * uiSmokeTilesY;

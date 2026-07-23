@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-21T23:23:30.000Z","dependsOn":[]} -->
 # TextureUploadManager Compile Firewall
 
 > **Read first — the sibling pimpl attempt was implemented and rejected.** The

@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-01T01:46:38.000Z","dependsOn":[]} -->
 # Island GPU Mesh Residency (Stable-Handle Arena)
 
 Part of the island resident-memory scaling series — see `IslandResidentMemoryScaling_Overview.md`. This plan owns the **GPU** mesh side (the ~119.5 MiB per-template `mMeshBuffer` the texture-LRU evict path can't touch — record-once-CB binding).

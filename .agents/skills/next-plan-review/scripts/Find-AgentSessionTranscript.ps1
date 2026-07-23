@@ -23,6 +23,29 @@ function ConvertTo-UtcTimestamp([string] $Value) {
 	catch { return $null }
 }
 
+function ConvertTo-LexicalCanonicalPath([string] $Path) {
+	if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+	try {
+		$fullPath = [IO.Path]::GetFullPath($Path).Replace([IO.Path]::AltDirectorySeparatorChar, [IO.Path]::DirectorySeparatorChar)
+		$root = [IO.Path]::GetPathRoot($fullPath)
+		if ([string]::IsNullOrWhiteSpace($root)) { return $null }
+		if ($fullPath.Length -gt $root.Length) {
+			$fullPath = $fullPath.TrimEnd([char[]]@('\', '/'))
+		}
+		return $fullPath
+	}
+	catch { return $null }
+}
+
+function Get-CanonicalMetadataCwd([string] $Path) {
+	if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+	if (-not [IO.Path]::IsPathFullyQualified($Path)) { return $null }
+	foreach ($segment in $Path.Split([char[]]@('\', '/'), [StringSplitOptions]::RemoveEmptyEntries)) {
+		if ($segment -eq '.' -or $segment -eq '..') { return $null }
+	}
+	return ConvertTo-LexicalCanonicalPath $Path
+}
+
 function Get-StringProperty($Object, [string] $Name) {
 	if ($null -eq $Object) { return $null }
 	$property = $Object.PSObject.Properties[$Name]
@@ -36,14 +59,75 @@ function Invoke-Git([string[]] $Arguments) {
 	return $output
 }
 
-function Test-PathWithin([string] $Candidate, [string] $Root) {
-	try {
-		$candidatePath = [IO.Path]::GetFullPath($Candidate).TrimEnd([char[]]@('\', '/'))
-		$rootPath = [IO.Path]::GetFullPath($Root).TrimEnd([char[]]@('\', '/'))
+function Invoke-GitRaw([string[]] $Arguments) {
+	$startInfo = [Diagnostics.ProcessStartInfo]::new()
+	$startInfo.FileName = 'git'
+	$startInfo.UseShellExecute = $false
+	$startInfo.RedirectStandardOutput = $true
+	$startInfo.RedirectStandardError = $true
+	[void] $startInfo.ArgumentList.Add('-C')
+	[void] $startInfo.ArgumentList.Add($RepositoryRoot)
+	foreach ($argument in $Arguments) { [void] $startInfo.ArgumentList.Add($argument) }
+	$process = [Diagnostics.Process]::new()
+	$process.StartInfo = $startInfo
+	[void] $process.Start()
+	$output = $process.StandardOutput.ReadToEnd()
+	$errorOutput = $process.StandardError.ReadToEnd()
+	$process.WaitForExit()
+	if ($process.ExitCode -ne 0) { throw 'Git metadata query failed.' }
+	return $output
+}
+
+function Test-CommitContainedBy([string] $CommitHash, [string] $HeadHash) {
+	if ($CommitHash -ceq $HeadHash) { return $true }
+	$output = @(& git -C $RepositoryRoot merge-base --is-ancestor $CommitHash $HeadHash 2>&1)
+	if ($LASTEXITCODE -eq 0) { return $true }
+	if ($LASTEXITCODE -eq 1) { return $false }
+	throw 'Git ancestry query failed.'
+}
+
+function Get-EligibleWorktreeRoots([string] $CommitHash, [string] $CommonDirectory) {
+	# `git worktree list` is queried from the selected checkout, so every record is registered in its common directory.
+	if ([string]::IsNullOrWhiteSpace($CommonDirectory)) { throw 'Git common directory is invalid.' }
+	$raw = Invoke-GitRaw @('worktree', 'list', '--porcelain', '-z')
+	$records = [Collections.Generic.List[object]]::new()
+	$current = $null
+	foreach ($entry in $raw.Split([char] 0)) {
+		if ([string]::IsNullOrEmpty($entry)) { continue }
+		$separator = $entry.IndexOf(' ')
+		$field = if ($separator -lt 0) { $entry } else { $entry.Substring(0, $separator) }
+		$value = if ($separator -lt 0) { $null } else { $entry.Substring($separator + 1) }
+		if ($field -eq 'worktree') {
+			if ($null -ne $current) { $records.Add([pscustomobject] $current) }
+			$current = [ordered]@{ Path = $value; Head = $null; Bare = $false; Prunable = $false }
+			continue
+		}
+		if ($null -eq $current) { throw 'Git worktree metadata is malformed.' }
+		switch ($field) {
+			'HEAD' { $current.Head = $value }
+			'bare' { $current.Bare = $true }
+			'prunable' { $current.Prunable = $true }
+		}
 	}
-	catch { return $false }
+	if ($null -ne $current) { $records.Add([pscustomobject] $current) }
+
+	$roots = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+	foreach ($record in $records) {
+		if ($record.Bare -or $record.Prunable -or [string]::IsNullOrWhiteSpace($record.Path) -or [string]::IsNullOrWhiteSpace($record.Head)) { continue }
+		$root = ConvertTo-LexicalCanonicalPath $record.Path
+		if ($null -eq $root) { throw 'Git worktree metadata is malformed.' }
+		if (Test-CommitContainedBy $CommitHash $record.Head) { [void] $roots.Add($root) }
+	}
+	return (, $roots)
+}
+
+function Test-PathWithin([string] $Candidate, [string] $Root) {
+	$candidatePath = ConvertTo-LexicalCanonicalPath $Candidate
+	$rootPath = ConvertTo-LexicalCanonicalPath $Root
+	if ($null -eq $candidatePath -or $null -eq $rootPath) { return $false }
+	$prefix = if ($rootPath.EndsWith([IO.Path]::DirectorySeparatorChar)) { $rootPath } else { "$rootPath$([IO.Path]::DirectorySeparatorChar)" }
 	return $candidatePath.Equals($rootPath, [StringComparison]::OrdinalIgnoreCase) -or
-		$candidatePath.StartsWith("$rootPath$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::OrdinalIgnoreCase)
+		$candidatePath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)
 }
 
 function Get-Locator([string] $Path) {
@@ -57,6 +141,46 @@ function Get-Locator([string] $Path) {
 		}
 	}
 	return [IO.Path]::GetFileName($Path)
+}
+
+function Get-PathSafety([string] $Path) {
+	$fullPath = ConvertTo-LexicalCanonicalPath $Path
+	if ($null -eq $fullPath) { return [pscustomobject]@{ Status = 'error'; Item = $null; Path = $null } }
+	$root = [IO.Path]::GetPathRoot($fullPath)
+	$segments = $fullPath.Substring($root.Length).Split([char[]]@('\', '/'), [StringSplitOptions]::RemoveEmptyEntries)
+	$current = $root
+	foreach ($segment in @('') + $segments) {
+		if ($segment.Length -ne 0) { $current = Join-Path $current $segment }
+		try { $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop }
+		catch {
+			if ($_.Exception -is [Management.Automation.ItemNotFoundException]) {
+				return [pscustomobject]@{ Status = 'missing'; Item = $null; Path = $fullPath }
+			}
+			return [pscustomobject]@{ Status = 'error'; Item = $null; Path = $fullPath }
+		}
+		if (([IO.FileAttributes] $item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+			return [pscustomobject]@{ Status = 'unsafe'; Item = $null; Path = $fullPath }
+		}
+	}
+	return [pscustomobject]@{ Status = 'safe'; Item = $item; Path = $fullPath }
+}
+
+function Add-ReadError([Collections.Generic.Dictionary[string, object]] $ReadErrors, [string] $Locator, [string] $Code, [string] $Message) {
+	$key = "$Code`0$Locator"
+	if (-not $ReadErrors.ContainsKey($key)) {
+		$ReadErrors[$key] = [pscustomobject]@{ locator = $Locator; code = $Code; message = $Message }
+	}
+}
+
+function Get-SafeStoreRoot([string] $Name, [string] $Root, [Collections.Generic.Dictionary[string, object]] $ReadErrors) {
+	$safety = Get-PathSafety $Root
+	if ($safety.Status -eq 'missing') { return $null }
+	if ($safety.Status -ne 'safe' -or -not $safety.Item.PSIsContainer) {
+		$code = if ($safety.Status -eq 'unsafe') { 'transcript.unsafe-path' } else { 'transcript.read-failed' }
+		Add-ReadError $ReadErrors $Name $code 'Transcript store path could not be safely read.'
+		return $null
+	}
+	return $safety.Path
 }
 
 function Get-TranscriptMetadata([string] $Path) {
@@ -92,11 +216,53 @@ function Get-TranscriptMetadata([string] $Path) {
 	}
 }
 
-function Add-Files([Collections.Generic.Dictionary[string, IO.FileInfo]] $Files, [string] $Root, [string] $Filter, [switch] $Recurse) {
-	if ([string]::IsNullOrWhiteSpace($Root) -or -not (Test-Path -LiteralPath $Root -PathType Container)) { return }
-	$parameters = @{ LiteralPath = $Root; File = $true; Filter = $Filter; ErrorAction = 'Stop' }
-	if ($Recurse) { $parameters.Recurse = $true }
-	foreach ($file in Get-ChildItem @parameters) { $Files[$file.FullName] = $file }
+function Add-Files(
+	[Collections.Generic.Dictionary[string, IO.FileInfo]] $Files,
+	[Collections.Generic.Dictionary[string, object]] $ReadErrors,
+	[string] $Root,
+	[string] $Filter,
+	[switch] $Recurse,
+	[scriptblock] $Include
+) {
+	if ([string]::IsNullOrWhiteSpace($Root)) { return }
+	$rootSafety = Get-PathSafety $Root
+	if ($rootSafety.Status -eq 'missing') { return }
+	if ($rootSafety.Status -ne 'safe' -or -not $rootSafety.Item.PSIsContainer) {
+		$code = if ($rootSafety.Status -eq 'unsafe') { 'transcript.unsafe-path' } else { 'transcript.read-failed' }
+		Add-ReadError $ReadErrors (Get-Locator $Root) $code 'Transcript store path could not be safely read.'
+		return
+	}
+	$Root = $rootSafety.Path
+	$directories = [Collections.Generic.Stack[string]]::new()
+	$directories.Push($Root)
+	while ($directories.Count -ne 0) {
+		$directory = $directories.Pop()
+		try { $entries = @(Get-ChildItem -LiteralPath $directory -Force -ErrorAction Stop) }
+		catch {
+			Add-ReadError $ReadErrors (Get-Locator $directory) 'transcript.read-failed' 'Transcript store contents could not be read.'
+			continue
+		}
+		foreach ($entry in $entries) {
+			$isReparse = (([IO.FileAttributes] $entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)
+			if ($entry.PSIsContainer) {
+				if (-not $isReparse -and $Recurse) { $directories.Push($entry.FullName) }
+				continue
+			}
+			if ($entry.Name -notlike $Filter) { continue }
+			if ($null -ne $Include -and -not (& $Include $entry)) { continue }
+			if ($isReparse) {
+				Add-ReadError $ReadErrors (Get-Locator $entry.FullName) 'transcript.unsafe-path' 'Transcript candidate is an unsafe reparse path.'
+				continue
+			}
+			$safety = Get-PathSafety $entry.FullName
+			if ($safety.Status -ne 'safe') {
+				$code = if ($safety.Status -eq 'unsafe') { 'transcript.unsafe-path' } else { 'transcript.read-failed' }
+				Add-ReadError $ReadErrors (Get-Locator $entry.FullName) $code 'Transcript candidate path could not be safely read.'
+				continue
+			}
+			$Files[$safety.Path] = $entry
+		}
+	}
 }
 
 function Write-Result($Result, [int] $ExitCode) {
@@ -106,55 +272,68 @@ function Write-Result($Result, [int] $ExitCode) {
 }
 
 try {
-	$RepositoryRoot = [IO.Path]::GetFullPath($RepositoryRoot)
-	$actualRoot = @(Invoke-Git @('rev-parse', '--show-toplevel'))[0].Trim()
-	if (-not ([IO.Path]::GetFullPath($actualRoot)).Equals($RepositoryRoot, [StringComparison]::OrdinalIgnoreCase)) {
+	$RepositoryRoot = ConvertTo-LexicalCanonicalPath $RepositoryRoot
+	if ($null -eq $RepositoryRoot) { throw 'RepositoryRoot is invalid.' }
+	$actualRoot = ConvertTo-LexicalCanonicalPath (@(Invoke-Git @('rev-parse', '--show-toplevel'))[0].Trim())
+	if ($null -eq $actualRoot -or -not $actualRoot.Equals($RepositoryRoot, [StringComparison]::OrdinalIgnoreCase)) {
 		throw 'RepositoryRoot is not the selected Git worktree root.'
 	}
+	$commonDirectory = ConvertTo-LexicalCanonicalPath (@(Invoke-Git @('rev-parse', '--path-format=absolute', '--git-common-dir'))[0].Trim())
+	if ($null -eq $commonDirectory) { throw 'Git common directory is invalid.' }
 	$commitHash = @(Invoke-Git @('rev-parse', "$Commit^{commit}"))[0].Trim()
 	$commitTimestamp = ConvertTo-UtcTimestamp (@(Invoke-Git @('show', '-s', '--format=%cI', $commitHash))[0].Trim())
 	if ($null -eq $commitTimestamp) { throw 'Commit timestamp is invalid.' }
 	if (-not [string]::IsNullOrWhiteSpace($SessionId) -and $SessionId -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
 		throw 'SessionId must be an exact lowercase UUID.'
 	}
+	$eligibleWorktreeRoots = Get-EligibleWorktreeRoots $commitHash $commonDirectory
 
 	$userProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
 	if ([string]::IsNullOrWhiteSpace($SessionStoreRoot)) { $SessionStoreRoot = Join-Path $userProfile '.codex\sessions' }
 	if ([string]::IsNullOrWhiteSpace($ArchivedSessionStoreRoot)) { $ArchivedSessionStoreRoot = Join-Path $userProfile '.codex\archived_sessions' }
-	$SessionStoreRoot = [IO.Path]::GetFullPath($SessionStoreRoot)
-	$ArchivedSessionStoreRoot = [IO.Path]::GetFullPath($ArchivedSessionStoreRoot)
+	$SessionStoreRoot = ConvertTo-LexicalCanonicalPath $SessionStoreRoot
+	$ArchivedSessionStoreRoot = ConvertTo-LexicalCanonicalPath $ArchivedSessionStoreRoot
+	if ($null -eq $SessionStoreRoot -or $null -eq $ArchivedSessionStoreRoot) { throw 'Transcript store path is invalid.' }
 
 	$files = [Collections.Generic.Dictionary[string, IO.FileInfo]]::new([StringComparer]::OrdinalIgnoreCase)
+	$readErrors = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::OrdinalIgnoreCase)
+	$SessionStoreRoot = Get-SafeStoreRoot 'sessions' $SessionStoreRoot $readErrors
+	$ArchivedSessionStoreRoot = Get-SafeStoreRoot 'archived_sessions' $ArchivedSessionStoreRoot $readErrors
 	$selection = if ([string]::IsNullOrWhiteSpace($SessionId)) { 'bounded-commit-window' } else { 'explicit-session-id' }
 	$windowStart = $commitTimestamp.AddMinutes(-$WindowMinutes)
 	$windowEnd = $commitTimestamp.AddMinutes($WindowMinutes)
 	if ($selection -eq 'explicit-session-id') {
-		Add-Files $files $SessionStoreRoot "*-$SessionId.jsonl" -Recurse
-		Add-Files $files $ArchivedSessionStoreRoot "*-$SessionId.jsonl"
+		Add-Files -Files $files -ReadErrors $readErrors -Root $SessionStoreRoot -Filter "*-$SessionId.jsonl" -Recurse
+		Add-Files -Files $files -ReadErrors $readErrors -Root $ArchivedSessionStoreRoot -Filter "*-$SessionId.jsonl" -Recurse
 	}
 	else {
 		for ($date = $windowStart.Date; $date -le $windowEnd.Date; $date = $date.AddDays(1)) {
 			$dateText = $date.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
-			$dateDirectory = Join-Path $SessionStoreRoot ($date.ToString('yyyy\\MM\\dd', [Globalization.CultureInfo]::InvariantCulture))
-			Add-Files $files $dateDirectory 'rollout-*.jsonl'
-			Add-Files $files $SessionStoreRoot "rollout-$dateText*.jsonl"
-			Add-Files $files $ArchivedSessionStoreRoot "rollout-$dateText*.jsonl"
+			$dateDirectory = if ([string]::IsNullOrWhiteSpace($SessionStoreRoot)) { $null } else { Join-Path $SessionStoreRoot ($date.ToString('yyyy\\MM\\dd', [Globalization.CultureInfo]::InvariantCulture)) }
+			Add-Files -Files $files -ReadErrors $readErrors -Root $dateDirectory -Filter 'rollout-*.jsonl'
+			Add-Files -Files $files -ReadErrors $readErrors -Root $SessionStoreRoot -Filter "rollout-$dateText*.jsonl"
+			Add-Files -Files $files -ReadErrors $readErrors -Root $ArchivedSessionStoreRoot -Filter "rollout-$dateText*.jsonl" -Recurse
 		}
+		$includeLastWrite = {
+			param($File)
+			return $File.LastWriteTimeUtc -ge $windowStart.UtcDateTime -and $File.LastWriteTimeUtc -le $windowEnd.UtcDateTime
+		}
+		Add-Files -Files $files -ReadErrors $readErrors -Root $SessionStoreRoot -Filter '*.jsonl' -Recurse -Include $includeLastWrite
+		Add-Files -Files $files -ReadErrors $readErrors -Root $ArchivedSessionStoreRoot -Filter '*.jsonl' -Recurse -Include $includeLastWrite
 	}
 
 	$candidates = [Collections.Generic.List[object]]::new()
-	$readErrors = [Collections.Generic.List[object]]::new()
-	foreach ($file in $files.Values) {
+	foreach ($file in @($files.Values | Sort-Object FullName)) {
 		$locator = Get-Locator $file.FullName
 		try { $metadata = Get-TranscriptMetadata $file.FullName }
 		catch {
-			$readErrors.Add([pscustomobject]@{ locator = $locator; code = 'transcript.read-failed'; message = 'Transcript metadata could not be read.' })
+			Add-ReadError $readErrors $locator 'transcript.read-failed' 'Transcript metadata could not be read.'
 			continue
 		}
 		if ($selection -eq 'explicit-session-id' -and $metadata.SessionId -cne $SessionId) { continue }
-		if (-not (Test-PathWithin $metadata.Cwd $RepositoryRoot)) { continue }
+		$metadataRoot = Get-CanonicalMetadataCwd $metadata.Cwd
+		if ($null -eq $metadataRoot -or -not $eligibleWorktreeRoots.Contains($metadataRoot)) { continue }
 		if ($metadata.Start -gt $commitTimestamp -or $metadata.End -lt $commitTimestamp) { continue }
-		if ($selection -eq 'bounded-commit-window' -and ($metadata.Start -lt $windowStart -or $metadata.Start -gt $windowEnd)) { continue }
 		$candidates.Add([pscustomobject]@{
 			client = 'codex'
 			locator = $locator
@@ -164,6 +343,8 @@ try {
 		})
 	}
 
+	$orderedReadErrors = @($readErrors.Values | Sort-Object locator, code)
+	$orderedCandidates = @($candidates | Sort-Object sessionId, locator)
 	$result = [ordered]@{
 		schemaVersion = 'broken-engine-agent-session-transcript/v2'
 		status = 'blocked'
@@ -177,20 +358,20 @@ try {
 			windowEndUtc = if ($selection -eq 'bounded-commit-window') { $windowEnd.ToString('O') } else { $null }
 		}
 		candidate = $null
-		candidates = @($candidates)
-		readErrors = @($readErrors)
+		candidates = $orderedCandidates
+		readErrors = $orderedReadErrors
 	}
-	if ($readErrors.Count -ne 0) {
+	if ($orderedReadErrors.Count -ne 0) {
 		$result.code = 'transcript.read-error'
 		$result.message = 'One or more bounded transcript metadata reads failed.'
 		Write-Result $result 2
 	}
-	if ($candidates.Count -eq 0) {
+	if ($orderedCandidates.Count -eq 0) {
 		$result.code = 'transcript.not-found'
-		$result.message = 'No transcript matched the commit time and selected worktree.'
+		$result.message = 'No transcript matched the commit time and an eligible retained worktree.'
 		Write-Result $result 2
 	}
-	if ($candidates.Count -ne 1) {
+	if ($orderedCandidates.Count -ne 1) {
 		$result.code = 'transcript.ambiguous'
 		$result.message = 'Multiple transcripts matched; rerun with an exact SessionId.'
 		Write-Result $result 2
@@ -198,7 +379,7 @@ try {
 	$result.status = 'pass'
 	$result.code = 'transcript.found'
 	$result.message = 'One transcript matched the bounded metadata constraints.'
-	$result.candidate = $candidates[0]
+	$result.candidate = $orderedCandidates[0]
 	$result.candidates = @()
 	Write-Result $result 0
 }

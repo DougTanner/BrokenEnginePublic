@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-03T22:18:18.000Z","dependsOn":[]} -->
 # Player Transfer Update Loss
 
 > **Claim restriction — Fable only.** This plan was rewritten on 2026-07-21 after its

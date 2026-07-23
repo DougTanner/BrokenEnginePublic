@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-20T00:49:13.000Z","dependsOn":[]} -->
 # Architecture: Include Dependencies
 
 ## Context
@@ -8,7 +9,7 @@ Source: /external-architecture-review on `Tools/` recursively. The PCH-less tool
 ### `Tools/WorktreeCli/LandingLockCommands.h`
 - Remove the unused `<string>` include at line 3; the header's only declaration uses built-in types. [~5m]
 
-### `Tools/WorktreeCli/PlanOrderCommands.cpp`
+### `Tools/WorktreeCli/PlanScheduler.cpp`
 - Remove the unused `<cctype>` include at line 9; whitespace handling in `Trim` and `TrimLineEnd` does not call character-classification APIs. [~5m]
 
 ### `Tools/WorktreeCli/LandingLockLifecycle.h` and `Tools/ToolCommon/ToolCliCommon.h`
@@ -17,7 +18,7 @@ Source: /external-architecture-review on `Tools/` recursively. The PCH-less tool
 ## Critical files
 - `Tools/WorktreeCli/LandingLockCommands.h`
 - `Tools/WorktreeCli/LandingLockLifecycle.h`
-- `Tools/WorktreeCli/PlanOrderCommands.cpp`
+- `Tools/WorktreeCli/PlanScheduler.cpp`
 - `Tools/ToolCommon/ToolCliCommon.h`
 
 ## Out of scope

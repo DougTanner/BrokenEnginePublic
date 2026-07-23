@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-05T03:52:38.000Z","dependsOn":[]} -->
 # Server Spawn-Rate Bounding (Free-Agent Accumulation)
 
 **Decision plan (present options).** The landed per-fleet member cap bounds `Fleet::members` but not the actual player *mint*, so a client holding a fleet at cap accumulates un-rostered "free agent" player entities one per tick. Bounding it fully touches the CRC'd origin-frame path — a determinism-sensitive design decision.

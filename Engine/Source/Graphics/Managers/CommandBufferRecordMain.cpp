@@ -266,6 +266,10 @@ void CommandBufferRecordMain::RecordSmokeEmit(VkCommandBuffer vkCommandBuffer, i
 
 void CommandBufferRecordMain::RecordWindDeposits(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer)
 {
+	// 2026-07-22 Profile, RX 9070 XT driver 32.0.31007.5012, 30+ stable one-second samples.
+	// Median rolling avg (p95 current), parked/panning: 1080p 1/1 (1/1) us;
+	// 4K 1/1 (1/1) us; rolling max 2-283 us; worst 1 < 167 us.
+	// Fixed disabled-state recording accepted: that cost does not justify edge-triggered command-buffer re-recording.
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindDeposit);
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mRenderTargetTextures.mWindTextureOne.RecordBeginRenderPass(vkCommandBuffer);
@@ -295,6 +299,10 @@ void CommandBufferRecordMain::RecordWindDeposits(VkCommandBuffer vkCommandBuffer
 
 void CommandBufferRecordMain::RecordObjectShadows(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer)
 {
+	// 2026-07-22 Profile, RX 9070 XT driver 32.0.31007.5012, 30+ stable one-second samples.
+	// Median rolling avg (p95 current), parked/panning: 1080p 33/34 (35/35) us;
+	// 4K 101/101 (104/103) us; rolling component-sum max bounds 309-697 us; worst medians 3 render + 98 blur = 101 < 167 us.
+	// Fixed disabled-state recording accepted: continuous day-cycle state has no explicit feature toggle, and measured cost does not justify derived-state edge re-recording or threshold hysteresis.
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
 	Texture::RecordBeginRenderPass(vkCommandBuffer, gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mVkRenderPass, gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mVkFramebuffer, {gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.extent.height}, gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture.mInfo.renderPassVkClearColorValue, RenderPassFlags_t {RenderPassFlags::kClear}, VK_SUBPASS_CONTENTS_INLINE);
 	for (const auto& [rCrc, pPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModelShadow])

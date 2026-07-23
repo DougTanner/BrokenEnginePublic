@@ -1,7 +1,7 @@
 # Line-ending policy. Keep in sync with .editorconfig.
 # Git stores all text as LF and every checkout materializes LF, so agent
 # tools, Visual Studio, and fresh worktrees produce identical bytes. This
-# keeps WorktreeCli's raw-byte plan comparison (PlanOrderCommands.cpp
+# keeps WorktreeCli's raw-byte plan comparison (PlanScheduler.cpp
 # claim-next) deterministic across checkouts.
 * text=auto eol=lf
 

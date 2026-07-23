@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-02T03:39:13.000Z","dependsOn":[]} -->
 # Architecture: Collection & IslandTerrain Helper Dedup
 
 ## Context
@@ -36,7 +37,7 @@ Source: /external-architecture-review on Engine/Source (recursive). Cross-file d
 
 ## Notes
 - Invariant exposure: `BlendPlacementIntoGrid` feeds the CRC'd sim elevation grid — the sampling-helper extraction must preserve its exact float-op order (`/fp:strict`); parameterize, change nothing else. If `GlobalElevation` is instead migrated onto the reciprocal-multiply form its render-only output shifts by at most one ulp-scale rounding difference — acceptable, but say so in the diff. The controller/spawn helpers touch client-only collections (no `SharedMembers()`) — no CRC exposure, but keep `common::Random*` draw order unchanged where spawn seeding touches it. Everything else render-path or file-motion only
-- IslandTerrain.cpp is also named in the Order.md island-residency File Group (`IslandNavContourResidency`, `IslandHeightmapRouteDedup` touch `WaitForElevationMaps`) — different functions, but refresh citations if co-scheduled
+- IslandTerrain.cpp is also named by island-residency work (`IslandNavContourResidency`, `IslandHeightmapRouteDedup` touch `WaitForElevationMaps`) — different functions, but refresh citations if co-scheduled
 - Grill decision: helper granularity for the controller machinery — one templated helper vs two (interpolate + seed); recommend two small ones, and decide whether WindRadials' wrapper-less interpolate joins or stays hand-written
 
 ## Verification Notes

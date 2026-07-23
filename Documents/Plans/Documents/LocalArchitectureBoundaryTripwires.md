@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-21T23:23:30.000Z","dependsOn":["Documents/Plans/Documents/TrimOversizedAgentMemory.md"]} -->
 # Local Architecture Boundary Tripwires
 
 ## Context

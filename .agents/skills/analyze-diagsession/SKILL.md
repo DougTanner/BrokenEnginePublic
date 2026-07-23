@@ -137,13 +137,12 @@ Report first:
 
 ## 7. Route plan proposals
 
-Do not author plan files or mutate the queue directly. Route proven optimization
-residuals through `/create-follow-up-plans`, which owns duplicate checks, plan
-shape, scoring, and staged WorktreeCli requests. It requires a wrapper worktree
-with a live session claim. With no live claim, report the proposed plan title,
-evidence, scope, tier/scoring rationale, invariants, and acceptance checks to the
-user without creating tracked plan files.
+Do not author Plan files directly. When the active session holds a live Plan
+claim, route proven optimization residuals through `/create-follow-up-plans`,
+which owns duplicate checks, Plan shape, tracked metadata, and dependencies.
+Without a live claim, report the proposed Plan title, evidence, scope, tier
+rationale, invariants, and acceptance checks to the user without creating
+tracked Plan files.
 
-When plans are staged, complete `/verify-changes` and `/finalize-changes`.
-Queue-add submission occurs only through finalization after the plan files land;
-never submit a new-plan add request before landing.
+When Plans change, complete `/verify-changes` and `/finalize-changes`; no
+post-landing row publication exists.

@@ -1,3 +1,4 @@
+
 # Single pre-approval mutation boundary for a session landing.
 # Invoked once per landing after reconciliation has produced the final clean
 # session tree, with the same identities, branches, baseline, expected tips,
@@ -31,15 +32,19 @@ param(
 	[Parameter(Mandatory)][string] $ExpectedPrimaryTip,
 	[Parameter(Mandatory)][string] $SessionOwner,
 	[string] $WaitSeconds = '60',
-	[switch] $HasPlanRowClaim,
-	[Parameter(Mandatory)][ValidateSet('none', 'list')][string] $PlanAddRequestDisposition,
-	[string[]] $PlanAddRequestPaths,
+	[string] $ClaimReceiptPath,
+	[string] $ClaimReceiptSha256,
+	[string] $CandidateReceiptPath,
+	[string] $CandidateReceiptSha256,
 	[ValidateSet('none', 'compare-and-swap', 'postcondition', 'final-dirty')][string] $FixtureFailure = 'none'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$planAddRequestPathsBound = $PSBoundParameters.ContainsKey('PlanAddRequestPaths')
+$claimReceiptPathBound = $PSBoundParameters.ContainsKey('ClaimReceiptPath')
+$claimReceiptSha256Bound = $PSBoundParameters.ContainsKey('ClaimReceiptSha256')
+$candidateReceiptPathBound = $PSBoundParameters.ContainsKey('CandidateReceiptPath')
+$candidateReceiptSha256Bound = $PSBoundParameters.ContainsKey('CandidateReceiptSha256')
 $workflowModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
 if (-not (Test-Path -LiteralPath $workflowModule)) {
 	$workflowModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
@@ -65,11 +70,12 @@ $result = [ordered]@{
 		refUpdated = $false
 		rollback = 'not-required'
 	}
+	candidateBootstrap = $null
 	preflight = [ordered]@{
 		initial = $null
 		final = $null
 	}
-	planAddRequests = [ordered]@{ disposition = $PlanAddRequestDisposition; items = @() }
+	planClaim = [ordered]@{ receipt = $ClaimReceiptPath; sha256 = $ClaimReceiptSha256 }
 }
 
 $script:CurrentIdentity = $null
@@ -116,60 +122,6 @@ function Get-JsonResponse($Response, [string] $Operation)
 	}
 }
 
-function New-PlanAddRequestItemsJson
-{
-	$paths = @()
-	if ($planAddRequestPathsBound) { $paths = @($PlanAddRequestPaths) }
-	if ($PlanAddRequestDisposition -ceq 'none')
-	{
-		Assert-Input ($paths.Count -eq 0) 'PlanAddRequestDisposition none forbids request paths.'
-		return $null
-	}
-	Assert-Input ($paths.Count -gt 0) 'PlanAddRequestDisposition list requires at least one request path.'
-	$items = [Collections.Generic.List[object]]::new()
-	foreach ($path in $paths)
-	{
-		Assert-Input (-not [string]::IsNullOrWhiteSpace($path)) 'PlanAddRequestPaths contains a null or blank element.'
-		$items.Add([ordered]@{ path = $path })
-	}
-	return ConvertTo-Json -InputObject $items.ToArray() -Depth 4 -Compress
-}
-
-function Assert-PlanAddRequestResult($PreflightResult)
-{
-	if ($null -eq $PreflightResult.planAddRequests -or $PreflightResult.planAddRequests.disposition -cne $PlanAddRequestDisposition)
-	{
-		Throw-Preparation 1 'preflight.request-disposition-invalid' 'Finalization preflight returned a different plan-add request disposition.'
-	}
-	$paths = @()
-	if ($planAddRequestPathsBound) { $paths = @($PlanAddRequestPaths) }
-	$items = @($PreflightResult.planAddRequests.items)
-	if ($items.Count -ne $paths.Count)
-	{
-		Throw-Preparation 1 'preflight.request-count-invalid' 'Finalization preflight returned a different plan-add request count.'
-	}
-	for ($index = 0; $index -lt $items.Count; ++$index)
-	{
-		$item = $items[$index]
-		if ($null -eq $item)
-		{
-			Throw-Preparation 1 'preflight.request-identity-invalid' "Finalization preflight returned a null plan-add request at index $index."
-		}
-		$properties = @($item.PSObject.Properties.Name)
-		if (@('suppliedPath', 'repositoryRelativePath', 'identity', 'sha256') | Where-Object { $properties -cnotcontains $_ })
-		{
-			Throw-Preparation 1 'preflight.request-identity-invalid' "Finalization preflight omitted plan-add request identity fields at index $index."
-		}
-		if ([string]::IsNullOrWhiteSpace([string]$item.suppliedPath) -or
-			[string]::IsNullOrWhiteSpace([string]$item.repositoryRelativePath) -or
-			[string]::IsNullOrWhiteSpace([string]$item.identity) -or
-			[string]$item.suppliedPath -cne $paths[$index] -or [string]$item.sha256 -cnotmatch '^[0-9a-f]{64}$')
-		{
-			Throw-Preparation 1 'preflight.request-identity-invalid' "Finalization preflight returned an invalid or reordered plan-add request at index $index."
-		}
-	}
-}
-
 function Invoke-Preflight([string] $CurrentTip)
 {
 	$preflight = Join-Path $PSScriptRoot 'Test-FinalizePreflight.ps1'
@@ -193,14 +145,11 @@ function Invoke-Preflight([string] $CurrentTip)
 	{
 		$arguments.Add($argument)
 	}
-	if ($HasPlanRowClaim) { $arguments.Add('-HasPlanRowClaim') }
-	foreach ($argument in @('-PlanAddRequestDisposition', $PlanAddRequestDisposition)) { $arguments.Add($argument) }
-	$requestItemsJson = New-PlanAddRequestItemsJson
-	if ($null -ne $requestItemsJson)
+	if ($candidateReceiptPathBound)
 	{
-		foreach ($argument in @('-PlanAddRequestItemsJson', $requestItemsJson)) { $arguments.Add($argument) }
+		foreach ($argument in @('-CandidateReceiptPath', $CandidateReceiptPath, '-CandidateReceiptSha256', $CandidateReceiptSha256)) { $arguments.Add($argument) }
 	}
-
+	if ($claimReceiptPathBound) { foreach ($argument in @('-ClaimReceiptPath',$ClaimReceiptPath,'-ClaimReceiptSha256',$ClaimReceiptSha256)) { $arguments.Add($argument) } }
 	$response = Invoke-FinalizeNativeText 'pwsh.exe' $arguments.ToArray() $CurrentWorktree
 	$preflightResult = Get-JsonResponse $response 'Finalization preflight'
 	if ($response.ExitCode -ne 0 -or $preflightResult.status -cne 'pass' -or $preflightResult.code -cne 'ok')
@@ -208,8 +157,22 @@ function Invoke-Preflight([string] $CurrentTip)
 		$exitCode = if ($response.ExitCode -eq 2) { 2 } else { 1 }
 		Throw-Preparation $exitCode "preflight.$($preflightResult.code)" "Finalization preflight failed: $($preflightResult.message)"
 	}
-	Assert-PlanAddRequestResult $preflightResult
 	return $preflightResult
+}
+
+function Get-CandidateBootstrapCertification([string] $ExpectedCommit)
+{
+	if (-not $candidateReceiptPathBound) { return $null }
+	$certificationScript = Join-Path $PSScriptRoot 'Test-AgentToolsCandidateCertification.ps1'
+	if (-not (Test-Path -LiteralPath $certificationScript -PathType Leaf)) { Throw-Preparation 1 'candidate.certification-missing' "Candidate certification script is missing: '$certificationScript'." }
+	$response = Invoke-FinalizeNativeText 'pwsh.exe' @('-NoProfile', '-File', $certificationScript, '-RepositoryRoot', $script:PrimaryIdentity,
+		'-WorktreeRoot', $script:CurrentIdentity, '-CandidateReceiptPath', $CandidateReceiptPath, '-CandidateReceiptSha256', $CandidateReceiptSha256, '-ExpectedCommit', $ExpectedCommit) $script:CurrentIdentity
+	$certification = Get-JsonResponse $response 'AgentTools candidate certification'
+	if ($response.ExitCode -eq 2 -and $certification.status -ceq 'blocked') { Throw-Preparation 2 'candidate.certification-failed' $certification.message }
+	if ($response.ExitCode -ne 0 -or $certification.status -cne 'pass' -or $certification.code -cne 'ok' -or $null -eq $certification.executables.WorktreeCli) {
+		Throw-Preparation 1 'candidate.certification-invalid' 'AgentTools candidate certification returned an invalid success result.'
+	}
+	return [ordered]@{ receiptPath = $CandidateReceiptPath; receiptSha256 = $CandidateReceiptSha256; worktreeCli = $certification.executables.WorktreeCli }
 }
 
 function Get-GitText([string[]] $Arguments)
@@ -323,6 +286,12 @@ try
 		Assert-Input ($hash -cmatch '^[0-9a-f]{40}$') 'Commit inputs must be exactly 40 lowercase hexadecimal characters.'
 	}
 	Assert-Input ($SessionOwner -cmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') 'SessionOwner must be a canonical lowercase GUID.'
+	Assert-Input ($candidateReceiptPathBound -eq $candidateReceiptSha256Bound) 'Candidate receipt path and SHA-256 must be supplied together.'
+	if ($candidateReceiptPathBound)
+	{
+		Assert-Input (-not [string]::IsNullOrWhiteSpace($CandidateReceiptPath)) 'CandidateReceiptPath must not be blank.'
+		Assert-Input ($CandidateReceiptSha256 -cmatch '^[0-9a-f]{64}$') 'CandidateReceiptSha256 must be 64 lowercase hexadecimal characters.'
+	}
 	if ($FixtureFailure -cne 'none')
 	{
 		Assert-Input ($env:BROKEN_ENGINE_FINALIZE_APPROVAL_PREPARATION_FIXTURE -ceq '1') 'Fixture-only inputs require the finalization preparation fixture environment.'
@@ -406,7 +375,8 @@ try
 	{
 		Throw-Preparation 2 'preflight.final-identity-mismatch' 'Final preflight did not bind the approved session tip and primary tip.'
 	}
-	$result.planAddRequests.items = @($result.preflight.final.planAddRequests.items)
+	$result.candidateBootstrap = Get-CandidateBootstrapCertification $result.tips.approvedSession
+	$result.planClaim.prepared = $true
 	if ($FixtureFailure -ceq 'final-dirty')
 	{
 		[IO.File]::WriteAllText((Join-Path $script:CurrentIdentity 'fixture-final-dirty.tmp'), 'fixture', [Text.UTF8Encoding]::new($false))

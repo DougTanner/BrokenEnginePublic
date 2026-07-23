@@ -10,7 +10,7 @@
     <ClCompile Include="..\..\LandingLockCommands.cpp" />
     <ClCompile Include="..\..\LandingLockLifecycle.cpp" />
     <ClCompile Include="..\..\PlanCommands.cpp" />
-    <ClCompile Include="..\..\PlanOrderCommands.cpp" />
+    <ClCompile Include="..\..\PlanScheduler.cpp" />
     <ClCompile Include="..\..\..\ToolCommon\CoordinationStore.cpp" />
     <ClCompile Include="..\..\..\ToolCommon\ToolCliCommon.cpp" />
   </ItemGroup>
@@ -19,7 +19,7 @@
     <ClInclude Include="..\..\LandingLockCommands.h" />
     <ClInclude Include="..\..\LandingLockLifecycle.h" />
     <ClInclude Include="..\..\PlanCommands.h" />
-    <ClInclude Include="..\..\PlanOrderCommands.h" />
+    <ClInclude Include="..\..\PlanScheduler.h" />
     <ClInclude Include="..\..\..\ToolCommon\CoordinationStore.h" />
     <ClInclude Include="..\..\..\ToolCommon\ToolCliCommon.h" />
   </ItemGroup>

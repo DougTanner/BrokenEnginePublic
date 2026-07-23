@@ -51,8 +51,9 @@ AgentTools promotion-triggering changes — any non-Markdown path under `Tools/W
    Candidate production may finish while other wrapper sessions remain active.
    Its handoff must flag AgentTools promotion as a [canonical shared-artifact
    mutation](../next-plan/references/execution-gates.md#canonical-shared-artifacts);
-   `/finalize-changes` waits for every other active wrapper session to end,
-   rechecks the canonical session ledger, and presents landing confirmation only
+   `/finalize-changes` uses the bounded typed quiescence sidecar until every
+   other active wrapper session and maintenance claim clears, re-reconciles if
+   primary advanced during the wait, and presents landing confirmation only
    after that recheck passes.
 
 2. **Promotion** — owned by `/finalize-changes` (`.agents/skills/finalize-changes/scripts/Invoke-AgentToolsPromotion.ps1`) and possible only during an approved session landing, after v2 commit certification succeeds. Routine builds, this skill, and unlanded session trees cannot promote; do not copy or install either executable elsewhere.

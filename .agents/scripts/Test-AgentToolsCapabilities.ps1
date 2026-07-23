@@ -1,3 +1,4 @@
+
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory = $true)]
@@ -26,12 +27,11 @@ Assert-Contains $worktreeHelp @(
 	'WorktreeCli.exe plan ',
 	'WorktreeCli.exe build ',
 	'WorktreeCli.exe --help',
-	'WorktreeCli.exe plan order init --repo COMMON-DIR --worktree CHECKOUT [--force]',
-	'WorktreeCli.exe plan order validate --repo COMMON-DIR --worktree CHECKOUT',
-	'WorktreeCli.exe plan order add --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL [--request-sha256 SHA256]',
-	'WorktreeCli.exe plan order update --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --request TEMP-REPO-REL',
-	'WorktreeCli.exe plan order claim-next --repo COMMON-DIR --primary-worktree CHECKOUT --worktree CHECKOUT --branch TARGET --owner TOKEN --session TOKEN --queue <plans|features>',
-	'WorktreeCli.exe plan order complete --repo COMMON-DIR --worktree CHECKOUT --owner TOKEN --session TOKEN --plan PATH'
+	'WorktreeCli.exe plan validate --repo COMMON-DIR --worktree CHECKOUT --baseline COMMIT',
+	'WorktreeCli.exe plan claim-next --repo COMMON-DIR --primary-worktree PRIMARY --worktree SESSION --branch TARGET --owner TOKEN --session TOKEN --write-claim-receipt Temp/RECEIPT [--plan Documents/Plans/...md]',
+	'WorktreeCli.exe plan claim-status|unclaim --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256',
+	'WorktreeCli.exe plan prepare-completion|prepare-rejection --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256',
+	'WorktreeCli.exe plan release-after-landing --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256 --landed-commit COMMIT'
 ) 'WorktreeCli'
 if ($worktreeHelp.Contains('AgentHarness.exe', [StringComparison]::Ordinal) -or $worktreeHelp.Contains('--domain', [StringComparison]::Ordinal) -or $worktreeHelp.Contains('--port', [StringComparison]::Ordinal) -or $worktreeHelp.Contains('--timeout-ms', [StringComparison]::Ordinal) -or $worktreeHelp.Contains('--key', [StringComparison]::Ordinal)) { throw 'WorktreeCli help exposes a harness-only or obsolete option.' }
 

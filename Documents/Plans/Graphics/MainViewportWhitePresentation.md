@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-20T00:58:38.000Z","dependsOn":[]} -->
 # Restore Main Viewport Presentation
 
 ## Context

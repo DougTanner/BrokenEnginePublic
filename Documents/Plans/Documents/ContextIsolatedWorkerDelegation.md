@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-19T20:21:44.000Z","dependsOn":[]} -->
 # Context-Isolated Worker Delegation
 
 ## Context

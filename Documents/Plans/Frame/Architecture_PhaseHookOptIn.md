@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-02T03:39:13.000Z","dependsOn":[]} -->
 # Architecture: Opt-In Collection Phase Hooks
 
 ## Context

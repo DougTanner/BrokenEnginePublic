@@ -13,18 +13,18 @@ Holds design-time documentation and two parallel planning trees. No build artifa
 
 ## Planning Trees
 
-Plan files (the units `/next-plan` executes) live in two sibling directories, split by whether the work adds a capability:
+Plan documents live in two sibling directories, split by whether the work adds a capability:
 
 | Directory | Scope |
 |-----------|-------|
 | [`Plans/`](Plans/AGENTS.md) | **Refactors and bugfixes.** Debt reduction — cleaning, decomposing, renaming, deleting dead code, fixing races/NaNs/precision, defensive shader clamps. Changes *how* the engine is built or how correctly it runs, not what it does. |
-| [`Features/`](Features/AGENTS.md) | **Brand-new additions.** New render passes, effects, systems, collections, network/audio capabilities, dev tooling that ships in the binary. Adds a capability the engine did not have. |
+| [`Features/`](Features/AGENTS.md) | **Brand-new additions.** Manually executed; never scheduler-tracked. |
 
-Deciding test: *does this plan give the engine a capability it didn't have before?* Yes → `Features/`, No → `Plans/`. Edge cases (same-capability library swaps, dev tooling, precision refactors that merely unblock larger maps) stay in `Plans/` unless their *point* is the new capability. These directories hold plan files only; the scored queue index for each is **machine-local state** (under `%LOCALAPPDATA%\BrokenEngineLocks\plan-queue-state\`), not a tracked file — WorktreeCli owns it and seeds it with `plan order init`. Each directory organizes its files into area subfolders (`Engine/`, `Frame/`, `Graphics/`, etc.) and owns the authoring/row-format rules for its queue — see the two child AGENTS.md files.
+Deciding test: *does this plan give the engine a capability it didn't have before?* Yes → `Features/`, No → `Plans/`. Executable Plans carry a byte-zero, Git-tracked metadata marker. WorktreeCli selects them deterministically by immutable creation time and canonical path. Files without the marker and all Features files are manual. Each tree uses area subfolders (`Engine/`, `Frame/`, `Graphics/`, etc.).
 
-## Scoring Anchors (canonical — both queues reference here)
+## Historical scoring anchors
 
-Each queue row carries `Score = Effort − Impact + Risks`; lower = higher priority. Scores are not comparable across the two queues. Calibrate against neighbouring rows; do not default to the middle. Scores and row order are rough pick-next tiebreakers, not an enforced ranking. Size-removal anchors use the deterministic `bt-token-v1` estimate from [Measure-Tokens.ps1](../.agents/scripts/Measure-Tokens.ps1), not exact model tokens.
+Existing estimates remain useful human context but never schedule work. Executable Plans use immutable metadata creation time and canonical path. Size-removal anchors use the deterministic `bt-token-v1` estimate from [Measure-Tokens.ps1](../.agents/scripts/Measure-Tokens.ps1), not exact model tokens.
 
 **Effort** (size of change):
 

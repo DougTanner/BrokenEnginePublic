@@ -34,7 +34,7 @@ param(
 	[Parameter(Mandatory = $true)]
 	[string] $LandedCommit,
 	[string] $CooperatingSessionOwner,
-	[int] $WaitSeconds = 660
+	[ValidateRange(1, 55)][int] $WaitSeconds = 55
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,12 +50,26 @@ $result = [ordered]@{
 	promoted = $false
 	rollback = 'not-required'
 	receipt = $null
+	disposition = 'terminal'
+	requiresUserAuthority = $false
+	retryAfterMilliseconds = 0
+	blocker = $null
 }
 
-function Complete-Promotion([int] $ExitCode, [string] $Status, [string] $Code, [string] $Message) {
+function Complete-Promotion([int] $ExitCode, [string] $Status, [string] $Code, [string] $Message, [string] $Disposition = 'terminal', [bool] $RequiresUserAuthority = $false, [int] $RetryAfterMilliseconds = 0) {
 	$result.status = $Status
 	$result.code = $Code
 	$result.message = $Message
+	$result.disposition = $Disposition
+	$result.requiresUserAuthority = $RequiresUserAuthority
+	$result.retryAfterMilliseconds = $RetryAfterMilliseconds
+	if ($Status -cne 'pass') {
+		$result.blocker = [ordered]@{
+			disposition = $Disposition
+			requiresUserAuthority = $RequiresUserAuthority
+			retryAfterMilliseconds = $RetryAfterMilliseconds
+		}
+	}
 	[Console]::Out.Write(($result | ConvertTo-Json -Depth 100 -Compress))
 	exit $ExitCode
 }
@@ -131,7 +145,7 @@ try {
 			AgentHarness = Get-ExecutableIdentity $canonical.AgentHarness
 		}
 		if ($previous.WorktreeCli.present -ne $previous.AgentHarness.present) {
-			Complete-Promotion 2 'blocked' 'promotion.partial-previous' 'Canonical AgentTools output is a partial pair; repair it before promotion.'
+			Complete-Promotion 2 'blocked' 'promotion.partial-previous' 'Canonical AgentTools output is a partial pair; repair it before promotion.' 'authority-required' $true
 		}
 		$firstRollout = -not $previous.WorktreeCli.present
 
@@ -206,7 +220,7 @@ try {
 			}
 			catch {
 				$result.rollback = 'failed'
-				Complete-Promotion 1 'error' 'promotion.rollback-failed' "Promotion failed AND rollback could not restore the complete previous state (canonical pair or stamp may be partial; backup retained at '$backupDirectory'). Promotion failure: $failure. Rollback failure: $($_.Exception.Message)"
+				Complete-Promotion 1 'error' 'promotion.rollback-failed' "Promotion failed AND rollback could not restore the complete previous state (canonical pair or stamp may be partial; backup retained at '$backupDirectory'). Promotion failure: $failure. Rollback failure: $($_.Exception.Message)" 'authority-required' $true
 			}
 		}
 
@@ -257,8 +271,12 @@ try {
 		Invoke-WorktreeCliExclusiveOperation -RepositoryRoot $primaryRoot -Label 'AgentTools promotion' -CooperatingSessionOwner $CooperatingSessionOwner -WaitSeconds $WaitSeconds -Action $promotionAction 6> $null
 	}
 	catch {
-		if ($_.Exception.Message -match 'Timed out|not initialized|ledger mutex') {
-			Complete-Promotion 2 'blocked' 'promotion.coordination-blocked' "Could not acquire exclusive AgentTools coordination: $($_.Exception.Message)"
+		$ledgerFailure = $_.Exception.Message -match '^WorktreeCli session ledger (is unreadable or malformed|failed validation|contains an invalid)'
+		if ($_.Exception.Message -match 'Timed out') {
+			Complete-Promotion 2 'blocked' 'promotion.shared-quiescence' "Canonical AgentTools remains in use by another live session or maintenance owner: $($_.Exception.Message)" 'shared-quiescence' $false 500
+		}
+		if ($ledgerFailure -or $_.Exception.Message -match 'not initialized|ledger mutex') {
+			Complete-Promotion 2 'blocked' 'promotion.coordination-unverifiable' "Canonical AgentTools coordination state cannot be verified: $($_.Exception.Message)" 'authority-required' $true
 		}
 		throw
 	}

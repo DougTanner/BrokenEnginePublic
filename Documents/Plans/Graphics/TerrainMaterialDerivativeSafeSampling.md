@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-19T15:40:15.000Z","dependsOn":[]} -->
 # Terrain Material Derivative-Safe Sampling
 
 ## Context

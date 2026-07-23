@@ -51,6 +51,8 @@ namespace toolcli::coordination
 	std::optional<Locator> MakeLocator(const std::wstring& rDomain, const std::wstring& rLogicalKey);
 	bool EnsureParentDirectory(const std::filesystem::path& rPath);
 	bool ReadMetadata(const std::filesystem::path& rPath, nlohmann::json& rMetadata);
+	// Durable byte replacement for small coordination artifacts, including paths beyond MAX_PATH.
+	bool WriteBytesAtomic(const std::filesystem::path& rPath, std::string_view contents);
 	bool WriteMetadataAtomic(const std::filesystem::path& rPath, const nlohmann::json& rMetadata);
 	void PrintMetadata(const nlohmann::json& rMetadata);
 	bool HasOwner(const nlohmann::json& rMetadata, const std::wstring& rOwner);

@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-02T02:29:26.000Z","dependsOn":[]} -->
 # Reclaim Texture Lazy-Chunk CPU Pool Bytes
 
 Acknowledged known gap in `Graphics/IslandResidentMemoryScaling_Overview.md` ("the texture LRU frees only VRAM + resets chunk state for reload… never decommits the pool").

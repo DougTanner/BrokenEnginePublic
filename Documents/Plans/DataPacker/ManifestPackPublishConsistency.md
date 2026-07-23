@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-18T01:11:40.000Z","dependsOn":[]} -->
 # Detect a manifest published over a mismatched pack
 
 ## Context

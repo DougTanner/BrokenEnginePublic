@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-05-30T02:27:49.000Z","dependsOn":[]} -->
 # Window the lighting/shadow passes to the cropped sub-region (skip full-texture clear/dispatch)
 
 ## Context

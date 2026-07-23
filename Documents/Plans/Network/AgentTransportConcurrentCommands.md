@@ -1,3 +1,4 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-09T22:17:50.000Z","dependsOn":[]} -->
 # Agent Transport Concurrent Commands
 
 ## Context
