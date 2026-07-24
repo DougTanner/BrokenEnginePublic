@@ -15,6 +15,7 @@
 // Network (shared)
 #include "Network/NetworkManager.h"
 #include "Network/NetworkProtocol.h"
+#include "Network/NetworkMessages.h"
 #include "Network/NetworkSessionContract.h"
 #include "Network/NetworkSerialization.h"
 #include "Network/NetworkSimulation.h"
@@ -22,6 +23,7 @@
 // Launch options and agent command channel (shared)
 #include "LaunchOptions.h"
 #include "Agent/AgentCommandServer.h"
+#include "Agent/AgentCommandsShared.h"
 
 #if defined(BT_CLIENT)
 

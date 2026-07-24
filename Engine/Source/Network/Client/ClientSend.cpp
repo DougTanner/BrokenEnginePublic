@@ -29,34 +29,33 @@ bool Client::SendAck()
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
-	// [1B type]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientAckStream));
-
 	// Per-slot ACK state for proactive re-sends
+	NetworkMessages::AckStreamEntry entries[NetworkManager::kiMaxEnetCoordSlots] {};
 	uint8_t uiAckSlotCount = 0;
 	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
 	{
 		if (mCoordSlots.at(i).eState == CoordSubscriptionState::kActive)
 		{
+			entries[uiAckSlotCount] = {
+				.uiSlotIndex = static_cast<uint8_t>(i),
+				.uiEpoch = mCoordSlots.at(i).ackState.uiEpoch,
+				.iAckFloor = mCoordSlots.at(i).ackState.iAckFloor,
+				.uiReceivedBitfieldLow = mCoordSlots.at(i).ackState.uiReceivedBitfieldLow,
+				.uiReceivedBitfieldHigh = mCoordSlots.at(i).ackState.uiReceivedBitfieldHigh,
+			};
 			++uiAckSlotCount;
-		}
-	}
-	rWorkbuffer.PushBack<uint8_t>(uiAckSlotCount);
-	for (int64_t i = 0; i < std::ssize(mCoordSlots); ++i)
-	{
-		if (mCoordSlots.at(i).eState == CoordSubscriptionState::kActive)
-		{
-			rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(i));
-			rWorkbuffer.PushBack<uint16_t>(mCoordSlots.at(i).ackState.uiEpoch);
-			rWorkbuffer.PushBack<int64_t>(mCoordSlots.at(i).ackState.iAckFloor);
-			rWorkbuffer.PushBack<uint64_t>(mCoordSlots.at(i).ackState.uiReceivedBitfieldLow);
-			rWorkbuffer.PushBack<uint64_t>(mCoordSlots.at(i).ackState.uiReceivedBitfieldHigh);
 		}
 	}
 
 	// Pipeline RTT: embed client timestamp for server to echo back
 	int64_t iTimestampNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
+	NetworkMessages::ClientAckStreamMessage message {
+		.uiSlotCount = uiAckSlotCount,
+		.pEntries = entries,
+		.iEntryCapacity = NetworkManager::kiMaxEnetCoordSlots,
+		.iTimestampNs = iTimestampNs,
+	};
+	NetworkMessages::Write(rWorkbuffer, message);
 
 	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelUnreliable, rWorkbuffer, 0);
 	return true;
@@ -74,7 +73,11 @@ void Client::SendSpawnRequest(ClientRequestFlags_t flags)
 
 	LOG(kNetwork, kDebug, "Client::SendSpawnRequest Spawn: {} Respawn: {}", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
-	SendSimplePacket(PacketType::kClientSpawnRequest, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiFlags);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+	NetworkMessages::ClientSpawnRequestMessage message {.uiFlags = uiFlags};
+	NetworkMessages::Write(rWorkbuffer, message);
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual)
@@ -88,7 +91,16 @@ void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expe
 	char pcActual[20] {};
 	LOG(kNetwork, kError, "Client::SendDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
 
-	SendSimplePacket(PacketType::kClientDesyncReport, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iTick, coord, static_cast<uint64_t>(expected), static_cast<uint64_t>(actual));
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+	NetworkMessages::ClientDesyncReportMessage message {
+		.iTick = iTick,
+		.coord = coord,
+		.uiExpectedCrc = static_cast<uint64_t>(expected),
+		.uiActualCrc = static_cast<uint64_t>(actual),
+	};
+	NetworkMessages::Write(rWorkbuffer, message);
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void Client::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
@@ -100,8 +112,11 @@ void Client::SendDebugFrameRequest(int64_t iTick, GridCoord coord)
 
 	LOG(kNetwork, kError, "Client::SendDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 
-	// [1B type][8B frame][4B gridX][4B gridY]
-	SendSimplePacket(PacketType::kClientDebugFrameRequest, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, iTick, coord);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+	NetworkMessages::ClientDebugFrameRequestMessage message {.iTick = iTick, .coord = coord};
+	NetworkMessages::Write(rWorkbuffer, message);
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
 bool Client::SendSubscribe(GridCoord coord)
@@ -141,8 +156,11 @@ bool Client::SendSubscribe(GridCoord coord)
 		return false;
 	}
 
-	// [1B type][4B coord.x][4B coord.y]
-	SendSimplePacket(PacketType::kClientSubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, coord);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+	NetworkMessages::ClientSubscribeMessage message {.coord = coord};
+	NetworkMessages::Write(rWorkbuffer, message);
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 
 	return true;
 }
@@ -157,8 +175,14 @@ void Client::SendUnsubscribe(int64_t iSlot)
 	ClientCoordSlot& rSlot = mCoordSlots.at(iSlot);
 	rSlot.eState = CoordSubscriptionState::kUnsubscribing;
 	rSlot.transitionStartTime = std::chrono::steady_clock::now();
-	// [1B type][1B slot][2B epoch]
-	SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(iSlot), rSlot.ackState.uiEpoch);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+	NetworkMessages::ClientUnsubscribeMessage message {
+		.uiSlotIndex = static_cast<uint8_t>(iSlot),
+		.uiEpoch = rSlot.ackState.uiEpoch,
+	};
+	NetworkMessages::Write(rWorkbuffer, message);
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void Client::SendResyncRequest()
@@ -170,7 +194,11 @@ void Client::SendResyncRequest()
 
 	LOG(kNetwork, kError, "Client::SendResyncRequest");
 
-	SendSimplePacket(PacketType::kClientResyncRequest, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+	NetworkMessages::ClientResyncRequestMessage message {};
+	NetworkMessages::Write(rWorkbuffer, message);
+	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void Client::SendHello()
@@ -178,14 +206,15 @@ void Client::SendHello()
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientHello));
-	rWorkbuffer.PushBack<uint32_t>(kuiProtocolVersion);
-	rWorkbuffer.PushBack<int64_t>(game::NetworkSessionContract::GetFrameVersion());
-	rWorkbuffer.PushBack<common::crc_t>(gpFileManager->GetPackIntegrityToken());
-	rWorkbuffer.Append(std::string_view(kpcBuildConfigName));
-	rWorkbuffer.PushBack<uint8_t>(0); // null terminator for config string
-	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiHigh);
-	rWorkbuffer.PushBack<uint64_t>(mClientGuid.uiLow);
+	NetworkMessages::ClientHelloMessage message {
+		.uiProtocolVersion = kuiProtocolVersion,
+		.iFrameVersion = game::NetworkSessionContract::GetFrameVersion(),
+		.packIntegrityToken = gpFileManager->GetPackIntegrityToken(),
+		.buildConfig = kpcBuildConfigName,
+		.guid = mClientGuid,
+		.bHasGuid = true,
+	};
+	NetworkMessages::Write(rWorkbuffer, message);
 
 	miHelloSendTimeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 

@@ -69,7 +69,6 @@ function Assert-AgentWorktreeSkillsLink([string] $Worktree) {
 }
 
 $claim = $null
-$worktreeLocked = $false
 $worktreeCreated = $false
 $exitCode = 1
 try {
@@ -82,35 +81,27 @@ try {
 
 	if (-not [string]::IsNullOrWhiteSpace($ReattachWorktree)) {
 		# All provenance is receipt-derived. This first proof is intentionally read-only;
-		# the locked second proof closes the worktree/receipt race before ledger admission.
+		# the second proof closes the worktree/receipt race before ledger admission.
 		$proof = Get-AgentWorktreeReattachProof -Client $Client -RepositoryRoot $root -Worktree $ReattachWorktree
 		$receipt = $proof.Receipt.Value
 		$firstReceiptBytes = $proof.Receipt.Bytes
 		$firstReceiptIntegrityBytes = $proof.Receipt.IntegrityBytes
 		$available = Test-WorktreeCliReattachAvailability -RepositoryRoot $root -Owner $receipt.sessionOwner -Worktree $proof.Worktree -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed
 		if (-not $available.Available) { throw $available.Message }
-		Lock-AgentWorktree -RepositoryRoot $root -Worktree $proof.Worktree -Reason "Live $Client session $($receipt.worktreeId) - do not remove"
-		$worktreeLocked = $true
-		try {
-			# The second proof executes inside the admission mutex so durable provenance
-			# cannot change between its validation and installation of the restored claim.
-			$claim = Restore-WorktreeCliSession -RepositoryRoot $root -Owner $receipt.sessionOwner -Label "$Client wrapper" -Worktree $proof.Worktree `
-				-WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed -BootstrapExecutable $worktreeCli -BeforeAdmission {
-					$lease = Open-AgentWorktreeReceiptReadLease $proof.Worktree
-					try {
-						$secondProof = Get-AgentWorktreeReattachProof -Client $Client -RepositoryRoot $root -Worktree $proof.Worktree -ExpectedReceiptBytes $firstReceiptBytes -ExpectedReceiptIntegrityBytes $firstReceiptIntegrityBytes -ReadLease $lease
-						return [pscustomobject]@{ Proof = $secondProof; Lease = $lease }
-					}
-					catch { $lease.ReceiptStream.Dispose(); $lease.IntegrityStream.Dispose(); throw }
+		# The second proof executes inside the admission mutex under a receipt read lease, so
+		# durable provenance cannot change between its validation and installation of the
+		# restored claim.
+		$claim = Restore-WorktreeCliSession -RepositoryRoot $root -Owner $receipt.sessionOwner -Label "$Client wrapper" -Worktree $proof.Worktree `
+			-WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed -BeforeAdmission {
+				$lease = Open-AgentWorktreeReceiptReadLease $proof.Worktree
+				try {
+					$secondProof = Get-AgentWorktreeReattachProof -Client $Client -RepositoryRoot $root -Worktree $proof.Worktree -ExpectedReceiptBytes $firstReceiptBytes -ExpectedReceiptIntegrityBytes $firstReceiptIntegrityBytes -ReadLease $lease
+					return [pscustomobject]@{ Proof = $secondProof; Lease = $lease }
 				}
-			$proof = $claim.AdmissionProof
-			$receipt = $proof.Receipt.Value
-		}
-		catch {
-			Unlock-AgentWorktree -RepositoryRoot $root -Worktree $proof.Worktree
-			$worktreeLocked = $false
-			throw
-		}
+				catch { $lease.ReceiptStream.Dispose(); $lease.IntegrityStream.Dispose(); throw }
+			}
+		$proof = $claim.AdmissionProof
+		$receipt = $proof.Receipt.Value
 		$identity = [pscustomobject]@{
 			Primary = $proof.Primary; Worktree = $proof.Worktree; Branch = $receipt.branch; TargetBranch = $receipt.targetBranch; Baseline = $receipt.baseline
 		}
@@ -125,7 +116,7 @@ try {
 		if (Test-Path -LiteralPath $worktree) { throw "Generated worktree path already exists: '$worktree'." }
 		if (@(Invoke-AgentGit @('-C', $root, 'branch', '--list', $branch)).Count -ne 0) { throw "Generated branch already exists: '$branch'." }
 		$owner = [guid]::NewGuid().ToString()
-		$claim = Register-WorktreeCliSession -RepositoryRoot $root -Owner $owner -Label "$Client wrapper" -Worktree $worktree -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed -BootstrapExecutable $worktreeCli
+		$claim = Register-WorktreeCliSession -RepositoryRoot $root -Owner $owner -Label "$Client wrapper" -Worktree $worktree -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed
 		$identity = [pscustomobject]@{ Primary = $primary; Worktree = $worktree; Branch = $branch; TargetBranch = $primary.Branch; Baseline = $primary.Head }
 		New-Item -ItemType Directory -Path $worktreeRoot -Force | Out-Null
 		& git -C $root worktree add -b $branch $worktree $primary.Head
@@ -134,8 +125,6 @@ try {
 		$receipt = New-AgentWorktreeSessionReceipt -Client $Client -PrimaryCheckout $root -GitCommonDirectory $primary.CommonDirectory -Worktree $worktree `
 			-WorktreeId $uuid -Branch $branch -TargetBranch $primary.Branch -Baseline $primary.Head -SessionOwner $owner
 		Write-AgentWorktreeSessionReceipt -Worktree $worktree -Receipt $receipt | Out-Null
-		Lock-AgentWorktree -RepositoryRoot $root -Worktree $worktree -Reason "Live $Client session $uuid - do not remove"
-		$worktreeLocked = $true
 	}
 
 	# Reattach only reaches this point after the second proof and atomic admission.
@@ -147,6 +136,7 @@ try {
 	if ([string]::IsNullOrWhiteSpace($ClientExecutable)) {
 		$ClientExecutable = (Get-Command $Client -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 	}
+	& (Join-Path $root '.agents\scripts\Build-WorktreeDataPacker.ps1') -Worktree $identity.Worktree -WorktreeCliExecutable $worktreeCli -PrimaryCheckout $root
 	Write-Host "$(if ($worktreeCreated) { 'Created' } else { 'Reattached' }) worktree $($identity.Worktree) on branch $($identity.Branch) at baseline $($identity.Baseline)."
 	$exitCode = Invoke-WorktreeCliTrackedProcess -Executable $ClientExecutable -ArgumentList $ClientArguments -WorkingDirectory $identity.Worktree
 }
@@ -157,16 +147,10 @@ catch {
 }
 finally {
 	if ($null -ne $claim) {
-		try {
-			$exclusion = Get-WorktreeCliExclusionStatus -RepositoryRoot $root -WaitSeconds $WaitSeconds
-			if ($null -ne $exclusion.Maintenance -and $exclusion.Maintenance.owner -eq $claim.Owner) { Exit-WorktreeCliMaintenance -RepositoryRoot $root -Owner $claim.Owner }
-			elseif (@($exclusion.Sessions | Where-Object { $_.owner -eq $claim.Owner }).Count -eq 1) { Unregister-WorktreeCliSession -RepositoryRoot $root -Owner $claim.Owner }
-		}
+		# Wrapper claims are always plain session claims (bootstrap serializes on its own mutex,
+		# never a maintenance upgrade), so releasing is an unconditional Unregister.
+		try { Unregister-WorktreeCliSession -RepositoryRoot $root -Owner $claim.Owner }
 		catch { [Console]::Error.WriteLine("Failed to release WorktreeCli session '$($claim.Owner)': $($_.Exception.Message)"); $exitCode = 1 }
-	}
-	if ($worktreeLocked) {
-		try { Unlock-AgentWorktree -RepositoryRoot $root -Worktree $identity.Worktree }
-		catch { [Console]::Error.WriteLine($_.Exception.Message); $exitCode = 1 }
 	}
 	Restore-AgentWorktreeEnvironment
 }

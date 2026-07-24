@@ -84,13 +84,7 @@ public:
 			return;
 		}
 
-		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-		rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eType));
-		(PushSimplePacketArg(rWorkbuffer, args), ...);
-
-		NetworkManager::SendPacket(mpServerPeer, uiChannel, rWorkbuffer, uiPacketFlags);
+		NetworkManager::SendSimplePacket(mpServerPeer, eType, uiChannel, uiPacketFlags, args...);
 	}
 
 	void SendSpawnRequest(ClientRequestFlags_t flags);
@@ -146,14 +140,15 @@ private:
 	void ResetAllSlots();
 	void DispatchIncoming(ENetEvent& rEvent, bool bFastForward);
 	void Receive(ENetEvent& rEvent);
-	void Receive(const uint8_t* pData, size_t iSize);
-	void ServerCoordFullState(const uint8_t* pData, size_t iSize);
-	void ServerCoordStaticData(const uint8_t* pData, size_t iSize);
-	void ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool bProcessRtt);
-	void ServerDebugFrame(const uint8_t* pData, size_t iSize);
-	void ServerConnectionResponse(const uint8_t* pData, size_t iSize);
-	void ServerSubscribeAccept(const uint8_t* pData, size_t iSize);
-	void ServerUnsubscribeAck(const uint8_t* pData, size_t iSize);
+	void Receive(std::span<const uint8_t> packetData);
+	void ServerCoordFullState(std::span<const uint8_t> packetData);
+	void ServerCoordStaticData(std::span<const uint8_t> packetData);
+	void ServerCoordUpdateOrResend(std::span<const uint8_t> packetData, bool bProcessRtt);
+	void ServerDebugFrame(std::span<const uint8_t> packetData);
+	void ServerConnectionResponse(std::span<const uint8_t> packetData);
+	void ServerSubscribeAccept(std::span<const uint8_t> packetData);
+	void ServerUnsubscribeAck(std::span<const uint8_t> packetData);
+	void ServerLoadNotification(std::span<const uint8_t> packetData);
 	void SendHello();
 
 	enum class FullStateFlags : uint8_t

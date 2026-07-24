@@ -309,6 +309,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkMessages.h">
+      <Filter>Engine\Network</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkProtocol.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
@@ -574,6 +577,9 @@
       <Filter>Engine</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Agent\AgentCommandServer.h">
+      <Filter>Engine\Agent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Agent\AgentCommandsShared.h">
       <Filter>Engine\Agent</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Agent\AgentInput.h">
@@ -1070,6 +1076,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentCommandServer.cpp">
       <Filter>Engine\Agent</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentCommandsShared.cpp">
+      <Filter>Engine\Agent</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentInput.cpp">
       <Filter>Engine\Agent</Filter>
     </ClCompile>
@@ -1452,6 +1461,9 @@
       <Filter>Engine\Data\Shaders\Shadow</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlurV.comp">
+      <Filter>Engine\Data\Shaders\Shadow</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowHistoryCopy.comp">
       <Filter>Engine\Data\Shaders\Shadow</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowTemporal.comp">

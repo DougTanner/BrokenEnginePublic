@@ -9,6 +9,14 @@
 namespace engine
 {
 
+// Reciprocal of the previous smoke area's signed extents (Smoke/Wind OccupancyDilate remap divisor). Preserves
+// the shader's component order exactly: X = 1/(z-x) (width), Y = 1/(w-y) (negative — max-Y is .y, min-Y is .w).
+static void PopulatePreviousSmokeAreaSizeInv(shaders::GlobalLayout& rGlobalLayout, const XMFLOAT4& rArea)
+{
+	rGlobalLayout.f2PreviousSmokeAreaSizeInv.x = 1.0f / (rArea.z - rArea.x);
+	rGlobalLayout.f2PreviousSmokeAreaSizeInv.y = 1.0f / (rArea.w - rArea.y);
+}
+
 void RenderSmokeGlobal(int64_t iCommandBuffer)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
@@ -70,6 +78,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 		rGlobalLayout.f4SmokeArea = f4CurrentSmokeArea;
 		rGlobalLayout.f4PreviousSmokeArea = f4CurrentSmokeArea;
+		PopulatePreviousSmokeAreaSizeInv(rGlobalLayout, f4CurrentSmokeArea);
 		sf4PreviousSmokeArea = f4CurrentSmokeArea;
 
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 1);
@@ -82,6 +91,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	{
 		rGlobalLayout.f4SmokeArea = sf4PreviousSmokeArea;
 		rGlobalLayout.f4PreviousSmokeArea = sf4PreviousSmokeArea;
+		PopulatePreviousSmokeAreaSizeInv(rGlobalLayout, sf4PreviousSmokeArea);
 
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineSmokeClearB].WriteIndirectBuffer(iCommandBuffer, 0);
@@ -91,6 +101,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 	rGlobalLayout.f4SmokeArea = f4CurrentSmokeArea;
 	rGlobalLayout.f4PreviousSmokeArea = sf4PreviousSmokeArea;
+	PopulatePreviousSmokeAreaSizeInv(rGlobalLayout, sf4PreviousSmokeArea);
 	sf4PreviousSmokeArea = f4CurrentSmokeArea;
 
 	gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 0);

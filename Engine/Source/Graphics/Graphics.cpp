@@ -198,16 +198,22 @@ void Graphics::RenderGlobal(float fCurrentTime)
 	// samplers the same way (UPDATE_AFTER_BIND makes the write spec-legal, not race-free). AnyAdoptionPending
 	// folds those adoption frames into the same drain; restoration's template-owned elevation array write
 	// has no mTextureMap chunk, so AnyRestorationPending stays a distinct, non-redundant predicate.
-	if (gpIslandTerrain->AnyEvictionPending() || gpIslandTerrain->AnyRestorationPending() || gpTextureManager->AnyAdoptionPending())
+	// ProcessPendingTextures clears then republishes this only when the gate opens. Clear the previous frame's
+	// one-time acquire command buffer before the predicate so an idle frame cannot submit it again.
+	gpTextureManager->mbHasPendingAcquireBarriers = false;
+	bool bDescriptorChurnPending = gpIslandTerrain->AnyEvictionPending() || gpIslandTerrain->AnyRestorationPending() || gpTextureManager->AnyAdoptionPending();
+	if (bDescriptorChurnPending)
 	{
 		WaitAllFramebufferFencesIdle();
+
+		// A completion can race the pre-scan; when no epoch opens it waits until the next frame.
+		// Every island descriptor mutation in this scope therefore follows the all-fence drain.
+		TextureDescriptors::ScopedBindlessWriteEpoch bindlessWriteEpoch(gpTextureManager->mTextureDescriptors);
+		gpIslandTerrain->EvictionSweep();
+		gpTextureManager->ProcessPendingTextures(iCommandBuffer);
+		gpIslandTerrain->RestorationSweep();
+		gpTextureManager->mTextureDescriptors.VerifyAllDescriptorGenerations();
 	}
-	gpIslandTerrain->EvictionSweep();
-
-	// Process pending texture loads after fence wait when it's safe to update GPU resources
-	gpTextureManager->ProcessPendingTextures(iCommandBuffer);
-
-	gpIslandTerrain->RestorationSweep();
 
 	// Update VMA frame index for memory budget tracking. muiFrameCounter must advance every frame
 	// (independent of the budget extension) because Phase 5 LRU grace uses it as a monotonic clock.
@@ -219,7 +225,7 @@ void Graphics::RenderGlobal(float fCurrentTime)
 
 	if (rCommandBuffers.mFlags & CommandBufferFlags::kExecuted)
 	{
-		gpProfileManager->GpuRead(iCommandBuffer, kGpuTimerGlobal, kGpuTimerCount);
+		gpProfileManager->GpuRead(iCommandBuffer, kGpuTimerGlobal, kGpuTimerCount, true);
 	}
 
 	gpProfileManager->CpuStart(kCpuTimerRenderGlobal);

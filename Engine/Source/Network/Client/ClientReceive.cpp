@@ -11,26 +11,17 @@
 namespace engine
 {
 
-static std::unique_ptr<game::Frame> DecompressAndReadFrame(const uint8_t*& pCursor, size_t iRemaining)
+static std::unique_ptr<game::Frame> DecompressAndReadFrame(int32_t iUncompressedSize, const NetworkMessages::PacketPayload& rCompressedPayload)
 {
-	if (iRemaining < 8) // 4B uncompressed + 4B compressed
-	{
-		return nullptr;
-	}
-
-	int32_t iUncompressedSize = ReadInt32(pCursor);
-	int32_t iCompressedSize = ReadInt32(pCursor);
-
-	if (iUncompressedSize <= 0 || iCompressedSize <= 0
+	if (iUncompressedSize <= 0 || rCompressedPayload.iSize <= 0
 		|| static_cast<int64_t>(iUncompressedSize) > kiMaxUncompressedFrameBytes
-		|| static_cast<size_t>(iCompressedSize) > iRemaining - 8)
+		|| rCompressedPayload.pData == nullptr)
 	{
 		return nullptr;
 	}
 
 	std::string decompressed(iUncompressedSize, '\0');
-	int iDecompressResult = LZ4_decompress_safe(reinterpret_cast<const char*>(pCursor), decompressed.data(), iCompressedSize, iUncompressedSize);
-	pCursor += iCompressedSize;
+	int iDecompressResult = LZ4_decompress_safe(reinterpret_cast<const char*>(rCompressedPayload.pData), decompressed.data(), rCompressedPayload.iSize, iUncompressedSize);
 
 	if (iDecompressResult != iUncompressedSize)
 	{
@@ -161,20 +152,18 @@ Client::SubscribeAcceptFlags_t Client::ClassifySubscribeAccept(uint8_t uiSlotInd
 	return { SubscribeAcceptFlags::kClearPlaceholder, SubscribeAcceptFlags::kCommitInit };
 }
 
-void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
+void Client::ServerCoordFullState(std::span<const uint8_t> packetData)
 {
-	// 1B type + 1B slot + 2B epoch + 8B tick + 4B gridX + 4B gridY = 20 fixed bytes
-	if (iSize < 20)
+	NetworkMessages::ServerCoordFullStateMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	uint8_t uiSlotIndex = ReadUint8(pCursor);
-	uint16_t uiEpoch = ReadUint16(pCursor);
-	int64_t iTick = ReadInt64(pCursor);
-	GridCoord coord = ReadGridCoord(pCursor);
+	uint8_t uiSlotIndex = message.uiSlotIndex;
+	uint16_t uiEpoch = message.uiEpoch;
+	int64_t iTick = message.iTick;
+	GridCoord coord = message.coord;
 
 	if (uiSlotIndex >= std::ssize(mCoordSlots))
 	{
@@ -186,7 +175,7 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 
 	ScopedSuppressAllocationTracking suppress;
 
-	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 20);
+	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(message.iUncompressedSize, message.compressedPayload);
 	if (pFrame == nullptr)
 	{
 		LOG(kNetwork, kWarning, "Client::ServerCoordFullState LZ4 decompression failed Coord: ({},{}) Frame: {}", coord.x, coord.y, iTick);
@@ -199,7 +188,11 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	if (actions & FullStateFlags::kRejectAsGhost)
 	{
 		RemoveCancelledSubscription(coord);
-		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex, uiEpoch);
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+		NetworkMessages::ClientUnsubscribeMessage unsubscribe {.uiSlotIndex = uiSlotIndex, .uiEpoch = uiEpoch};
+		NetworkMessages::Write(rWorkbuffer, unsubscribe);
+		NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 		LOG(kNetwork, kVerbose, "Client::ServerCoordFullState coord mismatch, sent unsubscribe for ghost Slot: {} Coord: ({},{}) SlotCoord: ({},{})", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y);
 		return;
 	}
@@ -218,7 +211,11 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	// Late cancellation: the kSubscribing slot was dropped between subscribe and full-state arrival
 	if (RemoveCancelledSubscription(coord))
 	{
-		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex, uiEpoch);
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+		NetworkMessages::ClientUnsubscribeMessage unsubscribe {.uiSlotIndex = uiSlotIndex, .uiEpoch = uiEpoch};
+		NetworkMessages::Write(rWorkbuffer, unsubscribe);
+		NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 		LOG(kNetwork, kVerbose, "Client::ServerCoordFullState cancelled, sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		rSlot = {};
 		return;
@@ -240,22 +237,18 @@ void Client::ServerCoordFullState(const uint8_t* pData, size_t iSize)
 	rSlot.transitionStartTime = {};
 }
 
-void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
+void Client::ServerCoordStaticData(std::span<const uint8_t> packetData)
 {
-	// 1B type + 1B slot + 2B epoch + 4B coord.x + 4B coord.y + 4B size = 16 fixed bytes
-	if (iSize < 16)
+	NetworkMessages::ServerCoordStaticDataMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	uint8_t uiSlotIndex = ReadUint8(pCursor);
-	uint16_t uiEpoch = ReadUint16(pCursor);
-	GridCoord coord = ReadGridCoord(pCursor);
-	int32_t iSize32 = ReadInt32(pCursor);
-
-	if (iSize32 <= 0 || static_cast<size_t>(iSize32) > iSize - 16)
+	uint8_t uiSlotIndex = message.uiSlotIndex;
+	uint16_t uiEpoch = message.uiEpoch;
+	GridCoord coord = message.coord;
+	if (message.staticData.iSize <= 0)
 	{
 		return;
 	}
@@ -287,7 +280,7 @@ void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
 
 	ScopedSuppressAllocationTracking suppress;
 
-	std::string staticBytes(reinterpret_cast<const char*>(pCursor), iSize32);
+	std::string staticBytes(reinterpret_cast<const char*>(message.staticData.pData), message.staticData.iSize);
 	std::istringstream staticStream(std::move(staticBytes), std::ios::binary);
 
 	ReceivedStaticData received {};
@@ -298,105 +291,102 @@ void Client::ServerCoordStaticData(const uint8_t* pData, size_t iSize)
 	mReceivedStaticData.push_back(std::move(received));
 }
 
-void Client::ServerCoordUpdateOrResend(const uint8_t* pData, size_t iSize, bool bProcessRtt)
+void Client::ServerCoordUpdateOrResend(std::span<const uint8_t> packetData, bool bProcessRtt)
 {
-	// 1B type + 1B slot + 2B epoch + 8B tick + 8B echoTs + 8B sharedCrc + 4B compressedSize = 32 fixed bytes
-	if (iSize < 32)
+	auto receive = [this, bProcessRtt](const NetworkMessages::CoordUpdateFields& rMessage)
 	{
-		return;
-	}
-
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	uint8_t uiSlotIndex = ReadUint8(pCursor);
-	uint16_t uiEpoch = ReadUint16(pCursor);
-	int64_t iTick = ReadInt64(pCursor);
-
-	// Pipeline RTT: read echoed client timestamp (monotonic guard prevents duplicate processing during multi-frame ticks)
-	int64_t iEchoedTimestampNs = ReadInt64(pCursor);
-	if (bProcessRtt && iEchoedTimestampNs > 0 && iEchoedTimestampNs > miLastEchoedTimestampNs)
-	{
-		miLastEchoedTimestampNs = iEchoedTimestampNs;
-		int64_t iNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-		int64_t iRttUs = (iNowNs - iEchoedTimestampNs) / 1000;
-		if (iRttUs >= 0)
+		// Pipeline RTT: read echoed client timestamp (monotonic guard prevents duplicate processing during multi-frame ticks)
+		if (bProcessRtt && rMessage.iEchoedTimestampNs > 0 && rMessage.iEchoedTimestampNs > miLastEchoedTimestampNs)
 		{
-			mSmoothedPipelineRttUs = iRttUs;
-			mSmoothedPipelineRttUs.Update();
-
-			std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-			if (mStateFlags & ClientStateFlags::kHasLastUpdateArrival)
+			miLastEchoedTimestampNs = rMessage.iEchoedTimestampNs;
+			int64_t iNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+			int64_t iRttUs = (iNowNs - rMessage.iEchoedTimestampNs) / 1000;
+			if (iRttUs >= 0)
 			{
-				int64_t iIntervalUs = std::chrono::duration_cast<std::chrono::microseconds>(now - mLastUpdateArrival).count();
-				// Server broadcast cadence is wall-scaled by the debug timescale; expect the scaled wall interval, not the fixed sim tick period
-				int64_t iExpectedMicroseconds = mTimeState.iExpectedUpdateIntervalMicroseconds;
-				int64_t iDeviation = std::abs(iIntervalUs - iExpectedMicroseconds);
-				mSmoothedJitterUs = iDeviation;
-				mSmoothedJitterUs.Update();
+				mSmoothedPipelineRttUs = iRttUs;
+				mSmoothedPipelineRttUs.Update();
+
+				std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+				if (mStateFlags & ClientStateFlags::kHasLastUpdateArrival)
+				{
+					int64_t iIntervalUs = std::chrono::duration_cast<std::chrono::microseconds>(now - mLastUpdateArrival).count();
+					// Server broadcast cadence is wall-scaled by the debug timescale; expect the scaled wall interval, not the fixed sim tick period
+					int64_t iExpectedMicroseconds = mTimeState.iExpectedUpdateIntervalMicroseconds;
+					int64_t iDeviation = std::abs(iIntervalUs - iExpectedMicroseconds);
+					mSmoothedJitterUs = iDeviation;
+					mSmoothedJitterUs.Update();
+				}
+				mLastUpdateArrival = now;
+				mStateFlags.Set(ClientStateFlags::kHasLastUpdateArrival);
 			}
-			mLastUpdateArrival = now;
-			mStateFlags.Set(ClientStateFlags::kHasLastUpdateArrival);
+		}
+
+		if (rMessage.uiSlotIndex >= std::ssize(mCoordSlots))
+		{
+			return;
+		}
+		CoordUpdateFlags_t actions = ClassifyCoordUpdate(rMessage.uiSlotIndex, rMessage.uiEpoch);
+		if (!(actions & CoordUpdateFlags::kCommit))
+		{
+			return;
+		}
+
+		ScopedSuppressAllocationTracking suppress;
+
+		ReceivedCoordUpdate update {};
+		update.iTick = rMessage.iTick;
+		update.sharedCrc = static_cast<common::crc_t>(rMessage.uiSharedCrc);
+
+		if (rMessage.compressedPayload.iSize > 0)
+		{
+			int64_t iCount = game::NetworkSessionContract::DecompressStatusChanges(rMessage.compressedPayload.pData, rMessage.compressedPayload.iSize, mStatusChangeScratch.data(), kiMaxStatusChangesPerCell);
+			// Heap: exact-size copy out of the reused 1024-cap decode scratch, so the buffered update carries no capacity slack
+			update.statusChanges.assign(mStatusChangeScratch.begin(), mStatusChangeScratch.begin() + iCount);
+		}
+
+		// Heap: received updates vector grows each tick
+		mReceivedCoordUpdates.at(rMessage.uiSlotIndex).push_back(std::move(update));
+		if (actions & CoordUpdateFlags::kTrackTick)
+		{
+			TrackReceivedTick(rMessage.uiSlotIndex, rMessage.iTick);
+		}
+	};
+
+	if (bProcessRtt)
+	{
+		NetworkMessages::ServerCoordUpdateMessage message {};
+		if (NetworkMessages::Read(packetData, message))
+		{
+			receive(message);
 		}
 	}
-
-	if (uiSlotIndex >= std::ssize(mCoordSlots))
+	else
 	{
-		return;
-	}
-	CoordUpdateFlags_t actions = ClassifyCoordUpdate(uiSlotIndex, uiEpoch);
-	if (!(actions & CoordUpdateFlags::kCommit))
-	{
-		return;
-	}
-
-	common::crc_t sharedCrc = static_cast<common::crc_t>(ReadUint64(pCursor));
-	int32_t iCompressedSize = ReadInt32(pCursor);
-
-	if (iCompressedSize < 0 || static_cast<size_t>(iCompressedSize) > iSize - 32)
-	{
-		return;
-	}
-
-	ScopedSuppressAllocationTracking suppress;
-
-	ReceivedCoordUpdate update {};
-	update.iTick = iTick;
-	update.sharedCrc = sharedCrc;
-
-	if (iCompressedSize > 0)
-	{
-		int64_t iCount = game::NetworkSessionContract::DecompressStatusChanges(pCursor, iCompressedSize, mStatusChangeScratch.data(), kiMaxStatusChangesPerCell);
-		// Heap: exact-size copy out of the reused 1024-cap decode scratch, so the buffered update carries no capacity slack
-		update.statusChanges.assign(mStatusChangeScratch.begin(), mStatusChangeScratch.begin() + iCount);
-	}
-
-	// Heap: received updates vector grows each tick
-	mReceivedCoordUpdates.at(uiSlotIndex).push_back(std::move(update));
-	if (actions & CoordUpdateFlags::kTrackTick)
-	{
-		TrackReceivedTick(uiSlotIndex, iTick);
+		NetworkMessages::ServerCoordResendMessage message {};
+		if (NetworkMessages::Read(packetData, message))
+		{
+			receive(message);
+		}
 	}
 }
 
-void Client::ServerDebugFrame(const uint8_t* pData, size_t iSize)
+void Client::ServerDebugFrame(std::span<const uint8_t> packetData)
 {
-	// 1B type + 8B tick + 4B gridX + 4B gridY = 17 fixed bytes
-	if (iSize < 17)
+	NetworkMessages::ServerDebugFrameMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	int64_t iTick = ReadInt64(pCursor);
-	GridCoord coord = ReadGridCoord(pCursor);
+	int64_t iTick = message.iTick;
+	GridCoord coord = message.coord;
 	LOG(kNetwork, kError, "Client::ServerDebugFrame Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 	ScopedLogIndent scopedLogIndent;
 
 	// Heap: LZ4 decompresses debug frame; Frame allocated on heap
 	ScopedSuppressAllocationTracking suppress;
 
-	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(pCursor, iSize - 17);
+	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(message.iUncompressedSize, message.compressedPayload);
 	if (pFrame == nullptr)
 	{
 		LOG(kNetwork, kError, "Client::ServerDebugFrame LZ4 decompression failed Frame: {}", iTick);
@@ -407,26 +397,23 @@ void Client::ServerDebugFrame(const uint8_t* pData, size_t iSize)
 	mpReceivedDebugFrame->pFrame = std::move(pFrame);
 }
 
-void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
+void Client::ServerConnectionResponse(std::span<const uint8_t> packetData)
 {
-	// 1B type + 1B accepted = 2 minimum bytes
-	if (iSize < 2)
+	NetworkMessages::ServerConnectionResponseMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1;
-	bool bAccepted = (ReadUint8(pCursor) != 0);
+	bool bAccepted = message.uiAccepted != 0;
 
 	if (bAccepted)
 	{
 		mStateFlags.Set(ClientStateFlags::kConnectionAccepted);
 
-		// Read assigned GUID (1B type + 1B accepted + 8B high + 8B low = 18 bytes)
-		if (iSize >= 18)
+		if (message.bHasGuid)
 		{
-			mClientGuid.uiHigh = ReadUint64(pCursor);
-			mClientGuid.uiLow = ReadUint64(pCursor);
+			mClientGuid = message.guid;
 			LOG(kNetwork, kInfo, "Client GUID assigned: {} {}", mClientGuid.uiHigh, mClientGuid.uiLow);
 
 			// Persist via the session-provided callback (keeps GUID disk I/O out of the transport layer)
@@ -447,27 +434,24 @@ void Client::ServerConnectionResponse(const uint8_t* pData, size_t iSize)
 	}
 	else
 	{
-		size_t iMessageLength = iSize - 2;
-		size_t iCopyLength = std::min(iMessageLength, sizeof(mpcRejectionReason) - 1);
-		std::memcpy(mpcRejectionReason, pCursor, iCopyLength);
+		size_t iCopyLength = std::min(message.rejectionMessage.size(), sizeof(mpcRejectionReason) - 1);
+		std::memcpy(mpcRejectionReason, message.rejectionMessage.data(), iCopyLength);
 		mpcRejectionReason[iCopyLength] = '\0';
 		LOG(kNetwork, kWarning, "Client::ServerConnectionResponse Rejected: {}", mpcRejectionReason);
 	}
 }
 
-void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
+void Client::ServerSubscribeAccept(std::span<const uint8_t> packetData)
 {
-	// 1B type + 1B slot + 2B epoch + 4B gridX + 4B gridY = 12 fixed bytes
-	if (iSize < 12)
+	NetworkMessages::ServerSubscribeAcceptMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	uint8_t uiSlotIndex = ReadUint8(pCursor);
-	uint16_t uiEpoch = ReadUint16(pCursor);
-	GridCoord coord = ReadGridCoord(pCursor);
+	uint8_t uiSlotIndex = message.uiSlotIndex;
+	uint16_t uiEpoch = message.uiEpoch;
+	GridCoord coord = message.coord;
 
 	if (uiSlotIndex == kuiSubscribeRejectSlot)
 	{
@@ -482,7 +466,11 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	if (uiSlotIndex >= std::ssize(mCoordSlots))
 	{
 		LOG(kNetwork, kWarning, "Client::ServerSubscribeAccept Out-of-range, unsubscribing Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
-		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex, uiEpoch);
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+		NetworkMessages::ClientUnsubscribeMessage unsubscribe {.uiSlotIndex = uiSlotIndex, .uiEpoch = uiEpoch};
+		NetworkMessages::Write(rWorkbuffer, unsubscribe);
+		NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 		return;
 	}
 
@@ -492,7 +480,11 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	if (actions & SubscribeAcceptFlags::kRejectGhost)
 	{
 		LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept Ignoring Slot: {} Coord: ({},{}) SlotCoord: ({},{}) State: {}", uiSlotIndex, coord.x, coord.y, rSlot.coord.x, rSlot.coord.y, static_cast<int>(rSlot.eState));
-		SendSimplePacket(PacketType::kClientUnsubscribe, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex, uiEpoch);
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+		NetworkMessages::ClientUnsubscribeMessage unsubscribe {.uiSlotIndex = uiSlotIndex, .uiEpoch = uiEpoch};
+		NetworkMessages::Write(rWorkbuffer, unsubscribe);
+		NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 		RemoveCancelledSubscription(coord);
 		LOG(kNetwork, kVerbose, "Client::ServerSubscribeAccept sent unsubscribe for ghost Slot: {} Coord: ({},{})", uiSlotIndex, coord.x, coord.y);
 		return;
@@ -536,17 +528,15 @@ void Client::ServerSubscribeAccept(const uint8_t* pData, size_t iSize)
 	}
 }
 
-void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
+void Client::ServerUnsubscribeAck(std::span<const uint8_t> packetData)
 {
-	// 1B type + 1B slot = 2 fixed bytes
-	if (iSize < 2)
+	NetworkMessages::ServerUnsubscribeAckMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	uint8_t uiSlotIndex = ReadUint8(pCursor);
+	uint8_t uiSlotIndex = message.uiSlotIndex;
 
 	if (uiSlotIndex >= std::ssize(mCoordSlots))
 	{
@@ -565,6 +555,15 @@ void Client::ServerUnsubscribeAck(const uint8_t* pData, size_t iSize)
 	}
 
 	rSlot = {};
+}
+
+void Client::ServerLoadNotification(std::span<const uint8_t> packetData)
+{
+	NetworkMessages::ServerLoadNotificationMessage message {};
+	if (NetworkMessages::Read(packetData, message))
+	{
+		mStateFlags.Set(ClientStateFlags::kLoadNotificationReceived);
+	}
 }
 
 } // namespace engine

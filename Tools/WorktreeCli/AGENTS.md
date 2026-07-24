@@ -4,7 +4,7 @@ Standalone Windows console application for repository coordination. It owns seri
 
 ## Executable and Commands
 
-Use `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` through the provisioned primary Output link. Routine linked-worktree workflows do not build or modify that output; source changes use the `/compile` candidate/promotion path.
+Use `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` through the provisioned primary Output link. Routine linked-worktree workflows do not build or modify that output; wrapper session start incremental-rebuilds it in the primary so it tracks primary HEAD, and source changes use the `/compile` candidate/promotion path.
 
 - `lock token|claim|status|refresh|recover|release|steal` operates on landing locks identified by `--repo`. Lease state, not claimant process provenance, determines liveness.
 - `plan validate|claim-next|claim-status|unclaim|prepare-completion|prepare-rejection|release-after-landing` is the only scheduler surface. It reads tracked `Documents/Plans` metadata, uses deterministic `(createdUtc,path)` selection, and stores only short-lived machine-local claim records.
@@ -25,4 +25,4 @@ Enumeration skips unreadable or schema-invalid claim records and reports the exa
 
 ## Project Ownership
 
-Keep source membership synchronized between `WorktreeCli.vcxproj` and `.filters`. Shared Windows and coordination code belongs in `Tools/ToolCommon` and is compiled into both tools. Wrapper admission and maintenance use `.agents/scripts/WorktreeCliSessionExclusion.psm1`; bootstrap checks both WorktreeCli and AgentHarness outputs.
+Keep source membership synchronized between `WorktreeCli.vcxproj` and `.filters`. Shared Windows and coordination code belongs in `Tools/ToolCommon` and is compiled into both tools. Wrapper admission and maintenance use `.agents/scripts/WorktreeCliSessionExclusion.psm1`; bootstrap incremental-rebuilds the WorktreeCli, AgentHarness, and ThirdParty primary outputs at every session start, and best-effort prebuilds DataPacker Release so new worktrees seed it by verified copy.

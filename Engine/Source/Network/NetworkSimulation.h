@@ -164,12 +164,8 @@ inline void EnqueueOrDrop(std::deque<DelayedPacket>& rDelayedPackets, NetworkSim
 			if (NetworkManager::IsCoordChannel(rEvent.channelID))
 			{
 				int64_t iSlot = NetworkManager::ChannelToSlot(rEvent.channelID);
-				int64_t iTick = 0;
 				uint8_t uiPacketType = (rEvent.packet->dataLength > 0) ? rEvent.packet->data[0] : 0;
-				if (rEvent.packet->dataLength >= 12)
-				{
-					std::memcpy(&iTick, rEvent.packet->data + 4, sizeof(iTick));
-				}
+				int64_t iTick = NetworkMessages::GetCoordUpdateTickOrZero(std::span<const uint8_t>(rEvent.packet->data, rEvent.packet->dataLength));
 				++rState.iCoordDropCounts[iSlot];
 				LOG(kNetwork, kVerbose, "NetworkSimulation::Dropped Coord Slot: {} Tick: {} Type: {} Size: {} TotalDrops: {} Consecutive: {}", iSlot, iTick, PacketTypeName(static_cast<PacketType>(uiPacketType)), rEvent.packet->dataLength, rState.iCoordDropCounts[iSlot], dropResult.iConsecutive);
 			}

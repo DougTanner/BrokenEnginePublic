@@ -176,8 +176,9 @@ try {
 					throw "Promoted '$name' does not match the candidate hash."
 				}
 			}
-			# The stamp is part of the promoted state (bootstrap drift detection reads it);
-			# a stamp failure rolls the pair back rather than leaving stale drift evidence.
+			# The stamp is part of the promoted state (a built-source provenance record, no longer
+			# read by bootstrap); a stamp failure rolls the pair back rather than leaving an
+			# inconsistent provenance record.
 			[IO.File]::WriteAllText($stampPath, ($certifiedTrees -join "`n") + "`n")
 		}
 		catch {

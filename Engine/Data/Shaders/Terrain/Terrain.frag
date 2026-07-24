@@ -110,7 +110,8 @@ void main()
 		f3Color = mix(f3Color, texture(sandSampler, globalLayout.fTerrainBeachSandSize * f3InPosition.xy).xyz, globalLayout.fTerrainBeachSandBlend * fBeachPercent);
 	}
 
-	vec3 f3SunNormal = normalize(f3Normal + globalLayout.fTerrainSnowBlend * fSnowPercent * globalLayout.f4SunMoonNormal.xyz);
+	// f4TerrainSnowSunNormal = fTerrainSnowBlend * f4SunMoonNormal (uniform product folded CPU-side).
+	vec3 f3SunNormal = normalize(f3Normal + fSnowPercent * globalLayout.f4TerrainSnowSunNormal.xyz);
 
 	// Sample lighting texture, at world x/y and at projected base-height x/y
 	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);
@@ -124,7 +125,7 @@ void main()
 	vec3 f3Directional = DirectionalLighting(pf4Lighting, f3Normal, mainLayout.fLightingDirectionalIntensity, mainLayout.fLightingDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
 	vec3 f3Ambient = AmbientLightingPrecomputed(f3AmbientSum, mainLayout.fLightingAmbientIntensity, mainLayout.fLightingAmbientPower, mainLayout.fLightingAmbientPowerMode);
 	vec3 f3Lighting = globalLayout.fLightingTerrain * globalLayout.fLightingTimeOfDayMultiplier * (f3Directional + f3Ambient);
-	float fHeightRatio = clamp(f3InPosition.z / max(globalLayout.fBaseHeight, 0.001), 0.0, 1.0);
+	float fHeightRatio = clamp(f3InPosition.z * globalLayout.fBaseHeightInv, 0.0, 1.0);
 	f3Lighting *= mix(mainLayout.fLightingTerrainBelowBaseMultiplier, 1.0, pow(fHeightRatio, mainLayout.fLightingTerrainBelowBasePower));
 
 	// DT: TEMP — show only lighting texture contributions (with normals and base color)
@@ -136,7 +137,7 @@ void main()
 	// Shadow with smoke at world position. Moon bypasses the terrain ray-march shadow only;
 	// object shadows and smoke volumetric attenuation still apply to both lights.
 	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	float fShadowSun  = fShadowMoon * texture(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea)).x;
+	float fShadowSun  = fShadowMoon * SampleTerrainShadow(globalLayout, shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea));
 	// AO: sample the per-island occlusion and fold `fIslandAmbientOcclusion` into the SunLighting
 	// occlusion factor below.
 	float fAmbientOcclusionRaw = texture(ambientOcclusionTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord).x;

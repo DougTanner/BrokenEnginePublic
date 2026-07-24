@@ -18,7 +18,7 @@ NetworkDiscoveryResponder::NetworkDiscoveryResponder()
 	sockaddr_in addr {};
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(kuiDiscoveryPort);
-	addr.sin_addr.s_addr = gLaunchOptions.bLoopbackOnly ? htonl(INADDR_LOOPBACK) : INADDR_ANY;
+	addr.sin_addr.s_addr = (gLaunchOptions.flags & LaunchOptionFlags::kLoopbackOnly) ? htonl(INADDR_LOOPBACK) : INADDR_ANY;
 	if (bind(mSocket, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR)
 	{
 		LOG(kNetwork, kError, "NetworkDiscoveryResponder bind failed: {}", WSAGetLastError());

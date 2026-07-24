@@ -33,7 +33,7 @@ Client::Client(const char* pServerAddress, uint16_t uiPort, int64_t iCoordSlots,
 	ENetAddress localAddress {};
 	localAddress.host = htonl(INADDR_LOOPBACK);
 	// Heap: ENet allocates host data internally
-	mpHost = enet_host_create(gLaunchOptions.bLoopbackOnly ? &localAddress : nullptr, 1, NetworkManager::kuiChannelCount, 0, 0);
+	mpHost = enet_host_create((gLaunchOptions.flags & LaunchOptionFlags::kLoopbackOnly) ? &localAddress : nullptr, 1, NetworkManager::kuiChannelCount, 0, 0);
 	if (mpHost == nullptr)
 	{
 		LOG(kNetwork, kWarning, "Client::Client enet_host_create failed");
@@ -178,7 +178,7 @@ void Client::Poll(const NetworkTimeState& rTimeState)
 					});
 					if (it != mDelayedPackets.end())
 					{
-						Receive(it->data.data(), it->data.size());
+						Receive(it->data);
 						mDelayedPackets.erase(it);
 					}
 				}
@@ -200,7 +200,7 @@ void Client::Poll(const NetworkTimeState& rTimeState)
 	{
 		NetworkSimulation::ProcessOrFlush(mDelayedPackets, rTimeState.bFastForward, [this](const DelayedPacket& rPacket)
 		{
-			Receive(rPacket.data.data(), rPacket.data.size());
+			Receive(rPacket.data);
 		});
 	}
 
@@ -230,55 +230,55 @@ void Client::DispatchIncoming(ENetEvent& rEvent, bool bFastForward)
 
 void Client::Receive(ENetEvent& rEvent)
 {
-	Receive(rEvent.packet->data, rEvent.packet->dataLength);
+	Receive(std::span<const uint8_t>(rEvent.packet->data, rEvent.packet->dataLength));
 }
 
-void Client::Receive(const uint8_t* pData, size_t iSize)
+void Client::Receive(std::span<const uint8_t> packetData)
 {
-	if (iSize < 1)
+	if (packetData.size() < 1)
 	{
 		return;
 	}
 
-	PacketType eType = static_cast<PacketType>(pData[0]);
+	PacketType eType = static_cast<PacketType>(packetData[0]);
 
 	try
 	{
 		switch (eType)
 		{
 			case PacketType::kServerCoordFullState:
-				ServerCoordFullState(pData, iSize);
+				ServerCoordFullState(packetData);
 				break;
 			case PacketType::kServerCoordStaticData:
-				ServerCoordStaticData(pData, iSize);
+				ServerCoordStaticData(packetData);
 				break;
 			case PacketType::kServerCoordUpdate:
-				ServerCoordUpdateOrResend(pData, iSize, true);
+				ServerCoordUpdateOrResend(packetData, true);
 				break;
 			case PacketType::kServerCoordResend:
-				ServerCoordUpdateOrResend(pData, iSize, false);
+				ServerCoordUpdateOrResend(packetData, false);
 				break;
 			case PacketType::kServerDebugFrame:
-				ServerDebugFrame(pData, iSize);
+				ServerDebugFrame(packetData);
 				break;
 			case PacketType::kServerConnectionResponse:
-				ServerConnectionResponse(pData, iSize);
+				ServerConnectionResponse(packetData);
 				break;
 			case PacketType::kServerSubscribeAccept:
-				ServerSubscribeAccept(pData, iSize);
+				ServerSubscribeAccept(packetData);
 				break;
 			case PacketType::kServerUnsubscribeAck:
-				ServerUnsubscribeAck(pData, iSize);
+				ServerUnsubscribeAck(packetData);
 				break;
 			case PacketType::kServerLoadNotification:
-				mStateFlags.Set(ClientStateFlags::kLoadNotificationReceived);
+				ServerLoadNotification(packetData);
 				break;
 			default:
 				if (static_cast<uint8_t>(eType) >= static_cast<uint8_t>(PacketType::kGamePacketStart))
 				{
 					ScopedSuppressAllocationTracking suppress;
 					// Heap: raw game packet buffer grows on game-specific packets
-					mReceivedGamePackets.emplace_back(pData[0], std::vector<uint8_t>(pData + 1, pData + iSize));
+					mReceivedGamePackets.emplace_back(packetData[0], std::vector<uint8_t>(packetData.begin() + 1, packetData.end()));
 				}
 				else
 				{

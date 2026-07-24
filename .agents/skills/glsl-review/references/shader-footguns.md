@@ -126,6 +126,13 @@ For `pow(x, 3.0)`, `x * x * x` visibly contains two multiplications. Check the i
 
 The Broken Engine `inverse()` prohibition is a repository production constraint, so executable matrix `inverse()` is a hard local finding even without a portable compiler claim. Verify the current CPU-precomputed alternative and its layout/upload path.
 
+CPU-precomputable expressions are the general form of that rule and need no external evidence — invocation-invariance is proven from the source alone. Before reporting one:
+
+- Trace every operand to its origin. Only uniforms, push constants, spec/compile-time constants, and pure functions of those qualify. A `gl_*` builtin, vertex input, varying, shared/storage read, image load, or `texture` result anywhere in the chain disqualifies the whole expression — but a maximal uniform-only sub-expression inside it can still hoist.
+- Check whether the CPU already uploads the value in final form before proposing a new field: `GlobalUniforms.cpp` stores `f4SunMoonNormal` pre-normalized, and `ShaderLayoutsBase.h` carries precomputed reciprocals (`fSmokeObjectHeightInv`, `fWaterColorHeightInv`). Re-deriving such a value in-shader is a finding; the fix is deletion, not another field.
+- Name the concrete CPU-side home in the finding: the target field (existing, or new in `GlobalLayout`/`MainLayout` under the scalar-layout contract) and the `Engine/Source/Graphics/Render/*Uniforms.cpp` populator that owns it.
+- Weigh triviality: a single uniform-only operation the compiler folds anyway (a negation, one multiply of two scalars used once) may not justify a layout change; a normalize, divide, transcendental, or multi-operation chain in a per-fragment or per-invocation path does.
+
 ## Algorithm checks
 
 - `mix` of unit directions does not generally preserve length; renormalize when later math assumes unit length.

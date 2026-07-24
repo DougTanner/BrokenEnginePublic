@@ -182,14 +182,14 @@ void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAng
 	rGlobalLayout.fWaterEarlyOut = gWaterEarlyOut.Get();
 	rGlobalLayout.fWaterHeight = gWaterHeight.Get();
 	rGlobalLayout.fWaterTerrainHeight = gWaterTerrainHeight.Get();
-	rGlobalLayout.fWaterTerrainFade = gWaterTerrainFade.Get();
+	rGlobalLayout.fWaterTerrainFadeInv = 1.0f / gWaterTerrainFade.Get(); // unguarded (reproduces Water.frag's original divide)
 	rGlobalLayout.fWaterTerrainFadeClamp = gWaterTerrainFadeClamp.Get();
 
 	rGlobalLayout.fWaterDepthLutFeather = gWaterDepthLutFeather.Get();
 	rGlobalLayout.fWaterDepthColorFeather = gWaterDepthColorFeather.Get();
 	rGlobalLayout.fWaterDepthColorFloor = gWaterDepthColorFloor.Get();
-	rGlobalLayout.fWaterUnderseaCompression = gWaterUnderseaCompression.Get();
-	rGlobalLayout.fWaterDepthReflectionFeather = fDayPercent * gWaterDepthReflectionFeather.Get();
+	rGlobalLayout.fWaterUnderseaCompressionInv = 1.0f / gWaterUnderseaCompression.Get(); // TerrainElevation.frag undersea depth-curve exponent
+	rGlobalLayout.fWaterDepthReflectionFeatherInv = 1.0f / (fDayPercent * gWaterDepthReflectionFeather.Get()); // unguarded: night dayPercent=0 -> +inf absorbed by the shader clamp
 	rGlobalLayout.fWaterColorNoiseFrequency = gWaterColorNoiseFrequency.Get();
 
 	PopulateWaterSunsetFade(rGlobalLayout, fSunAngle);

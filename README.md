@@ -43,8 +43,12 @@ Setting up a new machine? [Documents/FreshMachineSetup.md](Documents/FreshMachin
 - Git for Windows and PowerShell 7 are required for the documented AI coding workflow. Git for Windows includes Git Bash.
 	```powershell
 	winget install --id Git.Git --exact --source winget
-	winget install --id Microsoft.PowerShell --exact --source winget
 	```
+- Install PowerShell 7 as the **MSI**; its manifest declares `ElevationRequirement: elevatesSelf`, so run it from an ordinary shell and approve the UAC prompt. `Microsoft.PowerShell` defaults to the MSIX/Store package, which lands under `C:\Program Files\WindowsApps`; those ACLs cannot be granted to the Codex sandbox users, so every sandboxed `pwsh` exec fails with `CreateProcessAsUserW failed: 5 (Access is denied)` and `/codex-review` degrades to `CODEX-UNAVAILABLE` and its Fable reviewer fallback. `--installer-type wix` selects the MSI, which installs to `C:\Program Files\PowerShell\7` and works under the sandbox.
+	```powershell
+	winget install --id Microsoft.PowerShell --exact --source winget --installer-type wix --scope machine
+	```
+	Avoid `--force` while the installed package is the MSIX build. Observed on 7.6.4: it removed the registered package, then failed to reprovision it (`ProvisionPackageOperation ... 0x80070005`) while still reporting success — terminating every process running from that package and leaving the machine with no PowerShell 7.
 - Windows Terminal is the recommended host:
 	```powershell
 	winget install --id Microsoft.WindowsTerminal --exact --source winget
@@ -121,14 +125,14 @@ The wrapper already supplies the dangerous permission bypass; no additional sett
 	pwsh -ExecutionPolicy Bypass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
 	```
 - Close and reopen the terminal, then verify the installation with `codex --version`.
-- Run `codex login status` and confirm it reports a ChatGPT login. For the subscription-backed Claude-to-Codex fallback, do not set `OPENAI_API_KEY`; doing so switches the fallback to metered API billing.
+- Run `codex login status` and confirm it reports a ChatGPT login. For the subscription-backed Claude-to-Codex review route, do not set `OPENAI_API_KEY`; doing so switches it to metered API billing.
 - From a PowerShell 7 tab inside Windows Terminal, opened at the repository root, load the repository helper and launch Codex in a UUID-named worktree:
 	```powershell
 	.\.codex\codex-worktree.ps1
 	```
 - After the same explicit one-time confirmation, initialize from PowerShell with `.\.codex\codex-worktree.ps1 -LegacySessionsClosed`.
 - The wrapper creates branch `codex/<uuid>`, stores the worktree under `~/.codex/worktrees/<repository>/<uuid>`, validates the same links and report directory, and launches Codex with `--dangerously-bypass-approvals-and-sandbox`. Both wrappers wait up to 660 seconds while WorktreeCli maintenance is exclusive, track the client with kill-on-host-close lifetime, propagate its exit code, and preserve partial artifacts on provisioning failure.
-- **Fable-unavailable fallback (Claude Code → Codex/Sol):** per the global model-fallback rule in `AGENTS.md`, when Fable is unavailable or over limit Claude Code runs delegated reviewer/auditor roles on Codex/Sol headless via `codex exec` — helper `.codex/codex-review.ps1`, driven by the `/codex-review` skill — instead of Fable, falling back to Opus if Codex is also unavailable. Codex bills the ChatGPT subscription, not metered API credits. Claude Code only: under the Fable→Sol mapping Codex is already Sol, so Codex never calls this.
+- **Primary Claude Code reviewer route (→ Codex/Sol):** Claude Code runs every delegated reviewer/auditor role on Codex/Sol headless via `codex exec` — helper `.codex/codex-review.ps1`, driven by the `/codex-review` skill (Sol at reasoning effort high). On failure the skill falls back to the Fable `reviewer` subagent, then Opus. Codex bills the ChatGPT subscription, not metered API credits. Codex sessions never call this — under the Fable→Sol mapping they are already Sol.
 
 #### Optional Current Maintainer Configuration
 

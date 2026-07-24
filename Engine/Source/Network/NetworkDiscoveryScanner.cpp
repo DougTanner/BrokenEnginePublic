@@ -15,7 +15,7 @@ NetworkDiscoveryScanner::NetworkDiscoveryScanner()
 		LOG(kNetwork, kError, "NetworkDiscoveryScanner socket creation failed: {}", WSAGetLastError());
 	}
 
-	if (gLaunchOptions.bLoopbackOnly)
+	if (gLaunchOptions.flags & LaunchOptionFlags::kLoopbackOnly)
 	{
 		sockaddr_in address {};
 		address.sin_family = AF_INET;
@@ -57,7 +57,7 @@ void NetworkDiscoveryScanner::StartScan()
 	localAddress.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	sendto(mSocket, reinterpret_cast<const char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&localAddress), sizeof(localAddress));
 
-	if (!gLaunchOptions.bLoopbackOnly)
+	if (!(gLaunchOptions.flags & LaunchOptionFlags::kLoopbackOnly))
 	{
 		// Then broadcast to LAN
 		sockaddr_in broadcastAddress {};

@@ -106,15 +106,14 @@ IslandTerrain::IslandTerrain()
 	}
 
 #if defined(BT_CLIENT)
-	// Unique-channel-CRC invariant (relied upon by EvictionSweep with NO refcount): every template's
+	// Unique-channel-CRC invariant (relied upon by IslandTerrain's eviction qualification with NO refcount): every template's
 	// 4 channel chunk CRCs (color/normals/AO/masks) are unique across all templates. They are
 	// path-derived in DataPacker (common::Crc of "<island>/<Channel>", ExportIsland.cpp) and each
-	// island lives in its own directory, so no two templates can share one. EvictionSweep frees a
-	// channel Texture by CRC and UnregisterBindingsForKey()s it directly; if two templates ever shared
-	// a channel CRC (e.g. a deduplicated texture), evicting one would free a Texture the other still
-	// samples — a silent use-after-free that VerifyAllDescriptorGenerations cannot catch (the binding
-	// records are erased on evict). Assert it fast at boot rather than refcounting (DataPacker enforces
-	// it structurally; the assert just turns a future regression into a fail-fast).
+	// island lives in its own directory, so no two templates can share one. TextureDescriptors evicts
+	// all five slot channels, unregisters their binding records, then IslandTerrain frees each channel
+	// by CRC. Shared channels would free a Texture another template still samples while its record was
+	// removed from TextureDescriptors' generation verifier. Assert it fast at boot rather than refcounting
+	// (DataPacker enforces it structurally; the assert just turns a future regression into a fail-fast).
 	{
 		std::vector<common::crc_t> channelCrcs;
 		channelCrcs.reserve(mIslandCrcsSorted.size() * 4);

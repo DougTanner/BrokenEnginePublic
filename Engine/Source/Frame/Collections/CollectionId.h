@@ -14,21 +14,12 @@ struct global_id_t
 	bool operator==(const global_id_t&) const = default;
 };
 
-struct GlobalIdHash
-{
-	size_t operator()(const global_id_t& rId) const
-	{
-		return std::hash<int64_t>{}(rId.iValue);
-	}
-};
-
 // Global unique identifier with counter stored in FramePostRenderBase
 // 0 = invalid/uninitialized, counter starts at 1
 struct uuid_t
 {
 	int64_t iValue = 0;
 
-	// Construction
 	constexpr uuid_t() = default;
 	constexpr explicit uuid_t(int64_t iVal) : iValue(iVal) {}
 
@@ -38,23 +29,19 @@ struct uuid_t
 	static uuid_t GenerateVisual(FramePostRenderBase& rFramePostRender);
 #endif
 
-	// Check validity
 	constexpr bool IsValid() const
 	{
 		return iValue != 0;
 	}
 
-	// Explicit value access
 	constexpr int64_t Value() const
 	{
 		return iValue;
 	}
 
-	// Comparison operators
 	constexpr bool operator==(const uuid_t& other) const = default;
 	constexpr auto operator<=>(const uuid_t& other) const = default;
 
-	// Serialization support
 	void Write(std::ostream& stream) const { common::Write(stream, iValue); }
 	void Read(std::istream& stream) { common::Read(stream, iValue); }
 };
@@ -66,7 +53,6 @@ struct id_t
 {
 	uuid_t uuid {};
 
-	// Construction
 	constexpr id_t() = default;
 	constexpr explicit id_t(uuid_t u)
 	: uuid(u)
@@ -86,17 +72,14 @@ struct id_t
 	}
 #endif
 
-	// Check validity
 	constexpr bool IsValid() const { return uuid.IsValid(); }
 
 	// Explicit conversion to uuid_t for generic comparisons
 	constexpr uuid_t ToUuid() const { return uuid; }
 
-	// Comparison operators (only with same tag type)
 	constexpr bool operator==(const id_t& other) const = default;
 	constexpr auto operator<=>(const id_t& other) const = default;
 
-	// Serialization support
 	void Write(std::ostream& stream) const { uuid.Write(stream); }
 	void Read(std::istream& stream) { uuid.Read(stream); }
 };

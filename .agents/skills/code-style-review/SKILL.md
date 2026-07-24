@@ -16,7 +16,9 @@ Style review is not a final-evidence gate.
   implementation handoff and conversation edits.
 - When the caller supplies a cleanup scope, use exactly those C++ files and
   ranges instead. State whether the scope is session-changed or caller-supplied.
-- Do not edit shaders. Route shader candidates to `/glsl-review`.
+- Shader style is out of scope; do not review or route it. The only shader
+  edits are the reference updates that propagate a C++ rename (see Renames and
+  References).
 
 Read `Documents/C++StyleGuide.txt` first; it is authoritative. Inspect every
 applicable rule, not only grep-friendly examples below.
@@ -56,9 +58,9 @@ Rename an identifier only when it is a meaning-preserving style correction and
 all code references can be propagated. For every rename:
 
 1. Search the old identifier across the repository before editing.
-2. If a shader reference exists, do not apply the rename; route the candidate
-   to `/glsl-review`. Otherwise propagate every C++ reference, including those
-   outside the selected ranges.
+2. Propagate every reference the rename breaks in C++ and shader sources,
+   including references outside the selected ranges. Applying the shader-side
+   reference updates is part of the rename.
 3. Route stale `AGENTS.md` references to `/update-claude-docs`. List ordinary
    documentation and plan references as caller residuals.
 4. Return the exact affected build targets; a rename is not verified without

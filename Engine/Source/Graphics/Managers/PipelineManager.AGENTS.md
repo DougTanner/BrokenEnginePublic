@@ -10,6 +10,6 @@ Fixed pipelines implement renderer passes and utility compute work. Lighting fol
 
 Collections register dynamic pipelines by behavior and model role. These maps repopulate lazily after pipeline-tier recreation, so new renderable collections must use the established idempotent registration path rather than requiring command-buffer re-recording for each scene CRC.
 
-## Descriptor Validity
+## Descriptor Registration
 
-Global command-buffer recording verifies cached texture descriptor snapshots. Texture creation and transferred-image adoption increment the live generation; destruction is detected through a null live image because it does not increment generation. Preserve both checks when changing texture lifetime or descriptor registration.
+Pipeline construction registers texture consumers with the texture-descriptor registry, which owns descriptor-generation verification. A full pipeline rebuild clears raw pipeline back-references, but rebuilt bindless consumers must repopulate descriptors for live island slots so a lazy channel pending across recreation reaches the rebuilt pipeline when it later adopts.

@@ -289,7 +289,7 @@ void PipelineManager::CreatePipelineShadows()
 	mpPipelines[kPipelineShadow].Create(
 	{
 		.name = "Shadow",
-		.flags = {kCompute},
+		.flags = {kCompute, kIndirectHostVisible},
 		.ppShaders = {&mShaders.at(data::kShadersShadowShadowcompCrc)},
 		.pDescriptorInfos =
 		{
@@ -306,20 +306,21 @@ void PipelineManager::CreatePipelineShadows()
 		common::crc_t shaderCrc;
 		Texture& rInputTexture;
 		Texture& rOutputTexture;
+		bool bWindowed;
 	};
 	ShadowBlurDesc pShadowBlurDescs[]
 	{
-		{.ePipeline = kPipelineShadowBlurH, .pcName = "ShadowBlurH", .shaderCrc = data::kShadersShadowShadowBlurHcompCrc, .rInputTexture = gpTextureManager->mRenderTargetTextures.mShadowTexture, .rOutputTexture = gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture},
-		{.ePipeline = kPipelineShadowBlurV, .pcName = "ShadowBlurV", .shaderCrc = data::kShadersShadowShadowBlurVcompCrc, .rInputTexture = gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture, .rOutputTexture = gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
-		{.ePipeline = kPipelineObjectShadowsBlurH, .pcName = "ObjectShadowsBlurH", .shaderCrc = data::kShadersShadowObjectShadowsBlurHcompCrc, .rInputTexture = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture, .rOutputTexture = gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture},
-		{.ePipeline = kPipelineObjectShadowsBlurV, .pcName = "ObjectShadowsBlurV", .shaderCrc = data::kShadersShadowObjectShadowsBlurVcompCrc, .rInputTexture = gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture, .rOutputTexture = gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture},
+		{.ePipeline = kPipelineShadowBlurH, .pcName = "ShadowBlurH", .shaderCrc = data::kShadersShadowShadowBlurHcompCrc, .rInputTexture = gpTextureManager->mRenderTargetTextures.mShadowTexture, .rOutputTexture = gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture, .bWindowed = true},
+		{.ePipeline = kPipelineShadowBlurV, .pcName = "ShadowBlurV", .shaderCrc = data::kShadersShadowShadowBlurVcompCrc, .rInputTexture = gpTextureManager->mRenderTargetTextures.mShadowBlurIntermediateTexture, .rOutputTexture = gpTextureManager->mRenderTargetTextures.mShadowBlurTexture, .bWindowed = true},
+		{.ePipeline = kPipelineObjectShadowsBlurH, .pcName = "ObjectShadowsBlurH", .shaderCrc = data::kShadersShadowObjectShadowsBlurHcompCrc, .rInputTexture = gpTextureManager->mRenderTargetTextures.mObjectShadowsTexture, .rOutputTexture = gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture, .bWindowed = false},
+		{.ePipeline = kPipelineObjectShadowsBlurV, .pcName = "ObjectShadowsBlurV", .shaderCrc = data::kShadersShadowObjectShadowsBlurVcompCrc, .rInputTexture = gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurIntermediateTexture, .rOutputTexture = gpTextureManager->mRenderTargetTextures.mObjectShadowsBlurTexture, .bWindowed = false},
 	};
 	for (const ShadowBlurDesc& rDesc : pShadowBlurDescs)
 	{
 		mpPipelines[rDesc.ePipeline].Create(
 		{
 			.name = rDesc.pcName,
-			.flags = {kCompute},
+			.flags = rDesc.bWindowed ? PipelineFlags_t {kCompute, kIndirectHostVisible} : PipelineFlags_t {kCompute},
 			.ppShaders = {&mShaders.at(rDesc.shaderCrc)},
 			.pDescriptorInfos =
 			{
@@ -330,18 +331,31 @@ void PipelineManager::CreatePipelineShadows()
 		});
 	}
 
-	// Temporal accumulation: gather the reprojected previous-frame shadow (mShadowHistoryTexture) and blend it
-	// in place into mShadowBlurTexture, which is then copied back into the history for the next frame.
+	// Temporal accumulation: gather the reprojected previous-frame shadow and blend it in place into
+	// mShadowBlurTexture. ShadowHistoryCopy then refreshes the distinct history image over the final window.
 	mpPipelines[kPipelineShadowTemporal].Create(
 	{
 		.name = "ShadowTemporal",
-		.flags = {kCompute},
+		.flags = {kCompute, kIndirectHostVisible},
 		.ppShaders = {&mShaders.at(data::kShadersShadowShadowTemporalcompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kGlobalLayoutUniformBuffers},
 			{.flags = kCombinedSamplers, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowHistoryTexture},
 			{.flags = kStorageImages, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
+		},
+	});
+
+	mpPipelines[kPipelineShadowHistoryCopy].Create(
+	{
+		.name = "ShadowHistoryCopy",
+		.flags = {kCompute, kIndirectHostVisible},
+		.ppShaders = {&mShaders.at(data::kShadersShadowShadowHistoryCopycompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kGlobalLayoutUniformBuffers},
+			{.flags = kStorageImages, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture},
+			{.flags = kStorageImages, .pTexture = &gpTextureManager->mRenderTargetTextures.mShadowHistoryTexture},
 		},
 	});
 }
@@ -784,48 +798,6 @@ void PipelineManager::CreateDebugRenderPipelines()
 				{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(rEntry.crc).data()},
 			},
 		});
-	}
-}
-
-void PipelineManager::VerifyAllDescriptorGenerations()
-{
-	// muiGeneration == 0 means the Texture is still lazy (never Created — descriptor holds the
-	// placeholder view installed by InitDeferred). That's a valid pre-load state, not staleness.
-	// After Create, gen >= 1; mVkImage going null then means destroyed-without-recreate, which IS stale.
-	for (const auto& [rCrc, rBindings] : gpTextureManager->mTextureDescriptors.mTextureBindings)
-	{
-		for (const TextureDescriptors::TextureBinding& rBinding : rBindings)
-		{
-			if (rBinding.pTexture != nullptr && rBinding.pTexture->muiGeneration != 0
-				&& (rBinding.pTexture->muiGeneration != rBinding.uiTextureGeneration || rBinding.pTexture->mVkImage == VK_NULL_HANDLE))
-			{
-				LOG(kGraphics, kError, "Descriptor staleness: pipeline={} binding={} crc={} texture={} snapshotGen={} currentGen={} vkImage={}", rBinding.pPipeline->mInfo.name, rBinding.iBinding, rCrc, reinterpret_cast<uintptr_t>(rBinding.pTexture), rBinding.uiTextureGeneration, rBinding.pTexture->muiGeneration, reinterpret_cast<uintptr_t>(rBinding.pTexture->mVkImage));
-				DEBUG_BREAK();
-			}
-
-			int64_t iCount = static_cast<int64_t>(rBinding.textures.size());
-			ASSERT(static_cast<int64_t>(rBinding.uiTextureGenerations.size()) == iCount);
-			// Per-island-slot bindings (iArrayIndex >= 0) own and keep current only element iArrayIndex;
-			// WriteArrayBindingDescriptors touches only that slot, leaving the rest of the snapshot frozen
-			// at registration time. Those frozen elements legitimately go stale as neighbouring slots evict
-			// (Texture::Destroy nulls mVkImage without bumping the generation), so verifying them is a false
-			// positive. Full-array bindings (iArrayIndex < 0, e.g. water normals) still verify every element.
-			int64_t iBegin = rBinding.iArrayIndex >= 0 ? rBinding.iArrayIndex : 0;
-			int64_t iEnd = rBinding.iArrayIndex >= 0 ? rBinding.iArrayIndex + 1 : iCount;
-			for (int64_t i = iBegin; i < iEnd; ++i)
-			{
-				Texture* pTexture = rBinding.textures.at(i);
-				if (pTexture == nullptr || pTexture->muiGeneration == 0)
-				{
-					continue;
-				}
-				if (pTexture->muiGeneration != rBinding.uiTextureGenerations.at(i) || pTexture->mVkImage == VK_NULL_HANDLE)
-				{
-					LOG(kGraphics, kError, "Descriptor staleness (array): pipeline={} binding={} crc={} slot={} texture={} snapshotGen={} currentGen={} vkImage={}", rBinding.pPipeline->mInfo.name, rBinding.iBinding, rCrc, i, reinterpret_cast<uintptr_t>(pTexture), rBinding.uiTextureGenerations.at(i), pTexture->muiGeneration, reinterpret_cast<uintptr_t>(pTexture->mVkImage));
-					DEBUG_BREAK();
-				}
-			}
-		}
 	}
 }
 

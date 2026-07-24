@@ -3,7 +3,7 @@
 
 ## Context
 
-The `key` command currently reads `holdFrames` as `int64_t`, narrows it to `int32_t`, and only then lower-clamps it (`Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsClient.cpp:995-1005`). That does not normalize every signed negative before narrowing, and reading only `int64_t` does not decisively bound an unsigned JSON integer above `INT64_MAX`. The command reference documents the default but no maximum or negative-value behavior (`.agents/skills/agent-harness/references/command-reference.md:57`).
+The `key` command currently reads `holdFrames` as `int64_t`, narrows it to `int32_t`, and only then lower-clamps it (`Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsClient.cpp:995-1005`). That does not normalize every signed negative before narrowing, and reading only `int64_t` does not decisively bound an unsigned JSON integer above `INT64_MAX`. The command reference documents the default but no maximum or negative-value behavior (`Projects/BrokenEngineSandbox/Documents/AgentHarness.md`).
 
 Every deferred command is instead subject to the `AgentCommandServer` liveness budget of `kiDeferredTimeoutDrains = 1800` (`Engine/Source/Agent/AgentCommandServer.h:62-64`), with the `Drain()` timeout evaluated before its deferred poll (`AgentCommandServer.cpp:222-230`). On the client, `Drain()` starts the script before `AgentInput::AdvanceFrame()` (`Engine/Source/Main.cpp:372-383`); a key script requires one press frame, `holdFrames` hold frames, and a final completion frame (`AgentInput.cpp:329-355`). The poll completes two drains after a positive hold's final hold frame, so the current safe maximum is `1800 - 2 = 1798` frames. A `holdFrames:4800` request was observed to fail after roughly 15.6 seconds with the deferred timeout even while the key script continued; three sequential `holdFrames:1500` requests succeeded.
 
@@ -20,7 +20,7 @@ This is a pre-existing, out-of-scope residual from `DisabledPassGatingPerfAudit`
 
 - `Engine/Source/Agent/AgentCommandServer.h` — owns the canonical deferred-drain liveness limit; expose only the value needed to derive the key-command bound.
 - `Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsClient.cpp` — `CommandKey` at `:995-1007`; validate at the JSON trust boundary before narrowing and starting the deferred script.
-- `.agents/skills/agent-harness/references/command-reference.md` — `key` command contract at `:57`; document the inclusive range and drain-rate caveat.
+- `Projects/BrokenEngineSandbox/Documents/AgentHarness.md` — `key` command contract; document the inclusive range and drain-rate caveat.
 - `Engine/Source/Main.cpp` (`:372-383`) and `Engine/Source/Agent/AgentInput.cpp` (`:329-355`) — ordering and phase-count evidence; modify neither unless current-source verification disproves the stated derivation.
 
 ## Out of scope

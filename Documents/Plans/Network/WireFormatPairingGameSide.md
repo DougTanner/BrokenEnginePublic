@@ -1,4 +1,4 @@
-<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-02T02:29:26.000Z","dependsOn":["Documents/Plans/Network/Architecture_WireFormatPairing.md"]} -->
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-02T02:29:26.000Z","dependsOn":[]} -->
 # Wire-Format Write/Read Pairing — Game Side
 
 ## Context

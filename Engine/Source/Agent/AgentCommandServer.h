@@ -15,7 +15,12 @@ class AgentCommandServer
 public:
 
 	// Thrown by the ctor when socket/bind/listen fails so Main fails fast (return 0) instead of leaving an
-	// uncontrollable agent-launched process. The ctor logs the concrete WSA error before throwing.
+	// uncontrollable agent-launched process. The ctor logs the concrete WSA error before throwing. An
+	// address-in-use bind (a prior listener still in TIME_WAIT after a rapid relaunch) first sets SO_REUSEADDR
+	// and then blocks through a bounded retry (~2.5 s worst case) before giving up — safe because the ctor runs
+	// on the startup thread (sole caller Main.cpp), not the main loop. SO_REUSEADDR also lets a duplicate launch
+	// on the same port bind alongside a live listener instead of failing; the harness relaunch rule (quit, wait
+	// for the exact PID) is the guard.
 	struct StartupException : std::runtime_error
 	{
 		using std::runtime_error::runtime_error;

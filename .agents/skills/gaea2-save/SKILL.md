@@ -20,7 +20,7 @@ Convert a `Temp/<name>.md` (plus its `.passthrough.json` sidecar) back to a Gaea
 
 2. **Verify Python 3.10+ is available.** Same bootstrap as `/gaea2-load` (see that skill for rationale):
    ```
-   powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
+   pwsh -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
    ```
    Capture the `<python-exe-path>` from the `OK` line for step 3. On `MISSING ...` or `STALE ...`, ask permission to install, then run:
    ```

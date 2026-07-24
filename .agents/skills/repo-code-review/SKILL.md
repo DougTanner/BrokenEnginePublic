@@ -202,6 +202,15 @@ independently. Require direct public access. Private state is justified only
 when one complete multi-statement operation preserves an invariant or required
 ordering. Do not apply this check to semantic codecs or serialization adapters.
 
+### Repository patterns
+
+- Flag a struct or function that grew to two or more `bool` members or
+  parameters in this change to use `common::Flags<EnumType>` instead (root
+  `AGENTS.md` Key Pattern). This is a hard flag, not a suggestion.
+- Flag a new standard-library or third-party `#include` added to a PCH-backed
+  `.h`/`.cpp`; it belongs in `Common/ExternalHeaders.h`, not the individual
+  source file (root `AGENTS.md` Key Pattern).
+
 ### Minimality and duplication
 
 Flag incomplete integration and reachable edge failures. Flag overbuilt code
@@ -210,8 +219,9 @@ contract, or speculative path with no current consumer. Flag substantial new
 near-copies or repeated multi-condition logic after proving an existing helper
 fits. Deliberate client/server and collection mirrors remain parallel.
 
-Exclude micro-simplifications, style preferences, naming, header placement,
-formatting, and general documentation checks.
+Exclude micro-simplifications, style preferences, naming, header placement
+other than the required `Common/ExternalHeaders.h` rule above, formatting, and
+general documentation checks.
 
 ## External Claim Packet
 

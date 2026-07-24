@@ -34,11 +34,11 @@ vec2 VisibleAreaToWorld(vec2 f2Uv, vec4 f4VisibleArea)
 
 vec4 ShadowStretchProjection(GlobalLayout globalLayout, vec3 f3WorldPosition, vec3 f3ObjectPosition)
 {
-	float fSunriseOffset = globalLayout.fShadowSunriseStretch;
-	float fSunsetOffset = globalLayout.fShadowSunsetStretch;
-	float fSunriseOffsetCubed = fSunriseOffset * fSunriseOffset * fSunriseOffset;
-	float fSunsetOffsetCubed = fSunsetOffset * fSunsetOffset * fSunsetOffset;
-	vec2 f2Translation = (fSunriseOffsetCubed + fSunsetOffsetCubed) * -globalLayout.f4SunMoonNormal.xy;
+	// Cubes and the -normal.xy base translation are uniform-only and folded CPU-side (GlobalUniforms.cpp
+	// PopulateShadowStretch); only the varying fStretchX (position-diff dependent) stays here.
+	float fSunriseOffsetCubed = globalLayout.fShadowSunriseStretchCubed;
+	float fSunsetOffsetCubed = globalLayout.fShadowSunsetStretchCubed;
+	vec2 f2Translation = globalLayout.f2ShadowStretchTranslation;
 	float fSunriseDiff = max(0.0f, f3ObjectPosition.x - f3WorldPosition.x);
 	float fSunsetDiff = max(0.0f, f3WorldPosition.x - f3ObjectPosition.x);
 	float fStretchX = -(0.5f + fSunriseDiff) * fSunriseOffsetCubed + (0.5f + fSunsetDiff) * fSunsetOffsetCubed;
@@ -74,17 +74,17 @@ vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Pos
 // regions.
 vec3 SunLighting(vec3 f3MaterialColor, GlobalLayout globalLayout, vec4 f4Position, vec3 f3Normal, float fShadowSun, float fShadowMoon, float fAmbientOcclusion)
 {
-	// Terrain-specific helper: only Terrain.frag calls SunLighting, so per-target intensities are read inline.
-	vec3 f3Sun  = globalLayout.fSunIntensityTerrain  * globalLayout.f4SunColor.xyz;
-	vec3 f3Moon = globalLayout.fMoonIntensityTerrain * globalLayout.f4MoonColor.xyz;
-	float fNdotL = max(0.0f, dot(normalize(f3Normal), globalLayout.f4SunMoonNormal.xyz));
+	// Terrain-specific helper: only Terrain.frag calls SunLighting. Per-target-scaled colors, their Rec.601
+	// magnitudes, and the ambient split are folded CPU-side (GlobalUniforms.cpp), so only the shadow-dependent
+	// terms remain per-pixel. f3Normal must be unit: the sole caller passes an already-normalized f3SunNormal,
+	// so the redundant normalize is skipped (shader AGENTS.md normalization-skip rule).
+	vec3 f3Sun  = globalLayout.f4SunColorTerrain.xyz;
+	vec3 f3Moon = globalLayout.f4MoonColorTerrain.xyz;
+	float fNdotL = max(0.0f, dot(f3Normal, globalLayout.f4SunMoonNormal.xyz));
 	vec3 f3SunLight  = fShadowSun  * fNdotL * f3Sun;
 	vec3 f3MoonLight = fShadowMoon * fNdotL * f3Moon;
-	float fShadowAffectAmbient = globalLayout.fShadowAffectAmbient;
-	float fSunMag  = dot(f3Sun,  vec3(0.299f, 0.587f, 0.114f));
-	float fMoonMag = dot(f3Moon, vec3(0.299f, 0.587f, 0.114f));
-	float fAmbientShadow = (fSunMag * fShadowSun + fMoonMag * fShadowMoon) / max(fSunMag + fMoonMag, 0.001f);
-	return f3MaterialColor * fAmbientOcclusion * (max(f3SunLight, f3MoonLight) + (1.0f - fShadowAffectAmbient) * globalLayout.f4AmbientColor.xyz + fShadowAffectAmbient * fAmbientShadow * globalLayout.f4AmbientColor.xyz);
+	float fAmbientShadow = (globalLayout.fSunMagTerrain * fShadowSun + globalLayout.fMoonMagTerrain * fShadowMoon) * globalLayout.fSunMoonMagSumInvTerrain;
+	return f3MaterialColor * fAmbientOcclusion * (max(f3SunLight, f3MoonLight) + globalLayout.f4AmbientUnshadowed.xyz + fAmbientShadow * globalLayout.f4AmbientShadowed.xyz);
 }
 
 float Specular(vec3 f3ToEyeNormal, vec3 f3LightNormal, vec3 f3Normal, float fSpecularOne, float fSpecularOnePower, float fSpecularTwo, float fSpecularTwoPower, float fSpecularThree, float fSpecularThreePower)
@@ -211,6 +211,21 @@ vec2 WorldToSmokeTexcoord(vec4 f4SmokeArea, vec2 f2Position)
 		        (f2Position.y - f4SmokeArea.y) / (f4SmokeArea.w - f4SmokeArea.y));
 }
 
+bool ShadowLinearFootprintInsideBounds(GlobalLayout globalLayout, vec2 f2Uv, ivec4 i4Bounds)
+{
+	// Linear filtering at uv reads floor(uv * extent - 0.5) and its +1 neighbour. Keep both
+	// taps in the current final write window; border-white alone cannot distinguish stale in-texture texels.
+	ivec2 i2FirstTexel = ivec2(floor(f2Uv * vec2(float(globalLayout.iShadowTextureWidth), float(globalLayout.iShadowTextureHeight)) - 0.5f));
+	ivec2 i2LastTexel = i2FirstTexel + ivec2(1);
+	return all(greaterThanEqual(i2FirstTexel, i4Bounds.xy)) && all(lessThan(i2LastTexel, i4Bounds.zw));
+}
+
+float SampleTerrainShadow(GlobalLayout globalLayout, sampler2D shadowTextureSampler, vec2 f2Uv)
+{
+	ivec4 i4FinalBounds = ivec4(globalLayout.iShadowFinalMinX, globalLayout.iShadowFinalMinY, globalLayout.iShadowFinalMaxX, globalLayout.iShadowFinalMaxY);
+	return ShadowLinearFootprintInsideBounds(globalLayout, f2Uv, i4FinalBounds) ? textureLod(shadowTextureSampler, f2Uv, 0.0f).x : 1.0f;
+}
+
 float SmokeShadow(GlobalLayout globalLayout, vec3 f3InPosition, sampler2D smokeSampler, float fMulti)
 {
 	vec2 f2SmokeTexcoord = WorldToSmokeTexcoord(globalLayout.f4SmokeArea, f3InPosition.xy);
@@ -230,9 +245,10 @@ vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, samp
 	float fRed = IntensityLighting(pf4Lighting[0]);
 	float fGreen = IntensityLighting(pf4Lighting[1]);
 	float fBlue = IntensityLighting(pf4Lighting[2]);
-	vec3 f3Final = vec3(fRed, fGreen, fBlue) * globalLayout.fSmokeLightingMultiplier * globalLayout.fLightingTimeOfDayMultiplier;
-
-	f3Final += max(globalLayout.fSunIntensitySmoke * globalLayout.f4SunColor.xyz, globalLayout.fMoonIntensitySmoke * globalLayout.f4MoonColor.xyz) + globalLayout.f4AmbientColor.xyz;
+	// fSmokeLightingCombinedMultiplier (= fSmokeLightingMultiplier * fLightingTimeOfDayMultiplier) and
+	// f4SmokeBaseLighting (max(sun,moon) sky term + ambient) are folded CPU-side (GlobalUniforms.cpp).
+	vec3 f3Final = vec3(fRed, fGreen, fBlue) * globalLayout.fSmokeLightingCombinedMultiplier;
+	f3Final += globalLayout.f4SmokeBaseLighting.xyz;
 
 	f3Final = min(vec3(1.0f, 1.0f, 1.0f), f3Final);
 	return (1.0f - fSmoke) * f3InColor + fSmoke * f3Final * min(vec3(1.25f, 1.25f, 1.25f), vec3(fDensity, fDensity, fDensity));
@@ -254,16 +270,15 @@ vec3 BlendSmoke(vec3 f3Color, float fSmokePow, vec4 pf4Lighting[3], GlobalLayout
 vec3 BlendSmokePrecomputed(vec3 f3Color, float fSmokePow, vec3 f3LightingSum, GlobalLayout globalLayout)
 {
 	float fSmokeDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmokePow;
-	vec3 f3SmokeLighting = f3LightingSum * globalLayout.fSmokeLightingMultiplier * globalLayout.fLightingTimeOfDayMultiplier;
-	f3SmokeLighting += max(globalLayout.fSunIntensitySmoke * globalLayout.f4SunColor.xyz, globalLayout.fMoonIntensitySmoke * globalLayout.f4MoonColor.xyz) + globalLayout.f4AmbientColor.xyz;
+	vec3 f3SmokeLighting = f3LightingSum * globalLayout.fSmokeLightingCombinedMultiplier;
+	f3SmokeLighting += globalLayout.f4SmokeBaseLighting.xyz;
 	f3SmokeLighting = min(vec3(1.0f), f3SmokeLighting);
 	return (1.0f - fSmokePow) * f3Color + fSmokePow * f3SmokeLighting * min(vec3(1.25f), vec3(fSmokeDensity));
 }
 
-float LightingDepositEdgeFade(vec2 f2FragCoord, uint uiLightTilesX, uint uiLightTilesY)
+float LightingDepositEdgeFade(vec2 f2FragCoord, vec2 f2SizeInv)
 {
-	vec2 f2Uv = f2FragCoord / vec2(float(uiLightTilesX * kiComputeTileSize), float(uiLightTilesY * kiComputeTileSize));
+	vec2 f2Uv = f2FragCoord * f2SizeInv;
 	float fEdgeDist = min(min(f2Uv.x, 1.0f - f2Uv.x), min(f2Uv.y, 1.0f - f2Uv.y));
 	return smoothstep(0.0f, 0.05f, fEdgeDist);
 }
-

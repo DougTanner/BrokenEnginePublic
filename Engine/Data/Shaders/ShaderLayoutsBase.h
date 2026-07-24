@@ -132,7 +132,7 @@ CONSTEXPR int kiGlobalBindingBindlessTextures = 4;
 CONSTEXPR int kiGlobalBindingSamplerClamp = 12;
 
 // Set-1 per-pipeline descriptor binding numbers. Single-sourced here (dual-language) like the Set-0
-// block above, so the C++ pipeline setup (Pipeline kModel auto-append, BufferManager mesh/joint
+// block above, so the C++ pipeline setup (ModelPipeline kModel descriptor append, BufferManager mesh/joint
 // storage-buffer updates, PipelineManager water displacement descriptors) and the GLSL
 // layout(set = 1, binding = N) qualifiers (ModelCommon.h, Water.vert) stay in lockstep.
 CONSTEXPR int kiWaterBindingDisplacement = 13;
@@ -174,13 +174,12 @@ CONSTEXPR int kiDebugTextureFormatTerrainElevation = 8;
 
 CONSTEXPR int kiShadowTextureExecutionSize = 64;
 
-// Terrain-shadow visible-window margins. The shadow texture is pre-sized to cover the reference eye
-// height; only the centered visible window (+ margin) is ray-marched/blurred (Shadow.comp / ShadowBlur*).
-// kiShadowWindowMargin = 2*radius (two separable blur passes each read +/- radius) + 2 (the consumer's
-// bilinear footprint + texel-snap reach beyond the window edge), so the visible window samples only
-// current-frame, fully-blurred texels.
+// Terrain-shadow window constants. The source and blur rectangles are derived backwards from the
+// consumer-filtered final rectangle in PopulateShadowArea, keeping every separable-filter tap current.
 CONSTEXPR int kiShadowBlurRadius = 5;
-CONSTEXPR int kiShadowWindowMargin = 2 * kiShadowBlurRadius + 2;
+// This symmetric final-valid margin covers the linear neighbour plus worst-case visible-window snap
+// and centered-rounding/parity reach, so consumers never reject a valid edge sample as stale.
+CONSTEXPR int kiShadowConsumerFilterMargin = 3;
 
 CONSTEXPR int kiComputeTileSize = 8;
 CONSTEXPR int kiOccupancyDilateGroupSize = 256;
@@ -209,7 +208,8 @@ struct GlobalLayout
 
 	float fElapsedTime INIT;
 	float fBaseHeight INIT;
-	float fAspectRatio INIT;
+	float fBaseHeightInv INIT; // 1 / max(fBaseHeight, 0.001) (Terrain.frag below-base height ratio)
+	float fAspectRatioInv INIT; // 1 / aspect ratio (Billboards.vert screen-space width divide, folded CPU-side)
 
 	vec2 f2CameraPosition INIT;
 	vec4 f4VisibleArea INIT;
@@ -222,19 +222,44 @@ struct GlobalLayout
 	vec4 f4MoonColor INIT;
 	vec4 f4AmbientColor INIT;
 
-	// Per-target sun/moon intensity multipliers (applied at shader read sites)
-	float fSunIntensityTerrain INIT;
-	float fSunIntensityWater INIT;
-	float fSunIntensityObjects INIT;
+	// Per-target sun/moon intensity multipliers (applied at shader read sites). Terrain/Water/Objects are
+	// pre-folded CPU-side into the precomputed products below, so only Smoke remains as a raw multiplier.
 	float fSunIntensitySmoke INIT;
-	float fMoonIntensityTerrain INIT;
-	float fMoonIntensityWater INIT;
-	float fMoonIntensityObjects INIT;
 	float fMoonIntensitySmoke INIT;
+
+	// Precomputed day-cycle products (CPU-folded uniform-only terms; GlobalUniforms.cpp
+	// PopulateDayCycleColors / PopulateSunMoonDirection / PopulateShadowParameters). Every operand is
+	// invocation-invariant, so folding them removes the equivalent per-pixel multiplies/dots/normalizes.
+	vec4 f4SunColorTerrain INIT;      // fSunIntensityTerrain * f4SunColor (SunLighting)
+	vec4 f4MoonColorTerrain INIT;     // fMoonIntensityTerrain * f4MoonColor (SunLighting)
+	vec4 f4TerrainSnowSunNormal INIT; // fTerrainSnowBlend * f4SunMoonNormal (Terrain.frag snow sun-normal tilt); w unused
+	vec4 f4WaterBiasedSunNormal INIT; // normalize((0,0,fLightingWaterSkyboxSunBias) + f4SunMoonNormal) (Water.frag skybox specular); w unused
+	vec4 f4SmokeBaseLighting INIT;    // max(fSunIntensitySmoke*f4SunColor, fMoonIntensitySmoke*f4MoonColor) + f4AmbientColor (AddSmoke/BlendSmokePrecomputed); w unused
+	vec4 f4WaterSunOrMoon INIT;       // max(fSunIntensityWater*f4SunColor, fMoonIntensityWater*f4MoonColor) (Water.frag skybox sun tint); w unused
+	vec4 f4AmbientUnshadowed INIT;    // (1 - fShadowAffectAmbient) * f4AmbientColor (SunLighting ambient, unshadowed half); w unused
+	vec4 f4AmbientShadowed INIT;      // fShadowAffectAmbient * f4AmbientColor (SunLighting ambient, shadowed half); w unused
+	float fSunMagTerrain INIT;        // Rec.601 luma of f4SunColorTerrain (SunLighting ambient-shadow blend)
+	float fMoonMagTerrain INIT;       // Rec.601 luma of f4MoonColorTerrain (SunLighting ambient-shadow blend)
+	float fSunMoonMagSumInvTerrain INIT; // 1 / max(fSunMagTerrain + fMoonMagTerrain, 0.001)
+	float fWaterSunScalar INIT;       // (f4WaterSunOrMoon.x+y+z)/3 (Water.frag sun contribution)
+	float fWaterAmbientScalar INIT;   // (f4AmbientColor.x+y+z)/3 (Water.frag ambient contribution)
+	float fWaterSunWeight INIT;       // Rec.601 luma of fSunIntensityWater*f4SunColor (Water.frag effective-shadow blend)
+	float fWaterMoonWeight INIT;      // Rec.601 luma of fMoonIntensityWater*f4MoonColor (Water.frag effective-shadow blend)
+	float fWaterShadowWeightSumInv INIT; // 1 / max(fWaterSunWeight + fWaterMoonWeight, 0.001)
+	float fSmokeLightingCombinedMultiplier INIT; // fSmokeLightingMultiplier * fLightingTimeOfDayMultiplier (AddSmoke/BlendSmokePrecomputed)
+
+	// Objects (Model.frag) precomputed sun/moon products. Direct BRDF and IBL specular are kept as separate
+	// fields so the IBL path stays linear in fPbrSun (its Rec.709 luminance uses the UNSCALED color; folding
+	// fPbrSun into that luminance would compound to fPbrSun^3). w unused.
+	vec4 f4PbrSunColorObjects INIT;     // fSunIntensityObjects * fPbrSun * f4SunColor (Model.frag direct BRDF sun term)
+	vec4 f4PbrMoonColorObjects INIT;    // fMoonIntensityObjects * fPbrSun * f4MoonColor (Model.frag direct BRDF moon term)
+	vec4 f4PbrSunColorObjectsIbl INIT;  // (dot(f4SunColor.rgb, kRec709) / fPbrDayBrightness) * f4PbrSunColorObjects (Model.frag IBL specular sun term)
+	vec4 f4PbrMoonColorObjectsIbl INIT; // (dot(f4MoonColor.rgb, kRec709) / fPbrDayBrightness) * f4PbrMoonColorObjects (Model.frag IBL specular moon term)
 
 	// Smoke
 	vec4 f4SmokeArea INIT;
 	vec4 f4PreviousSmokeArea INIT;
+	vec2 f2PreviousSmokeAreaSizeInv INIT; // (1/(z-x), 1/(w-y)) of f4PreviousSmokeArea (Smoke/Wind OccupancyDilate previous-area remap)
 	float fSmokeMax INIT;
 	float fSmokePower INIT;
 	float fSmokeDecay INIT;
@@ -282,20 +307,27 @@ struct GlobalLayout
 	float fWindTextureIndex INIT; // Blend factor: 0.0 = TextureOne, 1.0 = TextureTwo (continuous for interpolation)
 	uint32_t uiWindTilesX INIT;
 	uint32_t uiWindTilesY INIT;
+	vec2 f2WindTilesInv INIT; // (1/uiWindTilesX, 1/uiWindTilesY) (WindOccupancyDilate output-tile-center UV)
 
 	// Lighting
 	float fLightingObjectsAdd INIT;
 	float fLightingDepositThreshold INIT;
 	float fLightingDepositCompress INIT;
+	// Uchimura tone curve inputs (LightCombine.comp / DebugTexture.frag). fCombineLinearLength folds CPU-side into
+	// fCombineS0/fCombineS1; fCombineCP is the segment CP constant (epsilon-guarded on P - S1 in LightingUniforms.cpp).
 	float fCombineMaxBrightness INIT;
 	float fCombineContrast INIT;
 	float fCombineLinearStart INIT;
-	float fCombineLinearLength INIT;
 	float fCombineToe INIT;
 	float fCombineBlackTightness INIT;
-	float fCombinePassNormalize INIT;
-	float fCombineExposurePassScale INIT;
+	float fCombineS0 INIT;
+	float fCombineS1 INIT;
+	float fCombineCP INIT;
 	float fCombineHuePreserve INIT;
+	// Pass normalization/exposure scaling precomputed: fCombinePassNormScale = passNorm * passScale (DebugTexture.frag),
+	// fCombinePassTotalScale = fCombinePassNormScale / passCount (LightCombine.comp averaging).
+	float fCombinePassNormScale INIT;
+	float fCombinePassTotalScale INIT;
 	float pfCombineCurvePoints[kiMaxSpreadPasses] INIT;
 	float fLightingTerrain INIT;
 	float fLightingObjects INIT;
@@ -304,9 +336,10 @@ struct GlobalLayout
 	float fSpreadDirectionalityStart INIT;
 	vec4 f4LightingArea INIT;
 	vec4 f4LightingAreaPrevious INIT; // Previous-frame f4LightingArea, for LightingTemporal.comp reprojection
+	vec2 f2LightingAreaExtentInv INIT; // 1 / lighting-area extent (LightingSpread.frag world->texcoord)
+	vec2 f2CombineMargin INIT; // 2-texel bilinear window margin in visible-area UV; LightCombine.comp + LightingTemporal.comp share the combine extent
 	float fLightingTemporalBlend INIT; // EMA weight toward current; 1.0 on the first frame so seeded history is never shown
-	uint32_t uiLightTilesX INIT;
-	uint32_t uiLightTilesY INIT;
+	vec2 f2LightingDepositSizeInv INIT; // 1 / (lightTiles * kiComputeTileSize) (LightingDepositEdgeFade)
 
 	// Spread Start (radial directional spread)
 	float fSpreadDirectionCountStart INIT;
@@ -339,37 +372,56 @@ struct GlobalLayout
 
 	// Spread Height Fade
 	float fSpreadHeightMultiplier INIT;
-	float fSpreadHeightEndHeight INIT;
+	float fSpreadHeightEndHeightInv INIT; // 1 / max(spreadHeightEndHeight, 0.001) (LightingSpread.frag height fade)
 	float fSpreadHeightPower INIT;
+
+	vec2 f2SpreadMargin INIT; // max(spreadDistanceStart, spreadDistanceEnd) / visible extent (LightingSpread.frag window early-out)
 
 	// Shadow
 	float fShadowWidthScale INIT;
-	float fShadowSunAngle INIT;
 	float fShadowDirectionMultiplier INIT;
 	float fShadowMoonMultiplier INIT;
 	float fShadowFeather INIT;
-	float fShadowNoonOffset INIT;
 	float fShadowDistanceFalloff INIT;
-	float fShadowBlurSigma INIT;
+	float fShadowDistanceFalloffInv INIT;
+	float pfShadowBlurWeights[kiShadowBlurRadius + 1] INIT; // Symmetric Gaussian half-kernel: ShadowBlurH/V index by abs(offset), scale by fShadowBlurWeightSumInv.
+	float fShadowBlurWeightSumInv INIT;
+	float fShadowAngleOffsetSum INIT; // Shadow sun angle + noon + sunset feather offsets, summed CPU-side (Shadow.comp feather term).
 	float fObjectShadowsBlurSigma INIT;
 	float fObjectShadowsIntensity INIT;
 	float fObjectShadowsGrow INIT;
 	int32_t iObjectShadowsBlurRadius INIT;
-	float fShadowSunsetOffset INIT;
-	float fShadowSunriseStretch INIT;
-	float fShadowSunsetStretch INIT;
+	float fShadowSunriseStretchCubed INIT; // (fSunriseStretch * gObjectShadowsSunsetStretch)^3 (ShadowStretchProjection)
+	float fShadowSunsetStretchCubed INIT;  // (fSunsetStretch  * gObjectShadowsSunsetStretch)^3 (ShadowStretchProjection)
+	vec2 f2ShadowStretchTranslation INIT;  // (sunrise+sunset cubes) * -f4SunMoonNormal.xy (ShadowStretchProjection base translation)
 	float fShadowAffectAmbient INIT;
 	float fWaterReducedNoiseOriginX INIT;
 	int32_t iShadowElevationSize INIT;
 	int32_t iShadowIncrement INIT;
 	int32_t iShadowStartOffset INIT;
 	float fWaterReducedNoiseOriginY INIT;
-	int32_t iShadowTextureWidth INIT;
+	int32_t iShadowTextureWidth INIT;  // Integer extent for texel-index clamps (ShadowLinearFootprintInsideBounds, ShadowTemporal); f2ShadowTextureSizeInv serves the UV scales.
 	int32_t iShadowTextureHeight INIT;
 	int32_t iShadowVisibleMinX INIT;
 	int32_t iShadowVisibleMinY INIT;
 	int32_t iShadowVisibleMaxX INIT;
 	int32_t iShadowVisibleMaxY INIT;
+	int32_t iShadowSourceMinX INIT;
+	int32_t iShadowSourceMinY INIT;
+	int32_t iShadowSourceMaxX INIT;
+	int32_t iShadowSourceMaxY INIT;
+	int32_t iShadowBlurHMinX INIT;
+	int32_t iShadowBlurHMinY INIT;
+	int32_t iShadowBlurHMaxX INIT;
+	int32_t iShadowBlurHMaxY INIT;
+	int32_t iShadowFinalMinX INIT;
+	int32_t iShadowFinalMinY INIT;
+	int32_t iShadowFinalMaxX INIT;
+	int32_t iShadowFinalMaxY INIT;
+	int32_t iShadowVisiblePreviousMinX INIT;
+	int32_t iShadowVisiblePreviousMinY INIT;
+	int32_t iShadowVisiblePreviousMaxX INIT;
+	int32_t iShadowVisiblePreviousMaxY INIT;
 	float fShadowTemporalBlend INIT; // ShadowTemporal.comp: weight of the current frame (1.0 = no history)
 
 	// Terrain. Heightmap pixels carry absolute meters directly — fIslandHeight / fWaterDepth
@@ -395,13 +447,13 @@ struct GlobalLayout
 	float fWaterOriginY INIT;
 	float fWaterHeight INIT;
 	float fWaterTerrainHeight INIT;
-	float fWaterTerrainFade INIT;
+	float fWaterTerrainFadeInv INIT; // 1 / gWaterTerrainFade (Water.frag alpha fade); unguarded (reproduces the shader's original divide)
 	float fWaterTerrainFadeClamp INIT;
 	float fWaterDepthLutFeather INIT;
 	float fWaterDepthColorFeather INIT;
 	float fWaterDepthColorFloor INIT;
-	float fWaterUnderseaCompression INIT;
-	float fWaterDepthReflectionFeather INIT;
+	float fWaterUnderseaCompressionInv INIT; // 1 / gWaterUnderseaCompression = TerrainElevation.frag undersea depth-curve pow() exponent
+	float fWaterDepthReflectionFeatherInv INIT; // 1 / (fDayPercent * gWaterDepthReflectionFeather); unguarded (night dayPercent=0 -> +inf absorbed by the shader clamp)
 	float fWaterColorNoiseFrequency INIT;
 	float fWaterDepthLutSunsetFade INIT;
 	float fWaterFresnel INIT;
@@ -430,19 +482,16 @@ struct GlobalLayout
 
 	// Particles
 	float fParticlesStretchVelocityStart INIT;
-	float fParticlesStretchVelocityEnd INIT;
 	float fParticlesStretchVelocityMultiplier INIT;
+	float fParticlesStretchRangeInv INIT; // 1 / max(stretchVelocityEnd - stretchVelocityStart, kfEpsilon) (LongParticlesRender.vert length ramp)
 
 	// Shadow
-	float fShadowTextureSizeWidth INIT;
-	float fShadowTextureSizeHeight INIT;
-	float fShadowElevationTextureSizeWidth INIT;
-	float fShadowElevationTextureSizeHeight INIT;
-	float fShadowHeightFadeTop INIT;
+	vec2 f2ShadowTextureSizeInv INIT; // 1 / shadow texture extent (ShadowBlurH/V, ShadowTemporal).
+	vec2 f2ShadowElevationTextureSizeInv INIT; // 1 / elevation texture extent (Shadow.comp).
 	float fShadowHeightFadeBottom INIT;
+	float fShadowHeightFadeRangeInv INIT; // 1 / (fade top - fade bottom); no guard, reproduces Shadow.comp's original divide.
 
 	// Terrain
-	float fTerrainSnowBlend INIT;
 	float fTerrainSnowAmbientOcclusionExclusion INIT;
 
 	float fTerrainRockSize INIT;
@@ -469,6 +518,7 @@ struct GlobalLayout
 	float fDebugTextureFormat INIT;
 	float fDebugTextureLinearRange INIT;
 	float fSeaFloorElevation INIT;
+	float fSeaFloorElevationInv INIT; // 1 / fSeaFloorElevation (TerrainElevation.frag undersea depth normalization)
 	float fUnderwaterMaskThreshold INIT;
 	float fDebugTerrainElevationHigh INIT;
 };
@@ -482,6 +532,10 @@ struct MainLayout
 
 	vec4 f4EyePosition INIT;
 	vec4 f4ToEyeNormal INIT;
+	// Camera-facing billboard basis derived CPU-side from f4ToEyeNormal (DebugRenderBillboard.vert); forward
+	// stays f4ToEyeNormal. Mirrors the shader's worldUp-select (0.999 threshold, +X fallback). w unused.
+	vec4 f4BillboardRight INIT;
+	vec4 f4BillboardUp INIT;
 
 	vec4 pf4LowWavesOne[256] INIT;
 	vec4 pf4LowWavesTwo[256] INIT;
@@ -499,13 +553,16 @@ struct MainLayout
 	float fWaterNormalWeightOne INIT;
 	float fWaterNormalWeightTwo INIT;
 	float fWaterNormalWeightThree INIT;
-	float fWaterHeightDarkenTop INIT;
+	float fWaterNormalWRelSqOne INIT;    // (fWaterNormalWeightOne / weightTotal)^2 (Water.frag MIP_HANDOFF variance share)
+	float fWaterNormalWRelSqTwo INIT;
+	float fWaterNormalWRelSqThree INIT;
+	float fWaterNormalWeightSumInv INIT; // 1 / max(3*(fWaterNormalWeightOne+Two+Three), kfEpsilon) (Water.frag mode-3 agreement)
 	float fWaterHeightDarkenBottom INIT;
+	float fWaterHeightDarkenRangeInv INIT; // 1 / (gWaterHeightDarkenTop - fWaterHeightDarkenBottom) (Water.frag height darken); unguarded
 	float fWaterHeightDarkenTarget INIT;
 	float fWaterHeightDarkenSource INIT;
 	float fWaterHeightDarkenLighting INIT;
 
-	float fLightingWaterSkyboxSunBias INIT;
 	float fLightingWaterSkyboxNormalBlendWave INIT;
 	float fLightingWaterSkyboxIntensity INIT;
 	float fLightingWaterSkyboxAdd INIT;
@@ -514,6 +571,10 @@ struct MainLayout
 	float fLightingWaterSkyboxTwoPower INIT;
 	float fLightingWaterSkyboxThree INIT;
 	float fLightingWaterSkyboxThreePower INIT;
+	// Per-lobe FilteredPowerLobe (Water.frag WATER_SPEC_AA_MODE 2/3) constants folded from the skybox lobe
+	// powers: xyz = lobes One/Two/Three. The varying (1+p') numerator math stays in-shader.
+	vec4 f4WaterSkyboxLobeAlphaSq INIT;        // 2/(power+2) per lobe (Beckmann-equivalent kernel base)
+	vec4 f4WaterSkyboxLobeOnePlusPowerInv INIT; // 1/(1+power) per lobe (amplitude normalization)
 	float fLightingWaterSkyboxLod INIT;
 	// Specular-AA tuning for Water.frag's WATER_SPEC_AA_MODE variants (variance: modes 1-3; threshold: modes 2-3)
 	float fWaterSpecAAVariance INIT;
@@ -566,7 +627,7 @@ struct MainLayout
 
 	// Pbr
 	float fPbrExposure INIT;
-	float fPbrGamma INIT;
+	float fPbrGammaInv INIT; // 1 / gamma, applied in HdrResolve.frag
 	float fColorGradingSaturation INIT;
 	float fColorGradingContrast INIT;
 	float fColorGradingTemperature INIT;

@@ -20,24 +20,29 @@ layout (set = 1, binding = 2, r16) uniform image2D shadowBlurTexture; // keShado
 // flickering; at a settled grid history == current so it is a no-op.
 void main()
 {
-	uint uiX = gl_GlobalInvocationID.x;
-	uint uiY = gl_GlobalInvocationID.y;
-
-	// Only the visible window (+ blur margin) is sampled downstream; leave the rest as ShadowBlurV wrote it.
-	if (int(uiX) < globalLayout.iShadowVisibleMinX - kiShadowWindowMargin || int(uiX) >= globalLayout.iShadowVisibleMaxX + kiShadowWindowMargin ||
-	    int(uiY) < globalLayout.iShadowVisibleMinY - kiShadowWindowMargin || int(uiY) >= globalLayout.iShadowVisibleMaxY + kiShadowWindowMargin)
+	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iShadowFinalMinX, globalLayout.iShadowFinalMinY);
+	if (any(greaterThanEqual(i2Texel, ivec2(globalLayout.iShadowFinalMaxX, globalLayout.iShadowFinalMaxY))))
 		return;
+	uint uiX = uint(i2Texel.x);
+	uint uiY = uint(i2Texel.y);
 
 	float fCurrent = imageLoad(shadowBlurTexture, ivec2(uiX, uiY)).x;
 
 	// This texel's world position -> previous-frame UV. Reprojection makes the blend correct under pan/zoom
 	// (the grid moves frame-to-frame). Disocclusion (reprojected UV outside [0,1] = newly revealed): keep current.
-	vec2 f2Uv = (vec2(float(uiX), float(uiY)) + 0.5f) / vec2(float(globalLayout.iShadowTextureWidth), float(globalLayout.iShadowTextureHeight));
+	vec2 f2Uv = (vec2(float(uiX), float(uiY)) + 0.5f) * globalLayout.f2ShadowTextureSizeInv;
 	vec2 f2World = VisibleAreaToWorld(f2Uv, globalLayout.f4ShadowArea);
 	vec2 f2PreviousUv = WorldToVisibleArea(vec3(f2World, 0.0f), globalLayout.f4ShadowAreaPrevious);
 
 	float fBlended = fCurrent;
-	if (f2PreviousUv.x >= 0.0f && f2PreviousUv.x <= 1.0f && f2PreviousUv.y >= 0.0f && f2PreviousUv.y <= 1.0f)
+	ivec4 i4PreviousFinalBounds = ivec4
+	(
+		max(0, globalLayout.iShadowVisiblePreviousMinX - kiShadowConsumerFilterMargin),
+		max(0, globalLayout.iShadowVisiblePreviousMinY - kiShadowConsumerFilterMargin),
+		min(globalLayout.iShadowTextureWidth, globalLayout.iShadowVisiblePreviousMaxX + kiShadowConsumerFilterMargin),
+		min(globalLayout.iShadowTextureHeight, globalLayout.iShadowVisiblePreviousMaxY + kiShadowConsumerFilterMargin)
+	);
+	if (globalLayout.fShadowTemporalBlend < 1.0f && ShadowLinearFootprintInsideBounds(globalLayout, f2PreviousUv, i4PreviousFinalBounds))
 	{
 		float fHistory = textureLod(shadowHistorySampler, f2PreviousUv, 0.0f).x;
 		fBlended = mix(fHistory, fCurrent, globalLayout.fShadowTemporalBlend);

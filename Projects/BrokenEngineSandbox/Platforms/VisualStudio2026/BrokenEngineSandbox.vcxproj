@@ -126,7 +126,7 @@
       <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(GeneratedDataIncludeRoot);$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\enet\include;$(ProjectDir)\..\..\..\..\ThirdParty\Clipper2\CPP\Clipper2Lib\include;$(ProjectDir)\..\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\..\ThirdParty\imgui;$(ProjectDir)\..\..\..\..\ThirdParty\implot;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\ThirdParty\RenderDoc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Common\ClangTidyShims;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>false</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <PreprocessorDefinitions>BT_ENGINE;BT_CLIENT;BT_DEBUG;_ITERATOR_DEBUG_LEVEL=0;_MSVC_STL_HARDENING_VECTOR=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>BT_ENGINE;BT_CLIENT;BT_DEBUG;_ITERATOR_DEBUG_LEVEL=0;_MSVC_STL_HARDENING_VECTOR=0;_MSVC_STL_HARDENING_SPAN=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FloatingPointModel>Strict</FloatingPointModel>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -385,6 +385,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\LaunchOptions.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Agent\AgentCommandServer.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Agent\AgentCommandsShared.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Agent\AgentInput.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Agent\AgentUiRegistry.h" />
     <ClInclude Include="..\..\Source\Agent\AgentCommands.h" />
@@ -427,6 +428,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscoveryScanner.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkMessages.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkProtocol.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSessionContract.h" />
@@ -576,6 +578,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\LaunchOptions.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentCommandServer.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentCommandsShared.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentInput.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentUiRegistry.cpp" />
     <ClCompile Include="..\..\Source\Agent\AgentCommands.cpp" />
@@ -758,6 +761,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\Shadow.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlurH.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlurV.comp" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowHistoryCopy.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowTemporal.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\Smoke.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadCommon.h" />

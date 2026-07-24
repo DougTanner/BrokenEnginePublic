@@ -6,3 +6,5 @@ effort: medium
 ---
 
 Follow repository instructions for the assigned review role. Role table: `AGENTS.md`.
+
+This definition is the Codex-unavailable fallback path; primary Claude Code reviewer routing is `/codex-review` (Codex/Sol).

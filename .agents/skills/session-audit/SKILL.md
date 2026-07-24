@@ -38,12 +38,15 @@ Require a self-contained, immutable brief containing:
   plus reconciliation, build, external-API-verification, accepted-fix/retest,
   residual, and focus-area handoffs (`none` is valid for each).
 
-For an explicit user request, also require the user-authorized audit scope and
-map it to the same bounded late, reconciled, or unseen-integration hypotheses.
-Return `BLOCKED` when lifecycle identity, attribution, intent, a mode
-disposition, or an applicable prerequisite domain review is missing, ambiguous,
-moving, or incomplete. Never reconstruct these inputs from conversation history
-or a mutable merge base.
+For an explicit user request, the main session assembles the required brief
+before dispatch — baseline and tip commits, the changed-file manifest from
+`git`, and stage dispositions — and supplies it with the user-authorized audit
+scope, mapped to the same bounded late, reconciled, or unseen-integration
+hypotheses. Return `BLOCKED` when lifecycle identity, attribution, intent, a
+mode disposition, or an applicable prerequisite domain review is missing,
+ambiguous, moving, or incomplete. The manager's pre-dispatch assembly from
+repository state is the only allowed source; the auditor never reconstructs
+these inputs from conversation history or a mutable merge base.
 
 ## Method
 
@@ -54,7 +57,9 @@ or a mutable merge base.
    prove or refute its hypotheses. Stop when all authorized hypotheses resolve.
 3. For late fixes, check newly introduced determinism/CRC, phase, guard-affinity,
    doc-symbol, whole-file coherence, debris, and residual regressions only where
-   the late handoff makes them reachable.
+   the late handoff makes them reachable. Global
+   `%LOCALAPPDATA%\BrokenEngine\AgentReports\` artifacts conforming to the shared
+   reporting contract are intentional process state, not session debris.
 4. For reconciliation, check manual resolutions and invalidated assumptions for
    semantic merge damage, half-applied mirrors, stale symbols, duplicated paths,
    and incorrect version or compatibility integration.

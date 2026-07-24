@@ -92,16 +92,43 @@ inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
 // single-cell frame approaches 64 MiB.
 inline constexpr int64_t kiMaxUncompressedFrameBytes = 64 * 1024 * 1024;
 
+// 128-bit client GUID for persistent identity across save/load
+struct ClientGuid
+{
+	// On-disk ClientGuid.bin header version (persist/load route through WriteVersionedFile/ReadVersionedFile).
+	// v2 migrated off the legacy hand-rolled v1/size-0 header to the shared version+size convention; v1 files reset once.
+	static constexpr int64_t kiVersion = 2;
+
+	uint64_t uiHigh = 0;
+	uint64_t uiLow = 0;
+
+	bool IsEmpty() const { return uiHigh == 0 && uiLow == 0; }
+	bool operator==(const ClientGuid&) const = default;
+};
+
+struct ClientGuidHash
+{
+	size_t operator()(const ClientGuid& rGuid) const
+	{
+		return std::hash<uint64_t>{}(rGuid.uiHigh) ^ (std::hash<uint64_t>{}(rGuid.uiLow) << 1);
+	}
+};
+
+} // namespace engine
+
+#include "Network/NetworkMessages.h"
+
+namespace engine
+{
+
 // --- Client -> Server message contract --------------------------------------------------------------
 // Declarative per-packet limits checked once at the server dispatch choke point (Server::Receive).
 // Covers only engine packet types below kGamePacketStart; game-range types are contract-checked at
 // parse via GetGamePacketContract. See Documents/Architecture/Network.md "Client -> Server Contract".
 
-// Max kClientAckStream packet size: 1B type + 1B slot count + 64 * 27B per slot (1B slot + 2B epoch +
-// 8B floor + 8B bitfieldLow + 8B bitfieldHigh) + 8B RTT timestamp. The 64 mirrors
-// NetworkManager::kiMaxEnetCoordSlots; a static_assert tying the two lives in Server.cpp because
-// NetworkProtocol.h cannot include NetworkManager.h (Engine.h include order is load-bearing).
-inline constexpr int64_t kiMaxAckStreamPacketSize = 2 + 64 * 27 + 8; // = 1738
+// The 64 mirrors NetworkManager::kiMaxEnetCoordSlots; a static_assert tying it to the transport
+// ceiling lives in Server.cpp because NetworkProtocol.h cannot include NetworkManager.h.
+inline constexpr int64_t kiMaxAckStreamPacketSize = NetworkMessages::ClientAckStreamMessage::GetSize(NetworkMessages::ClientAckStreamMessage::kiMaxSlotCount);
 
 // Global per-client packet budget per poll window (approx one sim tick). With the tick-rate-locked ack
 // throttle a legit client sends ~1 ack + rare requests per tick; 256 tolerates a multi-second server
@@ -134,14 +161,14 @@ inline constexpr ClientPacketContract GetClientPacketContract(PacketType eType)
 {
 	switch (eType)
 	{
-		case PacketType::kClientAckStream:         return {10, kiMaxAckStreamPacketSize, 128, true, false}; // over-cap is a silent multi-tick-poll burst safety drop
-		case PacketType::kClientSpawnRequest:      return {2, 2, 8};
-		case PacketType::kClientDesyncReport:      return {33, 33, 8};
-		case PacketType::kClientDebugFrameRequest: return {17, 17, 8};
-		case PacketType::kClientHello:             return {.iMinSize = 21, .iMaxSize = 101, .iMaxPerTick = 4, .bRequiresHandshake = false}; // pre-handshake by definition
-		case PacketType::kClientSubscribe:         return {9, 9, 64};
-		case PacketType::kClientUnsubscribe:       return {4, 4, 64};
-		case PacketType::kClientResyncRequest:     return {1, 1, 4};
+		case PacketType::kClientAckStream:         return {NetworkMessages::ClientAckStreamMessage::kiFixedSize, kiMaxAckStreamPacketSize, 128, true, false}; // over-cap is a silent multi-tick-poll burst safety drop
+		case PacketType::kClientSpawnRequest:      return {NetworkMessages::ClientSpawnRequestMessage::kiFixedSize, NetworkMessages::ClientSpawnRequestMessage::kiFixedSize, 8};
+		case PacketType::kClientDesyncReport:      return {NetworkMessages::ClientDesyncReportMessage::kiFixedSize, NetworkMessages::ClientDesyncReportMessage::kiFixedSize, 8};
+		case PacketType::kClientDebugFrameRequest: return {NetworkMessages::ClientDebugFrameRequestMessage::kiFixedSize, NetworkMessages::ClientDebugFrameRequestMessage::kiFixedSize, 8};
+		case PacketType::kClientHello:             return {.iMinSize = NetworkMessages::ClientHelloMessage::kiMinSize, .iMaxSize = NetworkMessages::ClientHelloMessage::kiMaxSize, .iMaxPerTick = 4, .bRequiresHandshake = false}; // pre-handshake by definition
+		case PacketType::kClientSubscribe:         return {NetworkMessages::ClientSubscribeMessage::kiFixedSize, NetworkMessages::ClientSubscribeMessage::kiFixedSize, 64};
+		case PacketType::kClientUnsubscribe:       return {NetworkMessages::ClientUnsubscribeMessage::kiFixedSize, NetworkMessages::ClientUnsubscribeMessage::kiFixedSize, 64};
+		case PacketType::kClientResyncRequest:     return {NetworkMessages::ClientResyncRequestMessage::kiFixedSize, NetworkMessages::ClientResyncRequestMessage::kiFixedSize, 4};
 		default:                                   return {}; // sentinel: not client-sendable
 	}
 }
@@ -153,28 +180,6 @@ inline constexpr std::chrono::milliseconds kDiscoveryScanDuration {1500};
 
 // Network buffer size for ACK bitfield and snapshot ring buffers (decoupled from physics tick rate)
 inline constexpr int64_t kiNetworkBufferSize = 128;
-
-// 128-bit client GUID for persistent identity across save/load
-struct ClientGuid
-{
-	// On-disk ClientGuid.bin header version (persist/load route through WriteVersionedFile/ReadVersionedFile).
-	// v2 migrated off the legacy hand-rolled v1/size-0 header to the shared version+size convention; v1 files reset once.
-	static constexpr int64_t kiVersion = 2;
-
-	uint64_t uiHigh = 0;
-	uint64_t uiLow = 0;
-
-	bool IsEmpty() const { return uiHigh == 0 && uiLow == 0; }
-	bool operator==(const ClientGuid&) const = default;
-};
-
-struct ClientGuidHash
-{
-	size_t operator()(const ClientGuid& rGuid) const
-	{
-		return std::hash<uint64_t>{}(rGuid.uiHigh) ^ (std::hash<uint64_t>{}(rGuid.uiLow) << 1);
-	}
-};
 
 // Per-slot ACK tracking state (shared by client and server)
 struct AckState

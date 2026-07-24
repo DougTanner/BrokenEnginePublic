@@ -19,7 +19,7 @@ constexpr std::chrono::seconds kDesyncDiagnosticCooldown = 2s;
 
 } // namespace
 
-void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientAckStream(std::span<const uint8_t> packetData, int64_t iClientId)
 {
 	ClientConnection* pClient = FindHandshakenClient(iClientId);
 	if (pClient == nullptr)
@@ -27,37 +27,27 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		return;
 	}
 
-	BoundedCursor cursor {pData + 1, pData + iSize}; // Skip packet type
-	const uint8_t*& pCursor = cursor.pCursor;
-
-	// 1B count byte must be present
-	if (!cursor.Has(1))
+	NetworkMessages::AckStreamEntry entries[NetworkManager::kiMaxEnetCoordSlots] {};
+	NetworkMessages::ClientAckStreamMessage message {
+		.pEntries = entries,
+		.iEntryCapacity = NetworkManager::kiMaxEnetCoordSlots,
+	};
+	if (!NetworkMessages::Read(packetData, message)
+		|| static_cast<int64_t>(packetData.size()) != NetworkMessages::ClientAckStreamMessage::GetSize(message.uiSlotCount))
 	{
-		return;
-	}
-	uint8_t uiAckSlotCount = ReadUint8(pCursor);
-
-	// Exact-size check the dispatch table cannot express (the table only bounds min/max): 1B type + 1B count +
-	// count*27B per slot (1B slot + 2B epoch + 8B floor + 8B bitfieldLow + 8B bitfieldHigh) + 8B timestamp.
-	if (static_cast<int64_t>(iSize) != 2 + static_cast<int64_t>(uiAckSlotCount) * 27 + 8)
-	{
-		RecordContractViolation(iClientId, "ackstream size", pData[0], static_cast<int64_t>(iSize));
+		RecordContractViolation(iClientId, "ackstream size", packetData[0], static_cast<int64_t>(packetData.size()));
 		return;
 	}
 
 	int64_t iFloorAdvanceCount = 0;
-	for (uint8_t i = 0; i < uiAckSlotCount; ++i)
+	for (uint8_t i = 0; i < message.uiSlotCount; ++i)
 	{
-		// 27B per slot guaranteed present by the exact-size check; Has() keeps the bounded contract explicit.
-		if (!cursor.Has(27))
-		{
-			break;
-		}
-		uint8_t uiSlotIndex = ReadUint8(pCursor);
-		uint16_t uiSlotEpoch = ReadUint16(pCursor);
-		int64_t iSlotAckFloor = ReadInt64(pCursor);
-		uint64_t uiSlotBitfieldLow = ReadUint64(pCursor);
-		uint64_t uiSlotBitfieldHigh = ReadUint64(pCursor);
+		const NetworkMessages::AckStreamEntry& rEntry = message.pEntries[i];
+		uint8_t uiSlotIndex = rEntry.uiSlotIndex;
+		uint16_t uiSlotEpoch = rEntry.uiEpoch;
+		int64_t iSlotAckFloor = rEntry.iAckFloor;
+		uint64_t uiSlotBitfieldLow = rEntry.uiReceivedBitfieldLow;
+		uint64_t uiSlotBitfieldHigh = rEntry.uiReceivedBitfieldHigh;
 
 		// Invalid-index or inactive slots match neither branch below; skip after the reads so the cursor stays aligned
 		if (!(uiSlotIndex < std::ssize(pClient->coordSubscriptions) &&
@@ -98,14 +88,14 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 			if (pClient->iPeakConsecutiveStallAcks >= kiFloorStallLogThreshold)
 			{
 				LOG(kNetwork, kVerbose, "Server::ClientAckStream FloorStallResolved Client: {} PeakStalledAcks: {} Slots: {}",
-					iClientId, pClient->iPeakConsecutiveStallAcks, uiAckSlotCount);
+					iClientId, pClient->iPeakConsecutiveStallAcks, message.uiSlotCount);
 			}
 			pClient->bFloorStalled = false;
 			pClient->iPeakConsecutiveStallAcks = 0;
 		}
 		pClient->iConsecutiveZeroAdvanceAcks = 0;
 	}
-	else if (uiAckSlotCount > 0)
+	else if (message.uiSlotCount > 0)
 	{
 		++pClient->iConsecutiveZeroAdvanceAcks;
 		pClient->iPeakConsecutiveStallAcks = std::max(pClient->iPeakConsecutiveStallAcks, pClient->iConsecutiveZeroAdvanceAcks);
@@ -115,23 +105,18 @@ void Server::ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClient
 		}
 	}
 
-	// 8B timestamp guaranteed present by the exact-size check; Has() keeps the bounded contract explicit.
-	if (!cursor.Has(8))
-	{
-		return;
-	}
 	// Pipeline RTT: store client timestamp for echo in SendUpdate (monotonically increasing to guard against out-of-order packets)
-	int64_t iClientTimestampNs = ReadInt64(pCursor);
+	int64_t iClientTimestampNs = message.iTimestampNs;
 	if (iClientTimestampNs > pClient->iClientTimestampNs)
 	{
 		pClient->iClientTimestampNs = iClientTimestampNs;
 	}
 }
 
-void Server::ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientSpawnRequest(std::span<const uint8_t> packetData, int64_t iClientId)
 {
-	// 1B type + 1B flags = 2 fixed bytes
-	if (iSize < 2)
+	NetworkMessages::ClientSpawnRequestMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
@@ -142,8 +127,7 @@ void Server::ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iCli
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-	uint8_t uiFlags = ReadUint8(pCursor);
+	uint8_t uiFlags = message.uiFlags;
 
 	ClientRequestFlags_t flags;
 	std::memcpy(&flags, &uiFlags, sizeof(uint8_t));
@@ -155,7 +139,7 @@ void Server::ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iCli
 	mPendingSpawnRequests.push_back({iClientId, flags});
 }
 
-void Server::ClientDesyncReport(const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientDesyncReport(std::span<const uint8_t> packetData, int64_t iClientId)
 {
 	ClientConnection* pClient = FindHandshakenClient(iClientId);
 	if (pClient == nullptr)
@@ -163,8 +147,8 @@ void Server::ClientDesyncReport(const uint8_t* pData, size_t iSize, int64_t iCli
 		return;
 	}
 
-	// 1B type + 8B tick + 4B gridX + 4B gridY + 8B expectedCrc + 8B actualCrc = 33 fixed bytes
-	if (iSize < 33)
+	NetworkMessages::ClientDesyncReportMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
@@ -176,19 +160,17 @@ void Server::ClientDesyncReport(const uint8_t* pData, size_t iSize, int64_t iCli
 	}
 	pClient->desyncReportDeadline = now + kDesyncDiagnosticCooldown;
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	int64_t iTick = ReadInt64(pCursor);
-	GridCoord coord = ReadGridCoord(pCursor);
-	uint64_t uiExpectedCrc = ReadUint64(pCursor);
-	uint64_t uiActualCrc = ReadUint64(pCursor);
+	int64_t iTick = message.iTick;
+	GridCoord coord = message.coord;
+	uint64_t uiExpectedCrc = message.uiExpectedCrc;
+	uint64_t uiActualCrc = message.uiActualCrc;
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
 	LOG(kNetwork, kError, "Server::ClientDesyncReport Frame: {} Grid: ({},{}) Expected: {} Actual: {}", iTick, coord.x, coord.y, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
 }
 
-void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
+void Server::ClientDebugFrameRequest(std::span<const uint8_t> packetData, ENetPeer* pPeer, int64_t iClientId)
 {
 	ClientConnection* pClient = FindHandshakenClient(iClientId);
 	if (pClient == nullptr)
@@ -196,8 +178,8 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 		return;
 	}
 
-	// 1B type + 8B tick + 4B gridX + 4B gridY = 17 fixed bytes
-	if (iSize < 17)
+	NetworkMessages::ClientDebugFrameRequestMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
@@ -211,10 +193,8 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 
 	if constexpr (game::NetworkSessionContract::kbDebugFrames)
 	{
-		const uint8_t* pCursor = pData + 1; // Skip packet type
-
-		int64_t iTick = ReadInt64(pCursor);
-		GridCoord coord = ReadGridCoord(pCursor);
+		int64_t iTick = message.iTick;
+		GridCoord coord = message.coord;
 
 		LOG(kNetwork, kError, "Server::ClientDebugFrameRequest Frame: {} Grid: ({},{})", iTick, coord.x, coord.y);
 		ScopedLogIndent scopedLogIndent;
@@ -254,29 +234,27 @@ void Server::ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPee
 		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
-		// [1B type][8B frame][4B gridX][4B gridY][4B uncompressedSize][4B compressedSize][...LZ4 data]
-		rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerDebugFrame));
-		rWorkbuffer.PushBack<int64_t>(iTick);
-		WriteGridCoord(rWorkbuffer, coord);
-		rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(rFrameData.size()));
-		rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(iCompressedSize));
-		rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(mCompressionBuffer.data()), iCompressedSize));
+		NetworkMessages::ServerDebugFrameMessage response {
+			.iTick = iTick,
+			.coord = coord,
+			.iUncompressedSize = static_cast<int32_t>(rFrameData.size()),
+			.compressedPayload = {.pData = mCompressionBuffer.data(), .iSize = static_cast<int32_t>(iCompressedSize)},
+		};
+		NetworkMessages::Write(rWorkbuffer, response);
 
 		NetworkManager::SendPacket(pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 	}
 }
 
-void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
+void Server::ClientHello(std::span<const uint8_t> packetData, ENetPeer* pPeer, int64_t iClientId)
 {
-	// 1B type + 4B protocolVersion + 8B frameVersion + 8B packIntegrityToken = 21 minimum bytes
-	if (iSize < 21)
+	NetworkMessages::ClientHelloMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	uint32_t uiClientProtocolVersion = ReadUint32(pCursor);
+	uint32_t uiClientProtocolVersion = message.uiProtocolVersion;
 	if (uiClientProtocolVersion != kuiProtocolVersion)
 	{
 		char pcMessage[256] {};
@@ -289,7 +267,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 		return;
 	}
 
-	int64_t iClientFrameVersion = ReadInt64(pCursor);
+	int64_t iClientFrameVersion = message.iFrameVersion;
 	if (iClientFrameVersion != game::NetworkSessionContract::GetFrameVersion())
 	{
 		char pcMessage[256] {};
@@ -302,7 +280,7 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 		return;
 	}
 
-	common::crc_t clientPackIntegrityToken = ReadUint64(pCursor);
+	common::crc_t clientPackIntegrityToken = message.packIntegrityToken;
 	common::crc_t serverPackIntegrityToken = gpFileManager->GetPackIntegrityToken();
 	if (clientPackIntegrityToken != serverPackIntegrityToken)
 	{
@@ -316,35 +294,16 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 		return;
 	}
 
-	// Read build config string (null-terminated, variable length)
-	size_t iConfigOffset = static_cast<size_t>(pCursor - pData);
-	size_t iConfigMaxLength = 0;
-	for (size_t i = iConfigOffset; i < iSize; ++i)
-	{
-		++iConfigMaxLength;
-		if (pData[i] == '\0')
-		{
-			break;
-		}
-	}
 	char pcClientConfig[64] = {};
-	size_t iCopyLength = std::min(iConfigMaxLength, sizeof(pcClientConfig) - 1);
-	std::memcpy(pcClientConfig, pCursor, iCopyLength);
-	pCursor += iConfigMaxLength;
+	size_t iCopyLength = std::min(message.buildConfig.size(), sizeof(pcClientConfig) - 1);
+	std::memcpy(pcClientConfig, message.buildConfig.data(), iCopyLength);
 
 	if (std::strcmp(pcClientConfig, kpcBuildConfigName) != 0)
 	{
 		LOG(kNetwork, kWarning, "Server::ClientHello Client {} build config mismatch: server is {}, client is {}", iClientId, kpcBuildConfigName, pcClientConfig);
 	}
 
-	// Read client GUID (16 bytes after config string)
-	ClientGuid clientGuid {};
-	size_t iGuidOffset = static_cast<size_t>(pCursor - pData);
-	if (iGuidOffset + 16 <= iSize)
-	{
-		clientGuid.uiHigh = ReadUint64(pCursor);
-		clientGuid.uiLow = ReadUint64(pCursor);
-	}
+	ClientGuid clientGuid = message.bHasGuid ? message.guid : ClientGuid {};
 
 	// Reject a Hello for a client with no server-side connection state (never accept a ghost).
 	ClientConnection* pClient = FindClient(iClientId);
@@ -382,17 +341,15 @@ void Server::ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, in
 	mrSessionRuntime.mrSession.SendTimespeedToNewClient(pPeer);
 }
 
-void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientSubscribe(std::span<const uint8_t> packetData, int64_t iClientId)
 {
-	// 1B type + 4B gridX + 4B gridY = 9 fixed bytes
-	if (iSize < 9)
+	NetworkMessages::ClientSubscribeMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	GridCoord coord = ReadGridCoord(pCursor);
+	GridCoord coord = message.coord;
 
 	ClientConnection* pClient = FindHandshakenClient(iClientId);
 	if (pClient == nullptr)
@@ -458,18 +415,16 @@ void Server::ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClient
 	}
 }
 
-void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId)
+void Server::ClientUnsubscribe(std::span<const uint8_t> packetData, int64_t iClientId)
 {
-	// [1B type][1B slot][2B epoch]
-	if (iSize != 4)
+	NetworkMessages::ClientUnsubscribeMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
 	{
 		return;
 	}
 
-	const uint8_t* pCursor = pData + 1; // Skip packet type
-
-	uint8_t uiSlotIndex = ReadUint8(pCursor);
-	uint16_t uiEpoch = ReadUint16(pCursor);
+	uint8_t uiSlotIndex = message.uiSlotIndex;
+	uint16_t uiEpoch = message.uiEpoch;
 
 	ClientConnection* pClient = FindClient(iClientId);
 	if (pClient == nullptr)
@@ -487,11 +442,21 @@ void Server::ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClie
 		LOG(kNetwork, kDebug, "Server::ClientUnsubscribe Client: {} Slot: {} Coord: ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);
 	}
 
-	SendSimplePacket(pClient->pPeer, PacketType::kServerUnsubscribeAck, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, uiSlotIndex);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+	NetworkMessages::ServerUnsubscribeAckMessage response {.uiSlotIndex = uiSlotIndex};
+	NetworkMessages::Write(rWorkbuffer, response);
+	NetworkManager::SendPacket(pClient->pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
-void Server::ClientResyncRequest(int64_t iClientId)
+void Server::ClientResyncRequest(std::span<const uint8_t> packetData, int64_t iClientId)
 {
+	NetworkMessages::ClientResyncRequestMessage message {};
+	if (!NetworkMessages::Read(packetData, message))
+	{
+		return;
+	}
+
 	ClientConnection* pClient = FindHandshakenClient(iClientId);
 	if (pClient == nullptr)
 	{

@@ -162,23 +162,13 @@ function Initialize-WorktreeCliLedger($Identity, [switch] $LegacySessionsClosed)
 
 function Register-WorktreeCliSession {
 	[CmdletBinding()] param([string] $RepositoryRoot, [string] $Owner = [guid]::NewGuid().ToString(), [string] $Label, [string] $Worktree,
-		[int] $WaitSeconds = $script:DefaultWaitSeconds, [switch] $LegacySessionsClosed, [string] $BootstrapExecutable)
+		[int] $WaitSeconds = $script:DefaultWaitSeconds, [switch] $LegacySessionsClosed)
 	$identity = Get-WorktreeCliRepositoryIdentity $RepositoryRoot
 	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
 	do {
 		$result = Invoke-LedgerTransition $identity {
 			param($ledger)
 			if ($null -eq $ledger) { $ledger = Initialize-WorktreeCliLedger $identity -LegacySessionsClosed:$LegacySessionsClosed }
-			$bootstrapMissing = -not [string]::IsNullOrWhiteSpace($BootstrapExecutable) -and -not (Test-Path -LiteralPath $BootstrapExecutable -PathType Leaf)
-			if ($bootstrapMissing) {
-				if ($null -eq $ledger.maintenance -and @($ledger.sessions).Count -eq 0) {
-					$ledger.maintenance = New-Claim $Owner 'wrapper bootstrap' $identity.Repository $Worktree
-					Write-WorktreeCliLedger $identity $ledger
-					return 'maintenance'
-				}
-				Write-Host 'Waiting for elected WorktreeCli bootstrap maintenance to complete.'
-				return $null
-			}
 			if ($null -eq $ledger.maintenance) {
 				if (@($ledger.sessions | Where-Object { $_.owner -eq $Owner }).Count -ne 0) { throw "WorktreeCli session owner '$Owner' already exists." }
 				$ledger.sessions = @($ledger.sessions) + (New-Claim $Owner $Label $identity.Repository $Worktree)
@@ -297,7 +287,6 @@ function Restore-WorktreeCliSession {
 		[Parameter(Mandatory)][string] $Worktree,
 		[int] $WaitSeconds = $script:DefaultWaitSeconds,
 		[switch] $LegacySessionsClosed,
-		[string] $BootstrapExecutable,
 		[scriptblock] $BeforeAdmission,
 		[scriptblock] $BeforeClaimWrite
 	)
@@ -322,16 +311,9 @@ function Restore-WorktreeCliSession {
 		$admissionLease = if ($null -eq $admission -or $admission.PSObject.Properties.Name -cnotcontains 'Lease') { $null } else { $admission.Lease }
 		try {
 			if ($null -ne $BeforeClaimWrite) { & $BeforeClaimWrite }
-		$bootstrapMissing = -not [string]::IsNullOrWhiteSpace($BootstrapExecutable) -and -not (Test-Path -LiteralPath $BootstrapExecutable -PathType Leaf)
-		if ($bootstrapMissing) {
-			if (@($ledger.sessions).Count -ne 0) { throw 'Other live WorktreeCli sessions block wrapper bootstrap reattach.' }
-			$ledger.maintenance = New-Claim $Owner 'wrapper bootstrap' $identity.Repository $expectedWorktree
+			$ledger.sessions = @($ledger.sessions) + (New-Claim $Owner $Label $identity.Repository $expectedWorktree)
 			Write-WorktreeCliLedger $identity $ledger
-			return [pscustomobject]@{ Mode = 'maintenance'; AdmissionProof = $admissionProof }
-		}
-		$ledger.sessions = @($ledger.sessions) + (New-Claim $Owner $Label $identity.Repository $expectedWorktree)
-		Write-WorktreeCliLedger $identity $ledger
-		return [pscustomobject]@{ Mode = 'session'; AdmissionProof = $admissionProof }
+			return [pscustomobject]@{ Mode = 'session'; AdmissionProof = $admissionProof }
 		}
 		finally { if ($null -ne $admissionLease) { $admissionLease.ReceiptStream.Dispose(); $admissionLease.IntegrityStream.Dispose() } }
 	} $deadline

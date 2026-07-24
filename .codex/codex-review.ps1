@@ -2,18 +2,18 @@
 .SYNOPSIS
 	Run a Broken Engine review skill on Codex (Sol) headless and capture its findings.
 
-	Claude Code falls back here when Fable is unavailable or over limit: it runs a delegated
-	reviewer/auditor role on Codex/Sol instead of Fable. Codex never invokes this — under the
-	Fable->Sol mapping it is already Sol. Driven by the /codex-review skill, which owns the fallback
-	trigger.
+	Primary Claude Code reviewer route: it runs a delegated reviewer/auditor role on Codex/Sol.
+	Driven by the /codex-review skill, which on failure falls back to the Fable reviewer subagent,
+	then Opus. Codex never invokes this — under the Fable->Sol mapping it is already Sol.
 
 .NOTES
 	Auth/billing: Codex uses ChatGPT sign-in by default -> ChatGPT subscription quota, NOT metered
 	OpenAI API credits (verify with `codex login status`). The wrapper refuses an inherited
 	OPENAI_API_KEY so the child cannot bill the API instead.
 
-	Exit codes: passes through Codex's exit code; 127 if the codex CLI is not found (the driver
-	treats any non-zero as CODEX-UNAVAILABLE and runs the role on Opus instead).
+	Exit codes: passes through Codex's exit code; 126 if an inherited OPENAI_API_KEY is refused,
+	127 if the codex CLI is not found (the driver treats any non-zero as CODEX-UNAVAILABLE and the
+	skill falls back to the Fable reviewer subagent, then Opus).
 #>
 param(
 	[Parameter(Mandatory)][string] $Worktree,    # session worktree checkout to review in (codex -C)
@@ -51,7 +51,7 @@ try
 		--sandbox read-only `
 		-C $Worktree `
 		-m gpt-5.6-sol `
-		-c 'model_reasoning_effort="medium"' `
+		-c 'model_reasoning_effort="high"' `
 		--ephemeral `
 		-o $temporaryOutput `
 		-

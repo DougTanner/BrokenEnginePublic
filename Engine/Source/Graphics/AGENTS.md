@@ -6,7 +6,8 @@ Client-only multi-pass Vulkan renderer. `gpGraphics` owns renderer-wide creation
 
 - Frames submit Global, Main, and ImGui work before present. The frame boundary is between Main submission and the next acquire.
 - Global and Main command buffers are recorded once and rebuilt only by the recreation pipeline. Per-frame variation belongs in host-visible buffers, descriptors, and indirect commands; resources discovered within existing capacity must not depend on a re-record.
-- The post-fence-wait portion of `RenderGlobal` is the descriptor-patch window. Island eviction, texture adoption, and restoration drain all framebuffer fences only on churn frames so descriptor writes cannot race in-flight frames.
+- `RenderGlobal` pre-scans descriptor churn. When island eviction, lazy adoption, or restoration is pending, it drains every framebuffer fence, opens the bindless write epoch, then performs those mutations; a completion that races the scan waits for the next frame. Descriptor writes must not race in-flight samplers.
+- Texture-adoption acquire barriers are single-publication work: clear prior publication before the churn scan, and let only a fresh adoption republish barriers for Global submission. An idle frame must not replay prior barriers.
 - Destroy tiers are monotonic within a frame. Selective texture, sampler, command-buffer, pipeline, swapchain, and surface rebuilds preserve lower-tier resources; full teardown waits for uploads and device work before destroying dependencies.
 - A zero-area swapchain extent defers swapchain-tier recreation. The render loop skips submission, retries creation at sim-tick cadence, and acquires again only after recreation succeeds; surface-loss recovery remains a full recreate.
 - Every source in this subtree is whole-file `BT_CLIENT`-guarded and client-project-only. Shared simulation code that touches client graphics state needs its own `BT_CLIENT` guard.

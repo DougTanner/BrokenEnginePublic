@@ -288,11 +288,9 @@ void WriteCombinedSamplers(const DescriptorInfo& rDescriptorInfo, VkWriteDescrip
 
 // Register combined image sampler bindings for deferred texture and sampler descriptor updates.
 // These plant raw Pipeline* back-references into gpTextureManager->mTextureDescriptors that are
-// cleared ONLY by ClearTextureBindings() at whole-PipelineManager rebuild (PipelineManager.cpp) —
-// Pipeline::Destroy does not unregister. This is why pipelines may only be (re)created during a full
-// PipelineManager reconstruction: any out-of-rebuild create would duplicate registrations / leave
-// dangling ones.
-void RegisterCombinedSamplerBindings(Pipeline& rPipeline, const DescriptorInfo& rDescriptorInfo, uint32_t uiBinding, int64_t iRegisterBinding)
+// symmetrically unregistered by Pipeline::Destroy. A whole-PipelineManager ClearTextureBindings()
+// remains defensive; rebuilt bindless consumers replay registrations for live island slots.
+void RegisterCombinedSamplerBindings(Pipeline& rPipeline, const DescriptorInfo& rDescriptorInfo, int64_t iRegisterBinding)
 {
 	if (rDescriptorInfo.textureCrc != 0)
 	{
@@ -315,9 +313,7 @@ void RegisterCombinedSamplerBindings(Pipeline& rPipeline, const DescriptorInfo& 
 			// weight (never patched post-boot). Sampler recreation reads through the live
 			// array pointer (see TextureDescriptors::RewriteSamplerDescriptors), so no stale
 			// CRC-0 snapshot is recorded here.
-			ASSERT(PipelineDescriptorWriter::BindingExistsInShaderLayout(rPipeline, uiBinding));
-			gpTextureManager->mTextureDescriptors.mBindlessArrayConsumers.try_emplace(rDescriptorInfo.ppTextures).first->second.push_back(
-				{&rPipeline, iRegisterBinding, rDescriptorInfo.flags, rDescriptorInfo.iCount});
+			gpTextureManager->mTextureDescriptors.RegisterBindlessArrayConsumer(rDescriptorInfo.ppTextures, &rPipeline, iRegisterBinding, rDescriptorInfo.flags, rDescriptorInfo.iCount);
 		}
 		else
 		{
@@ -558,7 +554,7 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline)
 
 				if (rDescriptorInfo.flags & kCombinedSamplers && ShouldRegisterBinding(rPipeline, iFramebuffer, uiBinding))
 				{
-					RegisterCombinedSamplerBindings(rPipeline, rDescriptorInfo, uiBinding, iRegisterBinding);
+					RegisterCombinedSamplerBindings(rPipeline, rDescriptorInfo, iRegisterBinding);
 				}
 			}
 			else

@@ -24,36 +24,32 @@ Assert-WorktreeCliSessionOwner -RepositoryRoot $root -Owner $owner
 
 $worktreeCliOutput = Join-Path $root 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
 $agentHarnessOutput = Join-Path $root 'Tools\AgentHarness\Platforms\VisualStudio2026\Output'
-foreach ($output in @($worktreeCliOutput, $agentHarnessOutput)) {
+$thirdPartyOutput = Join-Path $root 'ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output'
+foreach ($output in @($worktreeCliOutput, $agentHarnessOutput, $thirdPartyOutput)) {
 	$outputItem = Get-Item -LiteralPath $output -Force -ErrorAction SilentlyContinue
-	if ($null -ne $outputItem -and (-not $outputItem.PSIsContainer -or ($outputItem.Attributes -band [IO.FileAttributes]::ReparsePoint))) { throw "Primary AgentTools Output must be an ordinary directory: '$output'." }
+	if ($null -ne $outputItem -and (-not $outputItem.PSIsContainer -or ($outputItem.Attributes -band [IO.FileAttributes]::ReparsePoint))) { throw "Primary shared Output must be an ordinary directory: '$output'." }
 }
 $worktreeCli = Join-Path $worktreeCliOutput 'WorktreeCli.exe'
 $agentHarness = Join-Path $agentHarnessOutput 'AgentHarness.exe'
 $stampPath = Join-Path $worktreeCliOutput 'AgentToolsSourceStamp.txt'
+$capabilityScript = Join-Path $PSScriptRoot 'Test-AgentToolsCapabilities.ps1'
 function Get-AgentToolsSourceStamp {
-	# The stamp check is warning-only; a rev-parse failure must never block session start.
+	# The stamp records built-source provenance only; a rev-parse failure must never block the
+	# build, so on failure the stamp is simply left unwritten.
 	try { return (@(Invoke-AgentGit @('-C', $root, 'rev-parse', 'HEAD:Tools/WorktreeCli', 'HEAD:Tools/AgentHarness', 'HEAD:Tools/ToolCommon')) -join "`n") }
 	catch { return $null }
 }
-if ((Test-Path -LiteralPath $worktreeCli -PathType Leaf) -and (Test-Path -LiteralPath $agentHarness -PathType Leaf)) {
-	& (Join-Path $PSScriptRoot 'Test-AgentToolsCapabilities.ps1') -WorktreeCliExecutable $worktreeCli -AgentHarnessExecutable $agentHarness | Out-Null
-	$currentStamp = Get-AgentToolsSourceStamp
-	if ($null -eq $currentStamp) {
-		Write-Warning "Unable to compute the AgentTools source stamp from primary HEAD, so Tools source drift cannot be checked."
+
+# Never compile uncertified working-tree bytes into the shared binaries: if the primary has
+# uncommitted Tools/ThirdParty changes, skip all builds and start on the existing binaries.
+$dirty = @(Invoke-AgentGit @('-C', $root, 'status', '--porcelain', '--untracked-files=all', '--', 'Tools', 'ThirdParty'))
+if ($dirty.Count -ne 0) {
+	Write-Warning "Primary has uncommitted changes under Tools/ or ThirdParty/, so shared AgentTools and ThirdParty binaries were NOT rebuilt: $($dirty -join '; ')."
+	if (-not (Test-Path -LiteralPath $worktreeCli -PathType Leaf) -or -not (Test-Path -LiteralPath $agentHarness -PathType Leaf)) {
+		throw "Primary AgentTools executables are missing and uncommitted Tools/ThirdParty changes block a rebuild. Commit or stash those changes, then retry."
 	}
-	elseif (-not (Test-Path -LiteralPath $stampPath -PathType Leaf)) {
-		Write-Warning "Prebuilt AgentTools have no source stamp, so Tools source drift cannot be detected. Refresh via candidate production and session-landing promotion: .agents\skills\compile\scripts\New-AgentToolsCandidate.ps1 then .agents\skills\finalize-changes\scripts\Invoke-AgentToolsPromotion.ps1."
-	}
-	else {
-		$recordedStamp = $null
-		try { $recordedStamp = [IO.File]::ReadAllText($stampPath).Trim().Replace("`r", '') }
-		catch { Write-Warning "Unable to read the AgentTools source stamp '$stampPath', so Tools source drift cannot be checked." }
-		if ($null -ne $recordedStamp -and $recordedStamp -cne $currentStamp) {
-			Write-Warning "Prebuilt AgentTools are STALE: source under Tools/WorktreeCli, Tools/AgentHarness, or Tools/ToolCommon changed since they were built. Rebuild via candidate production and session-landing promotion: .agents\skills\compile\scripts\New-AgentToolsCandidate.ps1 then .agents\skills\finalize-changes\scripts\Invoke-AgentToolsPromotion.ps1."
-		}
-	}
-	Write-Host "Primary AgentTools already available at '$worktreeCli' and '$agentHarness'."
+	& $capabilityScript -WorktreeCliExecutable $worktreeCli -AgentHarnessExecutable $agentHarness | Out-Null
+	Write-Host "Skipped AgentTools bootstrap builds (dirty primary); using existing binaries at '$worktreeCli' and '$agentHarness'."
 	return
 }
 
@@ -67,27 +63,87 @@ if (-not (Test-Path -LiteralPath $msBuild -PathType Leaf)) {
 	if (-not (Test-Path -LiteralPath $msBuild -PathType Leaf)) { throw "MSBuild is missing: '$msBuild'." }
 }
 
-$solutions = @(
-	(Join-Path $root 'Tools\WorktreeCli\Platforms\VisualStudio2026\WorktreeCli.sln'),
-	(Join-Path $root 'Tools\AgentHarness\Platforms\VisualStudio2026\AgentHarness.sln')
-)
-foreach ($solution in $solutions) { if (-not (Test-Path -LiteralPath $solution -PathType Leaf)) { throw "AgentTools solution is missing: '$solution'." } }
-$maintenance = $null
-$sessionWorktree = $env:BROKEN_ENGINE_WORKTREECLI_SESSION_WORKTREE
-if ([string]::IsNullOrWhiteSpace($sessionWorktree)) { throw 'AgentTools bootstrap requires wrapper session worktree identity.' }
+$worktreeCliSolution = Join-Path $root 'Tools\WorktreeCli\Platforms\VisualStudio2026\WorktreeCli.sln'
+$agentHarnessSolution = Join-Path $root 'Tools\AgentHarness\Platforms\VisualStudio2026\AgentHarness.sln'
+$thirdPartySolution = Join-Path $root 'ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.sln'
+foreach ($solution in @($worktreeCliSolution, $agentHarnessSolution, $thirdPartySolution)) {
+	if (-not (Test-Path -LiteralPath $solution -PathType Leaf)) { throw "Bootstrap solution is missing: '$solution'." }
+}
+# DataPacker is intentionally kept out of the hard-fail existence check above: its prebuild is
+# best-effort, so a missing solution warns and skips rather than failing session start.
+$dataPackerSolution = Join-Path $root 'DataPacker\Platforms\VisualStudio2026\DataPacker.sln'
+$dataPackerOutput = Join-Path $root 'DataPacker\Platforms\VisualStudio2026\Output'
+$dataPackerExe = Join-Path $dataPackerOutput 'DataPacker.exe'
+$dataPackerStampPath = Join-Path $dataPackerOutput 'DataPackerPrebuildStamp.txt'
+
+$commonBuildArguments = @('/p:Platform=x64', '/p:EnableClangTidyCodeAnalysis=false', '/p:RunCodeAnalysis=false', '/verbosity:minimal')
+function Invoke-BootstrapBuild([string] $Solution, [string] $Configuration) {
+	$exitCode = Invoke-WorktreeCliTrackedProcess -Executable $msBuild -ArgumentList (@($Solution, "/p:Configuration=$Configuration") + $commonBuildArguments) -WorkingDirectory $root
+	if ($exitCode -ne 0) { throw "AgentTools bootstrap build failed for '$Solution' with exit code $exitCode. If another live worktree session is holding these executables, wrap up active worktree sessions and retry." }
+}
+
+# PC-global mutex scoped like the session ledger mutex (Global\ + SID + repo hash) so concurrent
+# always-rebuild bootstraps serialize; an exclusive maintenance claim would be refused while any
+# peer session lives. The distinct AgentToolsBootstrap suffix keeps ledger transitions unblocked.
+$bootstrapMutexName = "$((Get-WorktreeCliRepositoryIdentity $root).MutexName)_AgentToolsBootstrap"
+$mutex = [Threading.Mutex]::new($false, $bootstrapMutexName)
+$held = $false
 try {
-	if ($env:BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE -eq 'maintenance') { $maintenance = [pscustomobject]@{ Owner = $owner } }
-	else { $maintenance = Enter-WorktreeCliMaintenance -RepositoryRoot $root -Owner $owner -Label 'wrapper bootstrap' -Worktree $root -WaitSeconds $WaitSeconds -UpgradeSession }
-	foreach ($solution in $solutions) {
-		$exitCode = Invoke-WorktreeCliTrackedProcess -Executable $msBuild -ArgumentList @($solution, '/p:Configuration=Release', '/p:Platform=x64', '/p:EnableClangTidyCodeAnalysis=false', '/p:RunCodeAnalysis=false', '/verbosity:minimal') -WorkingDirectory $root
-		if ($exitCode -ne 0) { throw "AgentTools bootstrap build failed for '$solution' with exit code $exitCode." }
-	}
-	& (Join-Path $PSScriptRoot 'Test-AgentToolsCapabilities.ps1') -WorktreeCliExecutable $worktreeCli -AgentHarnessExecutable $agentHarness | Out-Null
+	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
+	$milliseconds = [Math]::Max(0, [Math]::Min([int]::MaxValue, [Math]::Ceiling(($deadline - [DateTime]::UtcNow).TotalMilliseconds)))
+	try { $held = $mutex.WaitOne([int]$milliseconds) } catch [Threading.AbandonedMutexException] { $held = $true }
+	if (-not $held) { throw "Timed out after $WaitSeconds seconds waiting for the AgentTools bootstrap mutex. If another live worktree session is holding these executables, wrap up active worktree sessions and retry." }
+
+	Invoke-BootstrapBuild $worktreeCliSolution 'Release'
+	Invoke-BootstrapBuild $agentHarnessSolution 'Release'
+	& $capabilityScript -WorktreeCliExecutable $worktreeCli -AgentHarnessExecutable $agentHarness | Out-Null
 	$builtStamp = Get-AgentToolsSourceStamp
 	if ($null -ne $builtStamp) { [IO.File]::WriteAllText($stampPath, $builtStamp + "`n") }
-	Write-Host "Built primary AgentTools at '$worktreeCli' and '$agentHarness'."
+	# Snapshot DataPacker's build inputs before the ThirdParty Release lib it links is (re)built just
+	# below, so the post-build re-check covers a landing or user VS build that advances any consumed
+	# input during the prebuild. Best-effort like the prebuild: a snapshot failure disables it.
+	$dataPackerPreTrees = $null
+	try {
+		$dataPackerPreTrees = @(Invoke-AgentGit @('-C', $root, 'rev-parse', 'HEAD:DataPacker', 'HEAD:Common', 'HEAD:ThirdParty'))
+		$dataPackerPreDirty = @(Invoke-AgentGit @('-C', $root, 'status', '--porcelain', '--untracked-files=all', '--', 'DataPacker', 'Common', 'ThirdParty'))
+	}
+	catch { Write-Warning "Could not snapshot DataPacker prebuild inputs, so the prebuild was skipped: $($_.Exception.Message)"; $dataPackerPreTrees = $null }
+	foreach ($configuration in @('Debug', 'Profile', 'Release')) { Invoke-BootstrapBuild $thirdPartySolution $configuration }
+	foreach ($configuration in @('Debug', 'Profile', 'Release')) {
+		$library = Join-Path $thirdPartyOutput "ThirdParty.$configuration.lib"
+		if (-not (Test-Path -LiteralPath $library -PathType Leaf) -or (Get-Item -LiteralPath $library).Length -eq 0) { throw "Required primary ThirdParty library is missing or empty after bootstrap: '$library'." }
+	}
+	# Best-effort DataPacker Release prebuild so a new session worktree seeds its Output\DataPacker.exe
+	# by verified copy (Build-WorktreeDataPacker.ps1) instead of compiling from scratch. It links the
+	# ThirdParty Release lib built just above, and runs inside this mutex so the exe and its stamp stay
+	# atomic against peer bootstraps. Unlike the hard-fail AgentTools builds it only warns on failure:
+	# the worktree-local fallback reproduces any real failure. The mutex excludes peer bootstraps but
+	# not a landing or user VS build, so the stamp is written only when the before and after snapshots
+	# (the three DataPacker/Common/ThirdParty tree hashes plus a clean DataPacker/Common/ThirdParty
+	# state) are identical. The pre-snapshot is captured above, before the ThirdParty lib build, so it
+	# covers every input DataPacker consumes; the pre-mutex Tools/ThirdParty dirty early-return (lines
+	# 45-54) plus this scoped gate keep the normal path clean.
+	try {
+		if ($null -ne $dataPackerPreTrees -and $dataPackerPreDirty.Count -eq 0) {
+			Invoke-BootstrapBuild $dataPackerSolution 'Release'
+			if (-not (Test-Path -LiteralPath $dataPackerExe -PathType Leaf)) { throw "DataPacker executable is missing after the prebuild: '$dataPackerExe'." }
+			$dataPackerBytes = [IO.File]::ReadAllBytes($dataPackerExe)
+			$dataPackerHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($dataPackerBytes)).ToLowerInvariant()
+			$dataPackerPostTrees = @(Invoke-AgentGit @('-C', $root, 'rev-parse', 'HEAD:DataPacker', 'HEAD:Common', 'HEAD:ThirdParty'))
+			$dataPackerPostDirty = @(Invoke-AgentGit @('-C', $root, 'status', '--porcelain', '--untracked-files=all', '--', 'DataPacker', 'Common', 'ThirdParty'))
+			if (($dataPackerPreTrees -join "`n") -cne ($dataPackerPostTrees -join "`n") -or $dataPackerPostDirty.Count -ne 0) {
+				Write-Warning "Primary DataPacker/Common/ThirdParty changed during the DataPacker prebuild, so the stamp was not written; new worktrees will build DataPacker locally."
+			}
+			else {
+				$dataPackerStamp = ($dataPackerPreTrees + $dataPackerHash + $dataPackerBytes.Length) -join "`n"
+				[IO.File]::WriteAllText($dataPackerStampPath, $dataPackerStamp + "`n")
+			}
+		}
+		elseif ($null -ne $dataPackerPreTrees) {
+			Write-Warning "Primary has uncommitted changes under DataPacker/, Common/, or ThirdParty/, so the DataPacker Release prebuild was skipped: $($dataPackerPreDirty -join '; ')."
+		}
+	}
+	catch { Write-Warning "DataPacker Release prebuild failed, so new worktrees will build DataPacker locally: $($_.Exception.Message)" }
+	Write-Host "Built primary AgentTools and ThirdParty at '$worktreeCliOutput', '$agentHarnessOutput', and '$thirdPartyOutput'."
 }
-finally {
-	if ($null -ne $maintenance) { Exit-WorktreeCliMaintenance -RepositoryRoot $root -Owner $owner -DowngradeToSession -Label 'wrapper session' -Worktree $sessionWorktree }
-	if ($null -ne $maintenance) { $env:BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE = 'session' }
-}
+finally { if ($held) { $mutex.ReleaseMutex() }; $mutex.Dispose() }

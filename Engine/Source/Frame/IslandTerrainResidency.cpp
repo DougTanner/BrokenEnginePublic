@@ -106,11 +106,6 @@ namespace
 int64_t IslandTerrain::FirstMintTextureSlot(common::crc_t islandCrc, IslandTemplate& rTemplate, const common::crc_t (&textureCrcs)[4], std::string_view name)
 {
 	// First-mint. Slot 0 stays the neutral placeholder anchor (no real island ever maps there).
-	// Slot N points at the matching mTextureMap entries directly — their mVkImageView starts as
-	// the white placeholder and is swapped to the real view by AdoptTransferredImage when each
-	// chunk reaches kReady. Per-slot RegisterTextureBinding hooks each CRC into the existing
-	// UpdateDescriptorsForTexture pipeline so the descriptor write follows the view swap (same
-	// pattern as water normals / other bindless arrays).
 	// Reuse a slot reclaimed by a prior eviction before extending the high-water mark, so churn
 	// (e.g. the menu island browser cycling repeatedly) reuses indices rather than exhausting the
 	// fixed kiMaxIslands-sized descriptor arrays.
@@ -131,51 +126,7 @@ int64_t IslandTerrain::FirstMintTextureSlot(common::crc_t islandCrc, IslandTempl
 	// mElevationTexture. Descriptor patching deferred to RestorationSweep (safety window).
 	CreateElevationTextureFromHeightmap(rTemplate, name);
 
-	Texture* pColor = &gpTextureManager->mTextureMap.at(textureCrcs[0]);
-	Texture* pNormals = &gpTextureManager->mTextureMap.at(textureCrcs[1]);
-	Texture* pAmbientOcclusion = &gpTextureManager->mTextureMap.at(textureCrcs[2]);
-	Texture* pMasks = &gpTextureManager->mTextureMap.at(textureCrcs[3]);
-
-	gpTextureManager->mRenderTargetTextures.mElevationTextures.at(iSlot) = &rTemplate.mElevationTexture;
-	gpTextureManager->mRenderTargetTextures.mColorTextures.at(iSlot) = pColor;
-	gpTextureManager->mRenderTargetTextures.mNormalsTextures.at(iSlot) = pNormals;
-	gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.at(iSlot) = pAmbientOcclusion;
-	gpTextureManager->mRenderTargetTextures.mMasksTextures.at(iSlot) = pMasks;
-
-	// First-mint is infrequent (one per unique islandCrc) but RegisterTextureBinding inserts
-	// into the binding map, which can allocate.
-	//
-	// Source of truth for the (array, consumer-pipelines, binding, sampler) tuple is the
-	// pipeline declarations in PipelineManager.cpp — each DescriptorInfo flagged with
-	// kBindlessArrayConsumer self-registers into TextureDescriptors::mBindlessArrayConsumers
-	// at pipeline-create time, keyed by ppTextures. Here we iterate the per-array consumer
-	// list and register each pipeline under the correct binding key:
-	//   * Elevation: islandCrc (template-owned Texture, no mTextureMap entry; patched by
-	//     RestorationSweep's UpdateArrayBindingsForKey).
-	//   * Color / Normals / AO / Masks: per-chunk CRCs (chunk Textures live in mTextureMap;
-	//     each is patched by UpdateDescriptorsForTexture when its chunk reaches kReady).
-	{
-		ScopedSuppressAllocationTracking suppress;
-		TextureDescriptors& rTextureDescriptors = gpTextureManager->mTextureDescriptors;
-		auto Register = [&](common::crc_t bindingKey, Texture** ppArray)
-		{
-			// find() + ASSERT instead of operator[]: a missing kBindlessArrayConsumer flag on the
-			// pipeline declaration would otherwise silently insert an empty vector here and drop
-			// the registration — precisely the bug class commit 09fb128 introduced and this design
-			// exists to prevent.
-			auto it = rTextureDescriptors.mBindlessArrayConsumers.find(ppArray);
-			ASSERT(it != rTextureDescriptors.mBindlessArrayConsumers.end());
-			for (const TextureDescriptors::BindlessArrayConsumer& rConsumer : it->second)
-			{
-				rTextureDescriptors.RegisterTextureBinding({.crc = bindingKey, .pPipeline = rConsumer.pPipeline, .iBinding = rConsumer.iBinding, .samplerFlags = rConsumer.samplerFlags, .ppTextures = ppArray, .iCount = rConsumer.iCount, .iArrayIndex = iSlot});
-			}
-		};
-		Register(islandCrc,      gpTextureManager->mRenderTargetTextures.mElevationTextures.data());
-		Register(textureCrcs[0], gpTextureManager->mRenderTargetTextures.mColorTextures.data());
-		Register(textureCrcs[1], gpTextureManager->mRenderTargetTextures.mNormalsTextures.data());
-		Register(textureCrcs[2], gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data());
-		Register(textureCrcs[3], gpTextureManager->mRenderTargetTextures.mMasksTextures.data());
-	}
+	gpTextureManager->mTextureDescriptors.MintIslandSlot(iSlot, islandCrc, rTemplate.mElevationTexture, textureCrcs);
 
 	// Mesh buffer was created at boot by CreateClientMeshBuffers (record-once CB invariant —
 	// terrain CB binds every template's mesh at record time).
@@ -231,12 +182,9 @@ bool IslandTerrain::AnyEvictionPending() const
 	{
 		return false;
 	}
-	// Mirrors the EvictionSweep skip logic: a template evicts when it owns a real slot, is resident,
-	// has no active references, and its grace window has elapsed.
 	for (const auto& [rCrc, rTemplate] : mIslands)
 	{
-		if (rTemplate.miTextureSlot != 0 && rTemplate.mbGpuResident && rTemplate.miRefCount == 0
-			&& (gpGraphics->muiFrameCounter - rTemplate.muiLastUsedRenderFrame) > kuiGraceRenderFrames)
+		if (IsEvictionPending(rTemplate))
 		{
 			return true;
 		}
@@ -250,32 +198,9 @@ bool IslandTerrain::AnyRestorationPending() const
 	{
 		return false;
 	}
-	// Mirrors the RestorationSweep condition: a non-resident template with a real slot whose 4 chunk
-	// channels have all reached kReady is about to be patched back to its real Texture*s.
 	for (const auto& [rCrc, rTemplate] : mIslands)
 	{
-		if (rTemplate.mbGpuResident || rTemplate.miTextureSlot < 0)
-		{
-			continue;
-		}
-		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(rCrc);
-		common::crc_t residencyCrcs[4] =
-		{
-			rLazyChunk.header.islandHeader.colorsCrc,
-			rLazyChunk.header.islandHeader.normalsCrc,
-			rLazyChunk.header.islandHeader.ambientOcclusionCrc,
-			rLazyChunk.header.islandHeader.masksCrc,
-		};
-		bool bAllReady = true;
-		for (common::crc_t textureCrc : residencyCrcs)
-		{
-			if (gpFileManager->GetLazyChunk(textureCrc).eState.load(std::memory_order_acquire) < ChunkState::kReady)
-			{
-				bAllReady = false;
-				break;
-			}
-		}
-		if (bAllReady)
+		if (IsRestorationPending(rCrc, rTemplate))
 		{
 			return true;
 		}
@@ -283,16 +208,42 @@ bool IslandTerrain::AnyRestorationPending() const
 	return false;
 }
 
+bool IslandTerrain::IsEvictionPending(const IslandTemplate& rTemplate) const
+{
+	return rTemplate.miTextureSlot != 0 && rTemplate.mbGpuResident && rTemplate.miRefCount == 0
+		&& (gpGraphics->muiFrameCounter - rTemplate.muiLastUsedRenderFrame) > kuiGraceRenderFrames;
+}
+
+bool IslandTerrain::IsRestorationPending(common::crc_t islandCrc, const IslandTemplate& rTemplate) const
+{
+	if (rTemplate.mbGpuResident || rTemplate.miTextureSlot < 0)
+	{
+		return false;
+	}
+	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(islandCrc);
+	common::crc_t residencyCrcs[4] =
+	{
+		rLazyChunk.header.islandHeader.colorsCrc,
+		rLazyChunk.header.islandHeader.normalsCrc,
+		rLazyChunk.header.islandHeader.ambientOcclusionCrc,
+		rLazyChunk.header.islandHeader.masksCrc,
+	};
+	for (common::crc_t textureCrc : residencyCrcs)
+	{
+		if (gpFileManager->GetLazyChunk(textureCrc).eState.load(std::memory_order_acquire) < ChunkState::kReady)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 bool IslandTerrain::EvictTemplate(common::crc_t islandCrc, IslandTemplate& rTemplate)
 {
 	// Slot 0 is the neutral placeholder anchor (never adopted by a real island). The guard is
 	// defensive — miNextTextureSlot starts at 1 so no template should ever have slot 0 — but
 	// keep it to document the invariant.
-	if (rTemplate.miTextureSlot == 0 || !rTemplate.mbGpuResident || rTemplate.miRefCount != 0)
-	{
-		return false;
-	}
-	if ((gpGraphics->muiFrameCounter - rTemplate.muiLastUsedRenderFrame) <= kuiGraceRenderFrames)
+	if (!IsEvictionPending(rTemplate))
 	{
 		return false;
 	}
@@ -310,54 +261,20 @@ bool IslandTerrain::EvictTemplate(common::crc_t islandCrc, IslandTemplate& rTemp
 
 	LOG(kGraphics, kVerbose, "Evicting islandCrc={} slot={} (refCount=0, framesSinceUse={})", islandCrc, rTemplate.miTextureSlot, gpGraphics->muiFrameCounter - rTemplate.muiLastUsedRenderFrame);
 
-	// FreeGpuResources destroys the VkImageView, so reset the bindless Set 0 mImageInfos slot
-	// back to the white placeholder (matches the initial fill in TextureManager::Create) before
-	// UpdateTextureArrayDescriptors below writes the array. Otherwise the dangling handle trips
-	// VUID-VkWriteDescriptorSet-descriptorType-02996 at the next descriptor update.
-	TextureDescriptors& rTextureDescriptors = gpTextureManager->mTextureDescriptors;
+	int64_t iSlot = rTemplate.miTextureSlot;
+	// Redirect every live descriptor to placeholders and retire its five generation records before
+	// freeing any image view. A recycled slot cannot observe a destroyed prior occupant this way.
+	gpTextureManager->mTextureDescriptors.EvictIslandSlot(iSlot, islandCrc, evictCrcs);
+
 	for (common::crc_t textureCrc : evictCrcs)
 	{
 		gpTextureManager->mTextureMap.at(textureCrc).FreeGpuResources();
-		rTextureDescriptors.mImageInfos.at(rTextureDescriptors.mImageInfosMap.at(textureCrc)).imageView = gpTextureManager->mWhiteTexture.mVkImageView;
 	}
-
-	int64_t iSlot = rTemplate.miTextureSlot;
-	gpTextureManager->mRenderTargetTextures.mColorTextures.at(iSlot) = gpTextureManager->mRenderTargetTextures.mColorTextures.at(0);
-	gpTextureManager->mRenderTargetTextures.mNormalsTextures.at(iSlot) = gpTextureManager->mRenderTargetTextures.mNormalsTextures.at(0);
-	gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.at(iSlot) = gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.at(0);
-	gpTextureManager->mRenderTargetTextures.mMasksTextures.at(iSlot) = gpTextureManager->mRenderTargetTextures.mMasksTextures.at(0);
-
-	// Elevation participates in eviction too: free the template-owned image and drop the slot to
-	// the elevation placeholder. It has no Set 0 mImageInfos entry, so unlike the 4 channels above
-	// there is no white-image reset — only the Set 1 array pointer. The next AcquireTextureSlot
-	// first-mint (forced by miTextureSlot = -1 below) re-Creates it from the in-memory heightmap.
 	rTemplate.mElevationTexture.FreeGpuResources();
-	gpTextureManager->mRenderTargetTextures.mElevationTextures.at(iSlot) = gpTextureManager->mRenderTargetTextures.mElevationTextures.at(0);
 
-	// The pointer resets above only redirect the slot to the slot-0 placeholders; the per-pipeline
-	// Set-1 array descriptors at iSlot still physically hold the freed island's destroyed
-	// VkImageViews (FreeGpuResources destroyed them, and only Set-0 mImageInfos was reset). A slot
-	// recycled off mFreeTextureSlots renders its new occupant's quad before that occupant's
-	// restoration patch, sampling the destroyed views (VUID-vkCmdDrawIndexed-None-08114 use-after-
-	// free → GPU hang). EvictionSweep runs in RenderGlobal's drained window, so rewrite those
-	// elements now to the placeholder views the pointers were just reset to.
-	rTextureDescriptors.WriteArrayElementFromLive(gpTextureManager->mRenderTargetTextures.mElevationTextures.data(), iSlot);
-	rTextureDescriptors.WriteArrayElementFromLive(gpTextureManager->mRenderTargetTextures.mColorTextures.data(), iSlot);
-	rTextureDescriptors.WriteArrayElementFromLive(gpTextureManager->mRenderTargetTextures.mNormalsTextures.data(), iSlot);
-	rTextureDescriptors.WriteArrayElementFromLive(gpTextureManager->mRenderTargetTextures.mAmbientOcclusionTextures.data(), iSlot);
-	rTextureDescriptors.WriteArrayElementFromLive(gpTextureManager->mRenderTargetTextures.mMasksTextures.data(), iSlot);
-
-	// Reclaim the slot: erase the binding records for all 5 keys (elevation islandCrc + 4 channel
-	// CRCs) so PipelineManager::VerifyAllDescriptorGenerations never observes a snapshot pointing
-	// at a freed image, and return the index to the free-list. Re-mint re-registers fresh records.
 	{
-		// Heap: unordered_map::erase + vector push_back; runs inside RenderGlobal (EvictionSweep).
+		// Heap: free-list growth runs inside RenderGlobal (EvictionSweep).
 		ScopedSuppressAllocationTracking suppress;
-		rTextureDescriptors.UnregisterBindingsForKey(islandCrc);
-		for (common::crc_t textureCrc : evictCrcs)
-		{
-			rTextureDescriptors.UnregisterBindingsForKey(textureCrc);
-		}
 		mFreeTextureSlots.push_back(iSlot);
 	}
 	rTemplate.miTextureSlot = -1;
@@ -376,18 +293,9 @@ void IslandTerrain::EvictionSweep()
 		return;
 	}
 
-	bool bDirty = false;
 	for (auto& [rCrc, rTemplate] : mIslands)
 	{
-		if (EvictTemplate(rCrc, rTemplate))
-		{
-			bDirty = true;
-		}
-	}
-
-	if (bDirty)
-	{
-		gpTextureManager->mTextureDescriptors.UpdateTextureArrayDescriptors();
+		EvictTemplate(rCrc, rTemplate);
 	}
 }
 
@@ -398,48 +306,20 @@ void IslandTerrain::RestorationSweep()
 		return;
 	}
 
-	// Slot pointers are set at AcquireTextureSlot first-mint (and re-set on re-mint after an eviction
-	// reclaimed the slot), so the remaining work here is residency tracking. Color/normals/AO
-	// descriptor writes flow through ProcessPendingTextures' UpdateDescriptorsForTexture path as each
-	// chunk reaches kReady; elevation is patched here on the resident transition because it bypassed
-	// that path.
+	// First-mint assigns the four chunk-backed pointers, while elevation remains at the slot-0
+	// placeholder until this all-four-ready transition. Chunk descriptor writes flow through
+	// ProcessPendingTextures as each channel reaches kReady; RestoreIslandSlot switches elevation.
 	for (auto& [rCrc, rTemplate] : mIslands)
 	{
-		if (rTemplate.mbGpuResident || rTemplate.miTextureSlot < 0)
+		if (IsRestorationPending(rCrc, rTemplate))
 		{
-			continue;
-		}
-
-		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(rCrc);
-		// Elevation has no chunk state — it's template-owned and uploaded once at first-mint —
-		// so residency is gated only on the other 4 channels.
-		common::crc_t residencyCrcs[4] =
-		{
-			rLazyChunk.header.islandHeader.colorsCrc,
-			rLazyChunk.header.islandHeader.normalsCrc,
-			rLazyChunk.header.islandHeader.ambientOcclusionCrc,
-			rLazyChunk.header.islandHeader.masksCrc,
-		};
-
-		bool bAllReady = true;
-		for (common::crc_t textureCrc : residencyCrcs)
-		{
-			ChunkState eState = gpFileManager->GetLazyChunk(textureCrc).eState.load(std::memory_order_acquire);
-			if (eState < ChunkState::kReady)
-			{
-				bAllReady = false;
-				break;
-			}
-		}
-		if (bAllReady)
-		{
-			rTemplate.mbGpuResident = true;
 			// Patch the elevation array binding inside the safety window (RestorationSweep runs in
 			// RenderGlobal post-fence-wait). The Texture's real VkImageView was created at first-mint
 			// but the per-pipeline array descriptor still points at the slot-0 placeholder snapshot
 			// taken at RegisterTextureBinding time. islandCrc was used as the binding key (the
 			// template-owned mElevationTexture has no chunk CRC).
-			gpTextureManager->mTextureDescriptors.UpdateArrayBindingsForKey(rCrc);
+			gpTextureManager->mTextureDescriptors.RestoreIslandSlot(rCrc);
+			rTemplate.mbGpuResident = true;
 			LOG(kGraphics, kVerbose, "Island resident islandCrc={} slot={}", rCrc, rTemplate.miTextureSlot);
 		}
 	}

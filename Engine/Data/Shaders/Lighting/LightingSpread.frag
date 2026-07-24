@@ -82,9 +82,8 @@ void main()
 	// fast zoom-out — whose lagging ramped texels make f4LightingArea cover less than the frustum — naturally expands it
 	// to use more of the texture, then it returns to the cropped steady state as the ramp settles (mirrors the shadow
 	// visible-window crop). A cumulative-reach margin here would exceed the headroom and never crop (full-texture cost).
-	float fMaxReach = max(globalLayout.fSpreadDistanceStart, globalLayout.fSpreadDistanceEnd);
-	float fMarginX = fMaxReach / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x);
-	float fMarginY = fMaxReach / (globalLayout.f4VisibleArea.y - globalLayout.f4VisibleArea.w);
+	float fMarginX = globalLayout.f2SpreadMargin.x;
+	float fMarginY = globalLayout.f2SpreadMargin.y;
 	if (f2ElevTexcoord.x < -fMarginX || f2ElevTexcoord.x > 1.0f + fMarginX || f2ElevTexcoord.y < -fMarginY || f2ElevTexcoord.y > 1.0f + fMarginY)
 	{
 		// Outside the window: carry the accumulation chain forward (raw deposit at pass 0, decayed previous after)
@@ -109,14 +108,14 @@ void main()
 
 	// Height fade: attenuate spread above base height
 	float fElevation = texture(elevationSampler, f2ElevTexcoord).x;
-	float fHeightT = clamp((fElevation - globalLayout.fBaseHeight) / max(globalLayout.fSpreadHeightEndHeight, 0.001f), 0.0f, 1.0f);
+	float fHeightT = clamp((fElevation - globalLayout.fBaseHeight) * globalLayout.fSpreadHeightEndHeightInv, 0.0f, 1.0f);
 	float fHeightFade = pow(fHeightT, globalLayout.fSpreadHeightPower) * globalLayout.fSpreadHeightMultiplier;
 	fSpreadDistance *= 1.0f - fHeightFade;
 	fDecay *= 1.0f - fHeightFade;
 
 	// World-to-texcoord conversion: texcoord 0-1 covers the lighting area
-	float fAspectRatioX = 1.0f / (globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x);
-	float fAspectRatioY = 1.0f / (globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w);
+	float fAspectRatioX = globalLayout.f2LightingAreaExtentInv.x;
+	float fAspectRatioY = globalLayout.f2LightingAreaExtentInv.y;
 
 	f4OutRed = vec4(0.0f);
 	f4OutGreen = vec4(0.0f);

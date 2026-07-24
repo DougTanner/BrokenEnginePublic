@@ -3,6 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "Graphics/Screenshot.h"
+#include "Profile/ProfileManager.h"
 
 #include "Agent/AgentScene.h"
 #include "Game.h"
@@ -314,6 +315,33 @@ struct CaptureCommandState
 	std::optional<nlohmann::json> result;
 };
 
+enum class RenderDocCapturePhase : uint8_t
+{
+	kAwaitRestore,
+	kAwaitCaptures,
+	kAwaitMinimize,
+	kDone,
+};
+
+struct RenderDocCaptureState
+{
+	~RenderDocCaptureState()
+	{
+		// Mirror CaptureCommandState: the deferred-response timeout/discard does not poll again, so restore the
+		// original minimized state on release, cleaning up before AgentCommandServer publishes or exits.
+		if (bRestoreMinimized && ePhase != RenderDocCapturePhase::kDone && IsWindow(hwnd) != FALSE && IsIconic(hwnd) == FALSE)
+		{
+			ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
+		}
+	}
+
+	HWND hwnd = nullptr;
+	RenderDocCapturePhase ePhase = RenderDocCapturePhase::kAwaitCaptures;
+	bool bRestoreMinimized = false;
+	uint32_t uiBaselineCaptures = 0;
+	int64_t iFrames = 1;
+};
+
 template <typename QueueCaptureT>
 void BeginCaptureAndDefer(QueueCaptureT queueCapture)
 {
@@ -442,6 +470,142 @@ void CommandScreenshot(const nlohmann::json& rParams, [[maybe_unused]] nlohmann:
 	{
 		request.uiCaptureToken = uiCaptureToken;
 		engine::gpGraphics->mScreenshotRequest = std::move(request);
+	});
+}
+
+// renderdoc_capture: trigger RenderDoc capture(s) of the upcoming presented frame(s) and return the .rdc path(s).
+// Requires a --renderdoc launch (mpRenderDocApi non-null). Like BeginCaptureAndDefer, an iconic window is temporarily
+// restored for the live present, then re-minimized after RenderDoc serializes every capture. Completes via the
+// deferred-response mechanism once GetNumCaptures() reaches the pre-trigger baseline plus the requested frame count.
+// Schema: {"frames"?:1 (1..8)} -> {"paths":[absolute .rdc paths]}.
+void CommandRenderDocCapture(const nlohmann::json& rParams, [[maybe_unused]] nlohmann::json& rResult)
+{
+	RENDERDOC_API_1_6_0* pRenderDocApi = engine::gpInstanceManager->mpRenderDocApi;
+	if (pRenderDocApi == nullptr)
+	{
+		throw std::runtime_error("RenderDoc API not available (launch the client with --renderdoc)");
+	}
+
+	int64_t iFrames = 1;
+	if (rParams.contains("frames"))
+	{
+		if (!rParams.at("frames").is_number_integer())
+		{
+			throw std::runtime_error("renderdoc_capture 'frames' must be an integer in [1,8]");
+		}
+		iFrames = rParams.at("frames").get<int64_t>();
+		if (iFrames < 1 || iFrames > 8)
+		{
+			throw std::runtime_error("renderdoc_capture 'frames' must be an integer in [1,8]");
+		}
+	}
+
+	HWND hwnd = engine::gpGraphics->mHwnd;
+	bool bRestoreMinimized = IsIconic(hwnd) != FALSE;
+	if (!bRestoreMinimized && engine::gpGraphics->mbSwapchainRecreateDeferred)
+	{
+		// Mirror BeginCaptureAndDefer's fast-fail: a deferred swapchain recreate skips present, so a trigger on a
+		// non-minimized window with no live target would only ever time out.
+		throw std::runtime_error("window is minimized or swapchain recreate is deferred");
+	}
+
+	std::shared_ptr<RenderDocCaptureState> pState = std::make_shared<RenderDocCaptureState>();
+	pState->hwnd = hwnd;
+	pState->bRestoreMinimized = bRestoreMinimized;
+	pState->iFrames = iFrames;
+	if (bRestoreMinimized)
+	{
+		pState->ePhase = RenderDocCapturePhase::kAwaitRestore;
+		ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+	}
+	else
+	{
+		pState->uiBaselineCaptures = pRenderDocApi->GetNumCaptures();
+		if (iFrames == 1)
+		{
+			pRenderDocApi->TriggerCapture();
+		}
+		else
+		{
+			pRenderDocApi->TriggerMultiFrameCapture(static_cast<uint32_t>(iFrames));
+		}
+	}
+
+	engine::gpAgentCommandServer->DeferResponse([pState, pRenderDocApi]() -> std::optional<nlohmann::json>
+	{
+		if (pState->ePhase == RenderDocCapturePhase::kAwaitRestore)
+		{
+			if (IsIconic(pState->hwnd) == FALSE && engine::gpGraphics->ExtentSettled())
+			{
+				pState->uiBaselineCaptures = pRenderDocApi->GetNumCaptures();
+				if (pState->iFrames == 1)
+				{
+					pRenderDocApi->TriggerCapture();
+				}
+				else
+				{
+					pRenderDocApi->TriggerMultiFrameCapture(static_cast<uint32_t>(pState->iFrames));
+				}
+				pState->ePhase = RenderDocCapturePhase::kAwaitCaptures;
+			}
+		}
+
+		if (pState->ePhase == RenderDocCapturePhase::kAwaitCaptures)
+		{
+			// RenderDoc increments GetNumCaptures() only after a capture is fully serialized; the Drain liveness
+			// timeout bounds a capture that never lands (the dtor re-minimizes on that path).
+			if (pRenderDocApi->GetNumCaptures() < pState->uiBaselineCaptures + static_cast<uint32_t>(pState->iFrames))
+			{
+				return std::nullopt;
+			}
+			if (pState->bRestoreMinimized)
+			{
+				ShowWindow(pState->hwnd, SW_SHOWMINNOACTIVE);
+				pState->ePhase = RenderDocCapturePhase::kAwaitMinimize;
+			}
+			else
+			{
+				pState->ePhase = RenderDocCapturePhase::kDone;
+			}
+		}
+
+		if (pState->ePhase == RenderDocCapturePhase::kAwaitMinimize)
+		{
+			if (IsIconic(pState->hwnd) == FALSE)
+			{
+				return std::nullopt;
+			}
+			pState->ePhase = RenderDocCapturePhase::kDone;
+		}
+
+		if (pState->ePhase != RenderDocCapturePhase::kDone)
+		{
+			return std::nullopt;
+		}
+
+		nlohmann::json paths = nlohmann::json::array();
+		for (uint32_t uiIndex = pState->uiBaselineCaptures; uiIndex < pState->uiBaselineCaptures + static_cast<uint32_t>(pState->iFrames); ++uiIndex)
+		{
+			// Two-call GetCapture: first with a null buffer to size the path (length includes the NUL), then read it.
+			uint32_t uiPathLength = 0;
+			if (pRenderDocApi->GetCapture(uiIndex, nullptr, &uiPathLength, nullptr) == 0)
+			{
+				throw std::runtime_error("renderdoc_capture: capture index unavailable");
+			}
+			std::string capturePath(uiPathLength, '\0');
+			pRenderDocApi->GetCapture(uiIndex, capturePath.data(), &uiPathLength, nullptr);
+			capturePath.resize(uiPathLength > 0 ? uiPathLength - 1 : 0);
+
+			if (!std::filesystem::exists(std::filesystem::path(reinterpret_cast<const char8_t*>(capturePath.c_str()))))
+			{
+				throw std::runtime_error("renderdoc_capture: capture file missing");
+			}
+			paths.push_back(std::move(capturePath));
+		}
+
+		nlohmann::json result;
+		result["paths"] = std::move(paths);
+		return result;
 	});
 }
 
@@ -1196,6 +1360,36 @@ void CommandDesyncProbe(const nlohmann::json& rParameters, nlohmann::json& rResu
 	rResult["triggerRecovery"] = bTriggerRecovery;
 }
 
+void CommandQueryProfile(const nlohmann::json& rParams, nlohmann::json& rResult)
+{
+	if (!rParams.is_object() || !rParams.empty())
+	{
+		throw std::runtime_error("query_profile requires empty params");
+	}
+
+	engine::GpuTimer* pGpuTimers = gpProfileManager->GetGpuTimers();
+	nlohmann::json gpuTimers = nlohmann::json::array();
+	for (int64_t i = 0; i < engine::kGpuTimerCount; ++i)
+	{
+		engine::GpuTimer& rGpuTimer = pGpuTimers[i];
+		nlohmann::json gpuTimer;
+		gpuTimer["index"] = i;
+		gpuTimer["name"] = std::string(engine::kGpuTimerNames[i]);
+		gpuTimer["currentUs"] = rGpuTimer.smoothedMicroseconds.Current();
+		gpuTimer["averageUs"] = rGpuTimer.smoothedMicroseconds.Average();
+		gpuTimer["maxUs"] = rGpuTimer.smoothedMicroseconds.Max();
+		gpuTimers.push_back(std::move(gpuTimer));
+	}
+	rResult["gpuTimers"] = std::move(gpuTimers);
+	const engine::GpuShadowSample& rShadowSample = gpProfileManager->mGpuShadowSample;
+	rResult["shadowSample"] =
+	{
+		{"sequence", rShadowSample.uiSequence},
+		{"currentUs", rShadowSample.iCurrentMicroseconds},
+		{"activePixels", {{"width", rShadowSample.iActivePixelsWidth}, {"height", rShadowSample.iActivePixelsHeight}}},
+	};
+}
+
 } // namespace
 
 bool ExecuteAgentCommandClient(std::string_view cmd, const nlohmann::json& rParams, nlohmann::json& rResult)
@@ -1208,6 +1402,11 @@ bool ExecuteAgentCommandClient(std::string_view cmd, const nlohmann::json& rPara
 	if (cmd == "screenshot")
 	{
 		CommandScreenshot(rParams, rResult);
+		return true;
+	}
+	if (cmd == "renderdoc_capture")
+	{
+		CommandRenderDocCapture(rParams, rResult);
 		return true;
 	}
 	if (cmd == "resize")
@@ -1268,6 +1467,11 @@ bool ExecuteAgentCommandClient(std::string_view cmd, const nlohmann::json& rPara
 	if (cmd == "desync_probe")
 	{
 		CommandDesyncProbe(rParams, rResult);
+		return true;
+	}
+	if (cmd == "query_profile")
+	{
+		CommandQueryProfile(rParams, rResult);
 		return true;
 	}
 	return false;

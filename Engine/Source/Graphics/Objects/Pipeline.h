@@ -96,6 +96,10 @@ struct PipelineInfo
 	PipelineFlags_t flags;
 	Shader* ppShaders[2] {};
 	Buffer* pVertexBuffer = nullptr;
+	// External Set 0 layout (global descriptor set from TextureManager, not owned)
+	VkDescriptorSetLayout vkExternalDescriptorSetLayout = VK_NULL_HANDLE;
+	// Multi-set: external Set 1 layout provided by first ModelPipeline material (not owned)
+	VkDescriptorSetLayout vkExternalDescriptorSetLayoutSet1 = VK_NULL_HANDLE;
 
 	// Render target
 	VkRenderPass vkRenderPass = VK_NULL_HANDLE;
@@ -126,7 +130,7 @@ public:
 	Pipeline(const PipelineInfo& rInfo);
 	~Pipeline();
 
-	void Create(const PipelineInfo& rInfo, bool bFromMultimaterial = false);
+	void Create(const PipelineInfo& rInfo);
 	void Destroy() noexcept;
 
 	void RecordDraw(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iInstanceCount, int64_t iFirstInstance, const XMFLOAT4& f4PushConstants = {});

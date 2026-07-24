@@ -319,80 +319,6 @@ namespace toolcli
 			return !error;
 		}
 
-		bool ParsePlan(Plan& rPlan)
-		{
-			if (!ReadBytes(rPlan.diskPath, rPlan.bytes))
-			{
-				std::error_code error;
-				rPlan.diagnostic = !std::filesystem::exists(rPlan.diskPath, error) && !error ? "missing" : "could not read plan bytes";
-				return false;
-			}
-			rPlan.digest = coordination::HashSha256(rPlan.bytes).value_or("");
-			if (rPlan.bytes.starts_with("\xEF\xBB\xBF"))
-			{
-				rPlan.diagnostic = "manual";
-				return true;
-			}
-			if (!rPlan.bytes.starts_with(kMarkerPrefix))
-			{
-				// An ordinary Markdown document is deliberately manual/reference-only.
-				rPlan.diagnostic = "manual";
-				return true;
-			}
-			const size_t uiLineEnd = rPlan.bytes.find('\n');
-			size_t uiMarkerEnd = uiLineEnd == std::string::npos ? rPlan.bytes.size() : uiLineEnd;
-			if (uiMarkerEnd > 0 && rPlan.bytes[uiMarkerEnd - 1] == '\r')
-			{
-				--uiMarkerEnd;
-			}
-			std::string_view marker(rPlan.bytes.data(), uiMarkerEnd);
-			if (!marker.ends_with(kMarkerSuffix))
-			{
-				rPlan.diagnostic = "malformed plan metadata marker";
-				return false;
-			}
-			try
-			{
-				const size_t uiJsonBegin = kMarkerPrefix.size();
-				const size_t uiJsonLength = marker.size() - uiJsonBegin - kMarkerSuffix.size();
-				const nlohmann::json metadata = nlohmann::json::parse(std::string(marker.substr(uiJsonBegin, uiJsonLength)));
-				if (metadata.size() != 2 || !metadata.contains("createdUtc") || !metadata["createdUtc"].is_string() || !metadata.contains("dependsOn") || !metadata["dependsOn"].is_array())
-				{
-					rPlan.diagnostic = "metadata requires exactly createdUtc and dependsOn";
-					return false;
-				}
-				uint64_t uiTicks = 0;
-				if (!ParseCanonicalUtcTimestamp(metadata["createdUtc"].get<std::string>(), uiTicks))
-				{
-					rPlan.diagnostic = "createdUtc is invalid";
-					return false;
-				}
-				rPlan.createdUtc = metadata["createdUtc"].get<std::string>();
-				for (const nlohmann::json& dependency : metadata["dependsOn"])
-				{
-					std::wstring path;
-					if (!dependency.is_string() || !NormalizePlanPath(Utf8ToWide(dependency.get<std::string>()), path))
-					{
-						rPlan.diagnostic = "dependency is not a canonical Documents/Plans Markdown path";
-						return false;
-					}
-					rPlan.dependencies.push_back(std::move(path));
-				}
-				if (!std::is_sorted(rPlan.dependencies.begin(), rPlan.dependencies.end(), Utf8PathLess) || std::adjacent_find(rPlan.dependencies.begin(), rPlan.dependencies.end()) != rPlan.dependencies.end())
-				{
-					rPlan.diagnostic = "dependencies must be unique ordinal-sorted";
-					return false;
-				}
-				rPlan.bValid = true;
-				return true;
-			}
-			catch (const nlohmann::json::exception&)
-			{
-				rPlan.diagnostic = "metadata JSON is invalid";
-				return false;
-			}
-		}
-
 		bool ParsePlanBytes(Plan& rPlan)
 		{
 			rPlan.digest = coordination::HashSha256(rPlan.bytes).value_or("");
@@ -459,6 +385,17 @@ namespace toolcli
 				rPlan.diagnostic = "metadata JSON is invalid";
 				return false;
 			}
+		}
+
+		bool ParsePlan(Plan& rPlan)
+		{
+			if (!ReadBytes(rPlan.diskPath, rPlan.bytes))
+			{
+				std::error_code error;
+				rPlan.diagnostic = !std::filesystem::exists(rPlan.diskPath, error) && !error ? "missing" : "could not read plan bytes";
+				return false;
+			}
+			return ParsePlanBytes(rPlan);
 		}
 
 		bool BuildPlans(const std::filesystem::path& rWorktree, std::map<std::wstring, Plan>& rPlans, nlohmann::json& rDiagnostics)
@@ -898,34 +835,6 @@ namespace toolcli
 						}
 					}
 				}
-			}
-		}
-
-		std::optional<std::string> MarkerCreatedUtc(const std::string& rBytes)
-		{
-			if (!rBytes.starts_with(kMarkerPrefix))
-			{
-				return std::nullopt;
-			}
-			const size_t uiLineEnd = rBytes.find('\n');
-			size_t uiMarkerEnd = uiLineEnd == std::string::npos ? rBytes.size() : uiLineEnd;
-			if (uiMarkerEnd > 0 && rBytes[uiMarkerEnd - 1] == '\r')
-			{
-				--uiMarkerEnd;
-			}
-			std::string_view marker(rBytes.data(), uiMarkerEnd);
-			if (!marker.ends_with(kMarkerSuffix))
-			{
-				return std::nullopt;
-			}
-			try
-			{
-				const nlohmann::json metadata = nlohmann::json::parse(std::string(marker.substr(kMarkerPrefix.size(), marker.size() - kMarkerPrefix.size() - kMarkerSuffix.size())));
-				return metadata.contains("createdUtc") && metadata["createdUtc"].is_string() ? std::optional<std::string>(metadata["createdUtc"].get<std::string>()) : std::nullopt;
-			}
-			catch (const nlohmann::json::exception&)
-			{
-				return std::nullopt;
 			}
 		}
 
@@ -1404,27 +1313,9 @@ namespace toolcli
 			{
 				const std::filesystem::path claimPath = ClaimPath(root, plan->path);
 				Claim existing;
-				const bool bExists = ReadClaim(claimPath, existing);
-			if (bExists)
+				if (ReadClaim(claimPath, existing))
 				{
-					if (!ValidateClaim(existing.json, repo, plan->path))
-					{
-						continue;
-					}
-					if (!ClaimMatchesSession(existing, rArguments, worktree))
-					{
-						continue;
-					}
-					if (existing.json.value("planSha256", "") != plan->digest)
-					{
-						return Conflict(L"claim-next", "digest-mismatch", "existing owned claim does not match primary plan bytes");
-					}
-					nlohmann::json receipt;
-					if (!WriteClaimReceipt(rArguments, claimPath, *plan, receipt))
-					{
-						return Failure(L"claim-next", "receipt-failed", "could not create a new receipt below worktree Temp");
-					}
-					PrintResult({ { "operation", "claim-next" }, { "status", "ok" }, { "code", "claimed" }, { "message", "existing session claim returned" }, { "claimed", true }, { "plan", WideToUtf8(plan->path) }, { "digest", plan->digest }, { "receipt", receipt }, { "healedClaims", healed } }); return kiExitOk;
+					continue; // claim exists and was not session-owned per the plans-map loop — another session's claim or an unhealable record
 				}
 				const uint64_t uiClaimedAt = coordination::CurrentUtcTicks();
 				nlohmann::json claim = { { "schemaVersion", 1 }, { "repository", WideToUtf8(repo) }, { "plan", WideToUtf8(plan->path) }, { "owner", WideToUtf8(rArguments.owner) }, { "session", WideToUtf8(rArguments.session) }, { "worktree", WideToUtf8(worktree.wstring()) }, { "branch", WideToUtf8(rArguments.branch) }, { "primaryCommit", *primaryCommit }, { "planSha256", plan->digest }, { "claimedAt", coordination::FormatUtcTimestamp(uiClaimedAt) }, { "expiresAt", coordination::FormatUtcTimestamp(uiClaimedAt + kClaimLifetimeTicks) }, { "state", "claimed" } };
@@ -1750,7 +1641,7 @@ namespace toolcli
 			{
 				return Failure(rOperation, "target-read-failed", "could not inspect terminal plan file");
 			}
-				else if (bRecoveringPreparation)
+			else if (bRecoveringPreparation)
 			{
 				changed.push_back(WideToUtf8(target));
 			}

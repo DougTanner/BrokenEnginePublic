@@ -22,7 +22,7 @@ This clone is the **primary checkout**. Agent sessions run in linked worktrees t
 
 ## 4. Build primary ThirdParty in all three configurations
 
-Worktree provisioning requires `ThirdParty.Debug.lib`, `ThirdParty.Profile.lib`, and `ThirdParty.Release.lib` under `ThirdParty/Prebuilts/Platforms/VisualStudio2026/Output/`. Build `ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln` (x64) in Debug, Profile, and Release — from Visual Studio, or from MSBuild with `/p:Configuration=<config> /p:Platform=x64`.
+The primary game data export in step 5 hard-fails without `ThirdParty.Debug.lib`, `ThirdParty.Profile.lib`, and `ThirdParty.Release.lib` under `ThirdParty/Prebuilts/Platforms/VisualStudio2026/Output/`, so this build is required once before it. Build `ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln` (x64) in Debug, Profile, and Release — from Visual Studio, or from MSBuild with `/p:Configuration=<config> /p:Platform=x64`. After this one-time build, every wrapper session start (step 6) rebuilds all three incrementally so they track primary HEAD.
 
 If provisioning later reports a submodule **pin mismatch**, the worktree predates a primary submodule update — rebase the worktree onto the primary tip so the pins agree (the error message names the command).
 
@@ -37,6 +37,6 @@ The session wrappers coordinate through a WorktreeCli session ledger that must b
 - Claude Code, from Git Bash at the primary checkout root: `./.claude/claude-worktree.sh --legacy-sessions-closed`
 - Codex CLI, from PowerShell 7 at the primary checkout root: `.\.codex\codex-worktree.ps1 -LegacySessionsClosed`
 
-Every later session omits the flag. The wrapper claims a session, builds the AgentTools executables (WorktreeCli, AgentHarness) automatically on first use, creates a UUID-named worktree, provisions links to the primary ThirdParty/tool outputs, verifies the worktree's `.claude/skills` link resolves, and launches the agent CLI inside the worktree. Do not bypass the wrapper.
+Every later session omits the flag. At each session start the wrapper claims a session, rebuilds the shared primary binaries incrementally — the AgentTools executables (WorktreeCli, AgentHarness) and ThirdParty in Debug/Profile/Release — so they always match primary HEAD, creates a UUID-named worktree, provisions links to the primary ThirdParty/tool outputs, pre-builds the worktree's DataPacker, verifies the worktree's `.claude/skills` link resolves, and launches the agent CLI inside the worktree. Do not bypass the wrapper.
 
 No plan-queue bootstrap is required. Executable `Documents/Plans` metadata is tracked in Git; WorktreeCli creates short-lived PC-local claim records only when a session claims a plan. `Documents/Features` is manual.

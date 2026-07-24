@@ -108,7 +108,7 @@ IMPORTANT do not use auto in range-based for loops
 	Class class(0, i);
 	Struct struct {a = 0, b = i};
 
-21. Don't use std::array, std::span, or std::bitset — use C arrays and pointers instead. operator[] and iterators are slow in debug due to bounds-checking. Exception: std::span is allowed when storing pointer + size for mapped Vulkan memory.
+21. Prefer std::span<const T> (or std::span<T> for writable views) over pointer + size parameter pairs: void Receive(std::span<const uint8_t> packetData). Span parameters take no Hungarian prefix (packetData, crcs, buffer). C arrays remain fine for fixed-size storage; std::array is acceptable where value semantics or aggregate initialization help. Don't use std::bitset — use common::Flags or integer bitfields. (Engine, DataPacker, and ThirdParty Debug configs pin _ITERATOR_DEBUG_LEVEL=0 and STL hardening off, so span operator[]/iterators have no bounds checks in any config.)
 
 22. Have a comma at the end of every line in initializer lists
 

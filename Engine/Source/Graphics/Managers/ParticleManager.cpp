@@ -61,9 +61,12 @@ void ParticleManager::RenderGlobal(int64_t iCommandBuffer)
 	shaders::ParticlesSpawnLayout& rLongParticlesSpawnLayout = *reinterpret_cast<shaders::ParticlesSpawnLayout*>(&gpBufferManager->mLongParticlesSpawnStorageBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 	shaders::ParticlesSpawnLayout& rSquareParticlesSpawnLayout = *reinterpret_cast<shaders::ParticlesSpawnLayout*>(&gpBufferManager->mSquareParticlesSpawnStorageBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
-	rGlobalLayout.fParticlesStretchVelocityStart = 1.0f;
-	rGlobalLayout.fParticlesStretchVelocityEnd = 10.0f;
+	const float fStretchVelocityStart = 1.0f;
+	const float fStretchVelocityEnd = 10.0f;
+	rGlobalLayout.fParticlesStretchVelocityStart = fStretchVelocityStart;
 	rGlobalLayout.fParticlesStretchVelocityMultiplier = 2.0f;
+	// Stretch-range reciprocal folded CPU-side (was LongParticlesRender.vert's per-vertex max()+divide); invocation-invariant.
+	rGlobalLayout.fParticlesStretchRangeInv = 1.0f / std::max(fStretchVelocityEnd - fStretchVelocityStart, shaders::kfEpsilon);
 
 	// Spawn
 	rLongParticlesSpawnLayout.iCount = mLongParticlesSpawnLayout.iCount;

@@ -223,24 +223,15 @@ TextureManager::TextureManager()
 	mRenderTargetTextures.mMasksTextures.resize(shaders::kiMaxIslands);
 
 	// Device-lost recovery: clear per-template slot residency state so the next AcquireTextureSlot
-	// runs the first-mint path (re-points bindless arrays at real Textures, re-registers the elevation
-	// array on all three of its consumers: kPipelineTerrainElevation, kPipelineShadowElevation, and
-	// kPipelineTerrain). Without this, every island
+	// runs the first-mint path, re-registering all five channel bindings while elevation remains at
+	// its placeholder until the four chunk-backed channels are ready. Without this, every island
 	// would silently stay on the placeholder set up by the fan-out loop below — see
 	// Graphics/DynamicIslandLoadingFollowups.md Follow-up 1.
 	gpIslandTerrain->ResetTextureSlots();
 
-	// Island textures load dynamically per ClientSession::ApplyReceivedStaticData. Slot 0 is
-	// a permanent neutral placeholder; higher slots alias slot 0 until AcquireTextureSlot binds a
-	// real Texture* and RestorationSweep adopts the loaded chunks.
-	for (int64_t i = 0; i < static_cast<int64_t>(shaders::kiMaxIslands); ++i)
-	{
-		mRenderTargetTextures.mElevationTextures[i] = &mIslandPlaceholderElevation;
-		mRenderTargetTextures.mColorTextures[i] = &mIslandPlaceholderColor;
-		mRenderTargetTextures.mNormalsTextures[i] = &mIslandPlaceholderNormals;
-		mRenderTargetTextures.mAmbientOcclusionTextures[i] = &mIslandPlaceholderAmbientOcclusion;
-		mRenderTargetTextures.mMasksTextures[i] = &mIslandPlaceholderMasks;
-	}
+	// Island textures load dynamically per ClientSession::ApplyReceivedStaticData. TextureDescriptors
+	// owns the slot writes; these fixed vectors keep the stable backing addresses it registers.
+	mTextureDescriptors.InitializeIslandSlots();
 
 	gpProfileManager->BootStop(kBootTimerTextureUpload);
 

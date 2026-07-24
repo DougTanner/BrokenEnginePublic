@@ -24,7 +24,11 @@ bool ParseLaunchOptions()
 	{
 		if (wcscmp(pArgumentValues[i], L"--loopback-only") == 0)
 		{
-			gLaunchOptions.bLoopbackOnly = true;
+			gLaunchOptions.flags.Set(LaunchOptionFlags::kLoopbackOnly);
+		}
+		else if (wcscmp(pArgumentValues[i], L"--renderdoc") == 0)
+		{
+			gLaunchOptions.flags.Set(LaunchOptionFlags::kRenderDoc);
 		}
 		else if (wcscmp(pArgumentValues[i], L"--agent-port") == 0)
 		{

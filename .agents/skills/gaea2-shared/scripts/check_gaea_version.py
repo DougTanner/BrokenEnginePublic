@@ -63,7 +63,7 @@ def version_from_exe():
         return None
     try:
         result = subprocess.run(
-            ['powershell', '-NoProfile', '-Command',
+            ['pwsh', '-NoProfile', '-Command',
              f"(Get-Item '{GAEA_EXE}').VersionInfo.ProductVersion"],
             capture_output=True, text=True, timeout=10)
     except (subprocess.SubprocessError, OSError):

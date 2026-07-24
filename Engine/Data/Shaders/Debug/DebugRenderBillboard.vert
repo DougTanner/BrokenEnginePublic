@@ -32,10 +32,10 @@ void main()
 	vec3 center = vec3(row0.w, row1.w, row2.w);
 	float scale = length(vec3(row0.x, row1.x, row2.x));
 
+	// Camera-facing basis: right/up folded CPU-side (MainUniforms.cpp) since f4ToEyeNormal is invocation-invariant; forward stays direct.
 	vec3 forward = mainLayout.f4ToEyeNormal.xyz;
-	vec3 worldUp = abs(forward.z) < 0.999f ? vec3(0.0f, 0.0f, 1.0f) : vec3(1.0f, 0.0f, 0.0f);
-	vec3 right = normalize(cross(worldUp, forward));
-	vec3 up = cross(forward, right);
+	vec3 right = mainLayout.f4BillboardRight.xyz;
+	vec3 up = mainLayout.f4BillboardUp.xyz;
 
 	vec4 f3x4Billboard[3];
 	f3x4Billboard[0] = vec4(right * scale, center.x);

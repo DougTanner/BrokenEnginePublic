@@ -39,10 +39,9 @@ state blocker, and `1` is malformed input or internal failure. Do not recreate
 their transitions with ad hoc WorktreeCli commands.
 
 - [`Invoke-NextPlanClaim.ps1`](scripts/Invoke-NextPlanClaim.ps1) accepts an
-  optional canonical `-Plan`. It preflights the current validation, claim,
-  status, unclaim, terminal-preparation, and release capabilities; requires a
-  clean session tree; writes a receipt beneath session `Temp`; and verifies the
-  receipt SHA-256.
+  optional canonical `-Plan`. It verifies the provisioned WorktreeCli is a
+  nonempty ordinary file; requires a clean session tree; writes a receipt
+  beneath session `Temp`; and verifies the receipt SHA-256.
 - [`Complete-NextPlan.ps1`](scripts/Complete-NextPlan.ps1) requires the receipt
   path and SHA-256 from the claim. Completion invokes `plan prepare-completion`;
   explicit user-authorized rejection invokes `plan prepare-rejection`. Require
@@ -58,7 +57,10 @@ their transitions with ad hoc WorktreeCli commands.
    cycles, dependency blockers, stale sessions, or claim conflicts; never add,
    repair, or reorder Plans during selection. Missing dependency paths are
    satisfied stale-edge notices; existing manual or invalid dependencies block.
-2. Read the selected plan and current code. Keep the claimed plan immutable.
+2. Read the selected plan and current code. Treat every plan claim — paths,
+   symbols, cited lines, described current behavior — as a hypothesis to confirm
+   against the current tree; when reality contradicts the plan, reality wins.
+   Keep the claimed plan immutable.
    Compute its SHA-256 and require an exact match with the claim digest before
    the first `/plan-audit` or, for Tier 1, before presentation. A mismatch is
    terminal: retain the claim and stop without review, presentation, or re-claim.
@@ -86,9 +88,12 @@ their transitions with ad hoc WorktreeCli commands.
    role dispositions, and unresolved decisions. Any material presentation
    change invalidates approval and requires a new complete presentation.
 5. After approval, implement continuously through propagation, targeted checks,
-   domain review, accepted fixes, hygiene, and acceptance verification. Pause
-   only for a safety blocker or the final landing confirmation. Never edit the
-   claimed plan.
+   domain review, accepted fixes, hygiene, and acceptance verification. Every
+   implementer delegation prompt carries the truth-grounding guardrail: plan and
+   execution-card claims are hypotheses — on contradiction with the actual code,
+   trust the code and return the contradiction to the manager rather than
+   forcing the plan's description. Pause only for a safety blocker or the final
+   landing confirmation. Never edit the claimed plan.
 6. Before completion, require `plan claim-status` to report
    `ownedByReceipt: true`, then invoke `Complete-NextPlan.ps1` with the receipt
    path and receipt SHA-256. A digest mismatch is terminal

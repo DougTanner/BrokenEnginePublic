@@ -36,7 +36,6 @@ common::crc_t MultiCrc(int64_t iCount, TTuple&& members)
 	{
 		std::apply([&](auto&... memberPtrRefs)
 		{
-			// Handle both arrays and single pointers via the shared member-pointer visitor.
 			(ForEachMemberPointer(memberPtrRefs, [&](auto& elementPtrRef)
 			{
 				checksum = (checksum ^ common::Crc(elementPtrRef, iCount)) * common::kCrcMultiplier;
@@ -52,7 +51,6 @@ void MultiWrite(std::ostream& rStream, int64_t iCount, TTuple&& members)
 {
 	std::apply([&](auto&... memberPtrRefs)
 	{
-		// Handle both arrays and single pointers via the shared member-pointer visitor.
 		(ForEachMemberPointer(memberPtrRefs, [&](auto& elementPtrRef)
 		{
 			common::Write(rStream, elementPtrRef, iCount);
@@ -66,7 +64,6 @@ void MultiRead(std::istream& rStream, int64_t iCount, TTuple&& members)
 {
 	std::apply([&](auto&... memberPtrRefs)
 	{
-		// Handle both arrays and single pointers via the shared member-pointer visitor.
 		(ForEachMemberPointer(memberPtrRefs, [&](auto& elementPtrRef)
 		{
 			common::Read(rStream, elementPtrRef, iCount);
@@ -75,13 +72,12 @@ void MultiRead(std::istream& rStream, int64_t iCount, TTuple&& members)
 }
 
 // Allocates collection storage and reads data from stream. Used internally by CollectionRead().
-// iExistingLayoutCapacity: the collection's last-recorded capacity (CollectionRead captures it before Read clobbers iCapacity).
 template <typename TStruct, typename TTuple>
-void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TTuple&& members, int64_t iExistingLayoutCapacity)
+void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TTuple&& members)
 {
 	if (rStruct.iCapacity > 0)
 	{
-		AllocateAndAssign(rStruct, rStruct.iCapacity, members, iExistingLayoutCapacity);
+		AllocateAndAssign(rStruct, rStruct.iCapacity, members);
 	}
 	else
 	{
@@ -102,10 +98,10 @@ enum class CollectionFlags : uint32_t
 };
 using CollectionFlags_t = common::Flags<CollectionFlags>;
 
+#if defined(BT_CLIENT)
 // Request lazy-load of a texture chunk by CRC (implemented in the FileManager subsystem)
 void RequestTextureChunkLoad(common::crc_t crc);
 
-#if defined(BT_CLIENT)
 // Register a CRC for pre-blur (implemented in TextureManager.cpp)
 void RegisterLightingTextureCrc(common::crc_t crc);
 #endif
@@ -192,9 +188,12 @@ struct OptionalIdToIndex<T, FLAGS>
 		}
 	}
 
-	inline void Read(std::istream& rStream)
+	// iCount is the collection's already-validated live-row count. The rebuilt map must be a bijection from stream
+	// keys onto [0, iCount): equal cardinality, distinct keys, in-range values, and distinct values together prove it,
+	// so a hostile stream cannot leave a live row unindexed or alias two rows to one index.
+	inline void Read(std::istream& rStream, int64_t iCount)
 	{
-		// Heap: unordered_map::reserve and unordered_map::insert_or_assign allocate buckets and nodes
+		// Heap: unordered_map::reserve and unordered_map::try_emplace allocate buckets and nodes
 		// to rebuild the map from file.
 		// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
 		ScopedSuppressAllocationTracking suppress;
@@ -203,15 +202,40 @@ struct OptionalIdToIndex<T, FLAGS>
 		// Trust boundary: a hostile map size would make reserve() an unbounded allocation. Each entry
 		// serializes at least an int64 value, so bound the count against the stream's remaining length.
 		common::ValidateDeserializedCount(iSize, sizeof(int64_t), rStream, "OptionalIdToIndex::Read");
+		if (iSize != iCount)
+		{
+			throw common::CorruptStreamException("OptionalIdToIndex::Read");
+		}
 		idToIndexMap.clear();
 		idToIndexMap.reserve(iSize);
+
+		// Index-distinctness bitmap over [0, iCount): proves the values are a permutation, not merely in range.
+		int64_t iWordCount = (iCount + 63) / 64;
+		auto pSeenAlloc = common::gpThreadLocal->mWorkbuffer.PushBuffer<uint64_t*>(iWordCount * sizeof(uint64_t));
+		uint64_t* pSeen = static_cast<uint64_t*>(pSeenAlloc);
+		std::memset(pSeen, 0, iWordCount * sizeof(uint64_t));
+
 		for (int64_t i = 0; i < iSize; ++i)
 		{
 			id_t key {};
 			int64_t iValue = 0;
 			key.Read(rStream);
 			common::Read(rStream, iValue);
-			idToIndexMap.insert_or_assign(key, iValue);
+			if (iValue < 0 || iValue >= iCount)
+			{
+				throw common::CorruptStreamException("OptionalIdToIndex::Read");
+			}
+			uint64_t uiBit = 1ULL << (iValue & 63);
+			if ((pSeen[iValue >> 6] & uiBit) != 0)
+			{
+				throw common::CorruptStreamException("OptionalIdToIndex::Read");
+			}
+			pSeen[iValue >> 6] |= uiBit;
+			// A duplicate stream key must not silently overwrite: it would leave a live row unindexed.
+			if (!idToIndexMap.try_emplace(key, iValue).second)
+			{
+				throw common::CorruptStreamException("OptionalIdToIndex::Read");
+			}
 		}
 	}
 
@@ -297,16 +321,13 @@ struct Collection : public OptionalIdToIndex<T, FLAGS>
 		// count/capacity before MultiRead writes iCount elements into the iCapacity-sized buffer or
 		// MakeAligned allocates iCapacity. Member stride is unknown here, so bound iCount with the
 		// minimal stride of 1; the buffer-overrun and unbounded-alloc cases are covered by
-		// iCount <= iCapacity <= kiMaxDeserializedCapacity.
+		// iCount <= iCapacity <= kiMaxDeserializedCapacity. The 256 MiB byte ceiling is enforced
+		// downstream in AllocateAndAssign, where the real per-element stride is known.
 		common::ValidateDeserializedCountCapacity(iCount, iCapacity, 1, rStream, "Collection::Read");
 		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			static_cast<OptionalIdToIndex<T, FLAGS>&>(*this).Read(rStream);
-			// Indexable collections keep exactly one map entry per live element (Add/Remove helpers).
-			if (static_cast<int64_t>(this->idToIndexMap.size()) != iCount)
-			{
-				throw common::CorruptStreamException("Collection::Read idToIndexMap size != iCount");
-			}
+			// Validates the map is a bijection onto [0, iCount), so exactly one map entry backs each live row.
+			static_cast<OptionalIdToIndex<T, FLAGS>&>(*this).Read(rStream, iCount);
 		}
 	}
 
@@ -324,6 +345,9 @@ struct Collection : public OptionalIdToIndex<T, FLAGS>
 
 	int64_t iCount = 0;
 	int64_t iCapacity = 0;
+	// Transient physical stride capacity of the installed pData buffer; may exceed iCapacity after a shrink-reuse
+	// deserialize. Derived storage state — excluded from Write/Read/Crc/LogDifferences and the member tuples.
+	int64_t iPhysicalLayoutCapacity = 0;
 	common::AlignedUniquePtr<std::byte> pData;
 };
 
@@ -375,24 +399,17 @@ inline common::crc_t SharedCollectionCrc(const TStruct& rCurrent)
 template <typename TStruct>
 inline std::istream& SharedCollectionRead(std::istream& rStream, TStruct& rCurrent)
 {
-	// Capture the last-recorded capacity before Read overwrites iCapacity with the stream value (see AllocateAndAssign).
-	int64_t iExistingLayoutCapacity = rCurrent.iCapacity;
 	rCurrent.Read(rStream);
 
 	if (rCurrent.iCapacity > 0)
 	{
 		decltype(rCurrent.Members()) fullMembers = rCurrent.Members();
-		AllocateAndAssign(rCurrent, rCurrent.iCapacity, fullMembers, iExistingLayoutCapacity);
+		AllocateAndAssign(rCurrent, rCurrent.iCapacity, fullMembers);
 
 		// Zero the buffer so client-only fields default to 0 (invalid IDs, null references). Size from the physical-layout
-		// capacity: on the AllocateAndAssign reuse branch the buffer stays strided for the larger iExistingLayoutCapacity
-		// while rCurrent.iCapacity holds the smaller stream value, so sizing from the latter would leave the tail un-zeroed.
-		int64_t iBufferSize = 0;
-		std::apply([&](const auto&... memberPtrRefs)
-		{
-			((iBufferSize += CalculateBufferSize(std::max(iExistingLayoutCapacity, rCurrent.iCapacity), memberPtrRefs)), ...);
-		}, fullMembers);
-		std::memset(rCurrent.pData.get(), 0, iBufferSize);
+		// capacity: after a shrink-reuse the buffer stays strided for the larger iPhysicalLayoutCapacity while iCapacity
+		// holds the smaller stream value, so sizing from the latter would leave the tail rows above iCapacity un-zeroed.
+		std::memset(rCurrent.pData.get(), 0, MemberTupleBufferSize(rCurrent.iPhysicalLayoutCapacity, fullMembers));
 	}
 	else
 	{
@@ -429,11 +446,8 @@ inline std::ostream& CollectionWrite(std::ostream& rStream, const TStruct& rCurr
 template <typename TStruct, typename TTuple>
 inline std::istream& CollectionRead(std::istream& rStream, TStruct& rCurrent, TTuple&& members)
 {
-	// Capture the last-recorded capacity before Read overwrites iCapacity with the stream value, so AllocateAndAssign decides
-	// buffer reuse against the existing capacity instead of self-comparing the just-read value.
-	int64_t iExistingLayoutCapacity = rCurrent.iCapacity;
 	rCurrent.Read(rStream);
-	engine::AllocateAndRead(rCurrent, rStream, std::forward<TTuple>(members), iExistingLayoutCapacity);
+	engine::AllocateAndRead(rCurrent, rStream, std::forward<TTuple>(members));
 	return rStream;
 }
 

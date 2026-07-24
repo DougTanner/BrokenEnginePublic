@@ -67,9 +67,8 @@ void main()
 		f3LeftNormal = normalize(cross(f3ToEyeNormal, f3WorldUp));
 	}
 
-	// Calculate length multiplier of particle based on velocity
-	float fStretchRange = max(globalLayout.fParticlesStretchVelocityEnd - globalLayout.fParticlesStretchVelocityStart, kfEpsilon);
-	float fLengthMultiplier = 1.0f + globalLayout.fParticlesStretchVelocityMultiplier * clamp((fVelocityLength - globalLayout.fParticlesStretchVelocityStart) / fStretchRange, 0.0f, 1.0f);
+	// Calculate length multiplier of particle based on velocity (stretch-range reciprocal folded CPU-side)
+	float fLengthMultiplier = 1.0f + globalLayout.fParticlesStretchVelocityMultiplier * clamp((fVelocityLength - globalLayout.fParticlesStretchVelocityStart) * globalLayout.fParticlesStretchRangeInv, 0.0f, 1.0f);
 	
 	// Use the vertex texcoords to place the vertex at the correct corner
 	vec4 f4Position = f4Center;

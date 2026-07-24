@@ -10,12 +10,6 @@ namespace engine
 AgentCommandServer::AgentCommandServer(int64_t iPort)
 {
 	// WSAStartup is guaranteed by NetworkManager (enet_initialize), constructed before this.
-	mListenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (mListenSocket == INVALID_SOCKET)
-	{
-		LOG(kNetwork, kError, "AgentCommandServer socket creation failed: {}", WSAGetLastError());
-		throw StartupException("agent socket creation failed");
-	}
 
 	// Loopback only — never bind a routable interface.
 	sockaddr_in address {};
@@ -23,12 +17,48 @@ AgentCommandServer::AgentCommandServer(int64_t iPort)
 	address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	address.sin_port = htons(static_cast<uint16_t>(iPort));
 
-	if (bind(mListenSocket, reinterpret_cast<sockaddr*>(&address), sizeof(address)) == SOCKET_ERROR)
+	// A rapid agent relaunch can find the previous listen port still in TIME_WAIT (Windows default ~120 s), which
+	// fails bind() with WSAEADDRINUSE. SO_REUSEADDR lets the new listener rebind the recycling port immediately; it
+	// is safe on this loopback channel because it already trusts every local process, so there is no foreign socket
+	// that could steal the address. Accepted tradeoff: a duplicate launch on the same port also binds successfully
+	// (dual listeners, nondeterministic connection routing) instead of failing fast with WSAEADDRINUSE — the harness
+	// quit-and-wait-for-exact-PID relaunch rule is the guard against that misuse. If the port is still momentarily
+	// held, fall back to a bounded blocking retry (startup thread, off the main loop) before failing fast.
+	static constexpr int64_t kiMaxBindAttempts = 10;
+	static constexpr DWORD kuiBindRetryMilliseconds = 250; // ~2.5 s worst case across the attempts
+	for (int64_t iAttempt = 0; ; ++iAttempt)
 	{
-		LOG(kNetwork, kError, "AgentCommandServer bind to 127.0.0.1:{} failed: {}", iPort, WSAGetLastError());
-		closesocket(mListenSocket);
+		mListenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (mListenSocket == INVALID_SOCKET)
+		{
+			LOG(kNetwork, kError, "AgentCommandServer socket creation failed: {}", WSAGetLastError());
+			throw StartupException("agent socket creation failed");
+		}
+
+		BOOL bReuseAddress = TRUE;
+		setsockopt(mListenSocket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&bReuseAddress), sizeof(bReuseAddress));
+
+		if (bind(mListenSocket, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != SOCKET_ERROR)
+		{
+			break;
+		}
+
+		int iBindError = WSAGetLastError();
+		closesocket(mListenSocket); // a failed bind leaves the socket unusable; recreate (and re-arm SO_REUSEADDR) next attempt
 		mListenSocket = INVALID_SOCKET;
-		throw StartupException("agent bind failed");
+
+		// Only a TIME_WAIT address collision is retryable; every other bind failure is a hard startup error.
+		if (iBindError != WSAEADDRINUSE || iAttempt + 1 >= kiMaxBindAttempts)
+		{
+			LOG(kNetwork, kError, "AgentCommandServer bind to 127.0.0.1:{} failed: {}", iPort, iBindError);
+			throw StartupException("agent bind failed");
+		}
+
+		if (iAttempt == 0)
+		{
+			LOG(kNetwork, kWarning, "AgentCommandServer bind to 127.0.0.1:{} in use (WSAEADDRINUSE), retrying up to {} attempts", iPort, kiMaxBindAttempts);
+		}
+		Sleep(kuiBindRetryMilliseconds);
 	}
 
 	if (listen(mListenSocket, 1) == SOCKET_ERROR) // backlog 1 — a single connection at a time

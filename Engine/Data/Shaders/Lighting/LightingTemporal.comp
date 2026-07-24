@@ -41,8 +41,8 @@ void main()
 	// rest untouched (zeroed), so skip it here too. Same test as the combine window so the blended set matches.
 	vec2 f2World = VisibleAreaToWorld(f2Uv, globalLayout.f4LightingArea);
 	vec2 f2VisibleUv = WorldToVisibleArea(vec3(f2World, 0.0f), globalLayout.f4VisibleArea);
-	float fMarginX = 2.0f * ((globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x) / float(i2Size.x)) / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x);
-	float fMarginY = 2.0f * ((globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w) / float(i2Size.y)) / (globalLayout.f4VisibleArea.y - globalLayout.f4VisibleArea.w);
+	float fMarginX = globalLayout.f2CombineMargin.x;
+	float fMarginY = globalLayout.f2CombineMargin.y;
 	if (f2VisibleUv.x < -fMarginX || f2VisibleUv.x > 1.0f + fMarginX || f2VisibleUv.y < -fMarginY || f2VisibleUv.y > 1.0f + fMarginY)
 		return;
 

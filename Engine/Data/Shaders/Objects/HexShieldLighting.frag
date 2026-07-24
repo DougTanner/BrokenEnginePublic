@@ -58,7 +58,7 @@ void main()
 	vec4 f4Direction = vec4(f2Direction.x > 0.0f ? f2Direction.x : 0.0f, f2Direction.x < 0.0f ? -f2Direction.x : 0.0f, f2Direction.y < 0.0f ? -f2Direction.y : 0.0f, f2Direction.y > 0.0f ? f2Direction.y : 0.0f);
 
 	// Compute all color channels simultaneously
-	float fEdgeFade = LightingDepositEdgeFade(gl_FragCoord.xy, globalLayout.uiLightTilesX, globalLayout.uiLightTilesY);
+	float fEdgeFade = LightingDepositEdgeFade(gl_FragCoord.xy, globalLayout.f2LightingDepositSizeInv);
 	f4OutColorRed = fEdgeFade * pHexShields[i].fLightingIntensity * fDirection * pHexShields[i].f4LightingColor.r * f4Direction;
 	f4OutColorGreen = fEdgeFade * pHexShields[i].fLightingIntensity * fDirection * pHexShields[i].f4LightingColor.g * f4Direction;
 	f4OutColorBlue = fEdgeFade * pHexShields[i].fLightingIntensity * fDirection * pHexShields[i].f4LightingColor.b * f4Direction;

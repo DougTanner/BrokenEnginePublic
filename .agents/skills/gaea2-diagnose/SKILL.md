@@ -36,7 +36,7 @@ Confusable locations:
 Same probe as the other gaea2-* skills:
 
 ```
-powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
+pwsh -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
 ```
 
 Capture the `<python-exe-path>` for the next steps.

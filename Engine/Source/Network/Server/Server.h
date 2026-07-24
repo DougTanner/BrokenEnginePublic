@@ -168,13 +168,7 @@ public:
 	{
 		static_assert(std::is_enum_v<TType>, "SendSimplePacket type tag must be an enum (engine::PacketType or game::GamePacketType)");
 
-		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-
-		rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eType));
-		(PushSimplePacketArg(rWorkbuffer, args), ...);
-
-		NetworkManager::SendPacket(pPeer, uiChannel, rWorkbuffer, uiPacketFlags);
+		NetworkManager::SendSimplePacket(pPeer, eType, uiChannel, uiPacketFlags, args...);
 	}
 
 	ClientConnection* FindClient(int64_t iClientId);
@@ -208,18 +202,18 @@ private:
 	void Disconnect(ENetEvent& rEvent);
 	void DispatchIncoming(ENetEvent& rEvent, bool bFastForward);
 	void Receive(ENetEvent& rEvent);
-	void Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
+	void Receive(std::span<const uint8_t> packetData, ENetPeer* pPeer);
 
 	ClientConnection* FindHandshakenClient(int64_t iClientId);
 
-	void ClientAckStream(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientDesyncReport(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId);
-	void ClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId);
-	void ClientSubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientUnsubscribe(const uint8_t* pData, size_t iSize, int64_t iClientId);
-	void ClientResyncRequest(int64_t iClientId);
+	void ClientAckStream(std::span<const uint8_t> packetData, int64_t iClientId);
+	void ClientSpawnRequest(std::span<const uint8_t> packetData, int64_t iClientId);
+	void ClientDesyncReport(std::span<const uint8_t> packetData, int64_t iClientId);
+	void ClientDebugFrameRequest(std::span<const uint8_t> packetData, ENetPeer* pPeer, int64_t iClientId);
+	void ClientHello(std::span<const uint8_t> packetData, ENetPeer* pPeer, int64_t iClientId);
+	void ClientSubscribe(std::span<const uint8_t> packetData, int64_t iClientId);
+	void ClientUnsubscribe(std::span<const uint8_t> packetData, int64_t iClientId);
+	void ClientResyncRequest(std::span<const uint8_t> packetData, int64_t iClientId);
 	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage, const ClientGuid* pGuid);
 	void SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord);
 

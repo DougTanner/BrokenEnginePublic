@@ -9,7 +9,7 @@ Game implementation built on Engine and Common. `Game` owns the per-side session
 - `Fleet` is the shared data model and uses server-minted persistent identifiers. `FleetSelection` is client-only focus and navigation UI state.
 - `ClientSession` and `ServerSession` are game-policy façades that compose engine-owned session runtimes. See [Network](Network/AGENTS.md).
 - `GameSaveLoad` is server-only and owns save/load/replay. Its persistence and replay contracts live in [Save](Save/AGENTS.md).
-- Agent commands are game-dispatched while transport, synthetic input, and UI snapshots are engine-owned. See [Agent](Agent/AGENTS.md).
+- Agent commands are game-dispatched, but the build-agnostic shared handlers, transport, synthetic input, and UI snapshots are engine-owned; the dispatcher tries the engine shared handlers before its side-specific ones. See [Agent](Agent/AGENTS.md).
 
 ## Architecture
 

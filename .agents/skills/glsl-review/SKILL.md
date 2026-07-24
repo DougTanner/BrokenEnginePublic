@@ -31,6 +31,7 @@ Read [the footgun reference](references/shader-footguns.md) when a changed regio
 5. Apply the checks below. Report only reachable failures supported by the changed code and repository evidence. Do not turn a generic checklist item into a finding.
 6. Emit an atomic external-claim packet for every finding that depends on a non-obvious GLSL, Vulkan, extension, device, or compiler claim. Do not browse directly. Keep locally provable repository-contract findings separate.
 7. Return the report. A shader-facing shared header has both C++ and GLSL surfaces, so explicitly require `/repo-code-review` as the sibling domain review when such a header changed; this review does not replace it.
+8. Report a changed shader over ~5,000 `bt-token-v1` (measure with `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`) as a size observation in `Residuals`; splitting it via `ShaderFunctions.h`/`*Common.h` is follow-up work, not part of this findings-only review.
 
 ## Broken Engine Contracts
 
@@ -70,6 +71,7 @@ Read [the footgun reference](references/shader-footguns.md) when a changed regio
 
 - Require evidence before asserting device-, driver-, or compiler-specific cost. Accept a capture, target-device limit/property, compiler output, SPIR-V/disassembly, or a documented repository production constraint. Otherwise request measurement or emit external verification; do not report folklore as a defect.
 - Inspect hot-path `pow`, transcendental functions, normalization, dependent reads, loop bounds, SSBO/image access, workgroup dimensions, bank layout, divergence, `discard`, and depth writes only where the changed path is demonstrably hot or contract-significant.
+- Flag an expression with at least one uniform or push-constant operand whose operands are all uniforms, push constants, spec/compile-time constants, or values derived only from those: every invocation computes the identical result, so it belongs on the CPU — precompute it into an existing field or a new uploaded field (reciprocals follow the existing `*Inv` naming; the `inverse()` ban and pre-normalized `f4SunMoonNormal` are the established precedents). A uniform-only sub-expression inside a varying expression qualifies too (`uniformA * uniformB * varying` hoists the uniform product). This is locally provable from the source; it needs no device or compiler evidence. Also flag the redundant twin: re-deriving on the GPU a value the CPU already uploads in final form (e.g. `normalize()` of an already-normalized uniform). Weigh triviality per the footgun reference before proposing a layout change.
 - For a positive integer exponent, compare semantics and generated code. `x * x * x` contains two multiplications, not one; do not assume how `pow` lowers without compiler evidence.
 - Do not impose universal subgroup width, workgroup-size, bank-count, FP16-throughput, occupancy, or early-Z cost thresholds. Establish the target device and evidence first.
 

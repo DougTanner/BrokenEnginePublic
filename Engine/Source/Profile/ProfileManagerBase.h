@@ -226,6 +226,14 @@ struct GpuTimer
 	common::Smoothed<int64_t> smoothedMicroseconds {};
 	common::Flags<ProfileRowFlags> flags {};
 };
+
+struct GpuShadowSample
+{
+	uint64_t uiSequence = 0;
+	int64_t iCurrentMicroseconds = 0;
+	int64_t iActivePixelsWidth = 0;
+	int64_t iActivePixelsHeight = 0;
+};
 #endif // BT_CLIENT
 
 enum BootTimers : int64_t
@@ -315,7 +323,7 @@ public:
 
 	void GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
 	void GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
-	void GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTimers eEnd);
+	void GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTimers eEnd, bool bLatchShadowSample);
 
 	virtual void RenderImPlotGraphs() {}
 #endif // BT_CLIENT
@@ -342,6 +350,7 @@ public:
 
 #if defined(BT_CLIENT)
 	GpuTimer* GetGpuTimers() { return mGpuTimers; }
+	GpuShadowSample mGpuShadowSample {};
 #endif // BT_CLIENT
 	common::Smoothed<int64_t>& GetSmoothedAllocations() { return mSmoothedAllocations; }
 

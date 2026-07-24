@@ -128,7 +128,7 @@ public:
 	VkImageView mVkImageView = VK_NULL_HANDLE;
 
 	// Bumped on every handle swap (Create, AdoptTransferredImage). Snapshotted at descriptor-write
-	// time; PipelineManager::VerifyAllDescriptorGenerations breaks if a cached snapshot diverges,
+	// time; TextureDescriptors::VerifyAllDescriptorGenerations breaks if a cached snapshot diverges,
 	// catching the silent semantic-staleness bug class Vulkan validation misses.
 	uint64_t muiGeneration = 0;
 

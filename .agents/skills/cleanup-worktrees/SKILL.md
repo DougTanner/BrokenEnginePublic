@@ -1,6 +1,6 @@
 ---
 name: cleanup-worktrees
-description: Remove prior-day Broken Engine session worktrees created by the Claude Code and Codex CLI wrapper scripts. Use this skill manually each morning before creating new sessions; it deletes only clean, unlocked, fully landed wrapper-root worktrees, leaves current-day or unsafe worktrees untouched, and reports Codex snapshot refs without deleting them.
+description: Remove Broken Engine session worktrees created by the Claude Code and Codex CLI wrapper scripts once they are 48+ hours old by folder creation time, regardless of dirty, locked, or unlanded state. Use this skill manually each morning before creating new sessions; it leaves younger worktrees untouched and reports Codex snapshot refs without deleting them.
 argument-hint: [preview]
 allowed-tools: [Read, Bash, PowerShell]
 disable-model-invocation: true
@@ -8,9 +8,10 @@ disable-model-invocation: true
 
 # Cleanup Worktrees
 
-Clean retained Claude Code and Codex CLI worktrees from earlier local calendar
-days. Manual invocation authorizes removal of every candidate that passes the
-script's safety checks; no second confirmation is required.
+Clean retained Claude Code and Codex CLI worktrees whose folders are 48+ hours
+old. Manual invocation authorizes removal of every wrapper-root worktree past
+that age — including dirty, locked, or unlanded ones — with no second
+confirmation.
 
 ## Run
 
@@ -38,15 +39,13 @@ script's safety checks; no second confirmation is required.
    ```
 
 Do not recreate failed commands with broader Git or filesystem operations. The
-script deliberately refuses force removal, branch force-deletion, stale-lock
-recovery, global pruning, snapshot-ref deletion, and cleanup outside the two
-wrapper roots.
+script deliberately refuses cleanup outside the two wrapper roots, snapshot-ref
+deletion, and global pruning. Within those roots it deliberately force-removes
+worktrees, force-deletes their `claude/`/`codex/` branches with `git branch -D`,
+and unlocks legacy orphaned locks before removal.
 
-A retained worktree reported as `locked: Live claude/codex session ...` belongs
-to a running wrapper session — its lock is placed at session creation and
-released when the wrapper exits. Never unlock or remove it while that session
-may be alive; if a crash orphaned the lock, only the user confirms the session
-is dead and runs `git worktree unlock` before the next cleanup pass.
+A wrapper session still running after 48 hours will have its worktree removed —
+close or land long-lived sessions before running cleanup.
 
 ## Report
 

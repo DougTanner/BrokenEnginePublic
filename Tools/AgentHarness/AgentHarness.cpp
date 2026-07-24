@@ -6,12 +6,14 @@
 #include "HarnessLockCommands.h"
 #include "ToolCliCommon.h"
 
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <thread>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -21,7 +23,8 @@ namespace toolcli
 	{
 		constexpr uint32_t kuiMaxRequestBytes = 1u * 1024u * 1024u;
 		constexpr uint32_t kuiMaxResponseBytes = 16u * 1024u * 1024u;
-		constexpr int64_t kiConnectTimeoutMilliseconds = 2000;
+		constexpr int64_t kiConnectAttemptTimeoutMilliseconds = 500; // per connect try; retried until the --timeout-ms deadline
+		constexpr int64_t kiConnectRetrySleepMilliseconds = 150; // brief pause between connect tries
 		constexpr int64_t kiDefaultResponseTimeoutMilliseconds = 15000;
 
 		void PrintUsage(std::ostream& rOutput)
@@ -199,24 +202,55 @@ namespace toolcli
 				Fail("WSAStartup failed");
 				return kiExitFailure;
 			}
-			SOCKET socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-			if (socket == INVALID_SOCKET)
-			{
-				Fail("socket creation failed");
-				::WSACleanup();
-				return kiExitFailure;
-			}
-
 			sockaddr_in address {};
 			address.sin_family = AF_INET;
 			address.sin_port = ::htons(static_cast<uint16_t>(iPort));
 			::inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
+
+			SOCKET socket = INVALID_SOCKET;
 			int iResult = kiExitFailure;
 			do
 			{
-				if (!ConnectWithTimeout(socket, address, kiConnectTimeoutMilliseconds))
+				// Retry the connect until the overall --timeout-ms deadline so a peer whose listen socket is not yet
+				// bound (freshly launched) is tolerated. Each try gets its own short timeout, and a failed non-blocking
+				// connect leaves the socket unusable, so it is closed and recreated every attempt. A dead port therefore
+				// consumes the full budget by design.
+				const std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
+				const std::chrono::steady_clock::time_point deadline = startTime + std::chrono::milliseconds(iTimeoutMilliseconds);
+				bool bConnected = false;
+				bool bSocketCreateFailed = false;
+				for (;;)
 				{
-					Fail("connect to 127.0.0.1 failed or timed out");
+					socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+					if (socket == INVALID_SOCKET)
+					{
+						bSocketCreateFailed = true;
+						break;
+					}
+					if (ConnectWithTimeout(socket, address, kiConnectAttemptTimeoutMilliseconds))
+					{
+						bConnected = true;
+						break;
+					}
+					::closesocket(socket);
+					socket = INVALID_SOCKET;
+					if (std::chrono::steady_clock::now() >= deadline)
+					{
+						break;
+					}
+					std::this_thread::sleep_for(std::chrono::milliseconds(kiConnectRetrySleepMilliseconds));
+				}
+				if (!bConnected)
+				{
+					if (bSocketCreateFailed)
+					{
+						Fail("socket creation failed");
+					}
+					else
+					{
+						int64_t iElapsedMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
+						Fail("connect to 127.0.0.1 failed or timed out after " + std::to_string(iElapsedMilliseconds) + " ms");
+					}
 					break;
 				}
 				DWORD uiTimeout = static_cast<DWORD>(iTimeoutMilliseconds);
@@ -279,7 +313,10 @@ namespace toolcli
 			}
 			while (false);
 
-			::closesocket(socket);
+			if (socket != INVALID_SOCKET)
+			{
+				::closesocket(socket);
+			}
 			::WSACleanup();
 			return iResult;
 		}

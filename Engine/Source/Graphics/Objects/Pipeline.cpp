@@ -82,7 +82,7 @@ Pipeline::~Pipeline()
 	Destroy();
 }
 
-void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
+void Pipeline::Create(const PipelineInfo& rInfo)
 {
 	Destroy();
 
@@ -91,52 +91,8 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 
 	mInfo = rInfo;
 
-	// Graphics and compute pipelines both use global descriptor Set 0 from TextureManager
-	if (gpTextureManager->mTextureDescriptors.mGlobalDescriptorSetLayout != VK_NULL_HANDLE)
-	{
-		mVkExternalDescriptorSetLayout = gpTextureManager->mTextureDescriptors.mGlobalDescriptorSetLayout;
-	}
-
-	// Add Model additional automatically
-	constexpr int64_t kiModelAdditionalDescriptors = 5; // +1 lighting, +2 shadow, +3 smoke, +4 mesh data, +5 joint matrices
-	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings - kiModelAdditionalDescriptors; ++i)
-	{
-		const DescriptorInfo& rDescriptorInfo = mInfo.pDescriptorInfos[i];
-		if (!(rDescriptorInfo.flags & DescriptorFlags::kModel))
-		{
-			continue;
-		}
-
-		ASSERT(i + kiModelAdditionalDescriptors + 1 < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
-		ASSERT(mInfo.pDescriptorInfos[i + 1].flags == DescriptorFlags::kEmpty);
-
-		mInfo.pDescriptorInfos[i + 1].flags = kCombinedSamplers;
-		mInfo.pDescriptorInfos[i + 1].iCount = static_cast<int64_t>(std::size(gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures));
-		mInfo.pDescriptorInfos[i + 1].ppTextures = gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures;
-
-		mInfo.pDescriptorInfos[i + 2].flags = kCombinedSamplers;
-		mInfo.pDescriptorInfos[i + 2].pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture;
-
-		// The smoke sampler (kSamplerSmoke) uses LINEAR filtering for R16_SFLOAT smoke ping-pong textures. Same CLAMP_TO_BORDER + INT_TRANSPARENT_BLACK as the border sampler; aniso/lodbias are no-ops at mipLevels = 1.
-		mInfo.pDescriptorInfos[i + 3].flags = {kCombinedSamplers, kSamplerSmoke};
-		mInfo.pDescriptorInfos[i + 3].pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne;
-
-		// Binding 15: Per-mesh data (matrix, normal matrix, joint count/offset)
-		mInfo.pDescriptorInfos[i + 4].flags = kPerCommandBufferStorageBuffers;
-		mInfo.pDescriptorInfos[i + 4].iExplicitBinding = shaders::kiModelBindingMeshData;
-		mInfo.pDescriptorInfos[i + 4].pBuffers = gpBufferManager->mMeshDataStorageBuffers.data();
-
-		// Binding 16: Joint matrices (separate dynamically-sized buffer; MeshData stays fixed-size)
-		mInfo.pDescriptorInfos[i + 5].flags = kPerCommandBufferStorageBuffers;
-		mInfo.pDescriptorInfos[i + 5].iExplicitBinding = shaders::kiModelBindingJointMatrix;
-		mInfo.pDescriptorInfos[i + 5].pBuffers = gpBufferManager->mJointMatrixStorageBuffers.data();
-	}
-
-	if (!bFromMultimaterial && mInfo.pDescriptorInfos[3].flags & kModel)
-	{
-		const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(mInfo.pDescriptorInfos[3].crc);
-		ASSERT(rChunk.pHeader->sceneHeader.uiMaterialCount == 1);
-	}
+	mVkExternalDescriptorSetLayout = mInfo.vkExternalDescriptorSetLayout != VK_NULL_HANDLE ? mInfo.vkExternalDescriptorSetLayout : gpTextureManager->mTextureDescriptors.mGlobalDescriptorSetLayout;
+	mVkExternalDescriptorSetLayoutSet1 = mInfo.vkExternalDescriptorSetLayoutSet1;
 
 	if (mInfo.flags & kRenderTarget)
 	{
@@ -179,6 +135,8 @@ void Pipeline::Destroy() noexcept
 	{
 		return;
 	}
+
+	gpTextureManager->mTextureDescriptors.UnregisterPipeline(this);
 
 	VkDescriptorPool vkDescriptorPool = gpDeviceManager->mVkDescriptorPool;
 

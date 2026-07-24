@@ -3,19 +3,19 @@
 
 ## Context
 
-The agent-harness command reference advertises the `key` name `Escape` (`.agents/skills/agent-harness/references/command-reference.md:57`). `ParseKeyVk` in `Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsClient.cpp:809-866` accepts the named escape key only as uppercase `ESC` or `ESCAPE`; a direct `{"cmd":"key","params":{"key":"Escape"}}` harness request therefore returns `unknown key`, while the identical request with `ESC` succeeds.
+The agent-harness command reference advertises the `key` name `Escape` (`Projects/BrokenEngineSandbox/Documents/AgentHarness.md`). `ParseKeyVk` in `Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsClient.cpp:809-866` accepts the named escape key only as uppercase `ESC` or `ESCAPE`; a direct `{"cmd":"key","params":{"key":"Escape"}}` harness request therefore returns `unknown key`, while the identical request with `ESC` succeeds.
 
 This is a pre-existing documentation/implementation disagreement found while verifying `DisabledPassGatingPerfAudit`; that work owns graphics disabled-pass gating and does not own the agent command contract. The implementation is already coherent, so correct the documentation rather than broaden parser behavior.
 
 ## Design
 
 1. Reconfirm the current `ParseKeyVk` table before editing. Preserve its existing behavior: one ASCII letter (case-insensitive) or digit; `ESC`/`ESCAPE`, `SPACE`, `TAB`, `ENTER`/`RETURN`, `UP`/`DOWN`/`LEFT`/`RIGHT`; and `F1` through `F24` (with the existing `F`/`f` prefix behavior).
-2. Update only the `key` entry in `.agents/skills/agent-harness/references/command-reference.md` to advertise accepted canonical spellings: uppercase named keys, including `ESC` or `ESCAPE`, and `F1`-`F24`. Do not imply title-case names such as `Escape` are valid.
+2. Update only the `key` entry in `Projects/BrokenEngineSandbox/Documents/AgentHarness.md` to advertise accepted canonical spellings: uppercase named keys, including `ESC` or `ESCAPE`, and `F1`-`F24`. Do not imply title-case names such as `Escape` are valid.
 3. Do not change `ParseKeyVk`, JSON schemas, aliases, command dispatch, or the existing single-letter/digit and named-key behavior.
 
 ## Critical files
 
-- `.agents/skills/agent-harness/references/command-reference.md` — `key` command contract at `:57`; the only planned edit.
+- `Projects/BrokenEngineSandbox/Documents/AgentHarness.md` — `key` command contract; the only planned edit.
 - `Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsClient.cpp` — `ParseKeyVk` at `:809-866`; implementation evidence only, not modified.
 
 ## Out of scope

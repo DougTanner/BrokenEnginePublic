@@ -1,0 +1,24 @@
+#version 460
+
+#include "ShaderLayouts.h"
+
+layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
+
+layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
+{
+    GlobalLayout globalLayout;
+};
+
+// Separate storage images keep this history refresh non-aliasing: temporal has already completed its
+// in-place blend in ShadowBlur, then this pass copies only the final valid rectangle for next frame.
+layout (set = 1, binding = 1, r16) uniform readonly image2D shadowBlurTexture;
+layout (set = 1, binding = 2, r16) uniform writeonly image2D shadowHistoryTexture;
+
+void main()
+{
+	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iShadowFinalMinX, globalLayout.iShadowFinalMinY);
+	if (any(greaterThanEqual(i2Texel, ivec2(globalLayout.iShadowFinalMaxX, globalLayout.iShadowFinalMaxY))))
+		return;
+
+	imageStore(shadowHistoryTexture, i2Texel, imageLoad(shadowBlurTexture, i2Texel));
+}

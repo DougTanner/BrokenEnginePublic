@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Network/NetworkCursor.h"
+
 namespace engine
 {
 
@@ -36,6 +38,20 @@ public:
 			// enet_peer_send does not take ownership of the packet on failure — free it to avoid a leak.
 			enet_packet_destroy(pPacket);
 		}
+	}
+
+	template <typename TType, typename... TArgs>
+	static void SendSimplePacket(ENetPeer* pPeer, TType eType, uint8_t uiChannel, uint32_t uiFlags, const TArgs&... args)
+	{
+		static_assert(std::is_enum_v<TType>, "SendSimplePacket type tag must be an enum (engine::PacketType or game::GamePacketType)");
+
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+
+		rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eType));
+		(PushSimplePacketArg(rWorkbuffer, args), ...);
+
+		SendPacket(pPeer, uiChannel, rWorkbuffer, uiFlags);
 	}
 };
 

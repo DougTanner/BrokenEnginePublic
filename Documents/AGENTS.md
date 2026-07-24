@@ -4,11 +4,11 @@ Holds design-time documentation and two parallel planning trees. No build artifa
 
 ## Reference Material
 
-- `FreshMachineSetup.md` — ordered fresh-machine bootstrap: Developer Mode/symlink privilege, clone, primary ThirdParty three-config build, primary data export, first wrapper run with ledger init. Human-facing counterpart to the wrapper scripts under `.agents/scripts/`.
+- `FreshMachineSetup.md` — ordered fresh-machine bootstrap: Developer Mode/symlink privilege, clone, one-time primary ThirdParty build, primary data export, first wrapper run with ledger init (session start rebuilds the shared AgentTools and ThirdParty binaries incrementally and prebuilds DataPacker Release for worktree seeding). Human-facing counterpart to the wrapper scripts under `.agents/scripts/`.
 - `C++StyleGuide.txt` — numbered style rules (Hungarian notation, Allman braces, `auto` restrictions, DirectXMath conventions). Source of truth for the `code-style-review` skill.
 - `FloatingPointDeterminism.txt` — the rollback-and-replay determinism contract: `/fp:strict`, FMA3 disabled, per-thread MXCSR, fixed 32 Hz timestep, deterministic RNG, single shared CRC. Read before touching simulation math.
 - `UserInterfaceDesign.txt` — the ImGui layout contract for player-facing screens: one scale factor (`engine::UiScale()`), the three sizing rules, shared layout constants, pivot centering, size-to-content, themed buttons, and vertical rhythm. Layout counterpart to `FloatingPointDeterminism.txt`; source of truth for `Ui/Screens/` geometry. Read before touching menu/HUD layout.
-- `azure-game-server-guide.docx` — server-hosting deployment notes.
+- `azure-game-server-guide.md` — Azure VM hosting guide for the dedicated server: sizing/costs, NSG rules, deployment set, remote debugging.
 - `Architecture/` — external detail too large for AGENTS.md: Mermaid diagrams (`FrameUpdatePipeline.md`, `GameReconciliation.md`) and the network protocol specification (`Network.md`). Relevant subsystem AGENTS.md files link to them; update the affected document when its phase ordering, reconciliation flow, or protocol contract changes.
 
 ## Planning Trees

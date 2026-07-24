@@ -226,7 +226,8 @@ void main()
 	// Compute vectors
 	vec3 n = GetNormal(material);
 	vec3 v = normalize(mainLayout.f4EyePosition.xyz - f3InWorldPosition);
-	vec3 l = normalize(globalLayout.f4SunMoonNormal.xyz);
+	// f4SunMoonNormal is CPU-normalized (GlobalUniforms.cpp PopulateSunMoonDirection); normalization-skip rule in Engine/Data/Shaders/AGENTS.md.
+	vec3 l = globalLayout.f4SunMoonNormal.xyz;
 	vec3 h = normalize(l + v);
 	vec3 reflection = -reflect(v, n);
 
@@ -247,25 +248,18 @@ void main()
 		ao = texture(sampler2D(pTextures[nonuniformEXT(int(material.fOcclusionTextureIndex))], samplerRepeat), getUV(material.iOcclusionTextureSet)).r;
 	}
 
-	// Engine-specific lighting variables. Sun and moon split: moon bypasses shadow attenuation
-	// (Model.frag samples only the terrain shadow texture), sun still receives it.
-	// Per-target Objects sun/moon intensity sliders are applied at the BRDF/IBL use sites below
-	// so they affect both paths linearly (baking them into f3SunColor would make IBL quadratic
-	// because fSunIntensity is derived from f3SunColor).
-	// fSunIntensity / fMoonIntensity are Rec.709 luminance of the *unscaled* sun/moon color, so
-	// the IBL specular path stays linear in fPbrSun (matching direct BRDF). Computing luminance
-	// from the fPbrSun-scaled color would compound to fPbrSun^3 in the IBL consumer.
-	vec3 f3SunColor  = mainLayout.fPbrSun * globalLayout.f4SunColor.rgb;
-	vec3 f3MoonColor = mainLayout.fPbrSun * globalLayout.f4MoonColor.rgb;
-	float fSunIntensity  = dot(globalLayout.f4SunColor.rgb,  kRec709) / mainLayout.fPbrDayBrightness;
-	float fMoonIntensity = dot(globalLayout.f4MoonColor.rgb, kRec709) / mainLayout.fPbrDayBrightness;
-
+	// Engine-specific lighting. Sun and moon split: moon bypasses shadow attenuation (Model.frag samples only
+	// the terrain shadow texture), sun still receives it. The sun/moon color terms are precomputed CPU-side
+	// (GlobalUniforms.cpp PopulateDayCycleColors): the per-target Objects intensity and fPbrSun fold into
+	// f4PbrSun/MoonColorObjects, and the IBL specular path multiplies in the Rec.709 luminance / fPbrDayBrightness
+	// via the separate f4PbrSun/MoonColorObjectsIbl. Kept as two fields so the IBL path stays linear in fPbrSun
+	// (its luminance comes from the UNSCALED color; folding fPbrSun into the luminance would compound to fPbrSun^3).
 	vec3 f3AmbientColor = globalLayout.f4AmbientColor.rgb;
 
 	vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4VisibleArea);
 	vec2 f2LightingPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
 	vec2 f2ShadowPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4ShadowArea);
-	float fShadow = max(mainLayout.fPbrShadowFloor, texture(shadowTextureSampler, f2ShadowPosition).r);
+	float fShadow = max(mainLayout.fPbrShadowFloor, SampleTerrainShadow(globalLayout, shadowTextureSampler, f2ShadowPosition));
 	const float fShadowMoon = 1.0; // moon bypasses terrain shadow; Model.frag has no other shadow inputs
 
 	// Accumulate lighting
@@ -285,8 +279,8 @@ void main()
 	vec3 diffuseResult = pow(mainLayout.fPbrBrdfDiffuse * diffuseContrib, vec3(mainLayout.fPbrBrdfDiffusePower));
 	vec3 specularResult = pow(mainLayout.fPbrBrdfSpecular * specularContrib, vec3(mainLayout.fPbrBrdfSpecularPower));
 	vec3 brdf = NdotL * (diffuseResult + specularResult);
-	color += max(globalLayout.fSunIntensityObjects  * f3SunColor  * fShadow * fShadow,
-	             globalLayout.fMoonIntensityObjects * f3MoonColor * fShadowMoon * fShadowMoon) * brdf;
+	color += max(globalLayout.f4PbrSunColorObjects.rgb  * fShadow * fShadow,
+	             globalLayout.f4PbrMoonColorObjects.rgb * fShadowMoon * fShadowMoon) * brdf;
 #endif
 
 	// Image based lighting
@@ -295,8 +289,8 @@ void main()
 	vec3 f3IblSpecular;
 	GetIBLContribution(NdotV, perceptualRoughness, diffuseColor, specularColor, n, reflection, f3IblDiffuse, f3IblSpecular);
 	f3IblDiffuse *= mainLayout.fPbrAmbient * mix(vec3(1.0), f3AmbientColor, mainLayout.fPbrIblAmbientColorBlend) * mix(1.0, fShadow, mainLayout.fPbrIblShadowBlend);
-	f3IblSpecular *= max(globalLayout.fSunIntensityObjects  * fSunIntensity  * f3SunColor  * fShadow,
-	                     globalLayout.fMoonIntensityObjects * fMoonIntensity * f3MoonColor * fShadowMoon);
+	f3IblSpecular *= max(globalLayout.f4PbrSunColorObjectsIbl.rgb  * fShadow,
+	                     globalLayout.f4PbrMoonColorObjectsIbl.rgb * fShadowMoon);
 	vec3 f3IblDiffuseResult = pow(mainLayout.fPbrIblDiffuse * f3IblDiffuse, vec3(mainLayout.fPbrIblDiffusePower));
 	vec3 f3IblSpecularResult = pow(mainLayout.fPbrIblSpecular * f3IblSpecular, vec3(mainLayout.fPbrIblSpecularPower));
 	color += f3IblDiffuseResult + f3IblSpecularResult;

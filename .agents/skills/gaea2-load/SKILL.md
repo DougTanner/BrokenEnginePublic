@@ -18,7 +18,7 @@ Convert a Gaea 2 `.terrain` JSON into:
 
 2. **Verify Python 3.10+ is available.** Python may be missing or stale on a fresh dev box, and `winget install` doesn't refresh PATH in the current shell — so the bootstrap probes well-known install dirs (winget, conda, scoop, chocolatey, active venv) directly:
    ```
-   powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
+   pwsh -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
    ```
    - Exit 0 with `OK <python-exe-path> Python X.Y` → **capture `<python-exe-path>` for step 3** (don't assume bare `python` is on PATH; the launcher `py.exe` is intentionally not used here).
    - Exit 1 with `MISSING ...` or `STALE ...` → tell the user Python is missing/too old and ask for permission to install. Only after explicit approval, run:

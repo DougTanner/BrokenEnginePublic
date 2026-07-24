@@ -106,6 +106,7 @@ void ProfileManagerBase::Destroy()
 		}
 
 		mVkQueryPool = VK_NULL_HANDLE;
+		mGpuShadowSample = {};
 
 		// mpDumpLog deliberately not reset: Destroy() also runs on swapchain-tier recreates (resize, settings), and the dump file must span the whole session. The unique_ptr closes it at ProfileManager destruction.
 #endif // BT_CLIENT
@@ -295,7 +296,7 @@ void ProfileManagerBase::GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkComma
 	}
 }
 
-void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTimers eEnd)
+void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTimers eEnd, bool bLatchShadowSample)
 {
 	if constexpr (kbProfiling)
 	{
@@ -318,7 +319,17 @@ void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTi
 			CHECK_VK(vkResultGetQueryPoolResults);
 
 			// Convert timestamp units to microseconds using device-specific timestampPeriod
-			mGpuTimers[eGpuTimer].smoothedMicroseconds = static_cast<int64_t>(static_cast<float>(puiResults[1] - puiResults[0]) * gpInstanceManager->mVkPhysicalDeviceProperties.limits.timestampPeriod / 1000.0f);
+			int64_t iCurrentMicroseconds = static_cast<int64_t>(static_cast<float>(puiResults[1] - puiResults[0]) * gpInstanceManager->mVkPhysicalDeviceProperties.limits.timestampPeriod / 1000.0f);
+			mGpuTimers[eGpuTimer].smoothedMicroseconds = iCurrentMicroseconds;
+
+			if (bLatchShadowSample && eGpuTimer == kGpuTimerShadow)
+			{
+				shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
+				++mGpuShadowSample.uiSequence;
+				mGpuShadowSample.iCurrentMicroseconds = iCurrentMicroseconds;
+				mGpuShadowSample.iActivePixelsWidth = static_cast<int64_t>(rGlobalLayout.iShadowVisibleMaxX) - rGlobalLayout.iShadowVisibleMinX;
+				mGpuShadowSample.iActivePixelsHeight = static_cast<int64_t>(rGlobalLayout.iShadowVisibleMaxY) - rGlobalLayout.iShadowVisibleMinY;
+			}
 		}
 	}
 }
@@ -382,7 +393,7 @@ void ProfileManagerBase::LogTimers()
 		int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 		for (int64_t i = 0; i < iCommandBufferCount; ++i)
 		{
-			GpuRead(i, kGpuTimerGlobal, kGpuTimerCount);
+			GpuRead(i, kGpuTimerGlobal, kGpuTimerCount, false);
 		}
 
 		for (int64_t i = 0; i < kGpuTimerCount; ++i)

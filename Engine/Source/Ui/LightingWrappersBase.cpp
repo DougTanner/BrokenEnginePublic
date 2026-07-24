@@ -14,7 +14,7 @@ Wrapper gLightingDepositThreshold(0.0f, 0.0f, 4.0f);
 Wrapper gLightingDepositCompress(4.0f, 0.0f, 16.0f);
 
 // Write - Spread
-Wrapper gSpreadPassCount(40.0f, 1.0f, static_cast<float>(shaders::kiMaxSpreadPasses)); // min >= 1.0f load-bearing: keeps pow(fPassCount, -fCombineExposurePassScale) base positive in LightCombine.comp:79 / DebugTexture.frag:35.
+Wrapper gSpreadPassCount(40.0f, 1.0f, static_cast<float>(shaders::kiMaxSpreadPasses)); // min >= 1.0f load-bearing: keeps std::pow(fPassCount, -fCombineExposurePassScale) base positive and the 1/fPassCount pass scaling finite (LightingUniforms.cpp).
 Wrapper gSpreadDecay(1.0f, 0.0f, 1.0f);
 Wrapper gSpreadAccumulationDecay(0.35f, 0.0f, 1.0f);
 

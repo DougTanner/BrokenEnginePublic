@@ -57,5 +57,5 @@ void main()
 	mapped = clamp(mapped, 0.0f, 1.0f);
 
 	// Gamma
-	f4OutColor = vec4(pow(mapped, vec3(1.0f / mainLayout.fPbrGamma)), 1.0f);
+	f4OutColor = vec4(pow(mapped, vec3(mainLayout.fPbrGammaInv)), 1.0f);
 }

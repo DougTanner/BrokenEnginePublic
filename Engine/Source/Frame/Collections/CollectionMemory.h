@@ -50,6 +50,20 @@ constexpr int64_t CalculateBufferSize(int64_t iCapacity, const T& member)
 	return iBufferSize;
 }
 
+// Raw summed byte size of one member tuple laid out at iCapacity. Unclamped: allocation callers apply their own
+// max(size, 1) so a zero-member layout still backs a positive capacity, while the deserialize zero-fill wants the
+// exact physical-layout sum.
+template <typename TTuple>
+int64_t MemberTupleBufferSize(int64_t iCapacity, const TTuple& members)
+{
+	int64_t iBufferSize = 0;
+	std::apply([&](const auto&... memberPtrRefs)
+	{
+		((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
+	}, members);
+	return iBufferSize;
+}
+
 // ============================================================================
 // LOW-LEVEL MEMORY ALIGNMENT HELPERS
 // ============================================================================
@@ -100,8 +114,8 @@ void ResetDataToNull(TStruct& rStruct, TTuple&& members)
 {
 	rStruct.pData.reset();
 	rStruct.iCapacity = 0;
+	rStruct.iPhysicalLayoutCapacity = 0;
 
-	// Null each member (array or single pointer) via the shared member-pointer visitor.
 	std::apply([&](auto&... memberPtrRefs)
 	{
 		(ForEachMemberPointer(memberPtrRefs, [](auto& elementPtrRef)
@@ -112,14 +126,14 @@ void ResetDataToNull(TStruct& rStruct, TTuple&& members)
 }
 
 // Allocates single contiguous buffer and positions member array pointers within it. Used during initial allocation and deserialization.
-// Reuses the existing buffer when it is already large enough (avoids reallocation when deserializing into an already-allocated
-// collection, e.g. replay-load). iExistingLayoutCapacity is the collection's last-recorded capacity (rStruct.iCapacity captured
-// before the metadata Read overwrote it with the stream value) — always <= the live buffer's physical layout, so it is a safe
-// lower bound: comparing rStruct.iCapacity against itself would instead reuse an undersized buffer and overrun on the next MultiRead.
+// Reuses the existing buffer when its physical layout already spans iCapacity (avoids reallocation when deserializing into an
+// already-allocated collection, e.g. replay-load). iPhysicalLayoutCapacity is the true stride of the installed buffer and
+// survives a shrink-reuse even as iCapacity drops to a smaller stream value, so it is the correct reuse bound; comparing the
+// just-read iCapacity against itself would instead reuse an undersized buffer and overrun on the next MultiRead.
 template <typename TStruct, typename TTuple>
-void AllocateAndAssign(TStruct& rStruct, int64_t iCapacity, TTuple&& members, int64_t iExistingLayoutCapacity)
+void AllocateAndAssign(TStruct& rStruct, int64_t iCapacity, TTuple&& members)
 {
-	if (iExistingLayoutCapacity >= iCapacity && rStruct.pData != nullptr)
+	if (rStruct.iPhysicalLayoutCapacity >= iCapacity && rStruct.pData != nullptr)
 	{
 		return;
 	}
@@ -127,23 +141,28 @@ void AllocateAndAssign(TStruct& rStruct, int64_t iCapacity, TTuple&& members, in
 	// Heap: MakeAligned allocates the SOA data buffer, which must persist across frames and can be arbitrarily
 	// large depending on entity count. Workbuffer is temporary (lost on Pop) and can't hold cross-frame state.
 	ScopedSuppressAllocationTracking suppress;
+	int64_t iBufferSize = std::max<int64_t>(MemberTupleBufferSize(iCapacity, members), 1);
+	if (iBufferSize > common::kiMaxDeserializedBytes)
+	{
+		ResetDataToNull(rStruct, members);
+		throw common::CorruptStreamException("AllocateAndAssign");
+	}
+
+	common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
+	if (pNewData == nullptr)
+	{
+		ResetDataToNull(rStruct, members);
+		throw common::CorruptStreamException("AllocateAndAssign");
+	}
+
+	// Publish the capacity and physical layout only after a successful install.
+	rStruct.iCapacity = iCapacity;
+	rStruct.iPhysicalLayoutCapacity = iCapacity;
+	rStruct.pData = std::move(pNewData);
+
+	std::byte* pCurrent = rStruct.pData.get();
 	std::apply([&](auto&... memberPtrRefs)
 	{
-		int64_t iBufferSize = 0;
-		((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
-		iBufferSize = std::max<int64_t>(iBufferSize, 1);
-
-		common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
-		if (pNewData == nullptr)
-		{
-			ResetDataToNull(rStruct, members);
-			throw common::CorruptStreamException("AllocateAndAssign");
-		}
-
-		rStruct.iCapacity = iCapacity;
-		rStruct.pData = std::move(pNewData);
-
-		std::byte* pCurrent = rStruct.pData.get();
 		(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
 	}, std::forward<TTuple>(members));
 }
@@ -205,28 +224,28 @@ void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 
 	// Capacity-only guard: a null pData always implies zero capacity (ResetDataToNull zeroes both together,
 	// and every allocating path sets both together), so a matching nonzero capacity guarantees pData is non-null.
+	// The equal-capacity else path reuses rCurrent's existing buffer as-is, preserving its iPhysicalLayoutCapacity.
 	if (rCurrent.iCapacity != iCapacity)
 	{
+		int64_t iBufferSize = std::max<int64_t>(MemberTupleBufferSize(iCapacity, members), 1);
+
+		common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
+		if (pNewData == nullptr)
+		{
+			throw std::bad_alloc();
+		}
+
+		rCurrent.iCapacity = iCapacity;
+		rCurrent.iPhysicalLayoutCapacity = iCapacity;
+		rCurrent.pData = std::move(pNewData);
+
+		std::byte* pCurrent = rCurrent.pData.get();
 		std::apply([&](auto&... memberPtrRefs)
 		{
-			int64_t iBufferSize = 0;
-			((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
-			iBufferSize = std::max<int64_t>(iBufferSize, 1);
-
-			common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
-			if (pNewData == nullptr)
-			{
-				throw std::bad_alloc();
-			}
-
-			rCurrent.iCapacity = iCapacity;
-			rCurrent.pData = std::move(pNewData);
-
-			std::byte* pCurrent = rCurrent.pData.get();
 			(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
-
-			ASSERT(rCurrent.iCount <= rCurrent.iCapacity);
 		}, std::forward<TTuple>(members));
+
+		ASSERT(rCurrent.iCount <= rCurrent.iCapacity);
 	}
 }
 
@@ -331,23 +350,22 @@ void GrowCapacityWithCopy(TStruct& rStruct, int64_t iNewCapacity, int64_t iCurre
 	// Heap: MakeAligned for a larger SOA buffer that replaces the old one. The buffer persists across frames
 	// and grows with entity count, so workbuffer (lost on Pop) and static arrays (fixed size) don't work.
 	ScopedSuppressAllocationTracking suppress;
+	int64_t iBufferSize = std::max<int64_t>(MemberTupleBufferSize(iNewCapacity, members), 1);
+
+	common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
+	if (pNewData == nullptr)
+	{
+		throw std::bad_alloc();
+	}
+
+	std::byte* pCurrent = pNewData.get();
 	std::apply([&](auto&... memberPtrRefs)
 	{
-		int64_t iBufferSize = 0;
-		((iBufferSize += CalculateBufferSize(iNewCapacity, memberPtrRefs)), ...);
-		iBufferSize = std::max<int64_t>(iBufferSize, 1);
-
-		common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
-		if (pNewData == nullptr)
-		{
-			throw std::bad_alloc();
-		}
-
-		std::byte* pCurrent = pNewData.get();
 		(AssignAndCopyAligned(memberPtrRefs, iNewCapacity, iCurrentCount, pCurrent), ...);
-		rStruct.pData = std::move(pNewData);
-		rStruct.iCapacity = iNewCapacity;
 	}, std::forward<TTuple>(members));
+	rStruct.pData = std::move(pNewData);
+	rStruct.iCapacity = iNewCapacity;
+	rStruct.iPhysicalLayoutCapacity = iNewCapacity;
 }
 
 // ============================================================================
@@ -361,7 +379,6 @@ void SwapElement(TStruct& rStruct, int64_t i, TTuple&& members)
 {
 	std::apply([&](auto&... memberPtrRefs)
 	{
-		// Handle both arrays and single pointers via the shared member-pointer visitor.
 		(ForEachMemberPointer(memberPtrRefs, [&](auto& elementPtrRef)
 		{
 			elementPtrRef[i] = elementPtrRef[rStruct.iCount - 1];

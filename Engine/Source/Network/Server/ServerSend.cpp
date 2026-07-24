@@ -33,15 +33,15 @@ void Server::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iTick,
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
-	// [1B type][1B slotIndex][2B epoch][8B frame][4B coord.x][4B coord.y][4B uncompressedSize][4B compressedSize][...LZ4 data]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerCoordFullState));
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
-	rWorkbuffer.PushBack<uint16_t>(pClient->coordAckStates.at(iSlot).uiEpoch);
-	rWorkbuffer.PushBack<int64_t>(iTick);
-	WriteGridCoord(rWorkbuffer, coord);
-	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(mSendScratch.size()));
-	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(iCompressedSize));
-	rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(mCompressionBuffer.data()), iCompressedSize));
+	NetworkMessages::ServerCoordFullStateMessage message {
+		.uiSlotIndex = static_cast<uint8_t>(iSlot),
+		.uiEpoch = pClient->coordAckStates.at(iSlot).uiEpoch,
+		.iTick = iTick,
+		.coord = coord,
+		.iUncompressedSize = static_cast<int32_t>(mSendScratch.size()),
+		.compressedPayload = {.pData = mCompressionBuffer.data(), .iSize = static_cast<int32_t>(iCompressedSize)},
+	};
+	NetworkMessages::Write(rWorkbuffer, message);
 
 	NetworkManager::SendPacket(pClient->pPeer, NetworkManager::CoordSlotReliable(iSlot), rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
@@ -66,13 +66,13 @@ void Server::SendCoordStaticData(int64_t iClientId, int64_t iSlot, GridCoord coo
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
-	// [1B type][1B slot][2B epoch][4B coord.x][4B coord.y][4B size][...staticData bytes]
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerCoordStaticData));
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
-	rWorkbuffer.PushBack<uint16_t>(pClient->coordAckStates.at(iSlot).uiEpoch);
-	WriteGridCoord(rWorkbuffer, coord);
-	rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(mSendScratch.size()));
-	rWorkbuffer.Append(std::string_view(mSendScratch));
+	NetworkMessages::ServerCoordStaticDataMessage message {
+		.uiSlotIndex = static_cast<uint8_t>(iSlot),
+		.uiEpoch = pClient->coordAckStates.at(iSlot).uiEpoch,
+		.coord = coord,
+		.staticData = {.pData = reinterpret_cast<const uint8_t*>(mSendScratch.data()), .iSize = static_cast<int32_t>(mSendScratch.size())},
+	};
+	NetworkMessages::Write(rWorkbuffer, message);
 
 	NetworkManager::SendPacket(pClient->pPeer, NetworkManager::CoordSlotReliable(iSlot), rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
@@ -82,42 +82,52 @@ void Server::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char*
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerConnectionResponse));
-	rWorkbuffer.PushBack<uint8_t>(bAccepted ? 1 : 0);
-	if (bAccepted && pGuid != nullptr)
-	{
-		rWorkbuffer.PushBack<uint64_t>(pGuid->uiHigh);
-		rWorkbuffer.PushBack<uint64_t>(pGuid->uiLow);
-	}
-	else if (!bAccepted && pMessage != nullptr)
-	{
-		rWorkbuffer.Append(std::string_view(pMessage));
-	}
+	NetworkMessages::ServerConnectionResponseMessage message {
+		.uiAccepted = bAccepted ? 1u : 0u,
+		.guid = (pGuid != nullptr) ? *pGuid : ClientGuid {},
+		.bHasGuid = bAccepted && pGuid != nullptr,
+		.rejectionMessage = (!bAccepted && pMessage != nullptr) ? pMessage : "",
+	};
+	NetworkMessages::Write(rWorkbuffer, message);
 
 	NetworkManager::SendPacket(pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void Server::SendSubscribeAccept(ClientConnection& rClient, int64_t iSlot, GridCoord coord)
 {
-	// [1B type][1B slotIndex][2B epoch][4B coord.x][4B coord.y]
 	uint16_t uiEpoch = (iSlot < std::ssize(rClient.coordSubscriptions)) ? rClient.coordAckStates.at(iSlot).uiEpoch : 0;
-	SendSimplePacket(rClient.pPeer, PacketType::kServerSubscribeAccept, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(iSlot), uiEpoch, coord);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+	NetworkMessages::ServerSubscribeAcceptMessage message {
+		.uiSlotIndex = static_cast<uint8_t>(iSlot),
+		.uiEpoch = uiEpoch,
+		.coord = coord,
+	};
+	NetworkMessages::Write(rWorkbuffer, message);
+	NetworkManager::SendPacket(rClient.pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void Server::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, PacketType eType, int64_t iSlot, uint16_t uiEpoch, const PerCoordBufferedFrame& rBuffered, int64_t iTimestampNs)
 {
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eType));
-	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(iSlot));
-	rWorkbuffer.PushBack<uint16_t>(uiEpoch);
-	rWorkbuffer.PushBack<int64_t>(rBuffered.iTick);
-	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
-	rWorkbuffer.PushBack<uint64_t>(rBuffered.sharedCrc);
-
-	int32_t iCompressedSize = static_cast<int32_t>(rBuffered.compressedData.size());
-	rWorkbuffer.PushBack<int32_t>(iCompressedSize);
-	if (iCompressedSize > 0)
+	NetworkMessages::CoordUpdateFields fields {
+		.uiSlotIndex = static_cast<uint8_t>(iSlot),
+		.uiEpoch = uiEpoch,
+		.iTick = rBuffered.iTick,
+		.iEchoedTimestampNs = iTimestampNs,
+		.uiSharedCrc = rBuffered.sharedCrc,
+		.compressedPayload = {.pData = rBuffered.compressedData.data(), .iSize = static_cast<int32_t>(rBuffered.compressedData.size())},
+	};
+	if (eType == PacketType::kServerCoordUpdate)
 	{
-		rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(rBuffered.compressedData.data()), iCompressedSize));
+		NetworkMessages::ServerCoordUpdateMessage message {};
+		static_cast<NetworkMessages::CoordUpdateFields&>(message) = fields;
+		NetworkMessages::Write(rWorkbuffer, message);
+	}
+	else if (eType == PacketType::kServerCoordResend)
+	{
+		NetworkMessages::ServerCoordResendMessage message {};
+		static_cast<NetworkMessages::CoordUpdateFields&>(message) = fields;
+		NetworkMessages::Write(rWorkbuffer, message);
 	}
 }
 
@@ -261,7 +271,11 @@ void Server::BroadcastLoadNotification()
 			continue;
 		}
 
-		SendSimplePacket(rClient.pPeer, PacketType::kServerLoadNotification, NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE);
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+		common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+		NetworkMessages::ServerLoadNotificationMessage message {};
+		NetworkMessages::Write(rWorkbuffer, message);
+		NetworkManager::SendPacket(rClient.pPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 	}
 }
 

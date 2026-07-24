@@ -2,7 +2,7 @@
 
 **Global:** `gpTextureManager`
 
-Owns loaded textures, global texture descriptors, cached generated textures, and renderer targets. Lazy textures begin on a white placeholder and enter the bounded per-frame adoption path after a load request. Non-indirect pipelines request at creation, indirect pipelines defer until their first positive instance write, and priority textures request at boot. The bindless array has fixed capacity so descriptor storage and indices remain stable.
+Owns loaded textures, global texture descriptors, cached generated textures, and renderer targets. Lazy textures begin on a white placeholder and enter the bounded per-frame adoption path after a load request. Non-indirect pipelines request at creation, indirect pipelines defer until their first positive instance write, and priority textures request at boot. Bindless arrays use fixed backing storage: their addresses and slot indices are texture-descriptor registry identity.
 
 ## Resource Boundaries
 

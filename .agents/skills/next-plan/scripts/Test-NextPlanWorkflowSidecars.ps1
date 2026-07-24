@@ -61,13 +61,6 @@ using System;
 using System.Linq;
 public static class WorktreeCliSidecarFixture {
  public static int Main(string[] args) {
-  if (args.Contains("--help")) {
-   Console.WriteLine("WorktreeCli.exe plan validate --repo COMMON-DIR --worktree CHECKOUT --baseline COMMIT");
-   Console.WriteLine("WorktreeCli.exe plan claim-next --repo COMMON-DIR --primary-worktree PRIMARY --worktree SESSION --branch TARGET --owner TOKEN --session TOKEN --write-claim-receipt Temp/RECEIPT [--plan Documents/Plans/...md]");
-   Console.WriteLine("WorktreeCli.exe plan claim-status|unclaim --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256");
-   Console.WriteLine("WorktreeCli.exe plan prepare-completion|prepare-rejection --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256");
-   return 0;
-  }
   string mode = Environment.GetEnvironmentVariable("BROKEN_ENGINE_WORKTREECLI_SIDECAR_FIXTURE") ?? "";
   bool claimStatus = args.Contains("claim-status");
   bool prepare = args.Contains("prepare-completion") || args.Contains("prepare-rejection");

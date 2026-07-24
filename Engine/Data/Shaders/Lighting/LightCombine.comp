@@ -24,20 +24,24 @@ layout (push_constant) uniform PushConstants
 };
 
 // Uchimura tone curve (Gran Turismo Sport)
-// P: max brightness, a: contrast, m: linear start, l: linear length, c: toe curvature, b: black tightness
-vec4 Uchimura(vec4 f4X, float P, float a, float m, float l, float c, float b)
+// P: max brightness, a: contrast, m: linear start, c: toe curvature, b: black tightness. The segment constants
+// S0/S1/CP are precomputed on the CPU from those inputs plus linear-length (globalLayout.fCombineS0/S1/CP).
+vec4 Uchimura(vec4 f4X)
 {
-	float l0 = ((P - m) * l) / a;
-	float S0 = m + l0;
-	float S1 = m + a * l0;
-	float C2 = (a * P) / (P - S1);
-	float CP = -C2 / P;
+	float P = globalLayout.fCombineMaxBrightness;
+	float a = globalLayout.fCombineContrast;
+	float m = globalLayout.fCombineLinearStart;
+	float c = globalLayout.fCombineToe;
+	float b = globalLayout.fCombineBlackTightness;
+	float S0 = globalLayout.fCombineS0;
+	float S1 = globalLayout.fCombineS1;
+	float CP = globalLayout.fCombineCP;
 
 	vec4 f4W0 = vec4(1.0f) - smoothstep(vec4(0.0f), vec4(m), f4X);
 	vec4 f4W2 = step(vec4(S0), f4X);
 	vec4 f4W1 = vec4(1.0f) - f4W0 - f4W2;
 
-	// Clamp pow base — sum of float16 EWNS textures can have tiny negative residuals after bilinear filtering, mirroring DebugTexture.frag:53
+	// Clamp pow base — sum of float16 EWNS textures can have tiny negative residuals after bilinear filtering, mirroring DebugTexture.frag
 	vec4 f4T = m * pow(max(f4X, vec4(0.0f)) / m, vec4(c)) + b;
 	vec4 f4L = m + a * (f4X - m);
 	vec4 f4S = P - (P - S1) * exp(CP * (f4X - S0));
@@ -45,13 +49,16 @@ vec4 Uchimura(vec4 f4X, float P, float a, float m, float l, float c, float b)
 	return f4T * f4W0 + f4L * f4W1 + f4S * f4W2;
 }
 
-float UchimuraScalar(float fX, float P, float a, float m, float l, float c, float b)
+float UchimuraScalar(float fX)
 {
-	float l0 = ((P - m) * l) / a;
-	float S0 = m + l0;
-	float S1 = m + a * l0;
-	float C2 = (a * P) / (P - S1);
-	float CP = -C2 / P;
+	float P = globalLayout.fCombineMaxBrightness;
+	float a = globalLayout.fCombineContrast;
+	float m = globalLayout.fCombineLinearStart;
+	float c = globalLayout.fCombineToe;
+	float b = globalLayout.fCombineBlackTightness;
+	float S0 = globalLayout.fCombineS0;
+	float S1 = globalLayout.fCombineS1;
+	float CP = globalLayout.fCombineCP;
 
 	float fW0 = 1.0f - smoothstep(0.0f, m, fX);
 	float fW2 = step(S0, fX);
@@ -79,8 +86,8 @@ void main()
 	// margin so edge consumers never sample a zeroed texel). Mirror of the spread-window early-out.
 	vec2 f2WorldPos = VisibleAreaToWorld(f2Uv, globalLayout.f4LightingArea);
 	vec2 f2VisibleUv = WorldToVisibleArea(vec3(f2WorldPos, 0.0f), globalLayout.f4VisibleArea);
-	float fMarginX = 2.0f * ((globalLayout.f4LightingArea.z - globalLayout.f4LightingArea.x) / float(pushConstants.uiWidth)) / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x);
-	float fMarginY = 2.0f * ((globalLayout.f4LightingArea.y - globalLayout.f4LightingArea.w) / float(pushConstants.uiHeight)) / (globalLayout.f4VisibleArea.y - globalLayout.f4VisibleArea.w);
+	float fMarginX = globalLayout.f2CombineMargin.x;
+	float fMarginY = globalLayout.f2CombineMargin.y;
 	if (f2VisibleUv.x < -fMarginX || f2VisibleUv.x > 1.0f + fMarginX || f2VisibleUv.y < -fMarginY || f2VisibleUv.y > 1.0f + fMarginY)
 	{
 		imageStore(combineImageR, i2Coord, vec4(0.0f));
@@ -93,9 +100,6 @@ void main()
 	float fPassCount = globalLayout.fSpreadPassCount;
 	uint uiPassCount = uint(fPassCount);
 
-	float fPassNorm = mix(1.0f, 1.0f / fPassCount, globalLayout.fCombinePassNormalize);
-	float fPassScale = pow(fPassCount, -globalLayout.fCombineExposurePassScale);
-
 	vec4 f4R = vec4(0.0f);
 	vec4 f4G = vec4(0.0f);
 	vec4 f4B = vec4(0.0f);
@@ -105,17 +109,9 @@ void main()
 		f4G += texture(sourcesG[i], f2Uv);
 		f4B += texture(sourcesB[i], f2Uv);
 	}
-	float fAvg = 1.0f / fPassCount;
-	f4R *= fAvg * fPassNorm * fPassScale;
-	f4G *= fAvg * fPassNorm * fPassScale;
-	f4B *= fAvg * fPassNorm * fPassScale;
-
-	float P = globalLayout.fCombineMaxBrightness;
-	float a = globalLayout.fCombineContrast;
-	float m = globalLayout.fCombineLinearStart;
-	float l = globalLayout.fCombineLinearLength;
-	float c = globalLayout.fCombineToe;
-	float b = globalLayout.fCombineBlackTightness;
+	f4R *= globalLayout.fCombinePassTotalScale;
+	f4G *= globalLayout.fCombinePassTotalScale;
+	f4B *= globalLayout.fCombinePassTotalScale;
 
 	vec4 f4FinalR;
 	vec4 f4FinalG;
@@ -123,9 +119,9 @@ void main()
 	float fHuePreserve = globalLayout.fCombineHuePreserve;
 	if (fHuePreserve < 0.001f)
 	{
-		f4FinalR = Uchimura(f4R, P, a, m, l, c, b);
-		f4FinalG = Uchimura(f4G, P, a, m, l, c, b);
-		f4FinalB = Uchimura(f4B, P, a, m, l, c, b);
+		f4FinalR = Uchimura(f4R);
+		f4FinalG = Uchimura(f4G);
+		f4FinalB = Uchimura(f4B);
 	}
 	else
 	{
@@ -136,7 +132,7 @@ void main()
 		for (int i = 0; i < 4; i++)
 		{
 			float fLum = dot(vec3(f4R[i], f4G[i], f4B[i]), kRec709);
-			float fMappedLum = UchimuraScalar(fLum, P, a, m, l, c, b);
+			float fMappedLum = UchimuraScalar(fLum);
 			float fRatio = fMappedLum / max(fLum, 0.001f);
 			f4HueR[i] = f4R[i] * fRatio;
 			f4HueG[i] = f4G[i] * fRatio;
@@ -146,9 +142,9 @@ void main()
 		if (fHuePreserve < 0.999f)
 		{
 			// Blend the per-channel Uchimura result toward the hue-preserving result (mirror of the < 0.001f fast path)
-			f4FinalR = mix(Uchimura(f4R, P, a, m, l, c, b), f4HueR, fHuePreserve);
-			f4FinalG = mix(Uchimura(f4G, P, a, m, l, c, b), f4HueG, fHuePreserve);
-			f4FinalB = mix(Uchimura(f4B, P, a, m, l, c, b), f4HueB, fHuePreserve);
+			f4FinalR = mix(Uchimura(f4R), f4HueR, fHuePreserve);
+			f4FinalG = mix(Uchimura(f4G), f4HueG, fHuePreserve);
+			f4FinalB = mix(Uchimura(f4B), f4HueB, fHuePreserve);
 		}
 		else
 		{

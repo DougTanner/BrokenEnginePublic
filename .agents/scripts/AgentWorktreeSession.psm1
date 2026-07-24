@@ -287,14 +287,4 @@ function Get-AgentWorktreeReattachProof {
 	return [pscustomobject]@{ Receipt = $receipt; Primary = $primary; Worktree = $worktree; WorktreeHead = $worktreeHead }
 }
 
-function Lock-AgentWorktree([string] $RepositoryRoot, [string] $Worktree, [string] $Reason) {
-	& git -C $RepositoryRoot worktree lock --reason $Reason $Worktree
-	if ($LASTEXITCODE -ne 0) { throw "Failed to lock worktree '$Worktree'." }
-}
-
-function Unlock-AgentWorktree([string] $RepositoryRoot, [string] $Worktree) {
-	& git -C $RepositoryRoot worktree unlock $Worktree 2>$null
-	if ($LASTEXITCODE -ne 0) { throw "Failed to unlock worktree '$Worktree'." }
-}
-
-Export-ModuleMember -Function Get-AgentWorktreePrimaryIdentity, Get-AgentWorktreePrivateGitDirectory, Get-AgentWorktreeReceiptPath, Get-AgentWorktreeReceiptIntegrityPath, Open-AgentWorktreeReceiptReadLease, New-AgentWorktreeSessionReceipt, Write-AgentWorktreeSessionReceipt, Read-AgentWorktreeSessionReceipt, Get-AgentWorktreeReattachProof, Lock-AgentWorktree, Unlock-AgentWorktree
+Export-ModuleMember -Function Get-AgentWorktreePrimaryIdentity, Get-AgentWorktreePrivateGitDirectory, Get-AgentWorktreeReceiptPath, Get-AgentWorktreeReceiptIntegrityPath, Open-AgentWorktreeReceiptReadLease, New-AgentWorktreeSessionReceipt, Write-AgentWorktreeSessionReceipt, Read-AgentWorktreeSessionReceipt, Get-AgentWorktreeReattachProof

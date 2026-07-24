@@ -23,7 +23,7 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 - Subagent-to-subagent handoffs go through temporary files; return only the file paths to the parent session
 - Return one inline acceptance table only when a final-evidence gate (defined in the Change Workflow below) applies; format: [.agents/references/subagent-reporting.md](.agents/references/subagent-reporting.md)
 - Isolated worktrees and session claims are required only for executable Plan selection or claim mutation, shared build/bootstrap coordination, or landing. Ordinary work uses the user-supplied checkout and preserves unrelated changes.
-- Live sessions hold a `git worktree lock`; retained worktrees are removed only by the manual `/cleanup-worktrees` skill or explicit user direction — never recreate its effect with raw Git or filesystem commands.
+- Retained worktrees are removed only by the manual `/cleanup-worktrees` skill (removes wrapper worktrees 48+ hours old) or explicit user direction — never recreate its effect with raw Git or filesystem commands.
 
 ### Delegation roles
 
@@ -40,13 +40,15 @@ The only place a role's model and effort are written down; skills name a role an
 | `mechanic` | Sonnet | xhigh | Checklist edits — `/code-style-review`, `/update-vcxproj` |
 
 - Delegate by `subagent_type`; an ad-hoc `model:` cannot pin effort. A documented host-unavailability fallback to `general-purpose` may pass `model:` and runs unpinned
-- Every review is `reviewer` — no higher-capability exception. Locating is `locator`, judgment is `researcher`, style review is mechanical so `mechanic`
-- `codex-review` is the sole skill that may name a model — it routes around one being unavailable
+- Every review is the `reviewer` role — no higher-capability exception. In Claude Code the reviewer role dispatches through `/codex-review` (Codex/Sol, effort high) rather than an `Agent(reviewer)` subagent — a `/codex-review` invocation IS the delegated-reviewer execution context. Locating is `locator`, judgment is `researcher`, style review is mechanical so `mechanic`
+- Manager evaluates Sol findings for concrete reachable failure and materiality before acting — Sol over-reporting is expected; rejecting speculative or gold-plating findings is the default, and no additional review rounds are added
+- `.claude/agents/reviewer.md` frontmatter (`fable`/`medium`) defines the fallback path only; Sol effort high is pinned in `.codex/codex-review.ps1`
+- `codex-review` is the sole skill that may name a model — it is the Claude Code reviewer route to Codex/Sol
 
 ChatGPT Codex: Fable -> gpt-5.6-sol, Opus -> gpt-5.6-terra, Sonnet -> gpt-5.6-luna
 	Temp Note: Codex does not currently expose model names for subagents, so we are using gpt-5.6-sol high (which currently is picked up by all subagents)
 	
-Claude Code: If Fable is not available, fall back to Opus.
+Claude Code reviewer roles: Codex/Sol via `/codex-review` primary, Fable `reviewer` subagent fallback, then Opus. Other Fable roles (planner): if Fable is not available, fall back to Opus.
 
 ## IMPORTANT: Change Workflow (YOU MUST follow this when changing anything tracked in this repository)
 

@@ -324,7 +324,7 @@ try {
 		[void](Assert-CandidatePathPlan $root $buildLog)
 		$result.buildLogs = @($result.buildLogs) + $buildLog
 		& $msBuild $entry.Solution '/p:Configuration=Release' '/p:Platform=x64' `
-			"/p:OutDir=$outputDirectory\" "/p:IntDir=$intermediateDirectory\" `
+			"/p:OutDir=$outputDirectory\\" "/p:IntDir=$intermediateDirectory\\" `
 			'/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' `
 			'/nodeReuse:false' '/verbosity:normal' 2>&1 | Out-File -LiteralPath $buildLog -Encoding utf8
 		$buildExitCode = $LASTEXITCODE

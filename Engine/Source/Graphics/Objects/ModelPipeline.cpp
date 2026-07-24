@@ -17,6 +17,31 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 		{
 			rDescriptorInfo.flags = DescriptorFlags::kModel;
 			rDescriptorInfo.crc = sceneCrc;
+
+			static constexpr int64_t kiModelAdditionalDescriptors = 5; // +1 lighting, +2 shadow, +3 smoke, +4 mesh data, +5 joint matrices
+			ASSERT(i + kiModelAdditionalDescriptors + 1 < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+			ASSERT(pipelineInfo.pDescriptorInfos[i + 1].flags == DescriptorFlags::kEmpty);
+
+			pipelineInfo.pDescriptorInfos[i + 1].flags = DescriptorFlags::kCombinedSamplers;
+			pipelineInfo.pDescriptorInfos[i + 1].iCount = static_cast<int64_t>(std::size(gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures));
+			pipelineInfo.pDescriptorInfos[i + 1].ppTextures = gpTextureManager->mRenderTargetTextures.mppLightingFinalTextures;
+
+			pipelineInfo.pDescriptorInfos[i + 2].flags = DescriptorFlags::kCombinedSamplers;
+			pipelineInfo.pDescriptorInfos[i + 2].pTexture = &gpTextureManager->mRenderTargetTextures.mShadowBlurTexture;
+
+			// The smoke sampler (kSamplerSmoke) uses LINEAR filtering for R16_SFLOAT smoke ping-pong textures. Same CLAMP_TO_BORDER + INT_TRANSPARENT_BLACK as the border sampler; aniso/lodbias are no-ops at mipLevels = 1.
+			pipelineInfo.pDescriptorInfos[i + 3].flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerSmoke};
+			pipelineInfo.pDescriptorInfos[i + 3].pTexture = &gpTextureManager->mRenderTargetTextures.mSmokeTextureOne;
+
+			// Binding 15: Per-mesh data (matrix, normal matrix, joint count/offset)
+			pipelineInfo.pDescriptorInfos[i + 4].flags = DescriptorFlags::kPerCommandBufferStorageBuffers;
+			pipelineInfo.pDescriptorInfos[i + 4].iExplicitBinding = shaders::kiModelBindingMeshData;
+			pipelineInfo.pDescriptorInfos[i + 4].pBuffers = gpBufferManager->mMeshDataStorageBuffers.data();
+
+			// Binding 16: Joint matrices (separate dynamically-sized buffer; MeshData stays fixed-size)
+			pipelineInfo.pDescriptorInfos[i + 5].flags = DescriptorFlags::kPerCommandBufferStorageBuffers;
+			pipelineInfo.pDescriptorInfos[i + 5].iExplicitBinding = shaders::kiModelBindingJointMatrix;
+			pipelineInfo.pDescriptorInfos[i + 5].pBuffers = gpBufferManager->mJointMatrixStorageBuffers.data();
 			break;
 		}
 	}
@@ -100,15 +125,16 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 		}
 
 		// All pipelines use global Set 0
-		mpPipelines.at(i).mVkExternalDescriptorSetLayout = gpTextureManager->mTextureDescriptors.mGlobalDescriptorSetLayout;
+		pipelineInfo.vkExternalDescriptorSetLayout = gpTextureManager->mTextureDescriptors.mGlobalDescriptorSetLayout;
 
-		// Multi-set: inner Pipelines 1..N share first Pipeline's Set 1 layout
+		// Multi-set: Pipeline 0 owns Set 1; inner Pipelines 1..N share its layout
+		pipelineInfo.vkExternalDescriptorSetLayoutSet1 = VK_NULL_HANDLE;
 		if (bMultiSet && i > 0)
 		{
-			mpPipelines.at(i).mVkExternalDescriptorSetLayoutSet1 = mpPipelines.at(0).mVkDescriptorSetLayout;
+			pipelineInfo.vkExternalDescriptorSetLayoutSet1 = mpPipelines.at(0).mVkDescriptorSetLayout;
 		}
 
-		mpPipelines.at(i).Create(pipelineInfo, true);
+		mpPipelines.at(i).Create(pipelineInfo);
 
 		mpiFirstIndices.at(i) = puiIndexStarts[i];
 		mpiIndexCounts.at(i) = (i + 1 == rSceneHeader.uiMaterialCount ? pipelineInfo.pVertexBuffer->mInfo.iCount : puiIndexStarts[i + 1]) - mpiFirstIndices.at(i);

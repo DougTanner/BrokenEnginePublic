@@ -595,7 +595,15 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4ViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(game::gpCamera->mMatView, XMMatrixMultiply(matCameraShake, game::gpCamera->mMatPerspective))));
 
 	XMStoreFloat4(&rMainLayout.f4EyePosition, game::gpCamera->mVecEyePosition);
-	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, game::gpCamera->mVecToEyeNormal);
+	XMVECTOR vecToEyeNormal = game::gpCamera->mVecToEyeNormal;
+	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, vecToEyeNormal);
+	// Camera-facing billboard basis (DebugRenderBillboard.vert): fold the shader's per-vertex worldUp select +
+	// cross chain CPU-side since f4ToEyeNormal is invocation-invariant. Mirror the shader exactly — 0.999 z
+	// threshold, +X fallback, right normalized, up = cross(forward, right) left unnormalized. Forward stays f4ToEyeNormal.
+	XMVECTOR vecBillboardWorldUp = std::abs(XMVectorGetZ(vecToEyeNormal)) < 0.999f ? XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f) : XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+	XMVECTOR vecBillboardRight = XMVector3Normalize(XMVector3Cross(vecBillboardWorldUp, vecToEyeNormal));
+	XMStoreFloat4(&rMainLayout.f4BillboardRight, vecBillboardRight);
+	XMStoreFloat4(&rMainLayout.f4BillboardUp, XMVector3Cross(vecToEyeNormal, vecBillboardRight));
 
 	PopulateGerstnerWaves(rMainLayout, rGlobalLayout);
 

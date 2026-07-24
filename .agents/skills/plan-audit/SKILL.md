@@ -99,9 +99,10 @@ Dependent finding: <PA-F-### and why the verdict matters>
 Candidate official source: <URL or exact upstream identifier, if known>
 ```
 
-The manager routes each packet through a `locator` running
-`/verify-external-claims`, then adjudicates the dependent finding. Pending
-requests make the audit `NEEDS_ACTION`, not a confirmed finding.
+The manager runs `/verify-external-claims` on each packet — which itself
+dispatches the `locator` that gathers evidence — then adjudicates the dependent
+finding. Pending requests make the audit `NEEDS_ACTION`, not a confirmed
+finding.
 
 Do not edit any repository file, run `/agent-harness`, interview the user, or
 spawn another agent. The calling session owns all judgment. After it

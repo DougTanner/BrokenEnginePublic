@@ -42,30 +42,30 @@ already ship**, verified against current source:
 
 So this plan only has to **convert the two lighting dispatches** and wire the cadence — no plumbing work.
 
-**Stale sibling text:** `Documents/Plans/Graphics/WindowedLightingShadowDispatch.md:43` and `:77` still
-describe that compute-indirect plumbing as unbuilt (`PipelineCreator.cpp` "currently `ASSERT(false)`",
-helpers "shared with `WaterDisplacementIndirectCompute.md`"). That is stale — corrected here rather than
-edited there, per the never-interleave constraint below. Refresh those two citations when that plan is
-next executed.
-
 ## Design
 
-Add a frame counter and a refresh predicate; on skip frames suppress all three chain stages and hold the
-combine textures.
+Add a frame counter and a refresh predicate; on skip frames suppress the spread → combine → temporal → history
+copy chain and hold the published combine/history data.
 
 ### Refresh gate
 
-- **Skip frame**: spread `instanceCount = 0` (the mechanism item 1 built) **and** the combine + temporal
-  indirect dispatch group counts written as `0`. The combine textures then hold the previous refresh's
-  output. The recorded history copies re-copy unchanged data (benign).
+- **Skip frame**: write zero indirect groups for combine, temporal, and (after
+  `WindowedLightingDispatch.md`) history copy; do not advance the temporal area/valid-bounds latch or history.
+  Deposit, including bounded clear and localized raster after windowing, continues every frame. Suppress only
+  spread, combine, temporal, and history copy; the combine textures hold the prior refresh's output. The next
+  refresh clears and rebuilds the active chain, so deposits made during skip frames are intentionally
+  unconsumed/dropped.
 - **Refresh frame**: everything normal.
-- Cadence 1 (default) must take the item-1 path unchanged — including its empty-deposit gating — so the
-  default build is bit-identical to what just landed.
+- Before the windowed plan lands, cadence 1 (default) takes the item-1 path unchanged — including its
+  empty-deposit gating — so the default build is bit-identical to what just landed. Once the windowed plan
+  lands, cadence 1 still performs every refresh, but a refresh runs every bounded spread pass even with empty
+  deposit so its current rectangle is overwritten.
 
-The refresh decision belongs in **one** place. `RenderLightingSpreadIndirect` already owns the spread gate
-and is called from both `MainUniforms.cpp:483` and `:553`; extending that function (rather than its call
-sites) keeps the two paths from diverging and gives the combine/temporal group-count writes the same
-single owner. Confirm at implementation that both call sites want identical cadence behavior.
+Establish the cadence predicate in `RenderLightingGlobal` before `PopulateLightingParameters`; that lets the
+area/valid-bounds latch make the same decision before its temporal state is populated. Cache the predicate for
+the later `RenderLightingSpreadIndirect` calls after `FrameInterpolate::EndRender`, where the deposit count is
+available and the per-pass commands are written. This keeps both `MainUniforms.cpp:483` and `:553` aligned
+without making the later function the sole latch owner.
 
 ### Dispatch conversion
 
@@ -81,18 +81,21 @@ Both become `RecordComputeIndirect`, with their pipelines gaining `kIndirectHost
 `kCompute`, following the `kPipelineWaterDisplacement` precedent exactly. The group counts these calls
 currently compute inline move to the populate path as `WriteIndirectComputeBuffer` arguments.
 
-### Temporal latch
+### Temporal latch and history
 
-`f4LightingAreaPrevious` must advance **only on refresh frames**, so reprojection maps into the area the
-history was actually rendered with (matters while the texel ramp rescales during a zoom). The latch is
-`TemporalAreaLatch` (`Render.h:55`, assigning the previous-area out-param at `Render.h:76`), advanced by
-the single `Update` call at `LightingUniforms.cpp:40`:
+`{f4LightingArea, validBounds}` must advance **only on refresh frames**, so reprojection maps into the area and
+subwindow history actually rendered with (matters while the texel ramp rescales during a zoom). The latch is
+established before `PopulateLightingParameters`, not later in `RenderLightingSpreadIndirect`. Recreate
+invalidates it, forces the first refresh to blend `1`, and prevents a history fetch. After the windowed plan
+lands, its `LightingHistoryCopy.comp` updates the single persistent history bank only on refresh; cadence skip
+writes zero history-copy groups and advances no history state.
 
 ```
 rGlobalLayout.fLightingTemporalBlend = sTemporalAreaLatch.Update(rGlobalLayout.f4LightingArea, gbLightingTemporalReset, gLightingTemporalBlend.Get(), rGlobalLayout.f4LightingAreaPrevious);
 ```
 
-Gate that call site; keep the refresh decision and the latch advance in the same place.
+Replace this area-only update with the shared area/valid-bounds refresh decision; keep predicate establishment
+and latch advance in the same early location.
 
 ### Slider
 
@@ -125,16 +128,18 @@ plan's value is — quantify with an A/B in a lit combat scene, not idle.
 
 ## Critical files
 
-- `Engine/Source/Graphics/Render/LightingUniforms.cpp` — `RenderLightingSpreadIndirect` gains the cadence
-  counter and refresh predicate; writes the combine/temporal group counts; gates the `TemporalAreaLatch`
-  `Update` at `:40`.
+- `Engine/Source/Graphics/Render/LightingUniforms.cpp` — `RenderLightingGlobal` establishes the cadence
+  predicate before `PopulateLightingParameters` and area/valid-bounds latch; the later
+  `RenderLightingSpreadIndirect` consumes it after deposit accumulation and writes command groups.
 - `Engine/Source/Graphics/Render/Render.h` — any shared cadence state alongside `giLightingDepositInstances`
   (`:98`) and `RenderLightingSpreadIndirect` (`:101`); `TemporalAreaLatch` at `:55`.
 - `Engine/Source/Graphics/Managers/CommandBufferRecordMain.cpp` — `RecordLightingSpreadPipeline` (`:109`):
-  combine dispatch `:193` and temporal `RecordCompute` `:219` → indirect.
-  **Shared with `WindowedLightingShadowDispatch.md`.**
+  combine dispatch `:193` and temporal `RecordCompute` `:219` → indirect; after windowing, also records the
+  bounded history-copy stage.
+  **Shared with `WindowedLightingDispatch.md`.**
 - `Engine/Source/Graphics/Managers/PipelineManager.cpp` — combine + temporal compute pipelines gain
-  `kIndirectHostVisible` (pattern: `:445-448`).
+  `kIndirectHostVisible` (pattern: `:445-448`); after windowing, history copy participates in the same cached
+  refresh predicate.
 - `Engine/Source/Graphics/Objects/Pipeline.cpp` — existing `RecordComputeIndirect` (`:334`) /
   `WriteIndirectComputeBuffer` (`:386`); no change expected.
 - `Engine/Source/Ui/LightingWrappersBase.h` (extern decl) and `.cpp` (4-arg constructor with range/step) —
@@ -145,33 +150,35 @@ plan's value is — quantify with an A/B in a lit combat scene, not idle.
 
 ## Out of scope
 
-- The empty-deposit spread gate itself — landed with item 1 of the completed plan; this plan reuses it.
-- Footprint windowing, dynamic scissor, min-texel offsets, shadow-pass dispatch, and the history-copy fold
-  — all `WindowedLightingShadowDispatch.md`.
-- Editing `WindowedLightingShadowDispatch.md`'s stale `:43` / `:77` plumbing citations — noted above, fixed
-  when that plan executes.
+- The completed plan's empty-deposit spread gate — before windowing this plan reuses it; windowed `LOAD`
+  passes supersede it with bounded work on every refresh.
+- Shadow-pass dispatch belongs to `WindowedLightingShadowDispatch.md`. `WindowedLightingDispatch.md` owns
+  lighting footprint windowing, bounded `LOAD` deposit/spread, lighting min-texel offsets, and bounded history
+  copy.
 - Spread kernel quality/cost tuning (pass, ring, direction counts, texture multipliers) — already sliders.
 - The deposit pass, terrain shadows, and object shadows.
 - Cadence for any pass outside the spread → combine → temporal chain.
 
 ## Acceptance criteria
 
-- Cadence 1 (default): output bit-identical to the current build — same idle timers, same empty-deposit
-  spread skip, spread render targets unchanged.
+- Cadence 1 (default): output bit-identical to the applicable preceding lighting implementation — same idle
+  behavior and, before windowing, same empty-deposit spread skip.
 - Cadence 2 in a **lit combat scene**: `kGpuTimerLightingSpread` + `kGpuTimerLightingCombine` +
   `kGpuTimerLightingTemporal` average roughly halves.
 - Cadence 2: no visible glow stutter panning over a static lit scene; capture the glow-lag and
   dropped-flash behavior at cadence 3–4 so the default can be revisited on evidence.
-- Zoom with cadence > 1: no reprojection smear — the previous-area latch advanced only on refresh frames.
+- Zoom with cadence > 1: no reprojection smear — the previous area and valid bounds advance only on refresh
+  frames, and history-copy work is skipped with the chain.
 - No command-buffer re-record introduced; Vulkan validation clean across pipeline recreate and resize
   (indirect-dispatch buffer usage, zero group counts).
 
 ## Coordination
 
-- `Documents/Plans/Graphics/WindowedLightingShadowDispatch.md`: **never interleave.** Both plans convert the
-  same two dispatches (`CommandBufferRecordMain.cpp:193`, `:219`) and edit the same `LightingUniforms.cpp`
-  populate region. Co-schedule in one session, or sequence this plan after it and refresh the citations
-  above — whichever lands first performs the indirect conversion and the second only wires its own gating.
+- `Documents/Plans/Graphics/WindowedLightingDispatch.md`: **never interleave.** Both plans convert the same
+  combine/temporal recording and edit the same `LightingUniforms.cpp` populate region. Co-schedule in one
+  session, or land sequentially; the later plan refreshes shared-site citations and extends the first change
+  instead of duplicating its indirect-dispatch conversion. The windowed plan's shadow prerequisite does not
+  make cadence a prerequisite; either sequential order remains valid under the contracts above.
 
 ## Notes
 

@@ -88,10 +88,12 @@ float BoxFilteredLobe(float fIntensity, float fPower, float fLogLow, float fLogH
 // conserve integrated lobe energy: p' = 2/(2/(p+2) + kernel) - 2 clamped at 0 (a negative power would
 // spike as s -> 0), amplitude x (1+p')/(1+p) — the highlight broadens and dims instead of just dimming
 // (Toksvig/Hill energy form).
-float FilteredPowerLobe(float fIntensity, float fPower, float fSpecularLog2, float fKernel)
+// fAlphaSq = 2/(power+2) and fOnePlusPowerInv = 1/(1+power) are the lobe's uniform-only constants, folded
+// CPU-side (LightingUniforms.cpp) and passed per lobe. The varying (1+p') numerator amplitude stays here.
+float FilteredPowerLobe(float fIntensity, float fAlphaSq, float fOnePlusPowerInv, float fSpecularLog2, float fKernel)
 {
-	float fFilteredPower = max(2.0f / (2.0f / (fPower + 2.0f) + fKernel) - 2.0f, 0.0f);
-	return fIntensity * ((1.0f + fFilteredPower) / (1.0f + fPower)) * exp2(fFilteredPower * fSpecularLog2);
+	float fFilteredPower = max(2.0f / (fAlphaSq + fKernel) - 2.0f, 0.0f);
+	return fIntensity * ((1.0f + fFilteredPower) * fOnePlusPowerInv) * exp2(fFilteredPower * fSpecularLog2);
 }
 
 #if WATER_SPEC_AA_MIP_HANDOFF
@@ -260,16 +262,14 @@ void main()
 	float fDirectionalLighting = max(1.0f - globalLayout.fWaterDirectional, dot(f3InNormal, globalLayout.f4SunMoonNormal.xyz));
 	vec3 f3DirectionalLighting = f3PreLightingColor * fDirectionalLighting;
 	vec3 f3LightingColor = mix(f3PreLightingColor, f3DirectionalLighting, 0.75f);
-	// Per-target water sun/moon intensity scales the sun and moon contributions before the max-combine.
-	// Folds in the previous moon-brightness gating: at noon f4MoonColor is ~0 (moonrise envelope) so any moon multiplier yields 0; at night the multiplier dominates.
-	vec3 f3WaterSun  = globalLayout.fSunIntensityWater  * globalLayout.f4SunColor.xyz;
-	vec3 f3WaterMoon = globalLayout.fMoonIntensityWater * globalLayout.f4MoonColor.xyz;
-	vec3 f3SunOrMoon = max(f3WaterSun, f3WaterMoon);
-	// Carry sun and ambient energy as separate scalars so fShadowAffectAmbient can apply the
-	// SunLighting() ambient-shadow relaxation (ShaderFunctions.h:76-80) to the f4AmbientColor
-	// half only; the multiply into f3LightingColor is deferred to the shadow-apply site.
-	float fSunScalar     = (f3SunOrMoon.x + f3SunOrMoon.y + f3SunOrMoon.z) / 3.0f;
-	float fAmbientScalar = (globalLayout.f4AmbientColor.x + globalLayout.f4AmbientColor.y + globalLayout.f4AmbientColor.z) / 3.0f;
+	// Per-target water sun/moon: the max-combined color, its /3 sun scalar, and the /3 ambient scalar are
+	// folded CPU-side (GlobalUniforms.cpp PopulateDayCycleColors) — all operands are uniform. The prior
+	// moon-brightness gating is preserved in the CPU fold (at noon f4MoonColor is ~0). f3SunOrMoon still
+	// multiplies the per-pixel skybox color at f3SkyboxColorSun below. Carrying sun and ambient as separate
+	// scalars lets fShadowAffectAmbient relax the ambient half only, deferred to the shadow-apply site.
+	vec3 f3SunOrMoon = globalLayout.f4WaterSunOrMoon.xyz;
+	float fSunScalar     = globalLayout.fWaterSunScalar;
+	float fAmbientScalar = globalLayout.fWaterAmbientScalar;
 
 	// Skybox. The Ryfjallet prefiltered cubemap bound here (kPrefilteredWaterCrc) is oriented to
 	// match engine Z-up, so the reflection vector is sampled directly with no Y-up swizzle.
@@ -278,8 +278,9 @@ void main()
 	vec3 f3SkyboxColor = textureLod(skyboxSampler, -reflect(f3ToEyeNormal, f3SkyboxWaveNormal), mainLayout.fLightingWaterSkyboxLod).xyz;
 	vec3 f3SkyboxColorSun = f3SkyboxColor * f3SunOrMoon;
 
-	float fReflectionTerrainMultiplier = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
-	vec3 f3BiasedSunNormal = normalize(vec3(0.0f, 0.0f, mainLayout.fLightingWaterSkyboxSunBias) + globalLayout.f4SunMoonNormal.xyz);
+	float fReflectionTerrainMultiplier = clamp(-fTerrainElevation * globalLayout.fWaterDepthReflectionFeatherInv, 0.0f, 1.0f);
+	// f4WaterBiasedSunNormal = normalize((0,0,fLightingWaterSkyboxSunBias) + f4SunMoonNormal), folded CPU-side.
+	vec3 f3BiasedSunNormal = globalLayout.f4WaterBiasedSunNormal.xyz;
 
 	// Specular lobes (One/Two/Three), inlined from Specular() in ShaderFunctions.h. The high-power One lobe
 	// (power ~200) is sub-pixel-narrow and flickers if evaluated pointwise; WATER_SPEC_AA_MODE selects an
@@ -350,14 +351,12 @@ void main()
 		float fLodBaseOne = fDerivLog2 + log2(fSizeOne * float(textureSize(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], 0).x));
 		float fLodBaseTwo = fDerivLog2 + log2(fSizeTwo * float(textureSize(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], 0).x));
 		float fLodBaseThree = fDerivLog2 + log2(fSizeThree * float(textureSize(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], 0).x));
-		float fWRelOne = fWeightOne / fWeightTotal;
-		float fWRelTwo = fWeightTwo / fWeightTotal;
-		float fWRelThree = fWeightThree / fWeightTotal;
-		// Octave size multipliers must match the SAMPLE_NORMAL_PRECISE call sites above
+		// Relative-weight squares are uniform (weights are CPU-resolved by camera height), folded into
+		// fWaterNormalWRelSq* (LightingUniforms.cpp). Octave size multipliers must match SAMPLE_NORMAL_PRECISE above.
 		float fMipVariance =
-			fWRelOne * fWRelOne * GroupMipVariance(0 * kiWaterSpecAAMipTableSize, fLodBaseOne, 0.2f, 1.1f, 2.5f) +
-			fWRelTwo * fWRelTwo * GroupMipVariance(1 * kiWaterSpecAAMipTableSize, fLodBaseTwo, 0.3f, 1.2f, 3.0f) +
-			fWRelThree * fWRelThree * GroupMipVariance(2 * kiWaterSpecAAMipTableSize, fLodBaseThree, 0.4f, 1.3f, 3.5f);
+			mainLayout.fWaterNormalWRelSqOne   * GroupMipVariance(0 * kiWaterSpecAAMipTableSize, fLodBaseOne, 0.2f, 1.1f, 2.5f) +
+			mainLayout.fWaterNormalWRelSqTwo   * GroupMipVariance(1 * kiWaterSpecAAMipTableSize, fLodBaseTwo, 0.3f, 1.2f, 3.0f) +
+			mainLayout.fWaterNormalWRelSqThree * GroupMipVariance(2 * kiWaterSpecAAMipTableSize, fLodBaseThree, 0.4f, 1.3f, 3.5f);
 	#if WATER_SPEC_AA_FADE_HANDOFF
 		// Fade handoff: reference the near-camera full-weight appearance — each group also adds its
 		// TOTAL variance (last table entry, everything averaged away) times the weight share the
@@ -369,9 +368,9 @@ void main()
 			float fWRelFullTwo = mainLayout.fWaterNormalWeightFullTwo / fWeightTotalFull;
 			float fWRelFullThree = mainLayout.fWaterNormalWeightFullThree / fWeightTotalFull;
 			fMipVariance +=
-				max(fWRelFullOne * fWRelFullOne - fWRelOne * fWRelOne, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[1 * kiWaterSpecAAMipTableSize - 1] +
-				max(fWRelFullTwo * fWRelFullTwo - fWRelTwo * fWRelTwo, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[2 * kiWaterSpecAAMipTableSize - 1] +
-				max(fWRelFullThree * fWRelFullThree - fWRelThree * fWRelThree, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[3 * kiWaterSpecAAMipTableSize - 1];
+				max(fWRelFullOne * fWRelFullOne - mainLayout.fWaterNormalWRelSqOne, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[1 * kiWaterSpecAAMipTableSize - 1] +
+				max(fWRelFullTwo * fWRelFullTwo - mainLayout.fWaterNormalWRelSqTwo, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[2 * kiWaterSpecAAMipTableSize - 1] +
+				max(fWRelFullThree * fWRelFullThree - mainLayout.fWaterNormalWRelSqThree, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[3 * kiWaterSpecAAMipTableSize - 1];
 		}
 	#endif
 		// The factor 2 maps Toksvig inverse-power variance into the kernel's alpha^2 ~= 2/(p+2) domain
@@ -391,16 +390,16 @@ void main()
 	// shrinks as the octaves disagree (each DecodeNormal result is ~unit). Note: BC5 + DecodeNormal
 	// re-unitizes each sample, so this measures inter-wave disagreement, not true footprint mip variance
 	// (that part is restored by the WATER_SPEC_AA_MIP_HANDOFF term).
-	float fAgreement = length(f3WeightedSum) / max(3.0f * (fWeightOne + fWeightTwo + fWeightThree), kfEpsilon);
+	float fAgreement = length(f3WeightedSum) * mainLayout.fWaterNormalWeightSumInv;
 	float fKernel = min(mainLayout.fWaterSpecAAVariance * (1.0f - fAgreement) / max(fAgreement, 0.001f) + fMipKernel, mainLayout.fWaterSpecAAThreshold);
 	#endif
 	if (fSpecularFactor > 0.0f)
 	{
 		float fSpecularLog2 = log2(fSpecularFactor);
 		fSpecularSum =
-			FilteredPowerLobe(fIntensityOne,   fPowerOne,   fSpecularLog2, fKernel) +
-			FilteredPowerLobe(fIntensityTwo,   fPowerTwo,   fSpecularLog2, fKernel) +
-			FilteredPowerLobe(fIntensityThree, fPowerThree, fSpecularLog2, fKernel);
+			FilteredPowerLobe(fIntensityOne,   mainLayout.f4WaterSkyboxLobeAlphaSq.x, mainLayout.f4WaterSkyboxLobeOnePlusPowerInv.x, fSpecularLog2, fKernel) +
+			FilteredPowerLobe(fIntensityTwo,   mainLayout.f4WaterSkyboxLobeAlphaSq.y, mainLayout.f4WaterSkyboxLobeOnePlusPowerInv.y, fSpecularLog2, fKernel) +
+			FilteredPowerLobe(fIntensityThree, mainLayout.f4WaterSkyboxLobeAlphaSq.z, mainLayout.f4WaterSkyboxLobeOnePlusPowerInv.z, fSpecularLog2, fKernel);
 	}
 #elif WATER_SPEC_AA_MODE == 4
 	// Genuine 4x supersample of the only aliasing term: re-evaluate the reflect->dot->lobe chain (pure ALU,
@@ -436,7 +435,7 @@ void main()
 	// Wave trough darken: at z >= Top no darkening (multiplier 1.0); at z <= Bottom max darkening (multiplier 1.0 - Target).
 	// Source/Lighting weights independently mix the per-path multiplier toward 1.0 so each contribution can opt in/out.
 	// Lighting also covers the skybox specular and the EWNS lighting deposit (applied at f3WaterLightingMults below).
-	float fHeightT = clamp((f3InPosition.z - mainLayout.fWaterHeightDarkenBottom) / (mainLayout.fWaterHeightDarkenTop - mainLayout.fWaterHeightDarkenBottom), 0.0f, 1.0f);
+	float fHeightT = clamp((f3InPosition.z - mainLayout.fWaterHeightDarkenBottom) * mainLayout.fWaterHeightDarkenRangeInv, 0.0f, 1.0f);
 	float fHeightDarken = mix(1.0f - mainLayout.fWaterHeightDarkenTarget, 1.0f, fHeightT);
 	float fHeightDarkenSource = mix(1.0f, fHeightDarken, mainLayout.fWaterHeightDarkenSource);
 	float fHeightDarkenLighting = mix(1.0f, fHeightDarken, mainLayout.fWaterHeightDarkenLighting);
@@ -449,10 +448,9 @@ void main()
 	// f3SkyboxColor mix above breaks pure linearity in (Sun + Moon), so a per-channel divide
 	// would zero entire channels when Sun.c + Moon.c happens to be ~0 (e.g. morning sun has B=0).
 	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	float fShadowSun  = fShadowMoon * texture(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea)).x;
-	float fSunWeight  = dot(f3WaterSun,  vec3(0.299f, 0.587f, 0.114f));
-	float fMoonWeight = dot(f3WaterMoon, vec3(0.299f, 0.587f, 0.114f));
-	float fEffectiveShadow = (fShadowSun * fSunWeight + fShadowMoon * fMoonWeight) / max(0.001f, fSunWeight + fMoonWeight);
+	float fShadowSun  = fShadowMoon * SampleTerrainShadow(globalLayout, shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea));
+	// Rec.601 sun/moon weights and their guarded reciprocal-sum are folded CPU-side (GlobalUniforms.cpp).
+	float fEffectiveShadow = (fShadowSun * globalLayout.fWaterSunWeight + fShadowMoon * globalLayout.fWaterMoonWeight) * globalLayout.fWaterShadowWeightSumInv;
 	// fShadowAffectAmbient relaxes shadow on the sky-ambient half only; sun + skybox specular keep full shadow.
 	// Mirrors SunLighting() at ShaderFunctions.h:76-80, reusing fEffectiveShadow as its fAmbientShadow (identical Rec.601-weighted formula).
 	float fAmbientShadowApplied = mix(1.0f, fEffectiveShadow, globalLayout.fShadowAffectAmbient);
@@ -464,7 +462,7 @@ void main()
 	f4OutColor.xyz = max(f4OutColor.xyz, 0.5f * fAmbientShadowApplied * globalLayout.f4AmbientColor.xyz * f3SkyboxColor);
 
 	// Terrain elevation (for water transparency)
-	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, globalLayout.fWaterTerrainFadeClamp, 1.0f);
+	f4OutColor.w = clamp(-fTerrainElevation * globalLayout.fWaterTerrainFadeInv, globalLayout.fWaterTerrainFadeClamp, 1.0f);
 
 	// Sample lighting texture at projected base-height x/y
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, vec3(f2WorldInitialPosition, 0.0f));
@@ -534,7 +532,7 @@ void main()
 	const float fWaterNormalBlendWave = mainLayout.fLightingWaterNormalBlendWave;
 	vec3 f3LightingNormal = (1.0f - fWaterNormalBlendWave) * f3SampledNormal + fWaterNormalBlendWave * f3InNormal;
 	vec3 f3WaterLighting = WaterLighting(pf4LightingBaseHeight, f3LightingNormal, mainLayout.fLightingWaterNormalSoften, mainLayout.fLightingWaterOne, mainLayout.fLightingWaterOnePower, mainLayout.fLightingWaterTwo, mainLayout.fLightingWaterTwoPower, mainLayout.fLightingWaterThree, mainLayout.fLightingWaterThreePower, mainLayout.fLightingWaterPowerMode);
-	float fDepthAttenuation = clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
+	float fDepthAttenuation = clamp(-fTerrainElevation * globalLayout.fWaterDepthReflectionFeatherInv, 0.0f, 1.0f);
 	vec3 f3WaterLightingScaled = fDepthAttenuation * globalLayout.fLightingTimeOfDayMultiplier * mainLayout.fLightingWaterIntensity * f3WaterLighting;
 	// Mix between water-tinted lighting (Add=0) and pure lighting color (Add=1).
 	// Total contribution magnitude is conserved across the mix.

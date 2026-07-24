@@ -545,8 +545,8 @@ void DumpRenderTarget(int64_t iFramebufferIndex, const DumpRenderTargetRequest& 
 	// mVkFence is already enqueued at this capture site, never a fresh reset depending on this caller returning).
 	// This fully drains the frame's compute/transfer/graphics work, so the readback below is safe regardless of the
 	// target's last-access scope — CopyImageToHostMemory's srcStage (FRAGMENT_SHADER on the non-swapchain path)
-	// cannot chain from a compute/transfer final transition (Shadow at GENERAL, Combine written by LightingTemporal,
-	// ShadowHistory/AmbientHistory transfer copies), so the fence wait is what serializes them, not the barrier.
+	// cannot chain from a compute/transfer final transition (Shadow at GENERAL, Combine and ShadowHistory written by
+	// compute, lighting-history transfer copies), so the fence wait is what serializes them, not the barrier.
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNanoseconds.count()));
 

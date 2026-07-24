@@ -958,9 +958,11 @@ MemoryStats PackChunks::GetMemoryStats(data::DataTypes eDataType) const
 	return stats;
 }
 
+#if defined(BT_CLIENT)
 void RequestTextureChunkLoad(common::crc_t crc)
 {
 	gpFileManager->RequestChunkLoad(std::span(&crc, 1));
 }
+#endif
 
 } // namespace engine

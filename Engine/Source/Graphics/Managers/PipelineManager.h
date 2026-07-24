@@ -17,6 +17,7 @@ enum Pipelines
 	kPipelineShadowBlurH,
 	kPipelineShadowBlurV,
 	kPipelineShadowTemporal,
+	kPipelineShadowHistoryCopy,
 	kPipelineShadowElevation,
 
 	kPipelineTerrainElevation,
@@ -78,11 +79,6 @@ public:
 	void CreateSmokeWindPipelines();
 	void CreateParticlePipelines();
 	void CreateDebugRenderPipelines();
-
-	// Walks every TextureBinding entry and breaks if any cached snapshot generation diverges
-	// from the live Texture's muiGeneration. Catches descriptor staleness the Vulkan validation
-	// layer cannot detect (handles stay valid; only the semantic binding becomes wrong).
-	void VerifyAllDescriptorGenerations();
 
 	Pipeline mpPipelines[kPipelineCount];
 

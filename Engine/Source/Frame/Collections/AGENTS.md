@@ -20,7 +20,7 @@ Use `/add-collection` for a new collection and `/add-collection-member` for any 
 - Optional ID maps are part of collection identity. Add/remove/swap operations must keep map entries and row indices synchronized.
 - Unconditional removals that consume an owner handle use `RemoveIndexableElementAndClearHandle()`. Conditional lifetime policies clear the handle separately, while internal borrowed-ID removals keep using `RemoveIndexableElement()`. Generated insertion callables are invoked exactly once so each helper preserves its assigned ID stream.
 - Deserialization validates count/capacity relationships, allocates for the incoming layout, and validates ID-map cardinality and indices. Preserve these trust-boundary checks when formats change.
-- Capacity participates in collection CRCs. Paired growth must therefore remain deterministic for shared collections.
+- The serialized row capacity participates in collection CRCs, so paired growth must remain deterministic for shared collections. The physical buffer capacity actually installed can exceed it after a deserialize reuses a larger existing buffer for fewer rows; that transient capacity drives buffer reuse and post-read zero-fill and stays out of serialization, CRC, and difference logging.
 - `SharedMembers()` must be a subset of `Members()`. A narrower `SharedCrcMembers()` must also remain a subset of `SharedMembers()`.
 - Full build-local reads consume `Members()`; cross-build reads consume only shared columns. Change tuple membership and ordering as one serialization contract.
 

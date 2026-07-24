@@ -197,11 +197,16 @@ static uint32_t BuildValidationLayerSettings(VkLayerSettingEXT (&rLayerSettings)
 	return uiLayerSettingCount;
 }
 
-// Opt-in force-load: lets RenderDoc's "Attach to running instance" find us without launching through RenderDoc. Triggers the layer-disable branch in the ctor, so it's guarded by kbRenderDocAttach to avoid sacrificing validation in normal debug runs.
+// Opt-in force-load: lets RenderDoc's "Attach to running instance" find us without launching through RenderDoc. Triggers the layer-disable branch in the ctor, so the runtime --renderdoc launch option gates it (atop compile-time kbRenderDoc) to avoid sacrificing validation in normal debug runs.
 static void TryLoadRenderDocDll()
 {
-	if constexpr (kbRenderDocAttach)
+	if constexpr (kbRenderDoc)
 	{
+		if (!(gLaunchOptions.flags & LaunchOptionFlags::kRenderDoc))
+		{
+			return;
+		}
+
 		if (GetModuleHandle("renderdoc.dll") == nullptr)
 		{
 			// Default RenderDoc installer doesn't add itself to PATH, so plain LoadLibrary("renderdoc.dll") fails. Read the install dir from the Vulkan loader's implicit-layer JSON registration — renderdoc.dll lives in the same folder.
@@ -238,7 +243,7 @@ static void TryLoadRenderDocDll()
 
 			if (GetModuleHandle("renderdoc.dll") == nullptr)
 			{
-				LOG(kGraphics, kWarning, "kbRenderDocAttach=true but renderdoc.dll could not be loaded. Confirm RenderDoc is installed and registered in HKLM\\SOFTWARE\\Khronos\\Vulkan\\ImplicitLayers.");
+				LOG(kGraphics, kWarning, "--renderdoc requested but renderdoc.dll could not be loaded. Confirm RenderDoc is installed and registered in HKLM\\SOFTWARE\\Khronos\\Vulkan\\ImplicitLayers.");
 			}
 		}
 	}
@@ -303,13 +308,21 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		vkInstanceCreateInfo.ppEnabledLayerNames = nullptr;
 		vkInstanceCreateInfo.enabledExtensionCount = 4;
 
-		if constexpr (kbRenderDocAttach)
+		if constexpr (kbRenderDoc)
 		{
 			auto pfnGetApi = reinterpret_cast<pRENDERDOC_GetAPI>(GetProcAddress(renderDocHmodule, "RENDERDOC_GetAPI"));
 			if (pfnGetApi != nullptr)
 			{
 				pfnGetApi(eRENDERDOC_API_Version_1_6_0, reinterpret_cast<void**>(&mpRenderDocApi));
 				LOG(kGraphics, kInfo, "RenderDoc API initialized: {}", reinterpret_cast<uint64_t>(mpRenderDocApi));
+			}
+
+			if (mpRenderDocApi != nullptr)
+			{
+				// Captures land beside the screenshot default: %TEMP%\RenderDoc\agent_frameNNN.rdc. RenderDoc creates
+				// missing directories; absolute paths are read back per capture via GetCapture().
+				std::u8string captureTemplate = (std::filesystem::temp_directory_path() / "RenderDoc" / "agent").u8string();
+				mpRenderDocApi->SetCaptureFilePathTemplate(reinterpret_cast<const char*>(captureTemplate.c_str()));
 			}
 		}
 	}

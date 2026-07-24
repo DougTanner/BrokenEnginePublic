@@ -51,8 +51,12 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 
 	uint32_t uiWindWidth = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.width;
 	uint32_t uiWindHeight = gpTextureManager->mRenderTargetTextures.mWindTextureOne.mInfo.extent.height;
-	rGlobalLayout.uiWindTilesX = TileCount(uiWindWidth);
-	rGlobalLayout.uiWindTilesY = TileCount(uiWindHeight);
+	uint32_t uiWindTilesX = TileCount(uiWindWidth);
+	uint32_t uiWindTilesY = TileCount(uiWindHeight);
+	rGlobalLayout.uiWindTilesX = uiWindTilesX;
+	rGlobalLayout.uiWindTilesY = uiWindTilesY;
+	rGlobalLayout.f2WindTilesInv.x = 1.0f / static_cast<float>(uiWindTilesX);
+	rGlobalLayout.f2WindTilesInv.y = 1.0f / static_cast<float>(uiWindTilesY);
 
 	// Toggle ping-pong index
 	giWindTextureIndex = 1 - giWindTextureIndex;

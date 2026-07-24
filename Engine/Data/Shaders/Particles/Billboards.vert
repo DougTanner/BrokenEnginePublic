@@ -34,7 +34,7 @@ void main()
 	gl_Position = pBillboards[i].f4Position;
 
 	float fSize = pBillboards[i].fSize;
-	gl_Position.x += (-fSize + f2InQuadVertex.x * 2.0f * fSize) / globalLayout.fAspectRatio;
+	gl_Position.x += (-fSize + f2InQuadVertex.x * 2.0f * fSize) * globalLayout.fAspectRatioInv;
 	gl_Position.y += fSize - f2InQuadVertex.y * 2.0f * fSize;
 
 	// Rotate texcoords

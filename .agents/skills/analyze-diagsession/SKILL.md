@@ -75,6 +75,12 @@ code; absence from a flat sample does not prove a flag or feature is disabled:
 | `_RTC_CheckStackVars` | deliberate Debug `/RTC` instrumentation |
 | `VkLayer_khronos_validation.dll` | deliberate Debug Vulkan validation activity |
 
+Both `BrokenEngineSandbox` Debug projects pin `_ITERATOR_DEBUG_LEVEL=0` and
+`SupportJustMyCode=false`, so `_Iterator_base12` and `__CheckForDebuggerJustMyCode`
+frames signal a configuration regression, not expected Debug overhead; a
+`std::_Lockit` frame corroborates only when it accompanies `_Iterator_base12` as
+the iterator-debug lock.
+
 Treat `std::_Lockit`, walls of tiny `XMVector*`/`std::` leaves, and a hotspot
 that disappears in an optimized capture as attribution hints, not configuration
 proof. Confirm compiler/project settings and caller context before proposing a

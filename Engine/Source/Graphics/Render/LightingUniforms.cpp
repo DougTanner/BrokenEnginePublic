@@ -12,7 +12,7 @@
 namespace engine
 {
 
-static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout)
+static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, float fSpreadDistanceStart, float fSpreadDistanceEnd)
 {
 	// Lighting area: world-sized ramped texels in a pre-sized texture (mirror of the shadow-area path in
 	// PopulateShadowParameters). The deposit/spread/combine textures are pre-sized (RenderTargetTextures, via
@@ -30,6 +30,27 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout)
 	WorldSizedTexelArea area = ComputeWorldSizedTexelArea(game::Camera::kfLightingHeadroomMultiplier, game::gpCamera->mfLightingTexelEyeHeight, fLightingTextureWidth, fLightingTextureHeight, gpSwapchainManager->mfAspectRatio, gFov.Get(), game::gpCamera->mVecPosition);
 	rGlobalLayout.f4LightingArea = area.f4Area;
 
+	// Lighting-area extent reciprocal (LightingSpread.frag world->texcoord multiply).
+	float fLightingAreaWidth = area.f4Area.z - area.f4Area.x;
+	float fLightingAreaHeight = area.f4Area.y - area.f4Area.w;
+	rGlobalLayout.f2LightingAreaExtentInv.x = 1.0f / fLightingAreaWidth;
+	rGlobalLayout.f2LightingAreaExtentInv.y = 1.0f / fLightingAreaHeight;
+
+	// Combine/temporal window margin (LightCombine.comp + LightingTemporal.comp share the combine-texture extent) and
+	// spread window margin (LightingSpread.frag), both expressed in visible-area UV: a 2-texel bilinear guard and the
+	// max spread reach. f4VisibleArea mirrors gpCamera->f4RenderVisibleArea (GlobalUniforms). Spread distances arrive
+	// as CPU staging locals from RenderLightingGlobal (mapped layouts are write-only — never read back).
+	const XMFLOAT4& rVisibleArea = game::gpCamera->f4RenderVisibleArea;
+	float fVisibleWidth = rVisibleArea.z - rVisibleArea.x;
+	float fVisibleHeight = rVisibleArea.y - rVisibleArea.w;
+	float fCombineTextureWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width);
+	float fCombineTextureHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height);
+	rGlobalLayout.f2CombineMargin.x = 2.0f * (fLightingAreaWidth / fCombineTextureWidth) / fVisibleWidth;
+	rGlobalLayout.f2CombineMargin.y = 2.0f * (fLightingAreaHeight / fCombineTextureHeight) / fVisibleHeight;
+	float fMaxReach = std::max(fSpreadDistanceStart, fSpreadDistanceEnd);
+	rGlobalLayout.f2SpreadMargin.x = fMaxReach / fVisibleWidth;
+	rGlobalLayout.f2SpreadMargin.y = fMaxReach / fVisibleHeight;
+
 	// Temporal accumulation: feed the previous frame's lighting area so LightingTemporal.comp can reproject the
 	// history into the current grid (mirror of the shadow previous-area latch). First frame: previous == current and
 	// blend forced to 1.0 (pure current) so the uninitialized history textures are never shown; that frame's copy
@@ -39,10 +60,13 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout)
 	static TemporalAreaLatch sTemporalAreaLatch {};
 	rGlobalLayout.fLightingTemporalBlend = sTemporalAreaLatch.Update(rGlobalLayout.f4LightingArea, gbLightingTemporalReset, gLightingTemporalBlend.Get(), rGlobalLayout.f4LightingAreaPrevious);
 
-	// Edge-fade denominator, deliberately floored unlike smoke/wind's ceil-based full-coverage dispatch grids.
-	// The minimum of one keeps the denominator nonzero if a device clamp produces a sub-tile texture extent.
-	rGlobalLayout.uiLightTilesX = std::max(1u, static_cast<uint32_t>(fLightingTextureWidth) / shaders::kiComputeTileSize);
-	rGlobalLayout.uiLightTilesY = std::max(1u, static_cast<uint32_t>(fLightingTextureHeight) / shaders::kiComputeTileSize);
+	// Edge-fade denominator reciprocal (LightingDepositEdgeFade), deliberately floored unlike smoke/wind's ceil-based
+	// full-coverage dispatch grids. The minimum of one keeps the tile count nonzero if a device clamp produces a
+	// sub-tile texture extent.
+	uint32_t uiLightTilesX = std::max(1u, static_cast<uint32_t>(fLightingTextureWidth) / shaders::kiComputeTileSize);
+	uint32_t uiLightTilesY = std::max(1u, static_cast<uint32_t>(fLightingTextureHeight) / shaders::kiComputeTileSize);
+	rGlobalLayout.f2LightingDepositSizeInv.x = 1.0f / static_cast<float>(uiLightTilesX * shaders::kiComputeTileSize);
+	rGlobalLayout.f2LightingDepositSizeInv.y = 1.0f / static_cast<float>(uiLightTilesY * shaders::kiComputeTileSize);
 
 	// Profile GPU-screen readouts (active pixel dimensions). Deposit rasterizes/clears its whole footprint (not windowed),
 	// so report the full deposit extent. Spread processes only the live on-screen visible window in its own texels (mirror
@@ -81,15 +105,34 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fLightingDepositThreshold = gLightingDepositThreshold.Get();
 	rGlobalLayout.fLightingDepositCompress = gLightingDepositCompress.Get();
 
-	rGlobalLayout.fCombineMaxBrightness = gCombineMaxBrightness.Get();
-	rGlobalLayout.fCombineContrast = gCombineContrast.Get();
-	rGlobalLayout.fCombineLinearStart = gCombineLinearStart.Get();
-	rGlobalLayout.fCombineLinearLength = gCombineLinearLength.Get();
+	float fCombineMaxBrightness = gCombineMaxBrightness.Get();
+	float fCombineContrast = gCombineContrast.Get();
+	float fCombineLinearStart = gCombineLinearStart.Get();
+	float fCombineLinearLength = gCombineLinearLength.Get();
+	rGlobalLayout.fCombineMaxBrightness = fCombineMaxBrightness;
+	rGlobalLayout.fCombineContrast = fCombineContrast;
+	rGlobalLayout.fCombineLinearStart = fCombineLinearStart;
 	rGlobalLayout.fCombineToe = gCombineToe.Get();
 	rGlobalLayout.fCombineBlackTightness = gCombineBlackTightness.Get();
-	rGlobalLayout.fCombinePassNormalize = gCombinePassNormalize.Get();
-	rGlobalLayout.fCombineExposurePassScale = gCombineExposurePassScale.Get();
 	rGlobalLayout.fCombineHuePreserve = gCombineHuePreserve.Get();
+
+	// Uchimura tone-curve segment constants precomputed on the CPU (all six inputs are invocation-invariant uniforms).
+	// S0/S1/CP feed LightCombine.comp Uchimura and DebugTexture.frag; the epsilon guard on P - S1 removes the prior
+	// shader divergence (DebugTexture guarded, LightCombine did not).
+	float fCombineL0 = ((fCombineMaxBrightness - fCombineLinearStart) * fCombineLinearLength) / fCombineContrast;
+	float fCombineS1 = fCombineLinearStart + fCombineContrast * fCombineL0;
+	float fCombineC2 = (fCombineContrast * fCombineMaxBrightness) / std::max(fCombineMaxBrightness - fCombineS1, shaders::kfEpsilon);
+	rGlobalLayout.fCombineS0 = fCombineLinearStart + fCombineL0;
+	rGlobalLayout.fCombineS1 = fCombineS1;
+	rGlobalLayout.fCombineCP = -fCombineC2 / fCombineMaxBrightness;
+
+	// Pass normalization / exposure scaling precomputed (fCombinePassNormalize, fCombineExposurePassScale, spread pass count).
+	float fPassCount = gSpreadPassCount.Get();
+	float fPassNorm = std::lerp(1.0f, 1.0f / fPassCount, gCombinePassNormalize.Get());
+	float fPassScale = std::pow(fPassCount, -gCombineExposurePassScale.Get());
+	float fCombinePassNormScale = fPassNorm * fPassScale;
+	rGlobalLayout.fCombinePassNormScale = fCombinePassNormScale;
+	rGlobalLayout.fCombinePassTotalScale = fCombinePassNormScale / fPassCount;
 	for (int64_t i = 0; i < _countof(rGlobalLayout.pfCombineCurvePoints); ++i)
 	{
 		float fT = 0.5f;
@@ -106,7 +149,8 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	// Spread Start
 	rGlobalLayout.fSpreadDirectionalityStart = gSpreadDirectionality.Get();
 	rGlobalLayout.fSpreadDirectionCountStart = gSpreadDirectionCount.Get();
-	rGlobalLayout.fSpreadDistanceStart = gSpreadDistance.Get();
+	float fSpreadDistanceStart = gSpreadDistance.Get();
+	rGlobalLayout.fSpreadDistanceStart = fSpreadDistanceStart;
 	rGlobalLayout.fSpreadRingCountStart = gSpreadRingCount.Get();
 	rGlobalLayout.fSpreadJitterStart = gSpreadJitter.Get();
 	rGlobalLayout.fSpreadSampleJitterRangeStart = gSpreadSampleJitterRangeStart.Get();
@@ -121,7 +165,8 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	// Spread End (interpolation targets for last spread pass)
 	rGlobalLayout.fSpreadDirectionalityEnd = gSpreadDirectionalityEnd.Get();
 	rGlobalLayout.fSpreadDirectionCountEnd = gSpreadDirectionCountEnd.Get();
-	rGlobalLayout.fSpreadDistanceEnd = gSpreadDistanceEnd.Resolve(game::gpCamera->mfCameraEyeHeight);
+	float fSpreadDistanceEnd = gSpreadDistanceEnd.Resolve(game::gpCamera->mfCameraEyeHeight);
+	rGlobalLayout.fSpreadDistanceEnd = fSpreadDistanceEnd;
 	rGlobalLayout.fSpreadRingCountEnd = gSpreadRingCountEnd.Get();
 	rGlobalLayout.fSpreadJitterEnd = gSpreadJitterEnd.Get();
 	rGlobalLayout.fSpreadSampleJitterRangeEnd = gSpreadSampleJitterRangeEnd.Get();
@@ -134,7 +179,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 
 	// Spread Height Fade
 	rGlobalLayout.fSpreadHeightMultiplier = gSpreadHeightMultiplier.Get();
-	rGlobalLayout.fSpreadHeightEndHeight = gSpreadHeightEndHeight.Get();
+	rGlobalLayout.fSpreadHeightEndHeightInv = 1.0f / std::max(gSpreadHeightEndHeight.Get(), 0.001f);
 	rGlobalLayout.fSpreadHeightPower = gSpreadHeightPower.Get();
 
 	// Per-ring rotation angles: jitter slider sets the seed; the shader scales by interpolated jitter
@@ -147,7 +192,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	}
 
 	// Lighting world-area / temporal / tile / readout population — colocated here so the whole Lighting region lives in one file (region ownership).
-	PopulateLightingParameters(rGlobalLayout);
+	PopulateLightingParameters(rGlobalLayout, fSpreadDistanceStart, fSpreadDistanceEnd);
 }
 
 void RenderLightingMain(int64_t iCommandBuffer)
@@ -163,24 +208,57 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	// Resolve the 3 normal-weight samples CPU-side by camera eye height and upload one float each
 	// Hard-coded fade band (default..2x default eye height) with no author
 	// control over the band -> free LerpAtHeight, not a HeightLerpWrapperQuartet; fade endpoint single-sourced on game::Camera.
-	rMainLayout.fWaterNormalWeightOne = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightOneMin.Get(), gLightingSampledNormalsWeightOneMax.Get());
-	rMainLayout.fWaterNormalWeightTwo = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightTwoMin.Get(), gLightingSampledNormalsWeightTwoMax.Get());
-	rMainLayout.fWaterNormalWeightThree = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightThreeMin.Get(), gLightingSampledNormalsWeightThreeMax.Get());
-	rMainLayout.fWaterHeightDarkenTop = gWaterHeightDarkenTop.Get();
-	rMainLayout.fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();
+	float fWaterNormalWeightOne = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightOneMin.Get(), gLightingSampledNormalsWeightOneMax.Get());
+	float fWaterNormalWeightTwo = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightTwoMin.Get(), gLightingSampledNormalsWeightTwoMax.Get());
+	float fWaterNormalWeightThree = engine::LerpAtHeight(game::gpCamera->mfCameraEyeHeight, game::Camera::kfCameraEyeHeightDefault, game::Camera::kfWaveFadeEndHeight, gLightingSampledNormalsWeightThreeMin.Get(), gLightingSampledNormalsWeightThreeMax.Get());
+	rMainLayout.fWaterNormalWeightOne = fWaterNormalWeightOne;
+	rMainLayout.fWaterNormalWeightTwo = fWaterNormalWeightTwo;
+	rMainLayout.fWaterNormalWeightThree = fWaterNormalWeightThree;
+	// Water.frag MIP_HANDOFF / mode-3 weight chain folded CPU-side (the weights are uniform once resolved by eye
+	// height): per-octave relative-weight squares and the mode-3 agreement divisor's reciprocal.
+	float fWaterNormalWeightTotal = fWaterNormalWeightOne + fWaterNormalWeightTwo + fWaterNormalWeightThree;
+	if (fWaterNormalWeightTotal > 0.0f)
+	{
+		float fInvTotal = 1.0f / fWaterNormalWeightTotal;
+		float fWRelOne = fWaterNormalWeightOne * fInvTotal;
+		float fWRelTwo = fWaterNormalWeightTwo * fInvTotal;
+		float fWRelThree = fWaterNormalWeightThree * fInvTotal;
+		rMainLayout.fWaterNormalWRelSqOne = fWRelOne * fWRelOne;
+		rMainLayout.fWaterNormalWRelSqTwo = fWRelTwo * fWRelTwo;
+		rMainLayout.fWaterNormalWRelSqThree = fWRelThree * fWRelThree;
+	}
+	else
+	{
+		rMainLayout.fWaterNormalWRelSqOne = 0.0f;
+		rMainLayout.fWaterNormalWRelSqTwo = 0.0f;
+		rMainLayout.fWaterNormalWRelSqThree = 0.0f;
+	}
+	rMainLayout.fWaterNormalWeightSumInv = 1.0f / std::max(3.0f * fWaterNormalWeightTotal, shaders::kfEpsilon);
+	// Water.frag height darken: keep bottom, upload only the range reciprocal (top folds away). Unguarded to
+	// reproduce the shader's original divide (degenerate top==bottom -> +inf, absorbed by the surrounding clamp).
+	float fWaterHeightDarkenTop = gWaterHeightDarkenTop.Get();
+	float fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();
+	rMainLayout.fWaterHeightDarkenBottom = fWaterHeightDarkenBottom;
+	rMainLayout.fWaterHeightDarkenRangeInv = 1.0f / (fWaterHeightDarkenTop - fWaterHeightDarkenBottom);
 	rMainLayout.fWaterHeightDarkenTarget = gWaterHeightDarkenTarget.Get();
 	rMainLayout.fWaterHeightDarkenSource = gWaterHeightDarkenSource.Get();
 	rMainLayout.fWaterHeightDarkenLighting = gWaterHeightDarkenLighting.Get();
 
-	rMainLayout.fLightingWaterSkyboxSunBias = gLightingWaterSkyboxSunBias.Get();
+	// fLightingWaterSkyboxSunBias no longer uploaded: it folds into globalLayout.f4WaterBiasedSunNormal (GlobalUniforms.cpp).
 	rMainLayout.fLightingWaterSkyboxNormalBlendWave = gLightingWaterSkyboxNormalBlendWave.Get();
 	rMainLayout.fLightingWaterSkyboxIntensity = gLightingWaterSkyboxIntensity.Get();
 	rMainLayout.fLightingWaterSkyboxAdd = gLightingWaterSkyboxAdd.Get();
-	rMainLayout.fLightingWaterSkyboxOnePower = gLightingWaterSkyboxOnePower.Get();
+	float fSkyboxPowerOne = gLightingWaterSkyboxOnePower.Get();
+	float fSkyboxPowerTwo = gLightingWaterSkyboxTwoPower.Get();
+	float fSkyboxPowerThree = gLightingWaterSkyboxThreePower.Get();
+	rMainLayout.fLightingWaterSkyboxOnePower = fSkyboxPowerOne;
 	rMainLayout.fLightingWaterSkyboxTwo = gLightingWaterSkyboxTwo.Get();
-	rMainLayout.fLightingWaterSkyboxTwoPower = gLightingWaterSkyboxTwoPower.Get();
+	rMainLayout.fLightingWaterSkyboxTwoPower = fSkyboxPowerTwo;
 	rMainLayout.fLightingWaterSkyboxThree = gLightingWaterSkyboxThree.Get();
-	rMainLayout.fLightingWaterSkyboxThreePower = gLightingWaterSkyboxThreePower.Get();
+	rMainLayout.fLightingWaterSkyboxThreePower = fSkyboxPowerThree;
+	// Per-lobe FilteredPowerLobe constants (Water.frag WATER_SPEC_AA_MODE 2/3): 2/(power+2) and 1/(1+power), xyz = lobes One/Two/Three.
+	rMainLayout.f4WaterSkyboxLobeAlphaSq = {2.0f / (fSkyboxPowerOne + 2.0f), 2.0f / (fSkyboxPowerTwo + 2.0f), 2.0f / (fSkyboxPowerThree + 2.0f), 0.0f};
+	rMainLayout.f4WaterSkyboxLobeOnePlusPowerInv = {1.0f / (1.0f + fSkyboxPowerOne), 1.0f / (1.0f + fSkyboxPowerTwo), 1.0f / (1.0f + fSkyboxPowerThree), 0.0f};
 	rMainLayout.fLightingWaterSkyboxLod = gLightingWaterSkyboxLod.Get();
 	rMainLayout.fWaterSpecAAVariance = gWaterSpecAAVariance.Get();
 	rMainLayout.fWaterSpecAAThreshold = gWaterSpecAAThreshold.Get();
@@ -234,7 +312,7 @@ void RenderLightingMain(int64_t iCommandBuffer)
 
 	// Pbr
 	rMainLayout.fPbrExposure = gPbrExposure.Get();
-	rMainLayout.fPbrGamma = gPbrGamma.Get();
+	rMainLayout.fPbrGammaInv = 1.0f / gPbrGamma.Get();
 	rMainLayout.fColorGradingSaturation = gColorGradingSaturation.Get();
 	rMainLayout.fColorGradingContrast = gColorGradingContrast.Get();
 	rMainLayout.fColorGradingTemperature = gColorGradingTemperature.Get();

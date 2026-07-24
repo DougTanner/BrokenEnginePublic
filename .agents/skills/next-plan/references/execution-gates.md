@@ -120,6 +120,13 @@ primary, wherever the primary tip is** — not one exact commit pair. Plan
 approval, implementation approval, a request to finish or land, and a
 reconciliation decision are not substitutes for it.
 
+One standing exception: a `/save-plan` invocation in the current session is
+the explicit request and affirmative response for a primary mutation whose
+diff consists solely of the file that invocation saved — present the short
+summary and proceed without asking the confirmation question, on either route.
+Any additional changed file in the diff voids the exception and the entire
+mutation uses the normal confirmation.
+
 Because the confirmation binds the diff, a primary advance after confirmation
 requires nothing from the user: rebase the approved candidate onto the new tip
 and proceed to the landing transaction. Claim state is PC-local, while scheduler

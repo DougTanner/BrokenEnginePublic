@@ -58,14 +58,6 @@ function Get-NextPlanContext([switch] $AllowPrimaryAdvance) {
 		if (-not $resolvedSessionOutput.Equals($resolvedPrimaryOutput,[StringComparison]::OrdinalIgnoreCase)) { throw (New-NextPlanStateBlocker "Session WorktreeCli Output target is not primary Output.") }
 		$worktreeCli = Join-Path $sessionOutput 'WorktreeCli.exe'; $worktreeCliItem = Get-Item -LiteralPath $worktreeCli -Force -ErrorAction Stop
 		if ($worktreeCliItem.PSIsContainer -or ($worktreeCliItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or $worktreeCliItem.Length -eq 0) { throw (New-NextPlanStateBlocker 'Provisioned WorktreeCli must be a nonempty ordinary file.') }
-		$helpResponse = Invoke-FinalizeNativeText $worktreeCli @('--help') $worktree.Worktree
-		if ($helpResponse.ExitCode -ne 0) { throw (New-NextPlanStateBlocker 'Provisioned WorktreeCli does not support --help.') }
-		foreach ($capability in @(
-			'WorktreeCli.exe plan validate --repo COMMON-DIR --worktree CHECKOUT --baseline COMMIT',
-			'WorktreeCli.exe plan claim-next --repo COMMON-DIR --primary-worktree PRIMARY --worktree SESSION --branch TARGET --owner TOKEN --session TOKEN --write-claim-receipt Temp/RECEIPT [--plan Documents/Plans/...md]',
-			'WorktreeCli.exe plan claim-status|unclaim --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256',
-			'WorktreeCli.exe plan prepare-completion|prepare-rejection --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256'
-		)) { if (-not $helpResponse.Stdout.Contains($capability,[StringComparison]::Ordinal)) { throw (New-NextPlanStateBlocker "Provisioned WorktreeCli help is missing '$capability'.") } }
 		return [pscustomobject]@{ Worktree=$worktree.Worktree; Primary=$primary.Worktree; CommonDirectory=$worktree.CommonDirectory; SessionBranch=$sessionBranch; TargetBranch=$targetBranch; Baseline=$baseline; Owner=$owner; Session=$owner; WorktreeCli=(Get-Item -LiteralPath $worktreeCli -Force).FullName }
 	} catch { if (Test-NextPlanStateBlocker $_) { throw $_.Exception }; throw (New-NextPlanStateBlocker $_.Exception.Message) }
 }

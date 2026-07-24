@@ -3,7 +3,7 @@
 # `py` launcher (the launcher is on PATH but isn't a direct interpreter — skills
 # pass the detected exe path explicitly to avoid `python` resolving to nothing).
 # Usage (execute; capture the printed exe path for subsequent Python calls):
-#   powershell -ExecutionPolicy Bypass -File .claude/skills/gaea2-shared/scripts/detect-python.ps1
+#   pwsh -ExecutionPolicy Bypass -File .claude/skills/gaea2-shared/scripts/detect-python.ps1
 # Exit codes:
 #   0 - found, prints "OK <python.exe-path> Python <major>.<minor>"
 #   1 - missing or version too old, prints reason

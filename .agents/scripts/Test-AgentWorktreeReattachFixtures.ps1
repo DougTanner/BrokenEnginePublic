@@ -38,9 +38,6 @@ $oldFixtureGitTarget = $env:FIXTURE_GIT_TARGET
 $oldFixtureGitHead = $env:FIXTURE_GIT_HEAD
 $oldFixtureGitBranch = $env:FIXTURE_GIT_BRANCH
 $oldFixturePwsh = $env:FIXTURE_PWSH
-$oldFixtureAdmissionMarker = $env:FIXTURE_ADMISSION_MARKER
-$oldFixtureReceiptPath = $env:FIXTURE_RECEIPT_PATH
-$oldFixtureMutatedOwner = $env:FIXTURE_MUTATED_OWNER
 $environmentNames = @('BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER', 'BROKEN_ENGINE_WORKTREECLI_SESSION_WORKTREE', 'BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE', 'BROKEN_ENGINE_WORKTREE_PATH', 'BROKEN_ENGINE_SESSION_BRANCH', 'BROKEN_ENGINE_PRIMARY_CHECKOUT', 'BROKEN_ENGINE_TARGET_BRANCH', 'BROKEN_ENGINE_BASELINE', 'BROKEN_ENGINE_AGENT_CLIENT', 'BROKEN_ENGINE_CLIENT_ARGUMENTS')
 $oldEnvironment = @{}
 foreach ($environmentName in $environmentNames) { $oldEnvironment[$environmentName] = [Environment]::GetEnvironmentVariable($environmentName, 'Process') }
@@ -66,6 +63,13 @@ if ([string]::IsNullOrWhiteSpace($env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER)) 
 param([string] $RepositoryRoot, [int] $WaitSeconds)
 if ([string]::IsNullOrWhiteSpace($env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER)) { throw 'fixture provision did not receive owner' }
 [IO.File]::WriteAllText($env:FIXTURE_PROVISION_CAPTURE, $env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER)
+'@, [Text.UTF8Encoding]::new($false))
+	[IO.File]::WriteAllText((Join-Path $destinationScripts 'Build-WorktreeDataPacker.ps1'), @'
+param([string] $Worktree, [string] $WorktreeCliExecutable, [string] $PrimaryCheckout)
+if ([string]::IsNullOrWhiteSpace($env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER)) { throw 'fixture datapacker did not receive owner' }
+if (-not (Test-Path -LiteralPath $WorktreeCliExecutable -PathType Leaf)) { throw 'fixture datapacker did not receive the primary WorktreeCli executable' }
+if ([string]::IsNullOrWhiteSpace($PrimaryCheckout)) { throw 'fixture datapacker did not receive the primary checkout' }
+[IO.File]::WriteAllText($env:FIXTURE_DATAPACKER_CAPTURE, $env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER)
 '@, [Text.UTF8Encoding]::new($false))
 	$clientStub = Join-Path $scratch 'StubClient.ps1'
 	[IO.File]::WriteAllText($clientStub, @'
@@ -122,6 +126,7 @@ $value = [ordered]@{
 	$env:FIXTURE_CLIENT_CAPTURE = Join-Path $scratch 'client.json'
 	$env:FIXTURE_BOOTSTRAP_CAPTURE = Join-Path $scratch 'bootstrap.txt'
 	$env:FIXTURE_PROVISION_CAPTURE = Join-Path $scratch 'provision.txt'
+	$env:FIXTURE_DATAPACKER_CAPTURE = Join-Path $scratch 'datapacker.txt'
 	$startScript = Join-Path $destinationScripts 'Start-AgentWorktreeSession.ps1'
 	$invokeStart = {
 		Remove-Item -LiteralPath $env:FIXTURE_CLIENT_CAPTURE -Force -ErrorAction SilentlyContinue
@@ -137,7 +142,7 @@ $value = [ordered]@{
 	Assert-True (Test-Path -LiteralPath $receiptPath -PathType Leaf) 'Cleanup removed the durable receipt.'
 	$ledgerPath = (Get-WorktreeCliRepositoryIdentity $primary).LedgerPath
 	$baselineLedgerBytes = Get-BytesOrNull $ledgerPath
-	$baselineLock = (Invoke-Git @('-C', $primary, 'worktree', 'list', '--porcelain')) -join "`n"
+	$baselineRegistration = (Invoke-Git @('-C', $primary, 'worktree', 'list', '--porcelain')) -join "`n"
 	$quiescenceSidecar = Join-Path $sourceRoot '.agents\skills\finalize-changes\scripts\Wait-AgentToolsQuiescence.ps1'
 	$quiescenceOutput = @(& "$PSHOME\pwsh.exe" -NoProfile -File $quiescenceSidecar -RepositoryRoot $primary -CooperatingSessionOwner $sessionOwner -WaitSeconds 0)
 	Assert-True ($LASTEXITCODE -eq 0) 'Shared quiescence sidecar failed on an empty ledger.'
@@ -163,7 +168,6 @@ $value = [ordered]@{
 	function Reset-FixtureState {
 		$env:PATH = $oldPath
 		$env:FIXTURE_GIT_MODE = $null
-		& git -C $primary worktree unlock $worktree 2>$null
 		& git -C $worktree reset --hard $baseline 2>$null | Out-Null
 		foreach ($marker in @('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'BISECT_LOG', 'rebase-merge', 'rebase-apply', 'sequencer')) {
 			$markerPath = @(Invoke-Git @('-C', $worktree, 'rev-parse', '--path-format=absolute', '--git-path', $marker))[0].Trim()
@@ -189,14 +193,14 @@ $value = [ordered]@{
 		$receiptBefore = Get-BytesOrNull $receiptPath
 		$integrityBefore = Get-BytesOrNull $integrityPath
 		$extraBefore = if ([string]::IsNullOrWhiteSpace($ExtraPath)) { $null } else { Get-BytesOrNull $ExtraPath }
-		$lockBefore = (Invoke-Git @('-C', $primary, 'worktree', 'list', '--porcelain')) -join "`n"
+		$registrationBefore = (Invoke-Git @('-C', $primary, 'worktree', 'list', '--porcelain')) -join "`n"
 		$run = & $invokeStart
 		Assert-True ($run.ExitCode -ne 0) "$Name unexpectedly reattached."
 		Assert-True (Test-BytesEqual $ledgerBefore (Get-BytesOrNull $ledgerPath)) "$Name changed ledger bytes."
 		Assert-True (Test-BytesEqual $receiptBefore (Get-BytesOrNull $receiptPath)) "$Name changed receipt bytes."
 		Assert-True (Test-BytesEqual $integrityBefore (Get-BytesOrNull $integrityPath)) "$Name changed receipt integrity reference bytes."
 		if (-not [string]::IsNullOrWhiteSpace($ExtraPath)) { Assert-True (Test-BytesEqual $extraBefore (Get-BytesOrNull $ExtraPath)) "$Name changed moved receipt bytes." }
-		Assert-True ($lockBefore -ceq ((Invoke-Git @('-C', $primary, 'worktree', 'list', '--porcelain')) -join "`n")) "$Name changed worktree lock state."
+		Assert-True ($registrationBefore -ceq ((Invoke-Git @('-C', $primary, 'worktree', 'list', '--porcelain')) -join "`n")) "$Name changed worktree registration state."
 		foreach ($environmentName in $environmentNames) { Assert-True ([Environment]::GetEnvironmentVariable($environmentName, 'Process') -ceq "fixture-$environmentName") "$Name changed relevant parent environment '$environmentName'." }
 		Assert-True (-not (Test-Path -LiteralPath $env:FIXTURE_CLIENT_CAPTURE)) "$Name launched the stub client."
 		Write-Host "PASS $Name"
@@ -250,17 +254,6 @@ if (($Arguments -join ' ') -ceq 'worktree list --porcelain -z') {
 	if ($env:FIXTURE_GIT_MODE -ceq 'duplicate') { $text += "`0$block" }
 	elseif ($env:FIXTURE_GIT_MODE -ceq 'prunable') { $text = $text.Replace($block, "$block`0prunable fixture removal reason`0") }
 }
-if ($env:FIXTURE_GIT_MODE -ceq 'admission-mutate') {
-	if (($Arguments -join ' ') -match 'worktree lock') {
-		[IO.File]::WriteAllText($env:FIXTURE_ADMISSION_MARKER, 'locked')
-	}
-	elseif (Test-Path -LiteralPath $env:FIXTURE_ADMISSION_MARKER) {
-		Remove-Item -LiteralPath $env:FIXTURE_ADMISSION_MARKER -Force
-		$receipt = ([Text.UTF8Encoding]::new($false, $true).GetString([IO.File]::ReadAllBytes($env:FIXTURE_RECEIPT_PATH)) | ConvertFrom-Json -DateKind String)
-		$receipt.sessionOwner = $env:FIXTURE_MUTATED_OWNER
-		[IO.File]::WriteAllText($env:FIXTURE_RECEIPT_PATH, ($receipt | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
-	}
-}
 [Console]::Out.Write($text)
 exit $exitCode
 '@, [Text.UTF8Encoding]::new($false))
@@ -270,13 +263,12 @@ exit $exitCode
 	$boundaryOwner = [guid]::NewGuid().ToString()
 	foreach ($environmentName in $environmentNames) { [Environment]::SetEnvironmentVariable($environmentName, "fixture-$environmentName", 'Process') }
 	$boundaryFirstProof = Get-AgentWorktreeReattachProof -Client codex -RepositoryRoot $primary -Worktree $worktree
-	Lock-AgentWorktree -RepositoryRoot $primary -Worktree $worktree -Reason 'fixture mutex-bound admission proof'
 	$boundaryLedgerBefore = Get-BytesOrNull $ledgerPath
 	$boundaryIntegrityBefore = Get-BytesOrNull $integrityPath
-	$boundaryLockBefore = (Invoke-Git @('-C', $primary, 'worktree', 'list', '--porcelain')) -join "`n"
+	$boundaryRegistrationBefore = (Invoke-Git @('-C', $primary, 'worktree', 'list', '--porcelain')) -join "`n"
 	$boundaryRejected = $false
 	try {
-		Restore-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner -Label 'fixture mutex-bound admission' -Worktree $worktree -LegacySessionsClosed -BootstrapExecutable $toolOutput `
+		Restore-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner -Label 'fixture mutex-bound admission' -Worktree $worktree -LegacySessionsClosed `
 			-BeforeAdmission {
 				Set-ReceiptMutation { param($value) $value.sessionOwner = $boundaryOwner }
 				Get-AgentWorktreeReattachProof -Client codex -RepositoryRoot $primary -Worktree $worktree -ExpectedReceiptBytes $boundaryFirstProof.Receipt.Bytes -ExpectedReceiptIntegrityBytes $boundaryFirstProof.Receipt.IntegrityBytes
@@ -288,45 +280,38 @@ exit $exitCode
 	$boundaryReceiptAfter = ([Text.UTF8Encoding]::new($false, $true).GetString([IO.File]::ReadAllBytes($receiptPath)) | ConvertFrom-Json -DateKind String)
 	Assert-True ($boundaryReceiptAfter.sessionOwner -ceq $boundaryOwner) 'Mutex-bound receipt mutation did not preserve the external receipt edit.'
 	Assert-True (Test-BytesEqual $boundaryIntegrityBefore (Get-BytesOrNull $integrityPath)) 'Mutex-bound receipt mutation changed integrity reference bytes.'
-	Assert-True ($boundaryLockBefore -ceq ((Invoke-Git @('-C', $primary, 'worktree', 'list', '--porcelain')) -join "`n")) 'Mutex-bound receipt mutation changed worktree lock state.'
+	Assert-True ($boundaryRegistrationBefore -ceq ((Invoke-Git @('-C', $primary, 'worktree', 'list', '--porcelain')) -join "`n")) 'Mutex-bound receipt mutation changed worktree registration state.'
 	foreach ($environmentName in $environmentNames) { Assert-True ([Environment]::GetEnvironmentVariable($environmentName, 'Process') -ceq "fixture-$environmentName") "Mutex-bound receipt mutation changed relevant parent environment '$environmentName'." }
 	Assert-True (-not (Test-Path -LiteralPath $env:FIXTURE_CLIENT_CAPTURE)) 'Mutex-bound receipt mutation launched the stub client.'
 	Write-Host 'PASS mutex-bound receipt mutation blocks admission without side effects'
-	Unlock-AgentWorktree -RepositoryRoot $primary -Worktree $worktree
 	Reset-FixtureState
 	$leasedFirstProof = Get-AgentWorktreeReattachProof -Client codex -RepositoryRoot $primary -Worktree $worktree
-	Lock-AgentWorktree -RepositoryRoot $primary -Worktree $worktree -Reason 'fixture receipt lease admission proof'
 	$leasedLedgerBefore = Get-BytesOrNull $ledgerPath
-	try {
-		$leasedClaim = Restore-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner -Label 'fixture receipt lease admission' -Worktree $worktree -LegacySessionsClosed -BootstrapExecutable (Join-Path $toolOutput 'WorktreeCli.exe') `
-			-BeforeAdmission {
-				$lease = Open-AgentWorktreeReceiptReadLease $worktree
-				try {
-					$leasedProof = Get-AgentWorktreeReattachProof -Client codex -RepositoryRoot $primary -Worktree $worktree -ExpectedReceiptBytes $leasedFirstProof.Receipt.Bytes -ExpectedReceiptIntegrityBytes $leasedFirstProof.Receipt.IntegrityBytes -ReadLease $lease
-					return [pscustomobject]@{ Proof = $leasedProof; Lease = $lease }
-				}
-				catch { $lease.ReceiptStream.Dispose(); $lease.IntegrityStream.Dispose(); throw }
-			} -BeforeClaimWrite {
-				foreach ($authorityPath in @($receiptPath, $integrityPath)) {
-					$mutationStream = $null
-					try { $mutationStream = [IO.File]::Open($authorityPath, [IO.FileMode]::Open, [IO.FileAccess]::Write, [IO.FileShare]::Read) }
-					catch [IO.IOException] { continue }
-					finally { if ($null -ne $mutationStream) { $mutationStream.Dispose() } }
-					throw "Receipt lease permitted mutation after proof: '$authorityPath'."
-				}
+	$leasedClaim = Restore-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner -Label 'fixture receipt lease admission' -Worktree $worktree -LegacySessionsClosed `
+		-BeforeAdmission {
+			$lease = Open-AgentWorktreeReceiptReadLease $worktree
+			try {
+				$leasedProof = Get-AgentWorktreeReattachProof -Client codex -RepositoryRoot $primary -Worktree $worktree -ExpectedReceiptBytes $leasedFirstProof.Receipt.Bytes -ExpectedReceiptIntegrityBytes $leasedFirstProof.Receipt.IntegrityBytes -ReadLease $lease
+				return [pscustomobject]@{ Proof = $leasedProof; Lease = $lease }
 			}
-		Assert-True ($leasedClaim.Mode -ceq 'session') 'Receipt lease fixture did not install the expected session claim.'
-		Assert-True (Test-BytesEqual $leasedFirstProof.Receipt.Bytes ([IO.File]::ReadAllBytes($receiptPath))) 'Receipt lease admission did not retain matching receipt bytes.'
-		Assert-True (Test-BytesEqual $leasedFirstProof.Receipt.IntegrityBytes ([IO.File]::ReadAllBytes($integrityPath))) 'Receipt lease admission did not retain matching integrity bytes.'
-		Assert-True (Test-BytesEqual $leasedFirstProof.Receipt.Bytes $leasedClaim.AdmissionProof.Receipt.Bytes) 'Receipt lease admission did not use the matching proven receipt bytes.'
-		Assert-True (Test-BytesEqual $leasedFirstProof.Receipt.IntegrityBytes $leasedClaim.AdmissionProof.Receipt.IntegrityBytes) 'Receipt lease admission did not use the matching proven integrity bytes.'
-		Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner
-		Assert-True (Test-BytesEqual $leasedLedgerBefore (Get-BytesOrNull $ledgerPath)) 'Receipt lease fixture did not restore ledger bytes after claim release.'
-		Write-Host 'PASS receipt lease blocks post-proof mutation through claim write'
-	}
-	finally {
-		Unlock-AgentWorktree -RepositoryRoot $primary -Worktree $worktree
-	}
+			catch { $lease.ReceiptStream.Dispose(); $lease.IntegrityStream.Dispose(); throw }
+		} -BeforeClaimWrite {
+			foreach ($authorityPath in @($receiptPath, $integrityPath)) {
+				$mutationStream = $null
+				try { $mutationStream = [IO.File]::Open($authorityPath, [IO.FileMode]::Open, [IO.FileAccess]::Write, [IO.FileShare]::Read) }
+				catch [IO.IOException] { continue }
+				finally { if ($null -ne $mutationStream) { $mutationStream.Dispose() } }
+				throw "Receipt lease permitted mutation after proof: '$authorityPath'."
+			}
+		}
+	Assert-True ($leasedClaim.Mode -ceq 'session') 'Receipt lease fixture did not install the expected session claim.'
+	Assert-True (Test-BytesEqual $leasedFirstProof.Receipt.Bytes ([IO.File]::ReadAllBytes($receiptPath))) 'Receipt lease admission did not retain matching receipt bytes.'
+	Assert-True (Test-BytesEqual $leasedFirstProof.Receipt.IntegrityBytes ([IO.File]::ReadAllBytes($integrityPath))) 'Receipt lease admission did not retain matching integrity bytes.'
+	Assert-True (Test-BytesEqual $leasedFirstProof.Receipt.Bytes $leasedClaim.AdmissionProof.Receipt.Bytes) 'Receipt lease admission did not use the matching proven receipt bytes.'
+	Assert-True (Test-BytesEqual $leasedFirstProof.Receipt.IntegrityBytes $leasedClaim.AdmissionProof.Receipt.IntegrityBytes) 'Receipt lease admission did not use the matching proven integrity bytes.'
+	Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner
+	Assert-True (Test-BytesEqual $leasedLedgerBefore (Get-BytesOrNull $ledgerPath)) 'Receipt lease fixture did not restore ledger bytes after claim release.'
+	Write-Host 'PASS receipt lease blocks post-proof mutation through claim write'
 
 	$liveOwner = [guid]::NewGuid().ToString()
 	Invoke-Rejection 'duplicate live owner' {
@@ -378,8 +363,5 @@ finally {
 	$env:FIXTURE_GIT_HEAD = $oldFixtureGitHead
 	$env:FIXTURE_GIT_BRANCH = $oldFixtureGitBranch
 	$env:FIXTURE_PWSH = $oldFixturePwsh
-	$env:FIXTURE_ADMISSION_MARKER = $oldFixtureAdmissionMarker
-	$env:FIXTURE_RECEIPT_PATH = $oldFixtureReceiptPath
-	$env:FIXTURE_MUTATED_OWNER = $oldFixtureMutatedOwner
 	if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force }
 }

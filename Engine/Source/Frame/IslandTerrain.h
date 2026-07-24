@@ -194,9 +194,8 @@ public:
 	void ReleaseGpuResources();
 
 	// Reset per-template slot-assignment state so the next AcquireTextureSlot call runs the
-	// first-mint path (re-pointing bindless array slots from the new TextureManager's placeholders
-	// to real Textures, re-registering the elevation array on all three of its consumers:
-	// kPipelineTerrainElevation, kPipelineShadowElevation, and kPipelineTerrain). Required after a
+	// first-mint path (re-registering all five channel bindings; elevation remains at the new
+	// TextureManager placeholder until the four chunk-backed channels are ready). Required after a
 	// kSurface-tier Graphics teardown destroys TextureManager — the
 	// stale miTextureSlot >= 0 would otherwise short-circuit AcquireTextureSlot's hot path and
 	// strand every island on the new placeholder forever. Called from TextureManager ctor.
@@ -238,6 +237,8 @@ private:
 	// to the placeholders, and reclaim the slot. Returns true iff it evicted (EvictionSweep batches
 	// the descriptor-array update when any template evicts).
 	bool EvictTemplate(common::crc_t islandCrc, IslandTemplate& rTemplate);
+	bool IsEvictionPending(const IslandTemplate& rTemplate) const;
+	bool IsRestorationPending(common::crc_t islandCrc, const IslandTemplate& rTemplate) const;
 
 	// Starts at 1: slot 0 is reserved as a permanent neutral placeholder anchor, never adopted
 	// by any real island. See TextureManager::mIslandPlaceholder* members.

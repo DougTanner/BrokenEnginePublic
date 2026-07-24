@@ -210,6 +210,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkMessages.h">
+      <Filter>Engine\Network</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkProtocol.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
@@ -418,6 +421,9 @@
       <Filter>Engine</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Agent\AgentCommandServer.h">
+      <Filter>Engine\Agent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Agent\AgentCommandsShared.h">
       <Filter>Engine\Agent</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Agent\AgentCommands.h">
@@ -705,6 +711,9 @@
       <Filter>Engine</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentCommandServer.cpp">
+      <Filter>Engine\Agent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentCommandsShared.cpp">
       <Filter>Engine\Agent</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Agent\AgentUiRegistryServerStubs.cpp">

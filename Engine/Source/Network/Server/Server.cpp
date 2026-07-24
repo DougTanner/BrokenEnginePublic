@@ -10,9 +10,11 @@
 namespace engine
 {
 
-// kiMaxAckStreamPacketSize is authored with a literal 64 in NetworkProtocol.h (which cannot include
-// NetworkManager.h); tie it to the real slot ceiling here so a change to kiMaxEnetCoordSlots trips this.
-static_assert(kiMaxAckStreamPacketSize == 2 + NetworkManager::kiMaxEnetCoordSlots * 27 + 8,
+// NetworkProtocol.h cannot include NetworkManager.h; tie the codec's maximum ack message to the real
+// slot ceiling here so a transport slot change trips this assertion.
+static_assert(NetworkMessages::ClientAckStreamMessage::kiMaxSlotCount == NetworkManager::kiMaxEnetCoordSlots,
+	"ack-stream codec cardinality must match the transport slot ceiling");
+static_assert(kiMaxAckStreamPacketSize == NetworkMessages::ClientAckStreamMessage::GetSize(NetworkManager::kiMaxEnetCoordSlots),
 	"kiMaxAckStreamPacketSize must match the ack-stream wire layout sized by kiMaxEnetCoordSlots");
 
 Server::Server(uint16_t uiPort, ServerSessionRuntime& rSessionRuntime)
@@ -23,7 +25,7 @@ Server::Server(uint16_t uiPort, ServerSessionRuntime& rSessionRuntime)
 	gpServer = this;
 
 	ENetAddress address {};
-	address.host = gLaunchOptions.bLoopbackOnly ? htonl(INADDR_LOOPBACK) : ENET_HOST_ANY;
+	address.host = (gLaunchOptions.flags & LaunchOptionFlags::kLoopbackOnly) ? htonl(INADDR_LOOPBACK) : ENET_HOST_ANY;
 	address.port = uiPort;
 
 	ScopedSuppressAllocationTracking suppress;
@@ -116,7 +118,7 @@ void Server::Poll(const NetworkTimeState& rTimeState)
 	{
 		NetworkSimulation::ProcessOrFlush(mDelayedPackets, rTimeState.bFastForward, [this](const DelayedPacket& rPacket)
 		{
-			Receive(rPacket.data.data(), rPacket.data.size(), rPacket.pPeer);
+			Receive(rPacket.data, rPacket.pPeer);
 		});
 	}
 }
@@ -182,18 +184,18 @@ void Server::Disconnect(ENetEvent& rEvent)
 
 void Server::Receive(ENetEvent& rEvent)
 {
-	Receive(rEvent.packet->data, rEvent.packet->dataLength, rEvent.peer);
+	Receive(std::span<const uint8_t>(rEvent.packet->data, rEvent.packet->dataLength), rEvent.peer);
 }
 
-void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
+void Server::Receive(std::span<const uint8_t> packetData, ENetPeer* pPeer)
 {
-	if (iSize < 1)
+	if (packetData.size() < 1)
 	{
 		return;
 	}
 
 	int64_t iClientId = reinterpret_cast<int64_t>(pPeer->data);
-	PacketType eType = static_cast<PacketType>(pData[0]);
+	PacketType eType = static_cast<PacketType>(packetData[0]);
 
 	// Gate 1: unknown client id (e.g. packets still in flight after a violation-disconnect + RemoveClient) -> silent drop.
 	ClientConnection* pClient = FindClient(iClientId);
@@ -215,18 +217,18 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 	{
 		if (bPacketWasUnderBudget)
 		{
-			RecordContractViolation(iClientId, "tick budget", pData[0], static_cast<int64_t>(iSize));
+			RecordContractViolation(iClientId, "tick budget", packetData[0], static_cast<int64_t>(packetData.size()));
 		}
 		return;
 	}
 
 	const bool bByteWasUnderBudget = pClient->iTickByteCount <= kiMaxClientInboundBytesPerTick;
-	pClient->iTickByteCount += static_cast<int64_t>(iSize);
+	pClient->iTickByteCount += static_cast<int64_t>(packetData.size());
 	if (pClient->iTickByteCount > kiMaxClientInboundBytesPerTick)
 	{
 		if (bByteWasUnderBudget)
 		{
-			RecordContractViolation(iClientId, "tick budget", pData[0], static_cast<int64_t>(iSize));
+			RecordContractViolation(iClientId, "tick budget", packetData[0], static_cast<int64_t>(packetData.size()));
 		}
 		return;
 	}
@@ -241,12 +243,12 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		// or size outside [min, max].
 		if (contract.iMaxSize == 0)
 		{
-			RecordContractViolation(iClientId, "not client-sendable", pData[0], static_cast<int64_t>(iSize));
+			RecordContractViolation(iClientId, "not client-sendable", packetData[0], static_cast<int64_t>(packetData.size()));
 			return;
 		}
-		if (static_cast<int64_t>(iSize) < contract.iMinSize || static_cast<int64_t>(iSize) > contract.iMaxSize)
+		if (static_cast<int64_t>(packetData.size()) < contract.iMinSize || static_cast<int64_t>(packetData.size()) > contract.iMaxSize)
 		{
-			RecordContractViolation(iClientId, "size out of range", pData[0], static_cast<int64_t>(iSize));
+			RecordContractViolation(iClientId, "size out of range", packetData[0], static_cast<int64_t>(packetData.size()));
 			return;
 		}
 
@@ -258,11 +260,11 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		}
 
 		// Gate 5: per-type per-tick cap -- drop; violation only if the contract counts over-cap.
-		if (++pClient->tickTypeCounts[pData[0]] > contract.iMaxPerTick)
+		if (++pClient->tickTypeCounts[packetData[0]] > contract.iMaxPerTick)
 		{
 			if (contract.bOverCapCountsViolation)
 			{
-				RecordContractViolation(iClientId, "per-type cap", pData[0], static_cast<int64_t>(iSize));
+				RecordContractViolation(iClientId, "per-type cap", packetData[0], static_cast<int64_t>(packetData.size()));
 			}
 			return;
 		}
@@ -273,28 +275,28 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		switch (eType)
 		{
 			case PacketType::kClientAckStream:
-				ClientAckStream(pData, iSize, iClientId);
+				ClientAckStream(packetData, iClientId);
 				break;
 			case PacketType::kClientSpawnRequest:
-				ClientSpawnRequest(pData, iSize, iClientId);
+				ClientSpawnRequest(packetData, iClientId);
 				break;
 			case PacketType::kClientDesyncReport:
-				ClientDesyncReport(pData, iSize, iClientId);
+				ClientDesyncReport(packetData, iClientId);
 				break;
 			case PacketType::kClientDebugFrameRequest:
-				ClientDebugFrameRequest(pData, iSize, pPeer, iClientId);
+				ClientDebugFrameRequest(packetData, pPeer, iClientId);
 				break;
 			case PacketType::kClientHello:
-				ClientHello(pData, iSize, pPeer, iClientId);
+				ClientHello(packetData, pPeer, iClientId);
 				break;
 			case PacketType::kClientSubscribe:
-				ClientSubscribe(pData, iSize, iClientId);
+				ClientSubscribe(packetData, iClientId);
 				break;
 			case PacketType::kClientUnsubscribe:
-				ClientUnsubscribe(pData, iSize, iClientId);
+				ClientUnsubscribe(packetData, iClientId);
 				break;
 			case PacketType::kClientResyncRequest:
-				ClientResyncRequest(iClientId);
+				ClientResyncRequest(packetData, iClientId);
 				break;
 			default:
 				// Only game-range types reach the default -- engine sentinel types are caught at gate 3.
@@ -307,7 +309,7 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 					}
 					ScopedSuppressAllocationTracking suppress;
 					// Heap: raw game packet buffer grows on game-specific packets
-					mReceivedGamePackets.push_back({iClientId, pData[0], std::vector<uint8_t>(pData + 1, pData + iSize)});
+					mReceivedGamePackets.push_back({iClientId, packetData[0], std::vector<uint8_t>(packetData.begin() + 1, packetData.end())});
 				}
 				break;
 		}
@@ -319,7 +321,7 @@ void Server::Receive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
 		// parsed values in locals first). Drop the single packet and let the client resend/reconnect,
 		// rather than tearing down the peer, and count it as a contract violation.
 		LOG(kNetwork, kDebug, "Server::Receive dropped corrupt packet (type {}) Client: {}: {}", static_cast<uint8_t>(eType), iClientId, rException.what());
-		RecordContractViolation(iClientId, "corrupt payload", pData[0], static_cast<int64_t>(iSize));
+		RecordContractViolation(iClientId, "corrupt payload", packetData[0], static_cast<int64_t>(packetData.size()));
 	}
 }
 

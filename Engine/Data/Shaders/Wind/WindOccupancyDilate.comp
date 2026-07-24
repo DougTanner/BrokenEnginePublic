@@ -40,12 +40,14 @@ void main()
 	// Occupancy is recorded in previous-frame texture-grid space, but the world area can shift
 	// AND scale between frames. Remap this tile's center world position into the previous-frame
 	// tile grid so the dilation finds the cells where wind actually was last frame.
-	vec2 f2OutputUV = (vec2(uiTileX, uiTileY) + vec2(0.5f)) / vec2(uiTilesX, uiTilesY);
+	// f2WindTilesInv = (1/uiWindTilesX, 1/uiWindTilesY) folded CPU-side (WindUniforms.cpp).
+	vec2 f2OutputUV = (vec2(uiTileX, uiTileY) + vec2(0.5f)) * globalLayout.f2WindTilesInv;
 	vec2 f2WorldPosition = VisibleAreaToWorld(f2OutputUV, globalLayout.f4SmokeArea);
 	vec4 f4Prev = globalLayout.f4PreviousSmokeArea;
+	// f2PreviousSmokeAreaSizeInv = (1/(z-x), 1/(w-y)) folded CPU-side (SmokeUniforms.cpp), preserving component order.
 	vec2 f2PrevUV = vec2(
-		(f2WorldPosition.x - f4Prev.x) / (f4Prev.z - f4Prev.x),
-		(f2WorldPosition.y - f4Prev.y) / (f4Prev.w - f4Prev.y));
+		(f2WorldPosition.x - f4Prev.x) * globalLayout.f2PreviousSmokeAreaSizeInv.x,
+		(f2WorldPosition.y - f4Prev.y) * globalLayout.f2PreviousSmokeAreaSizeInv.y);
 	int iPrevTileX = int(floor(f2PrevUV.x * float(uiTilesX)));
 	int iPrevTileY = int(floor(f2PrevUV.y * float(uiTilesY)));
 

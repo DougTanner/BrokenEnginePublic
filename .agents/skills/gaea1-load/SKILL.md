@@ -22,7 +22,7 @@ Convert a Gaea 1 `.tor` into `Temp/<basename>.md` — frontmatter + Mermaid topo
 
 2. **Verify Python 3.10+ is available** (the loader only needs stdlib — base64, gzip, xml.etree). Reuse the gaea2 family's detector:
    ```
-   powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
+   pwsh -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
    ```
    - Exit 0 with `OK <python-exe-path> Python X.Y` → capture `<python-exe-path>` for step 3.
    - Exit 1 with `MISSING ...` or `STALE ...` → tell the user Python is missing/too old and ask permission to install. Only after explicit approval:

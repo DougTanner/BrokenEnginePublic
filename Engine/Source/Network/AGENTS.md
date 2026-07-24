@@ -4,7 +4,7 @@ Shared ENet transport, slot subscriptions, ACK state, discovery, wire cursors, a
 
 ## Transport Contracts
 
-- Use `NetworkManager` channel helpers for control and per-coordinate reliable/unreliable channels. All sends go through `SendPacket`; fixed arithmetic or `GridCoord` payloads use `SendSimplePacket`.
+- Use `NetworkManager` channel helpers for control and per-coordinate reliable/unreliable channels. All sends go through `SendPacket`; opaque game payloads use `SendSimplePacket`, while engine packets use `NetworkMessages` layouts.
 - Each coordinate slot has independent ACK floor, bitfield, and epoch state. Epoch mismatch drops stale traffic after slot reuse; unsubscribe carries the observed epoch, so a stale request cannot free a reused slot while the server still ACKs the no-op.
 - Engine packet types remain below `kGamePacketStart`; game packets are forwarded opaquely.
 - The handshake verifies protocol version, deterministic Frame version, and ordered island-manifest identity before accepting a peer.
@@ -22,7 +22,8 @@ Shared ENet transport, slot subscriptions, ACK state, discovery, wire cursors, a
 ## Ownership
 
 - `NetworkManager` owns ENet lifetime, channel math, and the allocation-suppressed send path.
-- `NetworkProtocol` owns shared packet identifiers, compatibility constants, slot identity, and ACK structures.
+- `NetworkProtocol` owns shared packet identifiers, compatibility constants, slot identity, ACK structures, and client-to-server contract rows.
+- `NetworkMessages` owns engine packet field order, sizes, and paired encode/decode; evolve an engine packet through its shared layout rather than mirroring fields in client/server leaves.
 - Client and server leaves own the side-specific transport peers, receive buffers, contracts, slots, and packet handling.
 - `ClientSessionRuntime` and `ServerSessionRuntime` own reusable connection/discovery, subscription/queue, clock/pacing, poll, flush, resend, and reset sequencing. Canonical game sessions compose them and supply synchronous typed policy hooks.
 - `game::NetworkSessionContract` supplies Frame/status types, protocol constants, codecs, and game packet contracts at compile time. Runtimes use no virtual session base, runtime type erasure, or additional global manager.

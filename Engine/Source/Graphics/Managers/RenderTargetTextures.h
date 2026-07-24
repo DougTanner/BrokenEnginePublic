@@ -67,7 +67,7 @@ struct RenderTargetTextures
 	Texture mShadowTexture;
 	Texture mShadowBlurTexture;
 	Texture mShadowBlurIntermediateTexture;
-	Texture mShadowHistoryTexture; // Previous-frame blurred shadow, reprojected by ShadowTemporal.comp to de-flicker the texel-ramp resample
+	Texture mShadowHistoryTexture; // Previous-frame final shadow, refreshed by ShadowHistoryCopy.comp for ShadowTemporal reprojection
 
 	Texture mObjectShadowsTexture;
 	Texture mObjectShadowsBlurTexture;

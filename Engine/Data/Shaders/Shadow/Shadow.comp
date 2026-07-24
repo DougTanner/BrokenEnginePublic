@@ -15,27 +15,22 @@ layout (set = 1, binding = 2, r16) uniform writeonly image2D shadowTexture; // k
 
 void main()
 {
-	uint x = gl_GlobalInvocationID.x;
-	uint y = gl_GlobalInvocationID.y;
-
-	// Only the centered visible window (+ kiShadowWindowMargin) is ray-marched; outside writes the
-	// unshadowed lit value (same as an in-window unshadowed texel) so the blur reads consistent edges.
-	if (int(x) < globalLayout.iShadowVisibleMinX - kiShadowWindowMargin || int(x) >= globalLayout.iShadowVisibleMaxX + kiShadowWindowMargin ||
-	    int(y) < globalLayout.iShadowVisibleMinY - kiShadowWindowMargin || int(y) >= globalLayout.iShadowVisibleMaxY + kiShadowWindowMargin)
-	{
-		imageStore(shadowTexture, ivec2(x, y), vec4(globalLayout.fShadowMoonMultiplier, 0.0, 0.0, 0.0));
+	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iShadowSourceMinX, globalLayout.iShadowSourceMinY);
+	if (any(greaterThanEqual(i2Texel, ivec2(globalLayout.iShadowSourceMaxX, globalLayout.iShadowSourceMaxY))))
 		return;
-	}
 
-	vec2 f2InvElevationSize = 1.0f / vec2(globalLayout.fShadowElevationTextureSizeWidth, globalLayout.fShadowElevationTextureSizeHeight);
+	uint x = uint(i2Texel.x);
+	uint y = uint(i2Texel.y);
+
+	vec2 f2InvElevationSize = globalLayout.f2ShadowElevationTextureSizeInv;
 
 	float fElevation = max(textureLod(elevationTextureSampler, vec2(float(x) + float(globalLayout.iShadowStartOffset), float(y)) * f2InvElevationSize, 0.0f).x, 0.0f);
 
-	float fSunAngle = globalLayout.fShadowSunAngle;
-	vec3 f3ToBaseNormal = vec3(sign(globalLayout.fShadowDirectionMultiplier), 0.0f, 0.0f);
+	// The CPU uploads fShadowDirectionMultiplier as exactly +/-1 (east/west sun march), so no sign() needed.
+	vec3 f3ToBaseNormal = vec3(globalLayout.fShadowDirectionMultiplier, 0.0f, 0.0f);
 
 	float fDistance = globalLayout.fShadowDistanceFalloff;
-	float fInvDistance = 1.0f / fDistance;
+	float fInvDistance = globalLayout.fShadowDistanceFalloffInv;
 
 	float fShadow = 0.0f;
 	float fOtherX = globalLayout.fShadowWidthScale;
@@ -65,8 +60,8 @@ void main()
 		float fTerrainAngle = acos(clamp(dot(f3ToBaseNormal, f3ToOtherNormal), -1.0f, 1.0f));
 
 		float fFeather = globalLayout.fShadowFeather;
-		float fHeightMultiplier = clamp((fOtherElevation - globalLayout.fShadowHeightFadeBottom) / (globalLayout.fShadowHeightFadeTop - globalLayout.fShadowHeightFadeBottom), 0.0f, 1.0f);
-		fShadow = max(fHeightMultiplier * fDistanceFactor * mix(1.0f, 0.0f, (fSunAngle - fTerrainAngle + globalLayout.fShadowNoonOffset + globalLayout.fShadowSunsetOffset) * fFeather), fShadow);
+		float fHeightMultiplier = clamp((fOtherElevation - globalLayout.fShadowHeightFadeBottom) * globalLayout.fShadowHeightFadeRangeInv, 0.0f, 1.0f);
+		fShadow = max(fHeightMultiplier * fDistanceFactor * mix(1.0f, 0.0f, (globalLayout.fShadowAngleOffsetSum - fTerrainAngle) * fFeather), fShadow);
 		if (fShadow >= 1.0f)
 		{
 			break;

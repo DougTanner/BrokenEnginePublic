@@ -60,7 +60,7 @@ Trace how every row receives and retains the value.
    - transfer wire serialization/deserialization and payload-size accounting when the field crosses the network;
    - [`SpawnTransfer.cpp`](/Projects/BrokenEngineSandbox/Source/SpawnTransfer.cpp) receive mapping, destination `SpawnInfo`, and spawn assignment.
    Use Blasters for the live send/receive shape. Match existing client guards; do not invent a second receive path.
-3. For a client-owned handle/resource, initialize or create it in per-row `ClientInit`, preserve `ClientInitAll` full-state hydration through [`ClientDataReceiver.cpp`](/Projects/BrokenEngineSandbox/Source/Network/Client/ClientDataReceiver.cpp), initialize it on local spawn, copy it only where ownership persists, and update teardown/removal.
+3. For a client-owned handle/resource, initialize or create it in per-row `ClientInit`, preserve `ClientInitAll` full-state hydration through [`ClientSessionReceive.cpp`](/Projects/BrokenEngineSandbox/Source/Network/Client/ClientSessionReceive.cpp), initialize it on local spawn, copy it only where ownership persists, and update teardown/removal.
 
 ## Identity and agent queries
 

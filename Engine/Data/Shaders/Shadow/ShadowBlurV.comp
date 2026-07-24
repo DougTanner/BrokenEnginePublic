@@ -15,27 +15,19 @@ layout (set = 1, binding = 2, r16) uniform writeonly image2D shadowBlurTexture; 
 
 void main()
 {
-	uint uiX = gl_GlobalInvocationID.x;
-	uint uiY = gl_GlobalInvocationID.y;
-
-	// Compute the visible window + kiShadowWindowMargin so the consumer's bilinear edge reads land on
-	// current-frame, fully-blurred texels.
-	if (int(uiX) < globalLayout.iShadowVisibleMinX - kiShadowWindowMargin || int(uiX) >= globalLayout.iShadowVisibleMaxX + kiShadowWindowMargin ||
-	    int(uiY) < globalLayout.iShadowVisibleMinY - kiShadowWindowMargin || int(uiY) >= globalLayout.iShadowVisibleMaxY + kiShadowWindowMargin)
+	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iShadowFinalMinX, globalLayout.iShadowFinalMinY);
+	if (any(greaterThanEqual(i2Texel, ivec2(globalLayout.iShadowFinalMaxX, globalLayout.iShadowFinalMaxY))))
 		return;
+	uint uiX = uint(i2Texel.x);
+	uint uiY = uint(i2Texel.y);
 
-	float fSigma = max(globalLayout.fShadowBlurSigma, 1e-6f);
-	vec2 f2InvSize = 1.0f / vec2(globalLayout.fShadowTextureSizeWidth, globalLayout.fShadowTextureSizeHeight);
+	vec2 f2InvSize = globalLayout.f2ShadowTextureSizeInv;
 	float fTotal = 0.0f;
-	float fWeightSum = 0.0f;
 	for (int j = -kiShadowBlurRadius; j <= kiShadowBlurRadius; ++j)
 	{
-		float fA = float(j) / fSigma;
-		float fWeight = exp(-0.5f * fA * fA);
 		vec2 vUv = (vec2(float(uiX), float(int(uiY) + j)) + 0.5f) * f2InvSize;
-		fTotal += fWeight * textureLod(shadowBlurIntermediateSampler, vUv, 0.0f).x;
-		fWeightSum += fWeight;
+		fTotal += globalLayout.pfShadowBlurWeights[abs(j)] * textureLod(shadowBlurIntermediateSampler, vUv, 0.0f).x;
 	}
 
-	imageStore(shadowBlurTexture, ivec2(uiX, uiY), vec4(fTotal / fWeightSum, 0.0f, 0.0f, 0.0f));
+	imageStore(shadowBlurTexture, ivec2(uiX, uiY), vec4(fTotal * globalLayout.fShadowBlurWeightSumInv, 0.0f, 0.0f, 0.0f));
 }

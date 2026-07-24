@@ -1,0 +1,126 @@
+# BrokenEngineSandbox Agent Harness
+
+Project-specific launch configuration, verification recipes, durable caveats, and command schemas for driving BrokenEngineSandbox through the `/agent-harness` skill. The skill ([SKILL.md](../../../.agents/skills/agent-harness/SKILL.md)) owns provision/claim, ownership/takeover, the request/response envelope, lifecycle/release, and — in [command-reference.md](../../../.agents/skills/agent-harness/references/command-reference.md) — the four engine-shared command schemas (`ping`, `quit`, `get_logs`, `set_log_level`). Read this doc after selecting BrokenEngineSandbox and before launching; it owns the executable paths, output directory, extra launch arguments, game command schemas, and canonical verification recipes.
+
+## Launch
+
+Follow the skill's generic launch requirements (data-snapshot checks, `--loopback-only`, `$ROOT\Temp` log parents, and Codex `Start-Process -PassThru` PID retention), then launch these executables:
+
+```powershell
+$Output = Join-Path $ROOT 'Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output'
+$ServerExe = Join-Path $Output 'BrokenEngineSandboxServer.Debug.exe'
+$ClientExe = Join-Path $Output 'BrokenEngineSandbox.Debug.exe'
+$TempDir = Join-Path $ROOT 'Temp'
+New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
+$QuotedData = '"' + $GameDataDirectory + '"'
+$ServerLog = Join-Path $TempDir 'server-agent.log'
+$ClientLog = Join-Path $TempDir 'client-agent.log'
+$ServerPid = $null
+$ClientPid = $null
+
+$ServerProcess = Start-Process -FilePath $ServerExe -ArgumentList @(
+	'--agent-port', '27100', '--loopback-only', '--data-directory', $QuotedData,
+	'--log-file', ('"' + $ServerLog + '"')) -WindowStyle Hidden -PassThru
+$ClientProcess = Start-Process -FilePath $ClientExe -ArgumentList @(
+	'--agent-port', '27101', '--loopback-only', '--data-directory', $QuotedData,
+	'--windowed', '1600x900', '--log-file', ('"' + $ClientLog + '"')) -WindowStyle Hidden -PassThru
+$ServerPid = $ServerProcess.Id
+$ClientPid = $ClientProcess.Id
+```
+
+Debug/Profile clients auto-connect; Release requires `click "LOCAL SERVER"`. The server loads its exit autosave, so use `reset` when the scenario needs fresh state.
+
+## Canonical verification
+
+Set up server and client state with the recipe below, then verify and release per the skill's Canonical verification evidence principles and lifecycle checklist.
+
+1. Set up server state with `reset`, then `spawn_players` or `inject_status_changes` at a coord from `status.activeCoords`; confirm through `query_players`/`query_frame`.
+2. Launch/connect the client and require `status.clientCount` to increase.
+3. Use `describe_ui` before label-addressed `click`, `hover`, or `set_slider`; use `key`/`mouse` for raw input.
+
+### Replay determinism acceptance
+
+Run replay acceptance only on a `kbDebugInput` build. It must prove transitions and a completed playback loop, not merely the absence of old errors:
+
+1. Set the server `Default` log level to `Debug`. Capture server and client relevant-log baselines with `get_logs {"count":512,"pattern":"[Rr]eplay|CRC|[Cc]hecksum|[Dd]esync"}`. Preserve the ordered arrays so later checks can identify only appended lines.
+2. Send `pause {"paused":false}` and require `status.paused:false`, `recording:false`, and `replaying:false`.
+3. Send `replay_record {"start":true}` and require a later status with `recording:true` and `paused:false`. Let multiple ticks complete.
+4. Send `replay_record {"start":false}` and require a later status with `recording:false` and `paused:false`.
+5. Send `replay_play`; require `replaying:true` and `paused:false`. Wait for a newly appended server line matching `End replay [0-9]+, looping`. This current runtime marker proves every reader reached its recorded endpoint and the first playback loop completed.
+6. Compare post-run relevant logs with both ordered baselines. Require no newly appended replay-persistence/read failure, `LogDifferences CRC Client`, checksum-mismatch, `CONFIRMED DESYNC`, or unresolved-CRC error line. Do not count pre-baseline lines as new evidence, and do not treat speculative reconciliation messages alone as a replay failure.
+7. Send `replay_play` again to cancel. Require a later status with `replaying:false`, `recording:false`, and `paused:false`.
+
+If the 512-line relevant-log window cannot retain the baseline through this bounded scenario, return `BLOCKED` and rerun with file-offset evidence from the configured per-process logs; never downgrade to “silence = pass.”
+
+## Durable caveats
+
+- Client weapon-mode requests received during paused or other zero-tick updates and internally queued flagship navigation updates persist until the first advancing update. Client `kClientFleetNavigationDelay` requests apply immediately. To verify load-requeued flagship updates, use `load {"pauseAfterLoad":true}` and inspect `pendingFlagshipUpdateCount` before unpausing.
+- Injection during replay fails. Injection while clients wait for spawn also fails immediately so it cannot corrupt snapshot-diff assignment; it is never queued for later. Injection while paused remains accepted with `deferred:true` and applies on the next unpaused tick.
+- When comparing `query_profile` timings, run and discard a warm-up cohort first, take baselines only after values settle, and compare cohorts of equal sample count captured within one process lifetime.
+- Server frame-read query schema and extraction live in `Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsServerQueries.cpp`; simulation control, replay, CPU `query_profile`, injection, and dispatch live in `AgentCommandsServer.cpp`. Client capture/input/UI/GPU `query_profile` commands live in `AgentCommandsClient.cpp`; scene commands live in `AgentScene.cpp`.
+
+## Command reference
+
+These schemas follow the shared `params`/`result` placement convention in [command-reference.md](../../../.agents/skills/agent-harness/references/command-reference.md): every field below belongs under request `params`, every returned field belongs under response `result`, and sending a side-specific command to the other executable returns `unknown command`.
+
+### Both-endpoint commands
+
+Game-specific commands compiled into both executables; send to either port. Unlike the side-specific commands below, they never return `unknown command` for the "wrong" build.
+
+- `collection_layout_capacity_fixture`: no params. SOA physical-layout-capacity retention self-check on the real `BlastersPostRender`, driving production `SharedCollectionRead` through logical capacities 100 -> 70 -> 60 -> 150 on one reused instance. Returns `{"build":"server"|"client","steps":[{"label","logicalCapacity","physicalCapacity","reused"}],"sharedRowMismatches":int,"sharedRowsPreserved":bool,"passed":bool}`, plus client-only `{"clientSoundsZeroed":bool,"clientSoundsNonZeroCount":int}` or server-only `{"serverMembersEqualShared":bool}`. `passed` requires both shrinks to reuse the 100-wide buffer, the >100-row read to reallocate once (physical 150), every shared row preserved, and — on the client — the full physical `puiSounds` layout (rows 70-99 included) zeroed, or — on the server — `serverMembersEqualShared` true. Requires `kbDebugInput`.
+
+### Server commands
+
+- `status`: no params. Returns `{"tick","paused","recording","replaying","clientCount","activeCoords":[[x,y],...],"nextGlobalId","pendingFlagshipUpdateCount":int}`. `pendingFlagshipUpdateCount` counts restored or runtime-queued flagship navigation updates waiting for an advancing update.
+- `pause`: `{"paused":bool}`. Returns the applied `paused` value.
+- `timescale`: `{"faster":bool}`. Steps the shared timescale and returns `{"numerator","denominator"}`.
+- `save`: `{"file"?:"bare filename"}`; defaults to quicksave. Rejects empty names, NUL, separators, `..`, `:`, and Windows device basenames. Returns `{"file"}`.
+- `load`: `{"file"?:"bare filename","pauseAfterLoad"?:false}`. `pauseAfterLoad` must be Boolean when present; invalid parameters fail before loading or resetting and do not change pause state. Missing/corrupt/truncated data resets fresh while returning success. Absent/false leaves the normal post-load state unpaused; true atomically pauses after a successful load or completed fresh fallback, before frame inputs can be constructed. Returns `{"file","resetToFresh":bool,"paused":bool,"pendingFlagshipUpdateCount":int}`.
+- `reset`: no params. Resets the fresh game and fleet manager. Returns `{}`.
+- `replay_record`: `{"start":bool}`. Schedules or cancels an idempotent recording transition and returns `{"pending":bool}`. Poll `status.recording` for the effective transition. Requires `kbDebugInput`.
+- `replay_play`: no params. Starts playback or cancels active playback and returns `{"pending":true}`. Poll `status.replaying`. Per-tick checks call `DifferenceStreamReader::ValidateChecksum`; mismatch logs `LogDifferences CRC Client: ...`. Readers retire independently. When the last reader reaches its endpoint, the server logs `End replay <tick>, looping` at `Default/Debug` and loops; playback never ends by itself. Requires `kbDebugInput`.
+- `replay_drop_retained_end_frame`: `{"coord":[x,y]}`. During recording, removes that coord's retained terminal frame to exercise aggregate stop persistence failure. Returns `{"coord":[x,y],"dropped":true}`. Requires `kbDebugInput`.
+- `replay_inject_persistence_failure`: `{"stage":"invalidation"|"grid"|"coordinate_writer"|"metadata"|"final_manifest","coord"?:[x,y]}`. `coordinate_writer` alone requires coord. `invalidation`/`grid` require inactive recording; other stages require active recording. Returns `{"stage","coord"?:[x,y],"armed":true}`. Requires `kbDebugInput`.
+- `query_frame`: `{"coord":[x,y]}` for a loaded, ready cell. Returns counts under `players`, `spaceships`, `missiles`, `blasters`, and `targets`.
+- `query_players`: `{"coord":[x,y],"offset"?:0,"limit"?:256}`. Returns `{"total","players":[{"index","uuid","globalId","pos":[x,y,z],"dir":[x,y,z],"armor","shield","flags":int,"alignment"}]}`.
+- `query_collection`: `{"coord":[x,y],"collection":"spaceships"|"missiles"|"blasters"|"targets","offset"?:0,"limit"?:256}`. Returns `{"total","items":[...]}`. Spaceship rows: `index,pos,dir,health,deltaRotation,alignment`; missile rows: `index,pos,dir,deltaRotation,deltaRotationDelay,alignment`; blaster rows: `index,pos,dir,alignment`; target rows: `index,uuid,pos,flags,alignment`. `deltaRotation` is the live turn rate; a missile's `deltaRotationDelay` counts down through zero and stays negative after its launch ramp finishes.
+- `query_profile`: no params. Server-only CPU profile query; returns raw `timers[{index,name,currentUs,averageUs,maxUs,allocations,threads}]` and `counters[{index,name,count}]`, including zero rows hidden by the Profile UI.
+- `inject_status_changes`: `{"changes":[...]}`. Every entry requires active `coord:[x,y]` and a type. `SpawnPlayer` accepts optional `isFlagship` and `fleetWantedCoord`; `DestroyPlayer` requires `playerUuid`; `UpdatePlayer` requires `playerUuid` and accepts `useMissiles`, `navigationDelay` clamped to `[0,60]`; `UpdateFleet` requires `playerUuid` and `fleetWantedCoord`, and accepts `isFlagship`. The whole batch validates before queueing. Returns `{"injected":int,"globalIds":[...],"deferred":bool}`.
+- `spawn_players`: `{"coord":[x,y],"count":int 0..256,"isFlagship"?:false}`. Returns `{"injected","globalIds":[...],"deferred":bool}`.
+
+Injection (`inject_status_changes` and `spawn_players`) fails during replay or while any client waits for spawn. The spawn-wait case is rejected, never queued, because an injected spawn could corrupt snapshot-diff client assignment. While paused, injection remains accepted and queued; `deferred:true` means it applies on the next unpaused tick. A speculative client reconciliation line after that tick is not a confirmed desync; only `CONFIRMED DESYNC after full rollback/replay` proves one.
+
+Pause/timescale persist on an empty server. They reset only when the last connected client disconnects. A client may join a paused server and render frozen state, but spawning still needs an unpaused tick.
+
+Frame-read schemas/extractors (`query_frame`, `query_players`, `query_collection`) are owned by `AgentCommandsServerQueries.cpp`. CPU `query_profile`, simulation control, replay, injection, and server dispatch remain in `AgentCommandsServer.cpp`.
+
+### Client commands
+
+- `client_full_state_fixture`: `{"action":"arm_stall"|"inspect"|"exercise_gap"|"clear"}`. `arm_stall` requires connected confirmed state and returns `{"clientTick","stalled","desyncTick","syntheticStall","armedTick","timeMultiply","timeDivide","coordState":...}`. `inspect` returns the same live shape. `clear` idempotently clears synthetic stall and returns that shape with `syntheticStall:false,armedTick:-1`. A present coord state is `{"coord":[x,y],"present":true,"confirmedTick","confirmedOffset","highWaterValidatedTick","lastFullStateTick","snapshotHead","snapshotCount","lastRenderedTick","lastRenderedTime","serverUpdateCount","lastReplayConfirmedTick","lastReplayServerUpdateCount","stuckFrameCount","pendingFullStateTick":int|null,"firstServerUpdateTick":int|null,"lastServerUpdateTick":int|null,"ringValid","tailTick"}`; absent state contains only coord and `present:false`. `exercise_gap` returns `pendingTick,deferTargetTick,beforeDefer,afterDefer,deferPendingPreserved,deferDesync,removedUpdateCount,uncappedConsecutiveEndpoint,directAdoptionRequired,adoptionDesync,afterAdoption,pendingCleared,adoptedTicksMatch,confirmedOffsetZero,obsoleteUpdatesAbsent,ringHeadIsAdopted,directAdoptionProven,renderBaseNotOlderThanLastRendered,cleared`.
+- `desync_probe`: packet mode `{"desyncReports"?:0..8,"debugFrameRequests"?:0..8}` or mutually exclusive recovery mode `{"triggerRecovery":true}`. Requires connected in-game current state. Returns `{"tick","coord":[x,y],"desyncDebugFrames","stalled","desyncReports","debugFrameRequests","triggerRecovery"}`.
+- `screenshot`: `{"path"?,"maxWidth"?:1568,"format"?:"jpg"|"png","quality"?:80}`. Quality range is `1..100`. Default path is `%TEMP%\Screenshots\agent_N.<ext>` using the process temp directory. Returns saved capture information. Requires `kbScreenshots`.
+- `renderdoc_capture`: `{"frames"?:1}`; `frames` is `1..8`. Triggers RenderDoc capture(s) of the next presented frame(s) and returns `{"paths":[absolute .rdc paths]}`. Requires a client launched with `--renderdoc`; otherwise returns `ok:false` naming `--renderdoc`. Temporarily restores a minimized client without activation, captures, then re-minimizes; an already-visible client fails when swapchain recreation is deferred. Occupies the single channel until RenderDoc has serialized every capture. The wait is bounded by the deferred-response drain-count liveness timeout (`kiDeferredTimeoutDrains` drains, counted once per client render frame), not wall-clock, so set `--timeout-ms` at least as large as the expected wall-clock capture time. See [RenderDoc capture](../../../.agents/skills/agent-harness/references/renderdoc.md).
+- `resize`: `{"width","height"}` within `320x180..16384x16384`; rounds each to 8, then returns OS-applied `{"width","height"}`. Rejects while minimized and never changes persisted/fullscreen state.
+- `fullscreen`: `{"on":bool}`. Toggles borderless fullscreen/windowed without persisting. Windowed restore uses launch extent, not a later resize. Returns `{"fullscreen","width","height"}`. Rejects while minimized.
+- `window_state`: `{"minimized":bool}`. Minimize uses normal minimize; restore does not activate and waits for settled swapchain. Returns `{"minimized","width"?,"height"?}`.
+- `dump_render_target`: `{"name","index"?:0,"channel"?:0,"path"?,"raw"?:false}`. Unknown names list valid names. Single-channel output normalizes to grayscale PNG; four-byte RGBA writes direct PNG; float formats require raw `.bin`. The default base path is `%TEMP%\Screenshots\dump_<name>_N`. Requires `kbScreenshots`.
+- `describe_ui`: no params. Returns UI state, game flags, framebuffer, mouse, windows, and labeled items with rect/disabled/checked/inputable/hovered/visible fields. Values are not exposed.
+- `click`: `{"label","window"?,"timeoutFrames"?:120,"describeUiAfter"?:true}`. Stabilizes and clicks the item center. Returns found/enabled and optional UI. Ambiguous/not-found errors list candidates; scrolled-out targets fail.
+- `hover`: `{"label","window"?,"holdFrames"?:2}`. Returns found/enabled plus UI.
+- `set_slider`: `{"label","window"?,"value":number}`. Uses Ctrl+Click, typing, Enter. Returns found/enabled.
+- `key`: `{"key":name,"holdFrames"?:1}`. Supports one letter/digit, Escape, Space, Tab, Enter, arrows, and F1-F24. Returns `{"ok":true}`.
+- `mouse`: `{"action"?:"move"|"down"|"up"|"click"|"wheel","x"?,"y"?,"button"?:"left"|"right"|"middle","notches"?:1}`. Non-wheel actions require x/y. Wheel accepts both coordinates or neither; it always also feeds camera zoom. Returns `{"ok":true}`.
+- `describe_scene`: `{"includeUnits"?:true,"maxUnits"?:200}`. Returns `camera{eye,visibleArea,lod}`, `uiState`, `gameFlags`, `tick`, `clientGridCoord`, `subscribedCoords`, `fleets[{index,focused,members?}]`, `units[{type,globalId?,world,screen,armor?,shield?,health?,alignment,flags}]`, cell-wide `counts{players,spaceships,missiles,blasters,targets}`, `islands[{coord,center,rotation,footprint?}]`, and `truncated`. Unit positions come from the committed snapshot and trail rendered pixels.
+- `query_profile`: no params (only an empty object is accepted). Client-only GPU profile query; returns `gpuTimers[{index,name,currentUs,averageUs,maxUs}]` for every timer row, including zeros, and frame-coherent `shadowSample{sequence,currentUs,activePixels{width,height}}`. The sample is published after the matching framebuffer fence and pairs the raw Shadow query result with that submitted frame's shadow window; sequence advances only when a new available Shadow result is latched.
+
+### Client command behavior
+
+Client input/capture commands can defer across frames. The single channel remains occupied until the response; size timeout accordingly and never overlap calls.
+
+For `client_full_state_fixture`, run `arm_stall`, accelerate the server, then `inspect`. Require unchanged client/armed tick, changed timescale, and a pending full-state tick above client tick. Run `exercise_gap`; require both desync fields false, pending preservation, `uncappedConsecutiveEndpoint < pendingTick`, direct adoption required/proven, pending cleared, adopted ticks match, confirmed offset zero, obsolete updates absent, ring head adopted/valid, and render base not older than last rendered. `removedUpdateCount` may be zero. Always `clear` interrupted setup.
+
+Capture commands temporarily restore a minimized client without activation, wait for extent settlement, capture, then re-minimize. An already-visible client fails if swapchain recreation is deferred. `resize`/`fullscreen` reject minimized state; restore first. After resize/fullscreen/restore, call `describe_ui` or `screenshot` to remeasure.
+
+Only labeled visible ImGui items are addressable. Scroll a clipped container with `mouse` wheel, then retry. `describe_scene.units` are visible-area-filtered while counts span subscribed cells; edge projection may lie slightly outside the framebuffer. Only players have global IDs, and only the focused fleet lists members.
+
+Injected mouse position owns `io.MousePos`: a `hover`/`click`/`mouse move` pins an ImGui mouse position that persists across scripts, so `describe_ui.mouse` and mouse-proximity UI keep that pixel. With no pin, a focused agent client's `describe_ui.mouse` reports ImGui's no-mouse sentinel rather than the real cursor, and the RawInput game mouse stays at a frozen boot-time snapshot (under agent suppression, physical mouse messages never reach DirectXTK Mouse).

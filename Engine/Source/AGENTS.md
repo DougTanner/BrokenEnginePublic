@@ -35,7 +35,7 @@ The exception path writes from fixed buffers because it is reachable during heap
 
 ## Subsystems
 
-- [Agent](Agent/AGENTS.md) - Harness command transport, synthetic input, and UI snapshots
+- [Agent](Agent/AGENTS.md) - Harness command transport, shared command handlers, synthetic input, and UI snapshots
 - [Audio](Audio/AGENTS.md) - XAudio2 spatial audio
 - [File](File/AGENTS.md) - Packed assets and versioned files
 - [Frame](Frame/AGENTS.md) - Base frame state, terrain, navigation, and collections
