@@ -4,7 +4,7 @@
 
 Game frame state extends the engine base with space-combat collections and deterministic phase hooks. Each cell derives its island elevation and navigation inputs from packed static data.
 
-Update [Frame Update Pipeline](../../../../Documents/Architecture/FrameUpdatePipeline.md) when phase order or participation changes.
+Update `../../../../Documents/Architecture/FrameUpdatePipeline.md` when phase order or participation changes.
 
 ## Invariants
 
@@ -15,12 +15,12 @@ Update [Frame Update Pipeline](../../../../Documents/Architecture/FrameUpdatePip
 - `Frame::kiVersion` composes navigation and collection versions. Bump its base when CRC semantics change without a contributing version bump.
 - Normalize a non-finite spaceship-spawn timer at save/replay and full-state read boundaries before its drain loop; finite values remain unchanged.
 - Navigation and elevation are deterministic derived data excluded from both the CRC and persisted frame payload. Server-built navigation is sent to clients.
-- Status changes are consumed here, but their serialized tags and append-only wire rule are owned by [game Network](../Network/AGENTS.md).
+- Status changes are consumed here, but their serialized tags and append-only wire rule are owned by game Network (`../Network/AGENTS.md`).
 - Delayed behavior updates use countdowns that transfer with the entity; transfer/spawn/destroy status changes apply immediately.
 - Bounds helpers use the `vecArea` lane convention expected by `common::InsideArea`. Seed coord-local RNG streams with distinct multipliers.
 
 ## See Also
 
-- [Engine frame](../../../../Engine/Source/Frame/AGENTS.md)
-- [Game collections](Collections/AGENTS.md)
-- [Game reconciliation](../../../../Documents/Architecture/GameReconciliation.md)
+- `../../../../Engine/Source/Frame/AGENTS.md`
+- Game collections: `Collections/AGENTS.md`
+- `../../../../Documents/Architecture/GameReconciliation.md`

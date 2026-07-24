@@ -1,6 +1,6 @@
 # Lighting Shaders - Dynamic Light Deposit and Spread
 
-Dynamic lights follow `deposit -> spread -> combine -> temporal`. Deposit shaders write three EWNS targets; visible-light billboards instead render directly into the main framebuffer. Hex shields provide an additional surface-normal depositor from [Objects](../Objects/AGENTS.md).
+Dynamic lights follow `deposit -> spread -> combine -> temporal`. Deposit shaders write three EWNS targets; visible-light billboards instead render directly into the main framebuffer. Hex shields provide an additional surface-normal depositor from Objects (`../Objects/AGENTS.md`).
 
 ## Pipeline Contracts
 
@@ -11,4 +11,4 @@ Dynamic lights follow `deposit -> spread -> combine -> temporal`. Deposit shader
 - Combine normalizes the snapshots, tone maps them into the scene-lighting targets, and writes the precomputed ambient target. Temporal then reprojects world positions into the previous lighting area and blends history; first-frame and out-of-area samples use current data only.
 - Light-type textures are pre-blurred for deposits. Visible sprites continue sampling the original textures.
 
-The renderer's [Graphics documentation](../../../Source/Graphics/AGENTS.md) owns lighting-area headroom, world-sized texels, zoom rescaling, and recreation behavior.
+The renderer's Graphics documentation (`../../../Source/Graphics/AGENTS.md`) owns lighting-area headroom, world-sized texels, zoom rescaling, and recreation behavior.

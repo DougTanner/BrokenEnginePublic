@@ -8,7 +8,3 @@ Client-only smoke trails are owner-synced base-plane ribbons deposited into the 
 - Rendering divides deposit quantity by the current segment length. Do not strengthen this implementation fact into a general frame-rate or speed-independence guarantee.
 - New trails briefly suppress length until movement establishes a segment. Cross-cell missile transfer reuses the trail identity and bypasses that spawn delay so the rebound trail continues immediately.
 - Both ribbon endpoints project to base height; width remains perpendicular to the segment on the base plane.
-
-## See Also
-
-- [../AGENTS.md](../AGENTS.md) - Collection and sync conventions

@@ -10,7 +10,3 @@ Explosions coordinate point lights, puffs, smoke trails, wind radials, and GPU p
 - On clients, `PersistentMembers()` carries the fixed `pTrails[]` child-handle arrays through `AllocateAndCopyMembers()`; the server persistent tuple is empty. `Update` repopulates the shared columns and remaining client trail state.
 - Trail duration tuning scales both travel distance and elapsed trail time so head speed remains constant. Cleanup intentionally uses unmultiplied trail time, keeping child removal aligned with shared parent destruction.
 - Fixed trail slots are cleared when inactive so row reuse cannot expose stale shared state. Self-destroying explosions remove their row after owned trails expire; otherwise the caller owns row lifetime.
-
-## See Also
-
-- [../AGENTS.md](../AGENTS.md) - Collection and controller conventions

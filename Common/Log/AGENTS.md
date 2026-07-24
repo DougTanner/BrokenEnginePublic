@@ -1,6 +1,6 @@
 # Common Log
 
-Shared logging, formatting, diagnostic-file, and difference-reporting implementation. Call-site level meanings and allocation rules remain in [`../AGENTS.md`](../AGENTS.md).
+Shared logging, formatting, diagnostic-file, and difference-reporting implementation. Call-site level meanings and allocation rules remain in `../AGENTS.md`.
 
 ## Contracts
 
@@ -19,5 +19,4 @@ When adding a category, update the enum, names, per-project compile floors, runt
 
 ## See Also
 
-- [`../AGENTS.md`](../AGENTS.md) - cross-codebase call-site and allocation rules
-- [`../Threading/AGENTS.md`](../Threading/AGENTS.md) - thread-local buffers and context lifetime
+- `../Threading/AGENTS.md` - thread-local buffers and context lifetime

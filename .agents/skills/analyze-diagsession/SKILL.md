@@ -143,12 +143,9 @@ Report first:
 
 ## 7. Route plan proposals
 
-Do not author Plan files directly. When the active session holds a live Plan
-claim, route proven optimization residuals through `/create-follow-up-plans`,
-which owns duplicate checks, Plan shape, tracked metadata, and dependencies.
-Without a live claim, report the proposed Plan title, evidence, scope, tier
-rationale, invariants, and acceptance checks to the user without creating
-tracked Plan files.
+Do not author Plan files directly. Route proven optimization residuals through
+`/create-follow-up-plans`, which owns duplicate checks, Plan shape, tracked
+metadata, and dependencies; no Plan claim is required.
 
-When Plans change, complete `/verify-changes` and `/finalize-changes`; no
-post-landing row publication exists.
+When a final-evidence gate applies, complete `/verify-changes` and
+`/finalize-changes`; no post-landing row publication exists.

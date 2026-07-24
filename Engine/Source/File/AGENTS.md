@@ -26,5 +26,4 @@
 
 ## See Also
 
-- [Engine Source](../AGENTS.md)
-- [Game persistence](../../../Projects/BrokenEngineSandbox/Source/Save/AGENTS.md)
+- Game persistence (`../../../Projects/BrokenEngineSandbox/Source/Save/AGENTS.md`)

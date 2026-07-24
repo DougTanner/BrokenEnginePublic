@@ -25,6 +25,5 @@ The subsystem is whole-file `BT_SERVER`. Replay operations are available only wh
 
 ## See Also
 
-- [Game Source](../AGENTS.md)
-- [Engine File](../../../../Engine/Source/File/AGENTS.md)
-- [Frame serialization](../Frame/AGENTS.md)
+- `../../../../Engine/Source/File/AGENTS.md`
+- Frame serialization: `../Frame/AGENTS.md`

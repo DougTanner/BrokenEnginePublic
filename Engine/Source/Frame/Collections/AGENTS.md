@@ -32,5 +32,4 @@ Use `/add-collection` for a new collection and `/add-collection-member` for any 
 
 ## See Also
 
-- [Frame hub](../AGENTS.md)
-- [Game collections](../../../../Projects/BrokenEngineSandbox/Source/Frame/Collections/AGENTS.md)
+- Game collections (`../../../../Projects/BrokenEngineSandbox/Source/Frame/Collections/AGENTS.md`)

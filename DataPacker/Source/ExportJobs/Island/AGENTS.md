@@ -1,10 +1,10 @@
 # Island Export Pipeline
 
-Gaea route baking, archetype patching, region splitting, and island intermediate generation. The parent [ExportJobs hub](../AGENTS.md) owns generic cache and chunk rules.
+Gaea route baking, archetype patching, region splitting, and island intermediate generation. The parent ExportJobs hub (`../AGENTS.md`) owns generic cache and chunk rules.
 
 ## Cache Lifecycle
 
-Route-level raw Gaea output and leaf geometry live under `%TEMP%/DataPacker/<project>/Gaea/Islands/`. `BakeVersion.meta` fingerprints the island configuration, resolved terrain, route identity, and bake contract. `SplitVersion.meta` separately fingerprints region splitting, so a split-only change reuses the expensive raw bake.
+Route-level raw Gaea output and leaf geometry live under `%LOCALAPPDATA%/BrokenEngine/DataPackerCache/<project>/Gaea/Islands/`. `BakeVersion.meta` fingerprints the island configuration, resolved terrain, route identity, and bake contract. `SplitVersion.meta` separately fingerprints region splitting, so a split-only change reuses the expensive raw bake.
 
 `BakedDimensions.json` is written last in each accepted leaf and is the completion sentinel consumed by `ExportIsland::Handles()`. Rejected or incomplete leaves must not retain it. When route subdivision or pruning changes, remove stale higher-index leaf directories so their old sentinels cannot produce chunks.
 
@@ -18,15 +18,16 @@ Masking occurs before mip generation. Underwater texels use format-specific flat
 
 The island payload stores the quantized elevation field, XY mesh data, indices, and valid-area hull. Runtime terrain reconstructs Z from elevation. The hull must remain convex and counter-clockwise because deterministic client/server island placement consumes it through `common::ConvexHullsOverlap`; producer checks enforce those properties before serialization.
 
-Large shared route inputs use persistent fingerprints rather than repeated content reads. JPEG diagnostics belong only in the parallel `%TEMP%/.../Gaea/Diagnostics/` tree, never the source checkout.
+Large shared route inputs use persistent fingerprints rather than repeated content reads. JPEG diagnostics belong only in the parallel `%LOCALAPPDATA%/BrokenEngine/DataPackerCache/.../Gaea/Diagnostics/` tree, never the source checkout.
 
 ## Versioning
 
-Bump the bake version only for changes that alter raw Gaea output. Bump the split version for post-bake crop, split, leaf-output, or completion rules. Island chunk layout or semantics may also require the parent job version and shared data-format version.
+Four stages are versioned and cached independently, so bump only the one whose behavior changed. The bake version covers raw Gaea output; the split version covers post-bake crop, split, leaf-output, or completion rules. `ExportIsland::kiTextureVersion` covers the BC texture encode alone, and `ExportIsland::GetVersion` covers the chunk payload — quantized elevation, mesh, indices, hull, and `IslandHeader` layout — which may also require the shared data-format version.
+
+The BC outputs are tracked in the checkout, which shapes the texture stage: its version stays a plain `int64_t` outside `ExportJob::Version(...)`, so a chunk-header layout change cannot rewrite hundreds of megabytes of tracked textures for byte-identical output. Its marker fingerprints only the encode's own inputs; the processed mesh is deliberately excluded so a mesh-only rebake re-packs the chunk without touching the textures.
 
 ## See Also
 
-- [`../AGENTS.md`](../AGENTS.md) - generic export-job cache and routing contracts
-- [`../Texture/AGENTS.md`](../Texture/AGENTS.md) - texture intermediate encoding
-- [`../../../../Common/Math/AGENTS.md`](../../../../Common/Math/AGENTS.md) - deterministic convex-hull contract
-- [`../../../../Engine/Source/Frame/AGENTS.md`](../../../../Engine/Source/Frame/AGENTS.md) - runtime island placement ownership
+- `../Texture/AGENTS.md` - texture intermediate encoding
+- `../../../../Common/Math/AGENTS.md` - deterministic convex-hull contract
+- `../../../../Engine/Source/Frame/AGENTS.md` - runtime island placement ownership

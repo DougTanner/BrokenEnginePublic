@@ -12,5 +12,4 @@ Client-only wind radials are stationary, fire-and-forget splats spawned by explo
 
 ## See Also
 
-- [../AGENTS.md](../AGENTS.md) - Collection and controller conventions
-- [../WindTrails/AGENTS.md](../WindTrails/AGENTS.md) - Directional wind deposits
+- `../WindTrails/AGENTS.md` - Directional wind deposits

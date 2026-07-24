@@ -14,7 +14,7 @@ Note: `%LOCALAPPDATA%/BrokenEngine/AgentCache/Gaea2/sample-fingerprint.json` is 
 
 ## Why these 28 (selection rationale)
 
-Selected via **greedy set-cover over node types**, with the goal of getting the smallest corpus that exercises every unique node type appearing anywhere in `C:\Program Files\QuadSpinner\Gaea 2\Examples\`. At the time of selection, the full Examples library uses 120 unique node types; these 28 files cover all 120.
+Selected via greedy set-cover over node types, with the goal of getting the smallest corpus that exercises every unique node type appearing anywhere in `C:\Program Files\QuadSpinner\Gaea 2\Examples\`. At the time of selection, the full Examples library uses 120 unique node types; these 28 files cover all 120.
 
 The greedy algorithm:
 

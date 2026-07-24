@@ -1,6 +1,6 @@
 # Graphics - Vulkan Rendering System
 
-Client-only multi-pass Vulkan renderer. `gpGraphics` owns renderer-wide creation, frame sequencing, recreation, world-area projection, and capture; [Managers](Managers/AGENTS.md) own shared Vulkan resource and synchronization contracts, while [Objects](Objects/AGENTS.md) own individual RAII handles.
+Client-only multi-pass Vulkan renderer. `gpGraphics` owns renderer-wide creation, frame sequencing, recreation, world-area projection, and capture; Managers (`Managers/AGENTS.md`) own shared Vulkan resource and synchronization contracts, while Objects (`Objects/AGENTS.md`) own individual RAII handles.
 
 ## Frame and Resource Lifecycle
 
@@ -18,7 +18,7 @@ Client-only multi-pass Vulkan renderer. `gpGraphics` owns renderer-wide creation
 - Visible-area edges snap to the water quad grid. Zoom and LOD use hysteretic buckets so quad size remains stable across adjacent frames; terrain, water, shadow, and lighting areas must preserve this shared grid contract.
 - Shadow and lighting texel sizes track independent rate-limited camera heights. Their headroom textures and temporal accumulation tolerate zoom transitions without changing settled on-screen density.
 - Terrain rendering uses boot-fixed island templates and per-framebuffer instance storage. One indirect command per template receives its instance count each frame; the template set has no capacity-growth re-record path.
-- Terrain collision belongs to shared [Frame island terrain](../Frame/AGENTS.md), not this client renderer.
+- Terrain collision belongs to shared Frame island terrain (`../Frame/AGENTS.md`), not this client renderer.
 
 ## Assets and Capture
 
@@ -28,7 +28,7 @@ Client-only multi-pass Vulkan renderer. `gpGraphics` owns renderer-wide creation
 
 ## See Also
 
-- [Managers](Managers/AGENTS.md) - Cross-manager lifecycle, synchronization, and resources
-- [Objects](Objects/AGENTS.md) - Vulkan object ownership
-- [Render](Render/AGENTS.md) - Per-frame buffer publication and pass ordering
-- [Debug](Debug/AGENTS.md) - Debug rendering
+- Managers (`Managers/AGENTS.md`) - Cross-manager lifecycle, synchronization, and resources
+- Objects (`Objects/AGENTS.md`) - Vulkan object ownership
+- Render (`Render/AGENTS.md`) - Per-frame buffer publication and pass ordering
+- Debug (`Debug/AGENTS.md`) - Debug rendering

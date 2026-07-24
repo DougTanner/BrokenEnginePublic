@@ -11,6 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\AgentWorktreeSession.psm1') -Force -DisableNameChecking
 
 $script:Failures = [Collections.Generic.List[string]]::new()
 $preflightScript = Join-Path $PSScriptRoot 'Test-FinalizePreflight.ps1'
@@ -136,8 +137,6 @@ $session = Join-Path $scratchBase 'session'
 $localAppData = Join-Path $scratchBase 'local-app-data'
 $previousEnvironment = @{}
 $fixtureEnvironment = $null
-$owner = $null
-$ownerRegistered = $false
 $fixtureExitCode = 0
 
 try {
@@ -146,7 +145,7 @@ New-Item -ItemType Directory -Force $localAppData | Out-Null
 Invoke-ScratchGit $primary @('init', '-b', 'main') | Out-Null
 Invoke-ScratchGit $primary @('config', 'core.autocrlf', 'false') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $primary '.agents\scripts') | Out-Null
-foreach ($module in @('AgentScriptCommon.psm1', 'WorktreeCliSessionExclusion.psm1')) {
+foreach ($module in @('AgentScriptCommon.psm1', 'WorktreeCliSessionExclusion.psm1', 'AgentWorktreeSession.psm1')) {
 	Copy-Item -LiteralPath (Join-Path $moduleSource $module) -Destination (Join-Path $primary ".agents\scripts\$module") -Force
 }
 [IO.File]::WriteAllText((Join-Path $primary '.gitignore'), "Temp/`nTools/WorktreeCli/Platforms/VisualStudio2026/Output/`n", [Text.UTF8Encoding]::new($false))
@@ -162,7 +161,11 @@ $baseline = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
 $primaryOutput = Join-Path $primary 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
 New-Item -ItemType Directory -Force $primaryOutput | Out-Null
 Copy-Item -LiteralPath $WorktreeCliExecutable -Destination (Join-Path $primaryOutput 'WorktreeCli.exe') -Force
-Invoke-ScratchGit $primary @('worktree', 'add', '-b', 'fixture-session', $session, $baseline) | Out-Null
+# The receipt constructor requires branch == "<client>/<worktreeId>"; use codex.
+$uuid = [guid]::NewGuid().ToString()
+$owner = [guid]::NewGuid().ToString()
+$sessionBranch = "codex/$uuid"
+Invoke-ScratchGit $primary @('worktree', 'add', '-b', $sessionBranch, $session, $baseline) | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $session 'Temp') | Out-Null
 $sessionOutputParent = Join-Path $session 'Tools\WorktreeCli\Platforms\VisualStudio2026'
 New-Item -ItemType Directory -Force $sessionOutputParent | Out-Null
@@ -170,16 +173,20 @@ New-Item -ItemType Junction -Path (Join-Path $sessionOutputParent 'Output') -Tar
 [IO.File]::WriteAllText((Join-Path $session 'change.txt'), 'session change', [Text.UTF8Encoding]::new($false))
 Invoke-ScratchGit $session @('add', 'change.txt') | Out-Null
 Invoke-ScratchGit $session @('commit', '-m', 'fixture change') | Out-Null
+# Align primary onto the session tip so the receipt baseline is fixed for every session-landing
+# scenario below; the terminal claim later selects from an equal session/primary tree.
+$sessionTip = (@(Invoke-ScratchGit $session @('rev-parse', 'HEAD')))[0].Trim()
+Invoke-ScratchGit $primary @('merge', '--ff-only', $sessionTip) | Out-Null
+$baseline = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
 
-$owner = [guid]::NewGuid().ToString()
 $fixtureEnvironment = [ordered]@{
 	LOCALAPPDATA = $localAppData
 	BROKEN_ENGINE_WORKTREE_PATH = $session
-	BROKEN_ENGINE_SESSION_BRANCH = 'fixture-session'
+	BROKEN_ENGINE_SESSION_BRANCH = $sessionBranch
 	BROKEN_ENGINE_PRIMARY_CHECKOUT = $primary
 	BROKEN_ENGINE_TARGET_BRANCH = 'main'
 	BROKEN_ENGINE_BASELINE = $baseline
-	BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER = $owner
+	BROKEN_ENGINE_SESSION_OWNER = $owner
 }
 foreach ($entry in $fixtureEnvironment.GetEnumerator()) {
 	$previousEnvironment[$entry.Key] = [Environment]::GetEnvironmentVariable($entry.Key)
@@ -187,6 +194,12 @@ foreach ($entry in $fixtureEnvironment.GetEnumerator()) {
 }
 
 $commonDirectory = ((@(Invoke-ScratchGit $primary @('rev-parse', '--path-format=absolute', '--git-common-dir')))[0].Trim())
+# The in-worktree session receipt is the session-landing identity authority now; write it after
+# the primary/session alignment so its fixed baseline equals every session-landing preflight's.
+$primaryIdentity = Get-AgentWorktreePrimaryIdentity $primary
+$receipt = New-AgentWorktreeSessionReceipt -Client codex -PrimaryCheckout $primaryIdentity.Root -GitCommonDirectory $primaryIdentity.CommonDirectory `
+	-Worktree $session -WorktreeId $uuid -Branch $sessionBranch -TargetBranch 'main' -Baseline $baseline -SessionOwner $owner
+Write-AgentWorktreeSessionReceipt -Worktree $session -Receipt $receipt | Out-Null
 # Landing-lock fixtures below retain their independent lease and recovery coverage.
 
 # Reconciliation uses the claim sidecar; landing calls the same common helper.
@@ -244,93 +257,111 @@ if ($null -ne $run.Json) {
 }
 Invoke-WorktreeCli @('lock', 'release', '--repo', $commonDirectory, '--owner', $unverifiableLeaseOwner) | Out-Null
 
-Register-WorktreeCliSession -RepositoryRoot $primary -Owner $owner -Label 'finalize-fixture' -Worktree $session -LegacySessionsClosed | Out-Null
-$ownerRegistered = $true
+# Primary-commit mode needs neither a session receipt nor session-owner environment: its claim
+# classification is 'not-required' and the receipt gate never runs. Clear the six session
+# environment variables first so this proves genuine environment-independence, not a value still in
+# scope; restore them afterward because later scenarios rely on the fixture environment.
+$primaryCommitEnvironmentNames = @('BROKEN_ENGINE_SESSION_OWNER','BROKEN_ENGINE_WORKTREE_PATH','BROKEN_ENGINE_SESSION_BRANCH','BROKEN_ENGINE_PRIMARY_CHECKOUT','BROKEN_ENGINE_TARGET_BRANCH','BROKEN_ENGINE_BASELINE')
+foreach ($name in $primaryCommitEnvironmentNames) { [Environment]::SetEnvironmentVariable($name, $null) }
 try {
-	# Finalization validates the reconciled session tree before any lock or primary
-	# mutation. Invalid metadata and dependency cycles both fail closed.
-	[IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\Invalid.md'), '<!-- broken-engine-plan/v1 {"createdUtc":42,"dependsOn":[]} -->', [Text.UTF8Encoding]::new($false))
-	Invoke-ScratchGit $session @('add','Documents/Plans/Invalid.md') | Out-Null
-	Invoke-ScratchGit $session @('commit','-m','fixture invalid Plan metadata') | Out-Null
-	$invalidTip = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
-	$directParameters = [ordered]@{ CurrentWorktree=$session; PrimaryWorktree=$primary; CurrentBranch='fixture-session'; PrimaryBranch='main'; Baseline=$baseline; ExpectedCurrentTip=$invalidTip; ExpectedPrimaryTip=$baseline; SessionOwner=$owner; SessionLabel='finalize-fixture'; ApprovedSessionCommit=$invalidTip }
-	$run = Invoke-JsonScriptWithSplat $landingScript $directParameters $scratchBase
-	Assert-Outcome $run 'invalid-metadata-blocks-landing' 1 'error' 'plan.validation-failed'
-	Assert-True ($baseline -ceq ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim())) 'invalid metadata leaves primary unchanged'
-	Remove-Item -LiteralPath (Join-Path $session 'Documents\Plans\Invalid.md') -Force
-	$cycleA = '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-03T00:00:00.000Z","dependsOn":["Documents/Plans/CycleB.md"]} -->'
-	$cycleB = '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-04T00:00:00.000Z","dependsOn":["Documents/Plans/CycleA.md"]} -->'
-	[IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\CycleA.md'), "$cycleA`n# Cycle A`n", [Text.UTF8Encoding]::new($false))
-	[IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\CycleB.md'), "$cycleB`n# Cycle B`n", [Text.UTF8Encoding]::new($false))
-	Invoke-ScratchGit $session @('add','-A') | Out-Null
-	Invoke-ScratchGit $session @('commit','-m','fixture Plan metadata cycle') | Out-Null
-	$cycleTip = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
-	$directParameters.ExpectedCurrentTip = $cycleTip
-	$directParameters.ApprovedSessionCommit = $cycleTip
-	$run = Invoke-JsonScriptWithSplat $landingScript $directParameters $scratchBase
-	Assert-Outcome $run 'metadata-cycle-blocks-landing' 1 'error' 'plan.validation-failed'
-	Assert-True ($baseline -ceq ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim())) 'metadata cycle leaves primary unchanged'
-	Remove-Item -LiteralPath (Join-Path $session 'Documents\Plans\CycleA.md'),(Join-Path $session 'Documents\Plans\CycleB.md') -Force
-	Invoke-ScratchGit $session @('add','-A') | Out-Null
-	Invoke-ScratchGit $session @('commit','-m','fixture restore valid Plan metadata') | Out-Null
-	$alignedTip = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
-	Invoke-ScratchGit $primary @('merge','--ff-only',$alignedTip) | Out-Null
-	$baseline = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
-	$fixtureEnvironment.BROKEN_ENGINE_BASELINE = $baseline
-	[Environment]::SetEnvironmentVariable('BROKEN_ENGINE_BASELINE', $baseline)
-	Assert-True ($baseline -ceq ((@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim())) 'terminal claim starts from aligned primary and session tips'
-
-	# Claim and prepare in the session before approval. The terminal receipt remains
-	# live through landing; a retry uses the same receipt after the primary advance.
-	$receiptPath = Join-Path $session 'Temp\terminal-claim.json'
-	$claim = (Invoke-WorktreeCli @('plan','claim-next','--repo',$commonDirectory,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner',$owner,'--session',$owner,'--write-claim-receipt',$receiptPath,'--plan','Documents/Plans/Recovery.md') | ConvertFrom-Json -Depth 100)
-	Assert-True $claim.claimed 'fixture claimed terminal Plan through receipt flow'
-	Assert-True ($claim.receipt.sha256 -cmatch '^[0-9a-f]{64}$') 'fixture claim returns receipt hash'
-	$prepared = (Invoke-WorktreeCli @('plan','prepare-completion','--repo',$commonDirectory,'--worktree',$session,'--claim-receipt',$claim.receipt.path,'--claim-receipt-sha256',$claim.receipt.sha256) | ConvertFrom-Json -Depth 100)
-	Assert-True ($prepared.prepared -and $prepared.claimState -ceq 'awaiting-landing') 'fixture prepares terminal receipt state'
-	$lateChildMarker = '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-02T00:00:00.000Z","dependsOn":["Documents/Plans/Recovery.md"]} -->'
-	[IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\LateChild.md'), "$lateChildMarker`n# Late child fixture`n", [Text.UTF8Encoding]::new($false))
-	Invoke-ScratchGit $session @('add','-A') | Out-Null
-	Invoke-ScratchGit $session @('commit','-m','fixture terminal completion') | Out-Null
-	$approved = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
-
-	$commonPreflight = @('-Mode','session-landing','-Checkpoint','after-reconciliation','-CurrentWorktree',$session,'-PrimaryWorktree',$primary,'-CurrentBranch','fixture-session','-PrimaryBranch','main','-Baseline',$baseline,'-ExpectedCurrentTip',$approved,'-ExpectedPrimaryTip',$baseline,'-SessionOwner',$owner,'-WaitSeconds','5','-ClaimReceiptPath',$claim.receipt.path,'-ClaimReceiptSha256',$claim.receipt.sha256)
-	$run = Invoke-JsonScript $preflightScript $commonPreflight
-	Assert-Outcome $run 'preflight-terminal-receipt' 0 'pass' 'ok'
-
-	# A changed receipt is rejected before landing; a valid receipt-bound terminal
-	# transaction advances primary and releases the scheduler claim afterward.
-	$badReceipt = Invoke-JsonScript $preflightScript (@($commonPreflight[0..($commonPreflight.Count - 2)]) + @(('0' * 64)))
-	Assert-Outcome $badReceipt 'preflight-receipt-tamper' 2 'blocked' 'plan-claim-receipt.identity-changed'
-	$landingParameters = [ordered]@{ CurrentWorktree=$session; PrimaryWorktree=$primary; CurrentBranch='fixture-session'; PrimaryBranch='main'; Baseline=$baseline; ExpectedCurrentTip=$approved; ExpectedPrimaryTip=$baseline; SessionOwner=$owner; SessionLabel='finalize-fixture'; ApprovedSessionCommit=$approved; ClaimReceiptPath=$claim.receipt.path; ClaimReceiptSha256=$claim.receipt.sha256; TerminalDisposition='completed' }
-	$run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
-	Assert-Outcome $run 'late-child-refresh-required' 2 'blocked' 'approval.refresh-required'
-	Invoke-ScratchGit $session @('add','Documents/Plans/LateChild.md') | Out-Null
-	Invoke-ScratchGit $session @('commit','-m','fixture refreshed terminal candidate') | Out-Null
-	$approved = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
-	$landingParameters.ExpectedCurrentTip = $approved
-	$landingParameters.ApprovedSessionCommit = $approved
-	$landingParameters.TerminalDisposition = 'rejected'
-	$primaryBeforeDispositionMismatch = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
-	$run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
-	Assert-Outcome $run 'opposite-disposition-landing' 2 'blocked' 'plan.disposition-mismatch'
-	Assert-True ($primaryBeforeDispositionMismatch -ceq ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim())) 'opposite-disposition landing leaves primary unchanged'
-	$landingParameters.TerminalDisposition = 'completed'
-	$run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
-	Assert-Outcome $run 'receipt-terminal-landing' 0 'landed' 'ok'
-	if ($null -ne $run.Json) { Assert-True $run.Json.primaryAdvanced 'terminal landing advanced primary'; Assert-True $run.Json.planClaim.released 'terminal landing released receipt-bound claim' }
-	Assert-True (-not (Test-Path -LiteralPath (Join-Path $primary 'Documents\Plans\Recovery.md'))) 'terminal landing removed Plan from primary'
-
-	# Re-running landing after primary has advanced must recover terminal proof,
-	# not recreate scheduler state or publish any auxiliary plan work.
-	$run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
-	Assert-Outcome $run 'receipt-post-advance-recovery' 0 'landed' 'ok'
-	if ($null -ne $run.Json) { Assert-True $run.Json.primaryAdvanced 'post-advance receipt recovery preserves primary advance'; Assert-True $run.Json.planClaim.released 'post-advance recovery proves released receipt state' }
+	$primaryCommitPreflight = @('-Mode','primary-commit','-Checkpoint','initial','-CurrentWorktree',$primary,'-PrimaryWorktree',$primary,'-CurrentBranch','main','-PrimaryBranch','main','-Baseline',$baseline,'-WaitSeconds','5')
+	$run = Invoke-JsonScript $preflightScript $primaryCommitPreflight
+	Assert-Outcome $run 'preflight-primary-commit' 0 'pass' 'ok'
+	if ($null -ne $run.Json) { Assert-True ($run.Json.claim.classification -ceq 'not-required') 'primary-commit mode requires no session claim (no session-owner environment set)' }
 }
 finally {
-	try { Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $owner } catch { }
-	$ownerRegistered = $false
+	foreach ($name in $primaryCommitEnvironmentNames) { [Environment]::SetEnvironmentVariable($name, $fixtureEnvironment[$name]) }
 }
+
+# Finalization validates the reconciled session tree before any lock or primary
+# mutation. Invalid metadata and dependency cycles both fail closed. The landing takes
+# its own transient claim; the fixture registers no session claim.
+[IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\Invalid.md'), '<!-- broken-engine-plan/v1 {"createdUtc":42,"dependsOn":[]} -->', [Text.UTF8Encoding]::new($false))
+Invoke-ScratchGit $session @('add','Documents/Plans/Invalid.md') | Out-Null
+Invoke-ScratchGit $session @('commit','-m','fixture invalid Plan metadata') | Out-Null
+$invalidTip = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
+$directParameters = [ordered]@{ CurrentWorktree=$session; PrimaryWorktree=$primary; CurrentBranch=$sessionBranch; PrimaryBranch='main'; Baseline=$baseline; ExpectedCurrentTip=$invalidTip; ExpectedPrimaryTip=$baseline; SessionOwner=$owner; SessionLabel='finalize-fixture'; ApprovedSessionCommit=$invalidTip }
+$run = Invoke-JsonScriptWithSplat $landingScript $directParameters $scratchBase
+Assert-Outcome $run 'invalid-metadata-blocks-landing' 1 'error' 'plan.validation-failed'
+Assert-True ($baseline -ceq ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim())) 'invalid metadata leaves primary unchanged'
+Remove-Item -LiteralPath (Join-Path $session 'Documents\Plans\Invalid.md') -Force
+$cycleA = '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-03T00:00:00.000Z","dependsOn":["Documents/Plans/CycleB.md"]} -->'
+$cycleB = '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-04T00:00:00.000Z","dependsOn":["Documents/Plans/CycleA.md"]} -->'
+[IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\CycleA.md'), "$cycleA`n# Cycle A`n", [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\CycleB.md'), "$cycleB`n# Cycle B`n", [Text.UTF8Encoding]::new($false))
+Invoke-ScratchGit $session @('add','-A') | Out-Null
+Invoke-ScratchGit $session @('commit','-m','fixture Plan metadata cycle') | Out-Null
+$cycleTip = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
+$directParameters.ExpectedCurrentTip = $cycleTip
+$directParameters.ApprovedSessionCommit = $cycleTip
+$run = Invoke-JsonScriptWithSplat $landingScript $directParameters $scratchBase
+Assert-Outcome $run 'metadata-cycle-blocks-landing' 1 'error' 'plan.validation-failed'
+Assert-True ($baseline -ceq ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim())) 'metadata cycle leaves primary unchanged'
+# The negative scenarios never mutated primary; discard their session commits so the terminal
+# claim starts from an equal session/primary tree at the fixed receipt baseline.
+Invoke-ScratchGit $session @('reset','--hard',$baseline) | Out-Null
+Assert-True ($baseline -ceq ((@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim())) 'terminal claim starts from aligned primary and session tips'
+
+# Claim and prepare in the session before approval. The terminal receipt remains
+# live through landing; a retry uses the same receipt after the primary advance.
+$receiptPath = Join-Path $session 'Temp\terminal-claim.json'
+$claim = (Invoke-WorktreeCli @('plan','claim-next','--repo',$commonDirectory,'--primary-worktree',$primary,'--worktree',$session,'--branch',$sessionBranch,'--owner',$owner,'--session',$owner,'--write-claim-receipt',$receiptPath,'--plan','Documents/Plans/Recovery.md') | ConvertFrom-Json -Depth 100)
+Assert-True $claim.claimed 'fixture claimed terminal Plan through receipt flow'
+Assert-True ($claim.receipt.sha256 -cmatch '^[0-9a-f]{64}$') 'fixture claim returns receipt hash'
+$prepared = (Invoke-WorktreeCli @('plan','prepare-completion','--repo',$commonDirectory,'--worktree',$session,'--claim-receipt',$claim.receipt.path,'--claim-receipt-sha256',$claim.receipt.sha256) | ConvertFrom-Json -Depth 100)
+Assert-True ($prepared.prepared -and $prepared.claimState -ceq 'awaiting-landing') 'fixture prepares terminal receipt state'
+$lateChildMarker = '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-02T00:00:00.000Z","dependsOn":["Documents/Plans/Recovery.md"]} -->'
+[IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\LateChild.md'), "$lateChildMarker`n# Late child fixture`n", [Text.UTF8Encoding]::new($false))
+Invoke-ScratchGit $session @('add','-A') | Out-Null
+Invoke-ScratchGit $session @('commit','-m','fixture terminal completion') | Out-Null
+$approved = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
+
+$commonPreflight = @('-Mode','session-landing','-Checkpoint','after-reconciliation','-CurrentWorktree',$session,'-PrimaryWorktree',$primary,'-CurrentBranch',$sessionBranch,'-PrimaryBranch','main','-Baseline',$baseline,'-ExpectedCurrentTip',$approved,'-ExpectedPrimaryTip',$baseline,'-SessionOwner',$owner,'-WaitSeconds','5','-ClaimReceiptPath',$claim.receipt.path,'-ClaimReceiptSha256',$claim.receipt.sha256)
+$run = Invoke-JsonScript $preflightScript $commonPreflight
+Assert-Outcome $run 'preflight-terminal-receipt' 0 'pass' 'ok'
+
+# Session-landing preflight identity authority is now the in-worktree receipt: a wrong
+# SessionOwner and a missing receipt each block deterministically before any mutation.
+$wrongOwnerPreflight = @('-Mode','session-landing','-Checkpoint','after-reconciliation','-CurrentWorktree',$session,'-PrimaryWorktree',$primary,'-CurrentBranch',$sessionBranch,'-PrimaryBranch','main','-Baseline',$baseline,'-ExpectedCurrentTip',$approved,'-ExpectedPrimaryTip',$baseline,'-SessionOwner',([guid]::NewGuid().ToString()),'-WaitSeconds','5','-ClaimReceiptPath',$claim.receipt.path,'-ClaimReceiptSha256',$claim.receipt.sha256)
+$run = Invoke-JsonScript $preflightScript $wrongOwnerPreflight
+Assert-Outcome $run 'preflight-receipt-owner-mismatch' 2 'blocked' 'receipt.owner-mismatch'
+$sessionReceiptPath = Get-AgentWorktreeReceiptPath $session
+$sessionReceiptStash = "$sessionReceiptPath.stash"
+Move-Item -LiteralPath $sessionReceiptPath -Destination $sessionReceiptStash
+try {
+	$run = Invoke-JsonScript $preflightScript $commonPreflight
+	Assert-Outcome $run 'preflight-receipt-unreadable' 2 'blocked' 'receipt.unreadable'
+}
+finally { Move-Item -LiteralPath $sessionReceiptStash -Destination $sessionReceiptPath }
+
+# A changed receipt is rejected before landing; a valid receipt-bound terminal
+# transaction advances primary and releases the scheduler claim afterward.
+$badReceipt = Invoke-JsonScript $preflightScript (@($commonPreflight[0..($commonPreflight.Count - 2)]) + @(('0' * 64)))
+Assert-Outcome $badReceipt 'preflight-receipt-tamper' 2 'blocked' 'plan-claim-receipt.identity-changed'
+$landingParameters = [ordered]@{ CurrentWorktree=$session; PrimaryWorktree=$primary; CurrentBranch=$sessionBranch; PrimaryBranch='main'; Baseline=$baseline; ExpectedCurrentTip=$approved; ExpectedPrimaryTip=$baseline; SessionOwner=$owner; SessionLabel='finalize-fixture'; ApprovedSessionCommit=$approved; ClaimReceiptPath=$claim.receipt.path; ClaimReceiptSha256=$claim.receipt.sha256; TerminalDisposition='completed' }
+$run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
+Assert-Outcome $run 'late-child-refresh-required' 2 'blocked' 'approval.refresh-required'
+Invoke-ScratchGit $session @('add','Documents/Plans/LateChild.md') | Out-Null
+Invoke-ScratchGit $session @('commit','-m','fixture refreshed terminal candidate') | Out-Null
+$approved = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
+$landingParameters.ExpectedCurrentTip = $approved
+$landingParameters.ApprovedSessionCommit = $approved
+$landingParameters.TerminalDisposition = 'rejected'
+$primaryBeforeDispositionMismatch = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+$run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
+Assert-Outcome $run 'opposite-disposition-landing' 2 'blocked' 'plan.disposition-mismatch'
+Assert-True ($primaryBeforeDispositionMismatch -ceq ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim())) 'opposite-disposition landing leaves primary unchanged'
+$landingParameters.TerminalDisposition = 'completed'
+$run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
+Assert-Outcome $run 'receipt-terminal-landing' 0 'landed' 'ok'
+if ($null -ne $run.Json) { Assert-True $run.Json.primaryAdvanced 'terminal landing advanced primary'; Assert-True $run.Json.planClaim.released 'terminal landing released receipt-bound claim' }
+Assert-True (-not (Test-Path -LiteralPath (Join-Path $primary 'Documents\Plans\Recovery.md'))) 'terminal landing removed Plan from primary'
+
+# Re-running landing after primary has advanced must recover terminal proof,
+# not recreate scheduler state or publish any auxiliary plan work.
+$run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
+Assert-Outcome $run 'receipt-post-advance-recovery' 0 'landed' 'ok'
+if ($null -ne $run.Json) { Assert-True $run.Json.primaryAdvanced 'post-advance receipt recovery preserves primary advance'; Assert-True $run.Json.planClaim.released 'post-advance recovery proves released receipt state' }
 
 Write-Host ''
 if ($script:Failures.Count -gt 0) {
@@ -342,9 +373,6 @@ else {
 }
 }
 finally {
-	if ($ownerRegistered -and $null -ne $owner) {
-		try { Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $owner } catch { }
-	}
 	if ($null -ne $fixtureEnvironment) {
 		foreach ($entry in $fixtureEnvironment.GetEnumerator()) { [Environment]::SetEnvironmentVariable($entry.Key, $previousEnvironment[$entry.Key]) }
 	}

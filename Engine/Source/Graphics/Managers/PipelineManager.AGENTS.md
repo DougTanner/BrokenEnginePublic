@@ -1,6 +1,6 @@
 # PipelineManager
 
-**Global:** `gpPipelineManager`
+Global: `gpPipelineManager`
 
 Loads SPIR-V from pack chunks and owns fixed engine pipelines plus CRC-keyed dynamic collection pipelines. Validate shader metadata and byte ranges before module creation; pipelines retain pointers into the manager's stable shader map.
 

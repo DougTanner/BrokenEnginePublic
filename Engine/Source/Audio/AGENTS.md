@@ -21,10 +21,9 @@ Client-only 3D and streaming audio through DirectXTK `AudioEngine`. `AudioManage
 ## Asset and Thread Ownership
 
 - Static sounds use resident chunks; music streams random-access ranges from lazy chunks without loading the full track.
-- Source data and the mastering graph share the 48 kHz contract with [DataPacker audio repair](../../../DataPacker/Source/ExportJobs/AGENTS.md).
+- Source data and the mastering graph share the 48 kHz contract with DataPacker audio repair (`../../../DataPacker/Source/ExportJobs/AGENTS.md`).
 - Audio calls follow the parent main-loop allocation and affinity rules.
 
 ## See Also
 
-- [Engine Source](../AGENTS.md)
-- [File](../File/AGENTS.md) - Lazy chunk ownership
+- File (`../File/AGENTS.md`) - Lazy chunk ownership

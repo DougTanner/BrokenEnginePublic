@@ -11,7 +11,7 @@ Water renders a visible-area ocean grid. A compute prepass bakes Gerstner displa
 ## Precision Contracts
 
 - Normal and noise sampling uses camera-relative positions, `textureGrad`, and `fract`-wrapped UVs. Derivatives are formed before scale multiplication so mip selection remains stable.
-- CPU code supplies reduced, pre-rotated origins and reduced time offsets. Do not rotate them again in the shader. Sampling multipliers must preserve the integer-product modulus pact documented by [Render](../../../Source/Graphics/Render/AGENTS.md).
+- CPU code supplies reduced, pre-rotated origins and reduced time offsets. Do not rotate them again in the shader. Sampling multipliers must preserve the integer-product modulus pact documented by Render (`../../../Source/Graphics/Render/AGENTS.md`).
 - Independently rotated normal samples are transformed back into world orientation before weighted composition. Guard a zero weighted sum before normalization so fully faded samples cannot produce NaN.
 
 ## Lighting Contracts

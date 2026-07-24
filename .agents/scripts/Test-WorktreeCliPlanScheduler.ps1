@@ -143,6 +143,16 @@ try {
 	Assert-True (@($dependencyValidation.diagnostics | Where-Object code -ceq 'dependency-cycle').Count -eq 3) 'Self/cycle component was not quarantined.'
 	Commit $primary 'tracked dependency fixtures'
 	$claimBaseline = (& git.exe -C $primary rev-parse HEAD).Trim()
+	# A session HEAD behind the primary tip (a peer landing advanced primary) is a first-class claim: it records the session
+	# HEAD as its baseline and selects from the session tree. A genuinely diverged session (a local commit absent from the
+	# primary tip) still refuses.
+	$behindHead = (& git.exe -C $session rev-parse HEAD).Trim()
+	$behindReceipt = Join-Path $session 'Temp/behind.json'
+	$behind = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-behind','--session','session-behind','--write-claim-receipt',$behindReceipt)
+	Assert-Result $behind 'claim-next' 'ok' 'claimed'; Assert-True ($behind.claimed -and $behind.baseline -ceq $behindHead) 'Behind-session claim did not record the session HEAD as its baseline.'
+	Invoke-Cli 0 @('plan','unclaim','--worktree',$session,'--claim-receipt',$behind.receipt.path,'--claim-receipt-sha256',$behind.receipt.sha256) | Out-Null
+	[IO.File]::WriteAllText((Join-Path $session 'Documents/Plans/Test/Diverged.md'), '# diverged', $utf8)
+	& git.exe -C $session add -- Documents/Plans/Test/Diverged.md | Out-Null; & git.exe -C $session commit -m 'diverged local work' | Out-Null
 	$mismatch = Invoke-Cli 1 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-mismatch','--session','session-mismatch','--write-claim-receipt',(Join-Path $session 'Temp/mismatch.json'))
 	Assert-Result $mismatch 'claim-next' 'error' 'git-identity-mismatch'
 	& git.exe -C $session reset --hard $claimBaseline | Out-Null
@@ -218,7 +228,7 @@ try {
 	Assert-True ((Test-Path -LiteralPath $unrelatedUntracked) -and (@(& git.exe -C $session status --porcelain -- Documents/Plans/Test) -match 'Unrelated\.untracked')) 'Scheduler removed or concealed unrelated untracked file.'
 	Remove-Item -LiteralPath $unrelatedUntracked -Force
 	$receiptIdentity = Get-Content -LiteralPath $terminalClaim.receipt.path -Raw | ConvertFrom-Json -Depth 100
-	$storedClaim = Get-Content -LiteralPath $receiptIdentity.claimPath -Raw | ConvertFrom-Json -Depth 100
+	$storedClaim = Get-Content -LiteralPath $receiptIdentity.claimPath -Raw | ConvertFrom-Json -Depth 100 -DateKind String
 	$storedClaim.state = 'preparing'; $storedClaim.PSObject.Properties.Remove('changedPaths'); $storedClaim.PSObject.Properties.Remove('manifestDigest')
 	[IO.File]::SetAttributes($receiptIdentity.claimPath, [IO.FileAttributes]::Normal)
 	[IO.File]::WriteAllText($receiptIdentity.claimPath, (($storedClaim | ConvertTo-Json -Depth 100) + "`n"), $utf8)
@@ -236,6 +246,250 @@ try {
 	$releaseRetry = Invoke-Cli 0 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256,'--landed-commit',$landed)
 	Assert-Result $releaseRetry 'release-after-landing' 'ok' 'already-released'
 
-	[pscustomobject]@{ schemaVersion = 'broken-engine-plan-scheduler-fixtures/v1'; status = 'pass'; code = 'ok'; cases = @('metadata strictness, canonical timestamps, and immutability','deep tracked paths','baseline deletion, primary-advance notice, and stale-manual dependency classification','targeted validation','deterministic ordering','dependency and cycle quarantine','claim baseline identity, ancestry healing, and canonical timestamps','receipt-bound claims and unclaim','receipt containment and rollback','terminal atomic orphan cleanup, awaiting retry, preparing recovery, and current-primary release proof') } | ConvertTo-Json -Depth 5 -Compress
+	# Re-parent after a primary squash. `git reset --soft <root> && git commit` orphans the old baseline, the
+	# wrapper `git rebase --onto <new> <old> <branch>` replays session commits, and `plan reparent-claims` moves
+	# every live claim (any state) and its Temp receipts onto the new tip. Only after the rebase completes may
+	# validate/claim-next run without heal-deleting the reparented claim; mid-conflict they still delete it.
+	function Get-FileSha([string] $Path) { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+	function New-ReparentClaim([string] $Sess, [string] $Branch, [string] $Owner, [string] $Plan, [string] $ReceiptName) {
+		$claimReceipt = Join-Path $Sess "Temp/$ReceiptName"
+		$c = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$Sess,'--branch',$Branch,'--owner',$Owner,'--session',"$Owner-session",'--write-claim-receipt',$claimReceipt,'--plan',$Plan)
+		Assert-Result $c 'claim-next' 'ok' 'claimed'; Assert-True $c.claimed "Reparent fixture claim '$Plan' was not granted."
+		return $c
+	}
+	$reparentDir = 'Documents/Plans/Reparent'
+	Set-Plan $primary "$reparentDir/Claimed.md" '2024-02-01T00:00:00.000Z'
+	Set-Plan $primary "$reparentDir/Preparing.md" '2024-02-02T00:00:00.000Z'
+	Set-Plan $primary "$reparentDir/Awaiting.md" '2024-02-03T00:00:00.000Z'
+	Set-Plan $primary "$reparentDir/Foreign.md" '2024-02-04T00:00:00.000Z'
+	Commit $primary 'reparent baseline plans'
+	$reparentOld = (& git.exe -C $primary rev-parse HEAD).Trim()
+	$reparentRoot = (& git.exe -C $primary rev-list --max-parents=0 HEAD).Trim()
+	& git.exe -C $session reset --hard $reparentOld | Out-Null
+	$session2 = Join-Path $root 'session2'
+	& git.exe -C $primary worktree add -b fixture-session-2 $session2 $reparentOld | Out-Null
+	New-Item -ItemType Directory -Force -Path (Join-Path $session2 'Temp') | Out-Null
+
+	$claimedClaim = New-ReparentClaim $session 'fixture-session' 'owner-reparent-claimed' "$reparentDir/Claimed.md" 'reparent-claimed.json'
+	$preparingClaim = New-ReparentClaim $session 'fixture-session' 'owner-reparent-preparing' "$reparentDir/Preparing.md" 'reparent-preparing.json'
+	$awaitingClaim = New-ReparentClaim $session 'fixture-session' 'owner-reparent-awaiting' "$reparentDir/Awaiting.md" 'reparent-awaiting.json'
+	$foreignClaim = New-ReparentClaim $session2 'fixture-session-2' 'owner-reparent-foreign' "$reparentDir/Foreign.md" 'reparent-foreign.json'
+	$foreignClaimPath = (Get-Content -LiteralPath $foreignClaim.receipt.path -Raw | ConvertFrom-Json -Depth 100).claimPath
+
+	# Drive two claims into their live non-claimed states, then restore the deleted plan bytes so the rebase
+	# replays no session commit. The preparing claim is a real awaiting-landing record downgraded to 14 fields.
+	Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$preparingClaim.receipt.path,'--claim-receipt-sha256',$preparingClaim.receipt.sha256) | Out-Null
+	Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$awaitingClaim.receipt.path,'--claim-receipt-sha256',$awaitingClaim.receipt.sha256) | Out-Null
+	& git.exe -C $session checkout -- "$reparentDir/Preparing.md" "$reparentDir/Awaiting.md" | Out-Null
+	$prepIdentity = Get-Content -LiteralPath $preparingClaim.receipt.path -Raw | ConvertFrom-Json -Depth 100
+	$prepRecord = Get-Content -LiteralPath $prepIdentity.claimPath -Raw | ConvertFrom-Json -Depth 100 -DateKind String
+	$prepRecord.state = 'preparing'; $prepRecord.PSObject.Properties.Remove('changedPaths'); $prepRecord.PSObject.Properties.Remove('manifestDigest')
+	[IO.File]::SetAttributes($prepIdentity.claimPath, [IO.FileAttributes]::Normal)
+	[IO.File]::WriteAllText($prepIdentity.claimPath, (($prepRecord | ConvertTo-Json -Depth 100) + "`n"), $utf8)
+
+	& git.exe -C $primary reset --soft $reparentRoot | Out-Null; & git.exe -C $primary commit -m 'squashed reparent day' | Out-Null
+	$reparentNew = (& git.exe -C $primary rev-parse HEAD).Trim()
+	& git.exe -C $primary merge-base --is-ancestor $reparentOld $reparentNew *> $null; Assert-True ($LASTEXITCODE -ne 0) 'Squash left the old baseline reachable from the new tip.'
+	& git.exe -C $session rebase --onto $reparentNew $reparentOld fixture-session *> $null; Assert-True ($LASTEXITCODE -eq 0) 'Clean re-parent rebase failed.'
+	Assert-True ((& git.exe -C $session rev-parse HEAD).Trim() -ceq $reparentNew) 'Re-parented session HEAD is not the squashed tip.'
+
+	$reparent = Invoke-Cli 0 @('plan','reparent-claims','--repo',$repo,'--worktree',$session,'--new-baseline',$reparentNew)
+	Assert-Result $reparent 'reparent-claims' 'ok' 'reparented'
+	foreach ($plan in @("$reparentDir/Claimed.md","$reparentDir/Preparing.md","$reparentDir/Awaiting.md")) { Assert-True (@($reparent.reparentedClaims) -ccontains $plan) "Live claim '$plan' was not reparented." }
+	Assert-True (-not (@($reparent.reparentedClaims) -ccontains "$reparentDir/Foreign.md")) 'Foreign-worktree claim was reparented.'
+	Assert-True (@($reparent.updatedReceipts).Count -eq 3) 'Reparent did not rewrite exactly the three session claim receipts.'
+	$updatedShas = @($reparent.updatedReceipts | ForEach-Object { [string]$_.sha256 })
+	$claimedNewSha = Get-FileSha $claimedClaim.receipt.path
+	$preparingNewSha = Get-FileSha $preparingClaim.receipt.path
+	$awaitingNewSha = Get-FileSha $awaitingClaim.receipt.path
+	foreach ($pair in @(@($claimedClaim.receipt.sha256,$claimedNewSha),@($preparingClaim.receipt.sha256,$preparingNewSha),@($awaitingClaim.receipt.sha256,$awaitingNewSha))) {
+		Assert-True ($pair[1] -cne $pair[0]) 'Reparent did not rewrite a claim receipt to a new sha256.'
+		Assert-True ($updatedShas -ccontains $pair[1]) 'Reparent updatedReceipts omitted a rewritten receipt sha256.'
+	}
+
+	# A completed rebase makes the old baseline unreachable but the new tip an ancestor of the worktree HEAD,
+	# so HealClaims (run by validate and by claim-next) must keep every reparented claim.
+	$postValidate = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$reparentNew)
+	foreach ($claimFile in @($claimedClaim,$preparingClaim,$awaitingClaim | ForEach-Object { Split-Path -Leaf ((Get-Content -LiteralPath $_.receipt.path -Raw | ConvertFrom-Json -Depth 100).claimPath) })) {
+		Assert-True (-not (@($postValidate.healedClaims) -ccontains $claimFile)) 'A reparented claim was heal-deleted by a post-rebase validate.'
+	}
+	$claimedStatus = Invoke-Cli 0 @('plan','claim-status','--worktree',$session,'--claim-receipt',$claimedClaim.receipt.path,'--claim-receipt-sha256',$claimedNewSha)
+	Assert-Result $claimedStatus 'claim-status' 'ok' 'claimed'; Assert-True ($claimedStatus.ownedByReceipt -and $claimedStatus.claimState -ceq 'claimed') 'Reparented claimed-state claim lost receipt ownership after validate.'
+	$preparingStatus = Invoke-Cli 0 @('plan','claim-status','--worktree',$session,'--claim-receipt',$preparingClaim.receipt.path,'--claim-receipt-sha256',$preparingNewSha)
+	Assert-Result $preparingStatus 'claim-status' 'ok' 'claimed'; Assert-True ($preparingStatus.ownedByReceipt -and $preparingStatus.claimState -ceq 'preparing') 'Reparented preparing-state claim lost receipt ownership after validate.'
+	$awaitingStatus = Invoke-Cli 0 @('plan','claim-status','--worktree',$session,'--claim-receipt',$awaitingClaim.receipt.path,'--claim-receipt-sha256',$awaitingNewSha)
+	Assert-Result $awaitingStatus 'claim-status' 'ok' 'claimed'; Assert-True ($awaitingStatus.ownedByReceipt -and $awaitingStatus.claimState -ceq 'awaiting-landing') 'Reparented awaiting-landing claim lost receipt ownership after validate.'
+	$staleStatus = Invoke-Cli 2 @('plan','claim-status','--worktree',$session,'--claim-receipt',$claimedClaim.receipt.path,'--claim-receipt-sha256',$claimedClaim.receipt.sha256)
+	Assert-Result $staleStatus 'claim-status' 'conflict' 'receipt-invalid'
+	$healProbe = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-reparent-probe','--session','session-reparent-probe','--write-claim-receipt',(Join-Path $session 'Temp/reparent-probe.json'),'--plan',"$reparentDir/Claimed.md")
+	Assert-Result $healProbe 'claim-next' 'ok' 'none-available'; Assert-True (-not $healProbe.claimed) 'claim-next heal-deleted and stole a reparented live claim.'
+	$claimedAfterNext = Invoke-Cli 0 @('plan','claim-status','--worktree',$session,'--claim-receipt',$claimedClaim.receipt.path,'--claim-receipt-sha256',$claimedNewSha)
+	Assert-True ($claimedAfterNext.ownedByReceipt -and $claimedAfterNext.claimState -ceq 'claimed') 'claim-next HealClaims discarded a reparented claim.'
+
+	# A claim bound to another worktree at the same old baseline is left untouched.
+	$foreignRecord = Get-Content -LiteralPath $foreignClaimPath -Raw | ConvertFrom-Json -Depth 100
+	Assert-True ($foreignRecord.primaryCommit -ceq $reparentOld) 'Reparent rewrote a claim bound to a different worktree.'
+
+	# Every live session claim already carries the new baseline (nothing orphaned from the worktree HEAD), so a
+	# rerun reparents nothing.
+	$noClaims = Invoke-Cli 0 @('plan','reparent-claims','--repo',$repo,'--worktree',$session,'--new-baseline',$reparentNew)
+	Assert-Result $noClaims 'reparent-claims' 'ok' 'no-claims'; Assert-True (@($noClaims.reparentedClaims).Count -eq 0 -and @($noClaims.updatedReceipts).Count -eq 0) 'no-claims reparent reported mutations.'
+
+	# Completion and release still work end to end against the landed squashed history.
+	$reparentedComplete = Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$claimedClaim.receipt.path,'--claim-receipt-sha256',$claimedNewSha)
+	Assert-Result $reparentedComplete 'prepare-completion' 'ok' 'prepared'; Assert-True ($reparentedComplete.claimState -ceq 'awaiting-landing') 'Reparented claim did not prepare for landing.'
+	Commit $session 'land reparented terminal on squashed history'
+	$reparentLanded = (& git.exe -C $session rev-parse HEAD).Trim()
+	& git.exe -C $primary merge --ff-only $reparentLanded | Out-Null
+	$reparentRelease = Invoke-Cli 0 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$claimedClaim.receipt.path,'--claim-receipt-sha256',$claimedNewSha,'--landed-commit',$reparentLanded)
+	Assert-Result $reparentRelease 'release-after-landing' 'ok' 'released'; Assert-True ($reparentRelease.released -and $reparentRelease.terminalStateVerified) 'Reparented claim did not release against the squashed landed history.'
+
+	# Mid-conflict re-parent: the claim reparents while the rebase is stopped, but a validate run mid-conflict
+	# heal-deletes it (detached HEAD -> unresolved branch), documenting the prohibition [PA-F-001].
+	Set-Plan $primary "$reparentDir/Conflict.md" '2024-02-05T00:00:00.000Z'
+	[IO.File]::WriteAllText((Join-Path $primary 'Documents/ReparentConflict.txt'), "base`n", $utf8)
+	Commit $primary 'conflict re-parent baseline'
+	$conflictOld = (& git.exe -C $primary rev-parse HEAD).Trim()
+	$conflictRoot = (& git.exe -C $primary rev-list --max-parents=0 HEAD).Trim()
+	& git.exe -C $session reset --hard $conflictOld | Out-Null
+	$conflictClaim = New-ReparentClaim $session 'fixture-session' 'owner-reparent-conflict' "$reparentDir/Conflict.md" 'reparent-conflict.json'
+	$conflictClaimFile = Split-Path -Leaf ((Get-Content -LiteralPath $conflictClaim.receipt.path -Raw | ConvertFrom-Json -Depth 100).claimPath)
+	[IO.File]::WriteAllText((Join-Path $session 'Documents/ReparentConflict.txt'), "session edit`n", $utf8)
+	& git.exe -C $session commit -aqm 'session divergent conflict edit' | Out-Null
+	[IO.File]::WriteAllText((Join-Path $primary 'Documents/ReparentConflict.txt'), "squashed edit`n", $utf8)
+	& git.exe -C $primary add -- Documents/ReparentConflict.txt | Out-Null
+	& git.exe -C $primary reset --soft $conflictRoot | Out-Null; & git.exe -C $primary commit -m 'squashed conflict day' | Out-Null
+	$conflictNew = (& git.exe -C $primary rev-parse HEAD).Trim()
+	& git.exe -C $session rebase --onto $conflictNew $conflictOld fixture-session *> $null
+	Assert-True ($LASTEXITCODE -ne 0) 'Divergent re-parent rebase did not conflict.'
+	$conflictGitDir = (& git.exe -C $session rev-parse --path-format=absolute --git-dir).Trim()
+	Assert-True (Test-Path -LiteralPath (Join-Path $conflictGitDir 'rebase-merge')) 'Conflicted rebase left no rebase-merge state.'
+	$conflictReparent = Invoke-Cli 0 @('plan','reparent-claims','--repo',$repo,'--worktree',$session,'--new-baseline',$conflictNew)
+	Assert-Result $conflictReparent 'reparent-claims' 'ok' 'reparented'; Assert-True (@($conflictReparent.reparentedClaims) -ccontains "$reparentDir/Conflict.md") 'Mid-conflict re-parent did not move the stopped-rebase claim.'
+	$midConflictValidate = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$conflictNew)
+	Assert-True (@($midConflictValidate.healedClaims) -ccontains $conflictClaimFile) 'Mid-conflict validate did not heal-delete the reparented claim (prohibition hazard not demonstrated).'
+	& git.exe -C $session rebase --abort *> $null
+
+	# The session resets onto the advanced primary tip before claiming, so claim-next stamps that advanced
+	# commit (the session HEAD, an ancestor of the primary tip) - newer than the wrapper receipt baseline.
+	# A squash orphans that newer commit too, so reparent-claims must select the claims healing would delete
+	# (primaryCommit no longer an ancestor of the worktree HEAD), not a fixed old baseline that would miss it.
+	$advanceDir = 'Documents/Plans/ReparentAdvance'
+	Set-Plan $primary "$advanceDir/Advanced.md" '2024-03-01T00:00:00.000Z'
+	Commit $primary 'reparent-advance baseline'
+	$advanceB0 = (& git.exe -C $primary rev-parse HEAD).Trim()
+	$advanceRoot = (& git.exe -C $primary rev-list --max-parents=0 HEAD).Trim()
+	$advanceSession = Join-Path $root 'advance-session'
+	& git.exe -C $primary worktree add -b fixture-advance $advanceSession $advanceB0 | Out-Null
+	New-Item -ItemType Directory -Force -Path (Join-Path $advanceSession 'Temp') | Out-Null
+	# The session is baselined at B0; primary then advances to B1 (a routine land) before the claim is taken.
+	Set-Plan $primary "$advanceDir/Later.md" '2024-03-02T00:00:00.000Z'
+	Commit $primary 'reparent-advance primary advance'
+	$advanceB1 = (& git.exe -C $primary rev-parse HEAD).Trim()
+	Assert-True ($advanceB1 -cne $advanceB0) 'Primary advance produced no new commit.'
+	& git.exe -C $advanceSession reset --hard $advanceB1 | Out-Null
+	$advanceClaim = New-ReparentClaim $advanceSession 'fixture-advance' 'owner-reparent-advance' "$advanceDir/Advanced.md" 'reparent-advance.json'
+	$advanceClaimPath = (Get-Content -LiteralPath $advanceClaim.receipt.path -Raw | ConvertFrom-Json -Depth 100).claimPath
+	$advanceRecord = Get-Content -LiteralPath $advanceClaimPath -Raw | ConvertFrom-Json -Depth 100
+	Assert-True ($advanceRecord.primaryCommit -ceq $advanceB1) 'Claim taken after a primary advance did not stamp the advanced primary commit.'
+	$advanceClaimFile = Split-Path -Leaf $advanceClaimPath
+	# A session-only commit so the re-parent replays a real commit; then squash primary, orphaning B0 and B1.
+	[IO.File]::WriteAllText((Join-Path $advanceSession 'Documents/AdvanceSession.txt'), "session work`n", $utf8)
+	& git.exe -C $advanceSession add -- Documents/AdvanceSession.txt | Out-Null
+	& git.exe -C $advanceSession commit -qm 'advance session commit' | Out-Null
+	& git.exe -C $primary reset --soft $advanceRoot | Out-Null; & git.exe -C $primary commit -m 'squashed reparent-advance day' | Out-Null
+	$advanceNew = (& git.exe -C $primary rev-parse HEAD).Trim()
+	& git.exe -C $primary merge-base --is-ancestor $advanceB1 $advanceNew *> $null; Assert-True ($LASTEXITCODE -ne 0) 'Squash left the advanced claim commit reachable from the new tip.'
+	& git.exe -C $advanceSession rebase --onto $advanceNew $advanceB0 fixture-advance *> $null; Assert-True ($LASTEXITCODE -eq 0) 'Advance re-parent rebase failed.'
+	$advanceSessionHead = (& git.exe -C $advanceSession rev-parse HEAD).Trim()
+	& git.exe -C $advanceSession merge-base --is-ancestor $advanceB1 $advanceSessionHead *> $null; Assert-True ($LASTEXITCODE -ne 0) 'Advanced claim commit remained an ancestor of the re-parented HEAD.'
+	# The live claim carries B1 (newer than the receipt baseline B0); a fixed-baseline selection would miss it.
+	$advanceReparent = Invoke-Cli 0 @('plan','reparent-claims','--repo',$repo,'--worktree',$advanceSession,'--new-baseline',$advanceNew)
+	Assert-Result $advanceReparent 'reparent-claims' 'ok' 'reparented'
+	Assert-True (@($advanceReparent.reparentedClaims) -ccontains "$advanceDir/Advanced.md") 'reparent-claims missed a claim stamped at the advanced primary commit.'
+	Assert-True (@($advanceReparent.updatedReceipts).Count -eq 1) 'reparent-claims did not rewrite the advanced claim receipt.'
+	$advanceNewSha = Get-FileSha $advanceClaim.receipt.path
+	Assert-True ($advanceNewSha -cne $advanceClaim.receipt.sha256) 'Advanced claim receipt was not rewritten to a new sha256.'
+	Assert-True (@($advanceReparent.updatedReceipts | ForEach-Object { [string]$_.sha256 }) -ccontains $advanceNewSha) 'reparent-claims updatedReceipts omitted the rewritten advanced receipt sha256.'
+	Assert-True ((Get-Content -LiteralPath $advanceClaimPath -Raw | ConvertFrom-Json -Depth 100).primaryCommit -ceq $advanceNew) 'Reparented advanced claim did not adopt the new baseline.'
+	# validate runs HealClaims (the identical path claim-next uses) and must keep the reparented claim.
+	$advanceValidate = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$advanceNew)
+	Assert-True (-not (@($advanceValidate.healedClaims) -ccontains $advanceClaimFile)) 'Reparented advanced claim was heal-deleted by validate.'
+	$advanceStatus = Invoke-Cli 0 @('plan','claim-status','--worktree',$advanceSession,'--claim-receipt',$advanceClaim.receipt.path,'--claim-receipt-sha256',$advanceNewSha)
+	Assert-Result $advanceStatus 'claim-status' 'ok' 'claimed'; Assert-True ($advanceStatus.ownedByReceipt -and $advanceStatus.claimState -ceq 'claimed') 'Reparented advanced claim lost receipt ownership after validate.'
+	# claim-next's HealClaims keeps it too, once primary fast-forwards onto the re-parented session tip.
+	& git.exe -C $primary merge --ff-only $advanceSessionHead | Out-Null
+	$advanceNextProbe = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$advanceSession,'--branch','fixture-advance','--owner','owner-reparent-advance-probe','--session','session-reparent-advance-probe','--write-claim-receipt',(Join-Path $advanceSession 'Temp/reparent-advance-probe.json'),'--plan',"$advanceDir/Advanced.md")
+	Assert-Result $advanceNextProbe 'claim-next' 'ok' 'none-available'; Assert-True (-not $advanceNextProbe.claimed) 'claim-next heal-deleted and stole the reparented advanced claim.'
+	$advanceAfterNext = Invoke-Cli 0 @('plan','claim-status','--worktree',$advanceSession,'--claim-receipt',$advanceClaim.receipt.path,'--claim-receipt-sha256',$advanceNewSha)
+	Assert-True ($advanceAfterNext.ownedByReceipt -and $advanceAfterNext.claimState -ceq 'claimed') 'claim-next HealClaims discarded the reparented advanced claim.'
+
+	# Reconcile fixture state between the reparent block above and the behind-session cases below. The reparent block
+	# leaves the session branch on a divergent conflict-abort tip and live claim records, but the behind-session cases
+	# assume a session that fast-forwards onto main and an empty claim store (their one-claim-per-session assertion
+	# counts exactly one record). Reset the session onto main and clear leftover claim records to restore that slate.
+	& git.exe -C $session reset --hard main | Out-Null
+	Get-ChildItem -LiteralPath $claimsDirectory -File -Force -Filter '*.json' | Remove-Item -Force
+
+	# Behind-session reconciliation: selection reads the session tree while healing judges the primary tip. Build a divergence
+	# where the session HEAD (an older primary commit) still carries plans the primary tip has since dropped or demoted.
+	New-Item -ItemType Directory -Force -Path (Join-Path $primary 'Temp') | Out-Null
+	Set-Plan $primary 'Documents/Plans/Test/SessionKept.md' '2020-01-01T00:00:00.000Z'
+	Set-Plan $primary 'Documents/Plans/Test/DriftPrereq.md' '2020-01-02T00:00:00.000Z'
+	Set-Plan $primary 'Documents/Plans/Test/DriftChild.md' '2020-01-03T00:00:00.000Z' @('Documents/Plans/Test/DriftPrereq.md')
+	Commit $primary 'session-tree plans before peer landing'
+	& git.exe -C $session merge --ff-only main | Out-Null
+	$sessionTree = (& git.exe -C $session rev-parse HEAD).Trim()
+	Remove-Item -LiteralPath (Join-Path $primary 'Documents/Plans/Test/SessionKept.md') -Force
+	Remove-Item -LiteralPath (Join-Path $primary 'Documents/Plans/Test/DriftPrereq.md') -Force
+	Set-Plan $primary 'Documents/Plans/Test/PrimaryOnly.md' '2020-01-04T00:00:00.000Z'
+	Commit $primary 'peer landing drops session-tree plans and adds a primary-only plan'
+	Assert-True ($sessionTree -cne (& git.exe -C $primary rev-parse HEAD).Trim()) 'Session HEAD did not stay behind the advanced primary tip.'
+
+	# Healing isolation: a peer claim on a plan that exists only at the primary tip survives a behind-session claim-next.
+	$peer = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$primary,'--branch','main','--owner','owner-peer','--session','session-peer','--write-claim-receipt',(Join-Path $primary 'Temp/peer.json'),'--plan','Documents/Plans/Test/PrimaryOnly.md')
+	Assert-Result $peer 'claim-next' 'ok' 'claimed'; Assert-True ($peer.plan -ceq 'Documents/Plans/Test/PrimaryOnly.md') 'Peer did not claim the primary-only plan.'
+	# Default behind-session selection ignores SessionKept (oldest of all, but dropped at the primary tip) and never heals the peer claim.
+	$behindDefault = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-behind2','--session','session-behind2','--write-claim-receipt',(Join-Path $session 'Temp/behind-default.json'))
+	Assert-Result $behindDefault 'claim-next' 'ok' 'claimed'; Assert-True ($behindDefault.claimed -and $behindDefault.plan -cne 'Documents/Plans/Test/SessionKept.md') 'Default selection claimed a path the primary tip had dropped.'
+	$peerStatus = Invoke-Cli 0 @('plan','claim-status','--worktree',$primary,'--claim-receipt',$peer.receipt.path,'--claim-receipt-sha256',$peer.receipt.sha256)
+	Assert-Result $peerStatus 'claim-status' 'ok' 'claimed'; Assert-True ($peerStatus.ownedByReceipt) 'Behind-session claim-next healed a peer claim on a primary-only plan.'
+	# Primary-removed ineligibility: a targeted claim of a session-only path finds nothing claimable.
+	$removedTarget = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-removed','--session','session-removed','--write-claim-receipt',(Join-Path $session 'Temp/removed.json'),'--plan','Documents/Plans/Test/SessionKept.md')
+	Assert-Result $removedTarget 'claim-next' 'ok' 'none-available'; Assert-True (-not $removedTarget.claimed) 'A path removed at the primary tip was claimable.'
+	# Dependency drift: the prerequisite lingers in the session tree, so the child stays blocked though the primary tip dropped it.
+	$driftChild = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-drift','--session','session-drift','--write-claim-receipt',(Join-Path $session 'Temp/drift.json'),'--plan','Documents/Plans/Test/DriftChild.md')
+	Assert-Result $driftChild 'claim-next' 'ok' 'none-available'; Assert-True (-not $driftChild.claimed) 'Child claimable while its session-tree prerequisite still exists.'
+	Invoke-Cli 0 @('plan','unclaim','--worktree',$primary,'--claim-receipt',$peer.receipt.path,'--claim-receipt-sha256',$peer.receipt.sha256) | Out-Null
+	Invoke-Cli 0 @('plan','unclaim','--worktree',$session,'--claim-receipt',$behindDefault.receipt.path,'--claim-receipt-sha256',$behindDefault.receipt.sha256) | Out-Null
+
+	# One claim per session is independent of Plan-map membership: an awaiting-landing session whose own HEAD tree no longer
+	# carries its plan, while the primary tip still does, must get that same terminal claim back rather than a second claim
+	# on a still-eligible decoy plan. Claim and prepare-complete the plan, commit its removal, then advance the primary tip
+	# past the removal and reintroduce the plan so the behind session HEAD lacks a plan the primary map still contains.
+	& git.exe -C $session reset --hard main | Out-Null
+	Set-Plan $primary 'Documents/Plans/Test/BehindOwned.md' '2019-01-01T00:00:00.000Z'
+	Set-Plan $primary 'Documents/Plans/Test/BehindDecoy.md' '2019-01-02T00:00:00.000Z'
+	Commit $primary 'owned terminal plan and decoy before behind divergence'
+	& git.exe -C $session merge --ff-only main | Out-Null
+	$behindOwnedBaseline = (& git.exe -C $session rev-parse HEAD).Trim()
+	$behindOwnedClaim = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-behindowned','--session','session-behindowned','--write-claim-receipt',(Join-Path $session 'Temp/behind-owned.json'),'--plan','Documents/Plans/Test/BehindOwned.md')
+	Assert-Result $behindOwnedClaim 'claim-next' 'ok' 'claimed'; Assert-True ($behindOwnedClaim.plan -ceq 'Documents/Plans/Test/BehindOwned.md' -and $behindOwnedClaim.baseline -ceq $behindOwnedBaseline) 'Owned terminal fixture did not claim its plan at the session baseline.'
+	$behindOwnedPrepared = Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$behindOwnedClaim.receipt.path,'--claim-receipt-sha256',$behindOwnedClaim.receipt.sha256)
+	Assert-Result $behindOwnedPrepared 'prepare-completion' 'ok' 'prepared'; Assert-True ($behindOwnedPrepared.claimState -ceq 'awaiting-landing') 'Owned terminal fixture did not reach awaiting-landing.'
+	Commit $session 'awaiting-landing session removes its own plan file'
+	$behindOwnedHead = (& git.exe -C $session rev-parse HEAD).Trim()
+	& git.exe -C $primary merge --ff-only $behindOwnedHead | Out-Null
+	Set-Plan $primary 'Documents/Plans/Test/BehindOwned.md' '2019-01-01T00:00:00.000Z'; Commit $primary 'primary tip reintroduces the plan the behind session dropped'
+	Assert-True ($behindOwnedHead -cne (& git.exe -C $primary rev-parse HEAD).Trim()) 'Behind session HEAD did not stay behind the advanced primary tip.'
+	# Claim records are written hidden, so counting them requires -Force.
+	$behindOwnedClaimsBefore = @(Get-ChildItem -LiteralPath $claimsDirectory -File -Force -Filter '*.json').Count
+	$behindOwnedRetry = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-behindowned','--session','session-behindowned','--write-claim-receipt',(Join-Path $session 'Temp/behind-owned-retry.json'))
+	Assert-Result $behindOwnedRetry 'claim-next' 'ok' 'claimed'
+	Assert-True ($behindOwnedRetry.plan -ceq 'Documents/Plans/Test/BehindOwned.md' -and $behindOwnedRetry.baseline -ceq $behindOwnedBaseline -and $behindOwnedRetry.message -ceq 'existing terminal session claim returned') 'Behind session did not receive its map-independent terminal claim back.'
+	$behindOwnedClaimsAfter = @(Get-ChildItem -LiteralPath $claimsDirectory -File -Force -Filter '*.json').Count
+	Assert-True ($behindOwnedClaimsAfter -eq $behindOwnedClaimsBefore -and $behindOwnedClaimsAfter -eq 1) 'A second claim was minted for a session that already owned a terminal claim.'
+
+	[pscustomobject]@{ schemaVersion = 'broken-engine-plan-scheduler-fixtures/v1'; status = 'pass'; code = 'ok'; cases = @('metadata strictness, canonical timestamps, and immutability','deep tracked paths','baseline deletion, primary-advance notice, and stale-manual dependency classification','targeted validation','deterministic ordering','dependency and cycle quarantine','behind-session claim tolerance and diverged-session refusal','claim baseline identity, ancestry healing, and canonical timestamps','receipt-bound claims and unclaim','receipt containment and rollback','terminal atomic orphan cleanup, awaiting retry, preparing recovery, and current-primary release proof','reparent across live claim states with receipt rewrite and post-rebase heal safety','no-claims and foreign-worktree reparent isolation','completion and release against landed squashed history','mid-conflict reparent with validate heal-delete hazard','reparent of a claim stamped at a post-advance primary commit newer than the receipt baseline','healing isolation, primary-removed ineligibility, and dependency drift','map-independent one-claim-per-session terminal reclaim') } | ConvertTo-Json -Depth 5 -Compress
 }
 finally { if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Force -Recurse } }

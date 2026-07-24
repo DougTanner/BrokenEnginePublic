@@ -1,6 +1,6 @@
 # Wind Shaders - Sparse Velocity Simulation
 
-Wind is a client-only 2D world-space velocity field that ping-pongs between two textures and drives [Smoke](../Smoke/AGENTS.md). Objects deposit directional or radial velocity; active tiles spread once per frame through hierarchical indirect dispatch.
+Wind is a client-only 2D world-space velocity field that ping-pongs between two textures and drives Smoke (`../Smoke/AGENTS.md`). Objects deposit directional or radial velocity; active tiles spread once per frame through hierarchical indirect dispatch.
 
 ## Sparse Dispatch Invariants
 

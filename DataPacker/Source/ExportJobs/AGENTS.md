@@ -1,12 +1,13 @@
 # DataPacker Export Jobs
 
-Asset processors convert source files into cached `.pack` chunks. The parent [`RunExportJobs<T>`](../AGENTS.md) orchestration discovers each job by `Handles()` and assembles its output.
+Asset processors convert source files into cached `.pack` chunks. The parent `RunExportJobs<T>` orchestration (`../AGENTS.md`) discovers each job by `Handles()` and assembles its output.
 
 ## Shared Pipeline
 
-- `ExportJob` owns content-fingerprint dirty checks, cache metadata, chunk I/O, and failure cleanup. `%TEMP%/DataPacker/<project>` holds versioned chunks and fingerprints; checkout-local packs and manifests can be rebuilt from clean shared chunks without re-exporting sources.
+- `ExportJob` owns content-fingerprint dirty checks, cache metadata, chunk I/O, and failure cleanup. `%LOCALAPPDATA%/BrokenEngine/DataPackerCache/<project>` holds versioned chunks and fingerprints; checkout-local packs and manifests can be rebuilt from clean shared chunks without re-exporting sources.
 - A successful export writes derived metadata before the primary fingerprint. Interrupted or failed work therefore remains dirty, and jobs remove incomplete sidecars in `CleanupOnFailure()`.
 - `ExportJob::Version(N)` folds in `sizeof(common::ChunkHeader)`. Jobs that serialize additional payload structs also fold in their sizes. Same-size reorder or semantic changes need the owning manual version bump.
+- A job may version an expensive sub-stage independently of its chunk payload when that stage's outputs are tracked in the checkout, giving the stage its own marker and a fingerprint covering only its own inputs. Keep that version outside `Version(...)` so an unrelated chunk-header change cannot rewrite tracked outputs, and bump whichever version owns the behavior that changed; island texture encoding is the current instance.
 - Each job constructs a `common::ThreadLocal` on its worker and uses that thread's workbuffer. Keep job output and scratch isolated from other parallel exports.
 - `AllocateHeaderAndData` is normally called once per export. Scene animation data is appended afterward; its chunk size excludes that section and a header pointer captured before vector growth is invalid after reallocation.
 - `BT_DATAPACKER_FORBID_EXPENSIVE_EXPORT=1` must fail before dirty Gaea or texture encoding begins. Clean cached outputs remain readable under this guard.
@@ -17,7 +18,7 @@ Asset processors convert source files into cached `.pack` chunks. The parent [`R
 
 Regular images generate a full mip chain; raw BCn/R16 and half-float intermediates preserve their supplied mip/face layout; KTX and live six-face cubemaps preserve cubemap ordering. Every final texture chunk is LZ4-compressed. Regular-path BC5 textures also publish the per-mip slope-variance data consumed by water shading; raw and cubemap paths do not synthesize it.
 
-Texture encoding and chunk routing are described in [Texture/AGENTS.md](Texture/AGENTS.md). Island/Gaea ingest is described in [Island/AGENTS.md](Island/AGENTS.md).
+Texture encoding and chunk routing are described in `Texture/AGENTS.md`. Island/Gaea ingest is described in `Island/AGENTS.md`.
 
 ## Scene and Model
 
@@ -39,7 +40,6 @@ Audio export produces interleaved 48 kHz PCM for the runtime mastering rate. Rep
 
 ## See Also
 
-- [`../AGENTS.md`](../AGENTS.md) - DataPacker orchestration and output assembly
-- [`Island/AGENTS.md`](Island/AGENTS.md) - Gaea route caches, split lifecycle, and island payloads
-- [`Texture/AGENTS.md`](Texture/AGENTS.md) - texture intermediates, RDO, migration, and chunk formats
-- [`../../../Common/AGENTS.md`](../../../Common/AGENTS.md) - shared chunk and serialization contracts
+- `Island/AGENTS.md` - Gaea route caches, split lifecycle, and island payloads
+- `Texture/AGENTS.md` - texture intermediates, RDO, migration, and chunk formats
+- `../../../Common/AGENTS.md` - shared chunk and serialization contracts

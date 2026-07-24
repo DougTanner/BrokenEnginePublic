@@ -237,23 +237,26 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	LOG(kDefault, kDebug, "Game data directory: \"{}\"", mpInputDirectories[1].string());
 	LOG(kDefault, kDebug, "Project name: \"{}\"", mProjectName);
 
-	// Temporaries directory
-	wchar_t pcDirectory[MAX_PATH] {};
-	DWORD uiTempResult = GetTempPathW(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
-	if (uiTempResult == 0)
+	// Persistent cache directory. Deliberately NOT %TEMP%: Windows Disk Cleanup / Storage Sense reap
+	// %LOCALAPPDATA%\Temp by last-access age, which deleted multi-hour Gaea bake payloads while the
+	// always-read .meta sidecars survived — leaving a cache that looked warm and was empty.
+	PWSTR pWideChar = nullptr;
+	HRESULT hresult = SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_CREATE, nullptr, &pWideChar);
+	std::filesystem::path localAppData = SUCCEEDED(hresult) && pWideChar != nullptr ? std::filesystem::path(pWideChar) : std::filesystem::path {};
+	CoTaskMemFree(pWideChar);
+	if (localAppData.empty())
 	{
-		throw std::runtime_error("Failed to get temp directory path");
+		// No fallback: a relocated cache root is indistinguishable from a cold one and costs a 3+ hour
+		// Gaea re-bake, so fail the run rather than silently exporting everything somewhere else.
+		throw std::runtime_error(std::format("SHGetKnownFolderPath(FOLDERID_LocalAppData) failed (hresult {})", static_cast<int32_t>(hresult)));
 	}
-	mTempDirectory = pcDirectory;
-	VERIFY_SUCCESS(std::filesystem::exists(mTempDirectory));
-	mTempDirectory.append("DataPacker");
-	mTempDirectory /= mProjectName;
-	std::filesystem::create_directories(mTempDirectory);
-	LOG(kDefault, kDebug, "Temp directory: \"{}\"", mTempDirectory.string());
-	mGaeaCacheDirectory = mTempDirectory / "Gaea";
+	mCacheDirectory = localAppData / "BrokenEngine" / "DataPackerCache" / mProjectName;
+	std::filesystem::create_directories(mCacheDirectory);
+	LOG(kDefault, kDebug, "Cache directory: \"{}\"", mCacheDirectory.string());
+	mGaeaCacheDirectory = mCacheDirectory / "Gaea";
 	std::filesystem::create_directories(mGaeaCacheDirectory);
 
-	mpInputFingerprintCache = std::make_unique<InputFingerprintCache>(mTempDirectory / "InputFingerprints.cache");
+	mpInputFingerprintCache = std::make_unique<InputFingerprintCache>(mCacheDirectory / "InputFingerprints.cache");
 
 	LOG(kDefault, kDebug, "Output directory: \"{}\"", mOutputDirectory.string());
 }

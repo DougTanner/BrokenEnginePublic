@@ -28,6 +28,7 @@ namespace toolcli
 			std::wstring session;
 			std::wstring plan;
 			std::wstring baseline;
+			std::wstring newBaseline;
 			std::wstring claimReceipt;
 			std::wstring claimReceiptSha256;
 			std::wstring terminalReceipt;
@@ -181,6 +182,10 @@ namespace toolcli
 				else if (option == L"--baseline")
 				{
 					destination = &rArguments.baseline;
+				}
+				else if (option == L"--new-baseline")
+				{
+					destination = &rArguments.newBaseline;
 				}
 				else if (option == L"--claim-receipt")
 				{
@@ -1147,8 +1152,8 @@ namespace toolcli
 				{
 					return Failure(L"validate", "baseline-read-failed", "could not enumerate baseline Plans");
 				}
-				auto baseline = baselinePlans.find(requestedPlan);
-				if (baseline == baselinePlans.end() || !baseline->second.bValid || !HasTerminalReceiptFor(rArguments, repo, worktree, requestedPlan, baseline->second.digest))
+				auto baselinePlan = baselinePlans.find(requestedPlan);
+				if (baselinePlan == baselinePlans.end() || !baselinePlan->second.bValid || !HasTerminalReceiptFor(rArguments, repo, worktree, requestedPlan, baselinePlan->second.digest))
 				{
 					return Conflict(L"validate", "plan-not-found", "--plan is not a current executable Plan or proven terminal baseline plan");
 				}
@@ -1230,10 +1235,12 @@ namespace toolcli
 				return Failure(L"claim-next", "primary-revision-failed", "could not resolve primary commit");
 			}
 			const std::optional<std::string> sessionCommit = ResolveCommit(worktree, L"HEAD");
-			if (!sessionCommit || *sessionCommit != *primaryCommit)
+			if (!sessionCommit || !RunGit({ L"--git-dir", repo, L"merge-base", L"--is-ancestor", Utf8ToWide(*sessionCommit), Utf8ToWide(*primaryCommit) }))
 			{
-				return Failure(L"claim-next", "git-identity-mismatch", "session worktree HEAD does not match selected primary commit");
+				return Failure(L"claim-next", "git-identity-mismatch", "session worktree HEAD is not an ancestor of the primary tip");
 			}
+			// Two Plan maps: the primary tip drives healing and terminal recovery so a behind session never heals a peer's
+			// claim on a plan present only at primary; the session tree drives selection bytes and dependency evaluation.
 			std::map<std::wstring, Plan> plans; nlohmann::json diagnostics = nlohmann::json::array();
 			if (!BuildPlansAtCommit(*primaryWorktree, Utf8ToWide(*primaryCommit), plans, diagnostics))
 			{
@@ -1241,8 +1248,16 @@ namespace toolcli
 			}
 			MarkCycles(plans, diagnostics);
 			nlohmann::json healed = nlohmann::json::array(); HealClaims(root, repo, plans, healed);
-			// A terminal transaction may have removed its target from the latest primary tree.  Its
-			// receipt remains retryable, but an ordinary missing claimed plan was healed above.
+			std::map<std::wstring, Plan> sessionPlans; nlohmann::json sessionDiagnostics = nlohmann::json::array();
+			if (!BuildPlansAtCommit(worktree, Utf8ToWide(*sessionCommit), sessionPlans, sessionDiagnostics))
+			{
+				return Failure(L"claim-next", "scan-failed", "could not load Plans from session worktree HEAD");
+			}
+			// One claim per session, discovered by scanning the claims directory independently of either Plan map.  A
+			// behind session may own a claim whose plan is present at the primary tip yet absent from its own HEAD tree
+			// (or the reverse); gating discovery on map membership would let such a claim escape both classifications and
+			// mint a duplicate.  A terminal transaction that removed its target from a tree keeps a retryable receipt
+			// regardless of membership, so terminal state alone (not primary-map absence) qualifies for the receipt return.
 			std::error_code claimScanError;
 			for (std::filesystem::directory_iterator it(ExtendedLengthPath(root / L"claims"), claimScanError), end; !claimScanError && it != end; it.increment(claimScanError))
 			{
@@ -1260,51 +1275,58 @@ namespace toolcli
 				{
 					continue;
 				}
+				Plan ownedPlan {};
+				ownedPlan.path = existingPlanPath;
+				ownedPlan.digest = existing.json.value("planSha256", "");
+				const std::filesystem::path existingPath = ClaimPath(root, existingPlanPath);
 				const std::string state = existing.json.value("state", "");
-				if ((state != "preparing" && state != "awaiting-landing") || plans.find(existingPlanPath) != plans.end())
+				if (state == "preparing" || state == "awaiting-landing")
 				{
-					continue;
+					nlohmann::json receipt;
+					if (!WriteClaimReceipt(rArguments, existingPath, ownedPlan, receipt))
+					{
+						return Failure(L"claim-next", "receipt-failed", "existing terminal claim retained because receipt creation failed");
+					}
+					PrintResult({ { "operation", "claim-next" }, { "status", "ok" }, { "code", "claimed" }, { "message", "existing terminal session claim returned" }, { "claimed", true }, { "plan", WideToUtf8(existingPlanPath) }, { "digest", ownedPlan.digest }, { "baseline", existing.json.value("primaryCommit", "") }, { "claimedAt", existing.json.value("claimedAt", "") }, { "expiresAt", existing.json.value("expiresAt", "") }, { "receipt", receipt }, { "healedClaims", healed } });
+					return kiExitOk;
 				}
-				Plan existingPlan {};
-				existingPlan.path = existingPlanPath;
-				existingPlan.digest = existing.json.value("planSha256", "");
-				nlohmann::json receipt;
-				if (!WriteClaimReceipt(rArguments, existing.path, existingPlan, receipt))
+				// Live claim returned idempotently.  Reconcile against session bytes only when the plan is still present in
+				// the session tree; a plan the session HEAD no longer carries has no session digest to compare against.
+				const auto sessionPlan = sessionPlans.find(existingPlanPath);
+				if (sessionPlan != sessionPlans.end() && ownedPlan.digest != sessionPlan->second.digest)
 				{
-					return Failure(L"claim-next", "receipt-failed", "existing terminal claim retained because receipt creation failed");
-				}
-				PrintResult({ { "operation", "claim-next" }, { "status", "ok" }, { "code", "claimed" }, { "message", "existing terminal session claim returned" }, { "claimed", true }, { "plan", WideToUtf8(existingPlanPath) }, { "digest", existingPlan.digest }, { "baseline", existing.json.value("primaryCommit", "") }, { "claimedAt", existing.json.value("claimedAt", "") }, { "expiresAt", existing.json.value("expiresAt", "") }, { "receipt", receipt }, { "healedClaims", healed } });
-				return kiExitOk;
-			}
-			for (const auto& [path, plan] : plans)
-			{
-				Claim existing;
-				const std::filesystem::path existingPath = ClaimPath(root, path);
-				if (!ReadClaim(existingPath, existing) || !ValidateClaim(existing.json, repo, path) || !ClaimMatchesSession(existing, rArguments, worktree))
-				{
-					continue;
-				}
-				if (existing.json.value("planSha256", "") != plan.digest)
-				{
-					return Conflict(L"claim-next", "digest-mismatch", "existing owned claim does not match primary plan bytes");
+					return Conflict(L"claim-next", "digest-mismatch", "existing owned claim does not match session plan bytes");
 				}
 				nlohmann::json receipt;
-				if (!WriteClaimReceipt(rArguments, existingPath, plan, receipt))
+				if (!WriteClaimReceipt(rArguments, existingPath, ownedPlan, receipt))
 				{
 					return Failure(L"claim-next", "receipt-failed", "existing claim retained because receipt creation failed");
 				}
-				PrintResult({ { "operation", "claim-next" }, { "status", "ok" }, { "code", "claimed" }, { "message", "existing session claim returned" }, { "claimed", true }, { "plan", WideToUtf8(path) }, { "digest", plan.digest }, { "baseline", existing.json.value("primaryCommit", "") }, { "claimedAt", existing.json.value("claimedAt", "") }, { "expiresAt", existing.json.value("expiresAt", "") }, { "receipt", receipt }, { "healedClaims", healed } }); return kiExitOk;
+				PrintResult({ { "operation", "claim-next" }, { "status", "ok" }, { "code", "claimed" }, { "message", "existing session claim returned" }, { "claimed", true }, { "plan", WideToUtf8(existingPlanPath) }, { "digest", ownedPlan.digest }, { "baseline", existing.json.value("primaryCommit", "") }, { "claimedAt", existing.json.value("claimedAt", "") }, { "expiresAt", existing.json.value("expiresAt", "") }, { "receipt", receipt }, { "healedClaims", healed } });
+				return kiExitOk;
+			}
+			// Fail closed on a real enumeration error.  A missing claims directory (fresh repo) sets no_such_file_or_directory
+			// and is benign — no existing claims, proceed to selection; any other error means the scan may have skipped this
+			// session's owned claim, and falling through would mint a duplicate, so refuse rather than violate one-claim-per-session.
+			if (claimScanError && claimScanError != std::errc::no_such_file_or_directory)
+			{
+				return Failure(L"claim-next", "claim-scan-failed", "could not enumerate existing claims");
 			}
 			std::vector<Plan*> candidates;
-			for (auto& [path, plan] : plans)
+			for (auto& [path, plan] : sessionPlans)
 			{
-				if (!plan.bValid || IsBlockedByDependencies(plan, plans))
+				if (!plan.bValid || IsBlockedByDependencies(plan, sessionPlans))
 				{
 					continue;
 				}
 				if (!requestedPlan.empty() && path != requestedPlan)
 				{
 					continue;
+				}
+				const auto primary = plans.find(path);
+				if (primary == plans.end() || !primary->second.bValid)
+				{
+					continue; // absent or demoted at the primary tip: a peer landing already completed or rejected it
 				}
 				candidates.push_back(&plan);
 			}
@@ -1318,7 +1340,7 @@ namespace toolcli
 					continue; // claim exists and was not session-owned per the plans-map loop — another session's claim or an unhealable record
 				}
 				const uint64_t uiClaimedAt = coordination::CurrentUtcTicks();
-				nlohmann::json claim = { { "schemaVersion", 1 }, { "repository", WideToUtf8(repo) }, { "plan", WideToUtf8(plan->path) }, { "owner", WideToUtf8(rArguments.owner) }, { "session", WideToUtf8(rArguments.session) }, { "worktree", WideToUtf8(worktree.wstring()) }, { "branch", WideToUtf8(rArguments.branch) }, { "primaryCommit", *primaryCommit }, { "planSha256", plan->digest }, { "claimedAt", coordination::FormatUtcTimestamp(uiClaimedAt) }, { "expiresAt", coordination::FormatUtcTimestamp(uiClaimedAt + kClaimLifetimeTicks) }, { "state", "claimed" } };
+				nlohmann::json claim = { { "schemaVersion", 1 }, { "repository", WideToUtf8(repo) }, { "plan", WideToUtf8(plan->path) }, { "owner", WideToUtf8(rArguments.owner) }, { "session", WideToUtf8(rArguments.session) }, { "worktree", WideToUtf8(worktree.wstring()) }, { "branch", WideToUtf8(rArguments.branch) }, { "primaryCommit", *sessionCommit }, { "planSha256", plan->digest }, { "claimedAt", coordination::FormatUtcTimestamp(uiClaimedAt) }, { "expiresAt", coordination::FormatUtcTimestamp(uiClaimedAt + kClaimLifetimeTicks) }, { "state", "claimed" } };
 				if (!coordination::EnsureParentDirectory(claimPath) || !coordination::WriteMetadataAtomic(claimPath, claim))
 				{
 					return Failure(L"claim-next", "claim-write-failed", "could not write claim record");
@@ -1329,9 +1351,12 @@ namespace toolcli
 					::DeleteFileW(ExtendedLengthPath(claimPath).c_str());
 					return Failure(L"claim-next", "receipt-failed", "claim rolled back because receipt creation failed");
 				}
-				PrintResult({ { "operation", "claim-next" }, { "status", "ok" }, { "code", "claimed" }, { "message", "plan claimed" }, { "claimed", true }, { "plan", WideToUtf8(plan->path) }, { "digest", plan->digest }, { "baseline", *primaryCommit }, { "claimedAt", claim["claimedAt"] }, { "expiresAt", claim["expiresAt"] }, { "receipt", receipt }, { "healedClaims", healed } }); return kiExitOk;
+				PrintResult({ { "operation", "claim-next" }, { "status", "ok" }, { "code", "claimed" }, { "message", "plan claimed" }, { "claimed", true }, { "plan", WideToUtf8(plan->path) }, { "digest", plan->digest }, { "baseline", *sessionCommit }, { "claimedAt", claim["claimedAt"] }, { "expiresAt", claim["expiresAt"] }, { "receipt", receipt }, { "healedClaims", healed } }); return kiExitOk;
 			}
-			PrintResult({ { "operation", "claim-next" }, { "status", "ok" }, { "code", "none-available" }, { "message", "no eligible Plans plan is available" }, { "claimed", false }, { "blockers", diagnostics }, { "healedClaims", healed } });
+			// Surface both Plan maps' diagnostics: primary-tip (and its cycle marks) plus session-tree scan, so none is dropped.
+			nlohmann::json blockers = diagnostics;
+			blockers.insert(blockers.end(), sessionDiagnostics.begin(), sessionDiagnostics.end());
+			PrintResult({ { "operation", "claim-next" }, { "status", "ok" }, { "code", "none-available" }, { "message", "no eligible Plans plan is available" }, { "claimed", false }, { "blockers", blockers }, { "healedClaims", healed } });
 			return kiExitOk;
 		}
 
@@ -1751,13 +1776,235 @@ namespace toolcli
 			PrintResult({ { "operation", "release-after-landing" }, { "status", "ok" }, { "code", "released" }, { "message", "terminal claim released" }, { "released", true }, { "alreadyReleased", false }, { "terminalStateVerified", true }, { "landedCommit", landedCommit } });
 			return kiExitOk;
 		}
+
+		std::optional<std::string> ResolveRebaseHeadBranch(const std::filesystem::path& rWorktree)
+		{
+			// A conflicted `rebase --onto` leaves HEAD detached; the interrupted rebase records the original
+			// branch in the per-worktree git dir, so reparent can still match claims mid-conflict.
+			std::optional<std::string> gitDirectory = RunGit({ L"-C", rWorktree.wstring(), L"rev-parse", L"--path-format=absolute", L"--git-dir" });
+			if (!gitDirectory)
+			{
+				return std::nullopt;
+			}
+			TrimLineEnding(*gitDirectory);
+			std::string headName;
+			if (!ReadBytes(std::filesystem::path(Utf8ToWide(*gitDirectory)) / L"rebase-merge" / L"head-name", headName))
+			{
+				return std::nullopt;
+			}
+			TrimLineEnding(headName);
+			static constexpr std::string_view kBranchPrefix = "refs/heads/";
+			if (!headName.starts_with(kBranchPrefix) || headName.size() == kBranchPrefix.size())
+			{
+				return std::nullopt;
+			}
+			return headName.substr(kBranchPrefix.size());
+		}
+
+		bool ReplaceReceiptBytes(const std::filesystem::path& rReceipt, const std::string& rBytes)
+		{
+			// Rewrite an existing receipt in place while preserving WriteClaimReceipt's normal-file shape:
+			// write a sibling temporary, then atomically replace.
+			static uint32_t suiSequence = 0;
+			const std::filesystem::path target = ExtendedLengthPath(rReceipt);
+			std::filesystem::path temporary = target;
+			temporary += L".tmp." + std::to_wstring(::GetCurrentProcessId()) + L"." + std::to_wstring(++suiSequence);
+			Handle receipt(::CreateFileW(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
+			if (!receipt.IsValid())
+			{
+				return false;
+			}
+			DWORD written = 0;
+			const bool bOk = ::WriteFile(receipt.Get(), rBytes.data(), static_cast<DWORD>(rBytes.size()), &written, nullptr) != FALSE && written == rBytes.size() && ::FlushFileBuffers(receipt.Get()) != FALSE;
+			receipt.Reset();
+			if (bOk && ::MoveFileExW(temporary.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE)
+			{
+				return true;
+			}
+			::DeleteFileW(temporary.c_str());
+			return false;
+		}
+
+		// The wrapper re-parents its worktree with `git rebase --onto <newBaseline> <oldBaseline> <branch>`
+		// outside the scheduler guard, then calls this op to move its live claim (and matching Temp receipts)
+		// onto the squashed tip.  Two invariants the caller must honor:
+		//   * Accepted residual: a sub-second window exists between the wrapper's rebase and this op in which a
+		//     concurrent machine-local `plan validate`/`claim-next` could HealClaims-delete the not-yet-reparented
+		//     claim, because its old primaryCommit is no longer an ancestor of the rebased worktree HEAD.  The
+		//     window is wrapper-internal, so the rebase is not moved inside the guarded CLI.
+		//   * Mid-conflict prohibition: while a conflicted rebase is unresolved HEAD is detached, so any
+		//     `plan validate`/`claim-next` heal-deletes the freshly reparented claim — ResolveGitBranch returns
+		//     nullopt and HealClaims' branch check fails before the ancestry check is reached.  Callers must run
+		//     no scheduler op until `git rebase --continue` reattaches HEAD.
+		int RunReparentClaims(const Arguments& rArguments)
+		{
+			std::wstring repo; std::filesystem::path worktree;
+			if (!ResolveContext(rArguments, repo, worktree))
+			{
+				return Failure(L"reparent-claims", "invalid-context", "reparent-claims requires a Git common directory --repo shared by --worktree");
+			}
+			const std::string newBaseline = WideToUtf8(rArguments.newBaseline);
+			if (!IsLowerHex(newBaseline, 40))
+			{
+				return Failure(L"reparent-claims", "invalid-baseline", "reparent-claims requires a 40-hex --new-baseline");
+			}
+			const std::filesystem::path root = SchedulerRoot(repo);
+			const std::filesystem::path guardPath = root / L"scheduler.guard";
+			if (!coordination::EnsureParentDirectory(guardPath))
+			{
+				return Failure(L"reparent-claims", "storage-failed", "could not create scheduler storage");
+			}
+			coordination::Guard guard(guardPath);
+			if (!guard.IsValid())
+			{
+				return Conflict(L"reparent-claims", "busy", "scheduler guard is held");
+			}
+			if (!CommitIsAncestorOfWorktreeHead(newBaseline, worktree))
+			{
+				return Conflict(L"reparent-claims", "worktree-not-reparented", "new baseline is not an ancestor of the worktree HEAD");
+			}
+			std::optional<std::string> branch = ResolveGitBranch(worktree);
+			if (!branch)
+			{
+				branch = ResolveRebaseHeadBranch(worktree);
+			}
+			if (!branch)
+			{
+				return Conflict(L"reparent-claims", "branch-unresolved", "worktree HEAD is detached without a resolvable rebase branch");
+			}
+			nlohmann::json reparentedClaims = nlohmann::json::array();
+			nlohmann::json updatedReceipts = nlohmann::json::array();
+			const std::filesystem::path claims = root / L"claims";
+			std::error_code error;
+			for (std::filesystem::directory_iterator it(ExtendedLengthPath(claims), error), end; !error && it != end; it.increment(error))
+			{
+				if (!it->is_regular_file(error) || error || it->path().extension() != L".json")
+				{
+					continue;
+				}
+				Claim claim;
+				std::wstring planPath;
+				if (!ReadClaim(it->path(), claim) || !claim.json.contains("plan") || !claim.json["plan"].is_string()
+					|| !NormalizePlanPath(Utf8ToWide(claim.json["plan"].get<std::string>()), planPath)
+					|| !ValidateClaim(claim.json, repo, planPath) || !ClaimIsLive(claim))
+				{
+					continue;
+				}
+				// Select exactly the claims HealClaims would delete: bound to this worktree and branch, not
+				// already on the new tip, and no longer an ancestor of the worktree HEAD.  Claim-next stamps
+				// primaryCommit from the session HEAD (a primary-tip ancestor, possibly newer than the wrapper
+				// receipt baseline), so keying on a fixed old baseline would miss such a claim and leave it to be
+				// heal-deleted.
+				const std::string oldPrimary = claim.json["primaryCommit"].get<std::string>();
+				if (claim.json["worktree"].get<std::string>() != WideToUtf8(worktree.wstring())
+					|| claim.json["branch"].get<std::string>() != *branch
+					|| oldPrimary == newBaseline
+					|| CommitIsAncestorOfWorktreeHead(oldPrimary, worktree))
+				{
+					continue;
+				}
+				const std::string oldInitialDigest = ClaimReceiptDigest(claim.json, claim.digest);
+				claim.json["primaryCommit"] = newBaseline;
+				if (!coordination::WriteMetadataAtomic(claim.path, claim.json))
+				{
+					return Failure(L"reparent-claims", "claim-write-failed", "could not persist reparented claim");
+				}
+				Claim reparented;
+				if (!ReadClaim(claim.path, reparented))
+				{
+					// Best-effort restore the claim's own old primaryCommit so a rerun re-selects it (again orphaned
+					// from the worktree HEAD) and retries; otherwise the claim carries newBaseline while receipts still
+					// chain to the old digest.  A crash between the two WriteMetadataAtomic writes leaves that same
+					// divergence and is the plan's accepted granularity.
+					claim.json["primaryCommit"] = oldPrimary;
+					coordination::WriteMetadataAtomic(claim.path, claim.json);
+					return Failure(L"reparent-claims", "claim-read-failed", "could not reread reparented claim");
+				}
+				const std::string newInitialDigest = ClaimReceiptDigest(reparented.json, reparented.digest);
+				reparentedClaims.push_back(WideToUtf8(planPath));
+
+				// Rewrite this claim's chained Temp receipts.  Match on the ClaimPath value a receipt records
+				// (mirroring ReadReceiptIdentity), not the enumerated extended-length claim path.
+				const std::string claimPathText = WideToUtf8(ClaimPath(root, planPath).wstring());
+				const std::filesystem::path temp = worktree / L"Temp";
+				const DWORD tempAttributes = ::GetFileAttributesW(ExtendedLengthPath(temp).c_str());
+				if (tempAttributes == INVALID_FILE_ATTRIBUTES || (tempAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0 || (tempAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+				{
+					continue;
+				}
+				std::error_code receiptError;
+				for (std::filesystem::directory_iterator receiptIt(ExtendedLengthPath(temp), receiptError), receiptEnd; !receiptError && receiptIt != receiptEnd; receiptIt.increment(receiptError))
+				{
+					if (receiptIt->path().extension() != L".json")
+					{
+						continue;
+					}
+					const std::filesystem::path receiptPath = temp / receiptIt->path().filename();
+					const DWORD attributes = ::GetFileAttributesW(ExtendedLengthPath(receiptPath).c_str());
+					if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0)
+					{
+						continue;
+					}
+					std::string receiptBytes;
+					if (!ReadBytes(receiptPath, receiptBytes))
+					{
+						continue;
+					}
+					nlohmann::json receiptJson;
+					try
+					{
+						receiptJson = nlohmann::json::parse(receiptBytes);
+					}
+					catch (const nlohmann::json::exception&)
+					{
+						continue;
+					}
+					if (!receiptJson.is_object() || receiptJson.size() != 11 || !receiptJson.contains("schemaVersion") || !receiptJson["schemaVersion"].is_number_integer() || receiptJson["schemaVersion"].get<int>() != 1)
+					{
+						continue;
+					}
+					bool bWellFormed = true;
+					for (const char* field : { "claimPath", "claimSha256", "repository", "plan", "owner", "session", "worktree", "branch", "primaryCommit", "planSha256" })
+					{
+						if (!receiptJson.contains(field) || !receiptJson[field].is_string() || receiptJson[field].get<std::string>().empty())
+						{
+							bWellFormed = false;
+							break;
+						}
+					}
+					if (!bWellFormed || !IsLowerHex(receiptJson["claimSha256"].get<std::string>(), 64) || !IsLowerHex(receiptJson["primaryCommit"].get<std::string>(), 40) || !IsLowerHex(receiptJson["planSha256"].get<std::string>(), 64))
+					{
+						continue;
+					}
+					if (receiptJson["claimPath"].get<std::string>() != claimPathText || receiptJson["claimSha256"].get<std::string>() != oldInitialDigest || receiptJson["primaryCommit"].get<std::string>() != oldPrimary)
+					{
+						continue;
+					}
+					receiptJson["primaryCommit"] = newBaseline;
+					receiptJson["claimSha256"] = newInitialDigest;
+					const std::string rewritten = receiptJson.dump();
+					if (!ReplaceReceiptBytes(receiptPath, rewritten))
+					{
+						// Best-effort restore the claim's own old primaryCommit so a rerun re-selects it and rewrites the
+						// remaining receipts; already-rewritten receipts reproduce identical digests on retry.  A crash
+						// mid-restore leaves the claim/receipt divergence and is the plan's accepted fail-closed granularity.
+						claim.json["primaryCommit"] = oldPrimary;
+						coordination::WriteMetadataAtomic(claim.path, claim.json);
+						return Failure(L"reparent-claims", "receipt-write-failed", "could not rewrite claim receipt");
+					}
+					updatedReceipts.push_back({ { "path", WideToUtf8(receiptPath.wstring()) }, { "sha256", coordination::HashSha256(rewritten).value_or("") } });
+				}
+			}
+			PrintResult({ { "operation", "reparent-claims" }, { "status", "ok" }, { "code", reparentedClaims.empty() ? "no-claims" : "reparented" }, { "message", reparentedClaims.empty() ? "no live claim matched the old baseline" : "claim baseline reparented onto the new tip" }, { "reparentedClaims", reparentedClaims }, { "updatedReceipts", updatedReceipts } });
+			return kiExitOk;
+		}
 	}
 
 	int RunPlanSchedulerCommand(int iArgumentCount, wchar_t* pArgumentValues[])
 	{
 		if (iArgumentCount < 3)
 		{
-			return Failure(L"plan", "usage", "plan requires validate, claim-next, claim-status, unclaim, prepare-completion, prepare-rejection, or release-after-landing");
+			return Failure(L"plan", "usage", "plan requires validate, claim-next, claim-status, unclaim, prepare-completion, prepare-rejection, reparent-claims, or release-after-landing");
 		}
 		const std::wstring operation = ToLowerInvariant(pArgumentValues[2]);
 		Arguments arguments {};
@@ -1788,6 +2035,10 @@ namespace toolcli
 		if (operation == L"release-after-landing")
 		{
 			return RunReleaseAfterLanding(arguments);
+		}
+		if (operation == L"reparent-claims")
+		{
+			return RunReparentClaims(arguments);
 		}
 		return Failure(operation, "usage", "unknown plan operation");
 	}

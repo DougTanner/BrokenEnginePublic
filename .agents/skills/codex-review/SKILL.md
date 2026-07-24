@@ -15,8 +15,8 @@ Claude Code runs every delegated reviewer or auditor role — `plan-audit`,
 skill. A `/codex-review` invocation of a target skill constitutes the
 delegated-`reviewer` execution context; it is not an "inline run" in the target
 skills' vocabulary, and `/verify-changes` records it as the reviewer pass. Codex
-callers must stop instead of invoking this skill recursively — under the
-Fable->Sol mapping they are already Sol.
+callers must stop instead of invoking this skill recursively — their reviewer
+role already resolves to Sol.
 
 ## Inputs
 
@@ -65,8 +65,8 @@ review rounds.
 
 If the helper fails or returns unusable output, note
 `CODEX-UNAVAILABLE: <short reason>` with the unchanged target and dispatch the
-same assignment to the normal Fable `reviewer` subagent. If Fable is also
-unavailable, retry at most once as `subagent_type: "general-purpose"` with
+same assignment to the normal Opus `reviewer` subagent. If that subagent type is
+also unavailable, retry at most once as `subagent_type: "general-purpose"` with
 `model: "opus"` and the reviewer or auditor role stated at the top of the
 prompt. Do not retry Codex or add another reviewer for consensus.
 

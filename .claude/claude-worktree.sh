@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 repository_root="$(git rev-parse --show-toplevel)"
-legacy_flag=()
 reattach_flag=()
 client_args=("--dangerously-skip-permissions")
 while (($#)); do
 	case "$1" in
-		--legacy-sessions-closed)
-			legacy_flag=(-LegacySessionsClosed)
-			shift
-			;;
 		--reattach-worktree)
 			if (($# < 2)) || [[ -z "$2" ]]; then
 				echo "--reattach-worktree requires a worktree path" >&2
@@ -40,4 +35,4 @@ done
 client_arguments_encoded="$(printf '%s\0' "${client_args[@]}" | base64 -w0)"
 export BROKEN_ENGINE_CLIENT_ARGUMENTS="$client_arguments_encoded"
 exec pwsh -NoProfile -ExecutionPolicy Bypass -File "$repository_root/.agents/scripts/Start-AgentWorktreeSession.ps1" \
-	-Client claude -RepositoryRoot "$(cygpath -w "$repository_root")" "${legacy_flag[@]}" "${reattach_flag[@]}"
+	-Client claude -RepositoryRoot "$(cygpath -w "$repository_root")" "${reattach_flag[@]}"

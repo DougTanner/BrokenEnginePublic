@@ -1,6 +1,6 @@
 # Texture Export Helpers
 
-Texture transforms, intermediate-file I/O, RDO sweeps, and legacy-intermediate migration. The parent [ExportJobs hub](../AGENTS.md) owns asset matching and final chunk routing.
+Texture transforms, intermediate-file I/O, RDO sweeps, and legacy-intermediate migration. The parent ExportJobs hub (`../AGENTS.md`) owns asset matching and final chunk routing.
 
 ## Intermediate Contract
 
@@ -20,6 +20,5 @@ RDO sweeps compare candidate encodes using the same intermediate parser and curr
 
 ## See Also
 
-- [`../AGENTS.md`](../AGENTS.md) - texture matching, routing, chunk compression, and safe-export policy
-- [`../Island/AGENTS.md`](../Island/AGENTS.md) - island texture producers and masking order
-- [`../../../../Engine/Source/File/AGENTS.md`](../../../../Engine/Source/File/AGENTS.md) - runtime chunk decompression
+- `../Island/AGENTS.md` - island texture producers and masking order
+- `../../../../Engine/Source/File/AGENTS.md` - runtime chunk decompression

@@ -6,11 +6,11 @@ Solution and project that compile all compiled third-party library source into a
 
 ## Build Configuration
 
-- **Output**: Static library, per-configuration `TargetName` (`ThirdParty.Debug`, `ThirdParty.Profile`, `ThirdParty.Release`) in `Output/`; intermediates in `Build/<Config>/`
-- **Configurations**: Debug, Profile, Release (x64 only)
-- **Compiler**: C++23, `/fp:strict` (deterministic math, matching Engine/Game), static CRT (`/MTd` Debug, `/MT` otherwise — matches the executables), `/GL` in Profile/Release (codegen defers to the consumer's LTCG link), RTTI off, `/EHa`, OpenMP, `/bigobj`, `/Zc:__cplusplus`, no PCH, all warnings disabled (external code), MultiByte charset
-- **Defines**: `USING_XINPUT`, `VK_NO_PROTOTYPES`, `VK_USE_PLATFORM_WIN32_KHR`
-- **Requires**: `VK_SDK_PATH` environment variable for Vulkan SDK headers
+- Output: Static library, per-configuration `TargetName` (`ThirdParty.Debug`, `ThirdParty.Profile`, `ThirdParty.Release`) in `Output/`; intermediates in `Build/<Config>/`
+- Configurations: Debug, Profile, Release (x64 only)
+- Compiler: C++23, `/fp:strict` (deterministic math, matching Engine/Game), static CRT (`/MTd` Debug, `/MT` otherwise — matches the executables), `/GL` in Profile/Release (codegen defers to the consumer's LTCG link), RTTI off, `/EHa`, OpenMP, `/bigobj`, `/Zc:__cplusplus`, no PCH, all warnings disabled (external code), MultiByte charset
+- Defines: `USING_XINPUT`, `VK_NO_PROTOTYPES`, `VK_USE_PLATFORM_WIN32_KHR`
+- Requires: `VK_SDK_PATH` environment variable for Vulkan SDK headers
 
 ## Consumer Provisioning
 
@@ -18,7 +18,7 @@ Supported launchers link stable primary submodule trees and primary `Output/` in
 
 ## Source Organization
 
-The `.vcxproj` filters split units by consumer (`Engine`, `DataPacker`, `DataPacker\zlib`); see the parent [ThirdParty/AGENTS.md](../../../AGENTS.md) for the per-library consumer inventory and the license policy (including the `lz4/lib`-only caveat). Compilation units come from two roots: unity wrapper `.cpp`/`.c` files under `ThirdParty/Prebuilts/Source/{Engine,DataPacker}/`, and upstream sources referenced directly in their library directories (bc7enc_rdo, zlib).
+The `.vcxproj` filters split units by consumer (`Engine`, `DataPacker`, `DataPacker\zlib`); see the parent `../../../AGENTS.md` for the per-library consumer inventory and the license policy (including the `lz4/lib`-only caveat). Compilation units come from two roots: unity wrapper `.cpp`/`.c` files under `ThirdParty/Prebuilts/Source/{Engine,DataPacker}/`, and upstream sources referenced directly in their library directories (bc7enc_rdo, zlib).
 
 When adding a new library:
 

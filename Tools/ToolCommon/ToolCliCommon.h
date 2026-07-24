@@ -9,7 +9,12 @@
 #include <string_view>
 #include <vector>
 
+// nlohmann::json (vendored under tinygltf). The warning-suppression pragma travels with the header,
+// mirroring Common/ExternalHeaders.h for the PCH-backed builds.
+#pragma warning(push)
+#pragma warning(disable : 5311) // nlohmann::json 3.10.4 uses the pre-C++20 literal-operator-id form 'operator "" _json'
 #include "tinygltf/json.hpp"
+#pragma warning(pop)
 
 namespace toolcli
 {

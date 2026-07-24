@@ -29,8 +29,8 @@ do not synthesize a collection from a generic full-header template.
    registration, project membership, and harness query exposure. If the named
    symbols no longer demonstrate the stated variant, stop and report the stale
    guidance instead of substituting another pattern silently.
-4. Explicitly invoke [`add-collection-member`](../add-collection-member/SKILL.md)
-   for **each** new SOA `* __restrict` column and complete its layout checklist.
+4. Explicitly invoke `add-collection-member` (`../add-collection-member/SKILL.md`)
+   for each new SOA `* __restrict` column and complete its layout checklist.
    This skill owns collection-level wiring; that skill owns every column.
 
 | Requested variant | Live exemplar files and symbols | Pattern to preserve |
@@ -109,39 +109,39 @@ lifecycle, such as Sounds' client-only UUID stream, not on the flag itself.
 
 ## Failure-Sensitive Checklist
 
-- [ ] **Ownership/location:** engine versus game and shared versus client-only
+- [ ] Ownership/location: engine versus game and shared versus client-only
   ownership are explicit; Interpolate/PostRender files and guards match it.
-- [ ] **Members:** every SOA column ran `add-collection-member`; tuple variants,
+- [ ] Members: every SOA column ran `add-collection-member`; tuple variants,
   ordering, extern declarations, and explicit instantiations match the chosen
   exemplar.
-- [ ] **Registration:** both frame halves are stored and registered; engine
+- [ ] Registration: both frame halves are stored and registered; engine
   counts and server tuples or game pointers, constructors, includes, and tuples
   are complete; producer precedes consumer.
-- [ ] **Version sum:** both per-struct terms exist for game or server-visible
+- [ ] Version sum: both per-struct terms exist for game or server-visible
   engine state; pure client-only engine state is excluded.
-- [ ] **Construction/initialization:** paired growth keeps counts aligned and
+- [ ] Construction/initialization: paired growth keeps counts aligned and
   every new row/owned handle is initialized before CRC or use.
-- [ ] **Phases:** required generic Register, GraphicsResources, AllocateAndCopy,
+- [ ] Phases: required generic Register, GraphicsResources, AllocateAndCopy,
   Update, collision, AreaDamage, Transfer, Destroy, Spawn, and render hooks are
   present or intentionally no-op with exact dispatch signatures.
-- [ ] **Serialization/CRC:** `Members`, `SharedMembers`, and optional
+- [ ] Serialization/CRC: `Members`, `SharedMembers`, and optional
   `SharedCrcMembers` have correct subset and wire order; tuple registration
   reaches Write/Read and, for server-visible state, ServerRead, CRC, and
   LogDifferences.
-- [ ] **Copy:** `AllocateAndCopy` allocates the full tuple and preserves each
+- [ ] Copy: `AllocateAndCopy` allocates the full tuple and preserves each
   field whose Update path does not unconditionally rewrite it.
-- [ ] **Identity:** ID maps are added only when needed and maintained through
+- [ ] Identity: ID maps are added only when needed and maintained through
   the appropriate add/remove helpers or a justified custom path.
-- [ ] **Transfer:** transferable state has matching send and receive wiring;
+- [ ] Transfer: transferable state has matching send and receive wiring;
   source-owned client objects are removed and destination objects recreated.
-- [ ] **Hydration:** shared collections with client-owned objects initialize
+- [ ] Hydration: shared collections with client-owned objects initialize
   them at local spawn and after server state arrives (`ClientInit`/
   `ClientInitAll` pattern).
-- [ ] **Project membership:** invoke
-  [`update-vcxproj`](../update-vcxproj/SKILL.md) for every added file. Shared
+- [ ] Project membership: invoke
+  `update-vcxproj` (`../update-vcxproj/SKILL.md`) for every added file. Shared
   files belong to client and server projects; whole-file client-only files only
   to the client; filters mirror disk paths.
-- [ ] **Harness query decision:** inspect
+- [ ] Harness query decision: inspect
   `Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsServerQueries.cpp` for
   server-visible state. If scenarios need it, add the include, `Extract*`,
   `query_frame` count, `query_collection` arm, and allowed-name error text; if

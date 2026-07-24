@@ -7,12 +7,12 @@ disable-model-invocation: true
 
 # Skill Creator
 
-Create or improve a skill from the user's intent, repository conventions, and evidence from existing workflows. Keep shared instructions client-neutral; isolate client syntax and invocation controls in [`references/client-compatibility.md`](references/client-compatibility.md).
+Create or improve a skill from the user's intent, repository conventions, and evidence from existing workflows. Keep shared instructions client-neutral; isolate client syntax and invocation controls in `references/client-compatibility.md`.
 
 ## Workflow
 
 1. Extract what the conversation already establishes: capability, trigger contexts, inputs, outputs, success criteria, dependencies, and corrections. Ask only for material gaps.
-2. Inspect applicable repository instructions and nearby skills. Read [`../validate-skill/references/frontmatter-schema.md`](../validate-skill/references/frontmatter-schema.md) before writing frontmatter and the compatibility reference before adding client-specific behavior.
+2. Inspect applicable repository instructions and nearby skills. Read `../validate-skill/references/frontmatter-schema.md` before writing frontmatter and the compatibility reference before adding client-specific behavior.
 3. Choose the smallest useful package: `SKILL.md` for the durable workflow; `references/` for details loaded on demand; `scripts/` for repeatable mechanics; `assets/` for output resources.
 4. Draft imperative, general instructions. Explain constraints where the reason helps judgment. Preserve an existing skill's directory and frontmatter name unless the user requests a migration.
 5. Re-read the result with fresh eyes. Remove duplicated guidance, speculative options, and examples that do not clarify a non-trivial requirement.

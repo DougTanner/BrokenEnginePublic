@@ -82,20 +82,20 @@ Do not return summaries such as "clarify threading" or "use option A."
 
 Probe only surfaces the plan actually touches:
 
-- **Shape and ownership:** unresolved alternatives; owning layer, translation
+- Shape and ownership: unresolved alternatives; owning layer, translation
   unit, type, or phase; delete versus reserve; interface shape; reuse of an
   existing `common::` or vendored mechanism.
-- **Behavior and scale:** hidden semantic changes, ordering/error/default
+- Behavior and scale: hidden semantic changes, ordering/error/default
   behavior, unjustified constants or granularity, unbounded sparse-world scale,
   and kilometer-scale coordinates.
-- **Determinism and compatibility:** client/server equivalence, floating-point
+- Determinism and compatibility: client/server equivalence, floating-point
   or iteration order, CRC participation and `LogDifferences`, wire IDs,
   `kiVersion`/pack layout, save/replay compatibility, and interpolation versus
   snapping.
-- **Execution safety:** Update/PostRender/Interpolate phase, dispatch ownership
+- Execution safety: Update/PostRender/Interpolate phase, dispatch ownership
   and shared writes, collection allocation/copy/spawn/transfer alignment,
   main-loop allocation tracking and workbuffer use.
-- **Integration:** client/server guard scope, build/project/filter membership,
+- Integration: client/server guard scope, build/project/filter membership,
   PCH include placement, engine/game layer boundaries, consumers and mirrored
   sites, roles, and acceptance checks with independent signals for duplicates.
 

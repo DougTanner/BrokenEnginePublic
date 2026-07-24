@@ -1,10 +1,10 @@
 
 # Deterministic fixtures for Invoke-AgentToolsPromotion.ps1 against a scratch
 # primary repository: v2-only receipt identity, source and binary tampering,
-# unlanded commit, candidate/source mismatch, session and maintenance blocking,
-# cooperating-session promotion, first-rollout and re-promotion success,
-# failed post-promotion capability validation with verified rollback, and a
-# second-replacement failure with verified rollback. Requires a real
+# unlanded commit, candidate/source mismatch, a live transient operation claim
+# deferring promotion, cooperating-owner promotion, first-rollout and absent-ledger
+# re-promotion success, failed post-promotion capability validation with verified
+# rollback, and a second-replacement failure with verified rollback. Requires a real
 # capability-passing executable pair to act as candidates (for example the
 # candidate pair from New-AgentToolsCandidate.ps1). Never point this at the real
 # primary checkout; every scenario runs in its own scratch repository whose
@@ -21,6 +21,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\AgentWorktreeSession.psm1') -Force -DisableNameChecking
 
 $script:Failures = [Collections.Generic.List[string]]::new()
 $promotionScript = Join-Path $PSScriptRoot 'Invoke-AgentToolsPromotion.ps1'
@@ -93,12 +94,8 @@ $scratchBase = Assert-SafeScratchRoot $scratchParent (Join-Path $scratchParent $
 $primary = Join-Path $scratchBase 'primary'
 $localAppData = Join-Path $scratchBase 'local-app-data'
 $previousLocalAppData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
-$initialOwner = $null
-$initialRegistered = $false
 $sessionOwner = $null
 $sessionRegistered = $false
-$maintenanceOwner = $null
-$maintenanceHeld = $false
 $fixtureExitCode = 0
 
 try {
@@ -120,7 +117,7 @@ $baseJsonOwner = (@(Invoke-ScratchGit $submoduleSource @('rev-parse', 'HEAD')))[
 Invoke-ScratchGit $primary @('-c', 'protocol.file.allow=always', 'submodule', 'add', '--quiet', $submoduleSource, 'ThirdParty/tinygltf') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $primary '.agents\scripts') | Out-Null
 Copy-Item -LiteralPath $capabilitySource -Destination (Join-Path $primary '.agents\scripts\Test-AgentToolsCapabilities.ps1') -Force
-foreach ($module in @('AgentScriptCommon.psm1', 'WorktreeCliSessionExclusion.psm1')) {
+foreach ($module in @('AgentScriptCommon.psm1', 'WorktreeCliSessionExclusion.psm1', 'AgentWorktreeSession.psm1')) {
 	Copy-Item -LiteralPath (Join-Path $moduleSource $module) -Destination (Join-Path $primary ".agents\scripts\$module") -Force
 }
 Set-Content (Join-Path $primary '.gitignore') "Temp`nOutput"
@@ -128,12 +125,8 @@ Invoke-ScratchGit $primary @('add', '-A') | Out-Null
 Invoke-ScratchGit $primary @('commit', '-m', 'fixture base') | Out-Null
 $landed = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
 
-# Initialize the scratch repository's isolated coordination ledger.
-$initialOwner = [guid]::NewGuid().ToString()
-Register-WorktreeCliSession -RepositoryRoot $primary -Owner $initialOwner -Label 'fixture-init' -Worktree $primary -LegacySessionsClosed | Out-Null
-$initialRegistered = $true
-Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $initialOwner
-$initialRegistered = $false
+# The coordination ledger self-initializes on the first transient claim; an absent ledger reads
+# as an empty claim set for exclusive operations, so no explicit initialization is needed here.
 
 function New-CandidateReceipt([string] $Root, [string] $WorktreeCliSource, [string] $AgentHarnessSource, [string] $Suffix = '') {
 	$candidateRoot = Join-Path $Root "Temp\AgentToolsCandidate$Suffix"
@@ -253,32 +246,31 @@ $receipt = New-CandidateReceipt $primary $WorktreeCliExecutable $AgentHarnessExe
 # capability. The candidate remains receipt/hash certified and is never
 # installed into canonical Output before a landing.
 $bootstrapSession = Join-Path $scratchBase 'bootstrap-session'
+$bootstrapUuid = [guid]::NewGuid().ToString()
 $bootstrapOwner = [guid]::NewGuid().ToString()
-$bootstrapEnvironment = @{}
-Invoke-ScratchGit $primary @('worktree', 'add', '-q', '-b', 'bootstrap-session', $bootstrapSession, $landed) | Out-Null
+$bootstrapBranch = "codex/$bootstrapUuid"
+Invoke-ScratchGit $primary @('worktree', 'add', '-q', '-b', $bootstrapBranch, $bootstrapSession, $landed) | Out-Null
 try {
 	[IO.File]::WriteAllText((Join-Path $bootstrapSession 'bootstrap.txt'), 'candidate bootstrap fixture', [Text.UTF8Encoding]::new($false))
 	Invoke-ScratchGit $bootstrapSession @('add', 'bootstrap.txt') | Out-Null
 	Invoke-ScratchGit $bootstrapSession @('commit', '-m', 'bootstrap fixture session') | Out-Null
 	$bootstrapTip = (@(Invoke-ScratchGit $bootstrapSession @('rev-parse', 'HEAD')))[0].Trim()
+	# The session-landing preflight authority is the in-worktree receipt; write one bound to the
+	# bootstrap session so every capable/candidate preflight below reaches the capability gate.
+	$bootstrapPrimaryIdentity = Get-AgentWorktreePrimaryIdentity $primary
+	$bootstrapReceipt = New-AgentWorktreeSessionReceipt -Client codex -PrimaryCheckout $bootstrapPrimaryIdentity.Root -GitCommonDirectory $bootstrapPrimaryIdentity.CommonDirectory `
+		-Worktree $bootstrapSession -WorktreeId $bootstrapUuid -Branch $bootstrapBranch -TargetBranch 'main' -Baseline $landed -SessionOwner $bootstrapOwner
+	Write-AgentWorktreeSessionReceipt -Worktree $bootstrapSession -Receipt $bootstrapReceipt | Out-Null
 	$bootstrapOutputParent = Join-Path $bootstrapSession 'Tools\WorktreeCli\Platforms\VisualStudio2026'
 	New-Item -ItemType Directory -Force $bootstrapOutputParent | Out-Null
 	New-Item -ItemType Directory -Force (Split-Path -Parent $canonicalWorktreeCli) | Out-Null
 	New-Item -ItemType Junction -Path (Join-Path $bootstrapOutputParent 'Output') -Target (Split-Path -Parent $canonicalWorktreeCli) | Out-Null
 	Copy-Item -LiteralPath $WorktreeCliExecutable -Destination $canonicalWorktreeCli -Force
 	Replace-AsciiBytes $canonicalWorktreeCli 'WorktreeCli.exe plan release-after-landing' 'WorktreeCli.exe plan release-after-landinx'
-	$bootstrapProvenance = [ordered]@{
-		BROKEN_ENGINE_WORKTREE_PATH = $bootstrapSession
-		BROKEN_ENGINE_SESSION_BRANCH = 'bootstrap-session'
-		BROKEN_ENGINE_PRIMARY_CHECKOUT = $primary
-		BROKEN_ENGINE_TARGET_BRANCH = 'main'
-		BROKEN_ENGINE_BASELINE = $landed
-		BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER = $bootstrapOwner
-	}
-	foreach ($entry in $bootstrapProvenance.GetEnumerator()) { $bootstrapEnvironment[$entry.Key] = [Environment]::GetEnvironmentVariable($entry.Key); [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value) }
-	Register-WorktreeCliSession -RepositoryRoot $primary -Owner $bootstrapOwner -Label 'candidate bootstrap fixture' -Worktree $bootstrapSession | Out-Null
+	# The preflight and approval-preparation scripts read only their parameters; identity comes
+	# from the receipt, so no session-owner environment or session ledger claim is set up here.
 	$bootstrapArguments = @('-Mode', 'session-landing', '-Checkpoint', 'pre-mutation', '-CurrentWorktree', $bootstrapSession, '-PrimaryWorktree', $primary,
-		'-CurrentBranch', 'bootstrap-session', '-PrimaryBranch', 'main', '-Baseline', $landed, '-ExpectedCurrentTip', $bootstrapTip, '-ExpectedPrimaryTip', $landed,
+		'-CurrentBranch', $bootstrapBranch, '-PrimaryBranch', 'main', '-Baseline', $landed, '-ExpectedCurrentTip', $bootstrapTip, '-ExpectedPrimaryTip', $landed,
 		'-SessionOwner', $bootstrapOwner, '-WaitSeconds', '5')
 	$primaryBefore = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
 	$run = Invoke-PreflightFixture $bootstrapArguments
@@ -298,19 +290,19 @@ try {
 	Assert-Outcome $run 'bootstrap-capable-canonical' 0 'ok'
 	if ($null -ne $run.Json) { Assert-True ($run.Json.worktreeCli.selection -ceq 'canonical' -and $run.Json.worktreeCli.candidate -eq $null) 'candidate fallback is not used when canonical is capable' }
 	Replace-AsciiBytes $canonicalWorktreeCli 'WorktreeCli.exe plan release-after-landing' 'WorktreeCli.exe plan release-after-landinx'
-	$approvalArguments = @('-CurrentWorktree', $bootstrapSession, '-PrimaryWorktree', $primary, '-CurrentBranch', 'bootstrap-session', '-PrimaryBranch', 'main',
+	$approvalArguments = @('-CurrentWorktree', $bootstrapSession, '-PrimaryWorktree', $primary, '-CurrentBranch', $bootstrapBranch, '-PrimaryBranch', 'main',
 		'-Baseline', $landed, '-ExpectedCurrentTip', $bootstrapTip, '-ExpectedPrimaryTip', $landed, '-SessionOwner', $bootstrapOwner, '-WaitSeconds', '5',
 		'-CandidateReceiptPath', $receipt.Path, '-CandidateReceiptSha256', $receipt.Sha256)
 	$run = Invoke-ApprovalPreparationFixture $approvalArguments
 	Assert-Outcome $run 'approval-direct-unclaimed-candidate' 0 'ok'
 	if ($null -ne $run.Json) { Assert-True ($null -ne $run.Json.candidateBootstrap -and [string]::IsNullOrWhiteSpace([string]$run.Json.planClaim.receipt)) 'direct unclaimed approval binds candidate receipt without Plan receipt' }
 	Copy-Item -LiteralPath $WorktreeCliExecutable -Destination $canonicalWorktreeCli -Force
-	Invoke-ScratchGit $primary @('merge', '--ff-only', 'bootstrap-session') | Out-Null
+	Invoke-ScratchGit $primary @('merge', '--ff-only', $bootstrapBranch) | Out-Null
 	$recoveryTip = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
 	Copy-Item -LiteralPath $WorktreeCliExecutable -Destination $canonicalWorktreeCli -Force
 	Replace-AsciiBytes $canonicalWorktreeCli 'WorktreeCli.exe plan release-after-landing' 'WorktreeCli.exe plan release-after-landinx'
 	$recoveryArguments = @('-Mode', 'session-landing', '-Checkpoint', 'post-advance-recovery', '-CurrentWorktree', $bootstrapSession, '-PrimaryWorktree', $primary,
-		'-CurrentBranch', 'bootstrap-session', '-PrimaryBranch', 'main', '-Baseline', $landed, '-ExpectedCurrentTip', $bootstrapTip, '-ExpectedPrimaryTip', $recoveryTip,
+		'-CurrentBranch', $bootstrapBranch, '-PrimaryBranch', 'main', '-Baseline', $landed, '-ExpectedCurrentTip', $bootstrapTip, '-ExpectedPrimaryTip', $recoveryTip,
 		'-SessionOwner', $bootstrapOwner, '-WaitSeconds', '5')
 	$recoveryLedgerPath = (Get-WorktreeCliRepositoryIdentity $primary).LedgerPath
 	$recoveryLedgerBefore = if (Test-Path -LiteralPath $recoveryLedgerPath) { [IO.File]::ReadAllBytes($recoveryLedgerPath) } else { $null }
@@ -324,18 +316,18 @@ try {
 	if ($null -ne $run.Json) { Assert-True ($run.Json.worktreeCli.selection -ceq 'certified-candidate') 'recovery selects certified candidate for stale canonical completion' }
 }
 finally {
-	try { Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $bootstrapOwner } catch { }
-	foreach ($entry in $bootstrapEnvironment.GetEnumerator()) { [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value) }
 	Invoke-ScratchGit $primary @('worktree', 'remove', '--force', $bootstrapSession) | Out-Null
 	Remove-Item -LiteralPath $canonicalWorktreeCli -Force -ErrorAction SilentlyContinue
 }
 
 # A malformed ledger after pre-approval quiescence must be an authority blocker
-# before the exclusive action can touch either canonical executable.
+# before the exclusive action can touch either canonical executable. The lock store
+# directory self-initializes on a real claim; create it here to plant the malformed file.
 $ledgerPath = (Get-WorktreeCliRepositoryIdentity $primary).LedgerPath
 $ledgerBytes = Get-BytesOrNull $ledgerPath
 $canonicalWorktreeCliBefore = Get-BytesOrNull $canonicalWorktreeCli
 $canonicalAgentHarnessBefore = Get-BytesOrNull $canonicalAgentHarness
+New-Item -ItemType Directory -Force (Split-Path -Parent $ledgerPath) | Out-Null
 [IO.File]::WriteAllText($ledgerPath, '{', [Text.UTF8Encoding]::new($false))
 try {
 	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed
@@ -399,20 +391,32 @@ Invoke-ScratchGit $primary @('checkout', '-q', 'main') | Out-Null
 $run = Invoke-Promotion $receipt.Path $receipt.Sha256 $unlanded
 Assert-Outcome $run 'not-landed' 2 'promotion.not-landed'
 
-# 6. Registered foreign session blocks; the cooperating session does not self-block.
+# 6. A live transient operation claim defers promotion; the cooperating owner does not self-block.
 $sessionOwner = [guid]::NewGuid().ToString()
-Register-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner -Label 'fixture-session' -Worktree $primary | Out-Null
+Register-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner -Label 'fixture transient operation' -Worktree $primary | Out-Null
 $sessionRegistered = $true
 try {
 	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed @('-WaitSeconds', '2')
-	Assert-Outcome $run 'session-blocked' 2 'promotion.shared-quiescence'
+	Assert-Outcome $run 'operation-claim-defers-promotion' 2 'promotion.shared-quiescence'
 	if ($null -ne $run.Json) {
-		Assert-True ($run.Json.disposition -ceq 'shared-quiescence') 'session-blocked exposes top-level shared quiescence'
-		Assert-True ($run.Json.blocker.disposition -ceq 'shared-quiescence') 'session-blocked is retryable shared quiescence'
-		Assert-True (-not $run.Json.blocker.requiresUserAuthority) 'session-blocked needs no authority'
+		Assert-True ($run.Json.disposition -ceq 'shared-quiescence') 'operation-claim-defers-promotion exposes top-level shared quiescence'
+		Assert-True ($run.Json.blocker.disposition -ceq 'shared-quiescence') 'operation-claim-defers-promotion is retryable shared quiescence'
+		Assert-True (-not $run.Json.blocker.requiresUserAuthority) 'operation-claim-defers-promotion needs no authority'
 	}
 
-	# 7. First-rollout success with the registered session cooperating.
+	# Peer isolation: a live transient claim under a fresh GUID must still DEFER when promotion
+	# cooperates with a DIFFERENT (durable) owner. A landing registers a fresh-GUID claim, never the
+	# durable receipt owner, so -CooperatingSessionOwner set to the durable owner never exempts a peer
+	# or landing claim.
+	$peerCooperatingOwner = [guid]::NewGuid().ToString()
+	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed @('-WaitSeconds', '2', '-CooperatingSessionOwner', $peerCooperatingOwner)
+	Assert-Outcome $run 'peer-claim-defers-despite-cooperating-owner' 2 'promotion.shared-quiescence'
+	if ($null -ne $run.Json) {
+		Assert-True ($run.Json.disposition -ceq 'shared-quiescence') 'peer-claim-defers-despite-cooperating-owner exposes shared quiescence'
+		Assert-True (-not $run.Json.blocker.requiresUserAuthority) 'peer-claim-defers-despite-cooperating-owner needs no authority'
+	}
+
+	# 7. First-rollout success with the transient operation claim cooperating.
 	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed @('-WaitSeconds', '5', '-CooperatingSessionOwner', $sessionOwner)
 	Assert-Outcome $run 'first-rollout' 0 'ok'
 	if ($null -ne $run.Json -and $run.Json.status -ceq 'pass') {
@@ -431,25 +435,11 @@ finally {
 	$sessionRegistered = $false
 }
 
-# 8. Held maintenance blocks.
-$maintenanceOwner = [guid]::NewGuid().ToString()
-Enter-WorktreeCliMaintenance -RepositoryRoot $primary -Owner $maintenanceOwner -Label 'fixture-maintenance' -Worktree $primary | Out-Null
-$maintenanceHeld = $true
-try {
-	$run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed @('-WaitSeconds', '2')
-	Assert-Outcome $run 'maintenance-blocked' 2 'promotion.shared-quiescence'
-	if ($null -ne $run.Json) {
-		Assert-True ($run.Json.disposition -ceq 'shared-quiescence') 'maintenance-blocked exposes top-level shared quiescence'
-		Assert-True ($run.Json.blocker.disposition -ceq 'shared-quiescence') 'maintenance-blocked is retryable shared quiescence'
-		Assert-True (-not $run.Json.blocker.requiresUserAuthority) 'maintenance-blocked needs no authority'
-	}
-}
-finally {
-	Exit-WorktreeCliMaintenance -RepositoryRoot $primary -Owner $maintenanceOwner
-	$maintenanceHeld = $false
-}
-
-# 9. Re-promotion over an existing pair records the previous identities.
+# 8. Re-promotion over an existing pair records the previous identities and proceeds against an
+# absent coordination ledger (no live operation claim), self-initializing nothing.
+$ledgerPath = (Get-WorktreeCliRepositoryIdentity $primary).LedgerPath
+Remove-Item -LiteralPath $ledgerPath -Force -ErrorAction SilentlyContinue
+Assert-True (-not (Test-Path -LiteralPath $ledgerPath)) 'absent coordination ledger precedes fresh-ledger promotion'
 $run = Invoke-Promotion $receipt.Path $receipt.Sha256 $landed
 Assert-Outcome $run 're-promotion' 0 'ok'
 if ($null -ne $run.Json -and $run.Json.status -ceq 'pass') {
@@ -575,12 +565,6 @@ else {
 }
 }
 finally {
-	if ($initialRegistered -and $null -ne $initialOwner) {
-		try { Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $initialOwner } catch { }
-	}
-	if ($maintenanceHeld -and $null -ne $maintenanceOwner) {
-		try { Exit-WorktreeCliMaintenance -RepositoryRoot $primary -Owner $maintenanceOwner } catch { }
-	}
 	if ($sessionRegistered -and $null -ne $sessionOwner) {
 		try { Unregister-WorktreeCliSession -RepositoryRoot $primary -Owner $sessionOwner } catch { }
 	}

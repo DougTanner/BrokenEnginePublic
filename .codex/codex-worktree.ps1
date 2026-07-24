@@ -1,12 +1,11 @@
 [CmdletBinding()]
 param(
-	[switch] $LegacySessionsClosed,
 	[string] $ReattachWorktree
 )
 
 if ($MyInvocation.InvocationName -eq '.') { return }
 
-function Invoke-CodexWorktree([switch] $LegacySessionsClosed, [string] $ReattachWorktree) {
+function Invoke-CodexWorktree([string] $ReattachWorktree) {
 	$repositoryRoot = git rev-parse --show-toplevel 2>$null
 
 	if (($LASTEXITCODE -ne 0) -or [string]::IsNullOrWhiteSpace($repositoryRoot)) {
@@ -15,7 +14,7 @@ function Invoke-CodexWorktree([switch] $LegacySessionsClosed, [string] $Reattach
 
 	$repositoryRoot = [System.IO.Path]::GetFullPath($repositoryRoot.Trim())
 	$startArguments = @{
-		Client = 'codex'; RepositoryRoot = $repositoryRoot; LegacySessionsClosed = [bool]$LegacySessionsClosed
+		Client = 'codex'; RepositoryRoot = $repositoryRoot
 		ClientArguments = @('--dangerously-bypass-approvals-and-sandbox')
 	}
 	if (-not [string]::IsNullOrWhiteSpace($ReattachWorktree)) { $startArguments.ReattachWorktree = $ReattachWorktree }
@@ -23,4 +22,4 @@ function Invoke-CodexWorktree([switch] $LegacySessionsClosed, [string] $Reattach
 	exit $LASTEXITCODE
 }
 
-Invoke-CodexWorktree -LegacySessionsClosed:$LegacySessionsClosed -ReattachWorktree $ReattachWorktree
+Invoke-CodexWorktree -ReattachWorktree $ReattachWorktree

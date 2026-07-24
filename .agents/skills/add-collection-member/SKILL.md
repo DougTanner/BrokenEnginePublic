@@ -15,11 +15,11 @@ Preserve the target's existing accessor and lifecycle shape; do not normalize it
 
 | Variant | Live exemplar | Inspect for |
 |---|---|---|
-| Entirely shared game pair | [`Targets.h`](/Projects/BrokenEngineSandbox/Source/Frame/Collections/Targets/Targets.h), `TargetsInterpolate::Sync`, `TargetsPostRender::Add` | `SharedMembers()` with `Members()` forwarding to it; paired versions, copy, owner-fed sync, initialization, ID map |
-| Shared/client-split game pair | [`Blasters.h`](/Projects/BrokenEngineSandbox/Source/Frame/Collections/Blasters/Blasters.h), [`Blasters.cpp`](/Projects/BrokenEngineSandbox/Source/Frame/Collections/Blasters/Blasters.cpp), `BlastersInterpolate::Update` | `SharedMembers()` plus guarded `ClientMembers()`, `Members()` composition, spawn, copy, `ClientInit`, transfer send |
-| Server-visible engine pair | [`Pushers.h`](/Engine/Source/Frame/Collections/Pushers/Pushers.h), `PushersInterpolate::Sync`, `PushersPostRender::Add`, [`Frame.cpp`](/Projects/BrokenEngineSandbox/Source/Frame/Frame.cpp) `Frame::kiVersion` | Existing `Members()`-only shape, per-struct versions, owner sync, zero-init, difference logging, ID map |
-| Owner-synchronized client-only pair | [`Sounds.h`](/Engine/Source/Frame/Collections/Sounds/Sounds.h), `SoundsInterpolate::Sync`, `SoundsPostRender::Add` | Whole-file `BT_CLIENT`, `Members()` only, full carry-forward copy, `SyncData`/`Sync`, Add defaults, no shared version or differences |
-| Controller-driven, fire-and-forget client-only pair | [`Puffs.h`](/Engine/Source/Frame/Collections/Puffs/Puffs.h), `PuffsInterpolate::Update`, `PuffsPostRender::AddControlled` | Whole-file `BT_CLIENT`, `Members()` only, selective controller copy, unconditional animated stores, complete Add initialization |
+| Entirely shared game pair | `/Projects/BrokenEngineSandbox/Source/Frame/Collections/Targets/Targets.h`, `TargetsInterpolate::Sync`, `TargetsPostRender::Add` | `SharedMembers()` with `Members()` forwarding to it; paired versions, copy, owner-fed sync, initialization, ID map |
+| Shared/client-split game pair | `/Projects/BrokenEngineSandbox/Source/Frame/Collections/Blasters/Blasters.h`, `/Projects/BrokenEngineSandbox/Source/Frame/Collections/Blasters/Blasters.cpp`, `BlastersInterpolate::Update` | `SharedMembers()` plus guarded `ClientMembers()`, `Members()` composition, spawn, copy, `ClientInit`, transfer send |
+| Server-visible engine pair | `/Engine/Source/Frame/Collections/Pushers/Pushers.h`, `PushersInterpolate::Sync`, `PushersPostRender::Add`, `/Projects/BrokenEngineSandbox/Source/Frame/Frame.cpp` `Frame::kiVersion` | Existing `Members()`-only shape, per-struct versions, owner sync, zero-init, difference logging, ID map |
+| Owner-synchronized client-only pair | `/Engine/Source/Frame/Collections/Sounds/Sounds.h`, `SoundsInterpolate::Sync`, `SoundsPostRender::Add` | Whole-file `BT_CLIENT`, `Members()` only, full carry-forward copy, `SyncData`/`Sync`, Add defaults, no shared version or differences |
+| Controller-driven, fire-and-forget client-only pair | `/Engine/Source/Frame/Collections/Puffs/Puffs.h`, `PuffsInterpolate::Update`, `PuffsPostRender::AddControlled` | Whole-file `BT_CLIENT`, `Members()` only, selective controller copy, unconditional animated stores, complete Add initialization |
 
 Stop and report a stale exemplar if it no longer demonstrates the claimed variant.
 
@@ -58,14 +58,14 @@ Trace how every row receives and retains the value.
    - `TransferData` declaration and its member tuple when applicable;
    - source `TransferRequest` construction;
    - transfer wire serialization/deserialization and payload-size accounting when the field crosses the network;
-   - [`SpawnTransfer.cpp`](/Projects/BrokenEngineSandbox/Source/SpawnTransfer.cpp) receive mapping, destination `SpawnInfo`, and spawn assignment.
+   - `/Projects/BrokenEngineSandbox/Source/SpawnTransfer.cpp` receive mapping, destination `SpawnInfo`, and spawn assignment.
    Use Blasters for the live send/receive shape. Match existing client guards; do not invent a second receive path.
-3. For a client-owned handle/resource, initialize or create it in per-row `ClientInit`, preserve `ClientInitAll` full-state hydration through [`ClientSessionReceive.cpp`](/Projects/BrokenEngineSandbox/Source/Network/Client/ClientSessionReceive.cpp), initialize it on local spawn, copy it only where ownership persists, and update teardown/removal.
+3. For a client-owned handle/resource, initialize or create it in per-row `ClientInit`, preserve `ClientInitAll` full-state hydration through `/Projects/BrokenEngineSandbox/Source/Network/Client/ClientSessionReceive.cpp`, initialize it on local spawn, copy it only where ownership persists, and update teardown/removal.
 
 ## Identity and agent queries
 
 - For `CollectionFlags::kIdToIndex`, tuple membership makes swap-and-pop move the column automatically. If the new value changes identity/key semantics, update map construction, lookup, removal, and comparisons; otherwise make no ID-map edit.
-- Decide whether a server-visible game field belongs in the deliberately minimum-and-cheap agent result. Current exposure lives in [`AgentCommandsServerQueries.cpp`](/Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsServerQueries.cpp) through `ExtractPlayers`, `ExtractSpaceships`, `ExtractMissiles`, `ExtractBlasters`, and `ExtractTargets`. Record an intentional exclusion when no scenario needs it.
+- Decide whether a server-visible game field belongs in the deliberately minimum-and-cheap agent result. Current exposure lives in `/Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsServerQueries.cpp` through `ExtractPlayers`, `ExtractSpaceships`, `ExtractMissiles`, `ExtractBlasters`, and `ExtractTargets`. Record an intentional exclusion when no scenario needs it.
 
 ## Completion checklist
 
@@ -84,7 +84,7 @@ Trace how every row receives and retains the value.
 
 ## Framework references
 
-- [`Collection.h`](/Engine/Source/Frame/Collections/Collection.h) — shared CRC/read, serialization, ID helpers
-- [`CollectionMemory.h`](/Engine/Source/Frame/Collections/CollectionMemory.h) — tuple-driven allocation, growth, swap, destroy
-- [Engine Collections instructions](/Engine/Source/Frame/Collections/AGENTS.md)
-- [Game Collections instructions](/Projects/BrokenEngineSandbox/Source/Frame/Collections/AGENTS.md)
+- `/Engine/Source/Frame/Collections/Collection.h` — shared CRC/read, serialization, ID helpers
+- `/Engine/Source/Frame/Collections/CollectionMemory.h` — tuple-driven allocation, growth, swap, destroy
+- Engine Collections instructions: `/Engine/Source/Frame/Collections/AGENTS.md`
+- Game Collections instructions: `/Projects/BrokenEngineSandbox/Source/Frame/Collections/AGENTS.md`

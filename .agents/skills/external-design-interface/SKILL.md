@@ -53,9 +53,9 @@ not add a manager/singleton-specific fourth design. Give each worker the same
 brief, repository evidence, applicable collection constraints, and one
 unsoftened axis:
 
-1. **Minimal surface:** 1–3 entry points, opaque internals, deep module.
-2. **Data locality:** contiguous SOA iteration, batching, and workbuffer use.
-3. **Caller ergonomics:** optimize readability and simplicity for the dominant
+1. Minimal surface: 1–3 entry points, opaque internals, deep module.
+2. Data locality: contiguous SOA iteration, batching, and workbuffer use.
+3. Caller ergonomics: optimize readability and simplicity for the dominant
    caller pattern found by research.
 
 Each worker returns C++ interface declarations, representative usage, hidden

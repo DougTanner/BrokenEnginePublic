@@ -18,7 +18,7 @@ with a self-contained brief. That worker performs both implementation and its
 same-context assumption audit. If already running as the assigned worker, do
 not dispatch again. Workers never delegate; return any separate-role work to
 the manager. Apply the host-specific fresh-context mapping in
-[`references/client-compatibility.md`](references/client-compatibility.md).
+`references/client-compatibility.md`.
 
 ## Required Brief
 
@@ -72,8 +72,8 @@ The worker that made the changes performs this phase before returning. It never
 substitutes for domain, adversarial, or session review.
 
 List zero to seven correctness or requirement risks, ranked by severity. Each
-item is falsifiable: **Claim** names the possible failure, **Check** names a
-read/search/trace/static check, and **Result** states the evidence. Investigate
+item is falsifiable: Claim names the possible failure, Check names a
+read/search/trace/static check, and Result states the evidence. Investigate
 every inline-checkable item, fix confirmed in-scope problems, and repeat its
 check. Hand off anything requiring compilation, runtime behavior, hardware,
 user knowledge, or an independent role.

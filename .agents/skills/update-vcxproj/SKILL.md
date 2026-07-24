@@ -24,8 +24,8 @@ evidence only. Stop on an authority conflict.
 
 Accept exactly one explicit mode:
 
-- **verify** — read-only. Diagnose every affected path and project/filter pair.
-- **fix** — reconcile additions, removals, renames, and whole-file affinity
+- verify — read-only. Diagnose every affected path and project/filter pair.
+- fix — reconcile additions, removals, renames, and whole-file affinity
   changes, then run the complete verify checks. Remove stale old-name and
   forbidden-project entries; do not remove empty filter definitions as cleanup.
 

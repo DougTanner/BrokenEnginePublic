@@ -2,7 +2,7 @@
 
 ## Overview
 
-Game-specific SOA collections built on the engine [Collection framework](../../../../../Engine/Source/Frame/Collections/AGENTS.md). Children document behavior-specific invariants only.
+Game-specific SOA collections built on the engine Collection framework (`../../../../../Engine/Source/Frame/Collections/AGENTS.md`). Children document behavior-specific invariants only.
 
 ## Game-Specific Rules
 
@@ -17,9 +17,8 @@ Game-specific SOA collections built on the engine [Collection framework](../../.
 
 ## Collections
 
-- [Blasters](Blasters/AGENTS.md), [Missiles](Missiles/AGENTS.md), [Players](Players/AGENTS.md), [Spaceships](Spaceships/AGENTS.md), [Targets](Targets/AGENTS.md)
+- `Blasters/AGENTS.md`, `Missiles/AGENTS.md`, `Players/AGENTS.md`, `Spaceships/AGENTS.md`, `Targets/AGENTS.md`
 
 ## See Also
 
-- [Parent frame](../AGENTS.md)
-- [Engine collections](../../../../../Engine/Source/Frame/Collections/AGENTS.md)
+- `../../../../../Engine/Source/Frame/Collections/AGENTS.md`

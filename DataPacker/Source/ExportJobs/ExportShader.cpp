@@ -148,7 +148,7 @@ std::filesystem::path ExportShader::PreprocessShader()
 	std::filesystem::path glslcExecutable(GetVulkanSdkBinariesDirectory());
 	glslcExecutable.append("glslc.exe");
 
-	std::filesystem::path preProcessedFile(gpFileManager->mTempDirectory);
+	std::filesystem::path preProcessedFile(gpFileManager->mCacheDirectory);
 	preProcessedFile /= mRelativeDirectory;
 	preProcessedFile /= mInputPath.filename();
 	std::filesystem::remove(preProcessedFile);
@@ -180,8 +180,8 @@ std::filesystem::path ExportShader::PreprocessShader()
 ExportShader::ExportShader(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
 : ExportJob(rChunkFlags, rFile)
 {
-	mDependencyFile = gpFileManager->mTempDirectory / mRelativeDirectory / (mInputPath.filename().native() + L".d");
-	mDependencyMetadataFile = gpFileManager->mTempDirectory / mRelativeDirectory / (mInputPath.filename().native() + L".deps.meta");
+	mDependencyFile = gpFileManager->mCacheDirectory / mRelativeDirectory / (mInputPath.filename().native() + L".d");
+	mDependencyMetadataFile = gpFileManager->mCacheDirectory / mRelativeDirectory / (mInputPath.filename().native() + L".deps.meta");
 
 	if (rFile.extension() == ".comp")
 	{

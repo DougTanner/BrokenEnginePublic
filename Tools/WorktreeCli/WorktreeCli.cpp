@@ -20,6 +20,7 @@ namespace toolcli
 			rOutput << "       WorktreeCli.exe plan claim-status|unclaim --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256\n";
 			rOutput << "       WorktreeCli.exe plan prepare-completion|prepare-rejection --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256\n";
 			rOutput << "       WorktreeCli.exe plan release-after-landing --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256 --landed-commit COMMIT\n";
+			rOutput << "       WorktreeCli.exe plan reparent-claims --repo COMMON-DIR --worktree SESSION --new-baseline COMMIT\n";
 			rOutput << "       WorktreeCli.exe build [--files <cpp...> --] <project-or-solution> <MSBuild args...>\n";
 			rOutput << "       WorktreeCli.exe --help\n";
 		}

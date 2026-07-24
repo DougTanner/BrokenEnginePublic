@@ -15,4 +15,4 @@ The asymmetric remap requires matching occupancy dilation: B uses direct tile lo
 - Enable, disable, and recreation use indirect fullscreen clears. Texture occupancy then drains through the following spread frame.
 - Wind is sampled in its own area. The UV conversion deliberately negates rescaled X while inverted UV Y cancels the world-to-texture Y sign; changing one sign independently reverses advection.
 
-[Wind](../Wind/AGENTS.md) owns the velocity field and consumes smoke's populated world-area uniforms.
+Wind (`../Wind/AGENTS.md`) owns the velocity field and consumes smoke's populated world-area uniforms.

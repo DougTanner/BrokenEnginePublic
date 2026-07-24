@@ -51,7 +51,10 @@ function Get-AgentWorktreeReceiptSha256([byte[]] $Bytes) {
 	return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($Bytes)).ToLowerInvariant()
 }
 
-function Open-AgentWorktreeReceiptReadLease([string] $Worktree) {
+# Exclusive receipt write lease: FileShare None serializes repairers against each other and against
+# any concurrent reattach read lease. A reattach proof that loses the race fails closed and the
+# wrapper invocation exits (no retry) rather than observing a half-rewritten receipt.
+function Open-AgentWorktreeReceiptWriteLease([string] $Worktree) {
 	$path = Get-AgentWorktreeReceiptPath $Worktree
 	$integrityPath = Get-AgentWorktreeReceiptIntegrityPath $Worktree
 	foreach ($candidate in @($path, $integrityPath)) {
@@ -62,8 +65,8 @@ function Open-AgentWorktreeReceiptReadLease([string] $Worktree) {
 	}
 	$integrityStream = $null
 	try {
-		$integrityStream = [IO.File]::Open($integrityPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
-		$receiptStream = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+		$integrityStream = [IO.File]::Open($integrityPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+		$receiptStream = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
 		return [pscustomobject]@{ Path = $path; IntegrityPath = $integrityPath; ReceiptStream = $receiptStream; IntegrityStream = $integrityStream }
 	}
 	catch {
@@ -142,6 +145,40 @@ function Write-AgentWorktreeSessionReceipt([string] $Worktree, [System.Collectio
 		throw
 	}
 	return $path
+}
+
+# The single legitimate wrapper-owned receipt rewrite: re-parenting the immutable baseline onto a
+# squashed primary tip. Only 'baseline' changes; schema/version, field order, createdUtc, and
+# sessionOwner are preserved so Read-AgentWorktreeSessionReceipt validation is untouched. ExpectedBytes
+# are the receipt bytes already read through the exclusive write lease, so the parse/re-serialize is
+# byte-identical to the original save for the baseline value.
+function Update-AgentWorktreeSessionReceiptBaseline {
+	[CmdletBinding()] param(
+		[Parameter(Mandatory)][string] $Worktree,
+		[Parameter(Mandatory)][object] $WriteLease,
+		[Parameter(Mandatory)][byte[]] $ExpectedBytes,
+		[Parameter(Mandatory)][string] $NewBaseline
+	)
+	if ($NewBaseline -cnotmatch '^[0-9a-f]{40}$') { throw "Receipt baseline is not a full lowercase commit hash: '$NewBaseline'." }
+	$path = Get-AgentWorktreeReceiptPath $Worktree
+	$integrityPath = Get-AgentWorktreeReceiptIntegrityPath $Worktree
+	if ($WriteLease.Path -cne $path -or $WriteLease.IntegrityPath -cne $integrityPath) { throw 'Worktree receipt write lease does not match requested worktree.' }
+	$convertArguments = if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { @{ DateKind = 'String' } } else { @{} }
+	$receipt = ([Text.UTF8Encoding]::new($false, $true).GetString($ExpectedBytes) | ConvertFrom-Json @convertArguments -ErrorAction Stop)
+	$receipt.baseline = $NewBaseline
+	$bytes = [Text.UTF8Encoding]::new($false).GetBytes(($receipt | ConvertTo-Json -Depth 8 -Compress))
+	$integrityBytes = [Text.UTF8Encoding]::new($false).GetBytes((Get-AgentWorktreeReceiptSha256 $bytes))
+	# Receipt then hash, each truncate-write-flushed through the exclusive lease. A crash between the
+	# two writes leaves a hash mismatch, which the next Read-AgentWorktreeSessionReceipt rejects — the
+	# correct fail-closed posture, not a torn read to recover from.
+	$WriteLease.ReceiptStream.SetLength(0)
+	$WriteLease.ReceiptStream.Position = 0
+	$WriteLease.ReceiptStream.Write($bytes, 0, $bytes.Length)
+	$WriteLease.ReceiptStream.Flush($true)
+	$WriteLease.IntegrityStream.SetLength(0)
+	$WriteLease.IntegrityStream.Position = 0
+	$WriteLease.IntegrityStream.Write($integrityBytes, 0, $integrityBytes.Length)
+	$WriteLease.IntegrityStream.Flush($true)
 }
 
 function Read-AgentWorktreeSessionReceipt {
@@ -249,29 +286,37 @@ function Get-AgentWorktreeReattachProof {
 	[CmdletBinding()] param(
 		[Parameter(Mandatory)][ValidateSet('claude', 'codex')][string] $Client,
 		[Parameter(Mandatory)][string] $RepositoryRoot,
-		[Parameter(Mandatory)][string] $Worktree,
-		[byte[]] $ExpectedReceiptBytes,
-		[byte[]] $ExpectedReceiptIntegrityBytes,
-		[object] $ReadLease
+		[Parameter(Mandatory)][string] $Worktree
 	)
 	if ($Client -cne 'claude' -and $Client -cne 'codex') { throw "Client must be lowercase 'claude' or 'codex'." }
 	$primary = Get-AgentWorktreePrimaryIdentity $RepositoryRoot
 	$worktree = Get-AgentCanonicalPath $Worktree
-	$receipt = Read-AgentWorktreeSessionReceipt -Worktree $worktree -ReadLease $ReadLease
-	if ($PSBoundParameters.ContainsKey('ExpectedReceiptBytes') -and -not [System.Collections.StructuralComparisons]::StructuralEqualityComparer.Equals($receipt.Bytes, $ExpectedReceiptBytes)) {
-		throw "Worktree receipt bytes changed during reattach proof: '$($receipt.Path)'."
-	}
-	if ($PSBoundParameters.ContainsKey('ExpectedReceiptIntegrityBytes') -and -not [System.Collections.StructuralComparisons]::StructuralEqualityComparer.Equals($receipt.IntegrityBytes, $ExpectedReceiptIntegrityBytes)) {
-		throw "Worktree receipt integrity reference changed during reattach proof: '$($receipt.IntegrityPath)'."
-	}
+	$receipt = Read-AgentWorktreeSessionReceipt -Worktree $worktree
 	$value = $receipt.Value
 	if ($value.client -cne $Client -or -not $value.primaryCheckout.Equals($primary.Root, [StringComparison]::OrdinalIgnoreCase) -or
 		-not $value.gitCommonDirectory.Equals($primary.CommonDirectory, [StringComparison]::OrdinalIgnoreCase) -or
 		-not $value.worktree.Equals($worktree, [StringComparison]::OrdinalIgnoreCase)) {
 		throw 'Worktree receipt client or repository identity does not match the requested reattach.'
 	}
+	# A re-parent rebase stopped on conflict leaves HEAD detached, so the worktree reports no attached
+	# branch and carries a rebase marker. Accept exactly that state — and only it — by proving branch
+	# identity through the rebase's own recorded head-name and its onto against the receipt baseline
+	# (which the repair has already rewritten to the squashed tip). Any other in-progress git operation,
+	# or a rebase whose onto/head-name disagree, leaves this false and still fails closed below.
+	$reparentInProgress = $false
+	foreach ($marker in @('rebase-merge', 'rebase-apply')) {
+		$rebaseState = Get-AgentWorktreeGitValue $worktree @('rev-parse', '--path-format=absolute', '--git-path', $marker) "Git operation marker '$marker'"
+		if (-not (Test-Path -LiteralPath $rebaseState)) { continue }
+		$ontoPath = Join-Path $rebaseState 'onto'
+		$headNamePath = Join-Path $rebaseState 'head-name'
+		if ((Test-Path -LiteralPath $ontoPath) -and (Test-Path -LiteralPath $headNamePath)) {
+			$reparentInProgress = ((Get-Content -LiteralPath $ontoPath -Raw).Trim() -ceq $value.baseline) -and
+				((Get-Content -LiteralPath $headNamePath -Raw).Trim() -ceq "refs/heads/$($value.branch)")
+		}
+		break
+	}
 	$records = @(Get-AgentWorktreeRecords $primary.Root | Where-Object { -not $_.Bare -and $_.Path.Equals($worktree, [StringComparison]::OrdinalIgnoreCase) })
-	if ($records.Count -ne 1 -or $records[0].Prunable -or $records[0].Branch -cne $value.branch) {
+	if ($records.Count -ne 1 -or $records[0].Prunable -or (-not $reparentInProgress -and $records[0].Branch -cne $value.branch)) {
 		throw 'Recorded worktree is not uniquely registered, is prunable, or has a different branch.'
 	}
 	$worktreeTop = Get-AgentCanonicalPath (Get-AgentWorktreeGitValue $worktree @('rev-parse', '--show-toplevel') 'worktree top-level')
@@ -281,10 +326,27 @@ function Get-AgentWorktreeReattachProof {
 	$worktreeHead = Get-AgentWorktreeGitValue $worktree @('rev-parse', 'HEAD') 'worktree HEAD'
 	if ($worktreeHead -cnotmatch '^[0-9a-f]{40}$') { throw "Recorded worktree HEAD is malformed: '$worktreeHead'." }
 	if ($primary.Branch -cne $value.targetBranch) { throw "Recorded primary checkout is not on receipt target branch '$($value.targetBranch)'." }
-	Test-AgentWorktreeNoGitOperation $worktree
+	if (-not $reparentInProgress) { Test-AgentWorktreeNoGitOperation $worktree }
 	Test-AgentWorktreeAncestor $primary.Root $value.baseline $primary.Head 'primary HEAD'
 	Test-AgentWorktreeAncestor $primary.Root $value.baseline $worktreeHead 'worktree HEAD'
 	return [pscustomobject]@{ Receipt = $receipt; Primary = $primary; Worktree = $worktree; WorktreeHead = $worktreeHead }
 }
 
-Export-ModuleMember -Function Get-AgentWorktreePrimaryIdentity, Get-AgentWorktreePrivateGitDirectory, Get-AgentWorktreeReceiptPath, Get-AgentWorktreeReceiptIntegrityPath, Open-AgentWorktreeReceiptReadLease, New-AgentWorktreeSessionReceipt, Write-AgentWorktreeSessionReceipt, Read-AgentWorktreeSessionReceipt, Get-AgentWorktreeReattachProof
+# Resolves the durable session identity from the strictly validated in-worktree receipt, the sole
+# trust anchor. The receipt is written at session start and persists across a client restart, so a
+# restarted session that lost its wrapper environment still resolves from disk. There is no
+# environment fast path: reading identity from the six BROKEN_ENGINE_* variables ahead of the
+# receipt would let intact environment mask a tampered, removed, or replaced receipt, diverging from
+# the finalize preflight's receipt authority. A receipt read or validation failure throws, which
+# callers surface through their own state-blocker path.
+function Get-AgentWorktreeSessionProvenance {
+	[CmdletBinding()] param([Parameter(Mandatory)][string] $Worktree)
+	$worktree = Get-AgentCanonicalPath $Worktree
+	$receipt = (Read-AgentWorktreeSessionReceipt -Worktree $worktree).Value
+	return [pscustomobject]@{
+		Worktree = $receipt.worktree; Branch = $receipt.branch; Primary = $receipt.primaryCheckout; TargetBranch = $receipt.targetBranch
+		Baseline = $receipt.baseline; SessionOwner = $receipt.sessionOwner; Source = 'receipt'
+	}
+}
+
+Export-ModuleMember -Function Get-AgentWorktreePrimaryIdentity, Get-AgentWorktreePrivateGitDirectory, Get-AgentWorktreeReceiptPath, Get-AgentWorktreeReceiptIntegrityPath, Open-AgentWorktreeReceiptWriteLease, New-AgentWorktreeSessionReceipt, Write-AgentWorktreeSessionReceipt, Update-AgentWorktreeSessionReceiptBaseline, Read-AgentWorktreeSessionReceipt, Get-AgentWorktreeReattachProof, Get-AgentWorktreeSessionProvenance

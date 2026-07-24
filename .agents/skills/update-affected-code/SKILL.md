@@ -59,7 +59,7 @@ handoff.
    numeric or table identities. A compiling site is not evidence that its old
    assumption remains valid.
 5. If a `Collection<T>` member or layout is added, removed, reordered, or
-   retyped, read [`add-collection-member`](../add-collection-member/SKILL.md)
+   retyped, read `add-collection-member` (`../add-collection-member/SKILL.md`)
    completely and treat its live-variant checklist as authoritative. Report an
    unresolved CRC, persistence, transfer, hydration, version, or identity
    choice instead of inventing intent.

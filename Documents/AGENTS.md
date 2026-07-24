@@ -4,7 +4,7 @@ Holds design-time documentation and two parallel planning trees. No build artifa
 
 ## Reference Material
 
-- `FreshMachineSetup.md` — ordered fresh-machine bootstrap: Developer Mode/symlink privilege, clone, one-time primary ThirdParty build, primary data export, first wrapper run with ledger init (session start rebuilds the shared AgentTools and ThirdParty binaries incrementally and prebuilds DataPacker Release for worktree seeding). Human-facing counterpart to the wrapper scripts under `.agents/scripts/`.
+- `FreshMachineSetup.md` — ordered fresh-machine bootstrap: Developer Mode/symlink privilege, clone, one-time primary ThirdParty build, primary data export, first wrapper run (session start rebuilds the shared AgentTools and ThirdParty binaries incrementally and prebuilds DataPacker Release for worktree seeding). Human-facing counterpart to the wrapper scripts under `.agents/scripts/`.
 - `C++StyleGuide.txt` — numbered style rules (Hungarian notation, Allman braces, `auto` restrictions, DirectXMath conventions). Source of truth for the `code-style-review` skill.
 - `FloatingPointDeterminism.txt` — the rollback-and-replay determinism contract: `/fp:strict`, FMA3 disabled, per-thread MXCSR, fixed 32 Hz timestep, deterministic RNG, single shared CRC. Read before touching simulation math.
 - `UserInterfaceDesign.txt` — the ImGui layout contract for player-facing screens: one scale factor (`engine::UiScale()`), the three sizing rules, shared layout constants, pivot centering, size-to-content, themed buttons, and vertical rhythm. Layout counterpart to `FloatingPointDeterminism.txt`; source of truth for `Ui/Screens/` geometry. Read before touching menu/HUD layout.
@@ -17,16 +17,16 @@ Plan documents live in two sibling directories, split by whether the work adds a
 
 | Directory | Scope |
 |-----------|-------|
-| [`Plans/`](Plans/AGENTS.md) | **Refactors and bugfixes.** Debt reduction — cleaning, decomposing, renaming, deleting dead code, fixing races/NaNs/precision, defensive shader clamps. Changes *how* the engine is built or how correctly it runs, not what it does. |
-| [`Features/`](Features/AGENTS.md) | **Brand-new additions.** Manually executed; never scheduler-tracked. |
+| `Plans/` (`Plans/AGENTS.md`) | Refactors and bugfixes. Debt reduction — cleaning, decomposing, renaming, deleting dead code, fixing races/NaNs/precision, defensive shader clamps. Changes *how* the engine is built or how correctly it runs, not what it does. |
+| `Features/` (`Features/AGENTS.md`) | Brand-new additions. Manually executed; never scheduler-tracked. |
 
 Deciding test: *does this plan give the engine a capability it didn't have before?* Yes → `Features/`, No → `Plans/`. Executable Plans carry a byte-zero, Git-tracked metadata marker. WorktreeCli selects them deterministically by immutable creation time and canonical path. Files without the marker and all Features files are manual. Each tree uses area subfolders (`Engine/`, `Frame/`, `Graphics/`, etc.).
 
 ## Historical scoring anchors
 
-Existing estimates remain useful human context but never schedule work. Executable Plans use immutable metadata creation time and canonical path. Size-removal anchors use the deterministic `bt-token-v1` estimate from [Measure-Tokens.ps1](../.agents/scripts/Measure-Tokens.ps1), not exact model tokens.
+Existing estimates remain useful human context but never schedule work. Executable Plans use immutable metadata creation time and canonical path. Size-removal anchors use the deterministic `bt-token-v1` estimate from `../.agents/scripts/Measure-Tokens.ps1`, not exact model tokens.
 
-**Effort** (size of change):
+Effort (size of change):
 
 | Score | Anchor |
 |-------|--------|
@@ -36,7 +36,7 @@ Existing estimates remain useful human context but never schedule work. Executab
 | 4 | Large — multi-day with research / coordination |
 | 5 | Architectural — week+, spans sessions, may need subplans |
 
-**Impact** (value if executed):
+Impact (value if executed):
 
 | Score | Anchor |
 |-------|--------|
@@ -46,7 +46,7 @@ Existing estimates remain useful human context but never schedule work. Executab
 | 4 | Significant — fixes a determinism/desync source, eliminates a real bug class, major code-quality lift |
 | 5 | High — fixes a critical bug, unlocks a major scenario, enables further work |
 
-**Risks** (chance / blast radius of breakage):
+Risks (chance / blast radius of breakage):
 
 | Score | Anchor |
 |-------|--------|

@@ -1,6 +1,6 @@
 # Engine Network - Transport and Protocol Infrastructure
 
-Shared ENet transport, slot subscriptions, ACK state, discovery, wire cursors, and hostile-input enforcement. Game packet payloads and reconciliation policy belong to [game Network](../../../Projects/BrokenEngineSandbox/Source/Network/AGENTS.md); flow and timing details live in [Network architecture](../../../Documents/Architecture/Network.md).
+Shared ENet transport, slot subscriptions, ACK state, discovery, wire cursors, and hostile-input enforcement. Game packet payloads and reconciliation policy belong to game Network (`../../../Projects/BrokenEngineSandbox/Source/Network/AGENTS.md`); flow and timing details live in Network architecture (`../../../Documents/Architecture/Network.md`).
 
 ## Transport Contracts
 
@@ -31,8 +31,8 @@ Shared ENet transport, slot subscriptions, ACK state, discovery, wire cursors, a
 
 ## See Also
 
-- [Client](Client/AGENTS.md) - Client transport peer, receive guards, slot state, and metrics
-- [Server](Server/AGENTS.md) - Server transport host, contracts, slots, and resend state
-- [Game Network](../../../Projects/BrokenEngineSandbox/Source/Network/AGENTS.md) - Concrete session policy and game wire payloads
-- [Network architecture](../../../Documents/Architecture/Network.md) - Protocol flow and ACK/reconciliation timing
-- [Game reconciliation](../../../Documents/Architecture/GameReconciliation.md) - Rollback and replay integration
+- Client (`Client/AGENTS.md`) - Client transport peer, receive guards, slot state, and metrics
+- Server (`Server/AGENTS.md`) - Server transport host, contracts, slots, and resend state
+- Game Network (`../../../Projects/BrokenEngineSandbox/Source/Network/AGENTS.md`) - Concrete session policy and game wire payloads
+- Network architecture (`../../../Documents/Architecture/Network.md`) - Protocol flow and ACK/reconciliation timing
+- Game reconciliation (`../../../Documents/Architecture/GameReconciliation.md`) - Rollback and replay integration

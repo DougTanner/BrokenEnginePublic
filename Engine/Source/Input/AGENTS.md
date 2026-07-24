@@ -19,5 +19,5 @@
 
 ## See Also
 
-- [Engine Agent](../Agent/AGENTS.md) - Synthetic input ownership
-- [Game input](../../../Projects/BrokenEngineSandbox/Source/Input/AGENTS.md) - Bindings, edges, and deterministic serialization
+- Engine Agent (`../Agent/AGENTS.md`) - Synthetic input ownership
+- Game input (`../../../Projects/BrokenEngineSandbox/Source/Input/AGENTS.md`) - Bindings, edges, and deterministic serialization

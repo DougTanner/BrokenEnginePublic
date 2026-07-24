@@ -27,10 +27,31 @@ public:
 
 	virtual ~ExportIsland() = default;
 
+	// Governs the chunk payload only (heightmap R16 quantize, mesh XY, indices, valid-area hull) — the
+	// BC texture encode is versioned separately by kiTextureVersion below, so a payload bump re-packs
+	// chunks without rewriting the tracked island textures.
 	virtual int64_t GetVersion() const override { return Version(29); }
+
+	// Governs the four BC encodes (AmbientOcclusion / Color / Normals / Masks) only. Deliberately a
+	// plain int64_t rather than Version(...): folding in sizeof(common::ChunkHeader) would retie the
+	// encode to every unrelated chunk-header layout change, re-encoding and rewriting the ~446 MB of
+	// Git-tracked island textures for a change that cannot alter a single texel.
+	static constexpr int64_t kiTextureVersion = 1;
+
+	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 
 protected:
 
 	virtual std::string GetInputFingerprint() const override;
 	virtual void Export() override;
+	virtual void UpdateCacheMetadata() override;
+	virtual void CleanupOnFailure() override;
+
+private:
+
+	std::filesystem::path GetTextureMarkerPath() const;
+	std::string GetTextureFingerprint() const;
+	bool AreTextureOutputsPresent() const;
+	bool AreTexturesFresh() const;
+	void WriteTextureMarker() const;
 };

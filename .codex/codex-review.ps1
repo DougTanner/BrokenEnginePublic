@@ -3,8 +3,8 @@
 	Run a Broken Engine review skill on Codex (Sol) headless and capture its findings.
 
 	Primary Claude Code reviewer route: it runs a delegated reviewer/auditor role on Codex/Sol.
-	Driven by the /codex-review skill, which on failure falls back to the Fable reviewer subagent,
-	then Opus. Codex never invokes this — under the Fable->Sol mapping it is already Sol.
+	Driven by the /codex-review skill, which on failure falls back to the Opus reviewer subagent,
+	then general-purpose on Opus. Codex never invokes this — its reviewer role is already Sol.
 
 .NOTES
 	Auth/billing: Codex uses ChatGPT sign-in by default -> ChatGPT subscription quota, NOT metered
@@ -13,7 +13,7 @@
 
 	Exit codes: passes through Codex's exit code; 126 if an inherited OPENAI_API_KEY is refused,
 	127 if the codex CLI is not found (the driver treats any non-zero as CODEX-UNAVAILABLE and the
-	skill falls back to the Fable reviewer subagent, then Opus).
+	skill falls back to the Opus reviewer subagent, then general-purpose on Opus).
 #>
 param(
 	[Parameter(Mandatory)][string] $Worktree,    # session worktree checkout to review in (codex -C)

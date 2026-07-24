@@ -10,7 +10,3 @@ Guided missiles own client-side exhaust light, smoke trail, and looping sound ef
 - Resolve the earliest entity, terrain, or boundary event before applying explosion or transfer behavior. All missile damage enters through the area-damage registration at explosion time.
 - Client-only pitch and exhaust values still draw from shared deterministic state. Both builds must execute those draws under the same shared-state conditions.
 - Live transfer reuses smoke-trail identity; destination lights and sounds are recreated. Falling arrivals create no client effects.
-
-## See Also
-
-- [../AGENTS.md](../AGENTS.md) - Game collection transfer and collision rules

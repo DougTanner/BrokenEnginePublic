@@ -16,13 +16,9 @@ Read `Documents/AGENTS.md` and `Documents/Plans/AGENTS.md` completely. Their cur
 
 Reject an in-scope acceptance failure, including required structural work: it remains a blocker in the active change. Also reject stale, disproven, fixed, stylistic-only, and evidence-free candidates, stating why.
 
-Tracked authoring requires a wrapper session that holds a live Plan claim. Carry
-the active receipt path and SHA-256 from the caller and require `plan
-claim-status` to report `ownedByReceipt: true`; do not inspect unrelated claims.
-Without that evidence, complete candidate proof, grouping, placement, and draft
-content, then report proposals without writing tracked files. Plan files and
-their byte-zero metadata are ordinary tracked Git content. `Documents/Features`
-remains manual and is not an alternate executable-Plan store.
+Plan files and their byte-zero metadata are ordinary tracked Git content; write
+them directly, with or without a live Plan claim. `Documents/Features` remains
+manual and is not an alternate executable-Plan store.
 
 ## Workflow
 
@@ -37,7 +33,7 @@ For every candidate:
 
 Group items only when root cause, implementation boundary, invariant, and verification strategy all match. Split independently landable work, architectural decisions, separate subsystems, or materially different risks.
 
-Run the provisioned `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe plan validate --repo <absolute-git-common-dir> --worktree <checkout> --baseline <commit>` before duplicate decisions and after tracked Plan edits. If the executable is absent, stop and report that authorized primary maintenance through `/compile` is required. Require exit `0`, the versioned JSON contract, `status: valid`, and `code: ok`; record stale dependency notices and healed claims. Treat `plans` entries as the executable inventory; never inspect machine-local claims.
+Run the provisioned `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe plan validate --repo <absolute-git-common-dir> --worktree <checkout> --baseline <commit>` before duplicate decisions and after tracked Plan edits; outside a wrapper session that baseline is `HEAD`. If the executable is absent, stop and report that authorized primary maintenance through `/compile` is required. Require exit `0`, the versioned JSON contract, `status: valid`, and `code: ok`; record stale dependency notices and healed claims. Treat `plans` entries as the executable inventory; never inspect machine-local claims.
 
 Search all live plan files by symbols, paths, root-cause terms, outcome, and `## Coordination`. A plan is a duplicate when it owns the same root cause and implementation boundary. Map the candidate to it unless the proven acceptance gap requires extending that plan.
 
@@ -51,7 +47,7 @@ Derive the future implementation's Change Workflow Tier 1/2/3 from the highest r
 
 | Case | Tracked Plan bytes | Completion route |
 |---|---|---|
-| New Plan | Write the final Plan directly under `Documents/Plans/<area>/` with its immutable v1 marker. | Validate the tracked tree, then route through `/verify-changes` and `/finalize-changes`. |
+| New Plan | Write the final Plan directly under `Documents/Plans/<area>/` with its immutable v1 marker. | Validate the tracked tree; route through `/verify-changes` and `/finalize-changes` only when a final-evidence gate applies. |
 | Existing Plan, prose only | Edit the live tracked Plan directly, including reciprocal Coordination prose; preserve its marker byte-for-byte. | Validate and finalize the tracked edit. |
 | Existing Plan, dependency change | Edit only the marker's `dependsOn` array plus required reciprocal Coordination prose; never change `createdUtc`. | Validate and finalize the tracked edit. |
 

@@ -22,7 +22,7 @@ public:
 	~FileManager();
 
 	std::filesystem::path mpInputDirectories[2];
-	std::filesystem::path mTempDirectory;
+	std::filesystem::path mCacheDirectory;
 	std::filesystem::path mGaeaCacheDirectory;
 	std::filesystem::path mOutputDirectory;
 	std::filesystem::path mThirdPartyDirectory;

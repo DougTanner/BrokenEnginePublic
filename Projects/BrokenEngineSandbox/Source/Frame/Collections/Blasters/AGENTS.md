@@ -10,7 +10,3 @@ Blasters move at constant velocity and own client-side light and wind-trail effe
 - Cross-cell transfer carries wind-trail tuning, not trail identity. The source trail is removed and the destination client creates a new trail.
 - Terrain impacts use the resolved elevation-grid position before spawning their client effects.
 - Weapon code creates new projectiles; the phase-dispatched spawn hook is intentionally empty. Keep one-shot muzzle audio at the firing site so transfers do not replay it.
-
-## See Also
-
-- [../AGENTS.md](../AGENTS.md) - Game collection transfer and collision rules

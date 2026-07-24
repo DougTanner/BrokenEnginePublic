@@ -27,7 +27,7 @@ Plan claims, or inspect unrelated sessions.
    Treat legacy commit-keyed artifacts as optional corroboration, never required
    or authoritative evidence.
 2. For Codex, run
-   [Find-AgentSessionTranscript.ps1](scripts/Find-AgentSessionTranscript.ps1)
+   `scripts/Find-AgentSessionTranscript.ps1`
    with the requested commit-ish (default `HEAD`) as `-Commit` and the exact
    `-RepositoryRoot`; the script resolves the commit through an argument array.
    Pass `-SessionId <exact-id>` when supplied; otherwise accept only its bounded
@@ -107,21 +107,21 @@ loops or unexplained waits.
 
 Assess in this order:
 
-1. **Result quality:** criterion coverage, final behavior, tier-appropriate
+1. Result quality: criterion coverage, final behavior, tier-appropriate
    review, observable checks, remaining failure modes, and minimality. Treat
    required affected-site changes as propagation, not scope expansion. Never
    claim bug-free results or demand a harness run without a runtime-observable
    criterion.
-2. **Token efficiency:** use of deterministic tools, purposeful delegation,
+2. Token efficiency: use of deterministic tools, purposeful delegation,
    manager-context discipline, raw-log volume, and review/test loops caused by
    concrete new evidence. Do not penalize a narrow change for having no
    unnecessary subagents.
-3. **Process overhead:** reconcile count, landing-phase active time, duplicate
+3. Process overhead: reconcile count, landing-phase active time, duplicate
    validations, and unchanged-input rebuild/review/verification.
-4. **Isolation and landing:** wrapper/claim/readiness evidence when applicable,
+4. Isolation and landing: wrapper/claim/readiness evidence when applicable,
    meta-tool failures, linear-history and parent proofs, conflicts, and
    receipt-bound claim release when applicable.
-5. **Speed:** complexity-adjusted active time, productive costs, and avoidable
+5. Speed: complexity-adjusted active time, productive costs, and avoidable
    approval or external waits.
 
 Never label repetition from identical landed bytes alone. A repetition or

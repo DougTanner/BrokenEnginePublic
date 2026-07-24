@@ -17,8 +17,8 @@ repository, and return only concrete findings and improvement suggestions for
 the calling session to resolve when user input is actually needed — through
 `/external-grill-plan` for Tier 3, or directly with the user for Tier 2. The
 audit is findings-only work and never creates an approval gate; a `/next-plan`
-invocation additionally follows the [canonical execution-gate
-contract](../next-plan/references/execution-gates.md).
+invocation additionally follows the canonical execution-gate contract
+(`../next-plan/references/execution-gates.md`).
 
 ## Inputs and Snapshot
 
@@ -113,7 +113,7 @@ clean pass, proceeds to `/external-grill-plan`; Tier 2 returns to the manager.
 
 For each finding:
 
-> `PA-F-###` — `plan-path:line` or `snapshot#heading-id` — **category** — concrete problem — evidence: `repository-path:line` — proposed improvement
+> `PA-F-###` — `plan-path:line` or `snapshot#heading-id` — category — concrete problem — evidence: `repository-path:line` — proposed improvement
 
 If clean, state `PASS — no material plan flaws found.` Return:
 

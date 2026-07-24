@@ -1,7 +1,7 @@
 # Tier 3 Preparation
 
-This route inherits the [canonical execution-gate
-contract](execution-gates.md); Tier 3 risk does not add another approval or
+This route inherits the canonical execution-gate contract
+(`execution-gates.md`); Tier 3 risk does not add another approval or
 resume gate.
 
 Read this reference only after `/next-plan` has claimed and classified a plan as

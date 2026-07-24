@@ -8,7 +8,7 @@ Vulkan 1.2 GLSL compiled to SPIR-V by DataPacker. The project `ShaderLayouts.h` 
 
 - `BT_ENGINE` selects C++ versus GLSL declarations; it is not a client-affinity guard. Layout headers are consumed by client and server builds.
 - Uniform blocks inherit scalar layout from `ShaderLayoutsBase.h`; storage blocks declare it explicitly where the CPU/GLSL contract requires it. Preserve CPU/GLSL field types, alignment, and order together; plain scalar arrays in scalar-layout blocks retain scalar stride.
-- Uniform-only terms — products, reciprocals, and pre-normalized vectors whose every operand is invocation-invariant — are folded CPU-side into precomputed layout fields by the [Render populators](../../Source/Graphics/Render/AGENTS.md); shaders read the finished field rather than recomputing it per invocation. Route new such math to the populator, not the shader; `ShaderLayoutsBase.h` field comments own each fold's rationale and the operands deliberately left raw.
+- Uniform-only terms — products, reciprocals, and pre-normalized vectors whose every operand is invocation-invariant — are folded CPU-side into precomputed layout fields by the Render populators (`../../Source/Graphics/Render/AGENTS.md`); shaders read the finished field rather than recomputing it per invocation. Route new such math to the populator, not the shader; `ShaderLayoutsBase.h` field comments own each fold's rationale and the operands deliberately left raw.
 - Descriptor ownership is semantic: Set 0 is global, Set 1 is per-pipeline, and Set 2 is per-material. Binding constants live in the shared layout header and must match C++ layout/writes.
 - Bindless texture indices require `nonuniformEXT()`. Push constants select projection/render modes where command buffers are recorded once.
 - `ShaderFunctions.h` owns shared transforms, projection, normal mapping, smoke blending, and lighting helpers. `ShaderRandom.h` mirrors the engine's 32-bit RNG family.
@@ -27,6 +27,6 @@ Vulkan 1.2 GLSL compiled to SPIR-V by DataPacker. The project `ShaderLayouts.h` 
 
 ## Family Documentation
 
-- [Debug](Debug/AGENTS.md), [Lighting](Lighting/AGENTS.md), [Model](Model/AGENTS.md), [Objects](Objects/AGENTS.md), [Particles](Particles/AGENTS.md), [Quads](Quads/AGENTS.md), [Shadow](Shadow/AGENTS.md), [Smoke](Smoke/AGENTS.md), [Terrain](Terrain/AGENTS.md), [Water](Water/AGENTS.md), [Wind](Wind/AGENTS.md)
+- Debug (`Debug/AGENTS.md`), Lighting (`Lighting/AGENTS.md`), Model (`Model/AGENTS.md`), Objects (`Objects/AGENTS.md`), Particles (`Particles/AGENTS.md`), Quads (`Quads/AGENTS.md`), Shadow (`Shadow/AGENTS.md`), Smoke (`Smoke/AGENTS.md`), Terrain (`Terrain/AGENTS.md`), Water (`Water/AGENTS.md`), Wind (`Wind/AGENTS.md`)
 
 Family documents own algorithms and local correctness constraints; they do not repeat layouts, bindings, EWNS, or the `inverse()` rule.

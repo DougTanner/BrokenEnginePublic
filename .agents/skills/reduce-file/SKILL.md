@@ -18,15 +18,15 @@ threshold without scattering ownership or disguising size.
 
 Choose exactly one mode from the invocation:
 
-- **Review observation:** While reviewing a change, measure the modified file
+- Review observation: While reviewing a change, measure the modified file
   and apply the review's qualification rules. Report only the size and concrete
   cohesive split opportunity. Do not map the file, draft a plan, or edit code;
   route an accepted out-of-scope residual through `/create-follow-up-plans`.
-- **Standalone or pre-approval analysis:** Inspect the target and return one
+- Standalone or pre-approval analysis: Inspect the target and return one
   evidence-backed material plan choice. Do not ask the user to select among
   speculative options. Produce the decision-complete draft inline; do not write
   or queue a plan unless the user explicitly authorizes that action.
-- **Approved-plan execution:** Treat the approved plan and deltas as the decision
+- Approved-plan execution: Treat the approved plan and deltas as the decision
   authority. Implement its assigned reduction without reopening settled design
   choices. Stop and report a contradiction if repository evidence invalidates a
   material plan assumption.
@@ -44,8 +44,8 @@ pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>
 
 `bt-token-v1` is normalized UTF-8 bytes divided by four, rounded up.
 
-- `.h`: reduction threshold is **over 5,000**.
-- `.cpp`: reduction threshold is **over 10,000**.
+- `.h`: reduction threshold is over 5,000.
+- `.cpp`: reduction threshold is over 10,000.
 
 At or below the applicable threshold, report the measurement and return no
 reduction plan. Reject other extensions. Record the original size and, after an

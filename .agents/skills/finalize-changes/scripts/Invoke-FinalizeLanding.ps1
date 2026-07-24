@@ -36,6 +36,12 @@ if (-not (Test-Path -LiteralPath $commonModule)) {
 }
 Import-Module $commonModule -Force
 
+$exclusionModule = Join-Path $PSScriptRoot '..\..\..\scripts\WorktreeCliSessionExclusion.psm1'
+if (-not (Test-Path -LiteralPath $exclusionModule)) {
+	$exclusionModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\WorktreeCliSessionExclusion.psm1'
+}
+Import-Module $exclusionModule -Force
+
 $result = [ordered]@{
 	schemaVersion = 'broken-engine-finalize-landing/v1'
 	status = 'error'
@@ -67,6 +73,7 @@ $script:CertifiedForeignDiagnosticFingerprints = $null
 $script:FailureExitCode = 0
 $script:FailureCode = $null
 $script:FailureMessage = $null
+$script:LandingTransientOwner = $null
 
 function Throw-Landing([int] $ExitCode, [string] $Code, [string] $Message, [string] $Disposition = 'terminal', [bool] $RequiresUserAuthority = $false, [int] $RetryAfterMilliseconds = 0) {
 	$exception = [InvalidOperationException]::new($Message)
@@ -239,6 +246,14 @@ try {
 	$result.identities.primaryBranch = $script:PrimaryIdentity.Branch
 	$result.tips.current = $script:CurrentIdentity.Head
 	$result.tips.primary = $script:PrimaryIdentity.Head
+	# A transient operation claim with a fresh per-landing owner (never the durable receipt session
+	# owner, whose reuse as a promotion cooperating exemption would hide a second attachment's
+	# in-flight landing) excludes AgentTools promotion from swapping WorktreeCli.exe across this
+	# multi-invocation landing transaction. Registered before the first WorktreeCli.exe use;
+	# released in cleanup alongside the landing lock.
+	$landingOwner = [guid]::NewGuid().ToString()
+	Register-WorktreeCliSession -RepositoryRoot $script:CurrentIdentity.Worktree -Owner $landingOwner -Label 'session landing' -Worktree $script:CurrentIdentity.Worktree | Out-Null
+	$script:LandingTransientOwner = $landingOwner
 	if ($script:CurrentIdentity.Head -ceq $ApprovedSessionCommit -and
 		(Test-FinalizeGitSuccess $script:PrimaryIdentity.Worktree @('merge-base', '--is-ancestor', $ApprovedSessionCommit, $script:PrimaryIdentity.Head))) {
 		$preflight = Invoke-Preflight 'post-advance-recovery' $ApprovedSessionCommit $script:PrimaryIdentity.Head
@@ -323,6 +338,10 @@ catch {
 }
 finally {
 	Release-LandingLockIfSafe
+	if ($null -ne $script:LandingTransientOwner) {
+		try { Unregister-WorktreeCliSession -RepositoryRoot $script:CurrentIdentity.Worktree -Owner $script:LandingTransientOwner }
+		catch { $result.residuals.Add("Landing transient claim release failed: $($_.Exception.Message)") }
+	}
 }
 
 if ($script:FailureExitCode -ne 0) {

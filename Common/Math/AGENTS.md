@@ -20,5 +20,4 @@ Adding or removing a draw changes every later result. Keep random draws and mode
 
 ## See Also
 
-- [`../AGENTS.md`](../AGENTS.md) - shared determinism, serialization, and vector contracts
-- [`../../Documents/FloatingPointDeterminism.txt`](../../Documents/FloatingPointDeterminism.txt) - full floating-point contract
+- `../../Documents/FloatingPointDeterminism.txt` - full floating-point contract

@@ -2,7 +2,7 @@
 
 Game-specific profiling extending `engine::ProfileManagerBase` with game CPU counters and timers (no game GPU timers/counters).
 
-**Global**: `game::gpProfileManager`
+Global: `game::gpProfileManager`
 
 ## Architecture
 

@@ -1,15 +1,15 @@
 
 
 # Canonical read-only structural preflight for finalization: identity, Git state,
-# WorktreeCli capability, wrapper-claim, and receipt-bound terminal Plan checks.
+# WorktreeCli capability, session-landing receipt, and receipt-bound terminal Plan checks.
 # Approval preparation invokes after-reconciliation checks; landing invokes the
 # pre-mutation check or the post-mutation crash-recovery check.
 #
 # Capability profile validates optional receipt-bound terminal Plan release.
-# This preflight probes no Plan scheduler mutation capability. Session mode requires
-# BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER and the wrapper's authoritative provenance
-# variables to match; primary mode requires neither wrapper provenance nor a session
-# claim.
+# This preflight probes no Plan scheduler mutation capability. Session landing requires
+# a canonical SessionOwner GUID and the in-worktree session receipt to match the supplied
+# identity, branch, target branch, primary checkout, and baseline; primary mode requires
+# neither a receipt nor a session claim.
 #
 # Emits one broken-engine-finalize-preflight/v1 JSON object: exit 0 with status pass
 # is the only success; exit 2 is a reported deterministic blocker; exit 1 is
@@ -58,10 +58,9 @@ $result = [ordered]@{
 	identities = [ordered]@{ currentWorktree = $null; primaryWorktree = $null; gitCommonDirectory = $null; currentBranch = $null; primaryBranch = $null }
 	tips = [ordered]@{ baseline = $Baseline; current = $null; primary = $null; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip }
 	worktreeCli = [ordered]@{ outputPath = $null; outputLinkTarget = $null; path = $null; selection = 'canonical'; capabilityResult = 'not-checked'; requiredCapabilities = @(); candidate = $null }
-	claim = [ordered]@{ classification = if ($Mode -eq 'primary-commit') { 'not-required' } else { 'not-checked' }; owner = $SessionOwner; worktree = $null; pid = $null; processStartUtc = $null; actualProcessStartUtc = $null }
+	claim = [ordered]@{ classification = if ($Mode -eq 'primary-commit') { 'not-required' } else { 'not-checked' }; owner = $SessionOwner; worktree = $null }
 	planClaim = [ordered]@{ receipt = $ClaimReceiptPath; sha256 = $ClaimReceiptSha256 }
 }
-$authoritativeSessionWorktree = $null
 
 function Complete-Preflight([int] $ExitCode, [string] $Status, [string] $Code, [string] $Message) {
 	$result.status = $Status
@@ -228,23 +227,6 @@ try {
 
 	if ($Mode -eq 'session-landing') {
 		Assert-Input ($SessionOwner -cmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') 'Session landing requires a canonical lowercase SessionOwner GUID.'
-		$provenance = [ordered]@{
-			BROKEN_ENGINE_WORKTREE_PATH = $CurrentWorktree
-			BROKEN_ENGINE_SESSION_BRANCH = $CurrentBranch
-			BROKEN_ENGINE_PRIMARY_CHECKOUT = $PrimaryWorktree
-			BROKEN_ENGINE_TARGET_BRANCH = $PrimaryBranch
-			BROKEN_ENGINE_BASELINE = $Baseline
-			BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER = $SessionOwner
-		}
-		foreach ($entry in $provenance.GetEnumerator()) {
-			$actual = [Environment]::GetEnvironmentVariable($entry.Key)
-			Assert-Input (-not [string]::IsNullOrWhiteSpace($actual)) "Session landing requires $($entry.Key)."
-			if ($entry.Key -in @('BROKEN_ENGINE_WORKTREE_PATH', 'BROKEN_ENGINE_PRIMARY_CHECKOUT')) {
-				Assert-Input ((Get-ExistingWindowsIdentity $actual $entry.Key).Equals((Get-ExistingWindowsIdentity $entry.Value 'Supplied provenance path'), [StringComparison]::OrdinalIgnoreCase)) "$($entry.Key) does not match the supplied path."
-				if ($entry.Key -ceq 'BROKEN_ENGINE_WORKTREE_PATH') { $authoritativeSessionWorktree = $actual }
-			}
-			else { Assert-Input ($actual -ceq $entry.Value) "$($entry.Key) does not match the supplied value." }
-		}
 	}
 
 	$currentIdentity = Get-ExistingWindowsIdentity $CurrentWorktree 'Current worktree'
@@ -353,15 +335,25 @@ try {
 	$result.worktreeCli.capabilityResult = 'pass'
 
 	if ($Mode -eq 'session-landing') {
-		$module = Join-Path $currentIdentity '.agents\scripts\WorktreeCliSessionExclusion.psm1'
+		$module = Join-Path $currentIdentity '.agents\scripts\AgentWorktreeSession.psm1'
 		Import-Module $module -Force
-		$classification = Get-WorktreeCliSessionClassification -RepositoryRoot $primaryIdentity -Owner $SessionOwner -Worktree $authoritativeSessionWorktree -WaitSeconds $parsedWaitSeconds
-		$result.claim.classification = $classification.Classification
-		$result.claim.worktree = $classification.ClaimWorktree
-		$result.claim.pid = $classification.ClaimPid
-		$result.claim.processStartUtc = $classification.ClaimProcessStartUtc
-		$result.claim.actualProcessStartUtc = $classification.ActualProcessStartUtc
-		if ($classification.Classification -cne 'expected-live') { Stop-Validation "claim.$($classification.Classification)" "Wrapper WorktreeCli session claim classified as '$($classification.Classification)'." }
+		try { $receipt = (Read-AgentWorktreeSessionReceipt -Worktree $currentIdentity).Value }
+		catch { Stop-Validation 'receipt.unreadable' "Session-landing receipt is missing or failed strict validation: $($_.Exception.Message)" }
+		# Compare the receipt's canonical worktree/primary paths to the resolved current/primary
+		# identities without requiring the receipt paths to exist on disk. A nonexistent, foreign,
+		# stale, or moved path yields the distinct receipt.worktree-mismatch / receipt.primary-mismatch
+		# rather than identity.missing or state.unreadable; Test-ExistingIdentityEqual resolves an
+		# existing path for a robust final-identity match and returns false (mismatch) for an absent or
+		# divergent one.
+		$result.claim.worktree = $receipt.worktree
+		$result.claim.owner = $receipt.sessionOwner
+		if ($receipt.sessionOwner -cne $SessionOwner) { Stop-Validation 'receipt.owner-mismatch' 'Session-landing receipt owner does not match the supplied SessionOwner.' }
+		if (-not (Test-ExistingIdentityEqual $receipt.worktree $currentIdentity)) { Stop-Validation 'receipt.worktree-mismatch' 'Session-landing receipt worktree does not identify the current worktree.' }
+		if ($receipt.branch -cne $CurrentBranch) { Stop-Validation 'receipt.branch-mismatch' 'Session-landing receipt branch does not match the current branch.' }
+		if ($receipt.targetBranch -cne $PrimaryBranch) { Stop-Validation 'receipt.target-branch-mismatch' 'Session-landing receipt target branch does not match the primary branch.' }
+		if (-not (Test-ExistingIdentityEqual $receipt.primaryCheckout $primaryIdentity)) { Stop-Validation 'receipt.primary-mismatch' 'Session-landing receipt primary checkout does not identify the primary worktree.' }
+		if ($receipt.baseline -cne $Baseline) { Stop-Validation 'receipt.baseline-mismatch' 'Session-landing receipt baseline does not match the supplied baseline.' }
+		$result.claim.classification = 'receipt-verified'
 	}
 
 	Complete-Preflight 0 'pass' 'ok' 'Finalization preflight passed.'

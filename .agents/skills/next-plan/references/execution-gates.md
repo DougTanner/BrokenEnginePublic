@@ -58,12 +58,39 @@ Plan metadata creation remains strict.
 
 ### Primary advance
 
-Before claim, recover an advanced primary only from a clean session tree:
-rebase onto the primary tip, verify the tree remains clean, re-baseline
-`BROKEN_ENGINE_BASELINE`, then claim. After claim, stay at that baseline until
-`/finalize-changes`; claim, approval, and completed work survive further primary
-advances. An `ok: true` stale-baseline `missing-plan-file` notice is
-non-blocking and reconciliation resolves it. A Plan-digest mismatch is terminal.
+A primary advance never blocks or reroutes a claim: `claim-next` selects from the
+session worktree tree and requires the session `HEAD` to be an ancestor of (or
+equal to) the primary tip, so a fresh or behind session claims with no pre-claim
+rebase or re-baseline. After claim, claim, approval, and completed work survive
+further primary advances until `/finalize-changes`. An `ok: true` stale-baseline
+`missing-plan-file` notice is non-blocking and reconciliation resolves the
+advance. A Plan-digest mismatch is terminal.
+
+### Primary rewrite (squash)
+
+A failed `git merge-base --is-ancestor $env:BROKEN_ENGINE_BASELINE <primary tip>`
+with the primary branch name unchanged is the cheap mid-session trigger that
+primary was squash-rewritten, not advanced. It is not the authoritative test —
+the sidecar decides from the true fork point it recovers from the primary reflog,
+which also catches a partial squash that orphans a fast-forwarded tip while the
+env baseline stays reachable. Recover automatically, without prompting: run
+`Repair-AgentWorktreeSquashedBaseline.ps1` with `-RepositoryRoot` = the primary
+checkout (`$env:BROKEN_ENGINE_PRIMARY_CHECKOUT`), `-Worktree` = this session
+worktree (`$env:BROKEN_ENGINE_WORKTREE_PATH`), and `-WorktreeCliExecutable` = the
+primary `WorktreeCli.exe`. It re-parents the session onto the squashed tip and
+also rewrites the durable wrapper receipt — without that receipt fix the next
+reattach is unrecoverable, since the old baseline is no longer an ancestor of the
+worktree HEAD. Re-export `BROKEN_ENGINE_BASELINE` to the reported `newBaseline`,
+and replace any remembered claim-receipt sha256 with the `updatedReceipts` values.
+The repair runs before any `plan validate` or `claim-next` — healing at the
+post-rebase/pre-reparent boundary deletes live claims. A `reparented-conflict`
+result has two kinds keyed by `rebaseInProgress`: true is a mid-rebase conflict
+(detached HEAD — resolve the files, `git rebase --continue`, and run no scheduler
+operation until it completes, or healing's branch check heal-deletes the
+reparented claim); false is an autostash pop-conflict after a completed rebase
+(HEAD attached and scheduler ops safe — resolve the files, then `git stash drop`
+the kept autostash). Run the deferred `Build-WorktreeDataPacker.ps1` after either
+resolution.
 
 <!-- next-plan-gate:primary-mutation-confirmation -->
 
@@ -89,12 +116,12 @@ output consumed by live worktrees must add its exact trigger here before using
 this gate.
 
 Only when a landing includes a canonical shared-artifact mutation defined above,
-require the canonical session ledger to show no live session other than the
-current cooperating owner and no maintenance claim before presenting landing
-confirmation. Do not apply ledger quiescence to the excluded operations. The
-bounded read-only [`Wait-AgentToolsQuiescence.ps1`](../../finalize-changes/scripts/Wait-AgentToolsQuiescence.ps1)
+require the canonical operation ledger to show no in-flight shared-tool operation claim other
+than the current cooperating owner before presenting landing confirmation. Do not
+apply ledger quiescence to the excluded operations. The bounded read-only
+`../../finalize-changes/scripts/Wait-AgentToolsQuiescence.ps1`
 sidecar must be invoked with `-RepositoryRoot $PRIMARY`,
-`-CooperatingSessionOwner $env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER`, and
+`-CooperatingSessionOwner $env:BROKEN_ENGINE_SESSION_OWNER`, and
 `-WaitSeconds 55`. It exits `0` with one
 `broken-engine-shared-quiescence/v1` result: `quiescent` or
 `shared-quiescence`, always with `requiresUserAuthority:false`,
@@ -115,8 +142,8 @@ one direct confirmation question:
 - A separately requested non-`/next-plan` `primary-commit`: `Confirm commit of
   this change on primary branch <primary-branch>?`
 
-A plain affirmative response authorizes landing **this session diff onto
-primary, wherever the primary tip is** — not one exact commit pair. Plan
+A plain affirmative response authorizes landing this session diff onto
+primary, wherever the primary tip is — not one exact commit pair. Plan
 approval, implementation approval, a request to finish or land, and a
 reconciliation decision are not substitutes for it.
 

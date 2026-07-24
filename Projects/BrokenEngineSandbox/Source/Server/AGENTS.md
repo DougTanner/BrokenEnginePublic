@@ -16,5 +16,5 @@ Server-only GDI monitoring for simulation statistics, profiling, memory, and the
 
 ## See Also
 
-- [Engine Profile](../../../../Engine/Source/Profile/AGENTS.md)
-- [Game Profile](../Profile/AGENTS.md)
+- `../../../../Engine/Source/Profile/AGENTS.md`
+- Game Profile: `../Profile/AGENTS.md`

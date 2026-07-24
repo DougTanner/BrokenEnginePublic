@@ -20,5 +20,4 @@ Keep workbuffer views, log-buffer references, and tick/indent scopes within thei
 
 ## See Also
 
-- [`../AGENTS.md`](../AGENTS.md) - dispatch selection, workbuffer, and determinism rules
-- [`../Log/AGENTS.md`](../Log/AGENTS.md) - worker log context and buffers
+- `../Log/AGENTS.md` - worker log context and buffers

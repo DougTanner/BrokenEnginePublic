@@ -32,6 +32,5 @@ Server-only game networking. `ServerSession` is the game-policy façade over `en
 
 ## See Also
 
-- [Game Network](../AGENTS.md)
-- [Engine Server Transport](../../../../../Engine/Source/Network/Server/AGENTS.md)
-- [Network architecture](../../../../../Documents/Architecture/Network.md)
+- Engine Server Transport: `../../../../../Engine/Source/Network/Server/AGENTS.md`
+- `../../../../../Documents/Architecture/Network.md`

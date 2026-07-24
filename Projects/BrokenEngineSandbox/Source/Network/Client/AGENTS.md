@@ -30,6 +30,5 @@ Detailed fast-path, rollback-base, clock, and full-state behavior belongs in the
 
 ## See Also
 
-- [Game Network](../AGENTS.md)
-- [Game reconciliation](../../../../../Documents/Architecture/GameReconciliation.md)
-- [Network architecture](../../../../../Documents/Architecture/Network.md)
+- `../../../../../Documents/Architecture/GameReconciliation.md`
+- `../../../../../Documents/Architecture/Network.md`

@@ -30,10 +30,9 @@ approximating either analysis inline. The main context invokes skills and
 dispatches every role. Give each role a bounded manifest or report slice and
 forbid child delegation; schedule waves within the host's available concurrency.
 
-Read root and target-applicable `AGENTS.md` files before dispatch. Before plan
-authoring, require the checkout and fixed baseline needed by
-`create-follow-up-plans`. If they are unavailable, the read-only analysis may
-finish, but plan creation is blocked.
+Read root and target-applicable `AGENTS.md` files before dispatch. Plan authoring
+needs the checkout and a baseline commit for `create-follow-up-plans`; outside a
+wrapper session that baseline is `HEAD`.
 
 ## Phase 1: Architecture Shape
 
@@ -64,13 +63,13 @@ write, rewrite, delete, score, or relocate a plan and must not delegate.
 
 For every candidate, require a verdict and evidence for:
 
-1. **Correctness** — cited path, symbol, behavior, and repository authority exist
+1. Correctness — cited path, symbol, behavior, and repository authority exist
    and support the claimed root cause.
-2. **Benefit and safety** — the proposed outcome is functional or structural,
+2. Benefit and safety — the proposed outcome is functional or structural,
    not cosmetic, pattern-breaking, or more risky than the proven debt.
-3. **Actionability** — the acceptance gap and smallest correction boundary are
+3. Actionability — the acceptance gap and smallest correction boundary are
    concrete enough for a plan author.
-4. **External claims** — non-obvious API, specification, license, maintenance,
+4. External claims — non-obvious API, specification, license, maintenance,
    or ThirdParty propositions become verification requests for the main context
    to route through `verify-external-claims`; unresolved claims remain residuals.
 
@@ -120,9 +119,9 @@ report:
   oversized file still shown as `run /reduce-file <path>`;
 - each authored plan's final tier trigger, acceptance boundary, and dependency
   disposition from `create-follow-up-plans`;
-- one area Debt Score: **LOW** for nearly all Quick Win/Small, **MODERATE** for
-  mostly Small/Medium, **HIGH** for multiple Large or any Architectural, and
-  **CRITICAL** for several Architectural items or a core-invariant threat;
+- one area Debt Score: LOW for nearly all Quick Win/Small, MODERATE for
+  mostly Small/Medium, HIGH for multiple Large or any Architectural, and
+  CRITICAL for several Architectural items or a core-invariant threat;
 - verification result, finalization disposition, and tracked Plan validation state.
 
 The Debt Score is a run retrospective only; never put it in a Plan. Do not call

@@ -7,7 +7,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'FinalizeWorkflowComm
 }
 Import-Module (Join-Path $sharedScripts 'FinalizeWorkflowCommon.psm1') -Force
 Import-Module (Join-Path $sharedScripts 'AgentArtifactStore.psm1') -Force -DisableNameChecking
-Import-Module (Join-Path $sharedScripts 'WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $sharedScripts 'AgentWorktreeSession.psm1') -Force -DisableNameChecking
 
 function New-NextPlanStateBlocker([string] $Message) {
 	$exception = [InvalidOperationException]::new($Message)
@@ -17,36 +17,23 @@ function New-NextPlanStateBlocker([string] $Message) {
 function Test-NextPlanStateBlocker($ErrorRecord) {
 	return $null -ne $ErrorRecord -and $null -ne $ErrorRecord.Exception -and $ErrorRecord.Exception.Data.Contains('NextPlanExitCode') -and [int]$ErrorRecord.Exception.Data['NextPlanExitCode'] -eq 2
 }
-function Get-NextPlanEnvironmentValue([string] $Name) {
-	$value = [Environment]::GetEnvironmentVariable($Name)
-	if ([string]::IsNullOrWhiteSpace($value) -or $value.IndexOf("`r", [StringComparison]::Ordinal) -ge 0 -or $value.IndexOf("`n", [StringComparison]::Ordinal) -ge 0) { throw "Wrapper environment variable $Name is missing or invalid." }
-	return $value
-}
-function Get-NextPlanContext([switch] $AllowPrimaryAdvance) {
+function Get-NextPlanContext {
 	try {
-		if ((Get-NextPlanEnvironmentValue 'BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE') -cne 'session') { throw 'The wrapper admission mode is not session.' }
-		$worktreeValue = Get-NextPlanEnvironmentValue 'BROKEN_ENGINE_WORKTREE_PATH'
-		$sessionWorktreeValue = Get-NextPlanEnvironmentValue 'BROKEN_ENGINE_WORKTREECLI_SESSION_WORKTREE'
-		$primaryValue = Get-NextPlanEnvironmentValue 'BROKEN_ENGINE_PRIMARY_CHECKOUT'
-		$sessionBranch = Get-NextPlanEnvironmentValue 'BROKEN_ENGINE_SESSION_BRANCH'
-		$targetBranch = Get-NextPlanEnvironmentValue 'BROKEN_ENGINE_TARGET_BRANCH'
-		$baseline = Get-NextPlanEnvironmentValue 'BROKEN_ENGINE_BASELINE'
-		$owner = Get-NextPlanEnvironmentValue 'BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER'
-		if ($baseline -cnotmatch '^[0-9a-f]{40}$') { throw 'BROKEN_ENGINE_BASELINE is not a lowercase commit ID.' }
+		$provenance = Get-AgentWorktreeSessionProvenance -Worktree (Get-Location).Path
+		$baseline = $provenance.Baseline
+		if ($baseline -cnotmatch '^[0-9a-f]{40}$') { throw 'Session baseline is not a lowercase commit ID.' }
+		$sessionBranch = $provenance.Branch
+		$targetBranch = $provenance.TargetBranch
+		$owner = $provenance.SessionOwner
 
-		$worktree = Get-FinalizeGitIdentity $worktreeValue 'Wrapper session worktree'
-		$sessionWorktree = Get-FinalizeExistingWindowsIdentity $sessionWorktreeValue 'Registered wrapper session worktree'
+		$worktree = Get-FinalizeGitIdentity $provenance.Worktree 'Session worktree'
 		$current = Get-FinalizeExistingWindowsIdentity (Get-Location).Path 'Current directory'
-		if (-not $sessionWorktree.Equals($worktree.Worktree,[StringComparison]::OrdinalIgnoreCase) -or -not $current.Equals($worktree.Worktree,[StringComparison]::OrdinalIgnoreCase)) { throw (New-NextPlanStateBlocker 'Current, registered, and wrapper session worktree identities do not match.') }
-		$primary = Get-FinalizeGitIdentity $primaryValue 'Wrapper primary checkout'
-		if (-not $primary.CommonDirectory.Equals($worktree.CommonDirectory,[StringComparison]::OrdinalIgnoreCase)) { throw (New-NextPlanStateBlocker 'Wrapper primary and session worktrees do not share a Git common directory.') }
+		if (-not $current.Equals($worktree.Worktree,[StringComparison]::OrdinalIgnoreCase)) { throw (New-NextPlanStateBlocker 'Current directory and session worktree identities do not match.') }
+		$primary = Get-FinalizeGitIdentity $provenance.Primary 'Session primary checkout'
+		if (-not $primary.CommonDirectory.Equals($worktree.CommonDirectory,[StringComparison]::OrdinalIgnoreCase)) { throw (New-NextPlanStateBlocker 'Session primary and worktree do not share a Git common directory.') }
 		$primaryDotGit = Get-Item -LiteralPath (Join-Path $primary.Worktree '.git') -Force -ErrorAction Stop
-		if (-not $primaryDotGit.PSIsContainer -or ($primaryDotGit.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw (New-NextPlanStateBlocker 'BROKEN_ENGINE_PRIMARY_CHECKOUT is not the primary checkout.') }
-		if ($worktree.Branch -cne $sessionBranch -or $primary.Branch -cne $targetBranch) { throw (New-NextPlanStateBlocker 'Wrapper branch identities do not match the attached Git branches.') }
-		if ($worktree.Head -cne $baseline) { throw (New-NextPlanStateBlocker 'Session worktree HEAD moved from the wrapper baseline.') }
-		if (-not $AllowPrimaryAdvance -and $primary.Head -cne $baseline) { throw (New-NextPlanStateBlocker 'Primary HEAD advanced from the wrapper baseline; perform primary-advance recovery first.') }
-		$classification = Get-WorktreeCliSessionClassification -RepositoryRoot $worktree.Worktree -Owner $owner -Worktree $worktree.Worktree
-		if ($classification.Classification -cne 'expected-live') { throw (New-NextPlanStateBlocker "Wrapper WorktreeCli session classification is '$($classification.Classification)', expected 'expected-live'.") }
+		if (-not $primaryDotGit.PSIsContainer -or ($primaryDotGit.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw (New-NextPlanStateBlocker 'Session primary checkout is not the primary checkout.') }
+		if ($worktree.Branch -cne $sessionBranch -or $primary.Branch -cne $targetBranch) { throw (New-NextPlanStateBlocker 'Session branch identities do not match the attached Git branches.') }
 
 		$relativeOutput = 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
 		$sessionOutput = Join-Path $worktree.Worktree $relativeOutput; $primaryOutput = Join-Path $primary.Worktree $relativeOutput

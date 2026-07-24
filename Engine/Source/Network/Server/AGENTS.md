@@ -1,6 +1,6 @@
 # Network Server - Host, Slots, and Resends
 
-Server-only engine transport. `Server` (`gpServer`) owns the ENet host, client transport records, subscription slots, update rings, and resend state. `ServerSessionRuntime` owns host lifetime, fixed-tick pacing, discovery, poll/tick/paused sequencing, persistent queue servicing, publication consumption, resend, flush, and transport reset. The concrete [game server session](../../../../Projects/BrokenEngineSandbox/Source/Network/Server/AGENTS.md) supplies authorization, publication construction, transfers, and gameplay hooks.
+Server-only engine transport. `Server` (`gpServer`) owns the ENet host, client transport records, subscription slots, update rings, and resend state. `ServerSessionRuntime` owns host lifetime, fixed-tick pacing, discovery, poll/tick/paused sequencing, persistent queue servicing, publication consumption, resend, flush, and transport reset. The concrete game server session (`../../../../Projects/BrokenEngineSandbox/Source/Network/Server/AGENTS.md`) supplies authorization, publication construction, transfers, and gameplay hooks.
 
 ## Affinity and Lifetime
 
@@ -27,6 +27,5 @@ Server-only engine transport. `Server` (`gpServer`) owns the ENet host, client t
 
 ## See Also
 
-- [Engine Network](../AGENTS.md)
-- [Game Server Session](../../../../Projects/BrokenEngineSandbox/Source/Network/Server/AGENTS.md)
-- [Network architecture](../../../../Documents/Architecture/Network.md)
+- Game Server Session (`../../../../Projects/BrokenEngineSandbox/Source/Network/Server/AGENTS.md`)
+- Network architecture (`../../../../Documents/Architecture/Network.md`)

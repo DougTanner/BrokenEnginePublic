@@ -19,8 +19,8 @@ findings without behavioral or structural evidence.
 
 Require one target path and resolve it before inspection:
 
-- **Exact file:** analyze only that `.h` or `.cpp`; never add siblings.
-- **Directory:** analyze directly contained `.h` and `.cpp` files. Include
+- Exact file: analyze only that `.h` or `.cpp`; never add siblings.
+- Directory: analyze directly contained `.h` and `.cpp` files. Include
   descendants only when the caller explicitly requests recursion.
 
 Enumerate a stable file manifest. For every file, map and read root `AGENTS.md`,

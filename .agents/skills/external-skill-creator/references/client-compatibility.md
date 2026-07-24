@@ -6,7 +6,7 @@ Read this reference when a skill adds or changes client-specific metadata, promp
 
 Both clients consume the skill directory and `SKILL.md`, but their policy surfaces are independent. Write portable instructions in ordinary language, then configure every supported client explicitly. Never infer invocation behavior from an `external-` name.
 
-Repository frontmatter follows [`../../validate-skill/references/frontmatter-schema.md`](../../validate-skill/references/frontmatter-schema.md). The repository validator, not a client installation, owns its accepted fields and relationships.
+Repository frontmatter follows `../../validate-skill/references/frontmatter-schema.md`. The repository validator, not a client installation, owns its accepted fields and relationships.
 
 ## Claude Code
 

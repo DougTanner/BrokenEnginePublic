@@ -2,9 +2,9 @@
 
 ## Overview
 
-Engine-owned frame state, fixed-tick phase orchestration, per-cell static data, collision systems, terrain sampling, navigation, and generic collections. Game-specific phase extensions live in the project [Frame](../../../Projects/BrokenEngineSandbox/Source/Frame/AGENTS.md).
+Engine-owned frame state, fixed-tick phase orchestration, per-cell static data, collision systems, terrain sampling, navigation, and generic collections. Game-specific phase extensions live in the project Frame (`../../../Projects/BrokenEngineSandbox/Source/Frame/AGENTS.md`).
 
-Update [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePipeline.md) when phase ordering or participation changes.
+Update Frame Update Pipeline (`../../../Documents/Architecture/FrameUpdatePipeline.md`) when phase ordering or participation changes.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ Update [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePipeli
 
 - `Collections()` order is a dependency order, not just a type list. A producer must precede an owned consumer; Explosions before SmokeTrails is the live example. Tuple-size and client/server type checks do not verify this ordering.
 - `Write()`/`Read()` walk full `Collections()` and are build-local. Cross-build server snapshots use `ServerRead()` with `ServerCollections()` and shared members. Preserve tuple order, type parity, and member wire order together.
-- Collection-level SOA, initialization, ID-map, cardinality, and CRC rules are canonical in [Collections](Collections/AGENTS.md).
+- Collection-level SOA, initialization, ID-map, cardinality, and CRC rules are canonical in Collections (`Collections/AGENTS.md`).
 
 ## Terrain and Navigation
 
@@ -27,5 +27,5 @@ Update [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePipeli
 
 ## See Also
 
-- [Engine collections](Collections/AGENTS.md)
-- [Game frame](../../../Projects/BrokenEngineSandbox/Source/Frame/AGENTS.md)
+- Engine collections (`Collections/AGENTS.md`)
+- Game frame (`../../../Projects/BrokenEngineSandbox/Source/Frame/AGENTS.md`)

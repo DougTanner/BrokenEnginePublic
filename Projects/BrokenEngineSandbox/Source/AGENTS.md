@@ -7,9 +7,9 @@ Game implementation built on Engine and Common. `Game` owns the per-side session
 ## Ownership
 
 - `Fleet` is the shared data model and uses server-minted persistent identifiers. `FleetSelection` is client-only focus and navigation UI state.
-- `ClientSession` and `ServerSession` are game-policy façades that compose engine-owned session runtimes. See [Network](Network/AGENTS.md).
-- `GameSaveLoad` is server-only and owns save/load/replay. Its persistence and replay contracts live in [Save](Save/AGENTS.md).
-- Agent commands are game-dispatched, but the build-agnostic shared handlers, transport, synthetic input, and UI snapshots are engine-owned; the dispatcher tries the engine shared handlers before its side-specific ones. See [Agent](Agent/AGENTS.md).
+- `ClientSession` and `ServerSession` are game-policy façades that compose engine-owned session runtimes. See `Network/AGENTS.md`.
+- `GameSaveLoad` is server-only and owns save/load/replay. Its persistence and replay contracts live in `Save/AGENTS.md`.
+- Agent commands are game-dispatched, but the build-agnostic shared handlers, transport, synthetic input, and UI snapshots are engine-owned; the dispatcher tries the engine shared handlers before its side-specific ones. See `Agent/AGENTS.md`.
 
 ## Architecture
 
@@ -23,17 +23,17 @@ Game implementation built on Engine and Common. `Game` owns the per-side session
 
 ## Subsystems
 
-- [Agent](Agent/AGENTS.md) - Harness command dispatch, queries, and network diagnostic probes
-- [Frame](Frame/AGENTS.md) - Game simulation and collections
-- [Graphics](Graphics/AGENTS.md) - Camera controller
-- [Input](Input/AGENTS.md) - Game input mapping
-- [Network](Network/AGENTS.md) - Game protocol and sessions
-- [Profile](Profile/AGENTS.md) - Game profiling counters
-- [Save](Save/AGENTS.md) - Server save/load/replay
-- [Server](Server/AGENTS.md) - Server monitoring window
-- [Ui](Ui/AGENTS.md) - HUD and settings
+- `Agent/AGENTS.md` - Harness command dispatch, queries, and network diagnostic probes
+- `Frame/AGENTS.md` - Game simulation and collections
+- `Graphics/AGENTS.md` - Camera controller
+- `Input/AGENTS.md` - Game input mapping
+- `Network/AGENTS.md` - Game protocol and sessions
+- `Profile/AGENTS.md` - Game profiling counters
+- `Save/AGENTS.md` - Server save/load/replay
+- `Server/AGENTS.md` - Server monitoring window
+- `Ui/AGENTS.md` - HUD and settings
 
 ## See Also
 
-- [Engine Source](../../../Engine/Source/AGENTS.md)
-- [Floating-point determinism](../../../Documents/FloatingPointDeterminism.txt)
+- `../../../Engine/Source/AGENTS.md`
+- `../../../Documents/FloatingPointDeterminism.txt`

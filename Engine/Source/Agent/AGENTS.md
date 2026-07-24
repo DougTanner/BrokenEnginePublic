@@ -2,7 +2,7 @@
 
 ## Overview
 
-Engine-owned agent infrastructure provides a loopback TCP JSON channel, main-thread command execution, deferred replies, synthetic client input, and UI snapshots, plus the build-agnostic shared command handlers. Game-specific command semantics live in the project [Agent](../../../Projects/BrokenEngineSandbox/Source/Agent/AGENTS.md).
+Engine-owned agent infrastructure provides a loopback TCP JSON channel, main-thread command execution, deferred replies, synthetic client input, and UI snapshots, plus the build-agnostic shared command handlers. Game-specific command semantics live in the project Agent (`../../../Projects/BrokenEngineSandbox/Source/Agent/AGENTS.md`).
 
 ## Architecture
 
@@ -23,5 +23,5 @@ Engine-owned agent infrastructure provides a loopback TCP JSON channel, main-thr
 
 ## See Also
 
-- [Engine Input](../Input/AGENTS.md)
-- [Agent Harness](../../../Tools/AgentHarness/AGENTS.md)
+- Engine Input (`../Input/AGENTS.md`)
+- Agent Harness (`../../../Tools/AgentHarness/AGENTS.md`)

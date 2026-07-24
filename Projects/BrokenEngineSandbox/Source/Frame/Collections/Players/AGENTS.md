@@ -15,7 +15,3 @@ Players represent a flagship and AI-driven wingmen through one collection. Stabl
 
 - Game identity uses stable global IDs rather than local collection indices.
 - Shared CRC excludes client animation time, local pusher bookkeeping, and server-minted global identity. Some excluded state still participates in save or transfer.
-
-## See Also
-
-- [../AGENTS.md](../AGENTS.md) - Game collection transfer, CRC, and collision rules

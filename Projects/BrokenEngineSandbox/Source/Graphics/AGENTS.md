@@ -5,7 +5,7 @@ Client-only `Camera` derives from `engine::CameraBase`. The engine base owns mat
 ## Timing and Ownership
 
 - Camera position, easing, shake, and visual timers advance from render wall-clock delta so they track the interpolated player across variable display frames. Sun angle advances from the interpolate frame's delta and pauses in the main menu.
-- Network reconciliation contributes a decaying camera-target offset only; authoritative simulation state is unchanged. Keep this integration consistent with [Game Reconciliation](../../../../Documents/Architecture/GameReconciliation.md).
+- Network reconciliation contributes a decaying camera-target offset only; authoritative simulation state is unchanged. Keep this integration consistent with `../../../../Documents/Architecture/GameReconciliation.md`.
 - Player focus resolves through the current client coord and `PlayersPostRender`, surviving spawn and transfer. Brief lookup failures extrapolate the last focus within a bounded window; an absent player identity uses the main-menu pose.
 - Damage-driven shake decays here and drives controller vibration. Debug free-camera motion is main-menu-only.
 
@@ -18,5 +18,5 @@ Client-only `Camera` derives from `engine::CameraBase`. The engine base owns mat
 
 ## See Also
 
-- [Engine Graphics](../../../../Engine/Source/Graphics/AGENTS.md) - CameraBase and renderer grids
-- [Game Input](../Input/AGENTS.md) - Per-frame scroll delta
+- `../../../../Engine/Source/Graphics/AGENTS.md` - CameraBase and renderer grids
+- Game Input (`../Input/AGENTS.md`) - Per-frame scroll delta

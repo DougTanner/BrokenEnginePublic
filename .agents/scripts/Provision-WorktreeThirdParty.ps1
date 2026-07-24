@@ -2,8 +2,7 @@
 param(
 	[Parameter(Mandatory = $true)]
 	[string] $RepositoryRoot,
-	[int] $WaitSeconds = 660,
-	[switch] $LegacySessionsClosed
+	[int] $WaitSeconds = 660
 )
 
 $ErrorActionPreference = 'Stop'
@@ -166,13 +165,10 @@ $primaryRoot = $primary[0].Path
 $current = @($records | Where-Object { $_.Path.Equals($root, [StringComparison]::OrdinalIgnoreCase) })
 if ($current.Count -ne 1) { throw "RepositoryRoot is not a registered worktree: '$root'." }
 
-$transientClaim = $null
-$owner = $env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER
-if ([string]::IsNullOrWhiteSpace($owner)) {
-	$owner = [guid]::NewGuid().ToString()
-	$transientClaim = Register-WorktreeCliSession -RepositoryRoot $root -Owner $owner -Label 'transient provisioner' -Worktree $root -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed
-}
-else { Assert-WorktreeCliSessionOwner -RepositoryRoot $root -Owner $owner }
+# A transient operation claim excludes AgentTools promotion from swapping the shared executables
+# this provisioning links against, for the duration of the link-farm build.
+$owner = [guid]::NewGuid().ToString()
+Register-WorktreeCliSession -RepositoryRoot $root -Owner $owner -Label 'thirdparty provisioner' -Worktree $root -WaitSeconds $WaitSeconds | Out-Null
 
 try {
 
@@ -287,5 +283,5 @@ if (-not $root.Equals($primaryRoot, [StringComparison]::OrdinalIgnoreCase)) {
 Write-Host "Shared worktree dependencies validated for '$root' using primary '$primaryRoot'."
 }
 finally {
-	if ($null -ne $transientClaim) { Unregister-WorktreeCliSession -RepositoryRoot $root -Owner $owner }
+	Unregister-WorktreeCliSession -RepositoryRoot $root -Owner $owner
 }

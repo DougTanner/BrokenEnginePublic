@@ -10,7 +10,3 @@ Client-only point lights support owner-synced and fire-and-forget controlled lif
 - Controller wrappers apply when controlled lights are seeded and animated. Owner `Sync` writes bypass those wrappers.
 - `PersistentMembers()` carries type/controller/start-time metadata and base rotation through `AllocateAndCopyMembers()`; identity is owned and copied by the paired PostRender ID storage. Position and animated values are rewritten by owner sync or controller update, so any new persistent state must follow one of those lifecycles explicitly.
 - Future controller start times remain at the first keyframe until animation begins.
-
-## See Also
-
-- [../AGENTS.md](../AGENTS.md) - Collection, sync, and controller conventions

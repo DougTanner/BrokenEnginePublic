@@ -1,6 +1,6 @@
 # CommandBufferManager
 
-**Global:** `gpCommandBufferManager`
+Global: `gpCommandBufferManager`
 
 Owns per-framebuffer command buffers and the submission graph. Global and Main command buffers are immutable after their first recording and are rebuilt only through renderer recreation; their record helpers own compute/world preparation and scene rendering respectively. ImGui records separately each frame.
 

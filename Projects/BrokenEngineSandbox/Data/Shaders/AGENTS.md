@@ -8,8 +8,8 @@ Nearly every shader (engine and game) writes `#include "ShaderLayouts.h"`. The D
 
 ## Invariants
 
-- **`BT_ENGINE` guards C++-only syntax**: defined only during C++ compilation, not GLSL. C++-only constructs (`#pragma once`, `constexpr`) sit inside `#if defined(BT_ENGINE)`; GLSL-only syntax goes in `#else`. Anything added to this wrapper must observe the same split.
+- `BT_ENGINE` guards C++-only syntax: defined only during C++ compilation, not GLSL. C++-only constructs (`#pragma once`, `constexpr`) sit inside `#if defined(BT_ENGINE)`; GLSL-only syntax goes in `#else`. Anything added to this wrapper must observe the same split.
 
 ## See Also
 
-- [Engine/Data/Shaders/AGENTS.md](../../../../Engine/Data/Shaders/AGENTS.md) - Engine shader system, shared GLSL includes, and all shader-family sources
+- `../../../../Engine/Data/Shaders/AGENTS.md` - Engine shader system, shared GLSL includes, and all shader-family sources

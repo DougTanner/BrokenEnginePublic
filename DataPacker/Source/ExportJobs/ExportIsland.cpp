@@ -36,6 +36,33 @@ struct ExportedIsland
 	float fMaxHeightMeters = 0.0f;
 };
 
+// ExportJob's own fingerprint marker helpers are TU-local to ExportJob.cpp; the texture-stage marker
+// gets its own pair here. Plain text (no magic / version prefix): the stored bytes are the whole
+// comparison, and kiTextureVersion inside the fingerprint already invalidates every stale marker.
+std::optional<std::string> ReadTextureMarkerFile(const std::filesystem::path& rPath)
+{
+	std::ifstream stream(rPath, std::ios::binary);
+	if (!stream)
+	{
+		return std::nullopt;
+	}
+	std::string fingerprint {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+	return !stream.bad() ? std::optional(std::move(fingerprint)) : std::nullopt;
+}
+
+// Write-then-rename: a torn marker would otherwise read back as a fingerprint mismatch at best and a
+// truncated match at worst, adopting a half-written encode as fresh.
+void WriteTextureMarkerFile(const std::filesystem::path& rPath, std::string_view fingerprint)
+{
+	std::filesystem::path temporaryPath = rPath;
+	temporaryPath += ".tmp";
+	std::ofstream stream(temporaryPath, std::ios::binary | std::ios::trunc);
+	stream.write(fingerprint.data(), static_cast<std::streamsize>(fingerprint.size()));
+	stream.close();
+	VERIFY_SUCCESS(stream.good());
+	VERIFY_SUCCESS(MoveFileExW(temporaryPath.native().c_str(), rPath.native().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH));
+}
+
 } // namespace
 
 // Convex hull (Andrew's monotone chain) of the island's valid area — the pixels at or above
@@ -259,7 +286,9 @@ static void ReadProcessedMesh(const std::filesystem::path& rIntermediatesDir, Ex
 	}
 }
 
-static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIsland& rOut)
+// bEncodeTextures gates only the four BC encodes below. Everything else here feeds the chunk payload
+// and runs unconditionally, so a texture reuse still produces a complete ExportedIsland.
+static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIsland& rOut, bool bEncodeTextures)
 {
 	// rInputPath is the chunk leaf folder (<island>/<route>/<index>). Per-chunk cropped geometry
 	// (Elevation.r32, AmbientOcclusion.r16, MeshProcessed.bin, BakedDimensions.json) lives in the
@@ -308,38 +337,41 @@ static void ExportIslandData(const std::filesystem::path& rInputPath, ExportedIs
 	// MakeMipmaps on each so the flat-value underwater regions propagate down the mip chain via
 	// the box / linear downsample naturally — the BC encoder then sees long constant runs at every
 	// mip, and zlib catches the across-block repetition for free.
-	static constexpr int kiJpegSidecarQuality = 90;
+	if (bEncodeTextures)
 	{
-		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(intermediatesDirectory / "AmbientOcclusion.r16", FileType::kUint16Raw, baked.iCropWidth, baked.iCropHeight);
-		const float pfFlatAmbientOcclusion[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-		MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatAmbientOcclusion, VK_FORMAT_BC4_UNORM_BLOCK, rInputPath / kpcIslandAmbientOcclusion, {}, diagnosticsDirectory / "AmbientOcclusion.jpg", kiJpegSidecarQuality, TextureOptions::kGrayscale);
-	}
+		static constexpr int kiJpegSidecarQuality = 90;
+		{
+			std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
+			Texture texture(intermediatesDirectory / "AmbientOcclusion.r16", FileType::kUint16Raw, baked.iCropWidth, baked.iCropHeight);
+			const float pfFlatAmbientOcclusion[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+			MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatAmbientOcclusion, VK_FORMAT_BC4_UNORM_BLOCK, rInputPath / kpcIslandAmbientOcclusion, {}, diagnosticsDirectory / "AmbientOcclusion.jpg", kiJpegSidecarQuality, TextureOptions::kGrayscale);
+		}
 
-	{
-		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(textureSourceDirectory / "Color.png", FileType::kImage);
-		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
-		// Flat alpha stays 255 so BC7 keeps its alpha-free mode and the kVerifyNoAlpha assert
-		// at Save still passes — RGB carries the underwater zero, alpha is invariant.
-		const float pfFlatColor[4] = {0.0f, 0.0f, 0.0f, 255.0f};
-		MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatColor, VK_FORMAT_BC7_UNORM_BLOCK, rInputPath / kpcIslandColor, TextureOptions::kVerifyNoAlpha, diagnosticsDirectory / "Color.jpg", kiJpegSidecarQuality, {});
-	}
+		{
+			std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
+			Texture texture(textureSourceDirectory / "Color.png", FileType::kImage);
+			texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
+			// Flat alpha stays 255 so BC7 keeps its alpha-free mode and the kVerifyNoAlpha assert
+			// at Save still passes — RGB carries the underwater zero, alpha is invariant.
+			const float pfFlatColor[4] = {0.0f, 0.0f, 0.0f, 255.0f};
+			MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatColor, VK_FORMAT_BC7_UNORM_BLOCK, rInputPath / kpcIslandColor, TextureOptions::kVerifyNoAlpha, diagnosticsDirectory / "Color.jpg", kiJpegSidecarQuality, {});
+		}
 
-	{
-		std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
-		Texture texture(textureSourceDirectory / "Normals.exr", FileType::kExr);
-		texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
-		// Flat (127.5, 127.5) → shader 2x-1 → (0, 0) → reconstructed Z=1 → flat tangent normal (0,0,1).
-		const float pfFlatNormals[4] = {127.5f, 127.5f, 0.0f, 0.0f};
-		MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatNormals, VK_FORMAT_BC5_UNORM_BLOCK, rInputPath / kpcIslandNormals, {}, diagnosticsDirectory / "Normals.jpg", kiJpegSidecarQuality, {});
-	}
+		{
+			std::lock_guard<std::mutex> lock(Texture::sEncodeMutex);
+			Texture texture(textureSourceDirectory / "Normals.exr", FileType::kExr);
+			texture.Crop(baked.iCropX, baked.iCropY, baked.iCropWidth, baked.iCropHeight);
+			// Flat (127.5, 127.5) → shader 2x-1 → (0, 0) → reconstructed Z=1 → flat tangent normal (0,0,1).
+			const float pfFlatNormals[4] = {127.5f, 127.5f, 0.0f, 0.0f};
+			MaskMipSaveTexture(texture, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiElevationDivisor, pfFlatNormals, VK_FORMAT_BC5_UNORM_BLOCK, rInputPath / kpcIslandNormals, {}, diagnosticsDirectory / "Normals.jpg", kiJpegSidecarQuality, {});
+		}
 
-	// Material masks: pack Rock / Sand / Snow / Flow PNGs into a single BC7 RGBA texture cropped to
-	// match Color / Normals UVs, then 4x downsampled for ~25% of Color's footprint. R=Rock, G=Sand,
-	// B=Snow, A=Flow (Flow channel reserved; Terrain.frag ignores it today). Source PNGs are 8-bit
-	// palette grayscale at the same dimensions as Color.png (stb decodes the palette to luminance).
-	EncodeMaterialMasks(rInputPath, textureSourceDirectory, diagnosticsDirectory, baked, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiJpegSidecarQuality);
+		// Material masks: pack Rock / Sand / Snow / Flow PNGs into a single BC7 RGBA texture cropped to
+		// match Color / Normals UVs, then 4x downsampled for ~25% of Color's footprint. R=Rock, G=Sand,
+		// B=Snow, A=Flow (Flow channel reserved; Terrain.frag ignores it today). Source PNGs are 8-bit
+		// palette grayscale at the same dimensions as Color.png (stb decodes the palette to luminance).
+		EncodeMaterialMasks(rInputPath, textureSourceDirectory, diagnosticsDirectory, baked, rOut.cpuHeightmapData, iElevationWidth, iElevationHeight, kiJpegSidecarQuality);
+	}
 
 	// cpuHeightmapData / iHeightmapWidth / iHeightmapHeight were populated at the top of this
 	// function so the underwater mask could share the buffer; nothing more to do for the heightmap
@@ -403,10 +435,128 @@ std::string ExportIsland::GetInputFingerprint() const
 	return fingerprint.dump();
 }
 
+std::filesystem::path ExportIsland::GetTextureMarkerPath() const
+{
+	// mCacheMetadataFile is "<temp>/<relativeDirectory>/<leaf>.meta"; the texture marker is its sibling,
+	// so both stage markers share the job's temp directory and are discarded together by a temp wipe.
+	std::filesystem::path markerPath = mCacheMetadataFile;
+	markerPath.replace_extension(".textures");
+	return markerPath;
+}
+
+std::string ExportIsland::GetTextureFingerprint() const
+{
+	std::filesystem::path cacheLeafDirectory = GetIslandCachePath(mInputPath);
+	std::filesystem::path cacheRouteDirectory = cacheLeafDirectory.parent_path();
+	// Every input the BC encode reads, and nothing else. Elevation.r32 and BakedDimensions.json belong
+	// here even though they look payload-only: the underwater mask cut line samples the leaf heightmap
+	// and every crop rect comes from the dimensions JSON, so either one changing must re-encode.
+	// MeshProcessed.bin is deliberately absent — the mesh reaches the chunk payload alone, so a mesh-only
+	// rebake re-packs the chunk without rewriting the tracked textures.
+	constexpr const char* kpcLeafInputs[] = {"AmbientOcclusion.r16", "BakedDimensions.json", "Elevation.r32"};
+	constexpr const char* kpcRouteInputs[] = {"Color.png", "Flow.png", "Normals.exr", "Rock.png", "Sand.png", "Snow.png"};
+	nlohmann::json fingerprint;
+	fingerprint["textureVersion"] = kiTextureVersion;
+	for (const char* pcFile : kpcLeafInputs)
+	{
+		fingerprint["leaf"][pcFile] = gpFileManager->GetSharedCacheFingerprint(cacheLeafDirectory / pcFile);
+	}
+	for (const char* pcFile : kpcRouteInputs)
+	{
+		fingerprint["route"][pcFile] = gpFileManager->GetSharedCacheFingerprint(cacheRouteDirectory / pcFile);
+	}
+	return fingerprint.dump();
+}
+
+bool ExportIsland::AreTextureOutputsPresent() const
+{
+	constexpr const char* kpcOutputs[] = {kpcIslandAmbientOcclusion, kpcIslandColor, kpcIslandMasks, kpcIslandNormals};
+	for (const char* pcOutput : kpcOutputs)
+	{
+		if (!std::filesystem::exists(mInputPath / pcOutput))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool ExportIsland::AreTexturesFresh() const
+{
+	// The BC outputs are tracked in Git, but a deleted or restored-from-elsewhere one leaves the marker
+	// intact, so existence is checked independently of the fingerprint.
+	if (!AreTextureOutputsPresent())
+	{
+		return false;
+	}
+
+	std::optional<std::string> markerFingerprint = ReadTextureMarkerFile(GetTextureMarkerPath());
+	return markerFingerprint.has_value() && markerFingerprint.value() == GetTextureFingerprint();
+}
+
+void ExportIsland::WriteTextureMarker() const
+{
+	WriteTextureMarkerFile(GetTextureMarkerPath(), GetTextureFingerprint());
+}
+
+bool ExportIsland::CheckDirty(const std::filesystem::path& rPackFile)
+{
+	// The base check compares only the chunk payload version and its input fingerprint, neither of which
+	// moves when kiTextureVersion is bumped or a committed BC output is deleted. Without the texture stage
+	// dirtying the job itself, RunExport would serve the cached chunk, Export would never run, and stale
+	// textures would keep shipping forever.
+	if (ExportJob::CheckDirty(rPackFile))
+	{
+		return true;
+	}
+
+	// Seeding a marker here is the one deliberate side effect in the dirty check: a clean chunk cache proves
+	// the committed BC outputs were produced from exactly these inputs, so adopting them costs nothing and
+	// spares the split's first run a re-encode and rewrite of all ~446 MB of tracked island textures for
+	// byte-identical output.
+	if (!std::filesystem::exists(GetTextureMarkerPath()) && AreTextureOutputsPresent())
+	{
+		WriteTextureMarker();
+	}
+
+	mbDirty = !AreTexturesFresh();
+	return mbDirty;
+}
+
+void ExportIsland::UpdateCacheMetadata()
+{
+	// RunExport calls this only after Export() and the chunk write both succeeded, so the marker can only
+	// ever record a complete encode. A run that reused the textures rewrites the same fingerprint.
+	WriteTextureMarker();
+}
+
+void ExportIsland::CleanupOnFailure()
+{
+	// A partially written BC output must never be adopted as fresh by a later run, and dropping the
+	// primary metadata alongside it keeps the whole job unambiguously dirty (RunExport removes that file
+	// only after Export returns, so a throw inside Export leaves it behind).
+	std::filesystem::remove(GetTextureMarkerPath());
+	std::filesystem::remove(mCacheMetadataFile);
+}
+
 void ExportIsland::Export()
 {
+	bool bTexturesFresh = AreTexturesFresh();
+	if (bTexturesFresh)
+	{
+		LOG(kDefault, kDebug, "Reusing island textures for \"{}\": BC encode inputs and texture version unchanged", mInputPath.string());
+	}
+	else
+	{
+		// Texture writes are not transactional, and a kill (rather than a throw) mid-encode never reaches
+		// CleanupOnFailure. Dropping the marker before the first output is touched keeps a half-written set
+		// from being vouched for as current by a marker that still matches — the next run would skip the
+		// encode and ship the truncated texture.
+		std::filesystem::remove(GetTextureMarkerPath());
+	}
+
 	ExportedIsland exported;
-	ExportIslandData(mInputPath, exported);
+	ExportIslandData(mInputPath, exported, !bTexturesFresh);
 
 	std::filesystem::path relativeFile = mRelativeDirectory;
 	relativeFile /= mInputPath.filename();

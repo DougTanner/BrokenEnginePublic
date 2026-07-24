@@ -1,6 +1,6 @@
 # Game UI Screens
 
-ImGui menus, HUD, modal surfaces, and the game extension of engine TweaksScreen. Visual placement and hierarchy follow [User Interface Design](../../../../../Documents/UserInterfaceDesign.txt); this document owns runtime contracts that code changes must preserve.
+ImGui menus, HUD, modal surfaces, and the game extension of engine TweaksScreen. Visual placement and hierarchy follow `../../../../../Documents/UserInterfaceDesign.txt`; this document owns runtime contracts that code changes must preserve.
 
 ## Shared Contracts
 
@@ -10,7 +10,7 @@ ImGui menus, HUD, modal surfaces, and the game extension of engine TweaksScreen.
 - Opaque-background screens register their rendered rectangle for world-render occlusion. Transparent overlays do not.
 - Networked controls remain disabled through `NetworkUiControl` until authoritative state resolves the request.
 - Convert localized UTF-32 strings into workbuffer-backed UTF-8 at the consuming expression; do not retain the result beyond its workbuffer lifetime.
-- Settings controls bind through the shared menu helpers. Tweaks sliders instead follow the engine [TweaksScreen contract](../../../../../Engine/Source/Ui/Screens/TweaksScreen/AGENTS.md).
+- Settings controls bind through the shared menu helpers. Tweaks sliders instead follow the engine TweaksScreen contract (`../../../../../Engine/Source/Ui/Screens/TweaksScreen/AGENTS.md`).
 
 ## Layout and Rendering
 
@@ -24,4 +24,4 @@ ImGui menus, HUD, modal surfaces, and the game extension of engine TweaksScreen.
 
 - `ImGuiManager` owns screen invocation and submission; this directory owns game-state gating and interaction semantics.
 - Engine TweaksScreen owns the section registry, persistence, tables, and slider mapping. Game Tweaks files register their own whole sections through it and implement extension hooks for sub-tabs of engine sections.
-- Agent UI snapshot publication belongs to [Engine Agent](../../../../../Engine/Source/Agent/AGENTS.md); visual inspection and input command semantics are outside this directory.
+- Agent UI snapshot publication belongs to `../../../../../Engine/Source/Agent/AGENTS.md`; visual inspection and input command semantics are outside this directory.

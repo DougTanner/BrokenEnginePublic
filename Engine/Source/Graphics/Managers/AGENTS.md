@@ -15,13 +15,13 @@ Vulkan services exposed through `gp*` globals. `Graphics` constructs its manager
 
 ## Responsibility Map
 
-- [InstanceManager](InstanceManager.AGENTS.md) and [DeviceManager](DeviceManager.AGENTS.md) - Vulkan instance, device, queues, allocator, and capabilities
-- [SwapchainManager](SwapchainManager.AGENTS.md) - Swapchain, render passes, framebuffers, and presentation
-- [CommandBufferManager](CommandBufferManager.AGENTS.md) - Record-once submission graph and frame synchronization
-- [BufferManager](BufferManager.AGENTS.md) - GPU buffers and per-frame dynamic storage
-- [TextureManager](TextureManager.AGENTS.md) and [TextureUploadManager](TextureUploadManager.AGENTS.md) - Textures, descriptors, render targets, and staged uploads
-- [PipelineManager](PipelineManager.AGENTS.md) - Fixed engine and dynamic collection pipelines
-- [ParticleManager](ParticleManager.AGENTS.md) - Thread-safe CPU staging for GPU particles
-- [ImGuiManager](ImGuiManager.AGENTS.md) - UI recording, submission, scaling, and opaque regions
+- InstanceManager (`InstanceManager.AGENTS.md`) and DeviceManager (`DeviceManager.AGENTS.md`) - Vulkan instance, device, queues, allocator, and capabilities
+- SwapchainManager (`SwapchainManager.AGENTS.md`) - Swapchain, render passes, framebuffers, and presentation
+- CommandBufferManager (`CommandBufferManager.AGENTS.md`) - Record-once submission graph and frame synchronization
+- BufferManager (`BufferManager.AGENTS.md`) - GPU buffers and per-frame dynamic storage
+- TextureManager (`TextureManager.AGENTS.md`) and TextureUploadManager (`TextureUploadManager.AGENTS.md`) - Textures, descriptors, render targets, and staged uploads
+- PipelineManager (`PipelineManager.AGENTS.md`) - Fixed engine and dynamic collection pipelines
+- ParticleManager (`ParticleManager.AGENTS.md`) - Thread-safe CPU staging for GPU particles
+- ImGuiManager (`ImGuiManager.AGENTS.md`) - UI recording, submission, scaling, and opaque regions
 
-Renderer-wide frame and recreation ordering stays in [Graphics](../AGENTS.md); manager references own manager-specific algorithms and failure modes.
+Renderer-wide frame and recreation ordering stays in Graphics (`../AGENTS.md`); manager references own manager-specific algorithms and failure modes.

@@ -13,7 +13,3 @@ Enemy spaceships combine terrain-aware steering, health and damage, weapon fire,
 
 - Rendering across active coordinates is sequential on the main thread because the visible accumulator is process-wide rather than thread-local. Do not parallelize the outer per-coordinate calls.
 - Within one coordinate, culling and slab reservation happen first; workers then write disjoint mesh-data and joint-matrix slabs. Preserve those non-overlapping reservations when changing dispatch.
-
-## See Also
-
-- [../AGENTS.md](../AGENTS.md) - Game collection transfer, collision, and phase rules

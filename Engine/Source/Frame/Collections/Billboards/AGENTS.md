@@ -8,6 +8,3 @@ Client-only screen-space UI indicators with offscreen-arrow handling. Owner-driv
 - All projection, offscreen culling/clamping, and offscreen-rotate orientation run in the render phase because they depend on the live view/projection matrices
 - Type size is the quad's NDC half-height; the render-phase edge clamp mirrors the vertex shader's sizing math (x extent divided by aspect ratio), so the two must change in lockstep
 - `Add` rvalue-id overload is deleted to force callers to bind a persistent lvalue handle
-
-## See Also
-- `../AGENTS.md` - Collection framework, Sync/render-state patterns, owner-driven lifetime and transfer

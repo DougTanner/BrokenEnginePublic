@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 
 Import-Module (Join-Path $PSScriptRoot 'AgentScriptCommon.psm1')
 
-$script:LedgerVersion = 1
+$script:LedgerVersion = 2
 $script:DefaultWaitSeconds = 660
 
 function Get-WorktreeCliRepositoryIdentity([string] $RepositoryRoot) {
@@ -70,8 +70,8 @@ function Read-WorktreeCliLedger($Identity) {
 	}
 	catch { throw "WorktreeCli session ledger is unreadable or malformed: '$($Identity.LedgerPath)': $($_.Exception.Message)" }
 	$ledgerNames = if ($ledger -is [pscustomobject]) { @($ledger.PSObject.Properties.Name) } else { @() }
-	$missingLedgerNames = @(@('version', 'repository', 'sessions', 'maintenance') | Where-Object { $_ -notin $ledgerNames })
-	if ($ledger -isnot [pscustomobject] -or $ledgerNames.Count -ne 4 -or $missingLedgerNames.Count -ne 0 -or
+	$missingLedgerNames = @(@('version', 'repository', 'sessions') | Where-Object { $_ -notin $ledgerNames })
+	if ($ledger -isnot [pscustomobject] -or $ledgerNames.Count -ne 3 -or $missingLedgerNames.Count -ne 0 -or
 		($ledger.version -isnot [int] -and $ledger.version -isnot [long]) -or $ledger.version -ne $script:LedgerVersion -or
 		-not (Test-StrictString $ledger.repository) -or
 		-not $ledger.repository.Equals($Identity.Repository, [StringComparison]::OrdinalIgnoreCase) -or
@@ -84,12 +84,6 @@ function Read-WorktreeCliLedger($Identity) {
 			throw "WorktreeCli session ledger contains an invalid session claim: '$($Identity.LedgerPath)'."
 		}
 	}
-	if ($null -ne $ledger.maintenance) {
-		$m = $ledger.maintenance
-		if (-not (Test-StrictClaim $m $Identity $null) -or $owners.Contains($m.owner) -or @($ledger.sessions).Count -ne 0) {
-			throw "WorktreeCli session ledger contains an invalid maintenance claim: '$($Identity.LedgerPath)'."
-		}
-	}
 	return $ledger
 }
 
@@ -99,9 +93,6 @@ function Remove-StaleClaims($Ledger) {
 		if (Test-ClaimProcessLive $claim) { $live += $claim }
 	}
 	$Ledger.sessions = @($live)
-	if ($null -ne $Ledger.maintenance) {
-		if (-not (Test-ClaimProcessLive $Ledger.maintenance)) { $Ledger.maintenance = $null }
-	}
 }
 
 function Write-WorktreeCliLedger($Identity, $Ledger) {
@@ -133,19 +124,6 @@ function Invoke-LedgerTransition($Identity, [scriptblock] $Action, [DateTime] $D
 	finally { if ($held) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
 }
 
-function Invoke-LedgerReadOnly($Identity, [scriptblock] $Action, [DateTime] $Deadline = [DateTime]::UtcNow.AddSeconds($script:DefaultWaitSeconds)) {
-	$mutex = [Threading.Mutex]::new($false, $Identity.MutexName)
-	$held = $false
-	try {
-		$remaining = $Deadline - [DateTime]::UtcNow
-		$milliseconds = [Math]::Max(0, [Math]::Min([int]::MaxValue, [Math]::Ceiling($remaining.TotalMilliseconds)))
-		try { $held = $mutex.WaitOne([int]$milliseconds) } catch [Threading.AbandonedMutexException] { $held = $true }
-		if (-not $held) { throw 'Timed out waiting for WorktreeCli session ledger mutex.' }
-		return & $Action (Read-WorktreeCliLedger $Identity)
-	}
-	finally { if ($held) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
-}
-
 function New-Claim([string] $Owner, [string] $Label, [string] $Repository, [string] $Worktree) {
 	return [pscustomobject]@{
 		owner = $Owner; pid = $PID; processStartUtc = Get-ProcessStartUtc $PID; label = $Label
@@ -153,36 +131,26 @@ function New-Claim([string] $Owner, [string] $Label, [string] $Repository, [stri
 	}
 }
 
-function Initialize-WorktreeCliLedger($Identity, [switch] $LegacySessionsClosed) {
-	if (-not $LegacySessionsClosed) {
-		throw 'WorktreeCli exclusion ledger is not initialized. Confirm all legacy pre-protocol sessions are closed, then retry with -LegacySessionsClosed.'
-	}
-	return [pscustomobject]@{ version = $script:LedgerVersion; repository = $Identity.Repository; sessions = @(); maintenance = $null }
+function Initialize-WorktreeCliLedger($Identity) {
+	return [pscustomobject]@{ version = $script:LedgerVersion; repository = $Identity.Repository; sessions = @() }
 }
 
 function Register-WorktreeCliSession {
 	[CmdletBinding()] param([string] $RepositoryRoot, [string] $Owner = [guid]::NewGuid().ToString(), [string] $Label, [string] $Worktree,
-		[int] $WaitSeconds = $script:DefaultWaitSeconds, [switch] $LegacySessionsClosed)
+		[int] $WaitSeconds = $script:DefaultWaitSeconds)
 	$identity = Get-WorktreeCliRepositoryIdentity $RepositoryRoot
 	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
-	do {
-		$result = Invoke-LedgerTransition $identity {
-			param($ledger)
-			if ($null -eq $ledger) { $ledger = Initialize-WorktreeCliLedger $identity -LegacySessionsClosed:$LegacySessionsClosed }
-			if ($null -eq $ledger.maintenance) {
-				if (@($ledger.sessions | Where-Object { $_.owner -eq $Owner }).Count -ne 0) { throw "WorktreeCli session owner '$Owner' already exists." }
-				$ledger.sessions = @($ledger.sessions) + (New-Claim $Owner $Label $identity.Repository $Worktree)
-				Write-WorktreeCliLedger $identity $ledger
-				return 'session'
-			}
-			Write-Host "Waiting for WorktreeCli maintenance owner=$($ledger.maintenance.owner) label=$($ledger.maintenance.label) worktree=$($ledger.maintenance.worktree)."
-			return $false
-		} $deadline
-		if ($result) { return [pscustomobject]@{ Owner = $Owner; Identity = $identity; Mode = $result } }
-		if ([DateTime]::UtcNow -ge $deadline) { throw "Timed out after $WaitSeconds seconds waiting for WorktreeCli maintenance exclusion." }
-		$remainingMilliseconds = [Math]::Max(0, [Math]::Floor(($deadline - [DateTime]::UtcNow).TotalMilliseconds))
-		if ($remainingMilliseconds -gt 0) { Start-Sleep -Milliseconds ([Math]::Min(5000, $remainingMilliseconds)) }
-	} while ($true)
+	# One mutex-guarded transition: the ledger is created on demand, a duplicate owner is
+	# refused, and the claim is appended. Duplicate worktrees are legal because two transient
+	# operations may run in one worktree at once.
+	Invoke-LedgerTransition $identity {
+		param($ledger)
+		if ($null -eq $ledger) { $ledger = Initialize-WorktreeCliLedger $identity }
+		if (@($ledger.sessions | Where-Object { $_.owner -eq $Owner }).Count -ne 0) { throw "WorktreeCli session owner '$Owner' already exists." }
+		$ledger.sessions = @($ledger.sessions) + (New-Claim $Owner $Label $identity.Repository $Worktree)
+		Write-WorktreeCliLedger $identity $ledger
+	} $deadline | Out-Null
+	return [pscustomobject]@{ Owner = $Owner; Identity = $identity; Mode = 'session' }
 }
 
 function Get-WorktreeCliExclusionStatus {
@@ -191,133 +159,9 @@ function Get-WorktreeCliExclusionStatus {
 	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
 	return Invoke-LedgerTransition $identity {
 		param($ledger)
-		if ($null -eq $ledger) { return [pscustomobject]@{ Initialized = $false; Repository = $identity.Repository; Sessions = @(); Maintenance = $null } }
-		return [pscustomobject]@{ Initialized = $true; Repository = $ledger.repository; Sessions = @($ledger.sessions); Maintenance = $ledger.maintenance }
+		if ($null -eq $ledger) { return [pscustomobject]@{ Initialized = $false; Repository = $identity.Repository; Sessions = @() } }
+		return [pscustomobject]@{ Initialized = $true; Repository = $ledger.repository; Sessions = @($ledger.sessions) }
 	} $deadline
-}
-
-function Get-WorktreeCliSessionClassification {
-	[CmdletBinding()] param(
-		[Parameter(Mandatory)][string] $RepositoryRoot,
-		[Parameter(Mandatory)][string] $Owner,
-		[Parameter(Mandatory)][string] $Worktree,
-		[int] $WaitSeconds = $script:DefaultWaitSeconds
-	)
-	$ownerGuid = [guid]::Empty
-	if (-not [guid]::TryParseExact($Owner, 'D', [ref]$ownerGuid) -or $ownerGuid.ToString() -cne $Owner) {
-		throw "WorktreeCli session owner must be a canonical lowercase GUID: '$Owner'."
-	}
-	$identity = Get-WorktreeCliRepositoryIdentity $RepositoryRoot
-	$expectedWorktree = Get-AgentCanonicalPath $Worktree
-	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
-	return Invoke-LedgerReadOnly $identity {
-		param($ledger)
-		$claims = if ($null -eq $ledger) { @() } else { @($ledger.sessions) }
-		$ownerMatches = @($claims | Where-Object { $_.owner -ceq $Owner })
-		$worktreeMatches = @($claims | Where-Object { (Get-AgentCanonicalPath $_.worktree).Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase) })
-		$claim = @($ownerMatches | Where-Object { (Get-AgentCanonicalPath $_.worktree).Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase) })
-		$classification = 'absent'
-		$decisive = $null
-		if ($claim.Count -eq 1) {
-			$decisive = $claim[0]
-			$actualStart = Get-ProcessStartUtc ([int]$decisive.pid)
-			$classification = if ($null -ne $actualStart -and $actualStart -ceq $decisive.processStartUtc) { 'expected-live' } else { 'stale' }
-		}
-		elseif ($ownerMatches.Count -ne 0 -or $worktreeMatches.Count -ne 0) {
-			$classification = 'mismatch'
-			$decisive = if ($ownerMatches.Count -ne 0) { $ownerMatches[0] } else { $worktreeMatches[0] }
-			$actualStart = Get-ProcessStartUtc ([int]$decisive.pid)
-		}
-		else { $actualStart = $null }
-		return [pscustomobject]@{
-			Classification = $classification
-			Initialized = $null -ne $ledger
-			Repository = $identity.Repository
-			LedgerPath = $identity.LedgerPath
-			ExpectedOwner = $Owner
-			ExpectedWorktree = $expectedWorktree
-			ClaimOwner = if ($null -eq $decisive) { $null } else { $decisive.owner }
-			ClaimWorktree = if ($null -eq $decisive) { $null } else { $decisive.worktree }
-			ClaimPid = if ($null -eq $decisive) { $null } else { $decisive.pid }
-			ClaimProcessStartUtc = if ($null -eq $decisive) { $null } else { $decisive.processStartUtc }
-			ActualProcessStartUtc = $actualStart
-		}
-	} $deadline
-}
-
-function Test-WorktreeCliReattachAvailability {
-	[CmdletBinding()] param(
-		[Parameter(Mandatory)][string] $RepositoryRoot,
-		[Parameter(Mandatory)][string] $Owner,
-		[Parameter(Mandatory)][string] $Worktree,
-		[int] $WaitSeconds = $script:DefaultWaitSeconds,
-		[switch] $LegacySessionsClosed
-	)
-	$ownerGuid = [guid]::Empty
-	if (-not [guid]::TryParseExact($Owner, 'D', [ref]$ownerGuid) -or $ownerGuid.ToString() -cne $Owner) {
-		throw "WorktreeCli session owner must be a canonical lowercase GUID: '$Owner'."
-	}
-	$identity = Get-WorktreeCliRepositoryIdentity $RepositoryRoot
-	$expectedWorktree = Get-AgentCanonicalPath $Worktree
-	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
-	return Invoke-LedgerReadOnly $identity {
-		param($ledger)
-		if ($null -eq $ledger) {
-			if ($LegacySessionsClosed) { return [pscustomobject]@{ Available = $true; Message = 'WorktreeCli exclusion ledger will be initialized under reattach admission.' } }
-			return [pscustomobject]@{ Available = $false; Message = 'WorktreeCli exclusion ledger is not initialized.' }
-		}
-		if ($null -ne $ledger.maintenance -and (Test-ClaimProcessLive $ledger.maintenance)) {
-			return [pscustomobject]@{ Available = $false; Message = "A live WorktreeCli maintenance claim blocks reattach: '$($ledger.maintenance.owner)'." }
-		}
-		$collision = @($ledger.sessions | Where-Object {
-			(Test-ClaimProcessLive $_) -and ($_.owner -ceq $Owner -or (Get-AgentCanonicalPath $_.worktree).Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase))
-		})
-		if ($collision.Count -ne 0) {
-			return [pscustomobject]@{ Available = $false; Message = "A live WorktreeCli claim already uses the recorded owner or worktree: '$($collision[0].owner)'." }
-		}
-		return [pscustomobject]@{ Available = $true; Message = 'No live WorktreeCli owner or worktree collision exists.' }
-	} $deadline
-}
-
-function Restore-WorktreeCliSession {
-	[CmdletBinding()] param(
-		[Parameter(Mandatory)][string] $RepositoryRoot,
-		[Parameter(Mandatory)][string] $Owner,
-		[Parameter(Mandatory)][string] $Label,
-		[Parameter(Mandatory)][string] $Worktree,
-		[int] $WaitSeconds = $script:DefaultWaitSeconds,
-		[switch] $LegacySessionsClosed,
-		[scriptblock] $BeforeAdmission,
-		[scriptblock] $BeforeClaimWrite
-	)
-	$ownerGuid = [guid]::Empty
-	if (-not [guid]::TryParseExact($Owner, 'D', [ref]$ownerGuid) -or $ownerGuid.ToString() -cne $Owner) {
-		throw "WorktreeCli session owner must be a canonical lowercase GUID: '$Owner'."
-	}
-	$identity = Get-WorktreeCliRepositoryIdentity $RepositoryRoot
-	$expectedWorktree = Get-AgentCanonicalPath $Worktree
-	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
-	$transition = Invoke-LedgerTransition $identity {
-		param($ledger)
-		if ($null -eq $ledger) { $ledger = Initialize-WorktreeCliLedger $identity -LegacySessionsClosed:$LegacySessionsClosed }
-		Remove-StaleClaims $ledger
-		if ($null -ne $ledger.maintenance) { throw "A live WorktreeCli maintenance claim blocks reattach: '$($ledger.maintenance.owner)'." }
-		$collision = @($ledger.sessions | Where-Object {
-			$_.owner -ceq $Owner -or (Get-AgentCanonicalPath $_.worktree).Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase)
-		})
-		if ($collision.Count -ne 0) { throw "A live WorktreeCli claim already uses the recorded owner or worktree: '$($collision[0].owner)'." }
-		$admission = if ($null -eq $BeforeAdmission) { $null } else { & $BeforeAdmission }
-		$admissionProof = if ($null -eq $admission -or $admission.PSObject.Properties.Name -cnotcontains 'Proof') { $admission } else { $admission.Proof }
-		$admissionLease = if ($null -eq $admission -or $admission.PSObject.Properties.Name -cnotcontains 'Lease') { $null } else { $admission.Lease }
-		try {
-			if ($null -ne $BeforeClaimWrite) { & $BeforeClaimWrite }
-			$ledger.sessions = @($ledger.sessions) + (New-Claim $Owner $Label $identity.Repository $expectedWorktree)
-			Write-WorktreeCliLedger $identity $ledger
-			return [pscustomobject]@{ Mode = 'session'; AdmissionProof = $admissionProof }
-		}
-		finally { if ($null -ne $admissionLease) { $admissionLease.ReceiptStream.Dispose(); $admissionLease.IntegrityStream.Dispose() } }
-	} $deadline
-	return [pscustomobject]@{ Owner = $Owner; Identity = $identity; Mode = $transition.Mode; AdmissionProof = $transition.AdmissionProof }
 }
 
 function Wait-WorktreeCliSharedQuiescence {
@@ -340,9 +184,6 @@ function Wait-WorktreeCliSharedQuiescence {
 		$blockers = @($status.Sessions | Where-Object { [string]::IsNullOrWhiteSpace($CooperatingSessionOwner) -or $_.owner -cne $CooperatingSessionOwner } | ForEach-Object {
 			[ordered]@{ kind = 'session'; owner = $_.owner; label = $_.label; worktree = $_.worktree }
 		})
-		if ($null -ne $status.Maintenance) {
-			$blockers += [ordered]@{ kind = 'maintenance'; owner = $status.Maintenance.owner; label = $status.Maintenance.label; worktree = $status.Maintenance.worktree }
-		}
 		$waitedMilliseconds = [int][Math]::Floor(([DateTime]::UtcNow - $started).TotalMilliseconds)
 		if ($blockers.Count -eq 0) {
 			return [pscustomobject]@{ schemaVersion = 'broken-engine-shared-quiescence/v1'; disposition = 'quiescent'; requiresUserAuthority = $false; retryAfterSeconds = 0; waitedMilliseconds = $waitedMilliseconds; liveBlockers = @() }
@@ -352,20 +193,6 @@ function Wait-WorktreeCliSharedQuiescence {
 		}
 		Start-Sleep -Milliseconds ([Math]::Min(500, [Math]::Max(1, [int][Math]::Floor(($deadline - [DateTime]::UtcNow).TotalMilliseconds))))
 	} while ($true)
-}
-
-function Assert-WorktreeCliSessionOwner([string] $RepositoryRoot, [string] $Owner) {
-	$identity = Get-WorktreeCliRepositoryIdentity $RepositoryRoot
-	Invoke-LedgerTransition $identity {
-		param($ledger)
-		if ($null -eq $ledger) { throw 'WorktreeCli exclusion ledger is not initialized.' }
-		$claim = @($ledger.sessions | Where-Object { $_.owner -eq $Owner })
-		if ($null -ne $ledger.maintenance -and $ledger.maintenance.owner -eq $Owner) { $claim = @($ledger.maintenance) }
-		if ($claim.Count -ne 1 -or -not (Test-ClaimProcessLive $claim[0])) {
-			throw "WorktreeCli session owner '$Owner' is not live."
-		}
-		Write-WorktreeCliLedger $identity $ledger
-	}
 }
 
 function Unregister-WorktreeCliSession([string] $RepositoryRoot, [string] $Owner) {
@@ -380,58 +207,11 @@ function Unregister-WorktreeCliSession([string] $RepositoryRoot, [string] $Owner
 	}
 }
 
-function Enter-WorktreeCliMaintenance {
-	[CmdletBinding()] param([string] $RepositoryRoot, [string] $Owner = [guid]::NewGuid().ToString(), [string] $Label,
-		[string] $Worktree, [int] $WaitSeconds = $script:DefaultWaitSeconds, [switch] $UpgradeSession, [switch] $LegacySessionsClosed)
-	$identity = Get-WorktreeCliRepositoryIdentity $RepositoryRoot
-	$deadline = [DateTime]::UtcNow.AddSeconds($WaitSeconds)
-	do {
-		$result = Invoke-LedgerTransition $identity {
-			param($ledger)
-			if ($null -eq $ledger) { $ledger = Initialize-WorktreeCliLedger $identity -LegacySessionsClosed:$LegacySessionsClosed }
-			$otherSessions = @($ledger.sessions | Where-Object { -not ($UpgradeSession -and $_.owner -eq $Owner) })
-			if ($null -eq $ledger.maintenance -and $otherSessions.Count -eq 0) {
-				if ($UpgradeSession) {
-					$own = @($ledger.sessions | Where-Object { $_.owner -eq $Owner })
-					if ($own.Count -ne 1 -or $own[0].pid -ne $PID) { throw "Cannot upgrade non-owned WorktreeCli session '$Owner'." }
-					$ledger.sessions = @()
-				}
-				$ledger.maintenance = New-Claim $Owner $Label $identity.Repository $Worktree
-				Write-WorktreeCliLedger $identity $ledger
-				return $true
-			}
-			$owners = @($otherSessions | ForEach-Object { "$($_.owner):$($_.label):$($_.worktree)" }) -join ', '
-			$maintenanceOwner = if ($null -eq $ledger.maintenance) { 'none' } else { "$($ledger.maintenance.owner):$($ledger.maintenance.label):$($ledger.maintenance.worktree)" }
-			Write-Host "Waiting for WorktreeCli sessions [$owners] or maintenance [$maintenanceOwner]."
-			return $false
-		} $deadline
-		if ($result) { return [pscustomobject]@{ Owner = $Owner; Identity = $identity; Upgraded = [bool]$UpgradeSession } }
-		if ([DateTime]::UtcNow -ge $deadline) { throw "Timed out after $WaitSeconds seconds waiting for exclusive WorktreeCli maintenance." }
-		$remainingMilliseconds = [Math]::Max(0, [Math]::Floor(($deadline - [DateTime]::UtcNow).TotalMilliseconds))
-		if ($remainingMilliseconds -gt 0) { Start-Sleep -Milliseconds ([Math]::Min(5000, $remainingMilliseconds)) }
-	} while ($true)
-}
-
-function Exit-WorktreeCliMaintenance([string] $RepositoryRoot, [string] $Owner, [switch] $DowngradeToSession, [string] $Label, [string] $Worktree) {
-	$identity = Get-WorktreeCliRepositoryIdentity $RepositoryRoot
-	Invoke-LedgerTransition $identity {
-		param($ledger)
-		if ($null -eq $ledger -or $null -eq $ledger.maintenance -or $ledger.maintenance.owner -ne $Owner -or
-			$ledger.maintenance.pid -ne $PID -or -not (Test-ClaimProcessLive $ledger.maintenance)) {
-			throw "WorktreeCli maintenance release owner mismatch for '$Owner'."
-		}
-		$ledger.maintenance = $null
-		if ($DowngradeToSession) { $ledger.sessions = @($ledger.sessions) + (New-Claim $Owner $Label $identity.Repository $Worktree) }
-		Write-WorktreeCliLedger $identity $ledger
-	}
-}
-
-# Runs a short action while holding the ledger mutex with no maintenance claim
-# and no registered sessions other than the caller's own cooperating session (its
-# live claim consents and must not self-block, e.g. a landing session promoting
-# AgentTools it just landed). The mutex blocks concurrent registrations and
-# maintenance transitions for the action's duration; the ledger bytes are never
-# changed, so the maintenance-excludes-sessions schema invariant holds throughout.
+# Runs a short action while holding the ledger mutex with no in-flight operation claim other
+# than the caller's own cooperating claim (its live claim consents and must not self-block,
+# e.g. a landing operation promoting AgentTools it just landed). The mutex blocks concurrent
+# registrations for the action's duration, so promotion excludes exactly the operation claims
+# live during the swap; an absent ledger means no operation is in flight and the action runs.
 function Invoke-WorktreeCliExclusiveOperation {
 	[CmdletBinding()] param([string] $RepositoryRoot, [string] $Label, [scriptblock] $Action,
 		[string] $CooperatingSessionOwner, [int] $WaitSeconds = $script:DefaultWaitSeconds)
@@ -443,12 +223,11 @@ function Invoke-WorktreeCliExclusiveOperation {
 	do {
 		$outcome = Invoke-LedgerTransition $identity {
 			param($ledger)
-			if ($null -eq $ledger) { throw 'WorktreeCli exclusion ledger is not initialized.' }
-			$blocking = @($ledger.sessions | Where-Object { [string]::IsNullOrWhiteSpace($CooperatingSessionOwner) -or $_.owner -ne $CooperatingSessionOwner })
-			if ($null -ne $ledger.maintenance -or $blocking.Count -ne 0) {
+			$claims = if ($null -eq $ledger) { @() } else { @($ledger.sessions) }
+			$blocking = @($claims | Where-Object { [string]::IsNullOrWhiteSpace($CooperatingSessionOwner) -or $_.owner -ne $CooperatingSessionOwner })
+			if ($blocking.Count -ne 0) {
 				$owners = @($blocking | ForEach-Object { "$($_.owner):$($_.label):$($_.worktree)" }) -join ', '
-				$maintenanceOwner = if ($null -eq $ledger.maintenance) { 'none' } else { "$($ledger.maintenance.owner):$($ledger.maintenance.label)" }
-				Write-Host "Waiting for WorktreeCli sessions [$owners] or maintenance [$maintenanceOwner] to clear for '$Label'."
+				Write-Host "Waiting for WorktreeCli operations [$owners] to clear for '$Label'."
 				return [pscustomobject]@{ Ran = $false; Value = $null }
 			}
 			return [pscustomobject]@{ Ran = $true; Value = (& $exclusiveAction) }
@@ -535,4 +314,4 @@ function Invoke-WorktreeCliTrackedProcess {
 	return [BrokenEngine.TrackedProcess]::Run($application, ($parts -join ' '), (Get-AgentCanonicalPath $WorkingDirectory))
 }
 
-Export-ModuleMember -Function Get-WorktreeCliRepositoryIdentity,Get-WorktreeCliExclusionStatus,Get-WorktreeCliSessionClassification,Test-WorktreeCliReattachAvailability,Restore-WorktreeCliSession,Wait-WorktreeCliSharedQuiescence,Register-WorktreeCliSession,Assert-WorktreeCliSessionOwner,Unregister-WorktreeCliSession,Enter-WorktreeCliMaintenance,Exit-WorktreeCliMaintenance,Invoke-WorktreeCliExclusiveOperation,Invoke-WorktreeCliTrackedProcess
+Export-ModuleMember -Function Get-WorktreeCliRepositoryIdentity,Wait-WorktreeCliSharedQuiescence,Register-WorktreeCliSession,Unregister-WorktreeCliSession,Invoke-WorktreeCliExclusiveOperation,Invoke-WorktreeCliTrackedProcess

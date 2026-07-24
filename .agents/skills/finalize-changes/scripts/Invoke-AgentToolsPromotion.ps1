@@ -6,9 +6,10 @@
 # manifest, current source bytes, and every expected-commit clean-filter blob
 # inside coordination immediately before canonical replacement. Promotion runs
 # inside the WorktreeCli exclusion ledger's
-# exclusive-operation window (other registered sessions and held maintenance
-# block; the invoking landing session passes itself as -CooperatingSessionOwner
-# so its own live claim does not self-block).
+# exclusive-operation window (any other in-flight transient operation claim
+# blocks; the invoking landing passes its own session owner as
+# -CooperatingSessionOwner so a same-session in-flight operation claim does not
+# self-block).
 #
 # Transaction: snapshot the complete previous canonical pair (both-present or
 # both-absent; a partial pair blocks), replace both executables as one logical
@@ -274,7 +275,7 @@ try {
 	catch {
 		$ledgerFailure = $_.Exception.Message -match '^WorktreeCli session ledger (is unreadable or malformed|failed validation|contains an invalid)'
 		if ($_.Exception.Message -match 'Timed out') {
-			Complete-Promotion 2 'blocked' 'promotion.shared-quiescence' "Canonical AgentTools remains in use by another live session or maintenance owner: $($_.Exception.Message)" 'shared-quiescence' $false 500
+			Complete-Promotion 2 'blocked' 'promotion.shared-quiescence' "Canonical AgentTools remains in use by an in-flight operation claim owner: $($_.Exception.Message)" 'shared-quiescence' $false 500
 		}
 		if ($ledgerFailure -or $_.Exception.Message -match 'not initialized|ledger mutex') {
 			Complete-Promotion 2 'blocked' 'promotion.coordination-unverifiable' "Canonical AgentTools coordination state cannot be verified: $($_.Exception.Message)" 'authority-required' $true

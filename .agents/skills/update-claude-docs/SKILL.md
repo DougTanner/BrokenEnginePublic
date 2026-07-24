@@ -14,9 +14,9 @@ allowed-tools: [Read, Edit, Write, Grep, Glob, Bash, PowerShell]
 
 Use one of these modes:
 
-- **Sync** (default): inspect documentation governed by a caller-supplied changed-file list and fixed session baseline. Edit only when affected guidance is stale or a durable invariant is missing.
-- **Audit**: grade the requested AGENTS.md scope and report findings without edits.
-- **Audit and fix**: grade first, then improve only the scope whose edits were explicitly authorized in the request. Do not add another approval pause.
+- Sync (default): inspect documentation governed by a caller-supplied changed-file list and fixed session baseline. Edit only when affected guidance is stale or a durable invariant is missing.
+- Audit: grade the requested AGENTS.md scope and report findings without edits.
+- Audit and fix: grade first, then improve only the scope whose edits were explicitly authorized in the request. Do not add another approval pause.
 
 Exclude `CLAUDE.local.md` and other local overrides unless the user explicitly includes them. Ask for direction only when missing scope, a missing fixed baseline, or a documentation conflict would materially change the result; choose the simplest resolution for minor wording and organization choices.
 
@@ -41,7 +41,7 @@ Treat a new or materially changed algorithm as a candidate only when correctness
 
 ## Audit Modes
 
-Read [`references/audit-mode.md`](references/audit-mode.md) completely before auditing. Apply its discovery boundary, rubric, report format, and content examples.
+Read `references/audit-mode.md` completely before auditing. Apply its discovery boundary, rubric, report format, and content examples.
 
 Audit mode emits the quality report and completion report without editing. Audit-and-fix mode emits the quality report first, then applies only already-authorized improvements using the sync content rules, shows the affected diffs, and rechecks scores, links, sizes, and stub integrity. An audit request that asks only to report, assess, review, or grade never authorizes fixes.
 

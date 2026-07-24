@@ -1,6 +1,6 @@
 # ParticleManager
 
-**Global:** `gpParticleManager`
+Global: `gpParticleManager`
 
 Stages CPU particle spawns for fixed-capacity GPU compute allocation and simulation. Worker spawns first cull by visible area and intensity, then append under the spawn mutex during joined frame-tick work.
 

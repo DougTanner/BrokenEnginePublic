@@ -6,7 +6,7 @@ Client-only population of mapped Global and Main layouts before their record-onc
 
 - Global population precedes Main. Within Global, Smoke precedes Wind because wind consumes smoke's current and previous world areas.
 - Main rendering runs collection `BeginRender`, per-coord `Render`, collection `EndRender`, lighting-spread gate publication, then debug publication, with the camera coord first. The no-renderable-coord path still runs begin/end publication so every indirect count reaches zero instead of ghost-drawing prior-frame instances.
-- The lighting spread chain draws indirectly, gated on the frame's light-deposit total that the deposit collections accumulate during `EndRender`; that dependency is why the gate publishes after `EndRender` on both paths. Publishing zero instances is correct only because each spread pass clears its attachments to the same result the skipped draw would have produced — [Lighting shaders](../../../Data/Shaders/Lighting/AGENTS.md) owns the shader-side half of that equivalence.
+- The lighting spread chain draws indirectly, gated on the frame's light-deposit total that the deposit collections accumulate during `EndRender`; that dependency is why the gate publishes after `EndRender` on both paths. Publishing zero instances is correct only because each spread pass clears its attachments to the same result the skipped draw would have produced — Lighting shaders (`../../../Data/Shaders/Lighting/AGENTS.md`) owns the shader-side half of that equivalence.
 - Downstream amplitude gates may clear an upstream count only when they also skip the corresponding array write. Keep count and data publication paired.
 - Write-combined mapped layouts are write-only. Compute dependent values in CPU staging state and copy each populated region once.
 
@@ -19,10 +19,9 @@ Client-only population of mapped Global and Main layouts before their record-onc
 
 ## Area Roles
 
-The visible area anchors water and geometry coverage. Shadow uses a sunward-expanded, texel-snapped footprint; lighting uses the light-deposit grid shared by spread, combine, and temporal passes. Grid snapping and camera-height policy belong to [Graphics](../AGENTS.md).
+The visible area anchors water and geometry coverage. Shadow uses a sunward-expanded, texel-snapped footprint; lighting uses the light-deposit grid shared by spread, combine, and temporal passes. Grid snapping and camera-height policy belong to Graphics (`../AGENTS.md`).
 
 ## See Also
 
-- [Graphics](../AGENTS.md) - Renderer lifecycle and camera/world grids
-- [Water shaders](../../../Data/Shaders/Water/AGENTS.md) - Shader-side phase and sampling constraints
-- [Smoke shaders](../../../Data/Shaders/Smoke/AGENTS.md) and [Wind shaders](../../../Data/Shaders/Wind/AGENTS.md) - Temporal remapping
+- Water shaders (`../../../Data/Shaders/Water/AGENTS.md`) - Shader-side phase and sampling constraints
+- Smoke shaders (`../../../Data/Shaders/Smoke/AGENTS.md`) and Wind shaders (`../../../Data/Shaders/Wind/AGENTS.md`) - Temporal remapping

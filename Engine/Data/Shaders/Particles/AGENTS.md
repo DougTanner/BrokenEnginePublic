@@ -1,6 +1,6 @@
 # Particle Shaders - GPU-Driven Visual Effects
 
-Long and Square particles share spawn and update compute shaders but use separate storage, spawn buffers, and render vertex paths. They are client-only visual effects with no CPU readback; [ParticleManager](../../../Source/Graphics/Managers/ParticleManager.AGENTS.md) stages spawns and owns GPU resources.
+Long and Square particles share spawn and update compute shaders but use separate storage, spawn buffers, and render vertex paths. They are client-only visual effects with no CPU readback; ParticleManager (`../../../Source/Graphics/Managers/ParticleManager.AGENTS.md`) stages spawns and owns GPU resources.
 
 ## Pipeline Contracts
 

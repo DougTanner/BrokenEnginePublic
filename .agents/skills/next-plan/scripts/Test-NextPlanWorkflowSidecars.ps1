@@ -12,17 +12,15 @@ $utf8 = [Text.UTF8Encoding]::new($false, $true)
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
 $fixtureRoot = Join-Path $repositoryRoot "Temp/NextPlanWorkflowFixtures/$([guid]::NewGuid().ToString('N'))"
 $artifactRoot = $null
-$sessionRegistration = $null
 $owner = $null
 $originalEnvironment = @{}
-# LOCALAPPDATA is restored separately (after Unregister-WorktreeCliSession), so the disposable
-# session ledger in the scratch store is still reachable at cleanup time.
+# LOCALAPPDATA is isolated to the scratch store for the sidecars' own scheduler state; restore it
+# last so scratch cleanup can still reach it.
 $originalLocalAppData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
-$environmentNames = @(
-	'BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE','BROKEN_ENGINE_WORKTREE_PATH','BROKEN_ENGINE_WORKTREECLI_SESSION_WORKTREE',
-	'BROKEN_ENGINE_PRIMARY_CHECKOUT','BROKEN_ENGINE_SESSION_BRANCH','BROKEN_ENGINE_TARGET_BRANCH','BROKEN_ENGINE_BASELINE',
-	'BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER','BROKEN_ENGINE_WORKTREECLI_SIDECAR_FIXTURE'
-)
+# The sidecars no longer consult BROKEN_ENGINE_* provenance (the in-worktree receipt is the sole
+# trust anchor); only the sidecar-fixture selector env var is set by this suite, so only it is saved
+# and restored.
+$environmentNames = @('BROKEN_ENGINE_WORKTREECLI_SIDECAR_FIXTURE')
 
 function Invoke-Process([string] $FilePath, [string[]] $Arguments, [string] $WorkingDirectory) {
 	$start = [Diagnostics.ProcessStartInfo]::new()
@@ -122,44 +120,45 @@ try {
 	Copy-Item -LiteralPath $primaryExecutable -Destination $realExecutable
 	$exitFixtureExecutable = Join-Path $fixtureRoot 'WorktreeCli-sidecar-fixture.exe'
 	New-WorktreeCliSidecarFixture $exitFixtureExecutable
-	Invoke-Git $primary @('worktree','add','-b','codex/fixture-session',$script:session,'HEAD') | Out-Null
+	# The receipt constructor requires branch == "<client>/<worktreeId>" with a canonical lowercase
+	# GUID worktreeId, so the session Git branch must be codex/<guid> for the receipt and the live
+	# branch to agree.
+	$worktreeId = [guid]::NewGuid().ToString()
+	$sessionBranch = "codex/$worktreeId"
+	$owner = [guid]::NewGuid().ToString()
+	Invoke-Git $primary @('worktree','add','-b',$sessionBranch,$script:session,'HEAD') | Out-Null
 	$baseline = Invoke-Git $primary @('rev-parse','HEAD')
 	[IO.Directory]::CreateDirectory((Join-Path $script:session 'Temp')) | Out-Null
 	[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($sessionOutput)) | Out-Null
 	New-Item -ItemType Junction -Path $sessionOutput -Target $primaryOutput | Out-Null
 	$fixtureExecutable = Join-Path $sessionOutput 'WorktreeCli.exe'
 
-	$owner = [guid]::NewGuid().ToString()
-	Import-Module (Join-Path $repositoryRoot '.agents/scripts/WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
-	$sessionRegistration = Register-WorktreeCliSession -RepositoryRoot $script:session -Owner $owner -Label 'next-plan disposable fixture' -Worktree $script:session -LegacySessionsClosed
-	$env:BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE = 'session'
-	$env:BROKEN_ENGINE_WORKTREE_PATH = $script:session
-	$env:BROKEN_ENGINE_WORKTREECLI_SESSION_WORKTREE = $script:session
-	$env:BROKEN_ENGINE_PRIMARY_CHECKOUT = $primary
-	$env:BROKEN_ENGINE_SESSION_BRANCH = 'codex/fixture-session'
-	$env:BROKEN_ENGINE_TARGET_BRANCH = 'main'
-	$env:BROKEN_ENGINE_BASELINE = $baseline
-	$env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER = $owner
+	# The sidecars resolve session identity through Get-AgentWorktreeSessionProvenance, which now reads
+	# it solely from the strictly validated in-worktree receipt (no environment fast path). The wrapper
+	# registers no session ledger claim. Receipts are written into the session private Git directory
+	# below.
+	Import-Module (Join-Path $repositoryRoot '.agents/scripts/AgentWorktreeSession.psm1') -Force -DisableNameChecking
 	Import-Module (Join-Path $repositoryRoot '.agents/scripts/AgentArtifactStore.psm1') -Force -DisableNameChecking
 	$artifactRoot = Get-AgentArtifactRoot $script:session
 
-	$env:BROKEN_ENGINE_TARGET_BRANCH = $null
-	$missingEnvironment = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 2
-	Assert-True ($missingEnvironment.code -ceq 'claim.context-conflict') 'A missing wrapper environment value was not a deterministic blocker.'
-	$env:BROKEN_ENGINE_TARGET_BRANCH = 'main'
-	$env:BROKEN_ENGINE_WORKTREE_PATH = Join-Path $fixtureRoot 'missing-worktree'
-	$invalidWorktree = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 2
-	Assert-True ($invalidWorktree.code -ceq 'claim.context-conflict') 'An invalid wrapper worktree was not a deterministic blocker.'
-	$env:BROKEN_ENGINE_WORKTREE_PATH = $script:session
+	# The receipt is the sole trust anchor: with none present, provenance resolution throws and the
+	# claim is a deterministic context blocker.
+	$missingReceipt = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 2
+	Assert-True ($missingReceipt.code -ceq 'claim.context-conflict') 'A missing session receipt was not a deterministic blocker.'
 
-	$ledgerPath = $sessionRegistration.Identity.LedgerPath
-	$liveLedgerText = [IO.File]::ReadAllText($ledgerPath)
-	$staleLedger = $liveLedgerText | ConvertFrom-Json -Depth 20
-	$staleLedger.sessions[0].processStartUtc = [DateTime]::UtcNow.AddDays(-1).ToString('O')
-	Set-Utf8File $ledgerPath ($staleLedger | ConvertTo-Json -Depth 20 -Compress)
-	$staleContext = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 2
-	Assert-True ($staleContext.code -ceq 'claim.context-conflict') 'A stale exclusion-ledger session was not a deterministic blocker.'
-	Set-Utf8File $ledgerPath $liveLedgerText
+	# A schema-valid receipt whose branch disagrees with the live session Git branch fails the
+	# Get-NextPlanContext branch cross-check as a deterministic context blocker.
+	$otherWorktreeId = [guid]::NewGuid().ToString()
+	$mismatchedReceipt = New-AgentWorktreeSessionReceipt -Client 'codex' -PrimaryCheckout $primary -GitCommonDirectory $common -Worktree $script:session -WorktreeId $otherWorktreeId -Branch "codex/$otherWorktreeId" -TargetBranch 'main' -Baseline $baseline -SessionOwner $owner
+	Write-AgentWorktreeSessionReceipt -Worktree $script:session -Receipt $mismatchedReceipt | Out-Null
+	$branchMismatch = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 2
+	Assert-True ($branchMismatch.code -ceq 'claim.context-conflict') 'A receipt branch disagreeing with the live Git branch was not a deterministic blocker.'
+	Remove-Item -LiteralPath @((Get-AgentWorktreeReceiptPath $script:session),(Get-AgentWorktreeReceiptIntegrityPath $script:session)) -Force
+
+	# The authoritative receipt binds the live session branch; every positive flow below resolves
+	# through it.
+	$receipt = New-AgentWorktreeSessionReceipt -Client 'codex' -PrimaryCheckout $primary -GitCommonDirectory $common -Worktree $script:session -WorktreeId $worktreeId -Branch $sessionBranch -TargetBranch 'main' -Baseline $baseline -SessionOwner $owner
+	Write-AgentWorktreeSessionReceipt -Worktree $script:session -Receipt $receipt | Out-Null
 
 	$wrongOutput = Join-Path $fixtureRoot 'wrong-output'
 	[IO.Directory]::CreateDirectory($wrongOutput) | Out-Null
@@ -180,16 +179,13 @@ try {
 	$env:BROKEN_ENGINE_WORKTREECLI_SIDECAR_FIXTURE = $null
 	Copy-Item -LiteralPath $realExecutable -Destination $primaryExecutable -Force
 
-	# Primary advancing before the claim blocks the strict claim gate, then recovers in place:
-	# fast-forward the session and re-baseline BROKEN_ENGINE_BASELINE, then claim normally.
+	# Primary advancing before the claim is tolerated: the rebuilt WorktreeCli selects candidates
+	# from the session tree and requires only that session HEAD is a primary-tip ancestor. The
+	# session is not rebased and the receipt baseline stays at the old baseline; the successful
+	# claim below proceeds against that unchanged baseline (Get-NextPlanContext succeeds throughout).
 	Set-Utf8File (Join-Path $primary 'Documents/PrimaryAdvance.txt') "advanced`n"
 	Invoke-Git $primary @('add','--all') | Out-Null
 	Invoke-Git $primary @('commit','-m','fixture pre-claim primary advance') | Out-Null
-	$advancedTip = Invoke-Git $primary @('rev-parse','HEAD')
-	$advanceBlocked = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 2
-	Assert-True ($advanceBlocked.code -ceq 'claim.context-conflict') 'A pre-claim primary advance was not a deterministic claim blocker.'
-	Invoke-Git $script:session @('rebase',$advancedTip) | Out-Null
-	$env:BROKEN_ENGINE_BASELINE = $advancedTip
 
 	# Recovery must leave the session clean. Dirty state is rejected before scheduler access.
 	Set-Utf8File (Join-Path $script:session 'Dirty.txt') "uncommitted claim blocker`n"
@@ -200,8 +196,9 @@ try {
 	$claim = Invoke-Sidecar 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 0
 	Assert-True ($claim.status -ceq 'pass' -and $claim.claim.plan -ceq $plan) 'Claim result did not bind the selected plan.'
 	Assert-True ($claim.receipt.sha256 -cmatch '^[0-9a-f]{64}$') 'Recovered claim did not return durable receipt identity.'
+	Assert-True ((Invoke-Git $script:session @('rev-parse','HEAD')) -ceq $baseline) 'Claim rebased the session; it must proceed at the old baseline after the primary advance.'
 	$claimReceipt = [IO.File]::ReadAllText([string]$claim.receipt.path) | ConvertFrom-Json -Depth 20 -ErrorAction Stop
-	Assert-True ($claimReceipt.branch -ceq 'codex/fixture-session') 'Claim receipt did not bind the live session worktree branch.'
+	Assert-True ($claimReceipt.branch -ceq $sessionBranch) 'Claim receipt did not bind the live session worktree branch.'
 	Copy-Item -LiteralPath $exitFixtureExecutable -Destination $primaryExecutable -Force
 	foreach ($case in @(@('claim-status-1',1,'error','completion.claim-status-failed'),@('claim-status-2',2,'blocked','completion.claim-status-failed'),@('prepare-1',1,'error','completion.prepare-failed'),@('prepare-2',2,'blocked','completion.prepare-failed'))) {
 		$env:BROKEN_ENGINE_WORKTREECLI_SIDECAR_FIXTURE = $case[0]
@@ -237,7 +234,7 @@ try {
 	[pscustomobject]@{
 		schemaVersion = 'broken-engine-next-plan-sidecar-fixtures/v1'
 		status = 'pass'
-		cases = @('missing environment rejection','invalid worktree rejection','live exclusion-ledger binding','wrong Output rejection','claim exit 1 error mapping','claim exit 2 blocked mapping','metadata-only scheduler initialization','pre-claim primary-advance blocker','clean in-place recovery','dirty-tree claim rejection','manual-plan omission','default Plans wrapper-derived claim','claim-status exit mapping','prepare exit mapping','mid-workflow primary-advance tolerance','completion plan-digest mismatch','opposite-disposition recovery blocker','terminal preparation with retained receipt','idempotent terminal recovery')
+		cases = @('missing receipt rejection','receipt branch mismatch rejection','wrong Output rejection','claim exit 1 error mapping','claim exit 2 blocked mapping','pre-claim primary-advance tolerance','dirty-tree claim rejection','wrapper-derived plan claim','claim-status exit mapping','prepare exit mapping','mid-workflow primary-advance tolerance','completion plan-digest mismatch','opposite-disposition recovery blocker','terminal preparation with retained receipt','idempotent terminal recovery')
 	} | ConvertTo-Json -Depth 5
 }
 finally {
@@ -245,10 +242,6 @@ finally {
 		$value = $originalEnvironment[$name]
 		if ($null -eq $value) { [Environment]::SetEnvironmentVariable($name, $null) }
 		else { [Environment]::SetEnvironmentVariable($name, [string]$value) }
-	}
-	if ($null -ne $sessionRegistration) {
-		try { Unregister-WorktreeCliSession -RepositoryRoot $script:session -Owner $owner }
-		catch { Write-Warning "Could not unregister disposable WorktreeCli session: $($_.Exception.Message)" }
 	}
 	if ($null -ne $artifactRoot -and (Test-Path -LiteralPath $artifactRoot)) { Remove-Item -LiteralPath $artifactRoot -Recurse -Force }
 	if (Test-Path -LiteralPath $fixtureRoot) { Remove-Item -LiteralPath $fixtureRoot -Recurse -Force }

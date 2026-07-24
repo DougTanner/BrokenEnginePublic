@@ -1,6 +1,6 @@
 # BufferManager
 
-**Global**: `gpBufferManager`
+Global: `gpBufferManager`
 
 Manages all GPU buffers: vertex (terrain, water, models), uniform (per-framebuffer view/projection), and storage (dynamic game objects, particles, skinning). Model buffers indexed by CRC for lookup.
 

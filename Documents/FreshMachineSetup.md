@@ -30,13 +30,13 @@ If provisioning later reports a submodule **pin mismatch**, the worktree predate
 
 Agent worktree builds default to Shared data mode, which consumes the primary checkout's exported data at `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/Output/Data/`. Produce it once by building `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.sln` (x64, any configuration) in the primary checkout; its pre-build events build DataPacker and export the data. Re-run this export whenever data-affecting primary changes land.
 
-## 6. First wrapper run (one-time ledger initialization)
+## 6. First wrapper run
 
-The session wrappers coordinate through a WorktreeCli session ledger that must be initialized exactly once per machine, after explicitly confirming no legacy pre-protocol agent sessions are still open:
+The session wrappers need no one-time coordination-state initialization:
 
-- Claude Code, from Git Bash at the primary checkout root: `./.claude/claude-worktree.sh --legacy-sessions-closed`
-- Codex CLI, from PowerShell 7 at the primary checkout root: `.\.codex\codex-worktree.ps1 -LegacySessionsClosed`
+- Claude Code, from Git Bash at the primary checkout root: `./.claude/claude-worktree.sh`
+- Codex CLI, from PowerShell 7 at the primary checkout root: `.\.codex\codex-worktree.ps1`
 
-Every later session omits the flag. At each session start the wrapper claims a session, rebuilds the shared primary binaries incrementally — the AgentTools executables (WorktreeCli, AgentHarness) and ThirdParty in Debug/Profile/Release — so they always match primary HEAD, creates a UUID-named worktree, provisions links to the primary ThirdParty/tool outputs, pre-builds the worktree's DataPacker, verifies the worktree's `.claude/skills` link resolves, and launches the agent CLI inside the worktree. Do not bypass the wrapper.
+At each session start the wrapper rebuilds the shared primary binaries incrementally — the AgentTools executables (WorktreeCli, AgentHarness) and ThirdParty in Debug/Profile/Release — so they always match primary HEAD, creates a UUID-named worktree, provisions links to the primary ThirdParty/tool outputs, writes the session's private-Git receipt, pre-builds the worktree's DataPacker, verifies the worktree's `.claude/skills` link resolves, and launches the agent CLI inside the worktree. Do not bypass the wrapper.
 
-No plan-queue bootstrap is required. Executable `Documents/Plans` metadata is tracked in Git; WorktreeCli creates short-lived PC-local claim records only when a session claims a plan. `Documents/Features` is manual.
+No plan-queue bootstrap is required. Executable `Documents/Plans` metadata is tracked in Git; WorktreeCli creates short-lived PC-local claim records only when a session claims a plan or runs a transient operation. `Documents/Features` is manual.

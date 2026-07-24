@@ -1,4 +1,4 @@
 name = "opus"
-description = "New code, complex fixes, documentation, affected-site propagation, and research requiring judgment."
+description = "Plans and designs, new code, complex fixes, documentation, affected-site propagation, and research requiring judgment."
 developer_instructions = "Follow repository instructions for Opus-assigned work."
 model = "gpt-5.6-terra"

@@ -193,7 +193,7 @@ bool RunExportJobs()
 	}
 
 	// Open temporary manifest file and write header
-	std::filesystem::path temporaryManifestFile = gpFileManager->mTempDirectory;
+	std::filesystem::path temporaryManifestFile = gpFileManager->mCacheDirectory;
 	temporaryManifestFile /= T::kName;
 	temporaryManifestFile += ".manifest";
 	std::fstream temporaryManifestFileStream(temporaryManifestFile, std::ios::out | std::ios::binary);
@@ -206,12 +206,12 @@ bool RunExportJobs()
 	common::AlignOutputStream(temporaryManifestFileStream);
 
 	// Open temporary pack file
-	std::filesystem::path temporaryPackFile = gpFileManager->mTempDirectory;
+	std::filesystem::path temporaryPackFile = gpFileManager->mCacheDirectory;
 	temporaryPackFile /= T::kName;
 	temporaryPackFile += ".pack";
 	std::fstream temporaryPackFileStream(temporaryPackFile, std::ios::out | std::ios::binary);
 
-	std::filesystem::path temporaryHeaderFile = gpFileManager->mTempDirectory;
+	std::filesystem::path temporaryHeaderFile = gpFileManager->mCacheDirectory;
 	temporaryHeaderFile /= T::kName;
 	temporaryHeaderFile += ".h";
 

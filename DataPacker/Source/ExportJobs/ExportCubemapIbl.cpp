@@ -16,7 +16,7 @@ struct KtxCubemapData
 
 std::filesystem::path GetFingerprintMetadataPath(const std::filesystem::path& rOutputPath, int64_t iInputRoot)
 {
-	std::filesystem::path metadataPath = gpFileManager->mTempDirectory / "CubemapIbl" / std::to_string(iInputRoot);
+	std::filesystem::path metadataPath = gpFileManager->mCacheDirectory / "CubemapIbl" / std::to_string(iInputRoot);
 	metadataPath /= std::filesystem::relative(rOutputPath, gpFileManager->mpInputDirectories[iInputRoot]);
 	metadataPath += ".meta";
 	std::filesystem::create_directories(metadataPath.parent_path());

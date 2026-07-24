@@ -1,6 +1,10 @@
 # Island Resident-Memory Scaling — Overview
 
-**Reference / Index document — not an executable plan.** Anchors the series of plans that bound per-template island resident memory. Records the boot measurement and the architecture findings that shaped the decomposition, so each sub-plan doesn't re-derive them.
+**Reference / index document — not an executable plan.** Deliberately carries no byte-zero `broken-engine-plan/v1` metadata, so WorktreeCli never schedules it. It anchors the series of plans that bound per-template island resident memory: it records the shared boot measurement, the closed decisions, and the architecture findings that shaped the decomposition, so each sibling plan does not re-derive them.
+
+## Role and scope contract
+
+This document authorizes no implementation work. Implementation scope, in-file boundaries, risk tiers, and acceptance criteria live exclusively in the sibling plans it indexes; nothing in this overview widens or overrides them. The only in-scope changes to this file are reference updates — series status, measurements, findings — when a sibling plan lands, closes, or is re-measured. That maintenance scope is both target and ceiling: do not merge sibling plan content into this file, add executable metadata, or derive new work items from it.
 
 ## The problem
 
@@ -8,7 +12,9 @@ Island 01's multi-island route table raised the per-template count ~9× to **70 
 
 ## Measurement (`[DEBUG-resmem]` boot capture, 70 templates)
 
-| Bucket | Size | Residency |
+Historical capture — taken before the mesh-CPU reclaim landed; see the series table for which buckets have since been addressed.
+
+| Bucket | Size | Residency at capture |
 |---|---|---|
 | heightmap (`mpHeightmapHalf`, R16 half-float) | ~90.75 MiB | CPU, lazy pool |
 | mesh CPU (`mpfMeshPositions`/`mpuiMeshIndices`) | 119.5 MiB | CPU, lazy pool |
@@ -25,28 +31,29 @@ Server `NavContour` storage measured **57,264 logical-attributable bytes (55.92 
 
 Against the ~90.77 MiB server island CPU base (~90.75 MiB heightmaps plus 22 KiB hull), capacity-attributable NavContour storage is ~0.071%, well below the 5% budget (~4.54 MiB). At 128 templates, the observed average projects to ~121.4 KiB; applying the observed maximum to every template projects to 318 KiB. Neither projection bounds unknown future topology.
 
-**Decision:** eager server NavContour residency stays. Its capacity-attributable footprint is negligible, so lifecycle or compression complexity is unjustified.
+**Decision (closed):** eager server NavContour residency stays. Its capacity-attributable footprint is negligible, so lifecycle or compression complexity is unjustified. No plan file exists for this bucket; this paragraph is the record of the closure.
 
 ## Architecture findings (why the naive strategies don't work)
 
 Verified against source; these drive the decomposition:
 
-1. **The GPU mesh is bound in the record-once command buffer.** `Managers/CommandBufferRecordMain.cpp:261-263` binds every template's `mMeshBuffer` at record time (`Objects/Buffer.cpp:285,288`); CB re-record is banned (`Graphics/AGENTS.md`). Freeing it the way the texture LRU frees textures (bindless descriptor repatch) is impossible — a directly-bound vertex/index buffer has no indirection to patch. → `IslandMeshArenaResidency.md`.
-2. **The lazy CPU payload is one monolithic committed `VirtualAlloc(MEM_RESERVE|MEM_COMMIT)` pool**, allocated in `PackChunks::LoadPackFiles` (`PackChunks.cpp`), freed wholesale only in `~PackChunks`. There is **no per-chunk release API**; the texture LRU frees only VRAM + resets chunk state for reload (`PackChunks::ResetTextureChunkStates`, skips non-texture chunks), never decommits the pool. Reclaiming CPU payload needs new decommit infrastructure.
-3. **The heightmap and hull are deterministic sim dependencies on BOTH builds** — `mpHeightmapHalf` is read per-tick by `BuildElevationGrid` (`IslandTerrain.cpp:355`, dequantizing each R16 texel via `XMConvertHalfToFloat`) on client and server, plus render (`GlobalElevation` `:267`) and the server NavContour build (`:199`); the hull feeds deterministic placement (`IslandChainPlacement.cpp:170`). Because both builds consume it every tick, an evict/reload lifecycle would have needed a sim-coordinated, both-builds, byte-identical reload-on-access model — **not taken**. Instead the heightmap is **compressed in place**: quantized to R16 half-float (landed), permanently resident at half the former size. Any further reduction is content-addressed dedup of byte-identical heightmap regions — still permanently resident and byte-identical, no eviction. → `IslandHeightmapRouteDedup.md`.
-4. **Only the mesh CPU slice is dead after boot** — read once in `CreateClientMeshBuffers` to upload the GPU buffer, then never again, and never read at all on the server (no sim exposure). But `CreateClientMeshBuffers` **re-runs on device-loss recovery** (`Islands` ctor, `Islands.cpp:21`), so any reclaim must reload it there. → `IslandMeshCpuSliceReclaim.md`.
+1. **The GPU mesh is bound in the record-once command buffer.** `Managers/CommandBufferRecordMain.cpp:405-406` asserts each template's `mMeshBuffer.mDeviceLocalVkBuffer` is live and binds it at record time via `Buffer::RecordBindVertexBuffer` (`Objects/Buffer.cpp:275`); CB re-record is banned (`Graphics/AGENTS.md`). Freeing it the way the texture LRU frees textures (bindless descriptor repatch) is impossible — a directly-bound vertex/index buffer has no indirection to patch. → `IslandMeshArenaResidency.md`.
+2. **The lazy CPU payload is one monolithic committed `VirtualAlloc(MEM_RESERVE|MEM_COMMIT)` pool**, allocated in `PackChunks::LoadPackFiles` (`PackChunks.cpp:254`), released wholesale only in `~PackChunks` (`PackChunks.cpp:69`). Page-granular sub-range reclaim now exists — `PackChunks::DecommitChunkRange` / `RecommitAndReloadChunkRange` (`PackChunks.cpp:829`/`:849`, surfaced through `FileManager`), landed with the mesh-CPU reclaim — but the texture LRU still only frees VRAM and resets chunk state for reload (`PackChunks::ResetTextureChunkStates`, `PackChunks.cpp:662`, skips non-texture chunks); adopted texture-chunk pool pages stay committed for the process lifetime. → `TextureChunkCpuPoolReclaim.md` (sibling spawned from this finding; texture bucket, coordinated here because it reuses the same pool infrastructure).
+3. **The heightmap and hull are deterministic sim dependencies on BOTH builds** — `mpHeightmapHalf` is read per-tick by `BuildElevationGrid` (`IslandTerrain.cpp:416`, dequantizing each R16 texel via `XMConvertHalfToFloat` at `:407`) on client and server, plus render (`GlobalElevation`, `:310`) and the server NavContour build (`:198-210`); the hull feeds deterministic placement (`IslandChainPlacement.cpp:170`). Because both builds consume it every tick, an evict/reload lifecycle would have needed a sim-coordinated, both-builds, byte-identical reload-on-access model — **not taken**. Instead the heightmap is **compressed in place**: quantized to R16 half-float (landed), permanently resident at half the former size. Any further reduction is content-addressed dedup of byte-identical heightmap regions — still permanently resident and byte-identical, no eviction. → `IslandHeightmapRouteDedup.md`.
+4. **Only the mesh CPU slice was dead after boot — reclaimed (landed).** Read once by `CreateClientMeshBuffers` to upload the GPU buffer, then never again, and never read at all on the server. The client now decommits the `[positions][indices]` sub-range immediately after the upload (`IslandTerrainResidency.cpp:67`) and recommits+reloads it from disk when `CreateClientMeshBuffers` re-runs on device-loss recovery (`Islands` ctor, `Graphics/Islands.cpp:20`; gate at `IslandTerrainResidency.cpp:36-47`); the server decommits it immediately after chunk load (`IslandTerrain.cpp:193`). The plan that delivered this (`IslandMeshCpuSliceReclaim.md`) completed and its file was removed.
 
 ## The series
 
-| Plan | Bucket | Tier | One-liner |
-|---|---|---|---|
-| `IslandMeshCpuSliceReclaim.md` | mesh CPU 119.5 MiB | Medium | The clean, determinism-free win — decommit the dead mesh slice; reload on device-loss recovery. |
-| `IslandMeshArenaResidency.md` | mesh GPU 119.5 MiB | Large | Stable-handle arena or bindless vertex-pull (record-once-CB constraint). |
-| `IslandHeightmapRouteDedup.md` | heightmap ~90.75 MiB (R16) | Large | Deferred dedup half of the R16 plan: content-address byte-identical heightmap regions shared across routes/leaves and alias one pool region from many templates. Speculative — profile first; likely closes accept-and-document (leaves are disjoint tiles, routes are independent bakes). |
-| `IslandPlacementSsboResidency.md` | SSBO 16.4 MiB | Medium | Compact/share the per-template placement arena; smallest bucket. |
-| `IslandNavContourResidency.md` | NavContour (server), 66.40 KiB capacity-attributable at 70 templates | Medium | Closed by measurement: eager server `mNavContour` residency stays; lifecycle/compression complexity is unjustified. |
+| Plan | Bucket | Effort | Status | One-liner |
+|---|---|---|---|---|
+| `IslandMeshCpuSliceReclaim.md` (removed — landed) | mesh CPU 119.5 MiB | Medium | **Landed** | The clean, determinism-free win — decommit the dead mesh slice; reload on device-loss recovery. Delivered the shared `DecommitChunkRange`/`RecommitAndReloadChunkRange` infrastructure. |
+| `IslandMeshArenaResidency.md` | mesh GPU 119.5 MiB | Large | Open | Stable-handle mesh arena (VMA virtual-block sub-allocation) under the record-once-CB constraint; option decided in-plan. |
+| `IslandHeightmapRouteDedup.md` | heightmap ~90.75 MiB (R16) | Large | Open, speculative | Deferred dedup half of the R16 plan: content-address byte-identical heightmap regions shared across routes/leaves and alias one pool region from many templates. Profile first; likely closes accept-and-document (leaves are disjoint tiles, routes are independent bakes). |
+| `IslandPlacementSsboResidency.md` | SSBO 16.4 MiB | Medium | Open, decision plan | Compact/share the per-template placement arena; smallest bucket, lowest priority. |
+| `TextureChunkCpuPoolReclaim.md` | texture lazy-chunk CPU pool (not in the island table above) | Medium | Open, decision plan | Decommit adopted texture-chunk pool bytes at steady state, reusing the mesh plan's decommit/recommit API; churn tradeoff decided in-plan. |
+| *(no file)* NavContour | NavContour (server), 66.40 KiB capacity-attributable at 70 templates | — | **Closed by measurement** | Eager server `mNavContour` residency stays; lifecycle/compression complexity is unjustified. |
 
-Recommended sequence: mesh-CPU reclaim first (clean, best value/effort), then GPU arena and SSBO independently; the heightmap is already R16-compressed in place (biggest single win, landed), with route-dedup as a speculative profile-first follow-up. NavContour is closed by measurement with eager server residency retained.
+Recommended sequence for the remaining open plans: GPU mesh arena and placement SSBO are independent of each other; heightmap route-dedup and the texture-pool reclaim are speculative profile-first decision plans. The heightmap's biggest single win (R16 compression in place) and the mesh-CPU reclaim have landed; NavContour is closed by measurement.
 
 ## Instrumentation
 

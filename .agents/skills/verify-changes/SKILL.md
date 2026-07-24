@@ -148,7 +148,7 @@ fix, waive, downgrade, or create a follow-up. The caller adjudicates and routes
 work, then starts a new verification run after any mutation. Stop when the
 matrix passes.
 
-Follow [`../../references/subagent-reporting.md`](../../references/subagent-reporting.md)
+Follow `../../references/subagent-reporting.md`
 and return: verification result; route, adopted checkout, and baseline; inline
 manifest; acceptance, review, and API rows; plan prevalidation; AgentTools
 pre-approval obligation when applicable; fix/re-entry history or `none`;

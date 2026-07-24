@@ -87,16 +87,16 @@ the owning subsystem's established failure channel; there is no universal
 "never throw" or "catch everything" policy.
 
 - Network variable payload handlers parse into bounded local state before
-  applying destination state. [`Client::Receive`](/Engine/Source/Network/Client/Client.cpp)
-  drops and logs one corrupt inbound packet; [`Server::Receive`](/Engine/Source/Network/Server/Server.cpp)
+  applying destination state. `Client::Receive` (`/Engine/Source/Network/Client/Client.cpp`)
+  drops and logs one corrupt inbound packet; `Server::Receive` (`/Engine/Source/Network/Server/Server.cpp`)
   additionally records the contract violation. Keep their handshake, budget,
   and packet-specific policies distinct.
 - Invalid persisted grid data follows
-  [`GameSaveLoad::ReadGrid`](/Projects/BrokenEngineSandbox/Source/Save/GameSaveLoad.cpp):
+  `GameSaveLoad::ReadGrid` (`/Projects/BrokenEngineSandbox/Source/Save/GameSaveLoad.cpp`):
   clear partial grid/fleet state, log, and return `false`; apply the global-ID
   counter only after the complete read succeeds.
 - Corrupt boot-required eager animation data follows
-  [`LoadAnimationDataFromEagerChunks`](/Engine/Source/Graphics/AnimationData.cpp):
+  `LoadAnimationDataFromEagerChunks` (`/Engine/Source/Graphics/AnimationData.cpp`):
   log the asset identity at `kError` and rethrow to the boot crash-report path.
 - For asynchronous per-chunk failures, trace the owning worker's published
   completion and waiter/progress contract before accepting any return, throw,
@@ -110,10 +110,10 @@ required `// Heap:` rationale. Startup, teardown, offline tools, and other
 untracked paths do not become findings merely because they allocate.
 
 Use `gpThreadLocal->mWorkbuffer` for tracked temporary data. Follow
-[`GameBase::BuildAndDispatchFrameTicks`](/Engine/Source/GameBase.cpp) for a
+`GameBase::BuildAndDispatchFrameTicks` (`/Engine/Source/GameBase.cpp`) for a
 scoped workbuffer-backed list whose lifetime covers synchronous dispatch. For
 loop-built dynamic log text, follow the current
-[`CrcValidateLoop`](/Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplayCrc.cpp)
+`CrcValidateLoop` (`/Projects/BrokenEngineSandbox/Source/Network/Client/ReconcileReplayCrc.cpp`)
 `ScopedWorkbufferArena` construction. Verify changed tracked logs use the
 repository's allocation-free wrappers and formatters rather than temporary
 strings or allocating formatting paths.
@@ -139,7 +139,7 @@ invariant.
 
 When a `Collection<T>` gains, loses, reorders, or changes a `* __restrict`
 column, load the authoritative
-[`add-collection-member`](../add-collection-member/SKILL.md) skill and verify its
+`add-collection-member` (`../add-collection-member/SKILL.md`) skill and verify its
 complete live-variant checklist. Do not substitute a copied checklist here.
 Treat unresolved CRC membership, tuple order/subset, versioning, unconditional
 persistence, creation initialization, transfer, hydration, or identity behavior

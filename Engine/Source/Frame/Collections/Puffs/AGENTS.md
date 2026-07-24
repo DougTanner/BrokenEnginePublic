@@ -9,7 +9,3 @@ Client-only stationary smoke puffs are fire-and-forget controlled quads. Consume
 - `PersistentMembers()` copies type/controller/start-time metadata between frames, while animated values are derived again and position is carried forward unchanged.
 - A future start time holds the puff at its first keyframe, supporting delayed secondary effects.
 - Rendered puffs are culled and projected to base height before depositing smoke.
-
-## See Also
-
-- [../AGENTS.md](../AGENTS.md) - Collection and controller conventions

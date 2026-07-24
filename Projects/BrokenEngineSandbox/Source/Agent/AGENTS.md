@@ -2,7 +2,7 @@
 
 ## Overview
 
-Game-owned command handlers expose simulation, scene, UI, capture, save/replay, and diagnostic operations through the engine [agent transport](../../../../Engine/Source/Agent/AGENTS.md). Engine-owned shared commands dispatch first; the game dispatcher then handles game-owned both-endpoint commands before routing remaining commands to its side-specific handlers under `BT_CLIENT` or `BT_SERVER`.
+Game-owned command handlers expose simulation, scene, UI, capture, save/replay, and diagnostic operations through the engine agent transport (`../../../../Engine/Source/Agent/AGENTS.md`). Engine-owned shared commands dispatch first; the game dispatcher then handles game-owned both-endpoint commands before routing remaining commands to its side-specific handlers under `BT_CLIENT` or `BT_SERVER`.
 
 ## Contracts
 
@@ -15,6 +15,6 @@ Game-owned command handlers expose simulation, scene, UI, capture, save/replay, 
 
 ## See Also
 
-- [Engine Agent](../../../../Engine/Source/Agent/AGENTS.md)
-- [Game Save](../Save/AGENTS.md)
-- [Agent Harness](../../../../Tools/AgentHarness/AGENTS.md)
+- `../../../../Engine/Source/Agent/AGENTS.md`
+- Game Save: `../Save/AGENTS.md`
+- `../../../../Tools/AgentHarness/AGENTS.md`

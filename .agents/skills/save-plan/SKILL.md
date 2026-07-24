@@ -36,7 +36,7 @@ Features are ordinary Markdown. Do not prepend scheduler metadata unless the use
 
 ## Landing pre-approval
 
-Invoking this skill is the user's explicit approval to commit or land the saved file (Plan or Feature) to the primary branch: its content was already approved during planning, and only that file lands. Per the [canonical execution-gate contract](../next-plan/references/execution-gates.md) (state 4), when the primary-mutation diff consists solely of the saved file, this invocation is the standing affirmative response and `/finalize-changes` proceeds without asking the confirmation question; any additional changed file in the diff voids the exception and the entire mutation uses the normal gate.
+Invoking this skill is the user's explicit approval to commit or land the saved file (Plan or Feature) to the primary branch: its content was already approved during planning, and only that file lands. Per the canonical execution-gate contract (`../next-plan/references/execution-gates.md`, state 4), when the primary-mutation diff consists solely of the saved file, this invocation is the standing affirmative response and `/finalize-changes` proceeds without asking the confirmation question; any additional changed file in the diff voids the exception and the entire mutation uses the normal gate.
 
 ## Report
 

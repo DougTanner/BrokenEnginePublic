@@ -18,9 +18,9 @@ Run a findings-only, multi-perspective review from the main invoking context. Th
 
 Require a target path. If absent, ask for it. Resolve scope before dispatch:
 
-- **Exact file:** review only that file. Follow dependencies and callers as evidence, but report a finding only when the defect is rooted in the target file or its contract.
-- **Directory, non-recursive (default):** enumerate only files directly in that directory. Do not silently include descendants.
-- **Directory, recursive:** include descendants only when the caller explicitly requests recursion.
+- Exact file: review only that file. Follow dependencies and callers as evidence, but report a finding only when the defect is rooted in the target file or its contract.
+- Directory, non-recursive (default): enumerate only files directly in that directory. Do not silently include descendants.
+- Directory, recursive: include descendants only when the caller explicitly requests recursion.
 
 Record the exact scoped-file manifest and pass it to every reviewer. Evidence may cross the boundary to prove a scoped finding; incidental defects outside it are residuals, not findings.
 
@@ -76,7 +76,7 @@ Every reviewer reports each finding in this exact shape:
 
 Use precise symbols and evidence, not thematic summaries. Unused includes and dead-code candidates must retain confidence labels. Report no-finding conclusions explicitly for assigned lens checks.
 
-Reviewers do not establish non-obvious external API, specification, license, maintenance, or ThirdParty behavior from memory. They return an **External Claim Verification Request** containing the exact proposition, dependent finding, applicable repository version/configuration, why it matters, and an official candidate source when known.
+Reviewers do not establish non-obvious external API, specification, license, maintenance, or ThirdParty behavior from memory. They return an External Claim Verification Request containing the exact proposition, dependent finding, applicable repository version/configuration, why it matters, and an official candidate source when known.
 
 After reviewer waves complete, route every such request through `verify-external-claims` before consolidation. Apply its verdict: retain `VERIFIED` evidence, remove or correct a `REFUTED` dependent finding, and move `UNRESOLVED` claims to residuals rather than presenting them as confirmed recommendations.
 

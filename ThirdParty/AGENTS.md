@@ -9,7 +9,7 @@ Vendored external libraries. Upstream source stays pristine: never edit files in
 - PCH-less AgentTools centralize shared consumption in `Tools/ToolCommon/ToolCliCommon.h`.
 - Outside those aggregation surfaces, third-party headers appear only in implementation wrappers that must include upstream sources directly.
 
-Compiled units link through the shared ThirdParty static library. [Prebuilts/Platforms/VisualStudio2026/AGENTS.md](Prebuilts/Platforms/VisualStudio2026/AGENTS.md) owns configuration, output naming, project registration, and the deliberate client/server/DataPacker exclusions.
+Compiled units link through the shared ThirdParty static library. `Prebuilts/Platforms/VisualStudio2026/AGENTS.md` owns configuration, output naming, project registration, and the deliberate client/server/DataPacker exclusions.
 
 Runtime wrappers live mainly under `Prebuilts/Source/Engine/`; offline asset wrappers live under `Prebuilts/Source/DataPacker/`. Some libraries compile directly from a permitted upstream subtree when their build does not use a unity wrapper. Preserve existing deterministic choices such as the scalar BC encoder and integer-quantized Clipper2 path.
 

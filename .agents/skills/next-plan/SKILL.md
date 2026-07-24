@@ -9,8 +9,8 @@ allowed-tools: [Read, Write, Grep, Glob, Agent, Edit, PowerShell, AskUserQuestio
 # Next Plan
 
 Claim one executable Plan from tracked `Documents/Plans` metadata, confirm it remains relevant, and
-present the complete resolved plan. Follow the [canonical execution-gate
-contract](references/execution-gates.md) through landing. WorktreeCli alone owns
+present the complete resolved plan. Follow the canonical execution-gate contract
+(`references/execution-gates.md`) through landing. WorktreeCli alone owns
 metadata validation, claim locking, selection, terminal preparation, and release.
 `Documents/Features` is manual and never participates in scheduler state.
 
@@ -23,13 +23,13 @@ metadata validation, claim locking, selection, terminal preparation, and release
 - Bare invocation selects the oldest eligible Plan by immutable `createdUtc`
   then canonical UTF-8 path. A canonical `Documents/Plans/...` argument selects
   that exact Plan. Reject Features and every other argument instead of guessing.
-- Require a wrapper-created isolated worktree, live WorktreeCli session claim,
-  authoritative primary checkout/branch, and a clean session tree. Never create
-  or adopt a worktree.
-- Derive WorktreeCli, Git identities, baseline, and owner only through the
-  wrapper environment and canonical sidecars. Missing tooling requires
-  explicitly authorized primary maintenance through `/compile`.
-- Retain the wrapper owner and durable Temp receipt for the claim lifecycle.
+- Require a wrapper-created isolated worktree, authoritative primary
+  checkout/branch, and a clean session tree. Never create or adopt a worktree.
+- Derive WorktreeCli, Git identities, baseline, and owner through
+  `Get-AgentWorktreeSessionProvenance` from the in-worktree receipt and canonical
+  sidecars. Missing tooling requires explicitly authorized primary maintenance
+  through `/compile`.
+- Retain the durable session owner and Temp receipt for the claim lifecycle.
   Never inspect or edit machine-local claims directly.
 
 ## Canonical sidecars
@@ -38,15 +38,15 @@ Each sidecar emits one JSON result: exit `0` succeeds, `2` is a deterministic
 state blocker, and `1` is malformed input or internal failure. Do not recreate
 their transitions with ad hoc WorktreeCli commands.
 
-- [`Invoke-NextPlanClaim.ps1`](scripts/Invoke-NextPlanClaim.ps1) accepts an
+- `scripts/Invoke-NextPlanClaim.ps1` accepts an
   optional canonical `-Plan`. It verifies the provisioned WorktreeCli is a
   nonempty ordinary file; requires a clean session tree; writes a receipt
   beneath session `Temp`; and verifies the receipt SHA-256.
-- [`Complete-NextPlan.ps1`](scripts/Complete-NextPlan.ps1) requires the receipt
+- `scripts/Complete-NextPlan.ps1` requires the receipt
   path and SHA-256 from the claim. Completion invokes `plan prepare-completion`;
   explicit user-authorized rejection invokes `plan prepare-rejection`. Require
   `workflowTerminal: false` and `nextAction: finalize-changes`.
-- Run [`Test-NextPlanWorkflowSidecars.ps1`](scripts/Test-NextPlanWorkflowSidecars.ps1)
+- Run `scripts/Test-NextPlanWorkflowSidecars.ps1`
   when a sidecar changes, never during ordinary selection.
 
 ## Workflow
@@ -77,7 +77,7 @@ their transitions with ad hoc WorktreeCli commands.
    required/conditional roles.
    - Tier 1 skips plan review.
    - Tier 2 delegates `/plan-audit` to one `reviewer`.
-   - Tier 3 reads [Tier 3 preparation](references/tier3-workflow.md), delegates
+   - Tier 3 reads Tier 3 preparation (`references/tier3-workflow.md`), delegates
      `/plan-audit`, then runs `/external-grill-plan` in the user-facing session.
    If reviewer delegation is unavailable, stop; only explicit user direction
    permits inline review, recorded as `review freshness degraded`.
@@ -107,14 +107,32 @@ their transitions with ad hoc WorktreeCli commands.
 
 ## Primary advance
 
-Before claim, if primary advanced, require the session tree to be clean, rebase
-the session branch onto the current primary tip, verify it is still
-clean, and re-baseline `BROKEN_ENGINE_BASELINE` to that tip for every subsequent
-sidecar invocation. After claim, continue at the wrapper baseline until
-`/finalize-changes`; a primary advance does not by itself invalidate the
+A primary advance never blocks or reroutes a claim. `claim-next` selects Plans
+from the session worktree tree and requires the session `HEAD` to be an ancestor
+of (or equal to) the primary tip, so a fresh or behind session claims with no
+pre-claim rebase or re-baseline. An `ok: true` stale-baseline `missing-plan-file`
+notice is non-blocking, and `/finalize-changes` reconciliation resolves the
+advance. After claim, a primary advance does not by itself invalidate the
 receipt. Deferral invokes `plan unclaim` with the durable receipt and hash,
 making the Plan immediately eligible again; never unclaim an `awaiting-landing`
 terminal receipt.
+
+If instead primary may have been squash-rewritten — the cheap mid-session trigger
+is a failed `git merge-base --is-ancestor $env:BROKEN_ENGINE_BASELINE <primary
+tip>` with the branch name unchanged, though the sidecar decides authoritatively
+from the reflog-derived fork point — recover automatically without prompting by
+running
+`Repair-AgentWorktreeSquashedBaseline.ps1` with `-RepositoryRoot`
+`$env:BROKEN_ENGINE_PRIMARY_CHECKOUT`, `-Worktree`
+`$env:BROKEN_ENGINE_WORKTREE_PATH`, and `-WorktreeCliExecutable` the primary
+`WorktreeCli.exe`. It re-parents the session and rewrites the durable wrapper
+receipt; re-export `BROKEN_ENGINE_BASELINE` to the reported `newBaseline` and
+adopt the `updatedReceipts` sha256. Run the repair before any `plan validate` or
+`claim-next`. A `reparented-conflict` is either a mid-rebase conflict
+(`rebaseInProgress` true — resolve, `git rebase --continue`, no scheduler op until
+it completes) or an autostash pop-conflict after a completed rebase
+(`rebaseInProgress` false — resolve, `git stash drop`, scheduler ops safe); see
+`references/execution-gates.md` for the full clause.
 
 ## Handoff before approval
 

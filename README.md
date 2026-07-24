@@ -44,7 +44,7 @@ Setting up a new machine? [Documents/FreshMachineSetup.md](Documents/FreshMachin
 	```powershell
 	winget install --id Git.Git --exact --source winget
 	```
-- Install PowerShell 7 as the **MSI**; its manifest declares `ElevationRequirement: elevatesSelf`, so run it from an ordinary shell and approve the UAC prompt. `Microsoft.PowerShell` defaults to the MSIX/Store package, which lands under `C:\Program Files\WindowsApps`; those ACLs cannot be granted to the Codex sandbox users, so every sandboxed `pwsh` exec fails with `CreateProcessAsUserW failed: 5 (Access is denied)` and `/codex-review` degrades to `CODEX-UNAVAILABLE` and its Fable reviewer fallback. `--installer-type wix` selects the MSI, which installs to `C:\Program Files\PowerShell\7` and works under the sandbox.
+- Install PowerShell 7 as the **MSI**; its manifest declares `ElevationRequirement: elevatesSelf`, so run it from an ordinary shell and approve the UAC prompt. `Microsoft.PowerShell` defaults to the MSIX/Store package, which lands under `C:\Program Files\WindowsApps`; those ACLs cannot be granted to the Codex sandbox users, so every sandboxed `pwsh` exec fails with `CreateProcessAsUserW failed: 5 (Access is denied)` and `/codex-review` degrades to `CODEX-UNAVAILABLE` and its Opus reviewer fallback. `--installer-type wix` selects the MSI, which installs to `C:\Program Files\PowerShell\7` and works under the sandbox.
 	```powershell
 	winget install --id Microsoft.PowerShell --exact --source winget --installer-type wix --scope machine
 	```
@@ -94,8 +94,7 @@ Use separate Windows Terminal profiles for the two clients: run Claude Code from
 	./.claude/claude-worktree.sh
 	```
 - The tracked `.claude/settings.json` sets `worktree.baseRef` to `head`, so Claude-created worktrees branch from the commit currently checked out in the session worktree; no per-user setting is required.
-- The shared host admits the session before bootstrap, creates and validates the report directory and stable primary dependency links, then tracks Claude for the claim's complete lifetime. On first protocol rollout, explicitly confirm all legacy sessions are closed before initializing coordination state. Do not bypass the wrapper.
-- After that explicit one-time confirmation, initialize from Git Bash with `./.claude/claude-worktree.sh --legacy-sessions-closed`.
+- The wrapper creates and validates the report directory and stable primary dependency links, writes the session's private-Git receipt, then tracks Claude with kill-on-host-close lifetime. Do not bypass the wrapper. No one-time coordination-state initialization is required.
 
 #### Optional Current Maintainer Preferences
 
@@ -130,9 +129,8 @@ The wrapper already supplies the dangerous permission bypass; no additional sett
 	```powershell
 	.\.codex\codex-worktree.ps1
 	```
-- After the same explicit one-time confirmation, initialize from PowerShell with `.\.codex\codex-worktree.ps1 -LegacySessionsClosed`.
-- The wrapper creates branch `codex/<uuid>`, stores the worktree under `~/.codex/worktrees/<repository>/<uuid>`, validates the same links and report directory, and launches Codex with `--dangerously-bypass-approvals-and-sandbox`. Both wrappers wait up to 660 seconds while WorktreeCli maintenance is exclusive, track the client with kill-on-host-close lifetime, propagate its exit code, and preserve partial artifacts on provisioning failure.
-- **Primary Claude Code reviewer route (→ Codex/Sol):** Claude Code runs every delegated reviewer/auditor role on Codex/Sol headless via `codex exec` — helper `.codex/codex-review.ps1`, driven by the `/codex-review` skill (Sol at reasoning effort high). On failure the skill falls back to the Fable `reviewer` subagent, then Opus. Codex bills the ChatGPT subscription, not metered API credits. Codex sessions never call this — under the Fable→Sol mapping they are already Sol.
+- The wrapper creates branch `codex/<uuid>`, stores the worktree under `~/.codex/worktrees/<repository>/<uuid>`, validates the same links and report directory, and launches Codex with `--dangerously-bypass-approvals-and-sandbox`. Both wrappers rebuild the shared primary binaries under a bootstrap mutex before launch, track the client with kill-on-host-close lifetime, propagate its exit code, and preserve partial artifacts on provisioning failure.
+- **Primary Claude Code reviewer route (→ Codex/Sol):** Claude Code runs every delegated reviewer/auditor role on Codex/Sol headless via `codex exec` — helper `.codex/codex-review.ps1`, driven by the `/codex-review` skill (Sol at reasoning effort high). On failure the skill falls back to the Opus `reviewer` subagent, then `general-purpose` on Opus. Codex bills the ChatGPT subscription, not metered API credits. Codex sessions never call this — their `reviewer` role already resolves to Sol.
 
 #### Optional Current Maintainer Configuration
 

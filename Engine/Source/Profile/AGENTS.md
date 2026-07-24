@@ -28,6 +28,5 @@ Engine CPU/GPU profiling, boot timing, overlays, and profile dumps. `ProfileMana
 
 ## See Also
 
-- [Engine Source](../AGENTS.md)
-- [Memory](../Memory/AGENTS.md) - Allocation tracking
-- [Game Profile](../../../Projects/BrokenEngineSandbox/Source/Profile/AGENTS.md)
+- Memory (`../Memory/AGENTS.md`) - Allocation tracking
+- Game Profile (`../../../Projects/BrokenEngineSandbox/Source/Profile/AGENTS.md`)

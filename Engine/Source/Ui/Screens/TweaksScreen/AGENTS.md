@@ -16,5 +16,5 @@ Client-only, debug-input-gated ImGui screen for engine and game wrapper settings
 
 ## See Also
 
-- [Game screens](../../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md) - Screen conventions
-- [Game Tweaks implementation](../../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/TweaksScreen/) - Extension hooks
+- Game screens (`../../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/AGENTS.md`) - Screen conventions
+- Game Tweaks implementation (`../../../../../Projects/BrokenEngineSandbox/Source/Ui/Screens/TweaksScreen/`) - Extension hooks

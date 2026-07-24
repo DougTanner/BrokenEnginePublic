@@ -5,7 +5,7 @@ $result=[ordered]@{schemaVersion='broken-engine-next-plan-completion-result/v2';
 function Complete-Workflow([int]$ExitCode,[string]$Status,[string]$Code,[string]$Message){$result.status=$Status;$result.code=$Code;$result.message=$Message;[Console]::Out.Write(($result|ConvertTo-Json -Depth 100 -Compress));exit $ExitCode}
 try {
  Import-Module (Join-Path $PSScriptRoot 'NextPlanWorkflowCommon.psm1') -Force -DisableNameChecking
- $context=Get-NextPlanContext -AllowPrimaryAdvance
+ $context=Get-NextPlanContext
  if($ClaimReceiptSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'ClaimReceiptSha256 must be lowercase SHA-256.'}
  $receipt=Assert-NextPlanRepositoryPath $context.Worktree $ClaimReceipt 'Claim receipt'
  if((Get-NextPlanFileSha256 $receipt) -cne $ClaimReceiptSha256){Complete-Workflow 2 'blocked' 'completion.receipt-byte-mismatch' 'Claim receipt bytes changed.'}

@@ -1,6 +1,6 @@
 # Plans
 
-Tracked refactor and bugfix plans. Capability additions in [`../Features/`](../Features/AGENTS.md) are manually executed and are never scheduler inputs.
+Tracked refactor and bugfix plans. Capability additions in `../Features/` (see `../Features/AGENTS.md`) are manually executed and are never scheduler inputs.
 
 ## Git-backed scheduler
 

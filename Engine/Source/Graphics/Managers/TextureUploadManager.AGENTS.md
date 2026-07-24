@@ -1,6 +1,6 @@
 # TextureUploadManager
 
-**Global:** `gpTextureUploadManager`
+Global: `gpTextureUploadManager`
 
 Runs a dedicated upload thread with a fixed staging budget, persisting large-texture progress across frames. Block-compressed partial copies support BC4, BC5, and BC7. Queue selection prefers transfer-only work, but resolves to foreground adoption when transfer aliases graphics or the distinct present family so concurrent submissions do not share that queue.
 

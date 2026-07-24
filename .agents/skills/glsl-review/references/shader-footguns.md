@@ -18,11 +18,11 @@ Use this reference to reason about changed shader code. It records review distin
 
 Use only these candidate sources in external-claim packets. Give the exact applicable section or anchor in the packet when known.
 
-- [GLSL 4.60 specification](https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.60.html)
-- [Vulkan 1.2 data races](https://registry.khronos.org/vulkan/specs/1.2-khr-extensions/html/vkspec.html#memory-model-data-races)
-- [`VkPhysicalDeviceSubgroupProperties`](https://docs.vulkan.org/refpages/latest/refpages/source/VkPhysicalDeviceSubgroupProperties.html)
-- [`VK_EXT_subgroup_size_control`](https://docs.vulkan.org/refpages/latest/refpages/source/VK_EXT_subgroup_size_control.html)
-- [Vulkan coordinate transformations](https://registry.khronos.org/vulkan/specs/1.2-khr-extensions/html/vkspec.html#vertexpostproc-coord)
+- GLSL 4.60 specification: `https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.60.html`
+- Vulkan 1.2 data races: `https://registry.khronos.org/vulkan/specs/1.2-khr-extensions/html/vkspec.html#memory-model-data-races`
+- `VkPhysicalDeviceSubgroupProperties`: `https://docs.vulkan.org/refpages/latest/refpages/source/VkPhysicalDeviceSubgroupProperties.html`
+- `VK_EXT_subgroup_size_control`: `https://docs.vulkan.org/refpages/latest/refpages/source/VK_EXT_subgroup_size_control.html`
+- Vulkan coordinate transformations: `https://registry.khronos.org/vulkan/specs/1.2-khr-extensions/html/vkspec.html#vertexpostproc-coord`
 
 Do not cite blogs, tutorials, vendor performance generalizations, stale repository line numbers, or nonexistent Vulkan man-page roots. A repository production constraint may support a local finding, but do not present it as a portable API fact.
 

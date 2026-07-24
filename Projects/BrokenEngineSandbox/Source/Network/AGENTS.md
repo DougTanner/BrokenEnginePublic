@@ -1,6 +1,6 @@
 # Game Network - Sessions and Game Wire Payloads
 
-Game-layer packet extensions, status-change serialization, and multiplayer orchestration. Engine transport, channels, ACK state, cursors, and hostile-input enforcement are owned by [Engine Network](../../../../Engine/Source/Network/AGENTS.md).
+Game-layer packet extensions, status-change serialization, and multiplayer orchestration. Engine transport, channels, ACK state, cursors, and hostile-input enforcement are owned by `../../../../Engine/Source/Network/AGENTS.md`.
 
 ## Game Packet Contracts
 
@@ -19,6 +19,6 @@ Game-layer packet extensions, status-change serialization, and multiplayer orche
 ## Layering
 
 - Top-level code owns packet identifiers, shared game payload codecs, and side-agnostic parsing.
-- [Client](Client/AGENTS.md) owns reconciliation and client game-session behavior.
-- [Server](Server/AGENTS.md) owns fleets, transfers, client management, and broadcast orchestration.
-- Detailed rollback and packet flow belong in [Game reconciliation](../../../../Documents/Architecture/GameReconciliation.md) and [Network architecture](../../../../Documents/Architecture/Network.md).
+- `Client/AGENTS.md` owns reconciliation and client game-session behavior.
+- `Server/AGENTS.md` owns fleets, transfers, client management, and broadcast orchestration.
+- Detailed rollback and packet flow belong in `../../../../Documents/Architecture/GameReconciliation.md` and `../../../../Documents/Architecture/Network.md`.

@@ -5,7 +5,6 @@ param(
 	[string] $ClientExecutable,
 	[string[]] $ClientArguments = @(),
 	[string] $ReattachWorktree,
-	[switch] $LegacySessionsClosed,
 	[int] $WaitSeconds = 660
 )
 
@@ -13,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 if ($Client -cne 'claude' -and $Client -cne 'codex') { throw "Client must be lowercase 'claude' or 'codex'." }
 
 # Claude carries client arguments out of band because -File treats a leading dash as a
-# PowerShell parameter. Do not clear the transport variable until admission succeeds:
+# PowerShell parameter. Do not clear the transport variable until reattach validation succeeds:
 # rejected reattach attempts must leave the caller environment unchanged.
 $clearClaudeArgumentTransport = $false
 if ($Client -ceq 'claude' -and -not [string]::IsNullOrEmpty($env:BROKEN_ENGINE_CLIENT_ARGUMENTS))
@@ -30,9 +29,7 @@ Import-Module (Join-Path $PSScriptRoot 'AgentWorktreeSession.psm1') -Force -Disa
 
 $environmentNames = @(
 	'BROKEN_ENGINE_CLIENT_ARGUMENTS',
-	'BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER',
-	'BROKEN_ENGINE_WORKTREECLI_SESSION_WORKTREE',
-	'BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE',
+	'BROKEN_ENGINE_SESSION_OWNER',
 	'BROKEN_ENGINE_WORKTREE_PATH',
 	'BROKEN_ENGINE_SESSION_BRANCH',
 	'BROKEN_ENGINE_PRIMARY_CHECKOUT',
@@ -47,10 +44,8 @@ function Restore-AgentWorktreeEnvironment {
 	foreach ($name in $environmentNames) { [Environment]::SetEnvironmentVariable($name, $previousEnvironment[$name], 'Process') }
 }
 
-function Set-AgentWorktreeEnvironment([object] $Identity, [string] $Owner, [string] $AdmissionMode) {
-	$env:BROKEN_ENGINE_WORKTREECLI_SESSION_OWNER = $Owner
-	$env:BROKEN_ENGINE_WORKTREECLI_SESSION_WORKTREE = $Identity.Worktree
-	$env:BROKEN_ENGINE_WORKTREECLI_ADMISSION_MODE = $AdmissionMode
+function Set-AgentWorktreeEnvironment([object] $Identity, [string] $Owner) {
+	$env:BROKEN_ENGINE_SESSION_OWNER = $Owner
 	$env:BROKEN_ENGINE_WORKTREE_PATH = $Identity.Worktree
 	$env:BROKEN_ENGINE_SESSION_BRANCH = $Identity.Branch
 	$env:BROKEN_ENGINE_PRIMARY_CHECKOUT = $Identity.Primary.Root
@@ -68,7 +63,6 @@ function Assert-AgentWorktreeSkillsLink([string] $Worktree) {
 	}
 }
 
-$claim = $null
 $worktreeCreated = $false
 $exitCode = 1
 try {
@@ -78,30 +72,33 @@ try {
 	if ([string]::IsNullOrWhiteSpace($ReattachWorktree) -and $status.Count -ne 0) { throw "Primary checkout must be clean before session creation: $($status -join '; ')." }
 	$worktreeCli = Join-Path $root 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe'
 	$identity = $null
+	$repair = $null
 
 	if (-not [string]::IsNullOrWhiteSpace($ReattachWorktree)) {
-		# All provenance is receipt-derived. This first proof is intentionally read-only;
-		# the second proof closes the worktree/receipt race before ledger admission.
+		# Always run the squash-repair sidecar on reattach; never gate it on a merge-base probe. After a
+		# conflicted re-parent the receipt baseline already equals the new tip, so a probe would read
+		# "baseline is an ancestor of primary" and skip repair even though the worktree still carries an
+		# unresolved rebase or autostash pop-conflict - which would then build DataPacker on a conflict tree
+		# and launch with no FIRST-TASK banner. Let the sidecar decide: it returns 'not-needed' for a healthy
+		# session (cheap, no mutation, and it fails a tampered receipt closed before touching anything), and
+		# 'reparented'/'reparented-conflict' otherwise, and that status alone drives the banner and DataPacker
+		# skip below. Keep the fail-closed missing-CLI check - the sidecar needs WorktreeCli to move the
+		# claim, and a reattach always has it from the prior session's build.
+		$reattachTarget = Get-AgentCanonicalPath $ReattachWorktree
+		if (-not (Test-Path -LiteralPath $worktreeCli)) { throw "WorktreeCli is unavailable to validate or re-parent the retained session; run a fresh session first to rebuild AgentTools." }
+		$repairScript = Join-Path $root '.agents\scripts\Repair-AgentWorktreeSquashedBaseline.ps1'
+		# A child process (not in-process `&`) so the sidecar's terminal exit cannot end this wrapper.
+		$repairJson = & "$PSHOME\pwsh.exe" -NoProfile -File $repairScript -RepositoryRoot $root -Worktree $reattachTarget -WorktreeCliExecutable $worktreeCli
+		if ($LASTEXITCODE -ne 0) { throw "Automatic session re-parent check failed (exit $LASTEXITCODE): $($repairJson -join '; ')." }
+		$repair = ($repairJson -join "`n" | ConvertFrom-Json -Depth 100)
+		# Echo only an actionable re-parent result so the resumed agent has the reparented claim-receipt
+		# sha256s; a 'not-needed' pass stays silent so a normal reattach is quiet.
+		if ($repair.status -cne 'not-needed') { Write-Host ($repairJson -join "`n") }
+		# All provenance is receipt-derived: the strictly validated in-worktree receipt is the
+		# sole reattach authority now that no session ledger claim exists.
 		$proof = Get-AgentWorktreeReattachProof -Client $Client -RepositoryRoot $root -Worktree $ReattachWorktree
 		$receipt = $proof.Receipt.Value
-		$firstReceiptBytes = $proof.Receipt.Bytes
-		$firstReceiptIntegrityBytes = $proof.Receipt.IntegrityBytes
-		$available = Test-WorktreeCliReattachAvailability -RepositoryRoot $root -Owner $receipt.sessionOwner -Worktree $proof.Worktree -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed
-		if (-not $available.Available) { throw $available.Message }
-		# The second proof executes inside the admission mutex under a receipt read lease, so
-		# durable provenance cannot change between its validation and installation of the
-		# restored claim.
-		$claim = Restore-WorktreeCliSession -RepositoryRoot $root -Owner $receipt.sessionOwner -Label "$Client wrapper" -Worktree $proof.Worktree `
-			-WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed -BeforeAdmission {
-				$lease = Open-AgentWorktreeReceiptReadLease $proof.Worktree
-				try {
-					$secondProof = Get-AgentWorktreeReattachProof -Client $Client -RepositoryRoot $root -Worktree $proof.Worktree -ExpectedReceiptBytes $firstReceiptBytes -ExpectedReceiptIntegrityBytes $firstReceiptIntegrityBytes -ReadLease $lease
-					return [pscustomobject]@{ Proof = $secondProof; Lease = $lease }
-				}
-				catch { $lease.ReceiptStream.Dispose(); $lease.IntegrityStream.Dispose(); throw }
-			}
-		$proof = $claim.AdmissionProof
-		$receipt = $proof.Receipt.Value
+		$owner = $receipt.sessionOwner
 		$identity = [pscustomobject]@{
 			Primary = $proof.Primary; Worktree = $proof.Worktree; Branch = $receipt.branch; TargetBranch = $receipt.targetBranch; Baseline = $receipt.baseline
 		}
@@ -116,7 +113,6 @@ try {
 		if (Test-Path -LiteralPath $worktree) { throw "Generated worktree path already exists: '$worktree'." }
 		if (@(Invoke-AgentGit @('-C', $root, 'branch', '--list', $branch)).Count -ne 0) { throw "Generated branch already exists: '$branch'." }
 		$owner = [guid]::NewGuid().ToString()
-		$claim = Register-WorktreeCliSession -RepositoryRoot $root -Owner $owner -Label "$Client wrapper" -Worktree $worktree -WaitSeconds $WaitSeconds -LegacySessionsClosed:$LegacySessionsClosed
 		$identity = [pscustomobject]@{ Primary = $primary; Worktree = $worktree; Branch = $branch; TargetBranch = $primary.Branch; Baseline = $primary.Head }
 		New-Item -ItemType Directory -Path $worktreeRoot -Force | Out-Null
 		& git -C $root worktree add -b $branch $worktree $primary.Head
@@ -127,8 +123,8 @@ try {
 		Write-AgentWorktreeSessionReceipt -Worktree $worktree -Receipt $receipt | Out-Null
 	}
 
-	# Reattach only reaches this point after the second proof and atomic admission.
-	Set-AgentWorktreeEnvironment $identity $claim.Owner $claim.Mode
+	# Both paths reach here with a validated identity and its durable session owner.
+	Set-AgentWorktreeEnvironment $identity $owner
 	& (Join-Path $root '.agents\scripts\Bootstrap-AgentTools.ps1') -RepositoryRoot $root -WaitSeconds $WaitSeconds
 	& (Join-Path $root '.agents\scripts\Provision-WorktreeThirdParty.ps1') -RepositoryRoot $identity.Worktree -WaitSeconds $WaitSeconds
 	Assert-AgentWorktreeSkillsLink $identity.Worktree
@@ -136,8 +132,29 @@ try {
 	if ([string]::IsNullOrWhiteSpace($ClientExecutable)) {
 		$ClientExecutable = (Get-Command $Client -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 	}
-	& (Join-Path $root '.agents\scripts\Build-WorktreeDataPacker.ps1') -Worktree $identity.Worktree -WorktreeCliExecutable $worktreeCli -PrimaryCheckout $root
-	Write-Host "$(if ($worktreeCreated) { 'Created' } else { 'Reattached' }) worktree $($identity.Worktree) on branch $($identity.Branch) at baseline $($identity.Baseline)."
+	# Skip the DataPacker build on a re-parent conflict: a tree with conflict markers cannot build, and a
+	# wrapper exit here would block the very session that must resolve the conflict from launching. The
+	# session runs the build itself after `git rebase --continue`. Provisioning above is conflict-insensitive.
+	if ($null -eq $repair -or $repair.status -cne 'reparented-conflict') {
+		& (Join-Path $root '.agents\scripts\Build-WorktreeDataPacker.ps1') -Worktree $identity.Worktree -WorktreeCliExecutable $worktreeCli -PrimaryCheckout $root
+	}
+	$banner = "$(if ($worktreeCreated) { 'Created' } else { 'Reattached' }) worktree $($identity.Worktree) on branch $($identity.Branch) at baseline $($identity.Baseline)."
+	if ($null -ne $repair -and $repair.status -cin @('reparented', 'reparented-conflict')) {
+		$banner += " (re-parented from squashed $($repair.oldBaseline) to $($repair.newBaseline))"
+		if ($repair.status -ceq 'reparented-conflict') {
+			$conflictList = @($repair.conflictFiles) -join ', '
+			$buildCommand = "'.agents\scripts\Build-WorktreeDataPacker.ps1' -Worktree '$($identity.Worktree)' -WorktreeCliExecutable '$worktreeCli' -PrimaryCheckout '$root'"
+			if ($repair.rebaseInProgress) {
+				# Mid-rebase conflict: HEAD is detached, so a scheduler op would heal-delete the reparented claim.
+				$banner = "FIRST TASK: the automatic re-parent hit rebase conflicts. Resolve the conflicted files ($conflictList), run 'git rebase --continue', and run NO scheduler operation (plan validate, claim-next, or any sidecar that invokes them) until the rebase completes - a mid-conflict detached HEAD heal-deletes the reparented claim. Then run $buildCommand to build the deferred DataPacker.`n" + $banner
+			}
+			else {
+				# Autostash pop-conflict after a completed rebase: HEAD is attached, so scheduler ops are safe.
+				$banner = "FIRST TASK: the automatic re-parent completed but its autostashed local changes conflicted on pop. Resolve the conflicted files ($conflictList), then run 'git stash drop' to discard the kept autostash. HEAD is already attached so scheduler operations are safe. Then run $buildCommand to build the deferred DataPacker.`n" + $banner
+			}
+		}
+	}
+	Write-Host $banner
 	$exitCode = Invoke-WorktreeCliTrackedProcess -Executable $ClientExecutable -ArgumentList $ClientArguments -WorkingDirectory $identity.Worktree
 }
 catch {
@@ -146,12 +163,6 @@ catch {
 	$exitCode = 1
 }
 finally {
-	if ($null -ne $claim) {
-		# Wrapper claims are always plain session claims (bootstrap serializes on its own mutex,
-		# never a maintenance upgrade), so releasing is an unconditional Unregister.
-		try { Unregister-WorktreeCliSession -RepositoryRoot $root -Owner $claim.Owner }
-		catch { [Console]::Error.WriteLine("Failed to release WorktreeCli session '$($claim.Owner)': $($_.Exception.Message)"); $exitCode = 1 }
-	}
 	Restore-AgentWorktreeEnvironment
 }
 exit $exitCode

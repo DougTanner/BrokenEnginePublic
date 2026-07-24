@@ -1,6 +1,6 @@
 # Engine UI - Shared Wrapper and Screen Infrastructure
 
-Shared runtime settings, network-pending controls, and client-only curve/editor support. Engine Tweaks registration contracts live in [TweaksScreen](Screens/TweaksScreen/AGENTS.md); game localization and wrapper affinity live in [game UI](../../../Projects/BrokenEngineSandbox/Source/Ui/AGENTS.md).
+Shared runtime settings, network-pending controls, and client-only curve/editor support. Engine Tweaks registration contracts live in TweaksScreen (`Screens/TweaksScreen/AGENTS.md`); game localization and wrapper affinity live in game UI (`../../../Projects/BrokenEngineSandbox/Source/Ui/AGENTS.md`).
 
 ## Wrapper Contracts
 
@@ -13,7 +13,7 @@ Shared runtime settings, network-pending controls, and client-only curve/editor 
 
 ## Shared Types
 
-- Height-dependent wrapper groups resolve camera-height-conditioned render values; [Render](../Graphics/Render/AGENTS.md) owns publication behavior.
+- Height-dependent wrapper groups resolve camera-height-conditioned render values; Render (`../Graphics/Render/AGENTS.md`) owns publication behavior.
 - Client-only curves use bounded monotone cubic interpolation and an ImPlot editor. Endpoints remain X-locked and interior control points ordered.
 - `NetworkUiControl` disables a control while authoritative state has not resolved its request; call `Update` every frame with that authoritative state.
 
@@ -21,5 +21,5 @@ Most wrapper storage compiles into both builds so server-side simulation can rea
 
 ## See Also
 
-- [Screens](Screens/AGENTS.md) - Engine screen routing
-- [TweaksScreen](Screens/TweaksScreen/AGENTS.md) - Runtime parameter UI contracts
+- Screens (`Screens/AGENTS.md`) - Engine screen routing
+- TweaksScreen (`Screens/TweaksScreen/AGENTS.md`) - Runtime parameter UI contracts

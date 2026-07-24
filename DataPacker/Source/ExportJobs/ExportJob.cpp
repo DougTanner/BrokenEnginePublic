@@ -59,18 +59,18 @@ ExportJob::ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::pa
 	}
 	mRelativeDirectory.remove_filename();
 
-	mChunkFile = gpFileManager->mTempDirectory;
+	mChunkFile = gpFileManager->mCacheDirectory;
 	mChunkFile /= mRelativeDirectory;
 	std::filesystem::create_directories(mChunkFile);
 	mChunkFile /= mInputPath.filename();
 	mChunkFile += ".chunk";
 
-	mCacheMetadataFile = gpFileManager->mTempDirectory;
+	mCacheMetadataFile = gpFileManager->mCacheDirectory;
 	mCacheMetadataFile /= mRelativeDirectory;
 	mCacheMetadataFile /= mInputPath.filename();
 	mCacheMetadataFile += ".meta";
 
-	mLastModifiedTimeFile = gpFileManager->mTempDirectory;
+	mLastModifiedTimeFile = gpFileManager->mCacheDirectory;
 	mLastModifiedTimeFile /= mRelativeDirectory;
 	mLastModifiedTimeFile /= mInputPath.filename();
 	mLastModifiedTimeFile += ".txt";
