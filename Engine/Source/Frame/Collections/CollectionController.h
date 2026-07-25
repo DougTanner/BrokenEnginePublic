@@ -91,6 +91,32 @@ inline auto InterpolateKeyframes(const TControllerType& rController, float fElap
 	return rController.keyframes[iKeyframeCount - 1];
 }
 
+// Scales a controller's keyframes before interpolation without modifying its registered definition.
+template <typename TControllerType, typename TScaleFunction>
+inline auto InterpolateScaledKeyframes(const TControllerType& rController, float fElapsedTime, TScaleFunction scaleFunction)
+	-> std::remove_extent_t<decltype(TControllerType::keyframes)>
+{
+	TControllerType scaledController = rController;
+	for (int64_t j = 0; j < rController.uiKeyframeCount; ++j)
+	{
+		scaleFunction(scaledController, rController, j);
+	}
+	return InterpolateKeyframes(scaledController, fElapsedTime);
+}
+
+// Spawns a paired controlled element while leaving collection-specific seeding to the caller.
+template <typename TInterpolate, typename TPostRender, typename TGrowFunction, typename TAddFunction, typename TSeedFunction>
+void XM_CALLCONV AddControlledElement(TInterpolate& rInterpolate, [[maybe_unused]] const TPostRender& rPostRender, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition, TGrowFunction growFunction, TAddFunction addFunction, TSeedFunction seedFunction)
+{
+	growFunction();
+	int64_t iSpawnIndex = addFunction();
+
+	rInterpolate.pVecPositions[iSpawnIndex] = XMVectorSetW(vecPosition, 1.0f);
+	seedFunction(iSpawnIndex);
+	rInterpolate.puiControllerTypeIndices[iSpawnIndex] = uiControllerTypeIndex;
+	rInterpolate.pfStartTimes[iSpawnIndex] = fCurrentTime;
+}
+
 // Mixin providing static controller type registry for collections with keyframe animation.
 // TControllerType defaults to ControllerType for standard keyframe animation (PointLights).
 // Collections with custom keyframes (Puffs) can specify their own controller type.

@@ -31,20 +31,17 @@ void PuffsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restric
 			float fElapsedTime = fCurrentTime - fStartTime;
 			const PuffControllerType& rController = PuffsInterpolate::GetControllerType(uiControllerTypeIndex);
 
-			// Apply per-keyframe wrapper scaling before interpolation
-			PuffControllerType scaled = rController;
-			for (int64_t j = 0; j < rController.uiKeyframeCount; ++j)
+			PuffKeyframe interpolated = InterpolateScaledKeyframes(rController, fElapsedTime, [](PuffControllerType& rScaledController, const PuffControllerType& rOriginalController, int64_t j)
 			{
-				if (rController.ppAreaScales[j] != nullptr)
+				if (rOriginalController.ppAreaScales[j] != nullptr)
 				{
-					scaled.keyframes[j].fArea *= rController.ppAreaScales[j]->Get();
+					rScaledController.keyframes[j].fArea *= rOriginalController.ppAreaScales[j]->Get();
 				}
-				if (rController.ppIntensityScales[j] != nullptr)
+				if (rOriginalController.ppIntensityScales[j] != nullptr)
 				{
-					scaled.keyframes[j].fIntensity *= rController.ppIntensityScales[j]->Get();
+					rScaledController.keyframes[j].fIntensity *= rOriginalController.ppIntensityScales[j]->Get();
 				}
-			}
-			PuffKeyframe interpolated = InterpolateKeyframes(scaled, fElapsedTime);
+			});
 
 			// Map PuffKeyframe fields to puff properties
 			fArea = interpolated.fArea;
@@ -72,21 +69,22 @@ void XM_CALLCONV PuffsPostRender::AddControlled(game::Frame& __restrict rFrame, 
 	// Get controller type
 	const PuffControllerType& rController = PuffsInterpolate::GetControllerType(uiControllerTypeIndex);
 
-	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
-
-	// Set position and base type from controller
-	rInterpolate.pVecPositions[iSpawnIndex] = XMVectorSetW(vecPosition, 1.0f);
-	rInterpolate.puiTypeIndices[iSpawnIndex] = rController.uiBaseTypeIndex;
-
-	// Initialize per-instance values from first keyframe (apply wrapper scaling)
-	rInterpolate.pfAreas[iSpawnIndex] = rController.keyframes[0].fArea * (rController.ppAreaScales[0] != nullptr ? rController.ppAreaScales[0]->Get() : 1.0f);
-	rInterpolate.pfIntensities[iSpawnIndex] = rController.keyframes[0].fIntensity * (rController.ppIntensityScales[0] != nullptr ? rController.ppIntensityScales[0]->Get() : 1.0f);
-	rInterpolate.pfRotations[iSpawnIndex] = rController.keyframes[0].fRotation;
-
-	// Set controller fields
-	rInterpolate.puiControllerTypeIndices[iSpawnIndex] = uiControllerTypeIndex;
-	rInterpolate.pfStartTimes[iSpawnIndex] = fCurrentTime;
+	AddControlledElement(rInterpolate, rPostRender, fCurrentTime, uiControllerTypeIndex, vecPosition,
+		[&rInterpolate, &rPostRender]()
+		{
+			GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+		},
+		[&rInterpolate, &rPostRender]()
+		{
+			return AddElement(rInterpolate, rPostRender);
+		},
+		[&rInterpolate, &rController](int64_t iSpawnIndex)
+		{
+			rInterpolate.puiTypeIndices[iSpawnIndex] = rController.uiBaseTypeIndex;
+			rInterpolate.pfAreas[iSpawnIndex] = rController.keyframes[0].fArea * (rController.ppAreaScales[0] != nullptr ? rController.ppAreaScales[0]->Get() : 1.0f);
+			rInterpolate.pfIntensities[iSpawnIndex] = rController.keyframes[0].fIntensity * (rController.ppIntensityScales[0] != nullptr ? rController.ppIntensityScales[0]->Get() : 1.0f);
+			rInterpolate.pfRotations[iSpawnIndex] = rController.keyframes[0].fRotation;
+		});
 }
 
 void PuffsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

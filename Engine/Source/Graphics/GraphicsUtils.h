@@ -44,6 +44,7 @@ inline constexpr uint32_t TileCount(uint32_t uiCount)
 bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition);
 XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition);
 void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT4A& f4Position, float fArea, const XMFLOAT4A& f4Params, uint32_t uiColor);
+float MinLightingDepositSize();
 
 bool SupportsStorageImage(VkFormat vkFormat);
 bool SupportsColorAttachmentBlend(VkFormat vkFormat);

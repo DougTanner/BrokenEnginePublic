@@ -41,28 +41,25 @@ void PointLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __r
 			float fElapsedTime = fCurrentTime - fStartTime;
 			const ControllerType& rController = sControllerTypes.at(uiControllerTypeIndex);
 
-			// Apply per-keyframe wrapper scaling before interpolation
-			ControllerType scaled = rController;
-			for (int64_t j = 0; j < rController.uiKeyframeCount; ++j)
+			ControllerKeyframe interpolated = InterpolateScaledKeyframes(rController, fElapsedTime, [](ControllerType& rScaledController, const ControllerType& rOriginalController, int64_t j)
 			{
-				if (rController.ppVisibleAreaScales[j] != nullptr)
+				if (rOriginalController.ppVisibleAreaScales[j] != nullptr)
 				{
-					scaled.keyframes[j].fVisibleArea *= rController.ppVisibleAreaScales[j]->Get();
+					rScaledController.keyframes[j].fVisibleArea *= rOriginalController.ppVisibleAreaScales[j]->Get();
 				}
-				if (rController.ppVisibleIntensityScales[j] != nullptr)
+				if (rOriginalController.ppVisibleIntensityScales[j] != nullptr)
 				{
-					scaled.keyframes[j].fVisibleIntensity *= rController.ppVisibleIntensityScales[j]->Get();
+					rScaledController.keyframes[j].fVisibleIntensity *= rOriginalController.ppVisibleIntensityScales[j]->Get();
 				}
-				if (rController.ppLightingAreaScales[j] != nullptr)
+				if (rOriginalController.ppLightingAreaScales[j] != nullptr)
 				{
-					scaled.keyframes[j].fLightingArea *= rController.ppLightingAreaScales[j]->Get();
+					rScaledController.keyframes[j].fLightingArea *= rOriginalController.ppLightingAreaScales[j]->Get();
 				}
-				if (rController.ppLightingIntensityScales[j] != nullptr)
+				if (rOriginalController.ppLightingIntensityScales[j] != nullptr)
 				{
-					scaled.keyframes[j].fLightingIntensity *= rController.ppLightingIntensityScales[j]->Get();
+					rScaledController.keyframes[j].fLightingIntensity *= rOriginalController.ppLightingIntensityScales[j]->Get();
 				}
-			}
-			ControllerKeyframe interpolated = InterpolateKeyframes(scaled, fElapsedTime);
+			});
 
 			fVisibleArea = interpolated.fVisibleArea;
 			fVisibleIntensity = interpolated.fVisibleIntensity;
@@ -136,25 +133,27 @@ void XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rF
 	// Get controller type and base type
 	const ControllerType& rController = PointLightsInterpolate::sControllerTypes.at(uiControllerTypeIndex);
 
-	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
-	rPostRender.puiIds[uiSpawnIndex] = newId;
-
-	// Set position and base type from controller
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorSetW(vecPosition, 1.0f);
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = rController.uiBaseTypeIndex;
-
-	// Initialize per-instance values from first keyframe (apply wrapper scaling)
-	rInterpolate.pfVisibleAreas[uiSpawnIndex] = rController.keyframes[0].fVisibleArea * (rController.ppVisibleAreaScales[0] != nullptr ? rController.ppVisibleAreaScales[0]->Get() : 1.0f);
-	rInterpolate.pfVisibleIntensities[uiSpawnIndex] = rController.keyframes[0].fVisibleIntensity * (rController.ppVisibleIntensityScales[0] != nullptr ? rController.ppVisibleIntensityScales[0]->Get() : 1.0f);
-	rInterpolate.pfLightingAreas[uiSpawnIndex] = rController.keyframes[0].fLightingArea * (rController.ppLightingAreaScales[0] != nullptr ? rController.ppLightingAreaScales[0]->Get() : 1.0f);
-	rInterpolate.pfLightingIntensities[uiSpawnIndex] = rController.keyframes[0].fLightingIntensity * (rController.ppLightingIntensityScales[0] != nullptr ? rController.ppLightingIntensityScales[0]->Get() : 1.0f);
-	rInterpolate.pfRotations[uiSpawnIndex] = fRotation + rController.keyframes[0].fRotation;
-
-	// Set controller fields
-	rInterpolate.puiControllerTypeIndices[uiSpawnIndex] = uiControllerTypeIndex;
-	rInterpolate.pfStartTimes[uiSpawnIndex] = fCurrentTime;
-	rInterpolate.pfBaseRotations[uiSpawnIndex] = fRotation;
+	AddControlledElement(rInterpolate, rPostRender, fCurrentTime, uiControllerTypeIndex, vecPosition,
+		[&rInterpolate, &rPostRender]()
+		{
+			GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+		},
+		[&rInterpolate, &rPostRender, &rFrame]()
+		{
+			auto [uiSpawnIndex, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+			rPostRender.puiIds[uiSpawnIndex] = newId;
+			return uiSpawnIndex;
+		},
+		[&rInterpolate, &rController, fRotation](int64_t iSpawnIndex)
+		{
+			rInterpolate.puiTypeIndices[iSpawnIndex] = rController.uiBaseTypeIndex;
+			rInterpolate.pfVisibleAreas[iSpawnIndex] = rController.keyframes[0].fVisibleArea * (rController.ppVisibleAreaScales[0] != nullptr ? rController.ppVisibleAreaScales[0]->Get() : 1.0f);
+			rInterpolate.pfVisibleIntensities[iSpawnIndex] = rController.keyframes[0].fVisibleIntensity * (rController.ppVisibleIntensityScales[0] != nullptr ? rController.ppVisibleIntensityScales[0]->Get() : 1.0f);
+			rInterpolate.pfLightingAreas[iSpawnIndex] = rController.keyframes[0].fLightingArea * (rController.ppLightingAreaScales[0] != nullptr ? rController.ppLightingAreaScales[0]->Get() : 1.0f);
+			rInterpolate.pfLightingIntensities[iSpawnIndex] = rController.keyframes[0].fLightingIntensity * (rController.ppLightingIntensityScales[0] != nullptr ? rController.ppLightingIntensityScales[0]->Get() : 1.0f);
+			rInterpolate.pfRotations[iSpawnIndex] = fRotation + rController.keyframes[0].fRotation;
+			rInterpolate.pfBaseRotations[iSpawnIndex] = fRotation;
+		});
 }
 
 void PointLightsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

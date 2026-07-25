@@ -60,15 +60,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 	XMVECTOR vecCameraRight = XMVector3Normalize(game::gpCamera->mMatView.r[0]);
 	XMVECTOR vecCameraUp = XMVector3Normalize(game::gpCamera->mMatView.r[1]);
 
-	// Minimum lighting area: clamp to 8 texels to prevent flickering from sub-texel lights. The deposit
-	// texel world size is constant-density (visible width / base detail resolution) at any settled height,
-	// independent of the lighting-headroom pre-size (the headroom cancels in the f4LightingArea texel
-	// formula), so the un-bumped DetailTextureSize is the right basis here — NOT LightingDetailTextureSize,
-	// which would shrink the floor by the headroom factor. The ceil only inflates the floor sub-texel.
-	auto [iLightingTextureX, iLightingTextureY] = TextureManager::DetailTextureSize(gLightingDepositTextureMultiplier.Get());
-	float fTexelSizeX = std::ceil(game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / static_cast<float>(iLightingTextureX);
-	float fTexelSizeY = std::ceil(game::gpCamera->f4RenderVisibleArea.y - game::gpCamera->f4RenderVisibleArea.w) / static_cast<float>(iLightingTextureY);
-	float fMinLightingArea = std::max(fTexelSizeX, fTexelSizeY) * 8.0f;
+	float fMinLightingArea = MinLightingDepositSize();
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{

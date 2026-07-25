@@ -1244,6 +1244,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrails.cpp">
       <Filter>Engine\Frame\Collections\SmokeTrails</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrailsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\SmokeTrails</Filter>
+    </ClCompile>
 
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrailsRender.cpp">
       <Filter>Engine\Frame\Collections\SmokeTrails</Filter>

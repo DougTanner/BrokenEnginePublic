@@ -550,6 +550,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds\Sounds.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds\SoundsUpdate.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrails.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrailsUpdate.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrailsRender.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials\WindRadials.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials\WindRadialsUpdate.cpp" />

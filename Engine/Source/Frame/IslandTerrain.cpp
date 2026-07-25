@@ -259,6 +259,72 @@ GridCoord CoordFromPosition(const XMFLOAT4A& f4Position)
 	return {iGridX, iGridY};
 }
 
+template <bool kbMultiplyUV, bool kbHoistedHeightmapMax>
+bool SamplePlacementHeightmap(float fDx, float fDy, float fCos, float fSin, float fFootprintX, float fFootprintY, float fHalfX, float fHalfY, const uint16_t* pHeightmapHalf, int64_t iHeightmapWidth, int64_t iHeightmapHeight, float fInvFootprintX, float fInvFootprintY, float fHeightmapMaxU, float fHeightmapMaxV, float& rfSample)
+{
+	float fLocalX = fDx * fCos - fDy * fSin;
+	float fLocalY = fDx * fSin + fDy * fCos;
+
+	if constexpr (kbMultiplyUV)
+	{
+		if (std::abs(fLocalX) > fHalfX || std::abs(fLocalY) > fHalfY)
+		{
+			return false;
+		}
+	}
+	else if (std::abs(fLocalX) > 0.5f * fFootprintX || std::abs(fLocalY) > 0.5f * fFootprintY)
+	{
+		return false;
+	}
+
+	// UV from local frame; V axis is world-Y inverted.
+	float fU = 0.0f;
+	float fV = 0.0f;
+	if constexpr (kbMultiplyUV)
+	{
+		fU = fLocalX * fInvFootprintX + 0.5f;
+		fV = 0.5f - fLocalY * fInvFootprintY;
+	}
+	else
+	{
+		fU = fLocalX / fFootprintX + 0.5f;
+		fV = 0.5f - fLocalY / fFootprintY;
+	}
+
+	int64_t iX = 0;
+	int64_t iY = 0;
+	if constexpr (kbHoistedHeightmapMax)
+	{
+		iX = static_cast<int64_t>(fU * fHeightmapMaxU);
+		iY = static_cast<int64_t>(fV * fHeightmapMaxV);
+	}
+	else
+	{
+		iX = static_cast<int64_t>(fU * static_cast<float>(iHeightmapWidth - 1));
+		iY = static_cast<int64_t>(fV * static_cast<float>(iHeightmapHeight - 1));
+	}
+	iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(iHeightmapWidth - 1));
+	iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(iHeightmapHeight - 1));
+
+	rfSample = DirectX::PackedVector::XMConvertHalfToFloat(pHeightmapHalf[iY * iHeightmapWidth + iX]);
+	return true;
+}
+
+template <typename ElevationCallable>
+XMVECTOR NormalFromElevation(FXMVECTOR vecPosition, float fDistance, ElevationCallable&& rElevation)
+{
+	auto vecTopLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, fDistance, 0.0f, 0.0f));
+	vecTopLeft = XMVectorSetZ(vecTopLeft, rElevation(vecTopLeft));
+	auto vecTopRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, fDistance, 0.0f, 0.0f));
+	vecTopRight = XMVectorSetZ(vecTopRight, rElevation(vecTopRight));
+	auto vecBottomLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, -fDistance, 0.0f, 0.0f));
+	vecBottomLeft = XMVectorSetZ(vecBottomLeft, rElevation(vecBottomLeft));
+	auto vecBottomRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, -fDistance, 0.0f, 0.0f));
+	vecBottomRight = XMVectorSetZ(vecBottomRight, rElevation(vecBottomRight));
+
+	return XMVector3Normalize(XMVector3Cross(XMVectorSubtract(vecTopRight, vecBottomLeft), XMVectorSubtract(vecTopLeft, vecBottomRight)));
+}
+
 // MAX terrain elevation at f4Position over one already-resolved cell's island list — the shared body of
 // GlobalElevation (a single point) and GlobalNormal (4 finite-difference taps). Split out so GlobalNormal
 // can resolve the cell (hash lookup + island/query list) once and reuse it across taps that share a cell;
@@ -306,30 +372,18 @@ float CellElevation(const IslandTerrain& rTerrain, const FrameStaticData& rStati
 		}
 		const IslandRenderQuery& rQuery = *pQuery;
 
-		// Inverse-rotate world point into island-local frame
 		float fDx = f4Position.x - rQuery.f2WorldPos.x;
 		float fDy = f4Position.y - rQuery.f2WorldPos.y;
-		float fLocalX = fDx * rQuery.fCos - fDy * rQuery.fSin;
-		float fLocalY = fDx * rQuery.fSin + fDy * rQuery.fCos;
-
-		if (std::abs(fLocalX) > 0.5f * rQuery.fFootprintX || std::abs(fLocalY) > 0.5f * rQuery.fFootprintY)
+		float fSample = 0.0f;
+		if (!SamplePlacementHeightmap<false, false>(fDx, fDy, rQuery.fCos, rQuery.fSin, rQuery.fFootprintX, rQuery.fFootprintY, 0.0f, 0.0f, rQuery.pHeightmapHalf, rQuery.iHeightmapWidth, rQuery.iHeightmapHeight, 0.0f, 0.0f, 0.0f, 0.0f, fSample))
 		{
 			continue;
 		}
 
-		// UV from local frame; V axis is world-Y inverted
-		float fU = fLocalX / rQuery.fFootprintX + 0.5f;
-		float fV = 0.5f - fLocalY / rQuery.fFootprintY;
-
-		int64_t iX = static_cast<int64_t>(fU * static_cast<float>(rQuery.iHeightmapWidth - 1));
-		int64_t iY = static_cast<int64_t>(fV * static_cast<float>(rQuery.iHeightmapHeight - 1));
-		iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(rQuery.iHeightmapWidth - 1));
-		iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(rQuery.iHeightmapHeight - 1));
-
 		// Heightmap value is already engine-meters (DataPacker shifted Gaea's [0,1] normalized
 		// output by the per-island beach offset `Level × elevationMeters` read from the archetype
 		// Sea node). Beach = 0; negative = water; positive = land. Fold into the running max.
-		fMaxElevation = std::max(fMaxElevation, DirectX::PackedVector::XMConvertHalfToFloat(rQuery.pHeightmapHalf[iY * rQuery.iHeightmapWidth + iX]));
+		fMaxElevation = std::max(fMaxElevation, fSample);
 	}
 
 	return fMaxElevation;
@@ -418,23 +472,11 @@ void BlendPlacementIntoGrid(const IslandPlacement& rPlacement, const IslandTempl
 		{
 			float fWorldX = fCellOriginX + (static_cast<float>(iGx) + 0.5f) * fGridPitchX;
 			float fDx = fWorldX - rPlacement.f2WorldPos.x;
-			float fLocalX = fDx * fCos - fDy * fSin;
-			float fLocalY = fDx * fSin + fDy * fCos;
-
-			if (std::abs(fLocalX) > fHalfX || std::abs(fLocalY) > fHalfY)
+			float fSample = 0.0f;
+			if (!SamplePlacementHeightmap<true, true>(fDx, fDy, fCos, fSin, fFootprintX, fFootprintY, fHalfX, fHalfY, rTemplate.mpHeightmapHalf, rTemplate.miHeightmapWidth, rTemplate.miHeightmapHeight, fInvFootprintX, fInvFootprintY, fHeightmapMaxU, fHeightmapMaxV, fSample))
 			{
 				continue;
 			}
-
-			float fU = fLocalX * fInvFootprintX + 0.5f;
-			float fV = 0.5f - fLocalY * fInvFootprintY;
-
-			int64_t iX = static_cast<int64_t>(fU * fHeightmapMaxU);
-			int64_t iY = static_cast<int64_t>(fV * fHeightmapMaxV);
-			iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapWidth - 1));
-			iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(rTemplate.miHeightmapHeight - 1));
-
-			float fSample = DirectX::PackedVector::XMConvertHalfToFloat(rTemplate.mpHeightmapHalf[iY * rTemplate.miHeightmapWidth + iX]);
 			float& rfCell = rOutGrid[static_cast<size_t>(iGy * kiDim + iGx)];
 			rfCell = std::max(rfCell, fSample);
 		}
@@ -527,16 +569,10 @@ XMVECTOR XM_CALLCONV IslandTerrain::FrameNormal(const FrameStaticData& rStaticDa
 	// AI behaves identically — only the elevation source changes.
 	float fDistance = 2.0f;
 
-	auto vecTopLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, fDistance, 0.0f, 0.0f));
-	vecTopLeft = XMVectorSetZ(vecTopLeft, FrameElevation(rStaticData, vecTopLeft));
-	auto vecTopRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, fDistance, 0.0f, 0.0f));
-	vecTopRight = XMVectorSetZ(vecTopRight, FrameElevation(rStaticData, vecTopRight));
-	auto vecBottomLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, -fDistance, 0.0f, 0.0f));
-	vecBottomLeft = XMVectorSetZ(vecBottomLeft, FrameElevation(rStaticData, vecBottomLeft));
-	auto vecBottomRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, -fDistance, 0.0f, 0.0f));
-	vecBottomRight = XMVectorSetZ(vecBottomRight, FrameElevation(rStaticData, vecBottomRight));
-
-	return XMVector3Normalize(XMVector3Cross(XMVectorSubtract(vecTopRight, vecBottomLeft), XMVectorSubtract(vecTopLeft, vecBottomRight)));
+	return NormalFromElevation(vecPosition, fDistance, [&](FXMVECTOR vecTap)
+	{
+		return FrameElevation(rStaticData, vecTap);
+	});
 }
 
 XMVECTOR XM_CALLCONV IslandTerrain::GlobalNormal(FXMVECTOR vecPosition) const
@@ -575,17 +611,7 @@ XMVECTOR XM_CALLCONV IslandTerrain::GlobalNormal(FXMVECTOR vecPosition) const
 		return pCachedStaticData == nullptr ? mfSeaFloorElevation : CellElevation(*this, *pCachedStaticData, f4Tap);
 	};
 
-	// Sample 4 surrounding points (seamless across grid cell boundaries)
-	auto vecTopLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, fDistance, 0.0f, 0.0f));
-	vecTopLeft = XMVectorSetZ(vecTopLeft, SampleElevation(vecTopLeft));
-	auto vecTopRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, fDistance, 0.0f, 0.0f));
-	vecTopRight = XMVectorSetZ(vecTopRight, SampleElevation(vecTopRight));
-	auto vecBottomLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, -fDistance, 0.0f, 0.0f));
-	vecBottomLeft = XMVectorSetZ(vecBottomLeft, SampleElevation(vecBottomLeft));
-	auto vecBottomRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, -fDistance, 0.0f, 0.0f));
-	vecBottomRight = XMVectorSetZ(vecBottomRight, SampleElevation(vecBottomRight));
-
-	return XMVector3Normalize(XMVector3Cross(XMVectorSubtract(vecTopRight, vecBottomLeft), XMVectorSubtract(vecTopLeft, vecBottomRight)));
+	return NormalFromElevation(vecPosition, fDistance, SampleElevation);
 }
 
 } // namespace engine
