@@ -422,7 +422,7 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline)
 	// descriptor (model = 4, combined/storage = iCount, standalone sampler = 1, buffer/texture = 0).
 	// Scales with shaders::kiMaxIslands (4 bindless terrain arrays) without a hand-tuned constant.
 	int64_t iMaxImageInfos = 0;
-	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings; ++i)
+	for (int64_t i = 0; i < static_cast<int64_t>(rPipeline.mInfo.pDescriptorInfos.size()); ++i)
 	{
 		const DescriptorInfo& rDescriptorInfo = rPipeline.mInfo.pDescriptorInfos[i];
 		if (rDescriptorInfo.flags & kEmpty)
@@ -490,7 +490,7 @@ void PipelineDescriptorWriter::Write(Pipeline& rPipeline)
 			.pBufferInfos = pVkDescriptorBufferInfos,
 			.iBufferInfoCount = 0,
 		};
-		for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings; ++i)
+		for (int64_t i = 0; i < static_cast<int64_t>(rPipeline.mInfo.pDescriptorInfos.size()); ++i)
 		{
 			const DescriptorInfo& rDescriptorInfo = rPipeline.mInfo.pDescriptorInfos[i];
 			if (rDescriptorInfo.flags & kEmpty)

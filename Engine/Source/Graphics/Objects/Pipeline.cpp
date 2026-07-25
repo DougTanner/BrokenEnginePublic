@@ -101,13 +101,18 @@ void Pipeline::Create(const PipelineInfo& rInfo)
 	}
 
 	mbPerCommandBuffer = mInfo.flags & kIndirectHostVisible;
-	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings; ++i)
+	for (int64_t i = 0; i < static_cast<int64_t>(mInfo.pDescriptorInfos.size()); ++i)
 	{
 		if (mInfo.pDescriptorInfos[i].flags & kPerCommandBufferUniformBuffers || mInfo.pDescriptorInfos[i].flags & kPerCommandBufferStorageBuffers || mInfo.pDescriptorInfos[i].flags & kGlobalLayoutUniformBuffers || mInfo.pDescriptorInfos[i].flags & kMainLayoutUniformBuffers)
 		{
 			mbPerCommandBuffer = true;
 		}
 	}
+
+	// The former fixed [kiMaxDescriptorSetLayoutBindings] array was the sole bound on the entry count, and
+	// PipelineDescriptorWriter's stack scratch arrays are still sized to that cap. Bounds entries only — a
+	// kModel entry expands into several descriptor writes, which the per-push cursor ASSERTs guard.
+	ASSERT(static_cast<int64_t>(mInfo.pDescriptorInfos.size()) <= common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 
 	if (mInfo.flags & kCompute)
 	{

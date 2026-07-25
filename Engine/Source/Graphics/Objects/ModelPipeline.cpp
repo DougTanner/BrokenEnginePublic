@@ -9,8 +9,15 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 {
 	PipelineInfo pipelineInfo = rPipelineInfo;
 
+	static constexpr int64_t kiModelAdditionalDescriptors = 5; // +1 lighting, +2 shadow, +3 smoke, +4 mesh data, +5 joint matrices
+
+	// Grow by the model descriptor plus its five appended slots before the scan, so the slots the loop
+	// writes in place exist. Grown entries default to kEmpty, so the scan still stops at the first of them.
+	const int64_t iDescriptorInfoCount = static_cast<int64_t>(pipelineInfo.pDescriptorInfos.size()) + kiModelAdditionalDescriptors + 1;
+	pipelineInfo.pDescriptorInfos.resize(iDescriptorInfoCount);
+
 	// Add Model flag to the first empty descriptor slot
-	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings; ++i)
+	for (int64_t i = 0; i < iDescriptorInfoCount; ++i)
 	{
 		DescriptorInfo& rDescriptorInfo = pipelineInfo.pDescriptorInfos[i];
 		if (rDescriptorInfo.flags & DescriptorFlags::kEmpty)
@@ -18,8 +25,6 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 			rDescriptorInfo.flags = DescriptorFlags::kModel;
 			rDescriptorInfo.crc = sceneCrc;
 
-			static constexpr int64_t kiModelAdditionalDescriptors = 5; // +1 lighting, +2 shadow, +3 smoke, +4 mesh data, +5 joint matrices
-			ASSERT(i + kiModelAdditionalDescriptors + 1 < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 			ASSERT(pipelineInfo.pDescriptorInfos[i + 1].flags == DescriptorFlags::kEmpty);
 
 			pipelineInfo.pDescriptorInfos[i + 1].flags = DescriptorFlags::kCombinedSamplers;

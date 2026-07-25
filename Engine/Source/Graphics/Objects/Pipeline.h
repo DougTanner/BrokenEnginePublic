@@ -110,7 +110,8 @@ struct PipelineInfo
 	// for pipelines whose shader declares a smaller push-constant block (e.g. LightCombine).
 	int64_t iPushConstantBytes = 0;
 
-	DescriptorInfo pDescriptorInfos[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings];
+	// Entry count is capped at common::ShaderHeader::kiMaxDescriptorSetLayoutBindings by Pipeline::Create.
+	std::vector<DescriptorInfo> pDescriptorInfos;
 };
 
 class Pipeline
