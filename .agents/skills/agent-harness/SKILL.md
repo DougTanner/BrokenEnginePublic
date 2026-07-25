@@ -93,7 +93,7 @@ Write any multi-line PowerShell driver — anything with `function` definitions,
 
 The selected project's harness doc owns the concrete setup recipe (which commands seed server state, confirm client connection, and address UI) and its replay determinism acceptance sequence. Regardless of project, hold these verification-evidence principles:
 
-- Verify with the narrowest observable combination of the project's scene, UI, screenshot, server-query, and log commands. Stable counts such as players should agree exactly; allow bounded tick drift for churning collections.
+- Verify with the narrowest observable combination of the project's scene, UI, screenshot, server-query, and log commands. `describe_ui`, scene/server queries, and `get_logs` close a criterion more cheaply than pixels; reach for a capture only when the criterion is genuinely about what was rendered. Stable counts such as players should agree exactly; allow bounded tick drift for churning collections.
 - Release through the lifecycle checklist below.
 
 ## Lifecycle and release
@@ -110,6 +110,11 @@ An owner mismatch is a hard stop. Never remove coordination state manually.
 ## Process verification report
 
 Run plan-provided runtime steps when present; otherwise derive the smallest live checks for runtime-observable criteria only. Report each criterion `PASS`, `FAIL`, or `BLOCKED` with exact command/query/scene/UI/screenshot/log evidence. Treat setup limitations as blocked checks. Do not diagnose or edit a failure in this role; return reproducing commands and evidence to the main agent for `/resolve-findings` adjudication and affected-check retest.
+
+Captures stay on disk. The `screenshot` result `{path, width, height}` is the evidence — cite it by path. Loading an image into context is a deliberate act for a check that genuinely needs pixels, and the report names which check and why.
+
+- Prefer a script over the image. Most visual criteria — frame non-black, region matches an expected color, two captures differ, pixel count past a threshold — are assertions a few lines of code settle more precisely than an eye on a downscaled JPEG. Write the driver under `$ROOT\Temp` and run it with `pwsh -File` as above; its stdout is a few bytes of decisive text instead of megabytes of image.
+- Request only the resolution the check needs. `screenshot` downscales through `maxWidth` (default 1568) and `quality` (default 80), and those defaults are sized for UI readability. A "did terrain render at all" check does not need them; pass a `maxWidth` and `quality` matched to the assertion as part of designing the check.
 
 If a required command, parameter, result field, query, or input primitive is missing, return that criterion `BLOCKED`. Name the missing capability and the narrowest harness extension that would expose it. The main agent decides whether the authorized change includes that extension or whether user authority/criterion revision is required. Never fake state with pixel guessing or log scraping, create an out-of-scope runtime edit, waive the gate with a follow-up plan, or silently skip the criterion.
 

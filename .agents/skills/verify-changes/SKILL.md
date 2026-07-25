@@ -96,11 +96,10 @@ For every requested build, require one authoritative
 
 - target and worktree root, exact arguments, selected files, and invalidated
   objects;
-- status, process exit code, failure kind, lock result, MSBuild discovery,
-  launch, and exit;
+- status, process exit code, and failure kind;
 - retained-log path and `complete`, relevant structured diagnostics, every
-  error and tool message, truncation state, plus relevant changed-file warnings;
-- started time and elapsed time; and
+  error and tool message, truncation state, plus relevant changed-file
+  warnings; and
 - for game builds, data mode and trigger, `RunDataPacker`, canonical data and
   generated-include paths, prepared-data or generation authority, Gaea-guard
   disposition, selected-data snapshot, and primary snapshot when Local.
@@ -128,10 +127,18 @@ For a changed executable plan in a session worktree, use the current checkout's
 provisioned `Tools/WorktreeCli/Platforms/VisualStudio2026/Output/WorktreeCli.exe`
 and record the read-only session prevalidation from `plan validate --repo
 <canonical-common-dir> --worktree <session-worktree> --baseline
-<baseline-commit>`. Require exit `0`, the versioned JSON contract, `status:
-valid`, `code: ok`, and no failing diagnostic. Record stale dependency notices
-and healed claims. Never validate `Documents/Features` as scheduler input.
-Otherwise record `not triggered — no executable-Plan change`.
+<baseline-commit>`. When holding a terminal Plan claim receipt, append
+`--terminal-receipt <receipt-path> --terminal-receipt-sha256 <sha256>`; omit
+the pair entirely for ordinary no-claim work. Without it a completed Plan
+whose Markdown file is deleted returns `status: invalid`, `code:
+invalid-plans`, and diagnostic `baseline-plan-missing-or-demoted`. The receipt
+must be an ordinary file below `<session-worktree>/Temp`, and the claim state
+must be `preparing` or `awaiting-landing` — `Complete-NextPlan.ps1` already
+leaves `awaiting-landing` before this skill runs. Require exit `0`, the
+versioned JSON contract, `status: valid`, `code: ok`, and no failing
+diagnostic. Record stale dependency notices and healed claims. Never validate
+`Documents/Features` as scheduler input. Otherwise record `not triggered — no
+executable-Plan change`.
 
 Do not represent session prevalidation as primary validation. On the
 `primary-commit` route, post-commit primary validation and any receipt-bound

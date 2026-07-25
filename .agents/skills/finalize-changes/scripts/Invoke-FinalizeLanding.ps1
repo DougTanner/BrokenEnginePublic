@@ -139,7 +139,12 @@ function Assert-ReconciledPlanMetadata {
 	if ($claimReceiptPathBound) { $arguments += @('--terminal-receipt', $ClaimReceiptPath, '--terminal-receipt-sha256', $ClaimReceiptSha256) }
 	$response = Invoke-WorktreeCli $arguments
 	$validation = Get-JsonResponse $response 'reconciled Plan metadata validation'
-	$result.planValidation = $validation
+	# Record decision-relevant fields only: `plans` carries one entry per repository Plan and never informs the landing.
+	$projectedValidation = [ordered]@{}
+	foreach ($name in @('status', 'code', 'message', 'diagnostics', 'notices', 'healedClaims')) {
+		if ($validation.PSObject.Properties.Name -ccontains $name) { $projectedValidation[$name] = $validation.$name }
+	}
+	$result.planValidation = $projectedValidation
 	if ($response.ExitCode -ne 0 -or $validation.status -cne 'valid' -or $validation.code -cne 'ok') {
 		$details = if ($validation.PSObject.Properties.Name -ccontains 'diagnostics') { @($validation.diagnostics | ConvertTo-Json -Depth 8 -Compress) -join '' } else { [string]$validation.message }
 		Throw-Landing $(if ($response.ExitCode -eq 2) { 2 } else { 1 }) 'plan.validation-failed' "Reconciled Plan metadata is invalid; primary was not mutated. $details"

@@ -113,9 +113,11 @@ Assess in this order:
    claim bug-free results or demand a harness run without a runtime-observable
    criterion.
 2. Token efficiency: use of deterministic tools, purposeful delegation,
-   manager-context discipline, raw-log volume, and review/test loops caused by
-   concrete new evidence. Do not penalize a narrow change for having no
-   unnecessary subagents.
+   manager-context discipline, raw-log volume, images, screenshots, captures,
+   and other binary or base64 payloads entering context, and review/test
+   loops caused by concrete new evidence. A payload finding must carry a
+   measured size and the signal it bought. Do not penalize a narrow change
+   for having no unnecessary subagents.
 3. Process overhead: reconcile count, landing-phase active time, duplicate
    validations, and unchanged-input rebuild/review/verification.
 4. Isolation and landing: wrapper/claim/readiness evidence when applicable,
@@ -169,4 +171,7 @@ extra reconcile, or elapsed-time threshold is automatically P0.
 Keep findings separate from recommendations. Omit empty recommendations rather
 than manufacturing work. Prefer deterministic tooling, a clearer precondition,
 or a specifically justified removal over generic care advice, and explain the
-safety tradeoff of weakening any tier-required control.
+safety tradeoff of weakening any tier-required control. Rank a mechanism fix,
+a skill-to-skill contract correction, or a deleted obligation above any new
+rule an agent must remember; a proposed rule states why the mechanism could
+not be fixed, and weighs per-change cost against how often the problem fires.

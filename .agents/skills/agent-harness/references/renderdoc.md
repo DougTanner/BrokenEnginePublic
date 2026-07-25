@@ -59,7 +59,7 @@ All live in `.agents/skills/agent-harness/scripts/` and share `rdc_common.py` (d
 
 - `rdc_summary.py <rdc> [--out FILE]` — recursive action tree (eventId, kind, name, draw/dispatch params) with a per-kind totals footer. Default out `<capture>.summary.txt`. Start here to find a draw's eventId.
 - `rdc_pipeline.py <rdc> --event N [--out FILE]` — pipeline state at event `N`: bound shaders, viewport/scissor, depth/blend, color/depth targets with format + dimensions, vertex/index bindings. Default out `<capture>.pipeline_evN.txt`.
-- `rdc_texture.py <rdc> --event N [--target K | --depth] [--out PNG]` — saves one bound color target (`--target K`, default 0) or the depth target (`--depth`) as PNG. Here the `--out` PNG is the completion file (its absolute path also prints to stdout); default `<capture>_evN_targetK.png` (`<capture>_evN_depth.png` with `--depth`). `Read` the PNG and compare it against a `screenshot` of the same session.
+- `rdc_texture.py <rdc> --event N [--target K | --depth] [--out PNG]` — saves one bound color target (`--target K`, default 0) or the depth target (`--depth`) as PNG. Here the `--out` PNG is the completion file (its absolute path also prints to stdout); default `<capture>_evN_targetK.png` (`<capture>_evN_depth.png` with `--depth`). When pixel comparison is the point, `Read` the PNG for the single target under analysis and compare it against a `screenshot` of the same session; never sweep-read every dumped target or event.
 
 ## Fallbacks and raw export
 

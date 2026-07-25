@@ -10,7 +10,7 @@ try {
  $status=Invoke-NextPlanProcess 'git.exe' @('-C',$context.Worktree,'status','--porcelain=v1','--untracked-files=all') $context.Worktree
  if($status.ExitCode -ne 0 -or -not [string]::IsNullOrWhiteSpace($status.Stdout)){throw (New-NextPlanStateBlocker 'Session worktree must be clean before a plan claim.')}
  $validate=Invoke-NextPlanProcess $context.WorktreeCli @('plan','validate','--repo',$context.CommonDirectory,'--worktree',$context.Worktree,'--baseline',$context.Baseline) $context.Worktree
- $validation=ConvertFrom-NextPlanProcessJson $validate 'plan validate'; $result.validation=$validation
+ $validation=ConvertFrom-NextPlanProcessJson $validate 'plan validate'; $projection=[ordered]@{}; foreach($name in @('status','code','message','diagnostics','notices','healedClaims')){if($validation.PSObject.Properties.Name -ccontains $name){$projection[$name]=$validation.$name}}; $result.validation=$projection
  if($validate.ExitCode -ne 0){$exit=if($validate.ExitCode -eq 2){2}else{1};Complete-Claim $exit $(if($exit -eq 2){'blocked'}else{'error'}) 'plan.validation-failed' 'Plan validation failed.'}
  $receiptPath=Join-Path $context.Worktree ('Temp\next-plan-claim-'+[Guid]::NewGuid().ToString('N')+'.json')
  $args=@('plan','claim-next','--repo',$context.CommonDirectory,'--primary-worktree',$context.Primary,'--worktree',$context.Worktree,'--branch',$context.SessionBranch,'--owner',$context.Owner,'--session',$context.Session,'--write-claim-receipt',$receiptPath);if($Plan){$args+=@('--plan',$Plan)}
