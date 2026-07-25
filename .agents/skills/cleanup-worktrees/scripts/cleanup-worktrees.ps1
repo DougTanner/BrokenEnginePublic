@@ -47,13 +47,11 @@ function Get-WorktreeRecords {
 			$record = @{
 				Path = $line.Substring(9)
 				Branch = ''
-				IsLocked = $false
 				IsPrunable = $false
 				PrunableReason = ''
 			}
 		}
 		elseif ($line -like 'branch *') { $record.Branch = $line.Substring(7) -replace '^refs/heads/', '' }
-		elseif ($line -like 'locked*') { $record.IsLocked = $true }
 		elseif ($line -like 'prunable*') {
 			$record.IsPrunable = $true
 			$record.PrunableReason = $line.Substring(8).Trim()
@@ -184,10 +182,6 @@ try {
 		if (-not (Test-Path -LiteralPath $candidate.Path)) { Add-Retained -List $retained -Path $candidate.Path -Reason 'path is missing before removal'; continue }
 		if ((Get-Item -LiteralPath $candidate.Path -Force).CreationTime -gt $cutoff) { Add-Retained -List $retained -Path $candidate.Path -Reason 'younger than 48 hours before removal'; continue }
 
-		if ($current.IsLocked) {
-			$unlockResult = Invoke-Git -Arguments @('-C', $repositoryRoot, 'worktree', 'unlock', $candidate.Path)
-			if ($unlockResult.ExitCode -ne 0) { Add-Retained -List $retained -Path $candidate.Path -Reason "git worktree unlock failed: $($unlockResult.Output -join '; ')"; continue }
-		}
 		$removeResult = Invoke-Git -Arguments @('-c', 'core.longpaths=true', '-C', $repositoryRoot, 'worktree', 'remove', '--force', $candidate.Path)
 		if ($removeResult.ExitCode -ne 0) {
 			Add-Retained -List $retained -Path $candidate.Path -Reason "git worktree remove failed: $($removeResult.Output -join '; ')"

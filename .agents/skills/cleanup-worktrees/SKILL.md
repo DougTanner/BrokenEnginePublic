@@ -1,6 +1,6 @@
 ---
 name: cleanup-worktrees
-description: Remove Broken Engine session worktrees created by the Claude Code and Codex CLI wrapper scripts once they are 48+ hours old by folder creation time, regardless of dirty, locked, or unlanded state. Use this skill manually each morning before creating new sessions; it leaves younger worktrees untouched and reports Codex snapshot refs without deleting them.
+description: Remove Broken Engine session worktrees created by the Claude Code and Codex CLI wrapper scripts once they are 48+ hours old by folder creation time, regardless of dirty or unlanded state. Use this skill manually each morning before creating new sessions; it leaves younger worktrees untouched and reports Codex snapshot refs without deleting them.
 argument-hint: [preview]
 allowed-tools: [Read, Bash, PowerShell]
 disable-model-invocation: true
@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 Clean retained Claude Code and Codex CLI worktrees whose folders are 48+ hours
 old. Manual invocation authorizes removal of every wrapper-root worktree past
-that age — including dirty, locked, or unlanded ones — with no second
+that age — including dirty or unlanded ones — with no second
 confirmation.
 
 ## Run
@@ -41,8 +41,8 @@ confirmation.
 Do not recreate failed commands with broader Git or filesystem operations. The
 script deliberately refuses cleanup outside the two wrapper roots, snapshot-ref
 deletion, and global pruning. Within those roots it deliberately force-removes
-worktrees, force-deletes their `claude/`/`codex/` branches with `git branch -D`,
-and unlocks legacy orphaned locks before removal.
+worktrees and force-deletes their `claude/`/`codex/` branches with
+`git branch -D`.
 
 A wrapper session still running after 48 hours will have its worktree removed —
 close or land long-lived sessions before running cleanup.
