@@ -22,22 +22,8 @@ void SendFleetSync(int64_t iClientId, const std::vector<Fleet>& rFleets)
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
 
-	// [1B type][8B fleetCount] per fleet: [8B guid.uiHigh][8B guid.uiLow][8B memberCount][8B iFlagshipIndex][4B navigationDelay] per member: [8B globalPlayerId][1B bAlive]
 	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kServerFleetSync));
-	rWorkbuffer.PushBack<int64_t>(std::ssize(rFleets));
-	for (const Fleet& rFleet : rFleets)
-	{
-		rWorkbuffer.PushBack<uint64_t>(rFleet.guid.uiHigh);
-		rWorkbuffer.PushBack<uint64_t>(rFleet.guid.uiLow);
-		rWorkbuffer.PushBack<int64_t>(std::ssize(rFleet.members));
-		rWorkbuffer.PushBack<int64_t>(rFleet.iFlagshipIndex);
-		rWorkbuffer.PushBack<float>(rFleet.fNavigationDelay);
-		for (const FleetMember& rMember : rFleet.members)
-		{
-			rWorkbuffer.PushBack<int64_t>(rMember.globalPlayerId.iValue);
-			rWorkbuffer.PushBack<uint8_t>(rMember.bAlive ? 1 : 0);
-		}
-	}
+	GameMessages::FleetSyncMessage::WritePayload(rWorkbuffer, rFleets);
 
 	engine::NetworkManager::SendPacket(pClient->pPeer, engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }

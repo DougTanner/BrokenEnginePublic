@@ -285,6 +285,9 @@
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h">
       <Filter>Game\Network</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Network\GameMessages.h">
+      <Filter>Game\Network</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Network\GamePacketType.h">
       <Filter>Game\Network</Filter>
     </ClInclude>

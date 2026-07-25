@@ -177,6 +177,9 @@
     <ClInclude Include="..\..\Source\Network\Server\ClientPlayerRegistry.h">
       <Filter>Game\Network\Server</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Network\GameMessages.h">
+      <Filter>Game\Network</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Network\Server\ServerSession.h">
       <Filter>Game\Network\Server</Filter>
     </ClInclude>

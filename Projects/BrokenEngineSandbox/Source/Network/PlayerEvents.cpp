@@ -2,9 +2,6 @@
 
 #include "Network/PlayerEvents.h"
 
-#include "Network/NetworkCursor.h"
-#include "Network/NetworkProtocol.h"
-
 #include "Fleet.h"
 #include "Game.h"
 #include "Network/GamePacketType.h"
@@ -20,45 +17,34 @@ void ParsePlayerEvents(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rR
 
 		if (eType == GamePacketType::kServerAssignPlayer)
 		{
-			// 8B playerId + 4B gridX + 4B gridY = 16 bytes (type byte already stripped)
-			if (rPayload.size() < 16)
+			if (rPayload.size() != static_cast<size_t>(GameMessages::AssignPlayerMessage::kiSize))
 			{
 				continue;
 			}
-			const uint8_t* pCursor = rPayload.data();
-			int64_t iGlobalPlayerId = engine::ReadInt64(pCursor);
-			engine::GridCoord coord = engine::ReadGridCoord(pCursor);
-			rOutEventsArena.PushBack(ReceivedPlayerEvent{PlayerEventType::kAssigned, engine::global_id_t {iGlobalPlayerId}, coord});
+			GameMessages::AssignPlayerMessage message {};
+			if (!engine::NetworkMessages::Read(rPayload, message))
+			{
+				continue;
+			}
+			rOutEventsArena.PushBack(ReceivedPlayerEvent{PlayerEventType::kAssigned, engine::global_id_t {message.iGlobalPlayerId}, message.coord});
 		}
 		else if (eType == GamePacketType::kServerPlayerState)
 		{
-			// 1B wireType + 8B global player ID + 4B gridX + 4B gridY = 17 bytes (type byte already stripped)
-			if (rPayload.size() < 17)
+			if (rPayload.size() != static_cast<size_t>(GameMessages::PlayerStateMessage::kiSize))
 			{
 				continue;
 			}
-			const uint8_t* pCursor = rPayload.data();
-			uint8_t uiWire = engine::ReadUint8(pCursor);
-			int64_t iGlobalPlayerId = engine::ReadInt64(pCursor);
-			engine::GridCoord coord = engine::ReadGridCoord(pCursor);
-
-			PlayerEventType eEventType {};
-			switch (static_cast<PlayerStateWireType>(uiWire))
+			GameMessages::PlayerStateMessage message {};
+			if (!engine::NetworkMessages::Read(rPayload, message))
 			{
-				case PlayerStateWireType::kSpawned:
-					eEventType = PlayerEventType::kSpawned;
-					break;
-				case PlayerStateWireType::kChangedFrame:
-					eEventType = PlayerEventType::kChangedFrame;
-					break;
-				case PlayerStateWireType::kDied:
-					eEventType = PlayerEventType::kDied;
-					break;
-				default:
-					DEBUG_BREAK();
-					continue;
+				continue;
 			}
-			rOutEventsArena.PushBack(ReceivedPlayerEvent{eEventType, engine::global_id_t {iGlobalPlayerId}, coord});
+			const GameMessages::PlayerStateDescriptor* pDescriptor = GameMessages::FindPlayerStateDescriptor(message.uiWireType);
+			if (pDescriptor == nullptr)
+			{
+				continue;
+			}
+			rOutEventsArena.PushBack(ReceivedPlayerEvent{pDescriptor->eEventType, engine::global_id_t {message.iGlobalPlayerId}, message.coord});
 		}
 	}
 }
@@ -69,55 +55,7 @@ void ParsePlayerEvents(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rR
 // vector and commit only on success.
 static bool ParseFleetSyncPayload(const std::vector<uint8_t>& rPayload, std::vector<Fleet>& rOutFleets)
 {
-	engine::BoundedCursor cursor {rPayload.data(), rPayload.data() + rPayload.size()};
-
-	// 8B fleet count
-	if (!cursor.Has(8))
-	{
-		return false;
-	}
-	int64_t iFleetCount = engine::ReadInt64(cursor.pCursor);
-	// Each fleet is at least 36 bytes: 16B guid + 8B memberCount + 8B flagshipIndex + 4B navigationDelay
-	// (divide instead of multiply so a hostile count cannot overflow the bound check)
-	if (iFleetCount < 0 || iFleetCount > cursor.Remaining() / 36)
-	{
-		return false;
-	}
-	rOutFleets.resize(static_cast<size_t>(iFleetCount));
-	for (int64_t i = 0; i < iFleetCount; ++i)
-	{
-		// Members of earlier fleets consume payload, so the up-front bound is not sufficient per fleet
-		if (!cursor.Has(36))
-		{
-			return false;
-		}
-		Fleet& rFleet = rOutFleets[static_cast<size_t>(i)];
-		rFleet.guid.uiHigh = engine::ReadUint64(cursor.pCursor);
-		rFleet.guid.uiLow = engine::ReadUint64(cursor.pCursor);
-		int64_t iMemberCount = engine::ReadInt64(cursor.pCursor);
-		rFleet.iFlagshipIndex = engine::ReadInt64(cursor.pCursor);
-		rFleet.fNavigationDelay = engine::ReadFloat(cursor.pCursor);
-		// Each member is 9 bytes: 8B globalPlayerId + 1B alive
-		if (iMemberCount < 0 || iMemberCount > cursor.Remaining() / 9)
-		{
-			return false;
-		}
-		// Empty fleets use the canonical index-0 sentinel; otherwise the index must name a member.
-		if (rFleet.iFlagshipIndex < 0 ||
-			(iMemberCount == 0 && rFleet.iFlagshipIndex != 0) ||
-			(iMemberCount > 0 && rFleet.iFlagshipIndex >= iMemberCount))
-		{
-			return false;
-		}
-		rFleet.members.resize(static_cast<size_t>(iMemberCount));
-		for (int64_t j = 0; j < iMemberCount; ++j)
-		{
-			int64_t iGlobalPlayerId = engine::ReadInt64(cursor.pCursor);
-			uint8_t uiAlive = engine::ReadUint8(cursor.pCursor);
-			rFleet.members[static_cast<size_t>(j)] = FleetMember {engine::global_id_t {iGlobalPlayerId}, uiAlive != 0};
-		}
-	}
-	return true;
+	return GameMessages::FleetSyncMessage::ReadPayload(rPayload, rOutFleets);
 }
 
 bool ParseFleetSync(std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& rRawPackets, std::vector<Fleet>& rOutFleets)

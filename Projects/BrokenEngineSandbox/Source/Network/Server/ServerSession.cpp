@@ -413,8 +413,13 @@ void ServerSession::SendAssignPlayer(int64_t iClientId, engine::global_id_t glob
 		return;
 	}
 
-	// [1B type][8B global player ID][GridCoord]
-	engine::gpServer->SendSimplePacket(pClient->pPeer, GamePacketType::kServerAssignPlayer, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, globalId.iValue, coord);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kServerAssignPlayer));
+	GameMessages::AssignPlayerMessage message {.iGlobalPlayerId = globalId.iValue, .coord = coord};
+	engine::NetworkMessages::Write(rWorkbuffer, message);
+	ASSERT(rWorkbuffer.Count<uint8_t>() == sizeof(uint8_t) + GameMessages::AssignPlayerMessage::kiSize);
+	engine::NetworkManager::SendPacket(pClient->pPeer, engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void ServerSession::SendPlayerState(int64_t iClientId, PlayerStateWireType eWireType, int64_t iGlobalPlayerId, engine::GridCoord coord)
@@ -425,17 +430,16 @@ void ServerSession::SendPlayerState(int64_t iClientId, PlayerStateWireType eWire
 		return;
 	}
 
-	static constexpr const char* kpStateNames[] =
-	{
-		"Spawned",
-		"ChangedFrame",
-		"Died",
-	};
-	static_assert(std::size(kpStateNames) == static_cast<size_t>(PlayerStateWireType::kCount)); // One label per wire state, in order.
-	LOG(kNetwork, kInfo, "ServerSession::SendPlayerState State: {} Client: {} GlobalPlayer: {} Grid: ({},{})", kpStateNames[static_cast<size_t>(eWireType)], iClientId, iGlobalPlayerId, coord.x, coord.y);
+	const GameMessages::PlayerStateDescriptor& rDescriptor = GameMessages::GetPlayerStateDescriptor(eWireType);
+	LOG(kNetwork, kInfo, "ServerSession::SendPlayerState State: {} Client: {} GlobalPlayer: {} Grid: ({},{})", rDescriptor.pcName, iClientId, iGlobalPlayerId, coord.x, coord.y);
 
-	// [1B type][1B state][8B global player ID][4B coord.x][4B coord.y]
-	engine::gpServer->SendSimplePacket(pClient->pPeer, GamePacketType::kServerPlayerState, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, static_cast<uint8_t>(eWireType), iGlobalPlayerId, coord);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(GamePacketType::kServerPlayerState));
+	GameMessages::PlayerStateMessage message {.uiWireType = static_cast<uint8_t>(eWireType), .iGlobalPlayerId = iGlobalPlayerId, .coord = coord};
+	engine::NetworkMessages::Write(rWorkbuffer, message);
+	ASSERT(rWorkbuffer.Count<uint8_t>() == sizeof(uint8_t) + GameMessages::PlayerStateMessage::kiSize);
+	engine::NetworkManager::SendPacket(pClient->pPeer, engine::NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void ServerSession::BroadcastTimespeedIfChanged()
