@@ -862,7 +862,7 @@ bool PlayersInterpolate::LogDifferences(const PlayersInterpolate& rOther) const
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::LogDifference_Vec("pVecDirections", i, pVecDirections[i], rOther.pVecDirections[i]);
@@ -879,7 +879,7 @@ bool PlayersPostRender::LogDifferences(const PlayersPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference<"puiIds">(i, puiIds[i].ToUuid().Value(), rOther.puiIds[i].ToUuid().Value());
 		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);

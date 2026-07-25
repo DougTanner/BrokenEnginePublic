@@ -294,7 +294,7 @@ bool BlastersInterpolate::LogDifferences(const BlastersInterpolate& rOther) cons
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference<"puiTypeIndices">(i, puiTypeIndices[i], rOther.puiTypeIndices[i]);
 		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
@@ -310,7 +310,7 @@ bool BlastersPostRender::LogDifferences(const BlastersPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::LogDifference_Vec("pVecVelocities", i, pVecVelocities[i], rOther.pVecVelocities[i]);

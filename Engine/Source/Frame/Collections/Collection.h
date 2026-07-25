@@ -303,6 +303,13 @@ struct Collection : public OptionalIdToIndex<T, FLAGS>
 		return bEqual;
 	}
 
+	// Row bound for difference logging: unequal counts are a reportable difference, so a row loop must
+	// stop at the shorter side rather than index rOther's member arrays past its last row.
+	inline int64_t CommonRowCount(const Collection& rOther) const
+	{
+		return std::min(iCount, rOther.iCount);
+	}
+
 	inline void Write(std::ostream& rStream) const
 	{
 		common::Write(rStream, iCount);

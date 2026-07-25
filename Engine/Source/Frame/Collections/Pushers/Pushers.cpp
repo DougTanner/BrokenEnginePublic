@@ -43,7 +43,7 @@ bool PushersInterpolate::LogDifferences(const PushersInterpolate& rOther) const
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::LogDifference<"pfRadii">(i, pfRadii[i], rOther.pfRadii[i]);
@@ -61,7 +61,7 @@ bool PushersPostRender::LogDifferences(const PushersPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference<"puiIds">(i, puiIds[i], rOther.puiIds[i]);
 	}

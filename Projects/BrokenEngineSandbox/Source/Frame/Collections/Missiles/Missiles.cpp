@@ -579,7 +579,7 @@ bool MissilesInterpolate::LogDifferences(const MissilesInterpolate& rOther) cons
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::LogDifference_Vec("pVecDirections", i, pVecDirections[i], rOther.pVecDirections[i]);
@@ -595,7 +595,7 @@ bool MissilesPostRender::LogDifferences(const MissilesPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::LogDifference_Vec("pVecVelocities", i, pVecVelocities[i], rOther.pVecVelocities[i]);

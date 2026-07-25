@@ -23,7 +23,7 @@
 
 ## Replay Streams
 
-`DifferenceStream` writes full boundaries, per-frame deltas, and checksums. Publishing succeeds only when every sibling file succeeds; any failure removes the complete sibling set. Optional full-frame diagnostics remain gated by `kbReplayFullFrames`.
+`DifferenceStream` writes full boundaries, per-frame deltas, and checksums. Publishing succeeds only when every sibling file succeeds; any failure removes the complete sibling set. Optional full-frame diagnostics remain gated by `kbReplayFullFrames`; their mismatch reporting follows the operand labeling owned by Log ([`Common/Log/AGENTS.md`](../../../Common/Log/AGENTS.md)).
 
 ## See Also
 

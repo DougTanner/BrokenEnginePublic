@@ -56,7 +56,7 @@ bool TargetsInterpolate::LogDifferences(const TargetsInterpolate& rOther) const
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference_Vec("pVecPositions", i, pVecPositions[i], rOther.pVecPositions[i]);
 	}
@@ -70,7 +70,7 @@ bool TargetsPostRender::LogDifferences(const TargetsPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference<"puiIds">(i, puiIds[i], rOther.puiIds[i]);
 		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);

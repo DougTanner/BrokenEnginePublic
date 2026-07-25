@@ -23,6 +23,7 @@ Use `/add-collection` for a new collection and `/add-collection-member` for any 
 - The serialized row capacity participates in collection CRCs, so paired growth must remain deterministic for shared collections. The physical buffer capacity actually installed can exceed it after a deserialize reuses a larger existing buffer for fewer rows; that transient capacity drives buffer reuse and post-read zero-fill and stays out of serialization, CRC, and difference logging.
 - `SharedMembers()` must be a subset of `Members()`. A narrower `SharedCrcMembers()` must also remain a subset of `SharedMembers()`.
 - Full build-local reads consume `Members()`; cross-build reads consume only shared columns. Change tuple membership and ordering as one serialization contract.
+- `LogDifferences()` compares two independently produced snapshots, and a row-count mismatch between them is itself a reported difference rather than an excluded case. Bound every row loop with `CommonRowCount()` so a loop cannot read past the shorter side's member arrays.
 
 ## Runtime Rules
 

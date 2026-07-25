@@ -311,7 +311,7 @@ bool ExplosionsInterpolate::LogDifferences(const ExplosionsInterpolate& rOther) 
 	bool bEqual = true;
 	bEqual &= Collection::LogDifferences(rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < CommonRowCount(rOther); ++i)
 	{
 		bEqual &= common::LogDifference<"puiTypeIndices">(i, puiTypeIndices[i], rOther.puiTypeIndices[i]);
 		bEqual &= common::LogDifference<"pFlags">(i, pFlags[i], rOther.pFlags[i]);

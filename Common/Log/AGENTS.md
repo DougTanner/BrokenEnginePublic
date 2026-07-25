@@ -8,7 +8,7 @@ Shared logging, formatting, diagnostic-file, and difference-reporting implementa
 - Threads format into their `ThreadLocal` buffer or a thread-local fallback. Emission is serialized; the crash snapshot ring does not wrap, while the cross-category agent-query ring does. Keep formatting allocation-free before entering either ring.
 - Tick and absolute-indent scopes propagate simulation context across worker dispatch. `ScopedLogIndent` is the separate delta-based scope for ordinary nesting.
 - `LogFormatters.h` owns formatters for Common-visible types. Paths, wide strings, vectors, and precision-sensitive floats use workbuffer-backed wrappers; higher-layer types stay with their owning aggregation hub.
-- `DiagnosticLog` writes explicitly initialized per-file diagnostics with allocation tracking suppressed. `LogDifference` compares deterministic state under a scoped section label; add structured comparisons there instead of building ad hoc desync strings.
+- `DiagnosticLog` writes explicitly initialized per-file diagnostics with allocation tracking suppressed. `LogDifference` compares deterministic state under a scoped section label; add structured comparisons there instead of building ad hoc desync strings. It labels its first operand Client and its second Server positionally, not by which process produced either side, so a replay comparison of two server-side snapshots still carries those labels and any summary line emitted beside a comparison must order its operands the same way.
 - `EnableLogFile` mirrors emitted lines to a flushed file sink. Treat sink setup as startup/diagnostic work, not a tracked-loop operation.
 
 ## Failure and Concurrency Rules
