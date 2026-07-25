@@ -108,10 +108,8 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
-	static void Spawn(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 	static void Explode(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData, int64_t i, bool bDirectional);
 	static void Fall(Frame& __restrict rFrame, int64_t i, float fDeltaTime);
 

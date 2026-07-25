@@ -20,12 +20,6 @@ struct FrameStaticData;
 
 struct SoundsInterpolate : public Collection<SoundsInterpolate, CollectionFlags::kIdToIndex>
 {
-	// Register
-	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources() {}
-
 	// Allocate and copy
 	static void AllocateAndCopy(SoundsInterpolate& rCurrent, const SoundsInterpolate& rPrevious);
 
@@ -45,11 +39,6 @@ struct SoundsInterpolate : public Collection<SoundsInterpolate, CollectionFlags:
 
 	// Update
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
-
-	// Render
-	static void BeginRender(int64_t, const std::unordered_map<GridCoord, game::FrameInterpolate>&, const std::vector<GridCoord>&) {}
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-	static void EndRender(int64_t) {}
 
 	// Member arrays (SOA)
 	common::crc_t* __restrict puiCrcs = nullptr;
@@ -75,18 +64,12 @@ struct SoundsPostRender : public Collection<SoundsPostRender>
 
 	// Update
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
 
 	// Add sound
 	static void Add(game::Frame& __restrict rFrame, sound_t& rId);
 
 	// Remove sound by ID
 	static void Remove(game::Frame& __restrict rFrame, sound_t& rId);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	sound_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

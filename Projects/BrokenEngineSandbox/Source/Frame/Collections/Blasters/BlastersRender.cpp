@@ -7,10 +7,6 @@
 namespace game
 {
 
-void BlastersInterpolate::GraphicsResources()
-{
-}
-
 void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const BlastersInterpolate& rCurrent = *rFrameInterpolate.pBlasters;

@@ -176,10 +176,6 @@ void PushersPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, 
 {
 }
 
-void PushersPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
 void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 {
 	ASSERT(!rId.IsValid());
@@ -201,14 +197,6 @@ void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;
 
 	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-}
-
-void PushersPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void PushersPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
 }
 
 } // namespace engine

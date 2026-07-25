@@ -59,9 +59,6 @@ struct PuffsInterpolate : public Collection<PuffsInterpolate>,
 	static constexpr const char* kName = "Puffs";
 	static constexpr common::crc_t kCrc = common::CrcConsteval("Puffs");
 
-	// Register
-	static void Register();
-
 	// Allocate and copy
 	static void AllocateAndCopy(PuffsInterpolate& rCurrent, const PuffsInterpolate& rPrevious);
 
@@ -106,17 +103,12 @@ struct PuffsPostRender : public Collection<PuffsPostRender>
 
 	// Update
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
 
 	// Add controlled puff (fire-and-forget, auto-destroys when animation ends)
 	static void XM_CALLCONV AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition);
 
 	// Destroy handles auto-removal of expired controlled puffs
 	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 

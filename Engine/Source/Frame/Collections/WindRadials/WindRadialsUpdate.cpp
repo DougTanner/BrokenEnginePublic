@@ -70,18 +70,6 @@ void XM_CALLCONV WindRadialsPostRender::AddControlled(game::Frame& __restrict rF
 		});
 }
 
-void WindRadialsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void WindRadialsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void WindRadialsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
 } // namespace engine
 
 #endif // BT_CLIENT

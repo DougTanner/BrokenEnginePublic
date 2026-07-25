@@ -43,9 +43,6 @@ struct WindRadialsInterpolate : public Collection<WindRadialsInterpolate>,
 	static constexpr const char* kName = "WindRadials";
 	static constexpr common::crc_t kCrc = common::CrcConsteval("WindRadials");
 
-	// Register
-	static void Register();
-
 	// Allocate and copy
 	static void AllocateAndCopy(WindRadialsInterpolate& rCurrent, const WindRadialsInterpolate& rPrevious);
 
@@ -88,12 +85,7 @@ struct WindRadialsPostRender : public Collection<WindRadialsPostRender>
 
 	// Update
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	// Add controlled wind radial (fire-and-forget, auto-destroys when animation ends)
 	static void XM_CALLCONV AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition, float fBaseIntensity, float fBaseSize);

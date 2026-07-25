@@ -36,12 +36,6 @@ struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlag
 	// Bump on any SOA layout change — feeds the Frame::kiVersion save/replay gate
 	static constexpr int64_t kiVersion = 1;
 
-	// Register
-	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources() {}
-
 	// Allocate and copy
 	static void AllocateAndCopy(PushersInterpolate& rCurrent, const PushersInterpolate& rPrevious);
 
@@ -100,18 +94,12 @@ struct PushersPostRender : public Collection<PushersPostRender>
 
 	// Update
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
 
 	// Add pusher
 	static void Add(game::Frame& __restrict rFrame, pusher_t& rId);
 
 	// Remove pusher by ID
 	static void Remove(game::Frame& __restrict rFrame, pusher_t& rId);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	pusher_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf)

@@ -202,10 +202,9 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	// Update (orchestrator in Players.cpp; per-player phase work split into helpers below)
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 
-	// Collision (PreCollision: Players.cpp; PostCollision/AreaDamage: PlayersCombat.cpp)
+	// Collision (PreCollision: Players.cpp; PostCollision: PlayersCombat.cpp)
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 
 	// Lifecycle (Transfer: PlayersNavigation.cpp; Destroy/Spawn: Players.cpp)
 	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);

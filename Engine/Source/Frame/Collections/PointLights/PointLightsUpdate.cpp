@@ -95,10 +95,6 @@ void PointLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFra
 {
 }
 
-void PointLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
 void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& rId, uint8_t uiTypeIndex)
 {
 	ASSERT(!rId.IsValid());
@@ -154,14 +150,6 @@ void XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rF
 			rInterpolate.pfRotations[iSpawnIndex] = fRotation + rController.keyframes[0].fRotation;
 			rInterpolate.pfBaseRotations[iSpawnIndex] = fRotation;
 		});
-}
-
-void PointLightsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void PointLightsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
 }
 
 } // namespace engine

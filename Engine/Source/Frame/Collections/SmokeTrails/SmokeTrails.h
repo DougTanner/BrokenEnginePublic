@@ -22,9 +22,7 @@ struct SmokeTrailsInterpolate : public Collection<SmokeTrailsInterpolate, Collec
 {
 	static constexpr const char* kName = "SmokeTrails";
 	static constexpr common::crc_t kCrc = common::CrcConsteval("SmokeTrails");
-
-	// Register
-	static void Register();
+	static constexpr bool kbManualRender = true;
 
 	// Allocate and copy
 	static void AllocateAndCopy(SmokeTrailsInterpolate& rCurrent, const SmokeTrailsInterpolate& rPrevious);
@@ -59,7 +57,7 @@ struct SmokeTrailsInterpolate : public Collection<SmokeTrailsInterpolate, Collec
 
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer, uint16_t uiFrameId);
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 	static void EndRender(int64_t iCommandBuffer);
 };
 using smoke_trails_t = SmokeTrailsInterpolate::id_t;
@@ -71,18 +69,12 @@ struct SmokeTrailsPostRender : public Collection<SmokeTrailsPostRender>
 
 	// Update
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
 
 	// Add trail
 	static void Add(game::Frame& __restrict rFrame, smoke_trails_t& rId, uint8_t uiTypeIndex, smoke_trails_t reuseId = {});
 
 	// Remove trail by ID
 	static void Remove(game::Frame& __restrict rFrame, smoke_trails_t& rId);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	smoke_trails_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf)

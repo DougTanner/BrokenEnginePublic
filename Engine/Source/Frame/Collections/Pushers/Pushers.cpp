@@ -10,10 +10,6 @@ namespace engine
 template struct Collection<PushersInterpolate, CollectionFlags::kIdToIndex>;
 template struct Collection<PushersPostRender>;
 
-void PushersInterpolate::Register()
-{
-}
-
 void PushersInterpolate::AllocateAndCopy(PushersInterpolate& rCurrent, const PushersInterpolate& rPrevious)
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
@@ -22,19 +18,6 @@ void PushersInterpolate::AllocateAndCopy(PushersInterpolate& rCurrent, const Pus
 void PushersPostRender::AllocateAndCopy(PushersPostRender& rCurrent, const PushersPostRender& rPrevious)
 {
 	AllocateAndCopyIds(rCurrent, rPrevious);
-}
-
-void PushersPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void PushersPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-	// Owned objects are transferred by their parent
-}
-
-void PushersPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
 }
 
 bool PushersInterpolate::LogDifferences(const PushersInterpolate& rOther) const

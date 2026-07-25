@@ -37,7 +37,7 @@ void SmokeTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer
 	}
 }
 
-void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] uint16_t uiFrameId)
+void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const SmokeTrailsInterpolate& rCurrent = rFrameInterpolate.smokeTrails;
 	siTotalCount += rCurrent.iCount;

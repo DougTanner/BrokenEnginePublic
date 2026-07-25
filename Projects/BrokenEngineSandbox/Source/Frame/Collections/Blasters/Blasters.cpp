@@ -157,10 +157,6 @@ void BlastersInterpolate::ClientInitAll(Frame& rFrame)
 }
 #endif // BT_CLIENT
 
-void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
-{
-}
-
 void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
 	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;

@@ -60,79 +60,153 @@ using TupleToTypeList_t = typename TupleToTypeList<TUPLE>::type;
 template<typename... TS>
 void ForEachInterpolateUpdate(TypeList<TS...>, game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame)
 {
-	(TS::Update(rCurrent, rPreviousFrame), ...);
+	([&]
+	{
+		static_assert(requires { TS::Update(rCurrent, rPreviousFrame); });
+		TS::Update(rCurrent, rPreviousFrame);
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachInterpolateRender(TypeList<TS...>, const game::FrameInterpolate& __restrict rCurrent, int64_t iCommandBuffer)
 {
-	(TS::Render(rCurrent, iCommandBuffer), ...);
+	([&]
+	{
+		if constexpr (!requires { TS::kbManualRender; } && requires { TS::Render(rCurrent, iCommandBuffer); })
+		{
+			TS::Render(rCurrent, iCommandBuffer);
+		}
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachBeginRender(TypeList<TS...>, int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords)
 {
-	(TS::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords), ...);
+	([&]
+	{
+		if constexpr (requires { TS::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords); })
+		{
+			TS::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords);
+		}
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachEndRender(TypeList<TS...>, int64_t iCommandBuffer)
 {
-	(TS::EndRender(iCommandBuffer), ...);
+	([&]
+	{
+		if constexpr (requires { TS::EndRender(iCommandBuffer); })
+		{
+			TS::EndRender(iCommandBuffer);
+		}
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachRegister(TypeList<TS...>)
 {
-	(TS::Register(), ...);
+	([&]
+	{
+		if constexpr (requires { TS::Register(); })
+		{
+			TS::Register();
+		}
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachGraphicsResources(TypeList<TS...>)
 {
-	(TS::GraphicsResources(), ...);
+	([&]
+	{
+		if constexpr (requires { TS::GraphicsResources(); })
+		{
+			TS::GraphicsResources();
+		}
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachPostRenderUpdate(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData)
 {
-	(TS::Update(rFrame, rPreviousFrame, rStaticData), ...);
+	([&]
+	{
+		static_assert(requires { TS::Update(rFrame, rPreviousFrame, rStaticData); });
+		TS::Update(rFrame, rPreviousFrame, rStaticData);
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachPostRenderPreCollision(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData)
 {
-	(TS::PreCollision(rFrame, rPreviousFrame, rStaticData), ...);
+	([&]
+	{
+		if constexpr (requires { TS::PreCollision(rFrame, rPreviousFrame, rStaticData); })
+		{
+			TS::PreCollision(rFrame, rPreviousFrame, rStaticData);
+		}
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachPostRenderPostCollision(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData)
 {
-	(TS::PostCollision(rFrame, rPreviousFrame, rStaticData), ...);
+	([&]
+	{
+		if constexpr (requires { TS::PostCollision(rFrame, rPreviousFrame, rStaticData); })
+		{
+			TS::PostCollision(rFrame, rPreviousFrame, rStaticData);
+		}
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachPostRenderAreaDamage(TypeList<TS...>, game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData)
 {
-	(TS::AreaDamage(rFrame, rPreviousFrame, rStaticData), ...);
+	([&]
+	{
+		if constexpr (requires { TS::AreaDamage(rFrame, rPreviousFrame, rStaticData); })
+		{
+			TS::AreaDamage(rFrame, rPreviousFrame, rStaticData);
+		}
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachPostRenderTransfer(TypeList<TS...>, game::Frame& __restrict rFrame, const FrameStaticData& rStaticData)
 {
-	(TS::Transfer(rFrame, rStaticData), ...);
+	([&]
+	{
+		if constexpr (requires { TS::Transfer(rFrame, rStaticData); })
+		{
+			TS::Transfer(rFrame, rStaticData);
+		}
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachPostRenderDestroy(TypeList<TS...>, game::Frame& __restrict rFrame, const FrameStaticData& rStaticData)
 {
-	(TS::Destroy(rFrame, rStaticData), ...);
+	([&]
+	{
+		if constexpr (requires { TS::Destroy(rFrame, rStaticData); })
+		{
+			TS::Destroy(rFrame, rStaticData);
+		}
+	}(), ...);
 }
 
 template<typename... TS>
 void ForEachPostRenderSpawn(TypeList<TS...>, game::Frame& __restrict rFrame, const FrameStaticData& rStaticData)
 {
-	(TS::Spawn(rFrame, rStaticData), ...);
+	([&]
+	{
+		if constexpr (requires { TS::Spawn(rFrame, rStaticData); })
+		{
+			TS::Spawn(rFrame, rStaticData);
+		}
+	}(), ...);
 }
 
 // AllocateAndCopy helper using tuple and index sequence

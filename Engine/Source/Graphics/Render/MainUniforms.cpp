@@ -528,12 +528,11 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 			return;
 		}
 		const game::FrameInterpolate& rInterp = it->second;
-		uint16_t uiFrameId = game::gpGame->RenderFrame(rCoord).postRender.uiFrameId;
-		// Main collections via Render (no uiFrameId needed)
+		// Automatically dispatched main collections
 		game::FrameInterpolate::Render(rInterp, iCommandBuffer);
-		// SmokeTrails/WindTrails called separately with uiFrameId
-		SmokeTrailsInterpolate::Render(rInterp, iCommandBuffer, uiFrameId);
-		WindTrailsInterpolate::Render(rInterp, iCommandBuffer, uiFrameId);
+		// Manually rendered trail collections
+		SmokeTrailsInterpolate::Render(rInterp, iCommandBuffer);
+		WindTrailsInterpolate::Render(rInterp, iCommandBuffer);
 	};
 	renderFrame(cameraCoord);
 	for (const GridCoord& rCoord : rActiveCoords)

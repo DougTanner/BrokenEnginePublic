@@ -26,10 +26,6 @@ void SoundsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [
 {
 }
 
-void SoundsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
 void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 {
 	ASSERT(!rId.IsValid());
@@ -53,14 +49,6 @@ void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t& rId)
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
 
 	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-}
-
-void SoundsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void SoundsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
 }
 
 } // namespace engine

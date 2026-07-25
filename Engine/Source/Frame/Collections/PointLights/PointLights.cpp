@@ -8,10 +8,6 @@ namespace engine
 template struct Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>;
 template struct Collection<PointLightsPostRender>;
 
-void PointLightsInterpolate::Register()
-{
-}
-
 void PointLightsInterpolate::AllocateAndCopy(PointLightsInterpolate& rCurrent, const PointLightsInterpolate& rPrevious)
 {
 	AllocateAndCopyMembers(rCurrent, rPrevious);
@@ -20,15 +16,6 @@ void PointLightsInterpolate::AllocateAndCopy(PointLightsInterpolate& rCurrent, c
 void PointLightsPostRender::AllocateAndCopy(PointLightsPostRender& rCurrent, const PointLightsPostRender& rPrevious)
 {
 	AllocateAndCopyIds(rCurrent, rPrevious);
-}
-
-void PointLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void PointLightsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-	// Owned objects are transferred by their parent
 }
 
 void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

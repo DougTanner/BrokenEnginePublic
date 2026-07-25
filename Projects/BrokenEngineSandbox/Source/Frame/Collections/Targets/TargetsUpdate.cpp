@@ -24,18 +24,6 @@ void TargetsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 {
 }
 
-void TargetsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
-{
-}
-
-void TargetsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
-{
-}
-
-void TargetsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
-{
-}
-
 void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, engine::alignment_t alignment)
 {
 	TargetsInterpolate& rInterpolate = *rFrame.interpolate.pTargets;

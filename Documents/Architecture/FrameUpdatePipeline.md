@@ -235,3 +235,5 @@ graph TD
     fold_i --> interpolate_phase
     fold_pr --> postrender_phase
 ```
+
+`Update` is mandatory for every registered collection and is compile-checked by its fold. Other folded hooks (`Register`, graphics, render, collision, area-damage, transfer, destroy, and spawn) are declaration-driven: an absent or non-invocable hook is skipped. `Players` keeps its explicit game-Frame dispatch, which is independent of the collection folds.

@@ -14,9 +14,7 @@ struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, Collecti
 {
 	static constexpr const char* kName = "WindTrails";
 	static constexpr common::crc_t kCrc = common::CrcConsteval("WindTrails");
-
-	// Register
-	static void Register();
+	static constexpr bool kbManualRender = true;
 
 	// Allocate and copy
 	static void AllocateAndCopy(WindTrailsInterpolate& rCurrent, const WindTrailsInterpolate& rPrevious);
@@ -55,7 +53,7 @@ struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, Collecti
 
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer, uint16_t uiFrameId);
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 	static void EndRender(int64_t iCommandBuffer);
 };
 using wind_trail_t = WindTrailsInterpolate::id_t;
@@ -67,12 +65,6 @@ struct WindTrailsPostRender : public Collection<WindTrailsPostRender>
 
 	// Update
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	// Add wind trail (Sync pattern - owner manages lifetime)
 	static void Add(game::Frame& __restrict rFrame, wind_trail_t& rId);

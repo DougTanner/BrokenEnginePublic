@@ -448,9 +448,6 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	// Parent
 	FramePostRenderBase::AreaDamage(rFrame, rPreviousFrame, rStaticData);
 
-	// Player
-	PlayersPostRender::AreaDamage(rFrame, rPreviousFrame, rStaticData);
-
 	// Collections
 	engine::ForEachPostRenderAreaDamage(GamePostRenderTypes{}, rFrame, rPreviousFrame, rStaticData);
 
@@ -534,7 +531,7 @@ void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpola
 {
 	engine::ScopedCpuProfile scopedCpuProfile(kCpuTimerRender);
 
-	// Parent (excludes SmokeTrails/WindTrails which are called separately with uiFrameId)
+	// Parent (excludes manually rendered collections)
 	engine::FrameInterpolateBase::Render(rFrameInterpolate, iCommandBuffer);
 
 	// Player

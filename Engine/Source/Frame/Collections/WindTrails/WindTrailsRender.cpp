@@ -50,7 +50,7 @@ void WindTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 	}
 }
 
-void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] uint16_t uiFrameId)
+void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const WindTrailsInterpolate& rCurrent = rFrameInterpolate.windTrails;
 

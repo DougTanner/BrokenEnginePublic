@@ -11,10 +11,6 @@ template struct Collection<game::TargetsPostRender>;
 namespace game
 {
 
-void TargetsInterpolate::Register()
-{
-}
-
 void TargetsInterpolate::AllocateAndCopy(TargetsInterpolate& rCurrent, const TargetsInterpolate& rPrevious)
 {
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
@@ -36,18 +32,6 @@ void TargetsPostRender::AllocateAndCopy(TargetsPostRender& rCurrent, const Targe
 		std::memcpy(rCurrent.puiSubscribers, rPrevious.puiSubscribers, rCurrent.iCount * sizeof(rCurrent.puiSubscribers[0]));
 		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
 	}
-}
-
-void TargetsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
-{
-}
-
-void TargetsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
-{
-}
-
-void TargetsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
-{
 }
 
 bool TargetsInterpolate::LogDifferences(const TargetsInterpolate& rOther) const
@@ -79,10 +63,6 @@ bool TargetsPostRender::LogDifferences(const TargetsPostRender& rOther) const
 	}
 
 	return bEqual;
-}
-
-void TargetsInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
-{
 }
 
 } // namespace game

@@ -27,10 +27,6 @@ void AreaLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 {
 }
 
-void AreaLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
 void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rId, uint8_t uiTypeIndex)
 {
 	ASSERT(!rId.IsValid());
@@ -53,14 +49,6 @@ void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t&
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
 
 	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-}
-
-void AreaLightsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void AreaLightsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
 }
 
 } // namespace engine

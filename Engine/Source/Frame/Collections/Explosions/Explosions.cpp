@@ -297,14 +297,6 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame, [[maybe_unuse
 	}
 }
 
-void ExplosionsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void ExplosionsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
 bool ExplosionsInterpolate::LogDifferences(const ExplosionsInterpolate& rOther) const
 {
 	common::ScopedLogDifferenceContext context("ExplosionsInterpolate");

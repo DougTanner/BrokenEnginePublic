@@ -23,9 +23,6 @@ struct HexShieldsInterpolate : public Collection<HexShieldsInterpolate, Collecti
 	static constexpr const char* kName = "HexShields";
 	static constexpr common::crc_t kCrc = common::CrcConsteval("HexShields");
 
-	// Register
-	static void Register();
-
 	// Allocate and copy
 	static void AllocateAndCopy(HexShieldsInterpolate& rCurrent, const HexShieldsInterpolate& rPrevious);
 
@@ -90,16 +87,10 @@ struct HexShieldsPostRender : public Collection<HexShieldsPostRender>
 
 	// Update
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
 
 	// Add/Remove
 	static void Add(game::Frame& __restrict rFrame, hex_shields_t& rId, uint8_t uiTypeIndex);
 	static void Remove(game::Frame& __restrict rFrame, hex_shields_t& rId);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	hex_shields_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

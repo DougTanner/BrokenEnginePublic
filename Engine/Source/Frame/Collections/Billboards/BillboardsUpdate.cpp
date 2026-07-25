@@ -27,10 +27,6 @@ void BillboardsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 {
 }
 
-void BillboardsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
 void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId, uint8_t uiTypeIndex)
 {
 	ASSERT(!rId.IsValid());
@@ -52,14 +48,6 @@ void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t& r
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;
 
 	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-}
-
-void BillboardsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void BillboardsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
 }
 
 } // namespace engine

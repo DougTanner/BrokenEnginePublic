@@ -109,9 +109,6 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	// Register default explosion effect types (called from FrameInterpolateBase::Register)
 	static void Register();
 
-	// Graphics resources
-	static void GraphicsResources() {}
-
 	// Allocate and copy
 	static void AllocateAndCopy(ExplosionsInterpolate& rCurrent, const ExplosionsInterpolate& rPrevious);
 
@@ -205,14 +202,9 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 
 	// Update
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
 
 	// Destroy expired explosions
 	static void Destroy(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const FrameStaticData& rStaticData);
-	static void Transfer(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
-	static void Spawn(game::Frame& __restrict rFrame, const FrameStaticData& rStaticData);
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 

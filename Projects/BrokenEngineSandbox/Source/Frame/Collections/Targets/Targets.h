@@ -23,12 +23,6 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 {
 	static constexpr int64_t kiVersion = 2;
 
-	// Register
-	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources() {}
-
 	// Allocate and copy
 	static void AllocateAndCopy(TargetsInterpolate& rCurrent, const TargetsInterpolate& rPrevious);
 
@@ -43,11 +37,6 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
-
-	// Render
-	static void BeginRender(int64_t, const std::unordered_map<engine::GridCoord, FrameInterpolate>&, const std::vector<engine::GridCoord>&) {}
-	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-	static void EndRender(int64_t) {}
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions); }
@@ -66,12 +55,6 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 
 	// Update
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
-	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
-	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
-	static void Spawn(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 
 	// Add/Remove API
 	static void Add(Frame& __restrict rFrame, target_t& rId, engine::alignment_t alignment);

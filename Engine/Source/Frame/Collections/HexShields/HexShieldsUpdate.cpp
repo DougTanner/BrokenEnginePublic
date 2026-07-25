@@ -55,10 +55,6 @@ void HexShieldsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 {
 }
 
-void HexShieldsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
 void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rId, uint8_t uiTypeIndex)
 {
 	ASSERT(!rId.IsValid());
@@ -82,14 +78,6 @@ void HexShieldsPostRender::Remove(game::Frame& __restrict rFrame, hex_shields_t&
 	HexShieldsPostRender& rPostRender = rFrame.postRender.hexShields;
 
 	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-}
-
-void HexShieldsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void HexShieldsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
 }
 
 } // namespace engine

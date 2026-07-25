@@ -40,9 +40,6 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	// Register
 	static void Register();
 
-	// Graphics resources
-	static void GraphicsResources();
-
 	// Allocate and copy
 	static void AllocateAndCopy(BlastersInterpolate& rCurrent, const BlastersInterpolate& rPrevious);
 
@@ -56,9 +53,7 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 
 	// Render
 #if defined(BT_CLIENT)
-	static void BeginRender(int64_t, const std::unordered_map<engine::GridCoord, FrameInterpolate>&, const std::vector<engine::GridCoord>&) {}
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-	static void EndRender(int64_t) {}
 #endif
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
@@ -107,10 +102,8 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const engine::FrameStaticData& rStaticData);
 	static void Transfer(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 	static void Destroy(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
-	static void Spawn(Frame& __restrict rFrame, const engine::FrameStaticData& rStaticData);
 
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;

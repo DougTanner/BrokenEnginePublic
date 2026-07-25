@@ -265,7 +265,7 @@ void FrameInterpolateBase::BeginRender([[maybe_unused]] int64_t iCommandBuffer, 
 
 void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] int64_t iCommandBuffer)
 {
-	ForEachInterpolateRender(InterpolateRenderTypes{}, rCurrent, iCommandBuffer);
+	ForEachInterpolateRender(InterpolateTypes{}, rCurrent, iCommandBuffer);
 }
 
 void FrameInterpolateBase::EndRender([[maybe_unused]] int64_t iCommandBuffer)

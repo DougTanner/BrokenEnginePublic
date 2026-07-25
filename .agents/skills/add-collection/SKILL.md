@@ -59,9 +59,11 @@ subset of `Members()` and any `SharedCrcMembers()` a subset of
 ## Wire the Pair
 
 Create Interpolate/PostRender structs and their implementation files beside the
-chosen exemplar. Preserve the generic phase signatures exactly, even for no-op
-hooks. Declare `extern template struct Collection<...>` for both structs and
-explicitly instantiate both in one implementation file.
+chosen exemplar. `Update` is mandatory and must use its generic dispatch
+signature. Optional folded hooks need no no-op boilerplate: absent or
+non-invocable hooks skip silently, while `Update` and direct/manual calls remain
+compile-checked. Declare `extern template struct Collection<...>` for both
+structs and explicitly instantiate both in one implementation file.
 
 ### Game-owned
 
@@ -121,9 +123,11 @@ lifecycle, such as Sounds' client-only UUID stream, not on the flag itself.
   engine state; pure client-only engine state is excluded.
 - [ ] Construction/initialization: paired growth keeps counts aligned and
   every new row/owned handle is initialized before CRC or use.
-- [ ] Phases: required generic Register, GraphicsResources, AllocateAndCopy,
-  Update, collision, AreaDamage, Transfer, Destroy, Spawn, and render hooks are
-  present or intentionally no-op with exact dispatch signatures.
+- [ ] Phases: `AllocateAndCopy`, `LogDifferences`, and `Update` are present with
+  their required signatures. Optional folded Register, GraphicsResources,
+  render, collision, AreaDamage, Transfer, Destroy, and Spawn hooks are declared
+  only when needed and must match their exact dispatch signatures; an absent or
+  non-invocable hook skips silently. Direct/manual calls remain compile-checked.
 - [ ] Serialization/CRC: `Members`, `SharedMembers`, and optional
   `SharedCrcMembers` have correct subset and wire order; tuple registration
   reaches Write/Read and, for server-visible state, ServerRead, CRC, and

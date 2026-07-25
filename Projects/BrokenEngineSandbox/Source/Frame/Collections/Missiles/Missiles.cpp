@@ -430,10 +430,6 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	}
 }
 
-void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
-{
-}
-
 void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
 	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;

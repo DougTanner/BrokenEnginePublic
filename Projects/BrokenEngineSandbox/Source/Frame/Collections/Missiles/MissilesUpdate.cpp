@@ -374,8 +374,4 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 	}
 }
 
-void MissilesPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
-{
-}
-
 } // namespace game

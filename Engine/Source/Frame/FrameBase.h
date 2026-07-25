@@ -257,13 +257,6 @@ static_assert(std::is_same_v<decltype(std::declval<FramePostRenderBase>().Collec
 using InterpolateTypes = TupleToTypeList_t<decltype(std::declval<FrameInterpolateBase>().Collections())>;
 using PostRenderBaseTypes = TupleToTypeList_t<decltype(std::declval<FramePostRenderBase>().Collections())>;
 
-#if defined(BT_CLIENT)
-// SmokeTrails and WindTrails are excluded from ForEachInterpolateRender because their Render() takes uiFrameId.
-// They are called separately in RenderFrameMain() with the per-frame ID.
-using InterpolateRenderTypes = TypeList<AreaLightsInterpolate, BillboardsInterpolate, ExplosionsInterpolate,
-	HexShieldsInterpolate, PointLightsInterpolate, PuffsInterpolate, PushersInterpolate, SoundsInterpolate, WindRadialsInterpolate>;
-#endif
-
 // Inline definition - must be after FramePostRenderBase is complete
 inline uuid_t uuid_t::Generate(FramePostRenderBase& rFramePostRender)
 {

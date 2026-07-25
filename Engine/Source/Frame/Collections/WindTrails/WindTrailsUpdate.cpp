@@ -24,10 +24,6 @@ void WindTrailsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 {
 }
 
-void WindTrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
 void WindTrailsPostRender::Add(game::Frame& __restrict rFrame, wind_trail_t& rId)
 {
 	ASSERT(!rId.IsValid());
@@ -48,14 +44,6 @@ void WindTrailsPostRender::Remove(game::Frame& __restrict rFrame, wind_trail_t& 
 	WindTrailsPostRender& rPostRender = rFrame.postRender.windTrails;
 
 	RemoveIndexableElementAndClearHandle(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-}
-
-void WindTrailsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
-}
-
-void WindTrailsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameStaticData& rStaticData)
-{
 }
 
 } // namespace engine
