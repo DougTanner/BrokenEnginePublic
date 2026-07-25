@@ -54,6 +54,7 @@ private:
 	void LoadPackFiles();
 	void LoadingThread(int64_t iThreadIndex);
 	void LoadChunk(const LoadRequest& rRequest, int64_t iThreadIndex);
+	[[nodiscard]] bool RecommitChunkRange(common::crc_t crc, const LazyChunk& rLazyChunk, uint64_t uiOffset, uint64_t uiLength);
 	std::filesystem::path GetDataFilePath(data::DataTypes eDataType, std::string_view extension) const;
 
 	std::filesystem::path mDataDirectory;

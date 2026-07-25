@@ -579,6 +579,15 @@ void PackChunks::LoadChunk(const LoadRequest& rRequest, int64_t iThreadIndex)
 
 	bool bCompressed = common::IsCompressed(rLazyChunk.header.flags);
 
+#if defined(BT_CLIENT)
+	if ((rLazyChunk.header.flags & common::ChunkFlags::kTexture) && !RecommitChunkRange(rRequest.crc, rLazyChunk, 0, rLazyChunk.iDataSize))
+	{
+		rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+		NotifyChunkCompletion();
+		return;
+	}
+#endif // BT_CLIENT
+
 	// Calculate sector-aligned read parameters for unbuffered I/O
 	int64_t iFileOffset = rLazyChunk.location.uiOffset + common::kiChunkDataOffset;
 	int64_t iOnDiskSize = rLazyChunk.location.uiSize - common::kiChunkDataOffset;
@@ -939,20 +948,9 @@ bool PackChunks::RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffse
 	// A compressed chunk's pool holds decompressed bytes, so the raw disk re-read below would silently reload garbage
 	// (not crash). Islands never compress; assert the contract so a future compressed-island route fails loud here.
 	ASSERT(!common::IsCompressed(rLazyChunk.header.flags));
-	uintptr_t uiRangeStart = reinterpret_cast<uintptr_t>(rLazyChunk.pData) + uiOffset;
-	uintptr_t uiRangeEnd = uiRangeStart + uiLength;
-	uintptr_t uiAlignedStart = common::RoundUp(uiRangeStart, static_cast<uintptr_t>(miPageSize));
-	uintptr_t uiAlignedEnd = common::RoundDown(uiRangeEnd, static_cast<uintptr_t>(miPageSize));
-	if (uiAlignedEnd > uiAlignedStart)
+	if (!RecommitChunkRange(crc, rLazyChunk, uiOffset, uiLength))
 	{
-		// VirtualAlloc result is an OS trust boundary: on failure the interior stays decommitted and the read below
-		// would fault, so fail the recommit soft (leave the range as-is) rather than crash the recovery path.
-		if (VirtualAlloc(reinterpret_cast<void*>(uiAlignedStart), static_cast<SIZE_T>(uiAlignedEnd - uiAlignedStart), MEM_COMMIT, PAGE_READWRITE) == nullptr)
-		{
-			LOG(kLoading, kError, "Recommit MEM_COMMIT failed for chunk {}", crc);
-			DEBUG_BREAK();
-			return false;
-		}
+		return false;
 	}
 
 	// Direct disk re-read of the full range (rewrites the committed boundary bytes with identical data — harmless).
@@ -976,6 +974,26 @@ bool PackChunks::RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffse
 		return false;
 	}
 
+	return true;
+}
+
+bool PackChunks::RecommitChunkRange(common::crc_t crc, const LazyChunk& rLazyChunk, uint64_t uiOffset, uint64_t uiLength)
+{
+	uintptr_t uiRangeStart = reinterpret_cast<uintptr_t>(rLazyChunk.pData) + uiOffset;
+	uintptr_t uiRangeEnd = uiRangeStart + uiLength;
+	uintptr_t uiAlignedStart = common::RoundUp(uiRangeStart, static_cast<uintptr_t>(miPageSize));
+	uintptr_t uiAlignedEnd = common::RoundDown(uiRangeEnd, static_cast<uintptr_t>(miPageSize));
+	if (uiAlignedEnd > uiAlignedStart)
+	{
+		// VirtualAlloc result is an OS trust boundary: on failure the interior stays decommitted and the read below
+		// would fault, so fail the recommit soft (leave the range as-is) rather than crash the recovery path.
+		if (VirtualAlloc(reinterpret_cast<void*>(uiAlignedStart), static_cast<SIZE_T>(uiAlignedEnd - uiAlignedStart), MEM_COMMIT, PAGE_READWRITE) == nullptr)
+		{
+			LOG(kLoading, kError, "Recommit MEM_COMMIT failed for chunk {}", crc);
+			DEBUG_BREAK();
+			return false;
+		}
+	}
 	return true;
 }
 

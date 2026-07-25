@@ -192,11 +192,11 @@ public:
 	void ResetTextureChunkStates();
 	void ResetTextureChunkStates(std::span<const common::crc_t> targetCrcs);
 
-	// Reclaim a dead sub-range of a resident (uncompressed) lazy chunk's pool memory. Decommits only the
+	// Reclaim a dead sub-range of a resident lazy chunk's decompressed pool memory. Decommits only the
 	// page-aligned interior of [uiOffset, uiOffset + uiLength); the boundary partial-pages (which may share
 	// bytes with the neighbouring payload) and every other chunk stay committed, and the chunk's pData pointer
-	// is unchanged. A consumer must RecommitAndReloadChunkRange the range before reading it again. Main-thread
-	// only (boot / device-loss recovery) — the range must have no concurrent reader.
+	// is unchanged. A consumer must recommit and reload the range before reading it again. Main-thread
+	// only (boot / device-loss recovery / transfer-complete texture adoption) — the range must have no concurrent reader.
 	void DecommitChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength);
 	// Inverse of DecommitChunkRange: MEM_COMMITs the interior and re-reads [uiOffset, uiOffset + uiLength)
 	// straight from the pack file on disk into the pool (NOT via the decommitted resident copy). Uncompressed chunks only.

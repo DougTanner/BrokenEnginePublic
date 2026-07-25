@@ -19,7 +19,7 @@
 ## Lazy-Pool Invariants
 
 - One reserved virtual-memory pool is laid out by cumulative aligned size over the complete lazy-chunk map. Reset code must walk the same complete map order; do not compact pointers or recompute offsets from a subset.
-- Compressed chunks reserve their uncompressed size. Decommit/reload may reclaim only page-aligned interiors so pointers, boundary pages, and cumulative offsets remain stable; use it only without concurrent readers.
+- Compressed chunks reserve their uncompressed size. Reclamation decommits only page-aligned interiors so pointers, boundary pages, and cumulative offsets remain stable; use it only without concurrent readers. Before any raw read or decompression write targets a reclaimed range, recommit that range first; whole texture loads recommit their full pool allocation, while uncompressed island subranges reload directly from disk.
 
 ## Replay Streams
 

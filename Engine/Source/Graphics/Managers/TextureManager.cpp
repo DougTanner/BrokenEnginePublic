@@ -600,6 +600,7 @@ void TextureManager::AdoptUploadedChunk(common::crc_t crc, Texture& rTexture, bo
 	// the transfer thread (UploadThread) finished this chunk and released ownership, so nulling
 	// pData here (on the main thread) cannot race the transfer thread — the same ordering
 	// invariant FileManager::ResetTextureChunkStates documents.
+	gpFileManager->DecommitChunkRange(crc, 0, rLazyChunk.iDataSize);
 	rLazyChunk.pData = nullptr;
 	rLazyChunk.iDataSize = 0;
 	mTextureDescriptors.UpdateDescriptorsForTexture(crc);
