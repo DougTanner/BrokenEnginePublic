@@ -347,36 +347,36 @@ void ClientSession::SendCreateFleetRequest()
 	});
 }
 
-void ClientSession::SendDeleteFleetRequest(int64_t iFleetIndex)
+void ClientSession::SendDeleteFleetRequest(const FleetGuid& rFleetGuid)
 {
 	SendGameRequest(GamePacketType::kClientDeleteFleetRequest, [&]
 	{
-		LOG(kNetwork, kDebug, "ClientSession::SendDeleteFleetRequest Fleet: {}", iFleetIndex);
-	}, iFleetIndex);
+		LOG(kNetwork, kDebug, "ClientSession::SendDeleteFleetRequest Fleet: ({},{})", rFleetGuid.uiHigh, rFleetGuid.uiLow);
+	}, rFleetGuid.uiHigh, rFleetGuid.uiLow);
 }
 
-void ClientSession::SendSpawnIntoFleetRequest(int64_t iFleetIndex)
+void ClientSession::SendSpawnIntoFleetRequest(const FleetGuid& rFleetGuid)
 {
 	SendGameRequest(GamePacketType::kClientSpawnIntoFleetRequest, [&]
 	{
-		LOG(kNetwork, kDebug, "ClientSession::SendSpawnIntoFleetRequest Fleet: {}", iFleetIndex);
-	}, iFleetIndex);
+		LOG(kNetwork, kDebug, "ClientSession::SendSpawnIntoFleetRequest Fleet: ({},{})", rFleetGuid.uiHigh, rFleetGuid.uiLow);
+	}, rFleetGuid.uiHigh, rFleetGuid.uiLow);
 }
 
-void ClientSession::SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemberIndex)
+void ClientSession::SendRespawnInFleetRequest(const FleetGuid& rFleetGuid, int64_t iMemberIndex)
 {
 	SendGameRequest(GamePacketType::kClientRespawnInFleetRequest, [&]
 	{
-		LOG(kNetwork, kDebug, "ClientSession::SendRespawnInFleetRequest Fleet: {} Member: {}", iFleetIndex, iMemberIndex);
-	}, iFleetIndex, iMemberIndex);
+		LOG(kNetwork, kDebug, "ClientSession::SendRespawnInFleetRequest Fleet: ({},{}) Member: {}", rFleetGuid.uiHigh, rFleetGuid.uiLow, iMemberIndex);
+	}, rFleetGuid.uiHigh, rFleetGuid.uiLow, iMemberIndex);
 }
 
-void ClientSession::SendFleetNavigationDelayRequest(int64_t iFleetIndex, float fDelay)
+void ClientSession::SendFleetNavigationDelayRequest(const FleetGuid& rFleetGuid, float fDelay)
 {
 	SendGameRequest(GamePacketType::kClientFleetNavigationDelay, [&]
 	{
-		LOG(kNetwork, kDebug, "ClientSession::SendFleetNavigationDelayRequest Fleet: {} Delay: {}", iFleetIndex, common::Wb(fDelay, 3));
-	}, iFleetIndex, fDelay);
+		LOG(kNetwork, kDebug, "ClientSession::SendFleetNavigationDelayRequest Fleet: ({},{}) Delay: {}", rFleetGuid.uiHigh, rFleetGuid.uiLow, common::Wb(fDelay, 3));
+	}, rFleetGuid.uiHigh, rFleetGuid.uiLow, fDelay);
 }
 
 #endif // BT_CLIENT

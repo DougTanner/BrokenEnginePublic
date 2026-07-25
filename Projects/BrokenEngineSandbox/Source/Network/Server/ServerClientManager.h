@@ -2,6 +2,8 @@
 
 #if defined(BT_SERVER)
 
+#include "Fleet.h"
+
 namespace game
 {
 
@@ -9,7 +11,8 @@ struct ClientSpawnInfo
 {
 	int64_t iClientId = 0;
 	engine::ClientGuid clientGuid {};
-	int64_t iFleetIndex = -1;
+	// Default-constructed (invalid) guid means this spawn is not fleet-triggered.
+	FleetGuid fleetGuid {};
 	int64_t iMemberIndex = -1;
 };
 
@@ -17,7 +20,7 @@ class ServerClientManager
 {
 public:
 
-	void QueueSpawnForClient(int64_t iClientId, const engine::ClientGuid& rClientGuid, int64_t iFleetIndex = -1, int64_t iMemberIndex = -1);
+	void QueueSpawnForClient(int64_t iClientId, const engine::ClientGuid& rClientGuid, const FleetGuid& rFleetGuid = {}, int64_t iMemberIndex = -1);
 	void ProcessSpawnRequests();
 	void NewClients();
 	void FinalizeNewClients();

@@ -18,19 +18,19 @@ struct PendingCreateFleetRequest
 struct PendingDeleteFleetRequest
 {
 	int64_t iClientId = 0;
-	int64_t iFleetIndex = 0;
+	FleetGuid fleetGuid {};
 };
 
 struct PendingSpawnIntoFleetRequest
 {
 	int64_t iClientId = 0;
-	int64_t iFleetIndex = 0;
+	FleetGuid fleetGuid {};
 };
 
 struct PendingRespawnInFleetRequest
 {
 	int64_t iClientId = 0;
-	int64_t iFleetIndex = 0;
+	FleetGuid fleetGuid {};
 	int64_t iMemberIndex = 0;
 };
 
@@ -68,9 +68,9 @@ public:
 		engine::GridCoord fleetWantedCoord {};
 		uint8_t uiPendingFleetWantedCoordTicks = 0;
 	};
-	FleetLookupResult LookupFleetWantedCoord(const engine::ClientGuid& rClientGuid, int64_t iFleetIndex, int64_t iMemberIndex);
+	FleetLookupResult LookupFleetWantedCoord(const engine::ClientGuid& rClientGuid, const FleetGuid& rFleetGuid, int64_t iMemberIndex);
 
-	void UpdateFleetNavigationDelay(const engine::ClientGuid& rGuid, int64_t iFleetIndex, float fDelay);
+	void UpdateFleetNavigationDelay(const engine::ClientGuid& rGuid, const FleetGuid& rFleetGuid, float fDelay);
 
 	void DetectDisconnectedPlayerDeaths();
 
@@ -93,8 +93,11 @@ public:
 
 private:
 
+	// Position of rFleetGuid within one client's fleet vector; -1 when absent. Delete needs the position, not just the fleet.
+	int64_t FindFleetIndexByGuid(const std::vector<Fleet>& rFleets, const FleetGuid& rFleetGuid) const;
+
 	// OnResetForLoad helpers
-	void ResetFleetForLoad(Fleet& rFleet, const engine::ClientGuid& rClientGuid, int64_t iFleetIndex, const std::vector<engine::global_id_t>& rOwnedIds, const engine::ClientConnection* pClient);
+	void ResetFleetForLoad(Fleet& rFleet, const engine::ClientGuid& rClientGuid, const std::vector<engine::global_id_t>& rOwnedIds, const engine::ClientConnection* pClient);
 
 	std::vector<PendingCreateFleetRequest> mPendingCreateFleetRequests;
 	std::vector<PendingDeleteFleetRequest> mPendingDeleteFleetRequests;

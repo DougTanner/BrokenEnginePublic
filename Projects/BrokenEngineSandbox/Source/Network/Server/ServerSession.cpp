@@ -137,54 +137,63 @@ void ServerSession::ParseReceivedGamePackets()
 				}
 				case GamePacketType::kClientDeleteFleetRequest:
 				{
-					if (rPacket.payload.size() < 8)
-					{
-						break;
-					}
-					const uint8_t* pCursor = rPacket.payload.data();
-					int64_t iFleetIndex = engine::ReadInt64(pCursor);
-					mpFleetManager->QueueDeleteRequest({rPacket.iClientId, iFleetIndex});
-					break;
-				}
-				case GamePacketType::kClientSpawnIntoFleetRequest:
-				{
-					// 8B fleetIndex = 8 bytes (type byte already stripped)
-					if (rPacket.payload.size() < 8)
-					{
-						break;
-					}
-					const uint8_t* pCursor = rPacket.payload.data();
-					int64_t iFleetIndex = engine::ReadInt64(pCursor);
-					mpFleetManager->QueueSpawnIntoRequest({rPacket.iClientId, iFleetIndex});
-					break;
-				}
-				case GamePacketType::kClientRespawnInFleetRequest:
-				{
-					// 8B fleetIndex + 8B memberIndex = 16 bytes (type byte already stripped)
+					// 16B fleetGuid = 16 bytes (type byte already stripped)
 					if (rPacket.payload.size() < 16)
 					{
 						break;
 					}
 					const uint8_t* pCursor = rPacket.payload.data();
-					int64_t iFleetIndex = engine::ReadInt64(pCursor);
-					int64_t iMemberIndex = engine::ReadInt64(pCursor);
-					mpFleetManager->QueueRespawnRequest({rPacket.iClientId, iFleetIndex, iMemberIndex});
+					FleetGuid fleetGuid {};
+					fleetGuid.uiHigh = engine::ReadUint64(pCursor);
+					fleetGuid.uiLow = engine::ReadUint64(pCursor);
+					mpFleetManager->QueueDeleteRequest({rPacket.iClientId, fleetGuid});
 					break;
 				}
-				case GamePacketType::kClientFleetNavigationDelay:
+				case GamePacketType::kClientSpawnIntoFleetRequest:
 				{
-					// 8B fleetIndex + 4B delay = 12 bytes (type byte already stripped)
-					if (rPacket.payload.size() < 12)
+					// 16B fleetGuid = 16 bytes (type byte already stripped)
+					if (rPacket.payload.size() < 16)
 					{
 						break;
 					}
 					const uint8_t* pCursor = rPacket.payload.data();
-					int64_t iFleetIndex = engine::ReadInt64(pCursor);
+					FleetGuid fleetGuid {};
+					fleetGuid.uiHigh = engine::ReadUint64(pCursor);
+					fleetGuid.uiLow = engine::ReadUint64(pCursor);
+					mpFleetManager->QueueSpawnIntoRequest({rPacket.iClientId, fleetGuid});
+					break;
+				}
+				case GamePacketType::kClientRespawnInFleetRequest:
+				{
+					// 16B fleetGuid + 8B memberIndex = 24 bytes (type byte already stripped)
+					if (rPacket.payload.size() < 24)
+					{
+						break;
+					}
+					const uint8_t* pCursor = rPacket.payload.data();
+					FleetGuid fleetGuid {};
+					fleetGuid.uiHigh = engine::ReadUint64(pCursor);
+					fleetGuid.uiLow = engine::ReadUint64(pCursor);
+					int64_t iMemberIndex = engine::ReadInt64(pCursor);
+					mpFleetManager->QueueRespawnRequest({rPacket.iClientId, fleetGuid, iMemberIndex});
+					break;
+				}
+				case GamePacketType::kClientFleetNavigationDelay:
+				{
+					// 16B fleetGuid + 4B delay = 20 bytes (type byte already stripped)
+					if (rPacket.payload.size() < 20)
+					{
+						break;
+					}
+					const uint8_t* pCursor = rPacket.payload.data();
+					FleetGuid fleetGuid {};
+					fleetGuid.uiHigh = engine::ReadUint64(pCursor);
+					fleetGuid.uiLow = engine::ReadUint64(pCursor);
 					float fDelay = ValidateNavigationDelay(engine::ReadFloat(pCursor));
 					const engine::ClientConnection* pClient = engine::gpServer->FindClient(rPacket.iClientId);
 					if (pClient != nullptr)
 					{
-						mpFleetManager->UpdateFleetNavigationDelay(pClient->clientGuid, iFleetIndex, fDelay);
+						mpFleetManager->UpdateFleetNavigationDelay(pClient->clientGuid, fleetGuid, fDelay);
 					}
 					break;
 				}

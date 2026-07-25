@@ -39,9 +39,9 @@ void ServerBroadcaster::BuildFrameInputs()
 			bool bIsFlagship = false;
 			engine::GridCoord spawnFleetWantedCoord {};
 			uint8_t uiSpawnPendingFleetTicks = 0;
-			if (rClientSpawnInformation.iFleetIndex >= 0)
+			if (rClientSpawnInformation.fleetGuid.IsValid())
 			{
-				ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rClientSpawnInformation.clientGuid, rClientSpawnInformation.iFleetIndex, rClientSpawnInformation.iMemberIndex);
+				ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rClientSpawnInformation.clientGuid, rClientSpawnInformation.fleetGuid, rClientSpawnInformation.iMemberIndex);
 				bIsFlagship = result.bIsFlagship;
 				spawnFleetWantedCoord = result.fleetWantedCoord;
 				uiSpawnPendingFleetTicks = result.uiPendingFleetWantedCoordTicks;

@@ -106,8 +106,8 @@ void FleetNavigationController::TickFleetTimers(std::unordered_map<engine::Clien
 			rFleet.wantedCoord = destination;
 			rFleet.uiPendingFleetWantedCoordTicks = uiPendingTicks;
 			rFleet.fFrameChangeTimer = rFleet.fNavigationDelay;
-			mPendingFlagshipUpdates.push_back({.clientGuid = rGuid, .iFleetIndex = iFleet, .newWantedCoord = destination, .uiPendingFleetWantedCoordTicks = uiPendingTicks});
-			LOG(kNetwork, kVerbose, "FleetNavigationController::TickFleetTimers Guid: ({},{}) Fleet: {} Direction: {} WantedCoord: ({},{})", rGuid.uiHigh, rGuid.uiLow, iFleet, iDirection, destination.x, destination.y);
+			mPendingFlagshipUpdates.push_back({.clientGuid = rGuid, .fleetGuid = rFleet.guid, .newWantedCoord = destination, .uiPendingFleetWantedCoordTicks = uiPendingTicks});
+			LOG(kNetwork, kVerbose, "FleetNavigationController::TickFleetTimers Guid: ({},{}) FleetGuid: ({},{}) Direction: {} WantedCoord: ({},{})", rGuid.uiHigh, rGuid.uiLow, rFleet.guid.uiHigh, rFleet.guid.uiLow, iDirection, destination.x, destination.y);
 		}
 	}
 }
@@ -122,11 +122,12 @@ void FleetNavigationController::ProcessFlagshipUpdates(const std::unordered_map<
 			continue;
 		}
 
-		if (rUpdate.iFleetIndex >= std::ssize(fleetIt->second))
+		auto matchIt = std::ranges::find(fleetIt->second, rUpdate.fleetGuid, &Fleet::guid);
+		if (matchIt == fleetIt->second.end())
 		{
 			continue;
 		}
-		const Fleet& rFleet = fleetIt->second.at(static_cast<size_t>(rUpdate.iFleetIndex));
+		const Fleet& rFleet = *matchIt;
 
 		if (rFleet.iFlagshipIndex >= std::ssize(rFleet.members))
 		{
@@ -176,8 +177,7 @@ void FleetNavigationController::ProcessFlagshipUpdates(const std::unordered_map<
 				}
 			}
 		}
-		LOG(kNetwork, kVerbose, "FleetNavigationController::ProcessFlagshipUpdates Guid: ({},{}) Fleet: {} MembersUpdated: {} WantedCoord: ({},{})",
-			rUpdate.clientGuid.uiHigh, rUpdate.clientGuid.uiLow, rUpdate.iFleetIndex, iMembersUpdated, rUpdate.newWantedCoord.x, rUpdate.newWantedCoord.y);
+		LOG(kNetwork, kVerbose, "FleetNavigationController::ProcessFlagshipUpdates Guid: ({},{}) FleetGuid: ({},{}) MembersUpdated: {} WantedCoord: ({},{})", rUpdate.clientGuid.uiHigh, rUpdate.clientGuid.uiLow, rUpdate.fleetGuid.uiHigh, rUpdate.fleetGuid.uiLow, iMembersUpdated, rUpdate.newWantedCoord.x, rUpdate.newWantedCoord.y);
 	}
 	mPendingFlagshipUpdates.clear();
 }
@@ -192,7 +192,7 @@ void FleetNavigationController::ClearPendingFlagshipUpdates()
 	mPendingFlagshipUpdates.clear();
 }
 
-void FleetNavigationController::ShiftFlagshipAfterDeath(const engine::ClientGuid& rGuid, int64_t iFleetIndex, Fleet& rFleet)
+void FleetNavigationController::ShiftFlagshipAfterDeath(const engine::ClientGuid& rGuid, Fleet& rFleet)
 {
 	int64_t iNewFlagship = -1;
 	for (int64_t k = 1; k < std::ssize(rFleet.members); ++k)
@@ -212,7 +212,7 @@ void FleetNavigationController::ShiftFlagshipAfterDeath(const engine::ClientGuid
 	rFleet.iFlagshipIndex = iNewFlagship;
 	rFleet.wantedCoord = rFleet.members.at(static_cast<size_t>(iNewFlagship)).coord;
 	rFleet.fFrameChangeTimer = rFleet.fNavigationDelay;
-	mPendingFlagshipUpdates.push_back({.clientGuid = rGuid, .iFleetIndex = iFleetIndex, .newWantedCoord = rFleet.wantedCoord});
+	mPendingFlagshipUpdates.push_back({.clientGuid = rGuid, .fleetGuid = rFleet.guid, .newWantedCoord = rFleet.wantedCoord});
 }
 
 #endif // BT_SERVER

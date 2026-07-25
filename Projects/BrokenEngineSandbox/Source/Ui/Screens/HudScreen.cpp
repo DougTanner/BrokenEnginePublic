@@ -293,8 +293,8 @@ void HudScreen::RenderFleetPanel(float fTarget)
 		if (gpClientSession != nullptr)
 		{
 			mDeleteFleetToggle.SetPending();
-			gpClientSession->SendDeleteFleetRequest(gpGame->FocusedFleetIndex());
-			LOG(kDefault, kVerbose, "HUD DeleteFleetRequest Fleet: {} FleetCount: {}", gpGame->FocusedFleetIndex(), iFleetCount);
+			gpClientSession->SendDeleteFleetRequest(pFleet->guid);
+			LOG(kDefault, kVerbose, "HUD DeleteFleetRequest Fleet: ({},{}) FleetCount: {}", pFleet->guid.uiHigh, pFleet->guid.uiLow, iFleetCount);
 		}
 	}
 	ImGui::EndDisabled();
@@ -343,8 +343,8 @@ void HudScreen::RenderFleetPanel(float fTarget)
 				{
 					if (gpClientSession != nullptr)
 					{
-						gpClientSession->SendRespawnInFleetRequest(gpGame->FocusedFleetIndex(), i);
-						LOG(kDefault, kVerbose, "HUD RespawnInFleet Fleet: {} Member: {}", gpGame->FocusedFleetIndex(), i);
+						gpClientSession->SendRespawnInFleetRequest(pFleet->guid, i);
+						LOG(kDefault, kVerbose, "HUD RespawnInFleet Fleet: ({},{}) Member: {}", pFleet->guid.uiHigh, pFleet->guid.uiLow, i);
 					}
 				}
 				ImGui::PopStyleColor();
@@ -359,8 +359,8 @@ void HudScreen::RenderFleetPanel(float fTarget)
 			if (gpClientSession != nullptr)
 			{
 				mSpawnIntoFleetToggle.SetPending();
-				gpClientSession->SendSpawnIntoFleetRequest(gpGame->FocusedFleetIndex());
-				LOG(kDefault, kVerbose, "HUD SpawnIntoFleet Fleet: {}", gpGame->FocusedFleetIndex());
+				gpClientSession->SendSpawnIntoFleetRequest(pFleet->guid);
+				LOG(kDefault, kVerbose, "HUD SpawnIntoFleet Fleet: ({},{})", pFleet->guid.uiHigh, pFleet->guid.uiLow);
 			}
 		}
 		ImGui::EndDisabled();
@@ -383,7 +383,7 @@ void HudScreen::RenderFleetPanel(float fTarget)
 			if (gpClientSession != nullptr)
 			{
 				gpGame->mNavigationDelayControl.SetPending();
-				gpClientSession->SendFleetNavigationDelayRequest(gpGame->FocusedFleetIndex(), sfNavigationDelayEditValue);
+				gpClientSession->SendFleetNavigationDelayRequest(pFleet->guid, sfNavigationDelayEditValue);
 			}
 		}
 		ImGui::EndDisabled();

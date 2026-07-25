@@ -9,6 +9,27 @@ The root cause is outside the pause-gating change. During recording, `GameSaveLo
 
 This is a proven pre-existing replay-capture defect, not the live-client Blaster reconciliation failure owned by `Documents/Plans/Network/BlasterReconciliationDesync.md`. The user asked the pause-semantics session to determine whether the crash belonged in that change or a bugfix plan; the main session adjudicated this independent root cause as a deferred follow-up under the minimum-sufficient scope boundary.
 
+### Independent reconfirmation (second occurrence)
+
+Reproduced again during unrelated verification, on a different build and different ticks, with positional proof that the missing entities are boundary crossings rather than missed spawns. Cells are `kfCellWidth = kfCellHeight = 900.0f` (`Frame.h:187-188`) centered on the coord, so the boundary between coord `(-1,y)` and `(-2,y)` is world `x = -1350`. Every extra recorded-side Blaster sat just past it, and back-integrating each row's own recorded velocity by one tick placed it inside the neighbouring cell:
+
+| Tick | Recorded row | Position | Velocity | x one tick earlier |
+|---|---|---|---|---|
+| 27589 | 13 | (-1351.475, 1667.293) | (-73.751, 130.617) | -1349.17 → inside (-1,2) |
+| 27591 | 14 | (-1350.173, 1693.917) | (-70.088, 132.619) | -1347.98 → inside (-1,2) |
+| 27591 | 16 | (-1352.699, 1015.159) | (-121.273, -88.277) | -1348.91 → inside (-1,1) |
+
+Row 13 tracks across ticks at exactly its own velocity (`-1351.475 → -1353.780 → -1356.084`, Δ = -2.305 = `vx / 32`), so it is one persisting entity absent on the replayed side. `ComputeTransferDelta` (`Frame.h:133-139`) tests `>= fMaxX` / `<= fMinX`, matching a crossing at this boundary.
+
+The RNG coupling is exact and explains the same-tick `randomEngine` divergence: a transferred Blaster is respawned through `BlastersPostRender::Spawn`, which unconditionally draws `common::Random<kfBlasterPitchRandom>(rFrame.postRender.randomEngine)` (`Blasters.cpp:191`). **One missed transfer arrival = one missing row and exactly one skipped draw on that coord's stream**, which is why CRC never recovers.
+
+Two hypotheses were tested and eliminated, so the implementation need not revisit them:
+
+- **Coord iteration/dispatch order is not a factor.** `randomEngine` is per-frame, per-coord state (`FrameBase.h:171`) carried from that coord's own previous frame (`FrameBase.cpp:215`), and parallel per-coord ticks touch only their own frame. Order cannot alter any coord's stream. Confirmed positively: on a tick where neither side drew, both sides' `randomEngine` values stayed byte-identical to their own previous values.
+- **The recorded and replayed coord sets match.** `ServerSession::SyncActiveFrames` (`ServerSession.cpp:377-388`) prunes `mCoordFrames` to `mActiveCoords`, and playback rebuilds the identical set from the readers, so a `Recording started for N coords` count larger than the number of user-activated coords is the server's active set, not a mismatch.
+
+Divergence does not begin on the first replayed tick: the ticks between recording start and the first crossing validate clean, which is itself evidence that identical start frames plus identical recorded inputs reproduce bit-exactly, and that the delta enters only through the post-tick harvest.
+
 ## Design
 
 1. Add an explicit replay-only capture path for authoritative destination transfer events. Preserve the existing live simulation order: harvest and spawn transfers after `RunFrameTick`, then make the exact ordered transfer `StatusChange`s available to the destination coord's next replay-writer update so playback's existing `ApplyTransferStatusChanges` step reconstructs the recorded post-harvest frame before checksum validation.
@@ -21,6 +42,7 @@ This is a proven pre-existing replay-capture defect, not the live-client Blaster
    - reset, failed recording publication, replay load (`SaveLoadReplay`), and repeated replay loops must clear transient capture state without leaking events into a later session.
 4. Pre-stage the architectural decision for destination coords created after recording starts. The existing writer set is created only from the active coords at recording start, so it cannot represent a later `kTransferPlayer` that activates a missing destination. The preferred model is to capture a pre-transfer start snapshot when that destination first enters the recording, persist its exact activation/membership tick, and activate its reader at that tick: playback must omit the coord before activation and introduce it exactly when the recorded server did. Reject unbounded pre-creation of possible destination coords. The current per-coordinate manifest/difference format does not already encode this lifecycle; `/external-grill-plan` and explicit user approval must resolve the replay-format/version and invalidation implication before implementation.
 5. Keep ordinary transfer capture in the existing per-coordinate replay input model only where that model represents the required tick boundary. Any persisted `FrameInput`, replay manifest, or difference-stream format change requires the approved design above plus explicit version/invalidation handling before editing; do not add compatibility readers or silently reuse an old version for new bytes.
+6. **Captured transfer input is one-shot and must transition to empty.** The difference stream is sticky, not event-based: `DifferenceStreamWriter::Update` skips a difference whose CRC equals the current one (`DifferenceStream.h:58`), and `LoadDifference` re-serves `mCurrentDifference` for every tick that recorded no difference (`:408`). A captured transfer set that is still present in the writer's input on the following no-transfer tick is therefore replayed again, spawning the transfer twice. Each capture must be visible to exactly one writer update and then cleared, so the next tick records a genuinely empty transfer input rather than inheriting the previous one. Two consecutive ticks that each legitimately transfer are not the hazard — those are two real events and must apply twice; the hazard is a stale one-shot set surviving into a tick that had none. This is safe today for ordinary status changes only because `FinalizeFrameTick` clears them each tick and `BuildFrameInputs` rebuilds them, and the capture path must reproduce that discipline.
 
 ## Scope contract
 

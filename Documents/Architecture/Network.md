@@ -66,16 +66,16 @@ The server treats every inbound client packet as hostile/corruptible. A declarat
 | `kClientDesyncReport` | 33 | 33 | 8 | yes | violation | independent per-client two-second wall-clock cooldown after contract validation; immediate repeats silently drop |
 | `kClientDebugFrameRequest` | 17 | 17 | 8 | yes | violation | independent per-client two-second wall-clock cooldown; contract-valid no-op when `kbDesyncDebugFrames == false` |
 | `kClientUpdatePlayerRequest` | 14 | 14 | 8 | yes | violation | nav delay finite-clamped `[0,60]`, NaN/Inf→60 (`ValidateNavigationDelay`) |
-| `kClientFleetNavigationDelay` | 13 | 13 | 8 | yes | violation | nav delay finite-clamped `[0,60]`, NaN/Inf→60 |
+| `kClientFleetNavigationDelay` | 21 | 21 | 8 | yes | violation | fleet-guid lookup; nav delay finite-clamped `[0,60]`, NaN/Inf→60 |
 | `kClientCreateFleetRequest` | 1 | 1 | 4 | yes | violation | per-client fleet cap 16 (over-cap `kWarning`) |
-| `kClientDeleteFleetRequest` | 9 | 9 | 8 | yes | violation | fleet-index lookup |
-| `kClientSpawnIntoFleetRequest` | 9 | 9 | 8 | yes | violation | per-fleet member cap 16; spawn dedup on `{client, fleet, member}` |
-| `kClientRespawnInFleetRequest` | 17 | 17 | 16 | yes | violation | member-index lookup; spawn dedup |
+| `kClientDeleteFleetRequest` | 17 | 17 | 8 | yes | violation | fleet-guid lookup |
+| `kClientSpawnIntoFleetRequest` | 17 | 17 | 8 | yes | violation | fleet-guid lookup; per-fleet member cap 16; spawn dedup on `{client, fleetGuid, member}` |
+| `kClientRespawnInFleetRequest` | 25 | 25 | 16 | yes | violation | fleet-guid lookup; member-index lookup; spawn dedup |
 | `kClientSaveRequest` / `LoadRequest` / `ResetRequest` / `ReplayRecordRequest` / `ReplayPlaybackRequest` | 1 | 1 | 2 | yes | violation | **`kbDebugInput`-gated** — sentinel (violation) on a non-debug server |
 | `kClientPauseRequest` | 2 | 2 | 4 | yes | violation | **`kbDebugInput`-gated** |
 | `kClientTimespeedRequest` | 2 | 2 | 8 | yes | violation | **`kbDebugInput`-gated** |
 
-Server→client types and unknown type bytes resolve to the sentinel (not client-sendable). The current wire-protocol version is 7; `kClientUnsubscribe` carries a slot index plus epoch, and Hello carries an 8-byte integrity token derived from the ordered Islands manifest `ChunkLocation` table. The gate runs pre-sim and server-authoritative — no deterministic simulation/shared-CRC exposure; the client ack throttle is send-timing only (acks are not CRC'd).
+Server→client types and unknown type bytes resolve to the sentinel (not client-sendable). The current wire-protocol version is 8. The four fleet request packets address a fleet by its stable `FleetGuid` rather than a vector index, so a delete that shifts the fleet vector cannot misdirect an in-flight or queued request; `kClientUnsubscribe` carries a slot index plus epoch, and Hello carries an 8-byte integrity token derived from the ordered Islands manifest `ChunkLocation` table. The gate runs pre-sim and server-authoritative — no deterministic simulation/shared-CRC exposure; the client ack throttle is send-timing only (acks are not CRC'd).
 
 The desync diagnostic cooldown is handler-local and uses `steady_clock`, so pause and timescale do not affect it. The existing eight-per-poll contract caps and violation/disconnect policy still run first. `kbDesyncDebugFrames` only removes full-frame buffering, serving, requesting, and client stalling when disabled; packet bytes, enums, protocol version, deterministic/CRC state, and the delta resend ring are unchanged.
 

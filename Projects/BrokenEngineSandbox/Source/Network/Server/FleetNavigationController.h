@@ -10,7 +10,7 @@ namespace game
 struct PendingFlagshipUpdate
 {
 	engine::ClientGuid clientGuid {};
-	int64_t iFleetIndex = 0;
+	FleetGuid fleetGuid {};
 	engine::GridCoord newWantedCoord {};
 	uint8_t uiPendingFleetWantedCoordTicks = 0;
 };
@@ -25,7 +25,7 @@ public:
 	void QueueFlagshipUpdate(const PendingFlagshipUpdate& rUpdate);
 	void ClearPendingFlagshipUpdates();
 
-	void ShiftFlagshipAfterDeath(const engine::ClientGuid& rGuid, int64_t iFleetIndex, Fleet& rFleet);
+	void ShiftFlagshipAfterDeath(const engine::ClientGuid& rGuid, Fleet& rFleet);
 
 	std::vector<PendingFlagshipUpdate> mPendingFlagshipUpdates;
 };

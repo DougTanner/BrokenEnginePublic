@@ -19,6 +19,7 @@ struct ReceivedDebugFrame;
 namespace game
 {
 
+struct FleetGuid;
 struct Frame;
 struct ReceivedPlayerEvent;
 enum class GamePacketType : uint8_t;
@@ -69,10 +70,10 @@ public:
 	// Game packet sends
 	void SendUpdatePlayerRequest(int64_t iGlobalPlayerId, bool bUseMissiles, float fNavigationDelay);
 	void SendCreateFleetRequest();
-	void SendSpawnIntoFleetRequest(int64_t iFleetIndex);
-	void SendRespawnInFleetRequest(int64_t iFleetIndex, int64_t iMemberIndex);
-	void SendDeleteFleetRequest(int64_t iFleetIndex);
-	void SendFleetNavigationDelayRequest(int64_t iFleetIndex, float fDelay);
+	void SendSpawnIntoFleetRequest(const FleetGuid& rFleetGuid);
+	void SendRespawnInFleetRequest(const FleetGuid& rFleetGuid, int64_t iMemberIndex);
+	void SendDeleteFleetRequest(const FleetGuid& rFleetGuid);
+	void SendFleetNavigationDelayRequest(const FleetGuid& rFleetGuid, float fDelay);
 
 	// Subscriptions
 	void UpdateDesiredCoords(SubscriptionChangeReason eReason);
