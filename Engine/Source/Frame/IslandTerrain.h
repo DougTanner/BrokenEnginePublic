@@ -17,6 +17,16 @@ struct FrameStaticData;
 // last placement reference drops. ~5s @60Hz, ~2.5s @120Hz. Chosen to cover transient absences
 // in moving-camera traversal without holding GPU memory indefinitely.
 inline constexpr uint64_t kuiGraceRenderFrames = 300;
+
+enum class IslandMeshResidency : uint8_t
+{
+	kNonresident,
+	kAsyncPending,
+	kCpuReady,
+	kArenaBlocked,
+	kFailed,
+	kResident,
+};
 #endif
 
 // One entry per kIsland chunk in the manifest. Heightmap pointer fills in
@@ -61,11 +71,8 @@ struct IslandTemplate
 	// Decoupled from miTextureSlot (which mints lazily on first visit).
 	int64_t miTemplateArrayIndex = -1;
 
-	// Mesh vertex/index counts come from IslandHeader synchronously (manifest metadata is loaded
-	// before chunk data). Populated in IslandTerrain ctor so Islands ctor can bake indexCount
-	// into the per-template indirect commands at boot. CPU mesh data pointers (mpfMeshPositions /
-	// mpuiMeshIndices) are filled later in WaitForElevationMaps once the kIsland chunk's payload
-	// is resident.
+	// Mesh vertex/index counts and CPU mesh data pointers (mpfMeshPositions / mpuiMeshIndices) are
+	// populated by WaitForElevationMaps after it validates the resident kIsland chunk payload.
 	int32_t miMeshVertexCount = 0;
 	int32_t miMeshIndexCount = 0;
 
@@ -87,18 +94,19 @@ struct IslandTemplate
 	uint64_t muiLastUsedRenderFrame = 0;
 	bool mbGpuResident = false;
 
-	// Gaea Mesher-baked terrain mesh in island-local meters (XY centered).
-	// CPU pointers slice into the kIsland chunk's payload after the heightmap halfs (set by
-	// WaitForElevationMaps). The GPU buffer combines indices and vertices: [uint32 indices,
-	// float2 positions (XY pairs)], uploaded once by CreateClientMeshBuffers at boot and kept
-	// resident for the lifetime of the template (textures-only LRU eviction; mesh is small
-	// relative to texture VRAM). Z is not stored — Terrain.vert re-derives it from the elevation
-	// sampler.
+	// Gaea Mesher-baked terrain mesh in island-local meters (XY centered). CPU pointers slice into
+	// the kIsland chunk payload after the heightmap halfs (set by WaitForElevationMaps). The
+	// persistent arena is addressed through these virtual allocations; Z is not stored because
+	// Terrain.vert re-derives it from the elevation sampler.
 	const float* mpfMeshPositions = nullptr;   // interleaved XY pairs (2 floats per vertex)
 	const uint32_t* mpuiMeshIndices = nullptr;
-	Buffer mMeshBuffer;
-	// True once CreateClientMeshBuffers has decommitted the mesh CPU slice from the lazy pool (reclaimed after the
-	// one-time GPU upload). Gates the device-loss recovery recommit+reload so first boot skips the redundant reload.
+	VmaVirtualAllocation mMeshIndexAllocation = VK_NULL_HANDLE;
+	VmaVirtualAllocation mMeshVertexAllocation = VK_NULL_HANDLE;
+	VkDeviceSize mMeshIndexOffset = 0;
+	VkDeviceSize mMeshVertexOffset = 0;
+	IslandMeshResidency meMeshResidency = IslandMeshResidency::kNonresident;
+	uint64_t muiMeshArenaBlockedGeneration = 0;
+	// True once the [positions][indices] CPU slice has been decommitted from the lazy pool.
 	bool mbMeshCpuDecommitted = false;
 
 	// Elevation R16_SFLOAT image uploaded at first-mint from mpHeightmapHalf (raw byte-copy — the resident
@@ -164,12 +172,6 @@ public:
 	[[nodiscard]] XMVECTOR XM_CALLCONV GlobalNormal(FXMVECTOR vecPosition) const;
 
 #if defined(BT_CLIENT)
-	// Create each template's GPU mesh buffer from the CPU pointers set by WaitForElevationMaps.
-	// Called from Islands ctor (after VMA exists, before terrain CB record). Per the record-once
-	// CB invariant, mesh buffers must exist at CB record time — they can't be created lazily on
-	// first visit.
-	void CreateClientMeshBuffers();
-
 	// Client-only: assign or retrieve the bindless texture-array slot for an island template.
 	// First call for a CRC binds its 4 textures into mRenderTargetTextures at the next free slot.
 	// Newly-minted templates start in slot-0 fallback (slot points at the neutral placeholder
@@ -187,10 +189,8 @@ public:
 	bool AnyEvictionPending() const;
 	bool AnyRestorationPending() const;
 
-	// Destroy per-template GPU buffers (mMeshBuffer) before Graphics tears down the VMA allocator.
-	// IslandTerrain is game-frame-owned and outlives Graphics, but mMeshBuffer was allocated
-	// through gpDeviceManager's allocator — must be released before mpDeviceManager.reset().
-	// Called from Graphics::Destroy() at the kSurface tier.
+	// Clear per-template GPU residency before Graphics tears down the VMA allocator. The arena
+	// itself belongs to Islands, which is destroyed first.
 	void ReleaseGpuResources();
 
 	// Reset per-template slot-assignment state so the next AcquireTextureSlot call runs the
@@ -232,13 +232,18 @@ private:
 	// and register each per-pipeline binding. Returns the assigned slot.
 	int64_t FirstMintTextureSlot(common::crc_t islandCrc, IslandTemplate& rTemplate, const common::crc_t (&textureCrcs)[4], std::string_view name);
 
-	// Evict one template's GPU residency if it qualifies (real slot, resident, unreferenced, grace
-	// window elapsed): free the 4 chunk channels + elevation, redirect the slot pointers/descriptors
-	// to the placeholders, and reclaim the slot. Returns true iff it evicted (EvictionSweep batches
-	// the descriptor-array update when any template evicts).
-	bool EvictTemplate(common::crc_t islandCrc, IslandTemplate& rTemplate);
+	enum class MeshEvictionReason : uint8_t
+	{
+		kGrace,
+		kArenaExhaustion,
+	};
+
+	// Evict one template's complete texture+mesh residency. Arena exhaustion bypasses only the
+	// grace period; it still requires a resident, unreferenced template.
+	bool EvictTemplate(common::crc_t islandCrc, IslandTemplate& rTemplate, MeshEvictionReason eReason = MeshEvictionReason::kGrace);
 	bool IsEvictionPending(const IslandTemplate& rTemplate) const;
 	bool IsRestorationPending(common::crc_t islandCrc, const IslandTemplate& rTemplate) const;
+	bool HasArenaEvictionCandidate(common::crc_t excludedCrc) const;
 
 	// Starts at 1: slot 0 is reserved as a permanent neutral placeholder anchor, never adopted
 	// by any real island. See TextureManager::mIslandPlaceholder* members.

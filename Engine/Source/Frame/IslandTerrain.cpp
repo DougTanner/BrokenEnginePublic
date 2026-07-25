@@ -43,10 +43,8 @@ IslandTerrain::IslandTerrain()
 		ASSERT(rTemplate.mfWorldFootprintYMeters > 0.0f);
 		rTemplate.mfQuadFootprintX = rTemplate.mfWorldFootprintXMeters;
 		rTemplate.mfQuadFootprintY = rTemplate.mfWorldFootprintYMeters;
-		// Mesh counts come from manifest metadata (sync). CPU mesh pointers fill in WaitForElevationMaps
-		// once the kIsland chunk payload is resident.
-		rTemplate.miMeshVertexCount = rLazyChunk.header.islandHeader.iMeshVertexCount;
-		rTemplate.miMeshIndexCount = rLazyChunk.header.islandHeader.iMeshIndexCount;
+		// Payload-derived dimensions and counts fill in only after WaitForElevationMaps validates
+		// the resident kIsland chunk.
 	}
 
 	// Stable, deterministic iteration order for slot assignment (Phase 3).
@@ -159,38 +157,70 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 	for (auto& [rCrc, rTemplate] : mIslands)
 	{
 		const LazyChunk& rLazyChunk = rChunkMap.at(rCrc);
-		rTemplate.mpHeightmapHalf = reinterpret_cast<const uint16_t*>(rLazyChunk.pData);
-		rTemplate.miHeightmapWidth = rLazyChunk.header.islandHeader.iHeightmapWidth;
-		rTemplate.miHeightmapHeight = rLazyChunk.header.islandHeader.iHeightmapHeight;
+		const common::IslandHeader& rIslandHeader = rLazyChunk.header.islandHeader;
 
 		// Chunk payload layout (set by ExportIsland::Export): [heightmap R16 halfs][float2 mesh positions][uint32 mesh indices][float2 valid-area hull verts].
-		// miMeshVertexCount / miMeshIndexCount already populated in ctor from manifest header. The offset
-		// math + the valid-area hull are shared: the server packs island placements against the rotated
-		// hull (IslandChainPlacement); the client additionally uploads the mesh and debug-renders the hull.
-		int64_t iHeightmapBytes = static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight) * static_cast<int64_t>(sizeof(uint16_t));
+		// Validate every count from the pack header before forming payload pointers or reclaiming a range.
+		// iSize excludes the lazy-pool's alignment pad, so it must describe the layout exactly and fit the
+		// actual resident extent.
+		if (common::IsCompressed(rLazyChunk.header.flags) || rLazyChunk.pData == nullptr || rLazyChunk.iDataSize <= 0 || rLazyChunk.header.iSize <= 0 || rLazyChunk.header.iSize > rLazyChunk.iDataSize
+			|| rIslandHeader.iHeightmapWidth <= 0 || rIslandHeader.iHeightmapHeight <= 0
+			|| rIslandHeader.iMeshVertexCount <= 0 || rIslandHeader.iMeshIndexCount <= 0 || rIslandHeader.iValidAreaVertexCount < 0)
+		{
+			throw common::CorruptStreamException("IslandTerrain::WaitForElevationMaps");
+		}
+
+		int64_t iBytesRemaining = rLazyChunk.header.iSize;
+		if (rIslandHeader.iHeightmapWidth > iBytesRemaining / static_cast<int64_t>(sizeof(uint16_t)) / rIslandHeader.iHeightmapHeight)
+		{
+			throw common::CorruptStreamException("IslandTerrain::WaitForElevationMaps");
+		}
+		int64_t iHeightmapBytes = static_cast<int64_t>(rIslandHeader.iHeightmapWidth) * rIslandHeader.iHeightmapHeight * static_cast<int64_t>(sizeof(uint16_t));
+		iBytesRemaining -= iHeightmapBytes;
+
+		auto consumeSection = [&iBytesRemaining](int64_t iElementCount, int64_t iElementBytes)
+		{
+			if (iElementCount > iBytesRemaining / iElementBytes)
+			{
+				throw common::CorruptStreamException("IslandTerrain::WaitForElevationMaps");
+			}
+			int64_t iSectionBytes = iElementCount * iElementBytes;
+			iBytesRemaining -= iSectionBytes;
+			return iSectionBytes;
+		};
+
+		[[maybe_unused]] int64_t iMeshPositionBytes = consumeSection(rIslandHeader.iMeshVertexCount, 2 * static_cast<int64_t>(sizeof(float)));
+		consumeSection(rIslandHeader.iMeshIndexCount, static_cast<int64_t>(sizeof(uint32_t)));
+		int64_t iValidAreaBytes = consumeSection(rIslandHeader.iValidAreaVertexCount, static_cast<int64_t>(sizeof(XMFLOAT2)));
+		if (iBytesRemaining != 0)
+		{
+			throw common::CorruptStreamException("IslandTerrain::WaitForElevationMaps");
+		}
+		int64_t iMeshBytes = rLazyChunk.header.iSize - iHeightmapBytes - iValidAreaBytes;
+
+		rTemplate.mpHeightmapHalf = reinterpret_cast<const uint16_t*>(rLazyChunk.pData);
+		rTemplate.miHeightmapWidth = rIslandHeader.iHeightmapWidth;
+		rTemplate.miHeightmapHeight = rIslandHeader.iHeightmapHeight;
+		rTemplate.miMeshVertexCount = rIslandHeader.iMeshVertexCount;
+		rTemplate.miMeshIndexCount = rIslandHeader.iMeshIndexCount;
+		rTemplate.miValidAreaVertexCount = rIslandHeader.iValidAreaVertexCount;
 		const std::byte* pAfterHeightmap = reinterpret_cast<const std::byte*>(rLazyChunk.pData) + iHeightmapBytes;
-		int64_t iMeshPositionBytes = static_cast<int64_t>(rTemplate.miMeshVertexCount) * 2 * static_cast<int64_t>(sizeof(float));
-		int64_t iMeshIndexBytes = static_cast<int64_t>(rTemplate.miMeshIndexCount) * static_cast<int64_t>(sizeof(uint32_t));
-		rTemplate.miValidAreaVertexCount = rLazyChunk.header.islandHeader.iValidAreaVertexCount;
-		int64_t iValidAreaBytes = static_cast<int64_t>(rTemplate.miValidAreaVertexCount) * static_cast<int64_t>(sizeof(XMFLOAT2));
-		// Defensive: header.iSize is the unpadded chunk-data payload size set by
-		// ExportJob::AllocateHeaderAndData. A stale float3-mesh pack file (pre-StripMeshZ) would
-		// carry 1.5x the expected mesh-position payload, walking mpuiMeshIndices into garbage.
-		// (Uncompressed chunks only — iUncompressedSize is zlib-only and stays 0 for islands.)
-		ASSERT(rLazyChunk.header.iSize == iHeightmapBytes + iMeshPositionBytes + iMeshIndexBytes + iValidAreaBytes);
-		rTemplate.mpf2ValidAreaVertices = reinterpret_cast<const XMFLOAT2*>(pAfterHeightmap + iMeshPositionBytes + iMeshIndexBytes);
+		rTemplate.mpf2ValidAreaVertices = reinterpret_cast<const XMFLOAT2*>(pAfterHeightmap + iMeshBytes);
 
 #if defined(BT_CLIENT)
-		// Mesh CPU pointers are client-only (feed the GPU mesh upload in CreateClientMeshBuffers).
+		// Mesh CPU pointers are client-only. The lazy-pool slice is reclaimed immediately and
+		// asynchronously restored only when this template gains a render slot.
 		rTemplate.mpfMeshPositions = reinterpret_cast<const float*>(pAfterHeightmap);
 		rTemplate.mpuiMeshIndices = reinterpret_cast<const uint32_t*>(pAfterHeightmap + iMeshPositionBytes);
+		gpFileManager->DecommitChunkRange(rCrc, static_cast<uint64_t>(iHeightmapBytes), static_cast<uint64_t>(iMeshBytes));
+		rTemplate.mbMeshCpuDecommitted = true;
 #endif
 
 #if defined(BT_SERVER)
 		// The server never reads the mesh CPU slice (no GPU upload, no device loss), so reclaim it immediately after
 		// load: decommit the [positions][indices] sub-range of the kIsland chunk. Heightmap (before, offset 0) and hull
 		// (after) stay resident — the server reads the heightmap for NavContour below and the hull for placement/nav.
-		gpFileManager->DecommitChunkRange(rCrc, static_cast<uint64_t>(iHeightmapBytes), static_cast<uint64_t>(iMeshPositionBytes + iMeshIndexBytes));
+		gpFileManager->DecommitChunkRange(rCrc, static_cast<uint64_t>(iHeightmapBytes), static_cast<uint64_t>(iMeshBytes));
 #endif
 	}
 

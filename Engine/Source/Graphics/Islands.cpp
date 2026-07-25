@@ -13,11 +13,21 @@ Islands::Islands()
 
 	gpIslands = this;
 
-	// Create per-template mesh buffers before any other render setup. CB record happens later in
-	// Graphics::Create after this ctor returns; the recorded CB binds every template's mesh, so
-	// they must exist now. WaitForElevationMaps (Main.cpp) populated mesh CPU pointers before
-	// Graphics ctor runs.
-	gpIslandTerrain->CreateClientMeshBuffers();
+	// The record-once terrain CB binds this arena once. Template mesh residency changes only its
+	// sub-allocation offsets in indirect commands, never this VkBuffer handle.
+	mIslandMeshArena.Create(
+	{
+		.name = "IslandMeshArena",
+		.flags = {BufferFlags::kIndexVertex, BufferFlags::kDeviceLocal},
+		.vkIndexType = VK_INDEX_TYPE_UINT32,
+		.iVertexStride = static_cast<int64_t>(2 * sizeof(float)),
+		.dataVkDeviceSize = kiIslandMeshArenaBytes,
+	});
+	VmaVirtualBlockCreateInfo vmaVirtualBlockCreateInfo
+	{
+		.size = kiIslandMeshArenaBytes,
+	};
+	CHECK_VK(vmaCreateVirtualBlock(&vmaVirtualBlockCreateInfo, &mIslandMeshVirtualBlock));
 
 	miTemplateCount = static_cast<int64_t>(gpIslandTerrain->mIslandCrcsSorted.size());
 	ASSERT(miTemplateCount > 0);
@@ -51,19 +61,17 @@ Islands::Islands()
 		// Baseline record: whole SSBO just zeroed, so no slots are stale — all last-written counts start at 0.
 		mLastWrittenCounts.at(iFramebuffer).resize(static_cast<size_t>(miTemplateCount), 0u);
 
-		// Per-template VkDrawIndexedIndirectCommand buffer. indexCount / firstIndex / vertexOffset /
-		// firstInstance baked here; instanceCount rewritten per frame to the mesh-visible prefix from
-		// UpdateActiveIslands.
+		// Per-template VkDrawIndexedIndirectCommand buffer. Residency writes indexCount / firstIndex /
+		// vertexOffset in the drained churn window; instanceCount is rewritten per frame by UpdateActiveIslands.
 		VmaAllocationInfo vmaAllocationInfo {};
 		Buffer::CreateBuffer("IslandsIndirect", vkIndirectSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIslandsIndirectVkBuffers.at(iFramebuffer), mIslandsIndirectVmaAllocations.at(iFramebuffer), &vmaAllocationInfo);
 		mppIslandsIndirectMapped.at(iFramebuffer) = static_cast<VkDrawIndexedIndirectCommand*>(vmaAllocationInfo.pMappedData);
 
 		for (int64_t iTemplate = 0; iTemplate < miTemplateCount; ++iTemplate)
 		{
-			const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(gpIslandTerrain->mIslandCrcsSorted[static_cast<size_t>(iTemplate)]);
 			mppIslandsIndirectMapped.at(iFramebuffer)[iTemplate] = VkDrawIndexedIndirectCommand
 			{
-				.indexCount = static_cast<uint32_t>(rTemplate.miMeshIndexCount),
+				.indexCount = 0,
 				.instanceCount = 0,
 				.firstIndex = 0,
 				.vertexOffset = 0,
@@ -75,6 +83,15 @@ Islands::Islands()
 
 Islands::~Islands()
 {
+	if (mIslandMeshVirtualBlock != VK_NULL_HANDLE)
+	{
+		vmaClearVirtualBlock(mIslandMeshVirtualBlock);
+		++muiMeshArenaCapacityGeneration;
+		vmaDestroyVirtualBlock(mIslandMeshVirtualBlock);
+		mIslandMeshVirtualBlock = VK_NULL_HANDLE;
+	}
+	mIslandMeshArena.Destroy();
+
 	// SSBO buffers (std::array<Buffer>) free via RAII; the manually-allocated indirect buffers do not.
 	for (int64_t iFramebuffer = 0; iFramebuffer < kiMaxFramebuffers; ++iFramebuffer)
 	{
@@ -89,6 +106,78 @@ Islands::~Islands()
 	if (gpIslands == this)
 	{
 		gpIslands = nullptr;
+	}
+}
+
+bool Islands::AllocateMeshRanges(VkDeviceSize vkIndexSize, VkDeviceSize vkVertexSize, VmaVirtualAllocation& rIndexAllocation, VkDeviceSize& rIndexOffset, VmaVirtualAllocation& rVertexAllocation, VkDeviceSize& rVertexOffset)
+{
+	ASSERT(mIslandMeshVirtualBlock != VK_NULL_HANDLE);
+
+	VmaVirtualAllocation vmaIndexAllocation = VK_NULL_HANDLE;
+	VkDeviceSize vkIndexOffset = 0;
+	VmaVirtualAllocationCreateInfo indexAllocationCreateInfo
+	{
+		.size = vkIndexSize,
+		.alignment = sizeof(uint32_t),
+	};
+	if (vmaVirtualAllocate(mIslandMeshVirtualBlock, &indexAllocationCreateInfo, &vmaIndexAllocation, &vkIndexOffset) != VK_SUCCESS)
+	{
+		return false;
+	}
+
+	VmaVirtualAllocation vmaVertexAllocation = VK_NULL_HANDLE;
+	VkDeviceSize vkVertexOffset = 0;
+	VmaVirtualAllocationCreateInfo vertexAllocationCreateInfo
+	{
+		.size = vkVertexSize,
+		.alignment = 2 * sizeof(float),
+	};
+	if (vmaVirtualAllocate(mIslandMeshVirtualBlock, &vertexAllocationCreateInfo, &vmaVertexAllocation, &vkVertexOffset) != VK_SUCCESS)
+	{
+		vmaVirtualFree(mIslandMeshVirtualBlock, vmaIndexAllocation);
+		return false;
+	}
+
+	rIndexAllocation = vmaIndexAllocation;
+	rIndexOffset = vkIndexOffset;
+	rVertexAllocation = vmaVertexAllocation;
+	rVertexOffset = vkVertexOffset;
+	return true;
+}
+
+void Islands::FreeMeshRanges(VmaVirtualAllocation vmaIndexAllocation, VmaVirtualAllocation vmaVertexAllocation)
+{
+	ASSERT(mIslandMeshVirtualBlock != VK_NULL_HANDLE);
+	ASSERT(vmaIndexAllocation != VK_NULL_HANDLE);
+	ASSERT(vmaVertexAllocation != VK_NULL_HANDLE);
+	vmaVirtualFree(mIslandMeshVirtualBlock, vmaIndexAllocation);
+	vmaVirtualFree(mIslandMeshVirtualBlock, vmaVertexAllocation);
+	++muiMeshArenaCapacityGeneration;
+}
+
+void Islands::UploadMesh(VkDeviceSize vkIndexOffset, const void* pIndexData, VkDeviceSize vkIndexSize, VkDeviceSize vkVertexOffset, const void* pVertexData, VkDeviceSize vkVertexSize)
+{
+	ASSERT(vkIndexOffset <= kiIslandMeshArenaBytes && vkIndexSize <= kiIslandMeshArenaBytes - vkIndexOffset);
+	ASSERT(vkVertexOffset <= kiIslandMeshArenaBytes && vkVertexSize <= kiIslandMeshArenaBytes - vkVertexOffset);
+	DeviceLocalBufferUpload uploads[]
+	{
+		{.pData = pIndexData, .vkDestinationOffset = vkIndexOffset, .vkSize = vkIndexSize},
+		{.pData = pVertexData, .vkDestinationOffset = vkVertexOffset, .vkSize = vkVertexSize},
+	};
+	Buffer::UploadToDeviceLocal(mIslandMeshArena.mDeviceLocalVkBuffer, uploads);
+}
+
+void Islands::WriteMeshIndirect(int64_t iTemplate, VkDeviceSize vkIndexOffset, VkDeviceSize vkVertexOffset, uint32_t uiIndexCount)
+{
+	ASSERT(iTemplate >= 0 && iTemplate < miTemplateCount);
+	ASSERT(vkIndexOffset % sizeof(uint32_t) == 0);
+	ASSERT(vkVertexOffset % (2 * sizeof(float)) == 0);
+	for (int64_t iFramebuffer = 0; iFramebuffer < kiMaxFramebuffers; ++iFramebuffer)
+	{
+		VkDrawIndexedIndirectCommand& rIndirect = mppIslandsIndirectMapped.at(iFramebuffer)[iTemplate];
+		rIndirect.indexCount = uiIndexCount;
+		rIndirect.firstIndex = static_cast<uint32_t>(vkIndexOffset / sizeof(uint32_t));
+		rIndirect.vertexOffset = static_cast<int32_t>(vkVertexOffset / (2 * sizeof(float)));
 	}
 }
 

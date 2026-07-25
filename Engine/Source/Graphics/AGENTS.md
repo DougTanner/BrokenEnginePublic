@@ -17,7 +17,7 @@ Client-only multi-pass Vulkan renderer. `gpGraphics` owns renderer-wide creation
 - `CameraBase` owns matrices, world/screen projection, visible-area LOD, and grid-snapped render extents. Game code derives `Camera` from it.
 - Visible-area edges snap to the water quad grid. Zoom and LOD use hysteretic buckets so quad size remains stable across adjacent frames; terrain, water, shadow, and lighting areas must preserve this shared grid contract.
 - Shadow and lighting texel sizes track independent rate-limited camera heights. Their headroom textures and temporal accumulation tolerate zoom transitions without changing settled on-screen density.
-- Terrain rendering uses boot-fixed island templates and per-framebuffer instance storage. One indirect command per template receives its instance count each frame; the template set has no capacity-growth re-record path.
+- Terrain rendering uses boot-fixed island templates, a stable 64 MiB mesh arena, and per-framebuffer instance and indirect storage. The record-once terrain command buffer binds the arena handle once; drained residency updates publish or revoke each template's arena subrange through indirect records, never by replacing that handle or re-recording. Zero every framebuffer's indirect record before returning arena subranges for reuse. Arena teardown invalidates every suballocation, while File-owned asynchronous range state survives.
 - Terrain collision belongs to shared Frame island terrain (`../Frame/AGENTS.md`), not this client renderer.
 
 ## Assets and Capture

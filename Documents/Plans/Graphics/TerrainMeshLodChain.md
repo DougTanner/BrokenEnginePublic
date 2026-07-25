@@ -1,4 +1,4 @@
-<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-03T02:45:42.000Z","dependsOn":["Documents/Plans/Graphics/IslandMeshArenaResidency.md"]} -->
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-03T02:45:42.000Z","dependsOn":[]} -->
 # Terrain Mesh LOD Chain (per-template, indirect-selected)
 
 ## Context

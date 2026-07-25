@@ -48,11 +48,19 @@ struct BufferInfo
 	VkDeviceSize iElementSize = 0; // Size of each element for type-safe access
 };
 
+struct DeviceLocalBufferUpload
+{
+	const void* pData = nullptr;
+	VkDeviceSize vkDestinationOffset = 0;
+	VkDeviceSize vkSize = 0;
+};
+
 class Buffer
 {
 public:
 
 	static void CreateBuffer(std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VmaAllocation& rVmaAllocation, VmaAllocationInfo* pVmaAllocationInfo = nullptr);
+	static void UploadToDeviceLocal(VkBuffer vkDeviceLocalBuffer, std::span<const DeviceLocalBufferUpload> uploads);
 	static void RecordBarriers(VkCommandBuffer vkCommandBuffer, const BarrierInfo* pBarriers, int64_t iBarrierCount);
 
 	Buffer() = default;

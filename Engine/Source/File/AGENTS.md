@@ -12,6 +12,7 @@
 
 - Client Scene, Model, Shader, and Raw packs are eager. Audio, Islands, and Texture packs are lazy; the server opens only its accepted lazy types. Keep the server/eager split aligned with DataPacker output ownership.
 - Lazy requests run on background loaders and publish chunk state with release/acquire ordering. `WaitForChunks` may block for readiness, but an already queued request is not reprioritized.
+- Each `LazyChunk` owns state for at most one asynchronous reload of an uncompressed subrange. Publish its exact range before the pending release-store; consumers acquire the terminal state and only reset their own ready or failed range, never a pending one.
 - Audio performs random-access reads without making the whole chunk resident. Texture chunks continue from disk load through `TextureUploadManager`; device loss and island eviction reset GPU state without changing the lazy-pool layout.
 - Pack and manifest files are trust boundaries. Invalid required boot structure is fatal; per-chunk read or decompression corruption reports the failure, publishes completion, and leaves the worker and waiters live.
 

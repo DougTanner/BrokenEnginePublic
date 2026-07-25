@@ -417,7 +417,7 @@ void PackChunks::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPrior
 				//   so a workbuffer (frame-scoped) can't own them, and the queue grows/shrinks unpredictably
 				ScopedSuppressAllocationTracking suppress;
 
-				mRequestQueue.push({crc, ePriority});
+				mRequestQueue.push({crc, ePriority, LoadRequestKind::kWholeChunk});
 				rLazyChunk.eState.store(ChunkState::kLoadRequested, std::memory_order_release);
 				bAddedAny = true;
 			}
@@ -432,6 +432,80 @@ void PackChunks::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPrior
 		// any woken with nothing left to pop simply returns to wait (a cheap, harmless spurious wakeup).
 		mWakeCondition.notify_all();
 	}
+}
+
+void PackChunks::RequestChunkRangeReload(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength, LoadPriority ePriority)
+{
+	bool bAdded = false;
+
+	{
+		std::unique_lock lock(mQueueMutex);
+		LazyChunk& rLazyChunk = mLazyChunkMap.at(crc);
+		ChunkRangeReloadState eState = rLazyChunk.eRangeReloadState.load(std::memory_order_acquire);
+		if (eState != ChunkRangeReloadState::kIdle)
+		{
+			// One LazyChunk owns one active range request. Consumers must reset its terminal state before selecting
+			// another range, which prevents a late consumer from observing or resetting a different reload.
+			ASSERT(rLazyChunk.uiRangeReloadOffset == uiOffset && rLazyChunk.uiRangeReloadLength == uiLength);
+			return;
+		}
+
+		ASSERT(!common::IsCompressed(rLazyChunk.header.flags));
+		ASSERT(rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kReady);
+		rLazyChunk.uiRangeReloadOffset = uiOffset;
+		rLazyChunk.uiRangeReloadLength = uiLength;
+		{
+			// Heap: priority_queue insertion may allocate. The request must remain alive until a loading thread pops it.
+			ScopedSuppressAllocationTracking suppress;
+			mRequestQueue.push({crc, ePriority, LoadRequestKind::kRangeReload, uiOffset, uiLength});
+		}
+		// The loading thread cannot pop until mQueueMutex unlocks. This release-store publishes the range metadata
+		// together with the queued request, so an acquire state read observes the exact request it polls.
+		rLazyChunk.eRangeReloadState.store(ChunkRangeReloadState::kPending, std::memory_order_release);
+		bAdded = true;
+	}
+
+	if (bAdded)
+	{
+		mWakeCondition.notify_all();
+	}
+}
+
+ChunkRangeReloadState PackChunks::GetChunkRangeReloadState(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength) const
+{
+	std::unique_lock lock(mQueueMutex);
+	const LazyChunk& rLazyChunk = mLazyChunkMap.at(crc);
+	ChunkRangeReloadState eState = rLazyChunk.eRangeReloadState.load(std::memory_order_acquire);
+	if (eState != ChunkRangeReloadState::kIdle)
+	{
+		ASSERT(rLazyChunk.uiRangeReloadOffset == uiOffset && rLazyChunk.uiRangeReloadLength == uiLength);
+	}
+	return eState;
+}
+
+void PackChunks::ResetChunkRangeReloadState(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength)
+{
+	std::unique_lock lock(mQueueMutex);
+	LazyChunk& rLazyChunk = mLazyChunkMap.at(crc);
+	ChunkRangeReloadState eState = rLazyChunk.eRangeReloadState.load(std::memory_order_acquire);
+	if (eState == ChunkRangeReloadState::kPending)
+	{
+		ASSERT(false); // A pending range can still be writing into the lazy pool.
+		return;
+	}
+	if (eState == ChunkRangeReloadState::kIdle)
+	{
+		return;
+	}
+	if (rLazyChunk.uiRangeReloadOffset != uiOffset || rLazyChunk.uiRangeReloadLength != uiLength)
+	{
+		ASSERT(false); // A consumer may only reset its own completed request.
+		return;
+	}
+
+	rLazyChunk.uiRangeReloadOffset = 0;
+	rLazyChunk.uiRangeReloadLength = 0;
+	rLazyChunk.eRangeReloadState.store(ChunkRangeReloadState::kIdle, std::memory_order_release);
 }
 
 void PackChunks::WaitForChunks(std::span<const common::crc_t> crcs)
@@ -486,7 +560,16 @@ void PackChunks::LoadingThread(int64_t iThreadIndex)
 			mRequestQueue.pop();
 		}
 
-		LoadChunk(loadRequest, iThreadIndex);
+		if (loadRequest.eKind == LoadRequestKind::kRangeReload)
+		{
+			LazyChunk& rLazyChunk = mLazyChunkMap.at(loadRequest.crc);
+			bool bReloaded = RecommitAndReloadChunkRange(loadRequest.crc, loadRequest.uiOffset, loadRequest.uiLength);
+			rLazyChunk.eRangeReloadState.store(bReloaded ? ChunkRangeReloadState::kReady : ChunkRangeReloadState::kFailed, std::memory_order_release);
+		}
+		else
+		{
+			LoadChunk(loadRequest, iThreadIndex);
+		}
 	}
 }
 

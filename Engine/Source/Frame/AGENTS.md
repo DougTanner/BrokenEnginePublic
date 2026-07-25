@@ -23,6 +23,7 @@ Update Frame Update Pipeline (`../../../Documents/Architecture/FrameUpdatePipeli
 
 - World cells use deterministic island placement and rotation. Keep world/local transforms and the project's west/east/north/south convention consistent across CPU sampling and shaders.
 - GPU elevation readback uses the renderer's configured linear sampling path; CPU elevation uses packed height data. Do not assert stronger external format guarantees here.
+- Client terrain residency keeps the shared heightmap and hull resident but decommits each template's CPU mesh slice whenever it is not being restored. Coordinate texture and mesh restoration or eviction only in the renderer's drained churn window; this visual residency stays outside deterministic CRCs. Renderer teardown invalidates its mesh allocations without cancelling File-owned range-reload state.
 - Navigation version changes invalidate derived data and contribute to the game frame version.
 
 ## See Also

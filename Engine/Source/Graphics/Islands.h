@@ -17,6 +17,7 @@ struct GridCoord;
 // (with an assert) any excess rather than corrupting neighbouring template ranges. Total SSBO memory =
 // N_templates × 1024 × sizeof(AxisAlignedQuadLayout); negligible.
 inline constexpr int64_t kiMaxPlacementsPerTemplate = 1024;
+inline constexpr VkDeviceSize kiIslandMeshArenaBytes = 64ull * 1024ull * 1024ull;
 
 // The SSBO and indirect buffers are triple-buffered (one instance per framebuffer index, sized by
 // kiMaxFramebuffers from Managers/BufferManager.h): UpdateActiveIslands (immediately before RenderGlobal) writes
@@ -34,7 +35,15 @@ public:
 	Islands();
 	~Islands();
 
+	bool AllocateMeshRanges(VkDeviceSize vkIndexSize, VkDeviceSize vkVertexSize, VmaVirtualAllocation& rIndexAllocation, VkDeviceSize& rIndexOffset, VmaVirtualAllocation& rVertexAllocation, VkDeviceSize& rVertexOffset);
+	void FreeMeshRanges(VmaVirtualAllocation vmaIndexAllocation, VmaVirtualAllocation vmaVertexAllocation);
+	void UploadMesh(VkDeviceSize vkIndexOffset, const void* pIndexData, VkDeviceSize vkIndexSize, VkDeviceSize vkVertexOffset, const void* pVertexData, VkDeviceSize vkVertexSize);
+	void WriteMeshIndirect(int64_t iTemplate, VkDeviceSize vkIndexOffset, VkDeviceSize vkVertexOffset, uint32_t uiIndexCount);
+
 	void UpdateActiveIslands(const std::unordered_map<GridCoord, CoordFrames>& rFrames, std::span<const GridCoord> rActiveCoords);
+
+	Buffer mIslandMeshArena;
+	uint64_t muiMeshArenaCapacityGeneration = 0;
 
 	// One SSBO per framebuffer index. Each is indexed by [T_array_index * kiMaxPlacementsPerTemplate + n]
 	// where T_array_index is the template's index in gpIslandTerrain->mIslandCrcsSorted (fixed at boot).
@@ -43,9 +52,9 @@ public:
 	// in-flight frame's GPU read never races the host rewrite of the instance the current frame consumes.
 	std::array<Buffer, kiMaxFramebuffers> mIslandsStorageBuffers;
 
-	// One per-template VkDrawIndexedIndirectCommand buffer per framebuffer index. indexCount / firstIndex /
-	// vertexOffset / firstInstance are baked once at boot into every instance; instanceCount is rewritten to
-	// the mesh-visible prefix per frame by UpdateActiveIslands in the acquired framebuffer's instance only.
+	// One per-template VkDrawIndexedIndirectCommand buffer per framebuffer index. Mesh residency rewrites
+	// indexCount / firstIndex / vertexOffset in every instance; instanceCount is rewritten to the mesh-visible
+	// prefix per frame by UpdateActiveIslands in the acquired framebuffer's instance only.
 	// Allocated manually (Buffer wrapper has no INDIRECT_BUFFER_BIT path); mirrors Pipeline's
 	// mIndirectVkBuffer pattern in SetupIndirectBuffer (Engine/Source/Graphics/Objects/PipelineCreator.cpp).
 	std::array<VkBuffer, kiMaxFramebuffers> mIslandsIndirectVkBuffers {};
@@ -62,6 +71,10 @@ public:
 	// vector is sized to miTemplateCount once in the ctor (boot, outside allocation tracking) and stays
 	// zero-initialized to match the ctor's baseline full memset.
 	std::array<std::vector<uint32_t>, kiMaxFramebuffers> mLastWrittenCounts;
+
+private:
+
+	VmaVirtualBlock mIslandMeshVirtualBlock = VK_NULL_HANDLE;
 };
 
 inline Islands* gpIslands = nullptr;

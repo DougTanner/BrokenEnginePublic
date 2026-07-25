@@ -768,9 +768,8 @@ bool Graphics::Destroy()
 		gpTextureUploadManager->DestroyTransferResources();
 		// Reset lazy-loaded texture chunk states so they reload after device recreation
 		gpFileManager->ResetTextureChunkStates();
-		// IslandTerrain is game-frame-owned (outlives Graphics) but its IslandTemplate::mMeshBuffer
-		// allocations came from this allocator. Release them before mpDeviceManager.reset() to avoid
-		// the VMA "allocations not freed before destruction" assertion on shutdown.
+		// IslandTerrain is game-frame-owned (outlives Graphics); mesh arena allocations belong to Islands,
+		// which was destroyed above before mpDeviceManager.reset(). Release only template-owned resources here.
 		if (gpIslandTerrain != nullptr)
 		{
 			gpIslandTerrain->ReleaseGpuResources();

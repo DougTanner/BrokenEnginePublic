@@ -61,6 +61,41 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize v
 	}
 }
 
+void Buffer::UploadToDeviceLocal(VkBuffer vkDeviceLocalBuffer, std::span<const DeviceLocalBufferUpload> uploads)
+{
+	ASSERT(vkDeviceLocalBuffer != VK_NULL_HANDLE);
+	ASSERT(!uploads.empty());
+
+	VkDeviceSize vkStagingSize = 0;
+	for (const DeviceLocalBufferUpload& rUpload : uploads)
+	{
+		ASSERT(rUpload.pData != nullptr);
+		ASSERT(rUpload.vkSize > 0);
+		vkStagingSize += rUpload.vkSize;
+	}
+
+	StagingBuffer stagingBuffer("BufferUpload", vkStagingSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	common::ScopedWorkbufferArena scopedWorkbufferArena = common::gpThreadLocal->mWorkbuffer.Push();
+	auto pCopies = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkBufferCopy*>(uploads.size() * sizeof(VkBufferCopy));
+	VkDeviceSize vkStagingOffset = 0;
+	for (size_t iUpload = 0; iUpload < uploads.size(); ++iUpload)
+	{
+		const DeviceLocalBufferUpload& rUpload = uploads[iUpload];
+		std::memcpy(static_cast<std::byte*>(stagingBuffer.vmaAllocationInfo.pMappedData) + vkStagingOffset, rUpload.pData, static_cast<size_t>(rUpload.vkSize));
+		pCopies[iUpload] =
+		{
+			.srcOffset = vkStagingOffset,
+			.dstOffset = rUpload.vkDestinationOffset,
+			.size = rUpload.vkSize,
+		};
+		vkStagingOffset += rUpload.vkSize;
+	}
+
+	OneShotCommandBuffer oneShotCommandBuffer;
+	vkCmdCopyBuffer(oneShotCommandBuffer.mVkCommandBuffer, stagingBuffer.vkBuffer, vkDeviceLocalBuffer, static_cast<uint32_t>(uploads.size()), pCopies);
+	oneShotCommandBuffer.Execute();
+}
+
 StagingBuffer::StagingBuffer(std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags)
 {
 	Buffer::CreateBuffer(name, vkDeviceSize, vkBufferUsageFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkBuffer, vmaAllocation, &vmaAllocationInfo);
@@ -228,7 +263,7 @@ void Buffer::Create(const BufferInfo& rInfo, const std::function<void(void*)>& r
 		Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mDeviceLocalVkBuffer, mDeviceLocalVmaAllocation);
 	}
 
-	if (mInfo.flags & kDeviceLocal)
+	if (mInfo.flags & kDeviceLocal && rDataFunction != nullptr)
 	{
 		// Copy to host visible staging buffer
 		StagingBuffer stagingBuffer(mInfo.name, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);

@@ -40,6 +40,9 @@ public:
 
 	void DecommitChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength);
 	[[nodiscard]] bool RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength);
+	void RequestChunkRangeReload(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength, LoadPriority ePriority);
+	ChunkRangeReloadState GetChunkRangeReloadState(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength) const;
+	void ResetChunkRangeReloadState(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength);
 
 	// Memory profiling
 	MemoryStats GetEagerStats() const;

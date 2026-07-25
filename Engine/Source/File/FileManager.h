@@ -36,6 +36,16 @@ enum class ChunkState : uint32_t
 	kReady = 5,
 };
 
+// Completion state for one asynchronously reloaded sub-range of a lazy chunk. The range metadata and state are
+// owned by LazyChunk so a completion never depends on a caller-owned object surviving the loading thread.
+enum class ChunkRangeReloadState : uint32_t
+{
+	kIdle = 0,
+	kPending = 1,
+	kReady = 2,
+	kFailed = 3,
+};
+
 // Movable atomic wrapper (std::atomic deletes copy/move, breaking aggregate types in containers)
 struct MovableAtomicChunkState
 {
@@ -51,6 +61,33 @@ struct MovableAtomicChunkState
 	ChunkState load(std::memory_order order = std::memory_order_seq_cst) const { return value.load(order); }
 };
 
+// Movable atomic wrapper for a lazy chunk's asynchronous range-reload completion state.
+struct MovableAtomicChunkRangeReloadState
+{
+	std::atomic<ChunkRangeReloadState> value {ChunkRangeReloadState::kIdle};
+
+	MovableAtomicChunkRangeReloadState() = default;
+	MovableAtomicChunkRangeReloadState(const MovableAtomicChunkRangeReloadState& rOther)
+		: value(rOther.value.load(std::memory_order_relaxed))
+	{
+	}
+	MovableAtomicChunkRangeReloadState(MovableAtomicChunkRangeReloadState&& rOther) noexcept
+		: value(rOther.value.load(std::memory_order_relaxed))
+	{
+	}
+	MovableAtomicChunkRangeReloadState& operator=(const MovableAtomicChunkRangeReloadState&) = delete;
+	MovableAtomicChunkRangeReloadState& operator=(MovableAtomicChunkRangeReloadState&&) = delete;
+
+	void store(ChunkRangeReloadState eVal, std::memory_order order = std::memory_order_seq_cst)
+	{
+		value.store(eVal, order);
+	}
+	ChunkRangeReloadState load(std::memory_order order = std::memory_order_seq_cst) const
+	{
+		return value.load(order);
+	}
+};
+
 struct LazyChunk
 {
 	common::ChunkLocation location;                   // Manifest entry for pack offset, size, path CRC, and content CRC
@@ -59,6 +96,12 @@ struct LazyChunk
 
 	std::byte* pData = nullptr;                       // Points into the pre-allocated lazy pool (null until assigned)
 	int64_t iDataSize = 0;
+
+	// One asynchronous recommit/reload range. Its offset and length are written before the pending release-store
+	// and remain stable until the consumer resets a ready or failed terminal state.
+	uint64_t uiRangeReloadOffset = 0;
+	uint64_t uiRangeReloadLength = 0;
+	MovableAtomicChunkRangeReloadState eRangeReloadState {};
 
 	// GPU upload results (written by upload thread, read by main thread)
 	VkImage vkImage = VK_NULL_HANDLE;
@@ -74,10 +117,19 @@ enum class LoadPriority : uint32_t
 	kRealtime = 3,
 };
 
+enum class LoadRequestKind : uint32_t
+{
+	kWholeChunk,
+	kRangeReload,
+};
+
 struct LoadRequest
 {
 	common::crc_t crc;
 	LoadPriority ePriority;
+	LoadRequestKind eKind = LoadRequestKind::kWholeChunk;
+	uint64_t uiOffset = 0;
+	uint64_t uiLength = 0;
 
 	// Priority queue needs comparison operator
 	bool operator<(const LoadRequest& rOther) const
@@ -151,6 +203,12 @@ public:
 	// Returns true on success; false on soft-fail (MEM_COMMIT failure / pack-open failure / short read). On false the
 	// caller must NOT read the range — the interior may be decommitted or hold partial data.
 	[[nodiscard]] bool RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength);
+	// Queues a single uncompressed lazy-chunk range for background recommit/reload. Same-range requests deduplicate
+	// while pending or ready; a failed request stays failed until its consumer resets it. State reads acquire the
+	// worker's ready/failed publication, and reset refuses a pending request so it cannot invalidate an in-flight reload.
+	void RequestChunkRangeReload(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength, LoadPriority ePriority = LoadPriority::kNormal);
+	ChunkRangeReloadState GetChunkRangeReloadState(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength) const;
+	void ResetChunkRangeReloadState(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength);
 
 	// Memory profiling
 	MemoryStats GetEagerStats() const;

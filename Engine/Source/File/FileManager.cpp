@@ -254,6 +254,21 @@ bool FileManager::RecommitAndReloadChunkRange(common::crc_t crc, uint64_t uiOffs
 	return mpPackChunks->RecommitAndReloadChunkRange(crc, uiOffset, uiLength);
 }
 
+void FileManager::RequestChunkRangeReload(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength, LoadPriority ePriority)
+{
+	mpPackChunks->RequestChunkRangeReload(crc, uiOffset, uiLength, ePriority);
+}
+
+ChunkRangeReloadState FileManager::GetChunkRangeReloadState(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength) const
+{
+	return mpPackChunks->GetChunkRangeReloadState(crc, uiOffset, uiLength);
+}
+
+void FileManager::ResetChunkRangeReloadState(common::crc_t crc, uint64_t uiOffset, uint64_t uiLength)
+{
+	mpPackChunks->ResetChunkRangeReloadState(crc, uiOffset, uiLength);
+}
+
 MemoryStats FileManager::GetEagerStats() const
 {
 	return mpPackChunks->GetEagerStats();

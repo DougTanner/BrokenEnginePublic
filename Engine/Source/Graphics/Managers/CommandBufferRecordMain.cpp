@@ -391,19 +391,18 @@ void CommandBufferRecordMain::RecordImageRenderPass(VkCommandBuffer vkCommandBuf
 
 		gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
 		// Per-template terrain draws: one indirect draw per IslandTemplate (count fixed at boot
-		// from gpIslandTerrain->mIslandCrcsSorted). Each template's Gaea2 Mesher mesh is bound,
-		// and vkCmdDrawIndexedIndirect reads the per-template VkDrawIndexedIndirectCommand whose
-		// instanceCount is rewritten each frame to Islands::UpdateActiveIslands' mesh-visible prefix.
+		// from gpIslandTerrain->mIslandCrcsSorted). The stable arena is bound once; each indirect
+		// command supplies its resident template's index and vertex offsets.
 		// firstInstance is baked at boot to iTemplate*kiMaxPlacementsPerTemplate so Terrain.vert's
 		// pQuads[gl_InstanceIndex] lookups land in the right per-template SSBO range. Inactive templates have
 		// instanceCount=0 → zero draws issued. Record-once: CB never needs re-record on
 		// subscription changes.
 		pPipelines[kPipelineTerrain].RecordBindPipelineAndDescriptors(iCommandBuffer, vkCommandBuffer);
+		vkCmdBindIndexBuffer(vkCommandBuffer, gpIslands->mIslandMeshArena.mDeviceLocalVkBuffer, 0, VK_INDEX_TYPE_UINT32);
+		VkDeviceSize vkVertexOffset = 0;
+		vkCmdBindVertexBuffers(vkCommandBuffer, 0, 1, &gpIslands->mIslandMeshArena.mDeviceLocalVkBuffer, &vkVertexOffset);
 		for (int64_t iTemplate = 0; iTemplate < gpIslands->miTemplateCount; ++iTemplate)
 		{
-			IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(gpIslandTerrain->mIslandCrcsSorted[static_cast<size_t>(iTemplate)]);
-			ASSERT(rTemplate.mMeshBuffer.mDeviceLocalVkBuffer != VK_NULL_HANDLE);
-			rTemplate.mMeshBuffer.RecordBindVertexBuffer(vkCommandBuffer);
 			vkCmdDrawIndexedIndirect(vkCommandBuffer, gpIslands->mIslandsIndirectVkBuffers.at(iFramebuffer), static_cast<VkDeviceSize>(iTemplate) * sizeof(VkDrawIndexedIndirectCommand), 1, sizeof(VkDrawIndexedIndirectCommand));
 		}
 		gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
