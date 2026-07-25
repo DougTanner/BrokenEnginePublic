@@ -8,14 +8,11 @@ namespace engine
 struct CoordFrames;
 struct GridCoord;
 
-// Per-template SSBO range size. IslandChainPlacement draws each per-cell role (Huge anchor / Large+Medium
-// chain / Small surround) from a different size bucket, so the same template repeating across the whole
-// active ring is unlikely; but with only a handful of distinct small assets a single small template can
-// recur heavily. The surround rings every big island (~6) with perimeter-many smalls, so a cell can place
-// ~100 islands; if they all landed on one scarce small template that is ~100 x the 9-cell ring ~= 900
-// before overlap rejection trims it. 1024 covers that worst case, and Islands.cpp's overflow guard skips
-// (with an assert) any excess rather than corrupting neighbouring template ranges. Total SSBO memory =
-// N_templates × 1024 × sizeof(AxisAlignedQuadLayout); negligible.
+// Fixed per-template SSBO capacity. Islands.cpp throws on placements beyond 1024 before writing into the
+// next template's range. Resident allocation is kiMaxFramebuffers × N_templates × 1024 ×
+// sizeof(AxisAlignedQuadLayout): the captured 70-template set uses 17,203,200 bytes (16.40625 MiB). This
+// accepts the smallest/lowest-priority resident bucket to avoid churn in fixed-slot per-framebuffer and
+// record-once-command-buffer paths.
 inline constexpr int64_t kiMaxPlacementsPerTemplate = 1024;
 inline constexpr VkDeviceSize kiIslandMeshArenaBytes = 64ull * 1024ull * 1024ull;
 
