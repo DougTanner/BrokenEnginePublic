@@ -278,22 +278,18 @@ void ReconcileReplayCoord(CoordWork& rWork, int64_t iReplayStart, int64_t iRollb
 		}
 	}
 
-	// Record physical ring index of new confirmed frame
+	// Record the replay output layout with the confirmed frame at its head.
 	if (rScratch.iLastValidatedIndex >= 0)
 	{
 		if (rScratch.iLastValidatedIndex == 0)
 		{
-			rScratch.iNewConfirmedOffset = SnapshotIndex(rFrames.iSnapshotHead, iRollbackOffset);
+			rScratch.outputLayout.iHead = SnapshotIndex(rFrames.iSnapshotHead, iRollbackOffset);
 		}
 		else
 		{
-			rScratch.iNewConfirmedOffset = SnapshotIndex(rScratch.iReplayWriteHead, rScratch.iLastValidatedIndex - 1);
+			rScratch.outputLayout.iHead = SnapshotIndex(rScratch.iReplayWriteHead, rScratch.iLastValidatedIndex - 1);
 		}
-		// Replay head points directly at the confirmed frame — clear any retention delta left by
-		// this run's fast-path walk (CrcApplyMatchResult), otherwise writeback commits an
-		// iSnapshotHead/iConfirmedOffset pair whose next full rollback seeds replay from the frame
-		// kiRenderBehindTicks past confirmed, producing a false desync.
-		rScratch.iNewConfirmedInnerOffset = 0;
+		rScratch.outputLayout.iConfirmedInner = 0;
 	}
 }
 

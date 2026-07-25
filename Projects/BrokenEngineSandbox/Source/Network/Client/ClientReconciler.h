@@ -40,6 +40,15 @@ enum class ReconcileScratchFlags : uint8_t
 	kSuppressRepeatLogs = 0x10,
 };
 
+struct RingLayout
+{
+	int64_t iHead = -1;
+	int64_t iCount = 0;
+	int64_t iConfirmedInner = 0;
+};
+
+RingLayout ComputeRetention(int64_t iHeadPhysical, int64_t iSnapshotCount, int64_t iConfirmedIndex);
+
 struct CoordScratch
 {
 	std::vector<Frame*> replayStack;
@@ -48,9 +57,7 @@ struct CoordScratch
 	int64_t iReplayWriteCount = 0;
 	int64_t iLastValidatedIndex = -1;
 	int64_t iNewConfirmedTick = -1;
-	int64_t iNewConfirmedOffset = -1;       // physical ring index of the new head (NOT necessarily confirmed)
-	int64_t iNewConfirmedInnerOffset = 0;   // offset from new head to the confirmed frame; equals kiRenderBehindTicks when render-retention is applied
-	int64_t iOutputCount = 0;
+	RingLayout outputLayout;
 	common::Flags<ReconcileScratchFlags> flags;
 	int64_t iPreReconcileTailTick = -1;
 	ReconcileProfiling profiling;
@@ -69,9 +76,7 @@ struct CoordScratch
 		iReplayWriteCount = 0;
 		iLastValidatedIndex = -1;
 		iNewConfirmedTick = -1;
-		iNewConfirmedOffset = -1;
-		iNewConfirmedInnerOffset = 0;
-		iOutputCount = 0;
+		outputLayout = {};
 		flags.ClearAll();
 		iPreReconcileTailTick = -1;
 		profiling = {};

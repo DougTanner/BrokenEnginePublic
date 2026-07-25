@@ -27,12 +27,9 @@ static bool FindMatchingPlayerInCoord(std::span<const CoordWork> works, engine::
 		{
 			pDestFrame = rDestScratch.replayStack[rDestScratch.iReplayStackCount - 1];
 		}
-		else if ((rDestScratch.flags & ReconcileScratchFlags::kCrcFastPath) && rDestScratch.iNewConfirmedOffset >= 0)
+		else if ((rDestScratch.flags & ReconcileScratchFlags::kCrcFastPath) && rDestScratch.outputLayout.iHead >= 0)
 		{
-			// iNewConfirmedOffset is the new HEAD (may sit kiRenderBehindTicks slots before the
-			// confirmed frame when render-behind retention is active); iNewConfirmedInnerOffset
-			// is the delta from that head to the confirmed frame.
-			int64_t iConfirmedPhysical = SnapshotIndex(rDestScratch.iNewConfirmedOffset, rDestScratch.iNewConfirmedInnerOffset);
+			int64_t iConfirmedPhysical = SnapshotIndex(rDestScratch.outputLayout.iHead, rDestScratch.outputLayout.iConfirmedInner);
 			pDestFrame = rDestFrames.snapshots[iConfirmedPhysical].get();
 		}
 		if (pDestFrame == nullptr)

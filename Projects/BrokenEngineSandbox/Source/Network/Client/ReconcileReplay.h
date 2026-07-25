@@ -2,6 +2,8 @@
 
 #if defined(BT_CLIENT)
 
+#include "Network/Client/ClientReconciler.h"
+
 namespace game
 {
 
@@ -13,6 +15,7 @@ struct StatusChange;
 struct CrcFastPathCoordResult
 {
 	bool bHandled = true;
+	RingLayout preWritebackLayout;
 	// Set only when bHandled == false. The lowest tick > post-walk iConfirmedTick whose ring
 	// frame sharedCrc did not match its server update — used by ReconcileCoord to shrink the
 	// full-replay rollback window. -1 when no mismatch is pending (e.g., fast path was blocked
