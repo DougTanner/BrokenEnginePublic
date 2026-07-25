@@ -29,10 +29,12 @@ second opinion, or a focused correction/retest.
 A final-evidence gate (root `AGENTS.md` definition) returns the `/verify-changes`
 acceptance table inline — one row per criterion
 (`criterion | decisive check | status | evidence`), the changed-file list, and
-residuals. There is no report artifact, hash, or manifest range to forward;
-`/finalize-changes` consumes the inline result. Intermediate delegates never
-produce compact envelopes, hashes, IDs, dependency graphs, or evidence
-locators.
+residuals, plus the fixed baseline and the inline final manifest carrying each
+entry's mode and content identity, which `/finalize-changes` recomputes and
+compares before it commits. There is no report artifact or manifest range to
+forward; `/finalize-changes` consumes the inline result. Apart from that manifest
+column, intermediate delegates never produce compact envelopes, hashes, IDs,
+dependency graphs, or evidence locators.
 
 ## Liveness and interruption
 

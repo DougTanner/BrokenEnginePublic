@@ -56,7 +56,7 @@ prose boundaries because frontmatter must not alter the calling context.
    region. Anchor every search to a plan claim: callers, mirrors, cited-type
    headers, or affected-site hunts. Do not explore unrelated plans/subsystems.
 2. Verify structural assumptions, call sites, mirrored client/server paths, ownership, data layout, frame phase, threading, determinism, serialization, build wiring, and runtime verification where relevant.
-3. Hunt unresolved options, hidden behavior changes, contradictions, magic defaults, undeclared invariant exposure, missing affected locations, ungrounded requirements or checks, and scope that duplicates an existing mechanism.
+3. Hunt unresolved options, hidden behavior changes, contradictions, magic defaults, undeclared invariant exposure, missing affected locations, ungrounded requirements or checks, scope that duplicates an existing mechanism, and any file the plan's own `## Coordination` section obliges the implementer to edit yet its scope contract omits.
 4. Ground corrections in user intent, repository contract, or necessary
    integration. Prefer reuse, narrower scope, missing propagation/verification,
    or replacement of an invalid step; otherwise report the user decision.

@@ -33,12 +33,16 @@ role already resolves to Sol.
    - (a) role instruction naming the target skill to read and execute
    - (b) exact scope — files/regions and risk tier
    - (c) evidence — `git -C <worktree> diff <baseline> -- <changed files>` plus
-     the full contents of any named untracked files
+     the full contents of any named untracked text files; represent a binary
+     untracked entry by path and status only, never by its contents
    - (d) the required output contract
 2. Embed these guardrails as explicit prohibition lines in the prompt: a finding
    is actionable only if it names a concrete reachable failure; NEVER propose
    speculative refactors, abstractions, defensive validation, or scope beyond the
-   changed bytes and the target skill's remit; NEVER edit files. Output contract:
+   changed bytes and the target skill's remit; NEVER edit files; NEVER load a
+   screenshot, capture, image, or other binary payload into the review context
+   unless the target skill's remit is the runtime criterion that payload settles
+   — rely on the harness role's reported verdict and cited path. Output contract:
    return the target skill's normal concise handoff, then append one final line
    with a verdict token — `PASS`, `CHANGES-REQUIRED: <n>`, or `BLOCKED: <reason>`.
    The token supplements the skill-native status vocabulary (such as

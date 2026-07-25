@@ -4,7 +4,7 @@ description: >-
   Verify final-evidence-gate changes — terminal Plan preparation or release,
   reconciliation, requested primary commit or landing, shared build/bootstrap
   work, or Tier-3 integration — with a read-only final-tree acceptance table.
-allowed-tools: [Read, Grep, Glob, "Bash(git diff *)", "Bash(git status *)", "Bash(git ls-files *)", PowerShell]
+allowed-tools: [Read, Grep, Glob, "Bash(git diff *)", "Bash(git status *)", "Bash(git ls-files *)", "Bash(git hash-object *)", "Bash(git submodule status *)", PowerShell]
 ---
 
 # Verify Changes
@@ -34,15 +34,36 @@ baseline to resolve exactly, and primary checkout use only on the
 
 ## Final Manifest
 
-1. Derive the tracked manifest from `git diff --name-status <baseline> --` and
-   append `git ls-files --others --exclude-standard`. Preserve status, rename
+1. Derive the tracked manifest from `git diff --raw <baseline> --` and append
+   `git ls-files --others --exclude-standard`. Preserve status, rename
    source/destination, and untracked identity. This covers committed, staged,
    and unstaged changes from the fixed baseline.
+   Record each entry's mode and content identity, `-` for a deletion. Mode is
+   part of the identity, so a `100644`→`100755` or symlink↔regular change counts
+   even when content is unchanged. Mode and content come from different sources,
+   and neither substitutes for the other:
+   - Mode: the destination-mode column of `git diff --raw` for a tracked entry,
+     which is exact for committed and uncommitted changes alike because mode
+     needs no hashing; the filesystem entry type for an untracked one. Do not
+     use `git status --porcelain=v2` — it reports only against HEAD/index, so an
+     entry changed in an earlier session commit is clean there and yields no
+     record at all.
+   - Content: route on the mode first, never on whether a command succeeded.
+     For a regular file use `git hash-object -- <path>`, the only way to hash
+     unstaged bytes — `git diff --raw` zeroes its destination OID against a
+     working tree. For a submodule gitlink (`160000`) use
+     `git submodule status -- <path>`, whose leading `+`/`-` also carries index
+     divergence and uninitialized state. For a symlink (`120000`) use its link
+     target. Never invoke `git hash-object` on a gitlink or a symlink: on a
+     gitlink and on a directory symlink it dies, but on a file symlink it
+     silently succeeds and returns the *target file's* blob, which records a
+     plausible wrong identity and hides a retarget to a same-content path.
 2. Reconcile every entry against the caller-owned path list and handoffs. Block
    on an unowned entry, an owned path absent from the manifest without an
    explained no-change disposition, a status mismatch, or a handoff claiming
-   bytes outside its ownership. Return the manifest inline; no hashes or report
-   file are required.
+   bytes outside its ownership. Return the manifest inline with both the mode
+   and content-identity columns, which `/finalize-changes` requires as inputs;
+   no report file is required.
 3. A caller fix ends the current run. On re-entry, recompute and reconcile the
    whole manifest, add the fix handoff, and invalidate only evidence affected by
    the new bytes. Require the handoff sequence to prove no later manifest edit
@@ -70,6 +91,13 @@ smallest approved observable scenario; Tier 3 adds only exposed invariant and
 integration evidence. Skill changes require the complete `/validate-skill`
 `Validation: PASS` handoff, including self-check, target command/exit/output,
 semantic review, and no Critical finding.
+
+Only the user may revise or defer an approved criterion, and only through an
+approved delta supplied in the inputs. Build rows from the revised set, with the
+row's evidence naming that delta and, for a deferral, the tracked Plan path that
+owns the deferred behavior. Without the delta the original criterion stands and
+its failure is non-passing; never relax or retire a criterion on your own
+authority.
 
 For each required review, add:
 
@@ -152,8 +180,9 @@ item passes with current evidence. Any failure, blocker, unverified item,
 unresolved claim, unadjudicated refutation, stale evidence, or missing input
 returns `Verification: BLOCKED`. Consolidate all such items once; do not retry,
 fix, waive, downgrade, or create a follow-up. The caller adjudicates and routes
-work, then starts a new verification run after any mutation. Stop when the
-matrix passes.
+work, then starts a new verification run after any mutation. A `PASS` is scoped
+to the manifest it audited; report that manifest and baseline with the table,
+and treat any later manifest change as voiding it. Stop when the matrix passes.
 
 Follow `../../references/subagent-reporting.md`
 and return: verification result; route, adopted checkout, and baseline; inline

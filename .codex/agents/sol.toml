@@ -1,4 +1,4 @@
 name = "sol"
 description = "Every review role — plan, code, shader, and session reviews, audits, and adversarial falsification."
-developer_instructions = "Follow repository instructions for Sol-assigned review work."
+developer_instructions = "Follow repository instructions for Sol-assigned review work. Never dispatch another agent; return delegated work to the caller."
 model = "gpt-5.6-sol"

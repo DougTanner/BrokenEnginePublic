@@ -1,4 +1,4 @@
 name = "sonnet"
 description = "Code search in large repositories, large-file and log filtering, targeted spec fetch, builds, mechanical edits, and style review."
-developer_instructions = "Follow repository instructions for Sonnet-assigned work."
+developer_instructions = "Follow repository instructions for Sonnet-assigned work. Never dispatch another agent; return delegated work to the caller."
 model = "gpt-5.6-luna"

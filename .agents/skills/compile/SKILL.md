@@ -70,13 +70,14 @@ Resolve identities once before selecting data mode or changed paths. An explicit
 - ThirdParty builds only on explicit request in agent-driven `/compile`; missing source or library links are provisioning failures and a routine `/compile` never rebuilds ThirdParty itself. Wrapper bootstrap does incremental-rebuild ThirdParty at every session start (see Bootstrap AgentTools), so a routine `/compile` normally finds it already current.
 - DataPacker builds Release only. WorktreeCli still supplies the normal worktree-local target serialization. Worktree session start seeds the worktree's DataPacker Release Output by verified copy from the primary bootstrap prebuild when the worktree's clean `DataPacker/`/`Common/`/`ThirdParty/` trees match the stamp, and otherwise builds it locally (`.agents/scripts/Build-WorktreeDataPacker.ps1`), so `DataPacker.exe` is already present at session start; a session that changes DataPacker-relevant sources performs a full local rebuild on its first DataPacker build. DataPacker's `"BrokenEngineDataPacker"` mutex and the AgentTools bootstrap mutex are the two PC-global build coordination points; add no others (the seed copy reuses the bootstrap mutex for its prebuild).
 
-Before any DataPacker, client, or server build, invoke `$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1 -RepositoryRoot $ROOT` and stop on failure. Validated stable primary submodule trees plus shared immutable ThirdParty, WorktreeCli, and AgentHarness Output directories are the only exceptions to worktree-local build artifacts.
+Before any DataPacker, client, or server build, invoke `$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1 -RepositoryRoot $ROOT` and stop on failure. Validated stable primary submodule trees plus shared immutable ThirdParty, WorktreeCli, and AgentHarness Output directories are the only exceptions to worktree-local build artifacts. When this session holds the harness lock, send `quit` with its own owner token and wait for its own retained exact PIDs before building — a live executable locks its image. When a target executable is live under a process this session cannot prove it owns, stop and report contention; never quit or stop it (`/agent-harness`, Ownership and takeover). Do not discover this as a link error.
 
 For routine work, build the checkout supplied by the caller. An isolated session worktree remains appropriate for queue operations, concurrent work, or a final-evidence gate, but is not a prerequisite for a targeted build. Keep existing build serialization and the gated AgentTools candidate/promotion path; do not share mutable build output between checkouts (the session-start DataPacker seed is a one-time verified copy the worktree then owns and may rebuild over, not shared output).
 
-For a delegated call, return the complete build result inline. A build does not
-create an evidence artifact; a later final-evidence gate records its decisive
-exit status and relevant diagnostics once.
+For a delegated call, return the complete build result inline. A `builder`
+executing this skill runs the build itself and never dispatches another agent.
+A build does not create an evidence artifact; a later final-evidence gate
+records its decisive exit status and relevant diagnostics once.
 
 DataPacker's mutex coordinates across worktrees and its shared chunks live under `%LOCALAPPDATA%\BrokenEngine\DataPackerCache\<Project>`; do not add another PC-global DataPacker lock or a checkout-local cache copy (the session-start seed copies the built `DataPacker.exe` once into the worktree's own Output — a verified artifact seed, not a shared chunk cache). Gaea raw and split intermediates use the single mutable `%LOCALAPPDATA%\BrokenEngine\DataPackerCache\<Project>\Gaea\Islands` cache; source-tree island leaves retain only tracked BC outputs.
 
@@ -221,7 +222,7 @@ Only `.cpp` inputs already present in the target project are valid. After a head
 - Every `severity: error` diagnostic's `raw` line verbatim, plus all `messages` entries; note `diagnosticsTruncated: true` and point at the retained log for the remainder.
 - `severity: warning` diagnostics' `raw` lines verbatim only for files involved in the change.
 - The exact `retainedLog.path` for each build, and `complete: false` as a failure.
-- LNK1168 or EXE LNK2019 can mean a client/server process still holds the executable; report it rather than diagnosing unless asked.
+- LNK1104, LNK1168, or EXE LNK2019 can mean a client/server process still holds the executable; report it rather than diagnosing unless asked.
 - A prior killed build's `unsuccessfulbuild` marker clears on the next successful run; rerun instead of deleting tlogs.
 - A lock timeout means another WorktreeCli build still owns that target. Retry after it finishes; never delete `.claude/build-locks/` manually.
 - For game builds, report `DataBuildMode`, the `RunDataPacker` value for every build, canonical `GameDataDirectory`, canonical `GeneratedDataIncludeRoot`, the selected-data identity snapshot, and the primary identity snapshot when Local. Report every mode-selection trigger, the Local prepared-data confirmation or generation-authorization trigger, whether the Gaea guard was applied (or the exact explicit Gaea-regeneration authorization), and the post-generation selected/primary snapshots. A harness run must use this exact mode/path; it must not infer or substitute one.
