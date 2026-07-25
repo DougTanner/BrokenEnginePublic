@@ -411,6 +411,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\Source\Game.h" />
     <ClInclude Include="..\..\Source\SpawnTransfer.h" />
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h" />
+    <ClInclude Include="..\..\Source\Network\Server\ClientPlayerRegistry.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerSession.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerFleetManager.h" />
     <ClInclude Include="..\..\Source\Network\Server\ServerFleetSerialization.h" />
@@ -531,6 +532,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\Source\Game.cpp" />
     <ClCompile Include="..\..\Source\SpawnTransfer.cpp" />
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp" />
+    <ClCompile Include="..\..\Source\Network\Server\ClientPlayerRegistry.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerSession.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerFleetManager.cpp" />
     <ClCompile Include="..\..\Source\Network\Server\ServerFleetSerialization.cpp" />

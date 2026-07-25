@@ -175,7 +175,7 @@ void ServerBroadcaster::BuildTickPublication(int64_t iTick, engine::ServerSessio
 
 void ServerBroadcaster::ProcessUpdatePlayerRequests()
 {
-	// Heap: try_emplace inserts client-owned-id vector entry on first request per client
+	// Heap: pending player-update requests may grow frame status changes
 	ScopedSuppressAllocationTracking suppress;
 
 	for (const PendingUpdatePlayerRequest& rRequest : mPendingUpdatePlayerRequests)
@@ -185,8 +185,8 @@ void ServerBroadcaster::ProcessUpdatePlayerRequests()
 		{
 			continue;
 		}
-		std::vector<engine::global_id_t>& rOwnedIds = gpServerSession->mClientOwnedPlayerIds.try_emplace(pClient->iClientId).first->second;
-		if (rOwnedIds.empty())
+		std::span<const OwnedPlayer> ownedPlayers = gpServerSession->mClientPlayers.Owned(pClient->iClientId);
+		if (ownedPlayers.empty())
 		{
 			continue;
 		}
@@ -194,11 +194,11 @@ void ServerBroadcaster::ProcessUpdatePlayerRequests()
 		// Find the coord for this global player ID in the client's owned list
 		engine::GridCoord updateCoord {};
 		bool bFound = false;
-		for (int64_t i = 0; i < std::ssize(rOwnedIds); ++i)
+		for (const OwnedPlayer& rOwnedPlayer : ownedPlayers)
 		{
-			if (rOwnedIds.at(i) == rRequest.globalId)
+			if (rOwnedPlayer.globalId == rRequest.globalId)
 			{
-				updateCoord = pClient->authorizedCoords.at(i);
+				updateCoord = rOwnedPlayer.coord;
 				bFound = true;
 				break;
 			}

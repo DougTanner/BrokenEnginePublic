@@ -147,10 +147,7 @@ void Server::Connect(ENetEvent& rEvent)
 	ClientConnection connection {};
 	connection.pPeer = rEvent.peer;
 	connection.iClientId = miNextClientId++;
-	connection.coordSubscriptions.resize(NetworkManager::kiMaxEnetCoordSlots);
-	connection.coordAckStates.resize(NetworkManager::kiMaxEnetCoordSlots);
-	connection.prevResendCounts.resize(NetworkManager::kiMaxEnetCoordSlots, 0);
-	connection.resendLogCooldowns.resize(NetworkManager::kiMaxEnetCoordSlots, 0);
+	connection.slots.resize(NetworkManager::kiMaxEnetCoordSlots);
 
 	rEvent.peer->data = reinterpret_cast<void*>(connection.iClientId);
 

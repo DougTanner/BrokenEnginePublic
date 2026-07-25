@@ -174,6 +174,9 @@
     <ClInclude Include="..\..\Source\Network\PlayerEvents.h">
       <Filter>Game\Network</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Network\Server\ClientPlayerRegistry.h">
+      <Filter>Game\Network\Server</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Network\Server\ServerSession.h">
       <Filter>Game\Network\Server</Filter>
     </ClInclude>
@@ -556,6 +559,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Network\PlayerEvents.cpp">
       <Filter>Game\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Network\Server\ClientPlayerRegistry.cpp">
+      <Filter>Game\Network\Server</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Network\Server\ServerSession.cpp">
       <Filter>Game\Network\Server</Filter>

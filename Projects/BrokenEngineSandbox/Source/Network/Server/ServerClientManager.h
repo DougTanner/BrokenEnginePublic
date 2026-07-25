@@ -42,7 +42,6 @@ private:
 
 	// NewClients helpers
 	void LogConnectingClientDiagnostic(const engine::ClientConnection& rClient);
-	bool TryRelinkNewClient(engine::ClientConnection& rClient, std::vector<engine::global_id_t>& rNewClientOwnedIds);
 };
 
 } // namespace game

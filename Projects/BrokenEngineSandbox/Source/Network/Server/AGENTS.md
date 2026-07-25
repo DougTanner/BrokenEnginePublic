@@ -4,7 +4,8 @@ Server-only game networking. `ServerSession` is the game-policy façade over `en
 
 ## State Ownership
 
-- Client-owned player IDs and each connection's authorized coordinates are parallel vectors. Spawn, transfer, death, reconnect, and load relink mutate them in lockstep.
+- `ServerSession` owns per-client player records containing global ID and coordinate. Registry mutations mirror `authorizedCoords` while the connection exists; game code uses the records, not `authorizedCoords`, for owned-player lookup.
+- `authorizedCoords` remains the engine authority for subscription adjacency and server display.
 - Fleets are keyed by persistent `ClientGuid`. Fleet RNG is seeded once, serialized with fleet state, and consumes exactly two 64-bit draws when minting a fleet identifier.
 - A fleet's position within its client's list shifts on delete, so requests and queued server work that outlive a poll carry the minted fleet identifier and re-resolve it at consumption.
 - Relink matches are sorted by global ID before rebuilding client ownership so reconnect and save-load preserve creation order.

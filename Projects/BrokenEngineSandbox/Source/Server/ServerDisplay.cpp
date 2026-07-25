@@ -170,12 +170,12 @@ bool ServerDisplayContentChanged()
 			Mix(rOwnedCoord.y);
 		}
 
-		for (const engine::ClientCoordSubscription& rSubscription : rClient.coordSubscriptions)
+		for (int64_t i = 0; i < std::ssize(rClient.slots); ++i)
 		{
-			if (rSubscription.flags & engine::SubscriptionFlags::kActive)
+			if (rClient.slots.at(i).subscription.flags & engine::SubscriptionFlags::kActive)
 			{
-				Mix(rSubscription.coord.x);
-				Mix(rSubscription.coord.y);
+				Mix(rClient.slots.at(i).subscription.coord.x);
+				Mix(rClient.slots.at(i).subscription.coord.y);
 			}
 		}
 	}

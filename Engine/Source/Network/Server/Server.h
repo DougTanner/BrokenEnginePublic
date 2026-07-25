@@ -35,22 +35,25 @@ struct ReceivedGamePacket
 
 struct ClientConnection
 {
+	struct SlotState
+	{
+		ClientCoordSubscription subscription {};
+		AckState ack {};
+		int64_t iPrevResendCount = 0;
+		int64_t iResendLogCooldown = 0;
+	};
+
 	ENetPeer* pPeer = nullptr;
 	int64_t iClientId = 0;
 	bool bHandshakeComplete = false;
 	std::vector<GridCoord> authorizedCoords;
 	ClientGuid clientGuid {};
 
-	// Slot-based coord subscriptions with independent ACK tracking
-	std::vector<ClientCoordSubscription> coordSubscriptions;
-	std::vector<AckState> coordAckStates;
+	// Slot-based coord subscriptions with independent ACK and resend tracking
+	std::vector<SlotState> slots;
 
 	// Pipeline RTT: echoed back to client in update packets
 	int64_t iClientTimestampNs = 0;
-
-	// Delta-only resend logging: previous resend count per slot
-	std::vector<int64_t> prevResendCounts;
-	std::vector<int64_t> resendLogCooldowns;
 
 	// Delta-only floor advance logging: consecutive zero-advance ACK count
 	int64_t iConsecutiveZeroAdvanceAcks = 0;
@@ -70,9 +73,9 @@ struct ClientConnection
 	// Helpers
 	int64_t FindSlotForCoord(GridCoord coord) const
 	{
-		for (int64_t i = 0; i < std::ssize(coordSubscriptions); ++i)
+		for (int64_t i = 0; i < std::ssize(slots); ++i)
 		{
-			if ((coordSubscriptions.at(i).flags & SubscriptionFlags::kActive) && coordSubscriptions.at(i).coord == coord)
+			if ((slots.at(i).subscription.flags & SubscriptionFlags::kActive) && slots.at(i).subscription.coord == coord)
 			{
 				return i;
 			}
@@ -82,10 +85,10 @@ struct ClientConnection
 
 	int64_t AllocateSlot(int64_t iMaxSlots)
 	{
-		int64_t iLimit = std::min(iMaxSlots, std::ssize(coordSubscriptions));
+		int64_t iLimit = std::min(iMaxSlots, std::ssize(slots));
 		for (int64_t i = 0; i < iLimit; ++i)
 		{
-			if (!(coordSubscriptions.at(i).flags & SubscriptionFlags::kActive))
+			if (!(slots.at(i).subscription.flags & SubscriptionFlags::kActive))
 			{
 				return i;
 			}
@@ -95,19 +98,11 @@ struct ClientConnection
 
 	void FreeSlot(int64_t iSlot)
 	{
-		coordSubscriptions.at(iSlot) = {};
+		SlotState& rSlot = slots.at(iSlot);
 		// Reset ACK state but preserve epoch (incremented on next allocation)
-		uint16_t uiEpoch = coordAckStates.at(iSlot).uiEpoch;
-		coordAckStates.at(iSlot) = {};
-		coordAckStates.at(iSlot).uiEpoch = uiEpoch;
-		if (iSlot < std::ssize(prevResendCounts))
-		{
-			prevResendCounts.at(iSlot) = 0;
-		}
-		if (iSlot < std::ssize(resendLogCooldowns))
-		{
-			resendLogCooldowns.at(iSlot) = 0;
-		}
+		uint16_t uiEpoch = rSlot.ack.uiEpoch;
+		rSlot = {};
+		rSlot.ack.uiEpoch = uiEpoch;
 	}
 
 };

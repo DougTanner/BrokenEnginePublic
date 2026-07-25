@@ -50,18 +50,18 @@ void Server::ClientAckStream(std::span<const uint8_t> packetData, int64_t iClien
 		uint64_t uiSlotBitfieldHigh = rEntry.uiReceivedBitfieldHigh;
 
 		// Invalid-index or inactive slots match neither branch below; skip after the reads so the cursor stays aligned
-		if (!(uiSlotIndex < std::ssize(pClient->coordSubscriptions) &&
-			(pClient->coordSubscriptions.at(uiSlotIndex).flags & SubscriptionFlags::kActive)))
+		if (!(uiSlotIndex < std::ssize(pClient->slots) &&
+			(pClient->slots.at(uiSlotIndex).subscription.flags & SubscriptionFlags::kActive)))
 		{
 			continue;
 		}
 
-		if (uiSlotEpoch == pClient->coordAckStates.at(uiSlotIndex).uiEpoch &&
-			iSlotAckFloor >= pClient->coordAckStates.at(uiSlotIndex).iAckFloor)
+		if (uiSlotEpoch == pClient->slots.at(uiSlotIndex).ack.uiEpoch &&
+			iSlotAckFloor >= pClient->slots.at(uiSlotIndex).ack.iAckFloor)
 		{
 			// Clamp to server's latest sent tick to prevent future ACK floors
 			iSlotAckFloor = std::min(iSlotAckFloor, miLatestBufferedTick);
-			AckState& rAckState = pClient->coordAckStates.at(uiSlotIndex);
+			AckState& rAckState = pClient->slots.at(uiSlotIndex).ack;
 			if (iSlotAckFloor == rAckState.iAckFloor)
 			{
 				rAckState.uiReceivedBitfieldLow |= uiSlotBitfieldLow;
@@ -75,9 +75,9 @@ void Server::ClientAckStream(std::span<const uint8_t> packetData, int64_t iClien
 				rAckState.uiReceivedBitfieldHigh = uiSlotBitfieldHigh;
 			}
 		}
-		else if (uiSlotEpoch != pClient->coordAckStates.at(uiSlotIndex).uiEpoch)
+		else if (uiSlotEpoch != pClient->slots.at(uiSlotIndex).ack.uiEpoch)
 		{
-			LOG(kNetwork, kVerbose, "Server::ClientAckStream EpochMismatch Client: {} Slot: {} ClientEpoch: {} ServerEpoch: {}", iClientId, uiSlotIndex, uiSlotEpoch, pClient->coordAckStates.at(uiSlotIndex).uiEpoch);
+			LOG(kNetwork, kVerbose, "Server::ClientAckStream EpochMismatch Client: {} Slot: {} ClientEpoch: {} ServerEpoch: {}", iClientId, uiSlotIndex, uiSlotEpoch, pClient->slots.at(uiSlotIndex).ack.uiEpoch);
 		}
 	}
 
@@ -392,9 +392,9 @@ void Server::ClientSubscribe(std::span<const uint8_t> packetData, int64_t iClien
 		return;
 	}
 
-	pClient->coordSubscriptions.at(iSlot).coord = coord;
-	pClient->coordSubscriptions.at(iSlot).flags.Set(SubscriptionFlags::kActive);
-	++pClient->coordAckStates.at(iSlot).uiEpoch;
+	pClient->slots.at(iSlot).subscription.coord = coord;
+	pClient->slots.at(iSlot).subscription.flags.Set(SubscriptionFlags::kActive);
+	++pClient->slots.at(iSlot).ack.uiEpoch;
 
 	LOG(kNetwork, kDebug, "Server::ClientSubscribe Client: {} Coord: ({},{}) Slot: {}", iClientId, coord.x, coord.y, iSlot);
 
@@ -432,11 +432,11 @@ void Server::ClientUnsubscribe(std::span<const uint8_t> packetData, int64_t iCli
 		return;
 	}
 
-	if (uiSlotIndex < std::ssize(pClient->coordSubscriptions)
-		&& (pClient->coordSubscriptions.at(uiSlotIndex).flags & SubscriptionFlags::kActive)
-		&& pClient->coordAckStates.at(uiSlotIndex).uiEpoch == uiEpoch)
+	if (uiSlotIndex < std::ssize(pClient->slots)
+		&& (pClient->slots.at(uiSlotIndex).subscription.flags & SubscriptionFlags::kActive)
+		&& pClient->slots.at(uiSlotIndex).ack.uiEpoch == uiEpoch)
 	{
-		GridCoord coord = pClient->coordSubscriptions.at(uiSlotIndex).coord;
+		GridCoord coord = pClient->slots.at(uiSlotIndex).subscription.coord;
 		pClient->FreeSlot(uiSlotIndex);
 
 		LOG(kNetwork, kDebug, "Server::ClientUnsubscribe Client: {} Slot: {} Coord: ({},{})", iClientId, uiSlotIndex, coord.x, coord.y);

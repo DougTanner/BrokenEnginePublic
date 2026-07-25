@@ -345,35 +345,22 @@ void ServerFleetManager::OnPlayerTransferred(const engine::ClientGuid& rGuid, en
 
 void ServerFleetManager::OnClientConnected(int64_t iClientId, const engine::ClientGuid& rClientGuid)
 {
-	// Heap: insert_or_assign mGuidToClientId, try_emplace owned-id vector
+	// Heap: insert_or_assign connected-client mapping
 	ScopedSuppressAllocationTracking suppress;
 
 	mGuidToClientId.insert_or_assign(rClientGuid, iClientId);
-
-	const std::vector<engine::global_id_t>& rOwnedIds = gpServerSession->mClientOwnedPlayerIds.try_emplace(iClientId).first->second;
+	std::span<const OwnedPlayer> ownedPlayers = gpServerSession->mClientPlayers.Owned(iClientId);
 
 	auto fleetIt = mFleets.find(rClientGuid);
 	if (fleetIt != mFleets.end())
 	{
-		// Update alive flags and member coords from re-linked players
-		engine::ClientConnection* pClient = engine::gpServer->FindClient(iClientId);
 		for (Fleet& rFleet : fleetIt->second)
 		{
-			for (FleetMember& rMember : rFleet.members)
+			RefreshFleetMembers(rFleet, ownedPlayers);
+			if (rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&
+				!rFleet.members.at(static_cast<size_t>(rFleet.iFlagshipIndex)).bAlive)
 			{
-				rMember.bAlive = std::ranges::contains(rOwnedIds, rMember.globalPlayerId);
-				// Update coord from authorizedCoords if client is available
-				if (pClient != nullptr)
-				{
-					for (int64_t k = 0; k < std::ssize(rOwnedIds); ++k)
-					{
-						if (rOwnedIds.at(k) == rMember.globalPlayerId)
-						{
-							rMember.coord = pClient->authorizedCoords.at(k);
-							break;
-						}
-					}
-				}
+				mNavigation.ShiftFlagshipAfterDeath(rClientGuid, rFleet);
 			}
 		}
 	}
@@ -392,11 +379,8 @@ void ServerFleetManager::OnClientDisconnected(const engine::ClientGuid& rClientG
 
 void ServerFleetManager::OnResetForLoad(int64_t iClientId, const engine::ClientGuid& rClientGuid)
 {
-	// Heap: try_emplace owned-id, pending flagship updates after load
+	// Heap: pending flagship updates after load
 	ScopedSuppressAllocationTracking suppress;
-
-	const std::vector<engine::global_id_t>& rOwnedIds = gpServerSession->mClientOwnedPlayerIds.try_emplace(iClientId).first->second;
-	engine::ClientConnection* pClient = engine::gpServer->FindClient(iClientId);
 
 	mGuidToClientId.insert_or_assign(rClientGuid, iClientId);
 
@@ -405,30 +389,32 @@ void ServerFleetManager::OnResetForLoad(int64_t iClientId, const engine::ClientG
 	{
 		for (Fleet& rFleet : fleetIt->second)
 		{
-			ResetFleetForLoad(rFleet, rClientGuid, rOwnedIds, pClient);
+			ResetFleetForLoad(rFleet, rClientGuid);
 		}
 	}
 	SendFleetSyncToClient(iClientId, rClientGuid);
 }
 
-void ServerFleetManager::ResetFleetForLoad(Fleet& rFleet, const engine::ClientGuid& rClientGuid, const std::vector<engine::global_id_t>& rOwnedIds, const engine::ClientConnection* pClient)
+void ServerFleetManager::RefreshFleetMembers(Fleet& rFleet, std::span<const OwnedPlayer> ownedPlayers)
 {
 	for (FleetMember& rMember : rFleet.members)
 	{
-		rMember.bAlive = std::ranges::contains(rOwnedIds, rMember.globalPlayerId);
-		// Update coord from authorizedCoords if client is available
-		if (pClient != nullptr)
+		rMember.bAlive = false;
+		for (const OwnedPlayer& rOwnedPlayer : ownedPlayers)
 		{
-			for (int64_t k = 0; k < std::ssize(rOwnedIds); ++k)
+			if (rOwnedPlayer.globalId == rMember.globalPlayerId)
 			{
-				if (rOwnedIds.at(k) == rMember.globalPlayerId)
-				{
-					rMember.coord = pClient->authorizedCoords.at(k);
-					break;
-				}
+				rMember.bAlive = true;
+				rMember.coord = rOwnedPlayer.coord;
+				break;
 			}
 		}
 	}
+}
+
+void ServerFleetManager::ResetFleetForLoad(Fleet& rFleet, const engine::ClientGuid& rClientGuid)
+{
+	RefreshFleetMembers(rFleet, gpServerSession->mClientPlayers.Owned(FindClientIdForGuid(rClientGuid)));
 
 	// Shift flagship to next alive member if current flagship is dead
 	if (rFleet.iFlagshipIndex < std::ssize(rFleet.members) &&

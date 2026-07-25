@@ -36,9 +36,9 @@ static bool IsDestinationLive(engine::GridCoord destination)
 	}
 	for (const engine::ClientConnection& rClient : engine::gpServer->mClients)
 	{
-		for (const engine::ClientCoordSubscription& rSubscription : rClient.coordSubscriptions)
+		for (int64_t i = 0; i < std::ssize(rClient.slots); ++i)
 		{
-			if ((rSubscription.flags & engine::SubscriptionFlags::kActive) && rSubscription.coord == destination)
+			if ((rClient.slots.at(i).subscription.flags & engine::SubscriptionFlags::kActive) && rClient.slots.at(i).subscription.coord == destination)
 			{
 				return true;
 			}
@@ -170,12 +170,11 @@ void ServerTransferManager::TrackClientTransfers(std::span<const ClientTransferI
 		for (engine::ClientConnection& rClient : rClients)
 		{
 			// Find the client that owns this global ID
-			std::vector<engine::global_id_t>& rClientOwnedIds = gpServerSession->mClientOwnedPlayerIds.try_emplace(rClient.iClientId).first->second;
-			for (int64_t k = 0; k < std::ssize(rClientOwnedIds); ++k)
+			for (const OwnedPlayer& rOwnedPlayer : gpServerSession->mClientPlayers.Owned(rClient.iClientId))
 			{
-				if (rClientOwnedIds.at(k) == rClientTransfer.globalPlayerId)
+				if (rOwnedPlayer.globalId == rClientTransfer.globalPlayerId)
 				{
-					rClient.authorizedCoords.at(k) = rClientTransfer.destination;
+					gpServerSession->mClientPlayers.UpdateCoord(rClient.iClientId, rClientTransfer.globalPlayerId, rClientTransfer.destination);
 					mPendingSubscriptionUpdates.push_back({
 						.iClientId = rClient.iClientId,
 						.newCoord = rClientTransfer.destination,

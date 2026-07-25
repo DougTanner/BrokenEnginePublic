@@ -335,11 +335,11 @@ void ServerSession::AddSubscribedCoords()
 	const std::vector<engine::ClientConnection>& rClients = engine::gpServer->mClients;
 	for (const engine::ClientConnection& rClient : rClients)
 	{
-		for (int64_t i = 0; i < std::ssize(rClient.coordSubscriptions); ++i)
+		for (int64_t i = 0; i < std::ssize(rClient.slots); ++i)
 		{
-			if (rClient.coordSubscriptions.at(i).flags & engine::SubscriptionFlags::kActive)
+			if (rClient.slots.at(i).subscription.flags & engine::SubscriptionFlags::kActive)
 			{
-				engine::GridCoord coord = rClient.coordSubscriptions.at(i).coord;
+				engine::GridCoord coord = rClient.slots.at(i).subscription.coord;
 				if (!std::ranges::contains(gpGame->mActiveCoords, coord))
 				{
 					gpGame->mActiveCoords.push_back(coord);
@@ -511,9 +511,9 @@ void ServerSession::SendNewSubscriptionFullStates()
 	{
 		const engine::ClientConnection* pClient = engine::gpServer->FindClient(rSubscription.iClientId);
 		bool bSlotStillValid = (pClient != nullptr
-			&& rSubscription.iSlot < std::ssize(pClient->coordSubscriptions)
-			&& (pClient->coordSubscriptions.at(rSubscription.iSlot).flags & engine::SubscriptionFlags::kActive)
-			&& pClient->coordSubscriptions.at(rSubscription.iSlot).coord == rSubscription.coord);
+			&& rSubscription.iSlot < std::ssize(pClient->slots)
+			&& (pClient->slots.at(rSubscription.iSlot).subscription.flags & engine::SubscriptionFlags::kActive)
+			&& pClient->slots.at(rSubscription.iSlot).subscription.coord == rSubscription.coord);
 		if (!bSlotStillValid)
 		{
 			continue;
@@ -555,14 +555,14 @@ void ServerSession::HandleResyncRequests()
 
 		LOG(kNetwork, kWarning, "ServerSession::HandleResyncRequests Client: {}", iClientId);
 
-		for (int64_t iSlot = 0; iSlot < std::ssize(pClient->coordSubscriptions); ++iSlot)
+		for (int64_t iSlot = 0; iSlot < std::ssize(pClient->slots); ++iSlot)
 		{
-			if (!(pClient->coordSubscriptions.at(iSlot).flags & engine::SubscriptionFlags::kActive))
+			if (!(pClient->slots.at(iSlot).subscription.flags & engine::SubscriptionFlags::kActive))
 			{
 				continue;
 			}
 
-			engine::GridCoord coord = pClient->coordSubscriptions.at(iSlot).coord;
+			engine::GridCoord coord = pClient->slots.at(iSlot).subscription.coord;
 			auto frameIt = gpGame->mCoordFrames.find(coord);
 			if (frameIt == gpGame->mCoordFrames.end())
 			{
@@ -581,7 +581,7 @@ void ServerSession::HandleResyncRequests()
 void ServerSession::ResetClientsForLoad()
 {
 	LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad");
-	// Heap: re-link rebuilds owned-id vectors and authorizedCoords; pending state cleared across managers
+	// Heap: re-link rebuilds registry entries and authorizedCoords; pending state cleared across managers
 	ScopedSuppressAllocationTracking suppress;
 
 	mpRuntime->mpServer->BroadcastLoadNotification();
@@ -593,20 +593,17 @@ void ServerSession::ResetClientsForLoad()
 	for (engine::ClientConnection& rClient : rClients)
 	{
 		// Free all subscription slots
-		for (int64_t i = 0; i < std::ssize(rClient.coordSubscriptions); ++i)
+		for (int64_t i = 0; i < std::ssize(rClient.slots); ++i)
 		{
-			if (rClient.coordSubscriptions.at(i).flags & engine::SubscriptionFlags::kActive)
+			if (rClient.slots.at(i).subscription.flags & engine::SubscriptionFlags::kActive)
 			{
 				rClient.FreeSlot(i);
 			}
 		}
 
-		// Clear owned vectors and rebuild from loaded frames
-		std::vector<engine::global_id_t>& rLoadOwnedIds = mClientOwnedPlayerIds.try_emplace(rClient.iClientId).first->second;
-		rLoadOwnedIds.clear();
-		rClient.authorizedCoords.clear();
-
-		if (!TryRelinkClientForLoad(rClient, rLoadOwnedIds))
+		// Clear owned players and rebuild from loaded frames.
+		mClientPlayers.Clear(rClient.iClientId);
+		if (mClientPlayers.RelinkFromFrames(rClient.iClientId, rClient.clientGuid, ClientPlayerRegistry::RelinkContext::kLoad) == 0)
 		{
 			LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad Client: {} no GUID match, will respawn", rClient.iClientId);
 		}
@@ -625,52 +622,6 @@ void ServerSession::ResetClientsForLoad()
 	// Pending flagship updates were cleared at the start of this function via mNavigation.ClearPendingFlagshipUpdates(); fleet restoration above re-queued entries — do NOT clear again here.
 
 	mpRuntime->ResetTransportForLoad();
-}
-
-bool ServerSession::TryRelinkClientForLoad(engine::ClientConnection& rClient, std::vector<engine::global_id_t>& rLoadOwnedIds)
-{
-	if (rClient.clientGuid.IsEmpty())
-	{
-		return false;
-	}
-
-	// Collect GUID matches, then sort by global ID to preserve creation order (mirrors ServerClientManager::TryRelinkNewClient)
-	struct RelinkEntry
-	{
-		engine::global_id_t globalId {};
-		engine::GridCoord coord {};
-	};
-	std::vector<RelinkEntry> relinkEntries;
-
-	for (const auto& [rCoord, rFrames] : gpGame->mCoordFrames)
-	{
-		const PlayersPostRender& rPlayers = *rFrames.pCurrent->postRender.pPlayers;
-		for (int64_t i = 0; i < rPlayers.iCount; ++i)
-		{
-			if (rPlayers.pClientGuids[i] == rClient.clientGuid)
-			{
-				relinkEntries.push_back({rPlayers.pGlobalPlayerIds[i], rCoord});
-			}
-		}
-	}
-
-	std::ranges::sort(relinkEntries, [](const RelinkEntry& rLeft, const RelinkEntry& rRight)
-	{
-		return rLeft.globalId.iValue < rRight.globalId.iValue;
-	});
-
-	rLoadOwnedIds.reserve(relinkEntries.size());
-	rClient.authorizedCoords.reserve(relinkEntries.size());
-	for (const RelinkEntry& rEntry : relinkEntries)
-	{
-		rLoadOwnedIds.push_back(rEntry.globalId);
-		rClient.authorizedCoords.push_back(rEntry.coord);
-		SendAssignPlayer(rClient.iClientId, rEntry.globalId, rEntry.coord);
-		SendPlayerState(rClient.iClientId, PlayerStateWireType::kSpawned, rEntry.globalId.iValue, rEntry.coord);
-		LOG(kDefault, kDebug, "ServerSession::ResetClientsForLoad Re-linked Client: {} GlobalPlayer: {} Coord: ({},{})", rClient.iClientId, rEntry.globalId, rEntry.coord.x, rEntry.coord.y);
-	}
-
-	return !rLoadOwnedIds.empty();
 }
 
 void ServerSession::WriteFleetData(std::fstream& rFileStream) const

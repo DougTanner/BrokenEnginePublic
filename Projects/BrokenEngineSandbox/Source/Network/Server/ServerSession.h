@@ -3,6 +3,7 @@
 #if defined(BT_SERVER)
 
 #include "Network/PlayerEvents.h"
+#include "Network/Server/ClientPlayerRegistry.h"
 
 namespace engine
 {
@@ -50,7 +51,7 @@ public:
 	void WriteFleetData(std::fstream& rFileStream) const;
 	void ReadFleetData(std::fstream& rFileStream);
 
-	std::unordered_map<int64_t, std::vector<engine::global_id_t>> mClientOwnedPlayerIds;
+	ClientPlayerRegistry mClientPlayers;
 
 	std::unique_ptr<ServerFleetManager> mpFleetManager;
 	std::unique_ptr<ServerTransferManager> mpTransferManager;
@@ -70,9 +71,6 @@ private:
 	void AddSubscribedCoords();
 	void EnsurePlayerCoords();
 	void SyncActiveFrames();
-
-	// ResetClientsForLoad helpers
-	bool TryRelinkClientForLoad(engine::ClientConnection& rClient, std::vector<engine::global_id_t>& rLoadOwnedIds);
 
 };
 

@@ -9,6 +9,7 @@ namespace game
 {
 
 struct ClientSpawnInfo;
+struct OwnedPlayer;
 
 struct PendingCreateFleetRequest
 {
@@ -96,8 +97,8 @@ private:
 	// Position of rFleetGuid within one client's fleet vector; -1 when absent. Delete needs the position, not just the fleet.
 	int64_t FindFleetIndexByGuid(const std::vector<Fleet>& rFleets, const FleetGuid& rFleetGuid) const;
 
-	// OnResetForLoad helpers
-	void ResetFleetForLoad(Fleet& rFleet, const engine::ClientGuid& rClientGuid, const std::vector<engine::global_id_t>& rOwnedIds, const engine::ClientConnection* pClient);
+	void RefreshFleetMembers(Fleet& rFleet, std::span<const OwnedPlayer> ownedPlayers);
+	void ResetFleetForLoad(Fleet& rFleet, const engine::ClientGuid& rClientGuid);
 
 	std::vector<PendingCreateFleetRequest> mPendingCreateFleetRequests;
 	std::vector<PendingDeleteFleetRequest> mPendingDeleteFleetRequests;
