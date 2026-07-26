@@ -88,12 +88,15 @@ void GraphicsMenuScreen::Render()
 	// screen.
 	ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(rIo.DisplaySize.x, rIo.DisplaySize.y * kfGraphicsMaxHeightFraction));
 
+	// Always transparent regardless of Opaque UI, so the FPS readout below reflects worst-case cost
+	ImVec4 f4WindowBg = ImGui::GetStyle().Colors[ImGuiCol_WindowBg];
+	f4WindowBg.w = engine::gUiOpacity.Get();
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, f4WindowBg);
+
 	ScopedMenuFont menuFont(fMenuFontScale);
 	ImGui::Begin("GraphicsMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
 
-	engine::gpImGuiManager->RegisterOpaqueRect(ImGui::GetWindowPos(), ImGui::GetWindowSize());
-
-	// Border + accent strip only — the opaque themed WindowBg must stay intact for RegisterOpaqueRect occlusion
+	// Border + accent strip only — the themed WindowBg already fills the panel
 	ImVec2 vPanelPos = ImGui::GetWindowPos();
 	ImVec2 vPanelSize = ImGui::GetWindowSize();
 	DrawPanelAccents(ImGui::GetWindowDrawList(), vPanelPos, ImVec2(vPanelPos.x + vPanelSize.x, vPanelPos.y + vPanelSize.y));
@@ -197,10 +200,8 @@ void GraphicsMenuScreen::Render()
 		ImGui::Separator();
 
 		WrapperToggle("Opaque UI", &engine::gOpaqueUi);
-		if (!engine::gOpaqueUi.Get<bool>())
-		{
-			ColumnSlider("UI Opacity", &engine::gUiOpacity);
-		}
+		// Unconditional: this screen's own background alpha always comes from the slider, even with Opaque UI on
+		ColumnSlider("UI Opacity", &engine::gUiOpacity);
 
 		WrapperPlusMinus("Font Size", &engine::gUiFontScale, 0.1f);
 
@@ -218,6 +219,7 @@ void GraphicsMenuScreen::Render()
 	}
 
 	ImGui::End();
+	ImGui::PopStyleColor();
 }
 
 } // namespace game

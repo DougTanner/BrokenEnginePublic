@@ -88,8 +88,7 @@ void MenuHeading(const char* pcLabel, float fHeadingScale = kfMenuHeadingScale);
 // Full-screen dim behind pause-style overlays (background draw list, behind all windows)
 void DrawFullScreenDim();
 
-// Border + top accent strip only (no fill) — for opaque-WindowBg panels whose background must stay intact for
-// RegisterOpaqueRect occlusion.
+// Border + top accent strip only (no fill) — for panels whose own WindowBg must stay intact as the fill.
 void DrawPanelAccents(ImDrawList* pDrawList, const ImVec2& vMin, const ImVec2& vMax);
 
 // Custom-drawn menu button: InvisibleButton semantics (ID/click/keyboard/gamepad nav) with animated rounded

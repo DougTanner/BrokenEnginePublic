@@ -7,7 +7,7 @@ ImGui menus, HUD, modal surfaces, and the game extension of engine TweaksScreen.
 - Screen bodies are client-only except the shared menu utilities and death-flow placeholder used by both projects. Headers must remain parseable in their project affinity.
 - Screens gate themselves from authoritative game/UI state because `ImGuiManager` invokes main and modal surfaces independently of in-game screen gating.
 - Use the common 2160-height UI scale for fonts, style geometry, authored pixel dimensions, and anchors. Measure text under the active font and add style padding; do not rescale measured dimensions.
-- Opaque-background screens register their rendered rectangle for world-render occlusion. Transparent overlays do not.
+- A screen registers its rendered rectangle for world-render occlusion only while its background is fully opaque. A screen that selects its own background alpha independently of the opaque-UI setting stays unregistered, even when that alpha is fully opaque.
 - Networked controls remain disabled through `NetworkUiControl` until authoritative state resolves the request.
 - Convert localized UTF-32 strings into workbuffer-backed UTF-8 at the consuming expression; do not retain the result beyond its workbuffer lifetime.
 - Settings controls bind through the shared menu helpers. Tweaks sliders instead follow the engine TweaksScreen contract (`../../../../../Engine/Source/Ui/Screens/TweaksScreen/AGENTS.md`).
@@ -17,7 +17,7 @@ ImGui menus, HUD, modal surfaces, and the game extension of engine TweaksScreen.
 - Rendered target-resolution output is authoritative for optical balance; window bounds and text metrics are diagnostics.
 - Menu font pushes must be balanced within the owning ImGui window. Construct scoped font helpers before `Begin` or entirely inside the window so `End` sees the expected stack.
 - Shared helpers own scaling, localization conversion, wrapper bindings, common button sizing, and menu chrome. Screen-specific layout values stay local and named.
-- Opaque panels preserve their themed background when drawing accents. Transparent pause/main-menu surfaces remain unregistered.
+- Panels take their fill from the window background; accent drawing adds border and strip geometry over it and never substitutes a fill.
 - Hover animation is caller-owned state and composes ImGui alpha, including disabled controls, without heap allocation.
 
 ## Ownership
