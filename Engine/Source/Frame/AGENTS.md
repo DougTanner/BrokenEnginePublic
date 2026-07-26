@@ -8,7 +8,7 @@ Update Frame Update Pipeline (`../../../Documents/Architecture/FrameUpdatePipeli
 
 ## Architecture
 
-- `FrameInterpolateBase` owns continuous state used for interpolation. `FramePostRenderBase` owns committed deterministic state and per-tick queues. Client-only visual state stays outside shared CRCs.
+- `FrameInterpolateBase` owns continuous state used for fixed-tick interpolation; `FramePostRenderBase` owns committed deterministic state and per-tick queues. Fixed-tick Interpolate state may feed `FramePostRenderBase` and shared CRC state; shared PostRender/CRC state must not derive from a client render-interpolated frame or client-only collection member. Stop when a proposed source crosses or obscures this boundary.
 - Static cell data is derived from the grid coordinate and packed island assets. Elevation is shared; navigation data is server-built and sent to clients. Navigation implementation spans `NavBuild.cpp`, `NavCellData.cpp`, and `NavQuery.cpp`, sharing predicates through `NavBuildInternal.h`.
 - Collision and area-damage queues are thread-local because coord ticks may run in parallel. Per-tick producers and consumers must preserve phase order and clear their queues at the owning boundary.
 - Large terrain/nav allocations are lazy. Do not make frame constructors allocate proportional to world or mesh size.

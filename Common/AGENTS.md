@@ -2,7 +2,7 @@
 
 ## Overview
 
-`common::` is the foundation layer shared by DataPacker, Engine, Projects, and tools. It is independent of Engine and game layers, but may wrap platform or third-party facilities exposed through the approved aggregation headers. Add public headers to `Common.h`, the single Common aggregation header included by `Pch.h`.
+`common::` is the foundation layer shared by DataPacker, Engine, Projects, and tools. It may use standard, platform, and third-party headers centralized by `ExternalHeaders.h`, but never depends on Engine, DataPacker, or Projects/game code. If a Common change requires one of those dependencies, stop before editing: move the behavior to its higher owner or obtain an architectural decision. Add public headers to `Common.h`, the single Common aggregation header included by `Pch.h`.
 
 Focused implementation contracts live in Log (`Log/AGENTS.md`), Math (`Math/AGENTS.md`), and Threading (`Threading/AGENTS.md`). This hub owns only their cross-codebase usage rules.
 
