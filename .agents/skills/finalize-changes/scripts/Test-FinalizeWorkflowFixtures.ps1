@@ -344,6 +344,20 @@ Assert-Outcome $run 'late-child-refresh-required' 2 'blocked' 'approval.refresh-
 Invoke-ScratchGit $session @('add','Documents/Plans/LateChild.md') | Out-Null
 Invoke-ScratchGit $session @('commit','-m','fixture refreshed terminal candidate') | Out-Null
 $approved = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
+# The landing reruns terminal preparation, so a terminal target carrying third-party bytes blocks as a
+# named recovery conflict needing user judgment, never as a bare prepare failure.
+[IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\Recovery.md'), "$metadata`n# Recovery fixture with third-party bytes`n", [Text.UTF8Encoding]::new($false))
+Invoke-ScratchGit $session @('add','Documents/Plans/Recovery.md') | Out-Null
+Invoke-ScratchGit $session @('commit','-m','fixture third-party terminal target bytes') | Out-Null
+$conflictTip = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
+$landingParameters.ExpectedCurrentTip = $conflictTip
+$landingParameters.ApprovedSessionCommit = $conflictTip
+$run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
+Assert-Outcome $run 'terminal-target-third-party-bytes' 2 'blocked' 'plan.recovery-conflict'
+if ($null -ne $run.Json) { Assert-True ($run.Json.message -clike '*Documents/Plans/Recovery.md*') 'recovery conflict names the conflicting Plan path' }
+Invoke-ScratchGit $session @('rm','--quiet','--','Documents/Plans/Recovery.md') | Out-Null
+Invoke-ScratchGit $session @('commit','-m','fixture restores terminal target deletion') | Out-Null
+$approved = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
 $landingParameters.ExpectedCurrentTip = $approved
 $landingParameters.ApprovedSessionCommit = $approved
 $landingParameters.TerminalDisposition = 'rejected'

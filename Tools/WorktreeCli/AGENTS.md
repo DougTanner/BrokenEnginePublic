@@ -21,7 +21,7 @@ Missing dependency paths are satisfied with a stale-edge notice. Invalid metadat
 
 Executable markers contain exactly `createdUtc` and `dependsOn`; timestamps use canonical millisecond UTC (`yyyy-MM-ddTHH:mm:ss.fffZ`). Claim healing requires the recorded worktree, branch, common directory, and primary-baseline ancestry to remain valid at the worktree's current `HEAD`.
 
-Enumeration skips unreadable or schema-invalid claim records and reports the exact path; operations targeting that record fail. Recovery removes only the diagnosed `.lock` file. Terminal preparation cleans only hidden regular atomic siblings matching the exact Plan-owned temporary filename shape. Receipt-bound release proves the landed commit contains the claim baseline, is incorporated into the actual primary tip, and has terminal state in that tip before deleting the claim. Never broadly delete coordination state.
+Enumeration skips unreadable or schema-invalid claim records and reports the exact path; operations targeting that record fail. Recovery removes only the diagnosed `.lock` file. Terminal preparation cleans only hidden regular atomic siblings matching the exact Plan-owned temporary filename shape, and classifies each manifest child by whether its on-disk marker still lists the terminal target rather than by whole-file digest, so a reconciled child body never conflicts; the terminal target itself stays digest-gated. Receipt-bound release proves the landed commit contains the claim baseline, is incorporated into the actual primary tip, and has terminal state in that tip before deleting the claim. Never broadly delete coordination state.
 
 ## Project Ownership
 

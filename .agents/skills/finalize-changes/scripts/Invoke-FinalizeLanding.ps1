@@ -282,6 +282,11 @@ try {
 		$preparedResponse = Invoke-WorktreeCli $prepareArguments
 		$prepared = Get-JsonResponse $preparedResponse 'pre-landing terminal preparation'
 		if ($preparedResponse.ExitCode -ne 0 -or -not $prepared.prepared -or $prepared.claimState -cne 'awaiting-landing') {
+			if ($prepared.code -ceq 'recovery-conflict') {
+				# Reconciled Plan bytes no longer conflict, so a surviving conflict is third-party target bytes or a child that vanished mid-recovery: route the named Plan to user judgment, never a retry or override.
+				$conflictPlan = if ($prepared.PSObject.Properties.Name -ccontains 'plan') { [string] $prepared.plan } else { 'unreported Plan path' }
+				Throw-Landing $(if ($preparedResponse.ExitCode -eq 2) { 2 } else { 1 }) 'plan.recovery-conflict' "Terminal preparation conflicts on Plan '$conflictPlan': $($prepared.message). Resolve under the terminal preparation conflict rule in .agents/skills/next-plan/references/execution-gates.md."
+			}
 			Throw-Landing $(if ($preparedResponse.ExitCode -eq 2) { 2 } else { 1 }) 'plan.prepare-failed' 'Receipt-bound Plan terminal preparation could not be proven before landing.'
 		}
 		if ($prepared.PSObject.Properties.Name -cnotcontains 'disposition' -or $prepared.disposition -isnot [string] -or $prepared.disposition -cne $TerminalDisposition) {

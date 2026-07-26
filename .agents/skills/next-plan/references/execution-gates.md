@@ -68,6 +68,14 @@ further primary advances until `/finalize-changes`. An `ok: true` stale-baseline
 `missing-plan-file` notice is non-blocking and reconciliation resolves the
 advance. A Plan-digest mismatch is terminal.
 
+Terminal preparation classifies each manifest child by whether its on-disk marker
+still names the terminal target, so reconciliation-produced manifest-child bytes
+are expected and never conflict. A surviving `recovery-conflict` means either the
+terminal target's own bytes changed before deletion or a manifest child
+disappeared during recovery; the response's `plan` and `message` fields say
+which. It blocks the landing as `plan.recovery-conflict` and needs user judgment
+on the named Plan — never a retry and never an override.
+
 ### Primary rewrite (squash)
 
 A failed `git merge-base --is-ancestor $env:BROKEN_ENGINE_BASELINE <primary tip>`
@@ -138,8 +146,12 @@ The finalization `implementer` performs every pre-confirmation mechanic and
 returns the exact candidate and summary fields to main. Immediately before the
 one operation that mutates primary history, main states in one short summary:
 what the change is in one sentence, the changed-file count and kind (code vs
-docs/plans), the session branch, and the primary branch. Main then asks one
-direct confirmation question:
+docs/plans), the session branch, and the primary branch. When the landing
+includes a canonical shared-artifact mutation as defined above, that summary
+also states that landing replaces the canonical AgentTools binaries every
+linked worktree consumes, and names any changed CLI contract; the disclosure
+adds nothing to the gating already required above. Main then asks one direct
+confirmation question:
 
 - `session-landing`: `Confirm landing this change from <session-branch> onto
   primary branch <primary-branch>?`

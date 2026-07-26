@@ -1620,22 +1620,16 @@ namespace toolcli
 				const std::filesystem::path diskPath = worktree / childPath;
 				if (!ReadBytes(diskPath, bytes))
 				{
-					return Conflict(rOperation, "recovery-conflict", "child plan is absent during terminal recovery");
+					return Conflict(rOperation, "recovery-conflict", "child plan is absent during terminal recovery", { { "plan", WideToUtf8(childPath) } });
 				}
-				const std::string digest = coordination::HashSha256(bytes).value_or("");
-				if (digest == child.value("afterSha256", ""))
+				// This transaction owns only the dependency edge; RenderDependencies copies the body verbatim, so a
+				// reconciled body is expected and must not conflict.  A false return means the on-disk marker no
+				// longer lists the target, which is the after-state.
+				std::string after;
+				if (!RenderDependencies(found->second, target, after))
 				{
 					if (bRecoveringPreparation) changed.push_back(WideToUtf8(childPath));
 					continue;
-				}
-				if (digest != child.value("beforeSha256", ""))
-				{
-					return Conflict(rOperation, "recovery-conflict", "child plan has third-party bytes");
-				}
-				std::string after;
-				if (!RenderDependencies(found->second, target, after) || coordination::HashSha256(after).value_or("") != child.value("afterSha256", ""))
-				{
-					return Conflict(rOperation, "recovery-conflict", "child rewrite no longer matches manifest");
 				}
 				if (!coordination::WriteBytesAtomic(diskPath, after))
 				{
@@ -1654,7 +1648,7 @@ namespace toolcli
 				}
 				if (coordination::HashSha256(targetBytes).value_or("") != manifestTarget.value("beforeSha256", ""))
 				{
-					return Conflict(rOperation, "recovery-conflict", "target plan has third-party bytes");
+					return Conflict(rOperation, "recovery-conflict", "target plan has third-party bytes", { { "plan", WideToUtf8(target) } });
 				}
 				if (::DeleteFileW(ExtendedLengthPath(targetDiskPath).c_str()) == FALSE)
 				{

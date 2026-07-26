@@ -227,6 +227,35 @@ try {
 	Assert-True (-not (Test-Path -LiteralPath $targetAtomicTemp) -and -not (Test-Path -LiteralPath $childAtomicTemp)) 'Recognized scheduler atomic temporary sibling survived terminal retry.'
 	Assert-True ((Test-Path -LiteralPath $unrelatedUntracked) -and (@(& git.exe -C $session status --porcelain -- Documents/Plans/Test) -match 'Unrelated\.untracked')) 'Scheduler removed or concealed unrelated untracked file.'
 	Remove-Item -LiteralPath $unrelatedUntracked -Force
+	# The transaction owns only the byte-zero marker, so a reconciled child body is expected: it must not conflict and must
+	# survive the retry. A child whose dependsOn edge is restored is still pending and gets its rewrite reapplied.
+	$childDiskPath = Join-Path $session 'Documents/Plans/Test/Dependent.md'
+	$childBodyEdit = "`n## Reconciled body`n"
+	# The scheduler's atomic rewrite leaves each rewritten Plan hidden+temporary, which blocks WriteAllText.
+	[IO.File]::SetAttributes($childDiskPath, [IO.FileAttributes]::Normal)
+	[IO.File]::WriteAllText($childDiskPath, ([IO.File]::ReadAllText($childDiskPath) + $childBodyEdit), $utf8)
+	$reconciledChild = Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256)
+	Assert-Result $reconciledChild 'prepare-completion' 'ok' 'recovered'
+	Assert-True ([IO.File]::ReadAllText($childDiskPath).EndsWith($childBodyEdit)) 'Reconciled child body edit did not survive terminal recovery.'
+	# Restore only the byte-zero marker edge: keeping the reconciled body makes these bytes match neither manifest state, so a
+	# digest-only classifier conflicts here instead of rewriting.
+	$childRewritten = [IO.File]::ReadAllText($childDiskPath)
+	$childRestored = '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-04T00:00:00.000Z","dependsOn":["Documents/Plans/Test/Older.md"]} -->' + $childRewritten.Substring($childRewritten.IndexOf("`n"))
+	[IO.File]::SetAttributes($childDiskPath, [IO.FileAttributes]::Normal)
+	[IO.File]::WriteAllText($childDiskPath, $childRestored, $utf8)
+	$restoredEdge = Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256)
+	Assert-Result $restoredEdge 'prepare-completion' 'ok' 'recovered'
+	Assert-True ($restoredEdge.changedPaths -contains 'Documents/Plans/Test/Dependent.md') 'Restored child dependency edge was not reported as rewritten.'
+	Assert-True (-not ([IO.File]::ReadAllText($childDiskPath) -match 'Older\.md')) 'Restored child dependency edge was not rewritten on disk.'
+	Assert-True ([IO.File]::ReadAllText($childDiskPath).EndsWith($childBodyEdit)) 'Restored-edge rewrite discarded the reconciled child body.'
+	# Deletion destroys the whole target file, so third-party bytes there still conflict, and the conflict names the Plan.
+	$targetDiskPath = Join-Path $session 'Documents/Plans/Test/Older.md'
+	Set-Plan $session 'Documents/Plans/Test/Older.md' '2024-01-01T00:00:00.000Z'
+	[IO.File]::WriteAllText($targetDiskPath, ([IO.File]::ReadAllText($targetDiskPath) + "## Third-party edit`n"), $utf8)
+	$targetConflict = Invoke-Cli 2 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256)
+	Assert-Result $targetConflict 'prepare-completion' 'conflict' 'recovery-conflict'
+	Assert-True (($targetConflict.PSObject.Properties.Name -ccontains 'plan') -and $targetConflict.plan -ceq 'Documents/Plans/Test/Older.md' -and $targetConflict.message -ceq 'target plan has third-party bytes') 'Target third-party bytes did not conflict by name.'
+	Remove-Item -LiteralPath $targetDiskPath -Force
 	$receiptIdentity = Get-Content -LiteralPath $terminalClaim.receipt.path -Raw | ConvertFrom-Json -Depth 100
 	$storedClaim = Get-Content -LiteralPath $receiptIdentity.claimPath -Raw | ConvertFrom-Json -Depth 100 -DateKind String
 	$storedClaim.state = 'preparing'; $storedClaim.PSObject.Properties.Remove('changedPaths'); $storedClaim.PSObject.Properties.Remove('manifestDigest')
@@ -490,6 +519,6 @@ try {
 	$behindOwnedClaimsAfter = @(Get-ChildItem -LiteralPath $claimsDirectory -File -Force -Filter '*.json').Count
 	Assert-True ($behindOwnedClaimsAfter -eq $behindOwnedClaimsBefore -and $behindOwnedClaimsAfter -eq 1) 'A second claim was minted for a session that already owned a terminal claim.'
 
-	[pscustomobject]@{ schemaVersion = 'broken-engine-plan-scheduler-fixtures/v1'; status = 'pass'; code = 'ok'; cases = @('metadata strictness, canonical timestamps, and immutability','deep tracked paths','baseline deletion, primary-advance notice, and stale-manual dependency classification','targeted validation','deterministic ordering','dependency and cycle quarantine','behind-session claim tolerance and diverged-session refusal','claim baseline identity, ancestry healing, and canonical timestamps','receipt-bound claims and unclaim','receipt containment and rollback','terminal atomic orphan cleanup, awaiting retry, preparing recovery, and current-primary release proof','reparent across live claim states with receipt rewrite and post-rebase heal safety','no-claims and foreign-worktree reparent isolation','completion and release against landed squashed history','mid-conflict reparent with validate heal-delete hazard','reparent of a claim stamped at a post-advance primary commit newer than the receipt baseline','healing isolation, primary-removed ineligibility, and dependency drift','map-independent one-claim-per-session terminal reclaim') } | ConvertTo-Json -Depth 5 -Compress
+	[pscustomobject]@{ schemaVersion = 'broken-engine-plan-scheduler-fixtures/v1'; status = 'pass'; code = 'ok'; cases = @('metadata strictness, canonical timestamps, and immutability','deep tracked paths','baseline deletion, primary-advance notice, and stale-manual dependency classification','targeted validation','deterministic ordering','dependency and cycle quarantine','behind-session claim tolerance and diverged-session refusal','claim baseline identity, ancestry healing, and canonical timestamps','receipt-bound claims and unclaim','receipt containment and rollback','terminal atomic orphan cleanup, awaiting retry, preparing recovery, and current-primary release proof','reconciled child body tolerance, restored dependency-edge rewrite, and named target third-party conflict','reparent across live claim states with receipt rewrite and post-rebase heal safety','no-claims and foreign-worktree reparent isolation','completion and release against landed squashed history','mid-conflict reparent with validate heal-delete hazard','reparent of a claim stamped at a post-advance primary commit newer than the receipt baseline','healing isolation, primary-removed ineligibility, and dependency drift','map-independent one-claim-per-session terminal reclaim') } | ConvertTo-Json -Depth 5 -Compress
 }
 finally { if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Force -Recurse } }
