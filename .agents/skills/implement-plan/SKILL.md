@@ -50,23 +50,36 @@ Skip this phase in audit-only mode.
 1. Confirm the execution card, scope, decisions, and acceptance checks remain
    current. Read the assigned plan items, applicable `AGENTS.md` files, current
    implementation, dependencies, helpers, and mirrored patterns before edits.
-2. Implement the smallest complete assigned change. Preserve all snapshotted
+2. Before introducing a new function, type, helper, or substantial logic block,
+   search with `rg` for the proposed identifier, responsibility terms describing
+   the behavior, the closest sibling implementation, and direct callers or
+   consumers. Read plausible matches before deciding new code is necessary. Reuse
+   an existing mechanism when it satisfies the current contract. If a plausible
+   match does not fit, establish the concrete mismatch in the implementation
+   reasoning; include it in the handoff only when the rejected candidate or
+   resulting duplication is non-obvious to a reviewer. Repository facts remain
+   resolvable through continued read-only inspection. If ownership, invariant
+   exposure, or shared-code blast radius remains materially uncertain after the
+   targeted searches, do not edit the affected shared region; return the exact
+   unknown as a residual for manager resolution, with user involvement when
+   necessary.
+3. Implement the smallest complete assigned change. Preserve all snapshotted
    pre-existing work and leave unrelated cleanup alone.
-3. If plan and repository reality materially conflict, stop that item. Quote
+4. If plan and repository reality materially conflict, stop that item. Quote
    the plan assumption and repository evidence as a residual; never improvise
    a replacement design. Continue only independent valid items.
-4. Apply compatible specialist instructions in this same context. If a
+5. Apply compatible specialist instructions in this same context. If a
    specialist requires another role, return the requirement to the manager
    instead of invoking it.
-5. Run only focused reads, searches, traces, and static checks needed for
+6. Run only focused reads, searches, traces, and static checks needed for
    internal coherence. The manager owns compilation, runtime checks, harness
    work, and all independent reviews.
-6. Record each changed file and exact function/type/section. For code, emit an
+7. Record each changed file and exact function/type/section. For code, emit an
    affected-site trigger for each signature, identity, semantics, layout,
    guard-affinity, sweep, or mirror concern, including symbol/pattern and search
    scope. Code always returns propagation work to `/update-affected-code`, even
    when the trigger is `none found`; propagation is N/A only when no code changed.
-7. For ignored or non-worktree state, follow its owner contract and report the
+8. For ignored or non-worktree state, follow its owner contract and report the
    exact path, persistence mechanism, expected persistence, and result.
 
 ## Phase 2: Same-Context Audit
