@@ -1,6 +1,7 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-26T22:48:43.781Z","dependsOn":[]} -->
 # Manager Boundary Root Statement
 
-Status: open decision / record. No byte-zero `broken-engine-plan/v1` marker, so this is a manual/reference document and never a scheduler input. It presents outcomes rather than a decision-complete implementation; it earns executable metadata only after the user answers the design question below.
+Status: open decision / record. The Design question below is unanswered, so a session claiming this Plan resolves that question with the user before any implementation.
 
 ## Context
 
@@ -49,7 +50,7 @@ Outcome B's exact tier cannot be finalized until its boundary is resolved.
 
 ## Acceptance criteria
 
-This document is manual/reference, so it has no scheduler lifecycle; its own closure is separate from any implementation artifact. Editing this file to record the answer and close the record is its own lifecycle edit under either outcome, and the criteria below count only implementation changes.
+Recording the answer in this file is its own lifecycle edit under either outcome, separate from any implementation artifact; the criteria below count only implementation changes. Outcome A therefore completes this Plan without changing any other tracked file.
 
 - The user's answer is recorded verbatim here before any edit elsewhere.
 - Outcome A: this record closes with the answer recorded, and no tracked file other than this record changes.

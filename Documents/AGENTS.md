@@ -1,6 +1,6 @@
 # Documents - Design-Time Reference and Planning
 
-Holds design-time documentation and two parallel planning trees. No build artifacts, no code.
+Holds design-time documentation and three parallel planning trees. No build artifacts, no code.
 
 ## Reference Material
 
@@ -13,14 +13,15 @@ Holds design-time documentation and two parallel planning trees. No build artifa
 
 ## Planning Trees
 
-Plan documents live in two sibling directories, split by whether the work adds a capability:
+Design-time documents live in three sibling directories:
 
 | Directory | Scope |
 |-----------|-------|
 | `Plans/` (`Plans/AGENTS.md`) | Refactors and bugfixes. Debt reduction — cleaning, decomposing, renaming, deleting dead code, fixing races/NaNs/precision, defensive shader clamps. Changes *how* the engine is built or how correctly it runs, not what it does. |
 | `Features/` (`Features/AGENTS.md`) | Brand-new additions. Manually executed; never scheduler-tracked. |
+| `Investigations/` (`Investigations/AGENTS.md`) | Non-executable reference material — findings records, overviews, option-presenting investigations. Never a scheduler input. |
 
-Deciding test: *does this plan give the engine a capability it didn't have before?* Yes → `Features/`, No → `Plans/`. Executable Plans carry a byte-zero, Git-tracked metadata marker. WorktreeCli selects them deterministically by immutable creation time and canonical path. Files without the marker and all Features files are manual. Each tree uses area subfolders (`Engine/`, `Frame/`, `Graphics/`, etc.).
+Deciding test: *is this decision-complete work?* No → `Investigations/`. Yes, and it gives the engine a capability it didn't have before → `Features/`; otherwise → `Plans/`. Every plan document under `Plans/` carries a byte-zero, Git-tracked metadata marker; a marker-less one is a validation error, not a manual document. WorktreeCli selects executable Plans deterministically by immutable creation time and canonical path. Each tree uses area subfolders (`Engine/`, `Frame/`, `Graphics/`, etc.).
 
 ## Historical scoring anchors
 

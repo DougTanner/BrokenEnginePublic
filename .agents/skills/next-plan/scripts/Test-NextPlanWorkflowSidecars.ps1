@@ -103,7 +103,7 @@ try {
 	Set-Utf8File (Join-Path $primary '.gitignore') "Temp/`nTools/WorktreeCli/Platforms/VisualStudio2026/Output/`n"
 	$plan = 'Documents/Plans/TestPlan.md'
 	Set-Utf8File (Join-Path $primary 'Documents/Plans/TestPlan.md') "<!-- broken-engine-plan/v1 {`"createdUtc`":`"2024-01-01T00:00:00.000Z`",`"dependsOn`":[]} -->`n# Test plan`n`nImplement the fixture behavior.`n"
-	Set-Utf8File (Join-Path $primary 'Documents/Plans/Reference.md') "# Plans reference`n"
+	Set-Utf8File (Join-Path $primary 'Documents/Plans/AGENTS.md') "# Directory guidance`n"
 	Set-Utf8File (Join-Path $primary 'Documents/Features/Reference.md') "# Manual feature reference`n"
 	Invoke-Git $primary @('add','--all') | Out-Null
 	Invoke-Git $primary @('commit','-m','fixture baseline') | Out-Null

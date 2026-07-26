@@ -1,10 +1,10 @@
 # Island Resident-Memory Scaling — Overview
 
-**Reference / index document — not an executable plan.** Deliberately carries no byte-zero `broken-engine-plan/v1` metadata, so WorktreeCli never schedules it. It anchors the series of plans that bound per-template island resident memory: it records the shared boot measurement, the closed decisions, and the architecture findings that shaped the decomposition, so each sibling plan does not re-derive them.
+**Index document for the island resident-memory scaling series — not an executable plan.** It lives in `Documents/Investigations/` and deliberately carries no byte-zero `broken-engine-plan/v1` metadata, so WorktreeCli never schedules it. It anchors the series of plans that bound per-template island resident memory: it records the shared boot measurement, the closed decisions, and the architecture findings that shaped the decomposition, so each plan in the series does not re-derive them.
 
 ## Role and scope contract
 
-This document authorizes no implementation work. Implementation scope, in-file boundaries, risk tiers, and acceptance criteria live exclusively in the sibling plans it indexes; nothing in this overview widens or overrides them. The only in-scope changes to this file are reference updates — series status, measurements, findings — when a sibling plan lands, closes, or is re-measured. That maintenance scope is both target and ceiling: do not merge sibling plan content into this file, add executable metadata, or derive new work items from it.
+This document authorizes no implementation work. Implementation scope, in-file boundaries, risk tiers, and acceptance criteria live exclusively in the plans it indexes; nothing in this overview widens or overrides them. Those plans live under `Documents/Plans/Graphics/`, which is where every bare plan filename in this document resolves; the entries the series table marks *removed — landed* no longer exist there. The only in-scope changes to this file are reference updates — series status, measurements, findings — when an indexed plan lands, closes, or is re-measured. That maintenance scope is both target and ceiling: do not merge indexed plan content into this file, add executable metadata, or derive new work items from it.
 
 ## The problem
 

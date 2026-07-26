@@ -8,7 +8,7 @@ An executable plan starts at byte zero with exactly one metadata line:
 
 `<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-22T18:24:31.042Z","dependsOn":["Documents/Plans/Area/Prerequisite.md"]} -->`
 
-Both keys are mandatory. `createdUtc` is immutable after creation. `dependsOn` is a unique ordinal-sorted list of canonical `Documents/Plans/**/*.md` paths. Files lacking the marker are manual/reference documents.
+Both keys are mandatory. `createdUtc` is immutable after creation. `dependsOn` is a unique ordinal-sorted list of canonical `Documents/Plans/**/*.md` paths. Every plan document in this tree carries the marker; a missing marker — including one preceded by a BOM, so it is not at byte zero — is a validation error naming the file. `AGENTS.md` and `CLAUDE.md` are exempt at every level of the tree and must never carry metadata.
 
 WorktreeCli is the only scheduler parser and claim mutator. It selects the oldest eligible executable plan by `(createdUtc, canonical path)`. Existing valid dependencies block a child; a missing dependency is a satisfied stale edge reported as a notice. Invalid metadata and dependency cycles quarantine only the affected plans, so unrelated plans remain claimable.
 
@@ -20,4 +20,4 @@ Completion uses `plan prepare-completion`; explicit rejection uses `plan prepare
 
 Plans live in area subdirectories, never directly at `Plans/`. An executable plan provides metadata, `# Title`, context, design, critical files, required `## Out of scope` boundaries, risk triggers/invariants, and observable acceptance criteria when a diff is not decisive. Put directional prerequisites in metadata, not prose.
 
-Plans presenting options rather than a decision-complete implementation remain manual/reference documents until they receive executable metadata.
+A document presenting options rather than a decision-complete implementation does not belong here; it belongs in `../Investigations/` (see `../Investigations/AGENTS.md`) until the decision exists. Work blocked on another change expresses that as a `dependsOn` edge, which the scheduler already honours; work blocked on a decision is not a Plan yet.

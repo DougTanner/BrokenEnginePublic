@@ -42,7 +42,8 @@ Net: the honest expectation is that a redundancy measurement shows ~0% byte-iden
 payloads and this plan closes as accept-and-document. It is kept as a live plan only because the
 user explicitly deferred it and because a content-pipeline change (e.g. routes deliberately sharing
 crops, or repeated placement of one master) could revive the value later. Part of the island
-resident-memory scaling series — see `IslandResidentMemoryScaling_Overview.md`.
+resident-memory scaling series — see
+`Documents/Investigations/Graphics/IslandResidentMemoryScaling_Overview.md`.
 
 ## Design
 
@@ -53,7 +54,8 @@ Add a DataPacker-side diagnostic that hashes each emitted per-leaf R16 heightmap
 memcpys to chunk-payload offset 0 — and reports a duplicate histogram: distinct hashes, total
 leaves, bytes saved if identical payloads were emitted once. If the duplicate fraction is negligible
 (the expected outcome), stop here and record the finding in this plan plus
-`IslandResidentMemoryScaling_Overview.md` — do not build the machinery below.
+`Documents/Investigations/Graphics/IslandResidentMemoryScaling_Overview.md` — do not build the
+machinery below.
 
 ### Conditional — only if Step 0 shows material byte-identical redundancy
 
@@ -109,8 +111,9 @@ requires.
 - `DataPacker/Source/ExportJobs/ExportIsland.cpp` — `ExportIsland::Export`: hash the
   `heightmapHalf` payload bytes and feed the duplicate histogram; the aggregation/report mechanism
   is local detail.
-- This plan file and `Documents/Plans/Graphics/IslandResidentMemoryScaling_Overview.md` — record
-  the measured redundancy result.
+- This plan file and
+  `Documents/Investigations/Graphics/IslandResidentMemoryScaling_Overview.md` — record the measured
+  redundancy result.
 
 **In scope — conditional (only if Step 0 shows material redundancy):**
 
@@ -172,7 +175,7 @@ requires.
 
 - The Step-0 DataPacker histogram exists and reports byte-identical heightmap redundancy across all
   shipping leaves. If negligible, the plan closes with that finding recorded here and in
-  `IslandResidentMemoryScaling_Overview.md`.
+  `Documents/Investigations/Graphics/IslandResidentMemoryScaling_Overview.md`.
 - If pursued: multiple templates whose leaves produced byte-identical heightmaps share one lazy-pool
   region (verified by pointer-aliasing / pool-byte reduction), with no change to the bytes any
   template samples — CRC-identical sim on both builds, and the R16 elevation image / NavContour

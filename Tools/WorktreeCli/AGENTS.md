@@ -15,11 +15,11 @@ Use `Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` throug
 
 ## Coordination State
 
-Landing locks and scheduler claims live under `%LOCALAPPDATA%\BrokenEngineLocks`. Scheduler claims are keyed by Git common directory and expire after 48 hours; invalid, expired, and orphaned local records self-heal. `Documents/Features` is not scheduled.
+Landing locks and scheduler claims live under `%LOCALAPPDATA%\BrokenEngineLocks`. Scheduler claims are keyed by Git common directory and expire after 48 hours; invalid, expired, and orphaned local records self-heal. `Documents/Features` and `Documents/Investigations` are not scheduled.
 
 Missing dependency paths are satisfied with a stale-edge notice. Invalid metadata and dependency cycles quarantine only their affected Plans component; unrelated valid plans remain claimable.
 
-Executable markers contain exactly `createdUtc` and `dependsOn`; timestamps use canonical millisecond UTC (`yyyy-MM-ddTHH:mm:ss.fffZ`). Claim healing requires the recorded worktree, branch, common directory, and primary-baseline ancestry to remain valid at the worktree's current `HEAD`.
+Executable markers contain exactly `createdUtc` and `dependsOn`; timestamps use canonical millisecond UTC (`yyyy-MM-ddTHH:mm:ss.fffZ`). Every tracked `Documents/Plans` document carries one at byte zero; an absent marker — including one displaced by a BOM — reports `invalid-metadata` naming the path. `AGENTS.md` and `CLAUDE.md` are exempt at any depth. Claim healing requires the recorded worktree, branch, common directory, and primary-baseline ancestry to remain valid at the worktree's current `HEAD`.
 
 Enumeration skips unreadable or schema-invalid claim records and reports the exact path; operations targeting that record fail. Recovery removes only the diagnosed `.lock` file. Terminal preparation cleans only hidden regular atomic siblings matching the exact Plan-owned temporary filename shape, and classifies each manifest child by whether its on-disk marker still lists the terminal target rather than by whole-file digest, so a reconciled child body never conflicts; the terminal target itself stays digest-gated. Receipt-bound release proves the landed commit contains the claim baseline, is incorporated into the actual primary tip, and has terminal state in that tip before deleting the claim. Never broadly delete coordination state.
 

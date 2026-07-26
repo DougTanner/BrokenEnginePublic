@@ -334,7 +334,8 @@ namespace toolcli
 			}
 			if (!rPlan.bytes.starts_with(kMarkerPrefix))
 			{
-				// An ordinary Markdown document is deliberately manual/reference-only.
+				// Classifying rather than failing keeps the stale-baseline erase and dependency blocking working; the
+				// reporting sites, not this classification, make a marker-less plan document loud.
 				rPlan.diagnostic = "manual";
 				return true;
 			}
@@ -403,6 +404,33 @@ namespace toolcli
 			return ParsePlanBytes(rPlan);
 		}
 
+		bool IsDirectoryGuidance(const std::wstring& rPath)
+		{
+			const std::wstring filename = std::filesystem::path(rPath).filename().wstring();
+			return filename == L"AGENTS.md" || filename == L"CLAUDE.md";
+		}
+
+		// Guidance metadata is inert in both directions: never executable, and never another Plan's dependency child, so
+		// dropping its outgoing edges keeps it out of terminal preparation's child scans.  The entry itself stays in the Plan
+		// map because inbound edges block on membership alone, which is what stops a dependent plan going stale.  A tracked
+		// file absent from the worktree keeps its "missing" classification, which the baseline comparison needs to erase it.
+		void ClassifyDirectoryGuidance(Plan& rPlan)
+		{
+			if (!IsDirectoryGuidance(rPlan.path) || rPlan.diagnostic == "missing") return;
+			rPlan.bValid = false;
+			rPlan.diagnostic = "manual";
+			rPlan.dependencies.clear();
+		}
+
+		// Every plan document carries byte-zero metadata, so a marker-less one is a defect rather than a reference file.
+		// Guidance is the one document that is never a plan, at any depth, so it stays silent instead of being reported.
+		void ReportInvalidMetadata(const Plan& rPlan, nlohmann::json& rDiagnostics)
+		{
+			if (IsDirectoryGuidance(rPlan.path)) return;
+			const std::string message = rPlan.diagnostic == "manual" ? "plan document requires byte-zero broken-engine-plan/v1 metadata" : rPlan.diagnostic;
+			rDiagnostics.push_back({ { "plan", WideToUtf8(rPlan.path) }, { "code", "invalid-metadata" }, { "message", message } });
+		}
+
 		bool BuildPlans(const std::filesystem::path& rWorktree, std::map<std::wstring, Plan>& rPlans, nlohmann::json& rDiagnostics)
 		{
 			const std::optional<std::string> listing = RunGit({ L"-C", rWorktree.wstring(), L"ls-files", L"-z", L"--", L"Documents/Plans" });
@@ -429,7 +457,8 @@ namespace toolcli
 				plan.path = path;
 				plan.diskPath = rWorktree / path;
 				ParsePlan(plan);
-				if (!plan.bValid && plan.diagnostic != "manual" && plan.diagnostic != "missing") rDiagnostics.push_back({ { "plan", WideToUtf8(path) }, { "code", "invalid-metadata" }, { "message", plan.diagnostic } });
+				ClassifyDirectoryGuidance(plan);
+				if (!plan.bValid && plan.diagnostic != "missing") ReportInvalidMetadata(plan, rDiagnostics);
 				rPlans.emplace(path, std::move(plan));
 			}
 			return true;
@@ -472,9 +501,10 @@ namespace toolcli
 				plan.path = path;
 				plan.bytes = *bytes;
 				ParsePlanBytes(plan);
-				if (!plan.bValid && plan.diagnostic != "manual")
+				ClassifyDirectoryGuidance(plan);
+				if (!plan.bValid)
 				{
-					rDiagnostics.push_back({ { "plan", WideToUtf8(path) }, { "code", "invalid-metadata" }, { "message", plan.diagnostic } });
+					ReportInvalidMetadata(plan, rDiagnostics);
 				}
 				rPlans.emplace(path, std::move(plan));
 			}

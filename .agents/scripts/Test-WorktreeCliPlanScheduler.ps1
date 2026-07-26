@@ -49,21 +49,29 @@ try {
 	Set-Plan $primary 'Documents/Plans/Test/Older.md' '2024-01-01T00:00:00.000Z'
 	Set-Plan $primary 'Documents/Plans/Test/Alpha.md' '2024-01-02T00:00:00.000Z'
 	Set-Plan $primary 'Documents/Plans/Test/Zulu.md' '2024-01-02T00:00:00.000Z'
-	[IO.File]::WriteAllText((Join-Path $primary 'Documents/Plans/Test/Reference.md'), '# Manual reference', $utf8)
+	[IO.File]::WriteAllText((Join-Path $primary 'Documents/Plans/Test/AGENTS.md'), '# Directory guidance', $utf8)
 	Commit $primary 'baseline'
 	$baseline = (& git.exe -C $primary rev-parse HEAD).Trim()
 	& git.exe -C $primary worktree add -b fixture-session $session $baseline | Out-Null
 	New-Item -ItemType Directory -Force -Path (Join-Path $session 'Temp') | Out-Null
 	$valid = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$baseline)
-	Assert-Result $valid 'validate' 'valid' 'ok'; Assert-True ($valid.plans.Count -eq 3) 'Manual/reference Markdown became executable.'
+	Assert-Result $valid 'validate' 'valid' 'ok'; Assert-True ($valid.plans.Count -eq 3) 'Exempt directory guidance became executable.'
 	Assert-True ($valid.plans[0].path -ceq 'Documents/Plans/Test/Older.md') 'Validation did not retain deterministic inventory order.'
 
-	# Metadata boundary: BOM means the marker is not byte zero; malformed markers and unknown keys are invalid rather than
-	# silently manual. A marker cannot be removed after baseline, while a newly created executable Plan is valid.
+	# Metadata boundary: a plan document without a byte-zero marker - including one displaced by a BOM - is a loud
+	# invalid-metadata diagnostic naming its exact path rather than a silent skip, while AGENTS.md/CLAUDE.md stay exempt at
+	# any depth. Malformed markers and unknown keys are invalid too. A marker cannot be removed after baseline, while a
+	# newly created executable Plan is valid.
 	$bomPlan = 'Documents/Plans/Test/Bom.md'; $bomPath = Join-Path $primary $bomPlan; [IO.File]::WriteAllText($bomPath, '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-03T00:00:00.000Z","dependsOn":[]} -->', [Text.UTF8Encoding]::new($true)); Track-Plan $primary $bomPlan
 	$bom = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$baseline)
-	Assert-Result $bom 'validate' 'valid' 'ok'; Assert-True (@($bom.plans | Where-Object { $_.path -ceq 'Documents/Plans/Test/Bom.md' }).Count -eq 0) 'BOM-prefixed marker became executable metadata.'
+	Assert-Result $bom 'validate' 'invalid' 'invalid-plans'; Assert-True (@($bom.diagnostics | Where-Object { $_.plan -ceq $bomPlan -and $_.code -ceq 'invalid-metadata' }).Count -eq 1 -and @($bom.plans | Where-Object { $_.path -ceq $bomPlan }).Count -eq 0) 'BOM-displaced marker was not a loud non-executable diagnostic.'
 	Remove-TemporaryPlan $primary $bomPlan
+	$nestedGuidance = 'Documents/Plans/Test/Nested/CLAUDE.md'; [IO.Directory]::CreateDirectory((Join-Path $primary 'Documents/Plans/Test/Nested')) | Out-Null; [IO.File]::WriteAllText((Join-Path $primary $nestedGuidance), '@AGENTS.md', $utf8); Track-Plan $primary $nestedGuidance
+	$markedGuidance = 'Documents/Plans/Test/Nested/AGENTS.md'; Set-Plan $primary $markedGuidance '2018-01-01T00:00:00.000Z'; Track-Plan $primary $markedGuidance
+	$guidancePaths = @($nestedGuidance,$markedGuidance,'Documents/Plans/Test/AGENTS.md')
+	$guidance = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$baseline)
+	Assert-Result $guidance 'validate' 'valid' 'ok'; Assert-True (@($guidance.plans | Where-Object { $_.path -cin $guidancePaths }).Count -eq 0 -and @($guidance.diagnostics | Where-Object { $_.plan -cin $guidancePaths }).Count -eq 0) 'Directory guidance became executable metadata or was reported, marker or not.'
+	Remove-TemporaryPlan $primary $nestedGuidance; Remove-TemporaryPlan $primary $markedGuidance
 	$strictPlan = 'Documents/Plans/Test/Strict.md'; $strictPath = Join-Path $primary $strictPlan; [IO.File]::WriteAllText($strictPath, '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-03T00:00:00.000Z","dependsOn":[],"extra":true} -->', $utf8); Track-Plan $primary $strictPlan
 	$strict = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$baseline)
 	Assert-Result $strict 'validate' 'invalid' 'invalid-plans'; Assert-True (@($strict.diagnostics | Where-Object { $_.plan -ceq 'Documents/Plans/Test/Strict.md' }).Count -eq 1) 'Unknown metadata key was accepted.'
@@ -79,14 +87,14 @@ try {
 	Assert-Result $deep 'validate' 'valid' 'ok'; Assert-True (@($deep.plans | Where-Object { $_.path -ceq $deepPlan }).Count -eq 1) 'Deep tracked Plan path was not enumerated.'
 	Remove-TemporaryPlan $primary $deepPlan
 
-	# Baseline deletions are classified by baseline metadata: manual/reference files may disappear, while executable Plans
+	# Baseline deletions are classified by baseline metadata: non-executable files may disappear, while executable Plans
 	# require a terminal receipt.
-	$referencePath = Join-Path $primary 'Documents/Plans/Test/Reference.md'; Remove-Item -LiteralPath $referencePath -Force
-	$manualStalePlan = 'Documents/Plans/Test/ManualStale.md'; Set-Plan $primary $manualStalePlan '2024-01-03T00:00:00.000Z' @('Documents/Plans/Test/Reference.md'); Track-Plan $primary $manualStalePlan
-	$manualDeletion = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$baseline)
-	Assert-Result $manualDeletion 'validate' 'valid' 'ok'; Assert-True (@($manualDeletion.plans | Where-Object { $_.path -ceq $manualStalePlan }).Count -eq 1 -and @($manualDeletion.notices | Where-Object { $_.plan -ceq $manualStalePlan -and $_.code -ceq 'stale-dependency' }).Count -eq 1) 'Deleted baseline manual dependency did not become a satisfied stale-edge notice.'
-	Remove-TemporaryPlan $primary $manualStalePlan
-	& git.exe -C $primary checkout -- Documents/Plans/Test/Reference.md | Out-Null
+	$guidancePath = Join-Path $primary 'Documents/Plans/Test/AGENTS.md'; Remove-Item -LiteralPath $guidancePath -Force
+	$guidanceStalePlan = 'Documents/Plans/Test/GuidanceStale.md'; Set-Plan $primary $guidanceStalePlan '2024-01-03T00:00:00.000Z' @('Documents/Plans/Test/AGENTS.md'); Track-Plan $primary $guidanceStalePlan
+	$guidanceDeletion = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$baseline)
+	Assert-Result $guidanceDeletion 'validate' 'valid' 'ok'; Assert-True (@($guidanceDeletion.plans | Where-Object { $_.path -ceq $guidanceStalePlan }).Count -eq 1 -and @($guidanceDeletion.notices | Where-Object { $_.plan -ceq $guidanceStalePlan -and $_.code -ceq 'stale-dependency' }).Count -eq 1) 'Deleted baseline non-executable dependency did not become a satisfied stale-edge notice.'
+	Remove-TemporaryPlan $primary $guidanceStalePlan
+	& git.exe -C $primary checkout -- Documents/Plans/Test/AGENTS.md | Out-Null
 	$olderPath = Join-Path $primary 'Documents/Plans/Test/Older.md'; Remove-Item -LiteralPath $olderPath -Force
 	$executableDeletion = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$baseline)
 	Assert-Result $executableDeletion 'validate' 'invalid' 'invalid-plans'; Assert-True (@($executableDeletion.diagnostics | Where-Object code -ceq 'baseline-plan-missing-or-demoted').Count -eq 1) 'Executable baseline deletion without terminal receipt was accepted.'
@@ -110,8 +118,19 @@ try {
 	Assert-True (@($localChanges.diagnostics | Where-Object { $_.plan -ceq 'Documents/Plans/Test/Alpha.md' -and $_.code -ceq 'baseline-plan-missing-or-demoted' }).Count -eq 1) 'Indexed Plan missing only from the local working tree inherited the primary-advance notice.'
 	Assert-True (@($localChanges.diagnostics | Where-Object { $_.plan -ceq 'Documents/Plans/Test/Zulu.md' -and $_.code -ceq 'baseline-plan-missing-or-demoted' }).Count -eq 1) 'Staged reintroduction canceled by primary-matching working bytes inherited the primary-advance notice.'
 	& git.exe -C $session reset --hard main | Out-Null
+	# An incorporated advance that demoted a Plan leaves a marker-less plan document in the reconciled tree: that document is
+	# loud on its own path, while the non-blocking primary-advance notices for both the removal and the demotion still fire.
 	$primaryAdvance = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$session,'--baseline',$baseline)
-	Assert-Result $primaryAdvance 'validate' 'valid' 'ok'; Assert-True (@($primaryAdvance.notices | Where-Object code -ceq 'missing-plan-file').Count -eq 2) 'Reconciled primary Plan removal or demotion remained blocking.'
+	Assert-Result $primaryAdvance 'validate' 'invalid' 'invalid-plans'
+	Assert-True (@($primaryAdvance.diagnostics).Count -eq 1 -and @($primaryAdvance.diagnostics | Where-Object { $_.plan -ceq 'Documents/Plans/Test/Zulu.md' -and $_.code -ceq 'invalid-metadata' }).Count -eq 1) 'Reconciled demotion to marker-less bytes was not the only reported diagnostic.'
+	Assert-True (@($primaryAdvance.notices | Where-Object code -ceq 'missing-plan-file').Count -eq 2) 'Reconciled primary Plan removal or demotion lost its non-blocking primary-advance notice.'
+	# With the demoted document also removed by the advance, the reconciled tree carries no marker-less plan document, so the
+	# removal tolerance is observable on its own: notices only, nothing blocking.
+	Remove-Item -LiteralPath (Join-Path $primary 'Documents/Plans/Test/Zulu.md') -Force
+	Commit $primary 'primary advance also removes the demoted plan'
+	& git.exe -C $session merge --ff-only main | Out-Null
+	$primaryAdvanceClean = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$session,'--baseline',$baseline)
+	Assert-Result $primaryAdvanceClean 'validate' 'valid' 'ok'; Assert-True (@($primaryAdvanceClean.notices | Where-Object code -ceq 'missing-plan-file').Count -eq 2) 'Reconciled primary Plan removal remained blocking.'
 	Set-Plan $primary 'Documents/Plans/Test/Alpha.md' '2024-01-02T00:00:00.000Z'
 	Set-Plan $primary 'Documents/Plans/Test/Zulu.md' '2024-01-02T00:00:00.000Z'
 	Commit $primary 'restore primary advance fixtures'
@@ -128,19 +147,22 @@ try {
 	Assert-Result $immutable 'validate' 'invalid' 'invalid-plans'; Assert-True (@($immutable.diagnostics | Where-Object code -ceq 'immutable-created-utc').Count -eq 1) 'createdUtc mutation was not quarantined.'
 	& git.exe -C $primary checkout -- Documents/Plans/Test/Older.md | Out-Null
 
-	# Dependencies: existing executable nodes block, missing nodes are satisfied notices, invalid/manual nodes block, and a
-	# self/cycle only quarantines its component while unrelated plan remains claimable.
+	# Dependencies: existing executable nodes block, missing nodes are satisfied notices, invalid/non-executable nodes
+	# block, and a self/cycle only quarantines its component while unrelated plan remains claimable. The committed
+	# marker-less plan document stays loud for the rest of the run without making anything else unclaimable.
 	Set-Plan $primary 'Documents/Plans/Test/Dependent.md' '2024-01-04T00:00:00.000Z' @('Documents/Plans/Test/Older.md')
 	Set-Plan $primary 'Documents/Plans/Test/Stale.md' '2024-01-05T00:00:00.000Z' @('Documents/Plans/Test/Deleted.md')
 	Set-Plan $primary 'Documents/Plans/Test/Self.md' '2024-01-06T00:00:00.000Z' @('Documents/Plans/Test/Self.md')
 	Set-Plan $primary 'Documents/Plans/Test/CycleA.md' '2024-01-07T00:00:00.000Z' @('Documents/Plans/Test/CycleB.md')
 	Set-Plan $primary 'Documents/Plans/Test/CycleB.md' '2024-01-08T00:00:00.000Z' @('Documents/Plans/Test/CycleA.md')
-	Set-Plan $primary 'Documents/Plans/Test/ManualBlocked.md' '2024-01-09T00:00:00.000Z' @('Documents/Plans/Test/Reference.md')
+	Set-Plan $primary 'Documents/Plans/Test/GuidanceBlocked.md' '2024-01-09T00:00:00.000Z' @('Documents/Plans/Test/AGENTS.md')
+	$markerlessPlan = 'Documents/Plans/Test/Markerless.md'; [IO.File]::WriteAllText((Join-Path $primary $markerlessPlan), '# Marker-less plan document', $utf8)
 	& git.exe -C $primary add --all -- Documents/Plans/Test | Out-Null
 	$dependencyValidation = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$baseline)
 	Assert-Result $dependencyValidation 'validate' 'invalid' 'invalid-plans'
 	Assert-True (@($dependencyValidation.notices | Where-Object { $_.code -ceq 'stale-dependency' -and $_.plan -ceq 'Documents/Plans/Test/Stale.md' }).Count -eq 1) 'Missing dependency was not a satisfied stale-edge notice.'
 	Assert-True (@($dependencyValidation.diagnostics | Where-Object code -ceq 'dependency-cycle').Count -eq 3) 'Self/cycle component was not quarantined.'
+	Assert-True (@($dependencyValidation.diagnostics | Where-Object { $_.plan -ceq $markerlessPlan -and $_.code -ceq 'invalid-metadata' }).Count -eq 1 -and @($dependencyValidation.plans | Where-Object { $_.path -ceq $markerlessPlan }).Count -eq 0) 'Marker-less plan document was not reported once by its exact path as non-executable.'
 	Commit $primary 'tracked dependency fixtures'
 	$claimBaseline = (& git.exe -C $primary rev-parse HEAD).Trim()
 	# A session HEAD behind the primary tip (a peer landing advanced primary) is a first-class claim: it records the session
@@ -156,6 +178,14 @@ try {
 	$mismatch = Invoke-Cli 1 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-mismatch','--session','session-mismatch','--write-claim-receipt',(Join-Path $session 'Temp/mismatch.json'))
 	Assert-Result $mismatch 'claim-next' 'error' 'git-identity-mismatch'
 	& git.exe -C $session reset --hard $claimBaseline | Out-Null
+
+	# The committed marker-less plan document is loud but never claimable, and quarantines only itself: an unrelated valid
+	# plan is still claimable while it exists.
+	$markerlessTarget = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-quarantine','--session','session-quarantine','--write-claim-receipt',(Join-Path $session 'Temp/markerless-target.json'),'--plan',$markerlessPlan)
+	Assert-Result $markerlessTarget 'claim-next' 'ok' 'none-available'; Assert-True (-not $markerlessTarget.claimed) 'Marker-less plan document was claimable.'
+	$quarantine = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-quarantine','--session','session-quarantine','--write-claim-receipt',(Join-Path $session 'Temp/markerless-quarantine.json'),'--plan','Documents/Plans/Test/Zulu.md')
+	Assert-Result $quarantine 'claim-next' 'ok' 'claimed'; Assert-True ($quarantine.claimed -and $quarantine.plan -ceq 'Documents/Plans/Test/Zulu.md') 'Marker-less plan document blocked an unrelated valid claim.'
+	Invoke-Cli 0 @('plan','unclaim','--worktree',$session,'--claim-receipt',$quarantine.receipt.path,'--claim-receipt-sha256',$quarantine.receipt.sha256) | Out-Null
 
 	# Claims select strictly oldest then UTF-8 path, reject a foreign live claim, return same-session retry receipt, and
 	# unclaim makes a plan eligible immediately.
@@ -217,8 +247,11 @@ try {
 	$terminalReceipt = Join-Path $session 'Temp/terminal.json'; $terminalClaim = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-e','--session','session-e','--write-claim-receipt',$terminalReceipt,'--plan','Documents/Plans/Test/Older.md')
 	$unauthorized = Invoke-Cli 1 @('plan','prepare-rejection','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256)
 	Assert-Result $unauthorized 'prepare-rejection' 'error' 'authorization-required'
+	# Guidance metadata naming the terminal target is inert: it is neither a blocking invalid child nor a rewritten one.
+	Set-Plan $session $markedGuidance '2018-01-01T00:00:00.000Z' @('Documents/Plans/Test/Older.md'); Track-Plan $session $markedGuidance
 	$prepared = Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256)
-	Assert-Result $prepared 'prepare-completion' 'ok' 'prepared'; Assert-True ($prepared.claimState -ceq 'awaiting-landing' -and $prepared.changedPaths -contains 'Documents/Plans/Test/Older.md' -and $prepared.changedPaths -contains 'Documents/Plans/Test/Dependent.md') 'Completion did not report target deletion and direct child rewrite.'
+	Assert-Result $prepared 'prepare-completion' 'ok' 'prepared'; Assert-True ($prepared.claimState -ceq 'awaiting-landing' -and $prepared.changedPaths -contains 'Documents/Plans/Test/Older.md' -and $prepared.changedPaths -contains 'Documents/Plans/Test/Dependent.md' -and $prepared.changedPaths -notcontains $markedGuidance) 'Completion did not report target deletion and direct child rewrite, or treated guidance as a child.'
+	Remove-TemporaryPlan $session $markedGuidance
 	$targetAtomicTemp = Join-Path $session 'Documents/Plans/Test/Older.md.tmp.123.1'; [IO.File]::WriteAllText($targetAtomicTemp, 'orphan', $utf8); [IO.File]::SetAttributes($targetAtomicTemp, [IO.FileAttributes]::Hidden -bor [IO.FileAttributes]::Temporary)
 	$childAtomicTemp = Join-Path $session 'Documents/Plans/Test/Dependent.md.tmp.123.2'; [IO.File]::WriteAllText($childAtomicTemp, 'orphan', $utf8); [IO.File]::SetAttributes($childAtomicTemp, [IO.FileAttributes]::Hidden -bor [IO.FileAttributes]::Temporary)
 	$unrelatedUntracked = Join-Path $session 'Documents/Plans/Test/Unrelated.untracked'; [IO.File]::WriteAllText($unrelatedUntracked, 'preserve', $utf8)
@@ -519,6 +552,14 @@ try {
 	$behindOwnedClaimsAfter = @(Get-ChildItem -LiteralPath $claimsDirectory -File -Force -Filter '*.json').Count
 	Assert-True ($behindOwnedClaimsAfter -eq $behindOwnedClaimsBefore -and $behindOwnedClaimsAfter -eq 1) 'A second claim was minted for a session that already owned a terminal claim.'
 
-	[pscustomobject]@{ schemaVersion = 'broken-engine-plan-scheduler-fixtures/v1'; status = 'pass'; code = 'ok'; cases = @('metadata strictness, canonical timestamps, and immutability','deep tracked paths','baseline deletion, primary-advance notice, and stale-manual dependency classification','targeted validation','deterministic ordering','dependency and cycle quarantine','behind-session claim tolerance and diverged-session refusal','claim baseline identity, ancestry healing, and canonical timestamps','receipt-bound claims and unclaim','receipt containment and rollback','terminal atomic orphan cleanup, awaiting retry, preparing recovery, and current-primary release proof','reconciled child body tolerance, restored dependency-edge rewrite, and named target third-party conflict','reparent across live claim states with receipt rewrite and post-rebase heal safety','no-claims and foreign-worktree reparent isolation','completion and release against landed squashed history','mid-conflict reparent with validate heal-delete hazard','reparent of a claim stamped at a post-advance primary commit newer than the receipt baseline','healing isolation, primary-removed ineligibility, and dependency drift','map-independent one-claim-per-session terminal reclaim') } | ConvertTo-Json -Depth 5 -Compress
+	# Directory guidance carrying a valid byte-zero marker is committed to both trees with the oldest createdUtc of any
+	# fixture Plan, so selection would reach it first if it were ever executable. A targeted claim must still find nothing.
+	Set-Plan $primary $markedGuidance '2018-01-01T00:00:00.000Z'
+	Commit $primary 'marked directory guidance at the primary tip'
+	& git.exe -C $session merge --ff-only main | Out-Null
+	$markedGuidanceClaim = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-guidance','--session','session-guidance','--write-claim-receipt',(Join-Path $session 'Temp/marked-guidance.json'),'--plan',$markedGuidance)
+	Assert-Result $markedGuidanceClaim 'claim-next' 'ok' 'none-available'; Assert-True (-not $markedGuidanceClaim.claimed) 'Directory guidance carrying a valid marker was claimable.'
+
+	[pscustomobject]@{ schemaVersion = 'broken-engine-plan-scheduler-fixtures/v1'; status = 'pass'; code = 'ok'; cases = @('mandatory byte-zero metadata, directory-guidance exemption, canonical timestamps, and immutability','deep tracked paths','baseline deletion, primary-advance notice, and stale non-executable dependency classification','targeted validation','deterministic ordering','dependency and cycle quarantine','marker-less plan document loudness, unclaimability, and unrelated claimability','directory guidance non-executable and unclaimable with or without a marker','behind-session claim tolerance and diverged-session refusal','claim baseline identity, ancestry healing, and canonical timestamps','receipt-bound claims and unclaim','receipt containment and rollback','terminal atomic orphan cleanup, awaiting retry, preparing recovery, and current-primary release proof','reconciled child body tolerance, restored dependency-edge rewrite, and named target third-party conflict','reparent across live claim states with receipt rewrite and post-rebase heal safety','no-claims and foreign-worktree reparent isolation','completion and release against landed squashed history','mid-conflict reparent with validate heal-delete hazard','reparent of a claim stamped at a post-advance primary commit newer than the receipt baseline','healing isolation, primary-removed ineligibility, and dependency drift','map-independent one-claim-per-session terminal reclaim') } | ConvertTo-Json -Depth 5 -Compress
 }
 finally { if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Force -Recurse } }

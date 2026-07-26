@@ -153,7 +153,7 @@ foreach ($module in @('AgentScriptCommon.psm1', 'WorktreeCliSessionExclusion.psm
 New-Item -ItemType Directory -Force (Join-Path $primary 'Documents\Plans') | Out-Null
 $metadata = '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-01T00:00:00.000Z","dependsOn":[]} -->'
 [IO.File]::WriteAllText((Join-Path $primary 'Documents\Plans\Recovery.md'), "$metadata`n# Recovery fixture`n", [Text.UTF8Encoding]::new($false))
-[IO.File]::WriteAllText((Join-Path $primary 'Documents\Plans\Reference.md'), '# Manual reference', [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $primary 'Documents\Plans\AGENTS.md'), '# Directory guidance', [Text.UTF8Encoding]::new($false))
 Invoke-ScratchGit $primary @('add', '-A') | Out-Null
 Invoke-ScratchGit $primary @('commit', '-m', 'fixture base') | Out-Null
 $baseline = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()

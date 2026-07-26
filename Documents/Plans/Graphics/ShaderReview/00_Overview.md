@@ -1,6 +1,7 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-26T20:25:24.000Z","dependsOn":[]} -->
 # Shader Review — Overview
 
-Manual reference/coordination document (no executable-plan metadata; never scheduler-tracked). Consolidates the findings of one Opus `/glsl-review` pass per shader file across all 60 first-party `.vert`/`.frag`/`.comp` files under `Engine/Data/Shaders/`. This overview is the sole artifact of that review: the per-subsystem plan files listed below were never created separately, and their findings live entirely in this file.
+Consolidates the findings of one Opus `/glsl-review` pass per shader file across all 60 first-party `.vert`/`.frag`/`.comp` files under `Engine/Data/Shaders/`. This overview is the sole artifact of that review: the per-subsystem plan files listed below were never created separately, and their findings live entirely in this file.
 
 ## Context
 
@@ -14,7 +15,9 @@ In scope (target and ceiling — smallest complete change per item, nothing else
 2. `Engine/Data/Shaders/Lighting/PointLight.frag` — in `main()`, only the identical conversion expression at line 52: `int32_t(f4InParams.x + 0.4f)`. Same fix as item 1.
 3. `Engine/Data/Shaders/Wind/WindSpreadCommon.h` — only the decay expression at lines 67–68 (`fDecayRate` computation and `pow(fDecayRate, fTimeScale)`). Guard the pow base: `pow(max(fDecayRate, 0.0f), fTimeScale)`. `fDecayRate = 1.0 - mix(fWindDecayLow, fWindDecayHigh, fMagFactor)` goes negative if either decay slider exceeds 1.0; `pow` with a negative base and non-integer exponent is undefined.
 
-Out of scope — everything else, including:
+## Out of scope
+
+Everything else, including:
 
 - Every finding marked **fixed** in the status tables below; do not re-touch those sites.
 - All other lines of the three in-scope files, and all other shaders, headers, and C++ files.

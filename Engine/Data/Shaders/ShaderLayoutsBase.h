@@ -156,7 +156,7 @@ CONSTEXPR int kiWaterSpecAAMipTableSize = 10;
 // (65 kIsland chunks) fit. Bumping this only grows descriptor-array capacity + pointer vectors, not
 // resident GPU textures (LRU-managed). Every kIsland template stays permanently resident (mesh +
 // heightmap) regardless of this cap or LRU; that memory scaling is tracked in
-// Documents/Plans/Graphics/IslandResidentMemoryScaling_Overview.md.
+// Documents/Investigations/Graphics/IslandResidentMemoryScaling_Overview.md.
 CONSTEXPR int kiMaxIslands = 128;
 
 CONSTEXPR int kiMaxSpreadPasses = 40;

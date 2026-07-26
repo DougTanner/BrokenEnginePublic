@@ -1,6 +1,6 @@
 # Blind-Spot and Interview Guidance
 
-Status: exploratory / investigation. No byte-zero `broken-engine-plan/v1` marker, so this is a manual/reference document and never a scheduler input. It presents options rather than a decision-complete implementation; it earns executable metadata only after the open questions below are answered.
+Status: exploratory / investigation. It lives in `Documents/Investigations/` because it presents options rather than a decision-complete implementation, so it is never a scheduler input. It becomes a Plan only once the open questions below are answered and it moves to `Documents/Plans/<area>/` with byte-zero `broken-engine-plan/v1` metadata.
 
 ## Context
 
