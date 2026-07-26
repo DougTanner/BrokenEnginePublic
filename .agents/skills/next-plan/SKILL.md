@@ -76,9 +76,12 @@ their transitions with ad hoc WorktreeCli commands.
    interfaces/invariants, acceptance checks with expected observations, and
    required/conditional roles.
    - Tier 1 skips plan review.
-   - Tier 2 delegates `/plan-audit` to one `reviewer`.
+   - Tier 2 delegates `/plan-audit` to one `reviewer` whose prompt carries the
+     required delegation-basis and context records and the bounded brief fields
+     (`../../references/subagent-reporting.md`).
    - Tier 3 reads Tier 3 preparation (`references/tier3-workflow.md`), delegates
-     `/plan-audit`, then runs `/external-grill-plan` in the user-facing session.
+     `/plan-audit` under those same records and brief fields, then runs
+     `/external-grill-plan` in the user-facing session.
    If reviewer delegation is unavailable, stop; only explicit user direction
    permits inline review, recorded as `review freshness degraded`.
 4. Recompute the plan SHA-256 immediately before presenting and require the
@@ -89,11 +92,13 @@ their transitions with ad hoc WorktreeCli commands.
    change invalidates approval and requires a new complete presentation.
 5. After approval, implement continuously through propagation, targeted checks,
    domain review, accepted fixes, hygiene, and acceptance verification. Every
-   implementer delegation prompt carries the truth-grounding guardrail: plan and
-   execution-card claims are hypotheses — on contradiction with the actual code,
-   trust the code and return the contradiction to the manager rather than
-   forcing the plan's description. Pause only for a safety blocker or the final
-   landing confirmation. Never edit the claimed plan.
+   implementer delegation prompt carries the required delegation-basis and
+   context records, the bounded brief fields
+   (`../../references/subagent-reporting.md`), and the truth-grounding
+   guardrail: plan and execution-card claims are hypotheses — on contradiction
+   with the actual code, trust the code and return the contradiction to the
+   manager rather than forcing the plan's description. Pause only for a safety
+   blocker or the final landing confirmation. Never edit the claimed plan.
 6. Before completion, require `plan claim-status` to report
    `ownedByReceipt: true`, then invoke `Complete-NextPlan.ps1` with the receipt
    path and receipt SHA-256. A digest mismatch is terminal

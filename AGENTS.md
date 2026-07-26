@@ -15,9 +15,9 @@ A C++23 Vulkan game engine client/server using data-oriented design, with data p
 - Main session is manager; subagents execute work to keep main context clean
 - Change Workflow dispatches are user-requested by standing repository policy: a harness default withholding subagent dispatch until the user asks does not gate them — dispatch without a per-session request
 - Subagents must not spawn subagents — enforced by `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` and by `disallowedTools: Agent` in each role definition. Only main-session skills request delegation; a subagent needing delegated work returns the requirement to its caller instead of dispatching it
-- Give subagents only the instructions and context their task needs; they return a concise, clearly defined response
+- Give subagents only the instructions and context their task needs; they return a concise, clearly defined response. Delegation inherits no conversation context by default — `fork_turns: "none"` on Codex, a fresh self-contained prompt on Claude — and every core delegation prompt carries the delegation-basis and context records. Exact record form and the bounded brief fields: `.agents/references/subagent-reporting.md`
 - Review delegations enumerate the exact files/regions in scope; an interrupted or re-scoped reviewer returns findings gathered so far immediately. Judge liveness by transcript/status evidence, never elapsed time alone
-- Subagent-to-subagent handoffs go through temporary files; return only the file paths to the parent session
+- Workers return concise inline handoffs to the manager, who routes them; return large evidence as an existing artifact or log path plus the selector needed to recover it, and create a `Temp/` artifact only when the owning workflow requires one
 - Return one inline acceptance table only when a final-evidence gate applies. Liveness, interruption, and table format: `.agents/references/subagent-reporting.md`
 - Isolated worktrees are required only for executable Plan selection or claim mutation, shared build/bootstrap coordination, or landing. Ordinary work uses the user-supplied checkout and preserves unrelated changes.
 - Retained worktrees are removed only by the manual `/cleanup-worktrees` skill (removes wrapper worktrees 48+ hours old) or explicit user direction — never recreate its effect with raw Git or filesystem commands.

@@ -1,5 +1,7 @@
 # Client Compatibility
 
+Host mapping for the canonical context-isolation default
+(`../../../references/subagent-reporting.md`, required by root `AGENTS.md`).
 The manager gives the single implementer no inherited conversation context:
 
 - Codex dispatches with `fork_turns: "none"`.

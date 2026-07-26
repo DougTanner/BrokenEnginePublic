@@ -18,16 +18,15 @@ all fresh-context review.
 
 ## Required Assignment
 
-Require a self-contained assignment containing:
+Require a self-contained assignment carrying the canonical bounded brief fields
+(`../../references/subagent-reporting.md`) plus these skill-specific fields:
 
 - accepted finding or failure evidence and its prescribed check;
 - classification: intent `conformance` or `plan_delta`, and scope
   `non_structural` or `structural`;
-- approved plan or concise intended behavior;
 - assigned files/functions, fixed baseline, and pre-existing ownership
   snapshot;
-- applicable repository instructions, required verification, and known build
-  target/configuration when relevant.
+- known build target/configuration when relevant.
 
 Reconstruct a missing detail only when the assignment and worktree make it
 unambiguous. Otherwise do not edit; report the missing input as a residual.

@@ -14,15 +14,19 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, "Bash(git diff *)", "Bash(git sta
 # Implement Plan
 
 The main session reads this skill, then dispatches exactly one `implementer`
-with a self-contained brief. That worker performs both implementation and its
-same-context assumption audit. If already running as the assigned worker, do
-not dispatch again. Workers never delegate; return any separate-role work to
-the manager. Apply the host-specific fresh-context mapping in
+with a self-contained brief and no inherited conversation context — fresh on
+Claude, `fork_turns: "none"` on Codex, per the canonical default in
+`../../references/subagent-reporting.md`. That worker performs both
+implementation and its same-context assumption audit. If already running as the
+assigned worker, do not dispatch again. Workers never delegate; return any
+separate-role work to the manager. The host mapping is restated in
 `references/client-compatibility.md`.
 
 ## Required Brief
 
-Require every field in both implementation and audit-only modes:
+Require the canonical bounded brief fields
+(`../../references/subagent-reporting.md`) plus these skill-specific fields, in
+both implementation and audit-only modes:
 
 - mode: `implementation` or `audit-only`;
 - final approved plan and explicit approved deltas (`none` is valid), plus the
@@ -30,8 +34,7 @@ Require every field in both implementation and audit-only modes:
 - fixed session-start commit used for all attribution;
 - pre-existing ownership snapshot naming every already changed or untracked
   path and its owner/disposition (`none` is valid);
-- checkout path, applicable repository instructions, fixed user decisions,
-  known files/symbols, risk triggers, acceptance checks, and reviewer focus;
+- risk triggers and reviewer focus;
 - execution-control record when one exists.
 
 Do not infer a missing baseline or ownership snapshot from a moving merge base

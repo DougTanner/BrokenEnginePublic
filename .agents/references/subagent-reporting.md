@@ -4,6 +4,40 @@ Delegation normally returns a concise inline handoff. Do not create a report
 artifact, request a fresh context, or forward hashes and line ranges merely to
 prove that ordinary implementation, review, build, or documentation work ran.
 
+## Context isolation
+
+Delegation defaults to no inherited conversation context: Codex workers
+dispatch with `fork_turns: "none"`, and Claude workers receive a fresh,
+self-contained prompt. Use the smallest positive Codex turn fork only when
+exact conversation text is authoritative and cannot safely be summarized.
+
+Every core delegation prompt carries these two records:
+
+```text
+Delegation basis: mandated <workflow/skill> | task owner <bounded concern>
+Context: none — Codex | fresh — Claude | turns <N> — Codex exception: <reason>
+```
+
+## Bounded brief
+
+An isolated worker acts only on what its prompt carries, so supply every field:
+
+- role and objective;
+- in-scope and out-of-scope work;
+- fixed user decisions;
+- governing instructions and artifact paths;
+- known files, symbols, or regions;
+- baseline/tree when material;
+- acceptance check;
+- return format.
+
+Workers start from the named artifacts. Expand beyond them only for a concrete
+dependency, decision, or failure, and verify every supplied hint against the
+current tree before relying on it.
+
+A skill needing more enumerates only its own additional fields; it never
+restates or contradicts the list above.
+
 ## Default handoff
 
 Return only the information the next role needs:
@@ -21,8 +55,15 @@ naming exact targets, never reported as a check that passed; the caller runs it
 (root `AGENTS.md`, Change Workflow step 4). Skills defining their own handoff
 report carry the same line.
 
-Use a fresh context only for an independent review, an explicitly requested
-second opinion, or a focused correction/retest.
+Return large evidence by reference: name an existing artifact or log path plus
+the selector — line range, search pattern, or key — the next role needs to
+recover the relevant part. Create a `Temp/` artifact only when the owning
+workflow requires one.
+
+Context follows the isolation default above. Beyond that default, an
+independent review, an explicitly requested second opinion, and a focused
+correction/retest each require an independent context — one that did not
+produce the work under examination.
 
 ## Final-evidence gate
 
@@ -33,8 +74,9 @@ residuals, plus the fixed baseline and the inline final manifest carrying each
 entry's mode and content identity, which `/finalize-changes` recomputes and
 compares before it commits. There is no report artifact or manifest range to
 forward; `/finalize-changes` consumes the inline result. Apart from that manifest
-column, intermediate delegates never produce compact envelopes, hashes, IDs,
-dependency graphs, or evidence locators.
+column, intermediate delegates never manufacture compact envelopes, hashes,
+IDs, dependency graphs, or evidence locators; citing an existing artifact or
+log path with its selector (Default handoff) is not manufacturing one.
 
 ## Liveness and interruption
 
@@ -54,6 +96,10 @@ Interruption sequence, in order:
   no-progress/loop evidence.
 
 Continuation: prefer resuming the same reviewer when the host supports it.
-Otherwise the replacement receives the prior findings and decisive evidence and
-continues from the interruption point — it never repeats completed repository
-exploration from scratch.
+Otherwise the replacement receives the recovery capsule below and continues from
+the interruption point — it never repeats completed repository exploration from
+scratch.
+
+Recovery capsule for interrupted or resumed work: objective and scope,
+baseline/tree, completed evidence, unresolved issue, and next action. The
+manager routes the capsule; workers do not route work to other workers.
