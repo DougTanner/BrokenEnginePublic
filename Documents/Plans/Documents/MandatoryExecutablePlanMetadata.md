@@ -14,17 +14,16 @@ Measured on the tree at the time of writing, over `git ls-files -- Documents/Pla
 | Category | Count |
 | --- | --- |
 | Tracked `.md` files under `Documents/Plans` | 50 |
-| Carry a valid marker | 42 |
-| Lack a marker | 8 |
+| Carry a valid marker | 43 |
+| Lack a marker | 7 |
 | — of which are directory guidance (`AGENTS.md`, `CLAUDE.md`) | 2 |
-| **Marker-less plan documents to disposition** | **6** |
+| **Marker-less plan documents to disposition** | **5** |
 
-The six:
+The five:
 
 - `Documents/Plans/Documents/BlindSpotAndInterviewGuidance.md`
 - `Documents/Plans/Documents/HtmlArtifactPlansAndReports.md`
 - `Documents/Plans/Documents/ReviewRubricReferences.md`
-- `Documents/Plans/Documents/TranscriptFinderSubagentAmbiguity.md`
 - `Documents/Plans/Graphics/IslandResidentMemoryScaling_Overview.md`
 - `Documents/Plans/Graphics/ShaderReview/00_Overview.md`
 
@@ -46,10 +45,6 @@ Two are findings/coordination records rather than work items:
 
 - `Documents/Plans/Graphics/IslandResidentMemoryScaling_Overview.md`
 - `Documents/Plans/Graphics/ShaderReview/00_Overview.md`
-
-One is a design awaiting re-audit, with its own Status section explaining why:
-
-- `Documents/Plans/Documents/TranscriptFinderSubagentAmbiguity.md`
 
 Each must be dispositioned deliberately.
 

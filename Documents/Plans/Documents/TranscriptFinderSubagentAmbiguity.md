@@ -1,10 +1,8 @@
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-26T20:08:14.912Z","dependsOn":[]} -->
 # Transcript Finder Subagent Ambiguity
 
-## Status: manual — awaiting re-audit of the revised design
-
 The original auto-selection design was audited and falsified; this document now
-carries the replacement design (rank-and-confirm). It stays marker-less so the
-scheduler cannot claim it until the revised design is audited.
+carries the replacement design (rank-and-confirm).
 
 ## Context
 
