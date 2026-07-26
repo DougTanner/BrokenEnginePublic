@@ -83,7 +83,11 @@ behavior, required test/review, and handed-off residual. Use:
 
 Statuses are `PASS`, `FAIL`, `BLOCKED`, or `UNVERIFIED`; never use `SKIPPED`.
 Evidence names the exact command/scenario, exit or verdict, decisive output,
-and artifact/log path when applicable. One check may cover several rows;
+and artifact/log path when applicable. Every `PASS` rests on evidence this
+verifier itself read, a command it itself ran, or a mandated handoff whose
+required fields bear on that row's criterion. A criterion supported only by
+narrative assertion, or by evidence that does not bear on it, is
+`UNVERIFIED`. One check may cover several rows;
 duplicate checks must name their distinct independent signal. Apply the
 approved tier as an exploration
 ceiling, not permission to weaken a criterion: Tier 1 uses decisive static,
