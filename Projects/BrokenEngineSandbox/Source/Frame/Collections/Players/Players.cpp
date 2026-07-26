@@ -259,10 +259,6 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
 	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
-	int64_t iUpdateFleetCount = 0;
-	engine::GridCoord updateFleetNewCoord {};
-	int64_t iUpdateFleetFlagshipGlobalId = 0;
-
 	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
 		if (rStatusChange.eType == StatusChangeType::kDestroyPlayer)
@@ -283,6 +279,63 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			continue;
 		}
 
+		if (rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer)
+		{
+			engine::global_id_t globalPlayerId {};
+			PlayerFlags_t spawnFlags {PlayerFlags::kBlasterSpawnLeft};
+			engine::GridCoord spawnFleetWantedCoord {};
+			uint8_t uiSpawnPendingFleetTicks = 0;
+			// kRespawnPlayer is reserved (no issuer repo-wide) — kept compilable, not wired up.
+			// TRAP: only kSpawnPlayer extracts SpawnPlayerData, so a respawn leaves globalPlayerId at 0.
+			// A wired-up respawn spawning with id 0 would be invisible to both global-id re-resolution scans
+			// (ServerBroadcaster + FleetNavigationController) — never receiving fleet updates or weapon
+			// toggles. Any future respawn must carry a real global id (or reuse kSpawnPlayer).
+			if (rStatusChange.eType == StatusChangeType::kSpawnPlayer)
+			{
+				const SpawnPlayerData& rSpawnData = std::get<SpawnPlayerData>(rStatusChange.data);
+				globalPlayerId.iValue = rSpawnData.iGlobalId;
+				if (rSpawnData.bIsFlagship)
+				{
+					spawnFlags.Set(kIsFlagship);
+				}
+				spawnFleetWantedCoord = rSpawnData.fleetWantedCoord;
+				uiSpawnPendingFleetTicks = rSpawnData.uiPendingFleetWantedCoordTicks;
+			}
+
+			// Compute frame center from world-space vecArea for spawn offset
+			float fCenterX = (XMVectorGetX(rStaticData.vecArea) + XMVectorGetZ(rStaticData.vecArea)) * 0.5f;
+			float fCenterY = (XMVectorGetW(rStaticData.vecArea) + XMVectorGetY(rStaticData.vecArea)) * 0.5f;
+
+			XMVECTOR vecSpawnPosition = XMVectorSet(fCenterX + 45.0f, fCenterY + (-12.0f), engine::gBaseHeight.Get(), 1.0f);
+			ASSERT(!IsOutOfBounds(ComputeFrameBounds(rStaticData.vecArea), vecSpawnPosition));
+
+			PlayersPostRender::Spawn(rFrame,
+			{
+				.vecPosition = vecSpawnPosition,
+				.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
+				.vecVelocity = XMVectorZero(),
+				.alignment = rFrame.postRender.playerAlignment,
+				.flags = spawnFlags,
+				.fArrivalGracePeriod = kfArrivalGracePeriod,
+				.globalPlayerId = globalPlayerId,
+				.fleetWantedCoord = spawnFleetWantedCoord,
+				.uiPendingFleetWantedCoordTicks = uiSpawnPendingFleetTicks,
+			});
+		}
+	}
+}
+
+void PlayersPostRender::ProcessUpdateStatusChanges([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] const engine::FrameStaticData& rStaticData)
+{
+	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
+	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
+
+	int64_t iUpdateFleetCount = 0;
+	engine::GridCoord updateFleetNewCoord {};
+	int64_t iUpdateFleetFlagshipGlobalId = 0;
+
+	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
+	{
 		if (rStatusChange.eType == StatusChangeType::kUpdateFleet)
 		{
 			const UpdateFleetData& rUpdate = std::get<UpdateFleetData>(rStatusChange.data);
@@ -326,59 +379,15 @@ static void ProcessSpawnStatusChanges([[maybe_unused]] Frame& __restrict rFrame,
 			}
 			else
 			{
-				LOG(kNetwork, kWarning, "ProcessSpawnStatusChanges::kUpdatePlayer Uuid: {} NOT FOUND in idToIndexMap", rUpdate.iPlayerUuid);
+				LOG(kNetwork, kWarning, "ProcessUpdateStatusChanges::kUpdatePlayer Uuid: {} NOT FOUND in idToIndexMap", rUpdate.iPlayerUuid);
 			}
 			continue;
-		}
-
-		if (rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer)
-		{
-			engine::global_id_t globalPlayerId {};
-			PlayerFlags_t spawnFlags {PlayerFlags::kBlasterSpawnLeft};
-			engine::GridCoord spawnFleetWantedCoord {};
-			uint8_t spawnPendingFleetTicks = 0;
-			// kRespawnPlayer is reserved (no issuer repo-wide) — kept compilable, not wired up.
-			// TRAP: only kSpawnPlayer extracts SpawnPlayerData, so a respawn leaves globalPlayerId at 0.
-			// A wired-up respawn spawning with id 0 would be invisible to both global-id re-resolution scans
-			// (ServerBroadcaster + FleetNavigationController) — never receiving fleet updates or weapon
-			// toggles. Any future respawn must carry a real global id (or reuse kSpawnPlayer).
-			if (rStatusChange.eType == StatusChangeType::kSpawnPlayer)
-			{
-				const SpawnPlayerData& rSpawnData = std::get<SpawnPlayerData>(rStatusChange.data);
-				globalPlayerId.iValue = rSpawnData.iGlobalId;
-				if (rSpawnData.bIsFlagship)
-				{
-					spawnFlags.Set(kIsFlagship);
-				}
-				spawnFleetWantedCoord = rSpawnData.fleetWantedCoord;
-				spawnPendingFleetTicks = rSpawnData.uiPendingFleetWantedCoordTicks;
-			}
-
-			// Compute frame center from world-space vecArea for spawn offset
-			float fCenterX = (XMVectorGetX(rStaticData.vecArea) + XMVectorGetZ(rStaticData.vecArea)) * 0.5f;
-			float fCenterY = (XMVectorGetW(rStaticData.vecArea) + XMVectorGetY(rStaticData.vecArea)) * 0.5f;
-
-			XMVECTOR vecSpawnPosition = XMVectorSet(fCenterX + 45.0f, fCenterY + (-12.0f), engine::gBaseHeight.Get(), 1.0f);
-			ASSERT(!IsOutOfBounds(ComputeFrameBounds(rStaticData.vecArea), vecSpawnPosition));
-
-			PlayersPostRender::Spawn(rFrame,
-			{
-				.vecPosition = vecSpawnPosition,
-				.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
-				.vecVelocity = XMVectorZero(),
-				.alignment = rFrame.postRender.playerAlignment,
-				.flags = spawnFlags,
-				.fArrivalGracePeriod = kfArrivalGracePeriod,
-				.globalPlayerId = globalPlayerId,
-				.fleetWantedCoord = spawnFleetWantedCoord,
-				.uiPendingFleetWantedCoordTicks = spawnPendingFleetTicks,
-			});
 		}
 	}
 
 	if (iUpdateFleetCount > 0)
 	{
-		LOG(kNetwork, kVerbose, "ProcessSpawnStatusChanges::kUpdateFleet Coord: ({},{}) NewWantedCoord: ({},{}) Players: {} Flagship: {}", rStaticData.coord.x, rStaticData.coord.y, updateFleetNewCoord.x, updateFleetNewCoord.y, iUpdateFleetCount, iUpdateFleetFlagshipGlobalId);
+		LOG(kNetwork, kVerbose, "ProcessUpdateStatusChanges::kUpdateFleet Coord: ({},{}) NewWantedCoord: ({},{}) Players: {} Flagship: {}", rStaticData.coord.x, rStaticData.coord.y, updateFleetNewCoord.x, updateFleetNewCoord.y, iUpdateFleetCount, iUpdateFleetFlagshipGlobalId);
 	}
 }
 

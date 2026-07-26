@@ -5,7 +5,7 @@ Players represent a flagship and AI-driven wingmen through one collection. Stabl
 ## Navigation Invariants
 
 - Navigation covers roaming, cross-frame movement, island destinations, and flagship following. Mode transitions depend only on shared state.
-- Flagship following has no frame-local exit when the flagship row is gone; recovery comes from the server's flagship reassignment landing in the next tick's Spawn phase, not from navigation. The promoted ship is the exception — it satisfies neither the follow scan nor the fleet override, so it holds the mode until the fleet navigation timer fires.
+- Flagship following has no frame-local exit when the flagship row is gone; recovery comes from the server's flagship reassignment landing in the next tick's Update phase, not from navigation. The promoted ship is the exception — it satisfies neither the follow scan nor the fleet override, so it holds the mode until the fleet navigation timer fires.
 - Path queries run on a deterministic cadence staggered by tick and stable global ID, with immediate recomputation for mode, destination, direction, or terrain-avoidance changes.
 - Random draws, arrival checks, and mode transitions remain outside the pathfinding throttle. Modes 4 and 5 do not have an identical per-tick draw schedule; parity comes from both builds evaluating the same shared-state conditions.
 - Spawning consumes its frame-change random draw even when transfer data already supplies the resulting timer.

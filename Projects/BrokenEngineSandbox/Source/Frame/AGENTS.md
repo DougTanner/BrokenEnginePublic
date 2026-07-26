@@ -15,8 +15,8 @@ Update `../../../../Documents/Architecture/FrameUpdatePipeline.md` when phase or
 - `Frame::kiVersion` composes navigation and collection versions. Bump its base when CRC semantics change without a contributing version bump.
 - Normalize a non-finite spaceship-spawn timer at save/replay and full-state read boundaries before its drain loop; finite values remain unchanged.
 - Navigation and elevation are deterministic derived data excluded from both the CRC and persisted frame payload. Server-built navigation is sent to clients.
-- Status changes are consumed here, but their serialized tags and append-only wire rule are owned by game Network (`../Network/AGENTS.md`).
-- Delayed behavior updates use countdowns that transfer with the entity; transfer/spawn/destroy status changes apply immediately.
+- Status changes are consumed here: `kUpdatePlayer` and `kUpdateFleet` in Update; spawn and destroy handling in Spawn. Their serialized tags and append-only wire rule are owned by game Network (`../Network/AGENTS.md`).
+- Delayed behavior updates use countdowns that transfer with the entity; transfer, spawn, and destroy status changes apply immediately.
 - Bounds helpers use the `vecArea` lane convention expected by `common::InsideArea`. Seed coord-local RNG streams with distinct multipliers.
 
 ## See Also

@@ -287,7 +287,7 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 		// proximity scan above is a no-op, but on the nominal path a follower stalls for one tick only:
 		// ServerFleetManager::OnPlayerDeath -> FleetNavigationController::ShiftFlagshipAfterDeath moves the
 		// fleet's flagship index after the removal tick, ProcessFlagshipUpdates drains that into a kUpdateFleet
-		// whose Spawn-phase handler writes kIsFlagship, and the next Update finds the new flagship or takes the
+		// whose Update-phase handler writes kIsFlagship, and the next Update finds the new flagship or takes the
 		// fleet-override path above. Two cases stall longer and are not fixed here, because an in-frame exit
 		// would rewrite CRC'd nav flags and invalidate every existing replay: the promoted ship itself holds
 		// mode 5 — it now fails the proximity scan's !kIsFlagship guard, and ShiftFlagshipAfterDeath aims
