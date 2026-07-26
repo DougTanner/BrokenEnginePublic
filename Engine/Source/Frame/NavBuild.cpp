@@ -272,108 +272,6 @@ void ChainEdgesIntoPolygons(std::vector<std::vector<XMFLOAT2>>& rPolygons, const
 	}
 }
 
-// Check if a segment intersects any polygon edge in the NavData
-bool SegmentIntersectsAnyEdge(XMFLOAT2 f2A, XMFLOAT2 f2B, const std::vector<XMFLOAT2>& rVertices, const std::vector<int32_t>& rPolygonOffsets)
-{
-	for (size_t iPoly = 0; iPoly < rPolygonOffsets.size(); ++iPoly)
-	{
-		auto [iStart, iEnd] = PolygonRange(rPolygonOffsets, iPoly, static_cast<int32_t>(rVertices.size()));
-		int32_t iCount = iEnd - iStart;
-
-		for (int32_t i = 0; i < iCount; ++i)
-		{
-			int32_t iNext = (i + 1) % iCount;
-			if (SegmentsIntersect(f2A, f2B, rVertices.at(iStart + i), rVertices.at(iStart + iNext)))
-			{
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-// Check if the midpoint of a segment is inside any obstacle polygon
-bool MidpointInsideObstacle(XMFLOAT2 f2A, XMFLOAT2 f2B, const std::vector<XMFLOAT2>& rVertices, const std::vector<int32_t>& rPolygonOffsets)
-{
-	XMFLOAT2 f2Mid {(f2A.x + f2B.x) * 0.5f, (f2A.y + f2B.y) * 0.5f};
-
-	for (size_t iPoly = 0; iPoly < rPolygonOffsets.size(); ++iPoly)
-	{
-		auto [iStart, iEnd] = PolygonRange(rPolygonOffsets, iPoly, static_cast<int32_t>(rVertices.size()));
-		int32_t iCount = iEnd - iStart;
-
-		if (PointInPolygon(f2Mid, &rVertices.at(iStart), iCount))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-
-void BuildVisibilityGraph(NavContour& rContour)
-{
-	int32_t iVertexCount = static_cast<int32_t>(rContour.vertices.size());
-
-	// Per-vertex polygon membership, precomputed once (O(V)): which polygon each vertex belongs to,
-	// its local index within that polygon, and the polygon's vertex count. Lets the adjacency test in
-	// the O(V^2) pair loop below run in O(1) instead of re-scanning polygonOffsets for every (i, j).
-	std::vector<int32_t> vertexPolygon(static_cast<size_t>(iVertexCount), 0);
-	std::vector<int32_t> vertexLocal(static_cast<size_t>(iVertexCount), 0);
-	std::vector<int32_t> vertexPolygonCount(static_cast<size_t>(iVertexCount), 0);
-	for (size_t iPoly = 0; iPoly < rContour.polygonOffsets.size(); ++iPoly)
-	{
-		auto [iStart, iEnd] = PolygonRange(rContour.polygonOffsets, iPoly, iVertexCount);
-		int32_t iCount = iEnd - iStart;
-		for (int32_t iVertex = iStart; iVertex < iEnd; ++iVertex)
-		{
-			vertexPolygon.at(static_cast<size_t>(iVertex)) = static_cast<int32_t>(iPoly);
-			vertexLocal.at(static_cast<size_t>(iVertex)) = iVertex - iStart;
-			vertexPolygonCount.at(static_cast<size_t>(iVertex)) = iCount;
-		}
-	}
-
-	for (int32_t i = 0; i < iVertexCount; ++i)
-	{
-		for (int32_t j = i + 1; j < iVertexCount; ++j)
-		{
-			// Skip edges between adjacent vertices on the same polygon (they're polygon edges, not visibility edges)
-			bool bAdjacent = false;
-			if (vertexPolygon.at(static_cast<size_t>(i)) == vertexPolygon.at(static_cast<size_t>(j)))
-			{
-				int32_t iLocalI = vertexLocal.at(static_cast<size_t>(i));
-				int32_t iLocalJ = vertexLocal.at(static_cast<size_t>(j));
-				int32_t iCount = vertexPolygonCount.at(static_cast<size_t>(i));
-				if (iLocalJ - iLocalI == 1 || (iLocalI == 0 && iLocalJ == iCount - 1))
-				{
-					bAdjacent = true;
-				}
-			}
-
-			if (bAdjacent)
-			{
-				continue;
-			}
-
-			XMFLOAT2 f2A = rContour.vertices.at(i);
-			XMFLOAT2 f2B = rContour.vertices.at(j);
-
-			if (SegmentIntersectsAnyEdge(f2A, f2B, rContour.vertices, rContour.polygonOffsets))
-			{
-				continue;
-			}
-
-			if (MidpointInsideObstacle(f2A, f2B, rContour.vertices, rContour.polygonOffsets))
-			{
-				continue;
-			}
-
-			rContour.visEdgeA.push_back(i);
-			rContour.visEdgeB.push_back(j);
-		}
-	}
-}
-
 } // anonymous namespace
 
 // Segment-segment intersection test. Promoted from the anonymous namespace to external linkage
@@ -405,7 +303,7 @@ bool SegmentsIntersect(XMFLOAT2 f2A1, XMFLOAT2 f2A2, XMFLOAT2 f2B1, XMFLOAT2 f2B
 // Winding-number point-in-polygon test. Promoted from the anonymous namespace to external linkage
 // (engine::, declared in NavBuildInternal.h) so NavQuery.cpp's PointInAnyPolygon shares one winding
 // core with the builder — a tuned boundary rule can't drift between build and query. Pointer + count
-// so callers can pass a sub-range of a larger vertex buffer (MidpointInsideObstacle, PointInAnyPolygon).
+// so callers can pass a sub-range of a larger vertex buffer (PointInAnyPolygon).
 bool PointInPolygon(XMFLOAT2 f2Point, const XMFLOAT2* pVertices, int32_t iVertexCount)
 {
 	int32_t iWinding = 0;
@@ -533,9 +431,11 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 		return;
 	}
 
-	// PointInPolygon's winding-number test assumes consistent CCW winding per polygon. Clipper2 filters
-	// by double-precision Area > 0 above; this verifies the float-cast vertices still satisfy the
-	// invariant so a near-degenerate truncation can't silently misclassify obstacle interiors.
+	// Clipper2's Area > 0 filter above kept only outer obstacle loops; this verifies the float-cast
+	// vertices still wind the same way, so a near-degenerate truncation can't silently flip one into a
+	// hole. Not a PointInPolygon precondition — that test counts nonzero winding and is orientation-
+	// agnostic. The invariant is UV-space only: BuildCellNavData mirrors Y when it places a template, so
+	// the merged world-space polygons are wound clockwise.
 	int32_t iPolyCount = static_cast<int32_t>(rContour.polygonOffsets.size());
 	int32_t iVertexTotal = static_cast<int32_t>(rContour.vertices.size());
 	for (int32_t iPoly = 0; iPoly < iPolyCount; ++iPoly)
@@ -548,11 +448,6 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 		}
 		ASSERT(common::IsPolygonCcw(&rContour.vertices.at(iStart), iCount));
 	}
-
-	// Step 5: Build visibility graph
-	BuildVisibilityGraph(rContour);
-
-	LOG(kNavData, kDebug, "NavBuild: visibility graph edges={}", rContour.visEdgeA.size());
 }
 
 } // namespace engine

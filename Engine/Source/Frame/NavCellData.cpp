@@ -10,10 +10,12 @@ namespace engine
 namespace
 {
 
-// Detect crossing polygon edges (the yellow debug lines). Two non-adjacent polygon edges that
-// properly intersect indicate a self-intersecting contour or overlapping placements — either way the
-// visibility graph + pathfinder will misbehave. Pure diagnostic: O(edges^2) double loop, compiled out
-// by default. Flip kbDebugNavCrossingCheck to true locally when investigating a suspected contour defect.
+// Detect crossing polygon edges (the yellow debug lines). Two non-adjacent polygon edges that properly
+// intersect indicate a self-intersecting contour. Cross-placement overlap is no longer a defect on its
+// own: the visibility build and the runtime query both evaluate every polygon in the cell in world
+// space, so an edge that clears one island is still tested against the rest. Pure diagnostic:
+// O(edges^2) double loop, compiled out by default. Flip kbDebugNavCrossingCheck to true locally when
+// investigating a suspected contour defect.
 void DebugCheckCrossingEdges([[maybe_unused]] const NavData& rNavData)
 {
 	if constexpr (kbDebugNavCrossingCheck)
@@ -203,10 +205,109 @@ void BuildNavAdjacency(NavData& rNavData)
 	}
 }
 
+// Whole-cell visibility graph in world space: edge (i, j) exists iff the runtime's own blocked test says
+// the segment is clear of every polygon in the cell, so the build and the query can never disagree.
+// Determinism: emission is fixed (i, j) index order over deterministic input, and SegmentBlockedByObstacle
+// is an order-independent boolean OR. Precondition: BuildNavAcceleration has already run over a non-empty
+// vertex set — the blocked test reads the gridMin/gridMax and edge CSR it produces.
+void BuildCellVisibilityGraph(NavData& rNavData)
+{
+	int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
+	const XMFLOAT2* pVertices = rNavData.vertices.data();
+
+	// Per-vertex polygon membership and convexity, precomputed once (O(V)) so the O(V^2) pair loop below
+	// runs O(1) per pair instead of re-scanning polygonOffsets for every (i, j).
+	std::vector<int32_t> vertexPolygon(static_cast<size_t>(iVertexCount), 0);
+	std::vector<int32_t> vertexLocal(static_cast<size_t>(iVertexCount), 0);
+	std::vector<int32_t> vertexPolygonCount(static_cast<size_t>(iVertexCount), 0);
+	std::vector<bool> vertexConvex(static_cast<size_t>(iVertexCount), false);
+	for (size_t iPoly = 0; iPoly < rNavData.polygonOffsets.size(); ++iPoly)
+	{
+		auto [iStart, iEnd] = PolygonRange(rNavData.polygonOffsets, iPoly, iVertexCount);
+		int32_t iCount = iEnd - iStart;
+
+		// Convexity sign from the measured world-space winding, never assumed. BuildCellNavData below maps
+		// fLocalY = (0.5f - fV) * fFootprintY, mirroring Y, and the rotation preserves orientation — so
+		// these merged world-space polygons wind clockwise, the reverse of the UV-space template contour
+		// NavBuild.cpp asserts CCW. A CCW assumption here would select exactly the reflex vertices and
+		// discard the path-critical convex ones. Under 3 vertices has no interior: IsPolygonCcw is
+		// undefined there and the cross product below is zero, so such a polygon offers no candidates.
+		bool bCcw = (iCount >= 3) && common::IsPolygonCcw(&pVertices[iStart], iCount);
+		ASSERT(!bCcw);
+		float fConvexSign = bCcw ? 1.0f : -1.0f;
+
+		for (int32_t iLocal = 0; iLocal < iCount; ++iLocal)
+		{
+			int32_t iVertex = iStart + iLocal;
+			vertexPolygon.at(static_cast<size_t>(iVertex)) = static_cast<int32_t>(iPoly);
+			vertexLocal.at(static_cast<size_t>(iVertex)) = iLocal;
+			vertexPolygonCount.at(static_cast<size_t>(iVertex)) = iCount;
+
+			const XMFLOAT2& rPrevious = pVertices[iStart + (iLocal + iCount - 1) % iCount];
+			const XMFLOAT2& rCurrent = pVertices[iVertex];
+			const XMFLOAT2& rNext = pVertices[iStart + (iLocal + 1) % iCount];
+			float fCross = (rCurrent.x - rPrevious.x) * (rNext.y - rCurrent.y) - (rCurrent.y - rPrevious.y) * (rNext.x - rCurrent.x);
+			vertexConvex.at(static_cast<size_t>(iVertex)) = (fCross * fConvexSign) > 0.0f;
+		}
+	}
+
+	for (int32_t i = 0; i < iVertexCount; ++i)
+	{
+		// Taut-string pruning: a shortest obstacle-avoiding path bends only at vertices convex on their own
+		// obstacle, so every optimal path survives this restriction. Each polygon's full perimeter chain is
+		// still added by BuildNavAdjacency, so dropping reflex vertices cannot disconnect the graph.
+		if (!vertexConvex.at(static_cast<size_t>(i)))
+		{
+			continue;
+		}
+
+		for (int32_t j = i + 1; j < iVertexCount; ++j)
+		{
+			if (!vertexConvex.at(static_cast<size_t>(j)))
+			{
+				continue;
+			}
+
+			// Adjacent pairs on one polygon are perimeter edges; BuildNavAdjacency already supplies them.
+			if (vertexPolygon.at(static_cast<size_t>(i)) == vertexPolygon.at(static_cast<size_t>(j)))
+			{
+				int32_t iLocalI = vertexLocal.at(static_cast<size_t>(i));
+				int32_t iLocalJ = vertexLocal.at(static_cast<size_t>(j));
+				int32_t iCount = vertexPolygonCount.at(static_cast<size_t>(i));
+				if (iLocalJ - iLocalI == 1 || (iLocalI == 0 && iLocalJ == iCount - 1))
+				{
+					continue;
+				}
+			}
+
+			XMFLOAT2 f2A = pVertices[i];
+			XMFLOAT2 f2B = pVertices[j];
+
+			// Blocked test first: it early-exits on its first crossing edge, which is the common case.
+			if (SegmentBlockedByObstacle(f2A, f2B, pVertices, rNavData))
+			{
+				continue;
+			}
+
+			// A segment lying wholly inside a polygon crosses no edge, so the blocked test alone misses it.
+			XMFLOAT2 f2Midpoint {(f2A.x + f2B.x) * 0.5f, (f2A.y + f2B.y) * 0.5f};
+			if (PointInAnyPolygon(f2Midpoint, pVertices, rNavData))
+			{
+				continue;
+			}
+
+			rNavData.visEdgeA.push_back(i);
+			rNavData.visEdgeB.push_back(j);
+		}
+	}
+}
+
 } // anonymous namespace
 
 void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPlacements)
 {
+	std::chrono::steady_clock::time_point startTimePoint = std::chrono::steady_clock::now();
+
 	rNavData.vertices.clear();
 	rNavData.polygonOffsets.clear();
 	rNavData.visEdgeA.clear();
@@ -251,20 +352,25 @@ void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPl
 		{
 			rNavData.polygonOffsets.push_back(iVertexBase + iOffset);
 		}
-
-		for (int32_t iEdge : rContour.visEdgeA)
-		{
-			rNavData.visEdgeA.push_back(iVertexBase + iEdge);
-		}
-		for (int32_t iEdge : rContour.visEdgeB)
-		{
-			rNavData.visEdgeB.push_back(iVertexBase + iEdge);
-		}
 	}
 
 	DebugCheckCrossingEdges(rNavData);
 
+	// Acceleration first: the visibility pass queries SegmentBlockedByObstacle, which reads the
+	// gridMin/gridMax and edge CSR built here. Its edges then need a second adjacency build — only
+	// BuildNavAdjacency, not another full BuildNavAcceleration, because it rewrites adjOffsets and every
+	// adjNeighbors slot outright.
 	BuildNavAcceleration(rNavData);
+
+	// An island-free cell keeps BuildNavAcceleration's cleared derived state, so the server ends where the
+	// client's NavData::Read tail ends for that same cell instead of leaving a one-entry adjOffsets behind.
+	if (!rNavData.vertices.empty())
+	{
+		BuildCellVisibilityGraph(rNavData);
+		BuildNavAdjacency(rNavData);
+	}
+
+	LOG(kNavData, kInfo, "BuildCellNavData: placements={} vertices={} polygons={} visEdges={} wireBytes={} elapsedUs={}", rPlacements.size(), rNavData.vertices.size(), rNavData.polygonOffsets.size(), rNavData.visEdgeA.size(), rNavData.visEdgeA.size() * (sizeof(int32_t) + sizeof(int32_t)), std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - startTimePoint).count());
 }
 
 void BuildNavAcceleration(NavData& rNavData)

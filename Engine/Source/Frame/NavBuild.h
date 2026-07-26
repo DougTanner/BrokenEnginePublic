@@ -10,16 +10,14 @@ struct NavContour
 {
 	std::vector<XMFLOAT2> vertices;
 	std::vector<int32_t> polygonOffsets;
-	std::vector<int32_t> visEdgeA;
-	std::vector<int32_t> visEdgeB;
 };
 
-inline constexpr int64_t kiNavDataVersion = 12;
+inline constexpr int64_t kiNavDataVersion = 13;
 
 // Broad-phase edge grid dimensions (tunable). Mirrors the fixed-zone grid in Collision.h; finer here
 // because obstacle edges are denser than collision objects. Only affects derived (non-serialized) data.
-inline constexpr int32_t kiNavZonesX = 16;
-inline constexpr int32_t kiNavZonesY = 16;
+inline constexpr int32_t kiNavZonesX = 64;
+inline constexpr int32_t kiNavZonesY = 64;
 
 // Map a world coordinate to a nav-grid cell index on one axis. Shared by the builder and the query so
 // bucketing and lookup always agree. Degenerate (near-zero) extent collapses to cell 0.
@@ -37,7 +35,9 @@ inline int32_t NavGridCell(float fValue, float fMin, float fMax, int32_t iZones)
 // Per-cell navigation data in world space, stored in FrameStaticData
 struct NavData
 {
-	// --- Serialized (logical) content. Bump kiNavDataVersion if this layout changes. ---
+	// --- Serialized (logical) content. Bump kiNavDataVersion if this layout changes. visEdgeA/visEdgeB
+	// are the whole-cell world-space visibility graph BuildCellNavData computes over every polygon in the
+	// cell (server-built, shipped to clients); templates carry contour geometry only. ---
 	std::vector<XMFLOAT2> vertices;
 	std::vector<int32_t> polygonOffsets;
 	std::vector<int32_t> visEdgeA;

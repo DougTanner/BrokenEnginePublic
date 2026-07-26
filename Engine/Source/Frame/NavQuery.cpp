@@ -7,15 +7,16 @@
 namespace engine
 {
 
-namespace
-{
-
 // Test if a segment intersects any obstacle edge, using the NavData edge grid as a broad phase. The
 // result is an order-independent boolean OR, so grid-traversal order never changes it -> deterministic.
-// Precondition: rNavData has been through BuildNavAcceleration with a non-empty vertex set (the grid CSR
-// is empty otherwise). All callers reach here only after NavQueryDirection's empty-vertices early-out.
+// Precondition: rNavData carries the gridMin/gridMax and edge CSR that BuildNavAcceleration derives from
+// a non-empty vertex set (the CSR is empty otherwise). Each caller establishes that for itself — the
+// query path through NavQueryDirection's empty-vertices early-out, the build path in NavCellData.cpp by
+// running the visibility pass after BuildNavAcceleration and only on a non-empty cell.
 // Soundness: edges are bucketed into every cell their AABB overlaps (conservative), and the DDA walks
 // every cell the clipped segment passes through, so a real crossing is always found.
+// Promoted from the anonymous namespace to external linkage (engine::, declared in NavBuildInternal.h)
+// so the cell visibility build and the runtime query can never disagree about what is blocked.
 bool SegmentBlockedByObstacle(XMFLOAT2 f2A, XMFLOAT2 f2B, const XMFLOAT2* pVertices, const NavData& rNavData)
 {
 	float fMinX = rNavData.gridMin.x;
@@ -156,7 +157,8 @@ bool SegmentBlockedByObstacle(XMFLOAT2 f2A, XMFLOAT2 f2B, const XMFLOAT2* pVerti
 }
 
 // Is the point inside any obstacle polygon? AABB broad phase per polygon, then the shared winding-
-// number PointInPolygon core (single-sourced with the builder via NavBuildInternal.h).
+// number PointInPolygon core (single-sourced with the builder via NavBuildInternal.h). Promoted to
+// external linkage alongside SegmentBlockedByObstacle above, for the same reason.
 bool PointInAnyPolygon(XMFLOAT2 f2Point, const XMFLOAT2* pVertices, const NavData& rNavData)
 {
 	for (size_t iPoly = 0; iPoly < rNavData.polygonOffsets.size(); ++iPoly)
@@ -179,6 +181,9 @@ bool PointInAnyPolygon(XMFLOAT2 f2Point, const XMFLOAT2* pVertices, const NavDat
 	}
 	return false;
 }
+
+namespace
+{
 
 float Distance(XMFLOAT2 f2A, XMFLOAT2 f2B)
 {
@@ -541,42 +546,52 @@ XMVECTOR AStarPath(XMFLOAT2 f2Start, XMFLOAT2 f2End, const XMFLOAT2* pVertices, 
 	return XMVectorZero();
 }
 
-// A*-miss fallback: when A* finds no path, steer toward the nearest start-visible obstacle vertex.
-// Writes the refined waypoint when one is found; returns the steering direction (zero if none).
-XMVECTOR NavMissFallbackDirection(XMFLOAT2 f2Position, const XMFLOAT2* pVertices, const NavData& rNavData, float fBaseHeight, XMVECTOR* pOutNextWaypoint)
+// A*-miss fallback: slide along the nearest obstacle boundary rather than steer at an obstacle vertex.
+// Steering at a vertex sits the unit on a point attractor — it enters the polygon, the start-inside
+// branch pushes it back out, and the pair cycles forever. The tangent below is biased outward, so the
+// result always carries a strictly positive component along the outward normal of the *nearest*
+// boundary and can never drive the unit into it.
+// Returns zero when the position sits on that boundary (no defined outward normal); the callers' own
+// straight-line fallback then runs.
+XMVECTOR NavMissFallbackDirection(XMFLOAT2 f2Position, XMFLOAT2 f2Destination, const XMFLOAT2* pVertices, const NavData& rNavData)
 {
-	int32_t iVertexCount = static_cast<int32_t>(rNavData.vertices.size());
-	float fBestDist = std::numeric_limits<float>::max();
-	XMFLOAT2 f2BestVertex = f2Position;
-	bool bFound = false;
+	static constexpr float kfNavFallbackOutwardBias = 0.25f;
 
-	for (int32_t i = 0; i < iVertexCount; ++i)
-	{
-		if (!SegmentBlockedByObstacle(f2Position, pVertices[i], pVertices, rNavData))
-		{
-			float fDist = Distance(f2Position, pVertices[i]);
-			if (fDist < fBestDist)
-			{
-				fBestDist = fDist;
-				f2BestVertex = pVertices[i];
-				bFound = true;
-			}
-		}
-	}
-
-	if (!bFound)
+	XMFLOAT2 f2Edge = NearestPolygonEdgePoint(f2Position, pVertices, rNavData);
+	float fOutwardX = f2Position.x - f2Edge.x;
+	float fOutwardY = f2Position.y - f2Edge.y;
+	float fLength = std::sqrt(fOutwardX * fOutwardX + fOutwardY * fOutwardY);
+	if (fLength < 1e-6f)
 	{
 		return XMVectorZero();
 	}
+	fOutwardX /= fLength;
+	fOutwardY /= fLength;
 
-	if (pOutNextWaypoint != nullptr)
-	{
-		*pOutNextWaypoint = XMVectorSet(f2BestVertex.x, f2BestVertex.y, fBaseHeight, 1.0f);
-	}
-	return XMVector3Normalize(XMVectorSet(f2BestVertex.x - f2Position.x, f2BestVertex.y - f2Position.y, 0.0f, 0.0f));
+	// Boundary tangent, signed to whichever way makes progress toward the destination. The comparison is
+	// a total order, so the choice is deterministic.
+	float fTangentX = -fOutwardY;
+	float fTangentY = fOutwardX;
+	float fSign = (fTangentX * (f2Destination.x - f2Position.x) + fTangentY * (f2Destination.y - f2Position.y)) < 0.0f ? -1.0f : 1.0f;
+
+	return XMVector3Normalize(XMVectorSet(fTangentX * fSign + fOutwardX * kfNavFallbackOutwardBias, fTangentY * fSign + fOutwardY * kfNavFallbackOutwardBias, 0.0f, 0.0f));
 }
 
 } // anonymous namespace
+
+bool XM_CALLCONV NavQueryPointBlocked(FXMVECTOR vecPosition, const NavData& rNavData)
+{
+	if (rNavData.vertices.empty())
+	{
+		return false;
+	}
+
+	XMFLOAT4A f4Position {};
+	XMStoreFloat4A(&f4Position, vecPosition);
+	XMFLOAT2 f2Position {f4Position.x, f4Position.y};
+
+	return PointInAnyPolygon(f2Position, rNavData.vertices.data(), rNavData);
+}
 
 XMVECTOR XM_CALLCONV NavQuerySnapToNavigable(FXMVECTOR vecPosition, const NavData& rNavData)
 {
@@ -681,10 +696,12 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 		// A* pathfinding on visibility graph
 		vecResult = AStarPath(f2Position, f2Destination, pVertices, rNavData, aStarMemory, fBaseHeight, pOutNextWaypoint);
 
-		// Fallback: if A* found no path, move toward nearest visible obstacle vertex
+		// Fallback: if A* found no path, slide along the nearest obstacle boundary. The visibility graph
+		// spans the whole cell, so a miss means it is disconnected — an invariant violation worth a warning.
 		if (XMVectorGetX(XMVector3LengthSq(vecResult)) < 1e-8f)
 		{
-			vecResult = NavMissFallbackDirection(f2Position, pVertices, rNavData, fBaseHeight, pOutNextWaypoint);
+			LOG(kNavData, kWarning, "NavQuery A* found no path: position={} destination={} vertices={}", common::WbV2(XMLoadFloat2(&f2Position), 2), common::WbV2(XMLoadFloat2(&f2Destination), 2), iVertexCount);
+			vecResult = NavMissFallbackDirection(f2Position, f2Destination, pVertices, rNavData);
 		}
 	}
 

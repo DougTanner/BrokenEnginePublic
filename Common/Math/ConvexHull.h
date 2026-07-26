@@ -99,10 +99,13 @@ inline bool ConvexHullsOverlap(const ConvexHull2D& rA, const ConvexHull2D& rB)
 }
 
 // Returns true if the polygon's vertices wind counter-clockwise (positive signed area, i.e. shoelace
-// sum > 0, in the y-up world frame). ConvexHullsOverlap (SAT) and the nav winding-number point-in-
-// polygon test both require CCW input; their producers assert against this. Single-sourced so the
-// runtime predicate and the offline (DataPacker) bake-time verification can't drift. Degenerate
-// (< 3 vertices) polygons are the caller's responsibility to exclude.
+// sum > 0, in the y-up world frame). ConvexHullsOverlap (SAT) requires CCW input and its producers
+// assert against this. Nav's assertion is a truncation tripwire, not a requirement: the nav
+// point-in-polygon test is a nonzero-winding test and is therefore orientation-agnostic, and the
+// world-space polygons it actually runs against are wound clockwise, because BuildCellNavData mirrors
+// Y when it maps a UV-space template contour into the cell. Single-sourced so the runtime predicate
+// and the offline (DataPacker) bake-time verification can't drift. Degenerate (< 3 vertices) polygons
+// are the caller's responsibility to exclude.
 inline bool IsPolygonCcw(const XMFLOAT2* pVertices, int32_t iVertexCount)
 {
 	const XMFLOAT2& rOrigin = pVertices[0];

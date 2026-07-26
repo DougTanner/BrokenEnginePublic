@@ -324,6 +324,9 @@ void ServerSession::PreparePausedSubscriptions()
 		engine::FrameStaticData& rStaticData = it->second.staticData;
 		if (!rStaticData.bNavDataBuilt && !rStaticData.islands.empty())
 		{
+			// Heap: BuildCellNavData grows the navData vertex, polygon, and visibility-edge vectors, and
+			// this path runs on the main thread inside the armed main loop
+			ScopedSuppressAllocationTracking suppress;
 			engine::BuildCellNavData(rStaticData.navData, rStaticData.islands);
 			rStaticData.bNavDataBuilt = true;
 		}

@@ -26,11 +26,10 @@ constexpr float kfFlagshipCloseDistanceSquared = 12.5f * 12.5f;
 // is identical on client and server -> deterministic.
 constexpr int64_t kiNavRecomputeInterval = 16;
 
-// Option A (throttle-overshoot fix): force an off-cadence pathfind recompute when the held steering
-// bearing points into rising terrain within this many units — re-path before the stale bearing drives the
-// ship into an obstacle corner. Near terrain this collapses to per-tick pathfinding; open water keeps the
-// throttle.
-constexpr float kfNavTerrainLookahead = 8.0f;
+// Throttle-overshoot fix: how far ahead along the held steering bearing the off-cadence recompute probes
+// for nav-polygon containment — re-path before the stale bearing drives the ship into an obstacle corner.
+// Near obstacles this collapses to per-tick pathfinding; open water keeps the throttle.
+constexpr float kfNavLookahead = 8.0f;
 
 namespace
 {
@@ -264,17 +263,22 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 		|| (riNavDirection != iEntryNavDirection)
 		|| (((rFrame.interpolate.iTick + rCurrent.pGlobalPlayerIds[i].iValue) % kiNavRecomputeInterval) == 0);
 
-	// Option A (throttle-overshoot fix): the throttle holds rVecAiDirection (a world-space bearing) for up
-	// to kiNavRecomputeInterval ticks, so a ship rounding an obstacle corner overshoots the turn on the
-	// stale bearing and drives into the island. Force an immediate recompute when the carried bearing would
-	// put the ship into rising terrain within kfNavTerrainLookahead — re-path before the overshoot rather
-	// than after. Deterministic: rVecAiDirection (carried, shared), vecPosition, and FrameElevation (shared
-	// per-cell grid read) are identical on client and server, and this draws no RNG (RNG parity preserved).
+	// Throttle-overshoot fix: the throttle holds rVecAiDirection (a world-space bearing) for up to
+	// kiNavRecomputeInterval ticks, so a ship rounding an obstacle corner overshoots the turn on the stale
+	// bearing and drives into the island. Force an immediate recompute when the nav polygon contains the
+	// point kfNavLookahead ahead along the carried bearing OR the current position. Both are needed:
+	// containment ahead does not imply containment at the position, and a ship that has already been driven
+	// inside sits there as its steady state. This replaces an elevation probe that tested the *inner*
+	// contour — Main.cpp passes gBaseHeight - kfPlayerRadius - kfPushMargin as the nav threshold and
+	// ApplyTerrainPush below uses that same expression, while the nav polygon is that contour inflated
+	// outward — so a ship stranded in the no-nav band measured zero terrain push and never tripped the
+	// probe. Deterministic: rVecAiDirection (carried, shared), vecPosition, and navData (server-built and
+	// wire-shipped) are identical on client and server, and this draws no RNG (RNG parity preserved).
 	// Roam (mode -1) already re-steers every tick via ComputeAiSteering, so it is exempt.
 	if (!bRecompute && riNavDirection >= 0 && XMVectorGetX(XMVector3LengthSq(rVecAiDirection)) > 0.001f)
 	{
-		XMVECTOR vecTerrainProbe = XMVectorMultiplyAdd(XMVectorReplicate(kfNavTerrainLookahead), rVecAiDirection, vecPosition);
-		if (engine::gpIslandTerrain->FrameElevation(rStaticData, vecTerrainProbe) >= engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin)
+		XMVECTOR vecLookahead = XMVectorMultiplyAdd(XMVectorReplicate(kfNavLookahead), rVecAiDirection, vecPosition);
+		if (engine::NavQueryPointBlocked(vecLookahead, rStaticData.navData) || engine::NavQueryPointBlocked(vecPosition, rStaticData.navData))
 		{
 			bRecompute = true;
 		}
