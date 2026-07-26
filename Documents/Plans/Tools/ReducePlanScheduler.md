@@ -47,7 +47,7 @@ The listed scope is both target and ceiling: make the smallest complete split th
 - Bringing `PlanScheduler.cpp` to or below the 10,000 `bt-token-v1` threshold. That needs the command layer split and belongs to the follow-up Plan.
 - Moving `ValidateBaselineMetadata`, the claim/receipt coordination helpers, the Git/commit resolvers, `ResolveContext`/`ResolveReceiptContext`, `ParseArguments`, the `Run*` handlers, or `RunPlanSchedulerCommand`.
 - Any change to plan selection, metadata/marker parsing rules, dependency-cycle handling, claim/receipt validation, healing, landing, reparent behavior, storage layout, command stdout/stderr schemas, or exit codes. Move declarations and definitions verbatim.
-- Merging with, or ordering against, the CLI-parser decision (`Architecture_LibraryReplacement.md`, an investigation that edits no source; a resulting adoption Plan would rewrite `ParseArguments`) or the include cleanup (`Architecture_IncludeDependencies.md`).
+- Merging with, or ordering against, the include cleanup (`Architecture_IncludeDependencies.md`).
 - Any per-function token budget; this Plan targets only the file-level split.
 - Editing `.agents/scripts/Test-WorktreeCliPlanScheduler.ps1` — it is a read-only acceptance fixture, not an edit target.
 
@@ -91,5 +91,5 @@ Reconcile Visual Studio membership and filters with `/update-vcxproj`, then run 
 ## Notes
 
 - Measured residual blocks for the follow-up Plan (pre-split line numbers, `bt-token-v1`): claim/receipt coordination, Git resolvers, `ValidateBaselineMetadata`, and the context resolvers (484-1107) 5,787; claim-lifecycle handlers `RunValidate` through `RenderDependencies` (1108-1475) 5,194; terminal handlers `RunPrepare` through `RunReparentClaims` (1476-2002) 6,344. With the ~2,156 of includes, shared structs, small helpers, `ParseArguments`, and dispatch left over, that is 19,481 — so the follow-up needs at least a two-unit split of the command layer to reach 10,000.
-- Same-file, non-directional overlaps (line-drift only, whoever lands second re-cites); no directional ordering required, so metadata `dependsOn` stays empty: `Architecture_LibraryReplacement.md` (investigation only — edits no source; a resulting adoption Plan would rewrite `ParseArguments`, which stays here), `Architecture_IncludeDependencies.md` (removes an include — this Plan also edits the include block, still line-drift only). No existing Plan owns this file-level split.
+- Same-file, non-directional overlaps (line-drift only, whoever lands second re-cites); no directional ordering required, so metadata `dependsOn` stays empty: `Architecture_IncludeDependencies.md` (removes an include — this Plan also edits the include block, still line-drift only). No existing Plan owns this file-level split.
 - Structural precedent: `ReducePipelineManager.md`, `ReduceWaterFragmentShader.md`.

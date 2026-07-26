@@ -17,7 +17,7 @@ In scope — `Tools/WorktreeCli/BuildCommand.cpp` only, these regions:
 
 Out of scope:
 - Changing build command syntax, MSBuild invocation or discovery, object invalidation policy, `broken-engine-build-result/v1` fields, exit codes, or output channels.
-- Rewriting the argument-parsing range of `RunBuildCommandUnguarded` (the `--files`/target/passthrough parse, lines 656-683): that range is the subject of the CLI-parser decision in `Architecture_LibraryReplacement.md`, and a resulting adoption Plan would own its replacement. This plan may move that range verbatim only as far as the top-level parse/validate/execute/emit shape requires, changing none of its logic or messages.
+- Rewriting the argument-parsing range of `RunBuildCommandUnguarded` (the `--files`/target/passthrough parse, lines 656-683). This plan may move that range verbatim only as far as the top-level parse/validate/execute/emit shape requires, changing none of its logic or messages.
 - Build timeout, long-path, and subprocess-failure behavior owned by `Refactor_BuildCommandReliability.md` and `Refactor_ProcessFailurePropagation.md`.
 - Generalizing the new helpers outside `BuildCommand.cpp`: no moves into `Tools/ToolCommon`, and `Tools/WorktreeCli/BuildCommand.h` keeps `RunBuildCommand` as the sole declaration.
 - Every other function in the file — `RunBuildCommand` (lines 828-842), `ComparablePath`, `RetainedLog`, `DiagnosticParser`, `AcquireBuildLock`, `RunBuildProcess`, `RunMsBuildToLog`, `FailBuild`/`FailBuildWindows`, and the rest — except for call-site updates the named extractions require.
@@ -49,4 +49,3 @@ Out of scope:
 ## Notes
 - Invariant exposure: `broken-engine-build-result/v1`, selective object invalidation, and shared build coordination; no engine CRC, `.pack`, replay, client/server, or allocation-tracked runtime exposure.
 - Tier 3 trigger: build/bootstrap contract (`/compile` and every session's builds flow through this command).
-- Coordinate, without requiring directional ordering, with `Architecture_LibraryReplacement.md`: that Plan is an investigation and edits no source, but it measures `RunBuildCommandUnguarded`'s parse range (lines 656-683), which must remain logically intact for a resulting adoption Plan to replace.

@@ -11,7 +11,7 @@ Source: /external-refactor-clean on `Tools/` recursively. In `Tools/AgentHarness
 - The two `::setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO/SO_SNDTIMEO, ...)` calls after connect discard their return values, so a request can be sent with no installed receive/send timeout.
 - Winsock lifetime is manual: `::WSAStartup` at function start, `::closesocket`/`::WSACleanup` after the `do { ... } while (false)` block. The `nlohmann::json::parse` path and `std::string response(uiResponseLength, '\0')` allocation can throw, and any exception escapes past the manual cleanup, leaking the socket and the WSA reference.
 
-Ordering: this plan executes after the ownership/heartbeat contract in `Architecture_HarnessLockIntegrity.md` (metadata dependency) and after the CLI-parser decision in `Architecture_LibraryReplacement.md`; it consumes whichever validated argument value that parser decision leaves.
+Ordering: this plan executes after the ownership/heartbeat contract in `Architecture_HarnessLockIntegrity.md` (metadata dependency).
 
 ## Scope contract
 
@@ -26,7 +26,7 @@ The listed scope is both target and ceiling: make the smallest complete change s
 ### Out of scope
 
 - Ownership/heartbeat/metadata semantics owned by `Architecture_HarnessLockIntegrity.md` — the existing `RefreshHarnessHeartbeat(owner)` call and its failure path keep their behavior and ordering.
-- Choosing or importing the CLI parser owned by `Architecture_LibraryReplacement.md`; this plan consumes whichever validated argument value that decision leaves.
+- Choosing or importing a CLI parser; this plan consumes the validated argument value.
 - Framing, request/response byte limits (`kuiMaxRequestBytes`, `kuiMaxResponseBytes`), output channels, exit codes (`kiExitOk`, `kiExitStateConflict`, `kiExitFailure`), and the connect-retry-until-deadline loop semantics.
 - `PrintUsage`, `SendAll`, `ReceiveAll`, `ConnectWithTimeout`, `wmain`, and everything in `HarnessLockCommands.h`/`.cpp` — unchanged except that extracted helpers may call the existing transport functions.
 - Generalizing AgentHarness socket ownership into `Tools/ToolCommon`.
@@ -50,7 +50,7 @@ All work is in `Tools/AgentHarness/AgentHarness.cpp`.
 
 ## Risk tier
 
-Tier 3 — cross-process harness command transport (AgentHarness command-line and loopback transport contract). Execute after `Architecture_HarnessLockIntegrity.md` and after the parser decision in `Architecture_LibraryReplacement.md`.
+Tier 3 — cross-process harness command transport (AgentHarness command-line and loopback transport contract). Execute after `Architecture_HarnessLockIntegrity.md`.
 
 Invariant exposure: AgentHarness CLI and loopback framing/exit-code contract per `Tools/AgentHarness/AGENTS.md` (length-prefixed JSON framing, request/response limits, connect retry until `--timeout-ms` deadline, `--owner` heartbeat behavior, exit codes 0/2/1) must be preserved. No engine CRC, `.pack`, replay format, client/server layout, or allocation-tracked runtime exposure.
 
@@ -63,4 +63,4 @@ Invariant exposure: AgentHarness CLI and loopback framing/exit-code contract per
 
 ## Notes
 
-- Removed the original `HarnessLockCommands.cpp` parser item because that exact range is the subject of the CLI-parser decision in `Architecture_LibraryReplacement.md` (an investigation that edits no source; it is also that investigation's spike subject) and would be owned by a resulting adoption Plan; the surviving work is limited to the distinct socket-command validation, transport, and cleanup boundary.
+- Removed the original `HarnessLockCommands.cpp` parser item; the surviving work is limited to the distinct socket-command validation, transport, and cleanup boundary.
