@@ -15,6 +15,12 @@ fresh `/plan-audit`. The main session owns every user interaction. Delegates may
 locate evidence or verify an atomic external claim, but never interview the user
 or choose for them.
 
+Execution splits by role: the preparation `implementer` performs every
+repository read, search, and WorktreeCli validation this skill requires and
+returns immutable decision briefs; the main session interviews the user,
+adjudicates, and dispatches the `locator` for external claim packets. Role
+contract: `../next-plan/references/tier3-workflow.md`.
+
 ## Required Input and Boundary
 
 Require all of the following before starting:

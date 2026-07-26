@@ -18,7 +18,8 @@ for a requested commit or primary-branch landing, whose commit, reconciliation
 rebase, landing lock, parent-branch update, and terminal Plan claim release the
 finalization worker exclusively owns. Main only adjudicates its concise
 handoffs, presents the exact summary and confirmation question, and resumes the
-worker after the user's answer.
+worker after the user's answer. Only main prompts the user; the finalization
+worker never does.
 
 Approval and confirmation semantics — what authorizes a primary mutation and when a refreshed summary is required — are owned by the canonical execution-gate contract (`../next-plan/references/execution-gates.md`, state 4); do not restate or redefine them. The confirmation binds the session diff, not exact tips: a primary advance after confirmation is handled by re-rebasing and landing without returning to the user.
 

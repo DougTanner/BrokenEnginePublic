@@ -24,25 +24,18 @@ identity, semantics, layout, guard scope, or named invariant.
 
 Main dispatches `/plan-audit` to one `reviewer`, then returns its accepted
 findings to the preparation `implementer`. That worker performs every repository
-read, search, and WorktreeCli validation required by `/external-grill-plan` and
-returns an immutable decision brief containing ordered and conditional
-questions; for each question, repository evidence and why the decision changes
-the plan, exactly two or three meaningful mutually exclusive choices, the
-recommended-first choice and tradeoff, and the exact refinement for every
-option; plus external claim packets and exact `/verify-external-claims`
-verdicts, and unresolved residuals. Main routes external claim packets to a
-`locator` and resumes the same preparation worker with its exact verdicts before
-presenting any dependent choice. Main otherwise uses only the brief to
-adjudicate and present user choices, records the exact questions, answers,
-decisions, and refinements, and performs no repository read, search, or
-WorktreeCli work. When an answer unlocks dependent repository-backed work, main
-resumes the same preparation worker with the accumulated exact interaction
-state and receives the next immutable brief; the worker never interviews,
-chooses, or delegates. The final resolved-card handoff preserves every exact
-question, answer, decision, refinement, claim verdict, and residual, and the
-worker updates the card. Then continue once those decisions are resolved. A
-decision-complete plan yields a PASS audit and a no-question brief; do not
-manufacture findings or interview questions to justify the review.
+read, search, and WorktreeCli validation `/external-grill-plan` requires and
+returns an immutable decision brief in that skill's question format, plus its
+external claim packets and unresolved residuals; it never interviews, chooses,
+or delegates. Main routes claim packets to a `locator` through
+`/verify-external-claims`, resumes the same worker with the exact verdicts and
+with each answer that unlocks dependent repository-backed work, and receives the
+next brief. Main alone interviews the user and adjudicates, recording the exact
+questions, answers, decisions, and refinements; it performs no repository read,
+search, or WorktreeCli work. The final handoff preserves that record and the
+worker updates the card. A decision-complete plan yields a PASS audit and a
+no-question brief; do not manufacture findings or interview questions to justify
+the review.
 
 ## Implementation and stop rule
 
