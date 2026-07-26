@@ -18,6 +18,7 @@ namespace toolcli
 		using coordination::NewMetadata;
 		using coordination::PrintMetadata;
 		using coordination::ReadMetadata;
+		using coordination::ValidateMetadataEnvelope;
 		using coordination::WriteMetadataAtomic;
 
 		std::optional<Locator> MakeHarnessLocator(const std::wstring& rKey)
@@ -166,6 +167,11 @@ namespace toolcli
 			Fail("lock metadata is unreadable");
 			return kiExitFailure;
 		}
+		if (bExists && !ValidateMetadataEnvelope(metadata, *locator))
+		{
+			Fail("lock metadata envelope is invalid");
+			return kiExitFailure;
+		}
 
 		if (verb == L"status")
 		{
@@ -252,7 +258,7 @@ namespace toolcli
 			return false;
 		}
 		nlohmann::json metadata;
-		if (!ReadMetadata(locator->path, metadata) || !HasOwner(metadata, rOwner))
+		if (!ReadMetadata(locator->path, metadata) || !ValidateMetadataEnvelope(metadata, *locator) || !HasOwner(metadata, rOwner))
 		{
 			return false;
 		}

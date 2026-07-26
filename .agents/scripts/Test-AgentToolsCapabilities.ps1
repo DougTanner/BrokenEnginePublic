@@ -37,10 +37,11 @@ if ($worktreeHelp.Contains('AgentHarness.exe', [StringComparison]::Ordinal) -or 
 
 $harnessHelp = Get-Help $AgentHarnessExecutable 'AgentHarness'
 Assert-Contains $harnessHelp @(
-	'Usage: AgentHarness.exe [--owner TOKEN] --port N [--timeout-ms 15000] -',
+	'Usage: AgentHarness.exe --owner TOKEN --port N [--timeout-ms 15000] -',
+	'AgentHarness.exe --owner TOKEN --port N [--timeout-ms 15000] "<json>"',
 	'AgentHarness.exe lock <token|claim|status|release|steal|heartbeat> ...',
 	'AgentHarness.exe --help'
 ) 'AgentHarness'
-if ($harnessHelp.Contains('WorktreeCli.exe', [StringComparison]::Ordinal) -or $harnessHelp.Contains('--domain', [StringComparison]::Ordinal) -or $harnessHelp.Contains('--repo', [StringComparison]::Ordinal) -or $harnessHelp.Contains(' plan ', [StringComparison]::Ordinal) -or $harnessHelp.Contains(' build ', [StringComparison]::Ordinal)) { throw 'AgentHarness help exposes a worktree-only or obsolete option.' }
+if ($harnessHelp.Contains('[--owner TOKEN]', [StringComparison]::Ordinal) -or $harnessHelp.Contains('WorktreeCli.exe', [StringComparison]::Ordinal) -or $harnessHelp.Contains('--domain', [StringComparison]::Ordinal) -or $harnessHelp.Contains('--repo', [StringComparison]::Ordinal) -or $harnessHelp.Contains(' plan ', [StringComparison]::Ordinal) -or $harnessHelp.Contains(' build ', [StringComparison]::Ordinal)) { throw 'AgentHarness help exposes a worktree-only or obsolete option.' }
 
 [pscustomobject]@{ WorktreeCli = $worktreeHelp; AgentHarness = $harnessHelp } | ConvertTo-Json -Depth 3

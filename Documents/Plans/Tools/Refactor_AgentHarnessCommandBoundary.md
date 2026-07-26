@@ -1,14 +1,13 @@
-<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-20T00:49:13.000Z","dependsOn":["Documents/Plans/Tools/Architecture_HarnessLockIntegrity.md"]} -->
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-20T00:49:13.000Z","dependsOn":[]} -->
 # Refactor: AgentHarness Command Boundary
 
 ## Context
 
-Source: /external-refactor-clean on `Tools/` recursively. In `Tools/AgentHarness/AgentHarness.cpp`, `toolcli::RunSocketCommand` mixes argument parsing, ownership/heartbeat handling, Winsock lifetime, framed transport, and response interpretation in one ~200-line function, and several trust-boundary failures currently execute a command with ambiguous input or an unenforced timeout:
+Source: /external-refactor-clean on `Tools/` recursively. In `Tools/AgentHarness/AgentHarness.cpp`, `toolcli::RunSocketCommand` mixes argument parsing, the mandatory continuous ownership/heartbeat contract, Winsock lifetime, framed transport, and response interpretation in one ~200-line function, and several trust-boundary failures currently execute a command with ambiguous input or leak its transport resources:
 
 - `std::wcstoll(pArgumentValues[i], nullptr, 10)` for `--port` and `--timeout-ms` passes a null end pointer, so `27100junk` parses as `27100` and is accepted.
 - The argument loop overwrites `request` on each positional argument and sets `bReadStandardInput` independently, so duplicate inline requests and inline-plus-stdin combinations are silently accepted (last/stdin wins) instead of rejected.
 - `ReadAllStandardInput` loops on `std::fread` until it returns 0 and cannot distinguish EOF from a stream error (`std::ferror(stdin)`), so a partial read is sent as a complete request.
-- The two `::setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO/SO_SNDTIMEO, ...)` calls after connect discard their return values, so a request can be sent with no installed receive/send timeout.
 - Winsock lifetime is manual: `::WSAStartup` at function start, `::closesocket`/`::WSACleanup` after the `do { ... } while (false)` block. The `nlohmann::json::parse` path and `std::string response(uiResponseLength, '\0')` allocation can throw, and any exception escapes past the manual cleanup, leaking the socket and the WSA reference.
 
 Ordering: this plan executes after the ownership/heartbeat contract in `Architecture_HarnessLockIntegrity.md` (metadata dependency).
@@ -19,13 +18,13 @@ The listed scope is both target and ceiling: make the smallest complete change s
 
 ### In scope — `Tools/AgentHarness/AgentHarness.cpp` only
 
-- `toolcli::RunSocketCommand` (anonymous namespace): restructure into a short coordinator plus extracted helpers, tighten argument validation, and check the `setsockopt` results, as specified in Design.
+- `toolcli::RunSocketCommand` (anonymous namespace): restructure into a short coordinator plus extracted helpers and tighten argument validation, as specified in Design.
 - `toolcli::ReadAllStandardInput` (anonymous namespace): distinguish EOF from stream error.
 - New anonymous-namespace helpers this plan introduces: a framed socket-exchange helper, a response-to-exit-code helper, and local RAII owner types for the WSA lifetime and the `SOCKET`.
 
 ### Out of scope
 
-- Ownership/heartbeat/metadata semantics owned by `Architecture_HarnessLockIntegrity.md` — the existing `RefreshHarnessHeartbeat(owner)` call and its failure path keep their behavior and ordering.
+- Mandatory ownership proof, command-thread refresh when the 60-second interval becomes due, final pre-output refresh, and ownership-loss handling are owned by `Architecture_HarnessLockIntegrity.md`; this refactor consumes and preserves that contract without changing its ordering or semantics.
 - Choosing or importing a CLI parser; this plan consumes the validated argument value.
 - Framing, request/response byte limits (`kuiMaxRequestBytes`, `kuiMaxResponseBytes`), output channels, exit codes (`kiExitOk`, `kiExitStateConflict`, `kiExitFailure`), and the connect-retry-until-deadline loop semantics.
 - `PrintUsage`, `SendAll`, `ReceiveAll`, `ConnectWithTimeout`, `wmain`, and everything in `HarnessLockCommands.h`/`.cpp` — unchanged except that extracted helpers may call the existing transport functions.
@@ -36,13 +35,12 @@ The listed scope is both target and ceiling: make the smallest complete change s
 All work is in `Tools/AgentHarness/AgentHarness.cpp`.
 
 1. **Decompose `RunSocketCommand`.** [~1h] After the ownership/heartbeat contract and the parser choice are settled, make `RunSocketCommand` consume one validated socket-command argument value, then extract:
-   - a framed socket-exchange helper covering connect-with-retry, timeout installation, length-prefixed send, and length-prefixed receive (reusing `ConnectWithTimeout`, `SendAll`, `ReceiveAll`);
+   - a framed socket-exchange helper covering connect-with-retry, the prerequisite's same-thread readiness waits with absolute logical deadlines, length-prefixed send, and length-prefixed receive (reusing `ConnectWithTimeout`, `SendAll`, `ReceiveAll`);
    - a response-to-exit-code helper wrapping the current `nlohmann::json::parse` / boolean `"ok"` interpretation (`kiExitOk` / `kiExitStateConflict` / missing-field and invalid-JSON failure messages unchanged);
-   - a short coordinator in `RunSocketCommand` retaining the existing order: validate arguments, read stdin if requested, enforce `kuiMaxRequestBytes`, refresh heartbeat when `--owner` was given, then exchange and interpret.
+   - a short coordinator in `RunSocketCommand` retaining the existing order: validate arguments, read stdin if requested, enforce `kuiMaxRequestBytes`, then perform the ownership-aware exchange and interpret.
 2. **Strict argument validation.** [~15m] In the validated argument value, require full `std::wcstoll` consumption (end pointer at the terminating null) for `--port` and `--timeout-ms`, and exactly one request source with exactly one value: reject `27100junk`-style trailing garbage, an inline request combined with `-` (stdin), and more than one inline request, all through the existing `Fail(...)` + `PrintUsage(std::cerr)` + `kiExitFailure` path. Existing range checks (`1..65535`, `1..600000`) stay.
 3. **stdin error detection.** [~15m] Change `ReadAllStandardInput` to distinguish EOF from `std::ferror(stdin)` and surface the error so `RunSocketCommand` fails before connecting when a partial read occurred (no request bytes sent).
-4. **Enforce timeout installation.** [~15m] Check both `::setsockopt(... SO_RCVTIMEO ...)` and `::setsockopt(... SO_SNDTIMEO ...)` results, report the failed option name with `::WSAGetLastError()`, and fail before sending when the validated timeout could not be installed.
-5. **RAII Winsock/socket lifetime.** [~30m] Replace the manual `::WSAStartup`/`::WSACleanup` pair and the trailing raw `::closesocket` cleanup with local scoped owner types (anonymous namespace, this file only) so the WSA reference and the `SOCKET` release on every return path and across the allocation/JSON exceptions in the response path.
+4. **RAII Winsock/socket lifetime.** [~30m] Replace the manual `::WSAStartup`/`::WSACleanup` pair and the trailing raw `::closesocket` cleanup with local scoped owner types (anonymous namespace, this file only) so the WSA reference and the `SOCKET` release on every return path and across the allocation/JSON exceptions in the response path.
 
 ## Critical files
 
@@ -57,7 +55,7 @@ Invariant exposure: AgentHarness CLI and loopback framing/exit-code contract per
 ## Acceptance criteria
 
 - Malformed numeric values (trailing garbage), duplicate inline request values, and mixed stdin/inline sources fail before any connection attempt, via the existing usage/failure path.
-- stdin read errors and socket-timeout installation errors produce decisive diagnostics and send no request bytes.
+- stdin read errors produce decisive diagnostics and send no request bytes.
 - Winsock and socket resources release on every return and exception path.
 - Valid inline and piped commands preserve framing, response parsing, output, and exit codes exactly as before.
 
