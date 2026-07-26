@@ -13,10 +13,10 @@ allowed-tools: [Read, Grep, Glob, PowerShell]
 
 # Session Audit
 
-Run one fresh delegated `reviewer`. Do not edit, run mutating commands,
-implement fixes, or delegate. Audit only hypotheses that earlier domain reviews
-could not have covered; do not repeat their artifact-level correctness, style,
-documentation, shader, or validation passes.
+Main dispatches one fresh `reviewer`. The reviewer does not edit, run mutating
+commands, implement fixes, or delegate. Audit only hypotheses that earlier
+domain reviews could not have covered; do not repeat their artifact-level
+correctness, style, documentation, shader, or validation passes.
 
 ## Required Inputs
 
@@ -38,13 +38,15 @@ Require a self-contained, immutable brief containing:
   plus reconciliation, build, external-API-verification, accepted-fix/retest,
   residual, and focus-area handoffs (`none` is valid for each).
 
-For an explicit user request, the main session assembles the required brief
-before dispatch — baseline and tip commits, the changed-file manifest from
-`git`, and stage dispositions — and supplies it with the user-authorized audit
-scope, mapped to the same bounded late, reconciled, or unseen-integration
-hypotheses. Return `BLOCKED` when lifecycle identity, attribution, intent, a
+For an explicit user request, main dispatches one preparation `implementer` to
+assemble the required brief from repository state — baseline and tip commits,
+the changed-file manifest from `git`, and stage dispositions. The worker returns
+that brief with the user-authorized audit scope mapped to the same bounded late,
+reconciled, or unseen-integration hypotheses; main then dispatches the reviewer.
+For a workflow-triggered audit, the finalization or preparation implementer
+assembles the same brief and returns it through main. Return `BLOCKED` when lifecycle identity, attribution, intent, a
 mode disposition, or an applicable prerequisite domain review is missing,
-ambiguous, moving, or incomplete. The manager's pre-dispatch assembly from
+ambiguous, moving, or incomplete. The assigned implementer's assembly from
 repository state is the only allowed source; the auditor never reconstructs
 these inputs from conversation history or a mutable merge base.
 

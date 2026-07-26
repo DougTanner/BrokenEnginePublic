@@ -12,9 +12,10 @@ allowed-tools: [Read, Grep, Glob, Edit, "Bash(git diff *)", "Bash(git status *)"
 
 # Resolve Findings
 
-Fix only the accepted failures assigned by the manager. Do not delegate. The
-manager owns adjudication, scope changes, builds, independent verification, and
-all fresh-context review.
+Run inside one delegated `implementer`. Fix only the accepted failures assigned
+by the manager and do not delegate. The manager owns adjudication and scope
+changes, and dispatches builds, independent verification, and all fresh-context
+review to their bounded roles.
 
 ## Required Assignment
 
@@ -55,12 +56,12 @@ For each assigned item:
 4. Re-read every fixed region and directly affected path. Demonstrate why the
    original scenario no longer follows. Run focused static checks available in
    this context; return builds, runtime checks, harness work, and independent
-   verification to the manager.
+   verification to the manager for bounded-role dispatch.
 5. For a one-function code fix with no signature or contract change, scan its
    callers, mirrored client/server or collection patterns, shared headers, and
    stale comments. Fix only candidates inside scope and report every outside
-   candidate. Otherwise emit affected-site triggers for manager propagation,
-   including symbol/pattern and search scope.
+   candidate. Otherwise emit affected-site triggers for the manager to dispatch
+   through `/update-affected-code`, including symbol/pattern and search scope.
 6. Audit the completed edit against the assignment, baseline, ownership
    snapshot, and smallest plausible regression. Fix confirmed in-scope defects
    and repeat their checks. Do not claim compilation or runtime success.
@@ -95,12 +96,13 @@ Build required: <target, configuration/platform, selected project-member .cpp;
   for headers, every consuming target and configuration/platform; or none>
 External/API verification requests: <symbol/rule — proposition — dependent item
   — version/configuration — candidate official source, or none>
-Reviewer focus areas: <condition the manager's verifier must falsify, or none>
+Reviewer focus areas: <condition the independent verifier must falsify, or none>
 Residuals: <unresolved/out-of-scope item, evidence, and next owner/action, or none>
 ```
 
-Keep `Residuals` last. Name each changed file once. A requested build is manager
-work, not a passed check. The manager dispatches independent verification as a
-separate role after the fix and required checks complete. Use `PASS` when every
+Keep `Residuals` last. Name each changed file once. A requested build is
+`builder` work dispatched by the manager, not a passed check. The manager
+dispatches independent verification as a separate role after the fix and
+required checks complete. Use `PASS` when every
 assigned item is fixed with no fix-work residual, `NEEDS_ACTION` when manager
 action remains, and `BLOCKED` when missing required evidence prevents work.

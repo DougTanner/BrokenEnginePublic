@@ -15,7 +15,11 @@ paths: ["**/*.vert", "**/*.frag", "**/*.comp", "**/*.geom", "**/*.tesc", "**/*.t
 
 # GLSL Review
 
-Review findings only; never edit. Cover correctness and performance, not style. Treat source-adjacent rationale as required only when a non-obvious mathematical, numerical, coordinate, ordering, layout, or hardware assumption carries correctness or measured performance.
+Run one fresh `reviewer` pass. Review findings only; never edit or delegate.
+Cover correctness and performance, not style. Treat source-adjacent rationale
+as required only when a non-obvious mathematical, numerical, coordinate,
+ordering, layout, or hardware assumption carries correctness or measured
+performance.
 
 Read the footgun reference (`references/shader-footguns.md`) when a changed region touches synchronization, subgroup operations, implicit derivatives, shared CPU/GLSL layout, clip coordinates, numerically guarded math, or a performance heuristic.
 

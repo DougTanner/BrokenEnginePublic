@@ -9,10 +9,11 @@ but must link here rather than define another approval or stop rule.
 
 ## 1. Claim and preparation
 
-Plan metadata validation, claim, current-code inspection, execution-card citation
-corrections (the claimed plan file itself is never edited during execution),
-classification, and execution-card preparation do not require approval and do
-not create an approval gate. Start only when the latest user request explicitly
+Main dispatches a preparation `implementer` for Plan metadata validation, claim,
+current-code inspection, execution-card citation corrections (the claimed plan
+file itself is never edited during execution), classification, and execution-card
+preparation. These actions do not require approval and do not create an approval
+gate. Start only when the latest user request explicitly
 invokes `/next-plan` or `$next-plan`; an invocation in unrelated history is not
 current authority. Once started, approval and blocker-resolution turns continue
 the active claimed workflow.
@@ -42,9 +43,10 @@ none of those and never invalidates approval.
 
 ## 3. Continuous execution
 
-After implementation approval, continue without another resume request through
-implementation, propagation, checks, review, accepted fixes, final verification,
-Plan terminal preparation, reconciliation, and finalization preparation. Terminal preparation
+After implementation approval, main continues without another resume request by
+dispatching or resuming the assigned workers through implementation,
+propagation, checks, review, accepted fixes, final verification, Plan terminal
+preparation, reconciliation, and finalization preparation. Terminal preparation
 is not a terminal result. Do not stop at an implementation handoff or a
 preparation-ready status.
 
@@ -132,10 +134,12 @@ reconcile or landing lease, retain the candidate and claims, and reinvoke after
 primary may have advanced. Present the normal landing confirmation only after
 that recheck passes.
 
-Immediately before the one operation that mutates primary history, state in one
-short summary: what the change is in one sentence, the changed-file count and
-kind (code vs docs/plans), the session branch, and the primary branch. Then ask
-one direct confirmation question:
+The finalization `implementer` performs every pre-confirmation mechanic and
+returns the exact candidate and summary fields to main. Immediately before the
+one operation that mutates primary history, main states in one short summary:
+what the change is in one sentence, the changed-file count and kind (code vs
+docs/plans), the session branch, and the primary branch. Main then asks one
+direct confirmation question:
 
 - `session-landing`: `Confirm landing this change from <session-branch> onto
   primary branch <primary-branch>?`
@@ -146,6 +150,10 @@ A plain affirmative response authorizes landing this session diff onto
 primary, wherever the primary tip is — not one exact commit pair. Plan
 approval, implementation approval, a request to finish or land, and a
 reconciliation decision are not substitutes for it.
+
+After an affirmative response, main resumes the same finalization worker with
+that authorization; the worker alone performs the primary mutation and returns
+the result. A decline or non-answer leaves primary unchanged.
 
 One standing exception: a `/save-plan` invocation in the current session is
 the explicit request and affirmative response for a primary mutation whose

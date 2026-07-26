@@ -6,6 +6,9 @@ allowed-tools: [PowerShell]
 
 # Build
 
+Run solely inside one delegated `builder`; separate-role requirements return to
+the manager.
+
 Builds through the current checkout's WorktreeCli executable. `WorktreeCli build` serializes writers per target basename inside the current worktree, waits up to 660 seconds, preserves native Windows argument boundaries, and owns MSBuild through a kill-on-close Job Object.
 
 ## Structured build result

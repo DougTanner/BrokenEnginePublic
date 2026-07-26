@@ -72,8 +72,8 @@ Skip this phase in audit-only mode.
    specialist requires another role, return the requirement to the manager
    instead of invoking it.
 6. Run only focused reads, searches, traces, and static checks needed for
-   internal coherence. The manager owns compilation, runtime checks, harness
-   work, and all independent reviews.
+	internal coherence. Return compilation, runtime checks, harness work, and
+	independent reviews to the manager for dispatch to their bounded roles.
 7. Record each changed file and exact function/type/section. For code, emit an
    affected-site trigger for each signature, identity, semantics, layout,
    guard-affinity, sweep, or mirror concern, including symbol/pattern and search
@@ -129,5 +129,5 @@ Residuals: <contradiction, incomplete item, or blocker with evidence, or none>
 `Residuals` stays last. Name each changed file once. Build requests must be
 executable without rediscovery: each changed `.cpp` names its exact target,
 configuration/platform, and selected project-member path; each changed header
-names every consuming target and configuration/platform. The manager runs the
-build/runtime and routes results or later fix work.
+names every consuming target and configuration/platform. The manager dispatches
+the bounded build/runtime role and routes its concise result or later fix work.

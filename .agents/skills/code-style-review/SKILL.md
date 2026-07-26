@@ -6,9 +6,10 @@ allowed-tools: [Read, Write, Edit, Grep, PowerShell]
 
 # Code Style Review
 
-Review C++ only. Fix style when the edit is provably meaning-preserving; return
-anything that could change behavior or an interface for caller classification.
-Style review is not a final-evidence gate.
+Run inside one delegated `mechanic`; never delegate. Review C++ only. Fix style
+when the edit is provably meaning-preserving; return anything that could change
+behavior or an interface for caller classification. Style review is not a
+final-evidence gate.
 
 ## Scope
 

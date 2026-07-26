@@ -9,15 +9,16 @@ allowed-tools: [Read, Grep, Glob, "Bash(git diff *)", "Bash(git status *)", "Bas
 
 # Verify Changes
 
-Run only when the root `AGENTS.md` final-evidence gate applies. Use a fresh
-context separate from implementation and review. This is a read-only verifier:
-do not delegate, edit files, resolve findings, build, launch a runtime or
-harness, mutate Plan claims, or create an evidence artifact. Inspect the final
-tree and validate supplied evidence; return missing or stale work to the caller.
+Run only when the root `AGENTS.md` final-evidence gate applies. Main dispatches
+one fresh `reviewer` context separate from implementation and prior review.
+That worker is a read-only verifier: do not delegate, edit files, resolve
+findings, build, launch a runtime or harness, mutate Plan claims, or create an
+evidence artifact. It inspects the final tree and validates supplied evidence;
+return missing or stale work to main for adjudication and routing.
 
 ## Inputs
 
-Require:
+Main supplies, and the verifier requires:
 
 - absolute adopted checkout, fixed session-start baseline commit, and route:
   `session-finalization` or explicitly authorized `primary-commit`;
@@ -175,11 +176,11 @@ by this pre-commit audit.
 
 ## Decision and Output
 
-Return `Verification: PASS` only when the manifest reconciles and every in-scope
-item passes with current evidence. Any failure, blocker, unverified item,
+The verifier returns `Verification: PASS` only when the manifest reconciles and
+every in-scope item passes with current evidence. Any failure, blocker, unverified item,
 unresolved claim, unadjudicated refutation, stale evidence, or missing input
 returns `Verification: BLOCKED`. Consolidate all such items once; do not retry,
-fix, waive, downgrade, or create a follow-up. The caller adjudicates and routes
+fix, waive, downgrade, or create a follow-up. Main adjudicates and routes
 work, then starts a new verification run after any mutation. A `PASS` is scoped
 to the manifest it audited; report that manifest and baseline with the table,
 and treat any later manifest change as voiding it. Stop when the matrix passes.

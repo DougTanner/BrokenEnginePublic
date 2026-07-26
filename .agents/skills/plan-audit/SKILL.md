@@ -14,7 +14,7 @@ allowed-tools: [Read, Grep, Glob, PowerShell]
 Use this skill for every Tier-2 and Tier-3 change; Tier-1 mechanical work
 skips it. Assume the supplied plan is flawed, verify it against the current
 repository, and return only concrete findings and improvement suggestions for
-the calling session to resolve when user input is actually needed — through
+the manager to resolve when user input is actually needed — through
 `/external-grill-plan` for Tier 3, or directly with the user for Tier 2. The
 audit is findings-only work and never creates an approval gate; a `/next-plan`
 invocation additionally follows the canonical execution-gate contract
@@ -46,9 +46,10 @@ the standard format immediately; never return silence.
 
 ## Execution Context
 
-Run inside one delegated `reviewer`; only explicit user direction permits an
-inline run, which `/verify-changes` records as `inline`. Tool restrictions are
-prose boundaries because frontmatter must not alter the calling context.
+Run solely inside one fresh delegated `reviewer`; inline review is prohibited.
+If the mandatory reviewer is unavailable, the manager reports a blocker. Tool
+restrictions are prose boundaries because frontmatter must not alter the
+calling context.
 
 ## Audit
 
@@ -71,7 +72,7 @@ prose boundaries because frontmatter must not alter the calling context.
    boundary, Tier-3 trigger, interfaces and invariants, acceptance checks with
    expected observations, role dispositions, and unresolved decisions agree
    with current repository evidence. Report any mismatch as a finding for the
-   calling session; do not manufacture authority artifacts or another approval
+   manager; do not manufacture authority artifacts or another approval
    gate.
 8. Audit the execution-control proposal against the risk-tier definitions in
    root `AGENTS.md`, classifying at the highest applicable tier. Verify that every
@@ -99,13 +100,13 @@ Dependent finding: <PA-F-### and why the verdict matters>
 Candidate official source: <URL or exact upstream identifier, if known>
 ```
 
-The manager runs `/verify-external-claims` on each packet — which itself
-dispatches the `locator` that gathers evidence — then adjudicates the dependent
+The reviewer returns each packet to the manager, which dispatches a separate
+`locator` through `/verify-external-claims` and then adjudicates the dependent
 finding. Pending requests make the audit `NEEDS_ACTION`, not a confirmed
 finding.
 
 Do not edit any repository file, run `/agent-harness`, interview the user, or
-spawn another agent. The calling session owns all judgment. After it
+spawn another agent. The manager owns all judgment. After it
 adjudicates findings and external verdicts, every Tier-3 result, including a
 clean pass, proceeds to `/external-grill-plan`; Tier 2 returns to the manager.
 

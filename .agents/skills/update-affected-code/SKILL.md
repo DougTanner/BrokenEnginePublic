@@ -94,4 +94,4 @@ Residuals: <affected site not updated, incomplete search, ownership conflict,
 
 Keep `Residuals` last. Name each changed file once. `PASS` requires every
 trigger resolved or refuted and every planned search complete; requested builds
-remain manager work rather than passed checks.
+remain `builder` work dispatched by the manager rather than passed checks.

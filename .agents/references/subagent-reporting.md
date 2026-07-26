@@ -1,8 +1,9 @@
 # Delegated Reporting
 
-Delegation normally returns a concise inline handoff. Do not create a report
-artifact, request a fresh context, or forward hashes and line ranges merely to
-prove that ordinary implementation, review, build, or documentation work ran.
+Delegation normally returns a concise inline handoff for the manager to
+adjudicate and route. Do not create a report artifact, request a fresh context,
+or forward hashes and line ranges merely to prove that ordinary implementation,
+review, build, or documentation work ran.
 
 ## Context isolation
 
@@ -46,14 +47,15 @@ Return only the information the next role needs:
 Status: PASS | NEEDS_ACTION | BLOCKED
 Changed files: <paths or none>
 Decisive checks: <command/read and result>
-Build required: <exact targets the caller must compile, or none>
+Build required: <exact targets, or none>
 Residuals: <actionable blocker or none>
 ```
 
 A build the delegation cannot run itself belongs on the `Build required` line
-naming exact targets, never reported as a check that passed; the caller runs it
-(root `AGENTS.md`, Change Workflow step 4). Skills defining their own handoff
-report carry the same line.
+naming exact targets, never reported as a check that passed; the manager or
+calling orchestration context dispatches it to one `builder`, then adjudicates
+the returned handoff (root `AGENTS.md`, Change Workflow step 4). Skills defining
+their own handoff report carry the same line.
 
 Return large evidence by reference: name an existing artifact or log path plus
 the selector — line range, search pattern, or key — the next role needs to
@@ -81,14 +83,15 @@ log path with its selector (Default handoff) is not manufacturing one.
 ## Liveness and interruption
 
 A wait boundary or elapsed-time threshold alone is never evidence a delegate is
-stuck. Judge liveness only by observable transcript/status evidence. Forward
-progress = recent distinct tool activity, narrowing searches, new evidence, or
-in-progress synthesis. A loop = repeated equivalent operations or unchanged
-failures without narrowing or new evidence.
+stuck. The manager judges liveness only from host agent status and explicit
+progress or partial handoffs; it never inspects raw task transcripts or logs.
+Forward progress = newly reported distinct activity, narrowed searches, new
+evidence, or in-progress synthesis. A loop = explicitly reported repeated
+equivalent operations or unchanged failures without narrowing or new evidence.
 
 Interruption sequence, in order:
 
-- Inspect available status/transcript evidence.
+- Inspect available host status and explicit progress or partial-handoff evidence.
 - Request an immediate return of findings gathered so far (the Default handoff
   format above).
 - Allow a bounded response window.

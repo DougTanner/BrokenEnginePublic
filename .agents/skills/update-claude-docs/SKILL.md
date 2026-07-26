@@ -12,6 +12,9 @@ allowed-tools: [Read, Edit, Write, Grep, Glob, Bash, PowerShell]
 
 # Update AGENTS.md Documentation
 
+Run inside one delegated `implementer`; never delegate. Return any
+separate-role requirement to the manager.
+
 Use one of these modes:
 
 - Sync (default): inspect documentation governed by a caller-supplied changed-file list and fixed session baseline. Edit only when affected guidance is stale or a durable invariant is missing.

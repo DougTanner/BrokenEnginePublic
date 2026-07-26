@@ -14,6 +14,13 @@ present the complete resolved plan. Follow the canonical execution-gate contract
 metadata validation, claim locking, selection, terminal preparation, and release.
 `Documents/Features` is manual and never participates in scheduler state.
 
+The main session reads this skill, retains user intent, dispatches or resumes
+bounded workers, adjudicates their concise handoffs, runs the user-facing Tier 3
+grill, and presents the approval and landing gates. One `implementer` performs
+claim and repository-backed preparation; later mechanics run in their assigned
+workers. Workers never delegate and return any separate-role requirement to the
+main session.
+
 ## Invocation and preconditions
 
 - Start only when the latest user request explicitly invokes `/next-plan` or
@@ -51,14 +58,15 @@ their transitions with ad hoc WorktreeCli commands.
 
 ## Workflow
 
-1. Run the claim sidecar for the resolved Plan. It validates primary metadata
+1. Main dispatches one preparation `implementer` to run the claim sidecar for
+   the resolved Plan. It validates primary metadata
    against the wrapper baseline before claiming. Treat `none-available` as a
    successful normal result. Report and stop on invalid metadata, quarantined
    cycles, dependency blockers, stale sessions, or claim conflicts; never add,
    repair, or reorder Plans during selection. Missing dependency paths are
    satisfied stale-edge notices; existing manual or invalid dependencies block.
-2. Read the selected plan and current code. Treat every plan claim — paths,
-   symbols, cited lines, described current behavior — as a hypothesis to confirm
+2. The preparation worker reads the selected plan and current code. Treat every
+   plan claim — paths, symbols, cited lines, described current behavior — as a hypothesis to confirm
    against the current tree; when reality contradicts the plan, reality wins.
    Keep the claimed plan immutable.
    Compute its SHA-256 and require an exact match with the claim digest before
@@ -66,32 +74,33 @@ their transitions with ad hoc WorktreeCli commands.
    terminal: retain the claim and stop without review, presentation, or re-claim.
    Carry stale citation corrections in the execution card. Remove unnecessary
    steps/checks from the resolved presentation rather than granting them
-   authority. If the problem is gone, ask whether to retain the plan or approve
-   terminal cleanup as obsolete work. The byte-zero marker and `createdUtc`
+   authority. If the problem is gone, return the decision requirement so main
+   can ask whether to retain the plan or approve terminal cleanup as obsolete
+   work. The byte-zero marker and `createdUtc`
    remain immutable.
-3. Classify the actual change and prepare the execution card. Every card starts
-   with `### What does this plan do?` and
+3. The preparation worker classifies the actual change and prepares the
+   execution card. Every card starts with `### What does this plan do?` and
    `### Why this is good for the codebase`, each in 2-4 plain sentences without
    process jargon. Then state goal, out-of-scope boundary, tier trigger,
    interfaces/invariants, acceptance checks with expected observations, and
    required/conditional roles.
    - Tier 1 skips plan review.
-   - Tier 2 delegates `/plan-audit` to one `reviewer` whose prompt carries the
-     required delegation-basis and context records and the bounded brief fields
+   - For Tier 2, main dispatches `/plan-audit` to one `reviewer` whose prompt
+     carries the required delegation-basis and context records and the bounded brief fields
      (`../../references/subagent-reporting.md`).
-   - Tier 3 reads Tier 3 preparation (`references/tier3-workflow.md`), delegates
-     `/plan-audit` under those same records and brief fields, then runs
-     `/external-grill-plan` in the user-facing session.
-   If reviewer delegation is unavailable, stop; only explicit user direction
-   permits inline review, recorded as `review freshness degraded`.
-4. Recompute the plan SHA-256 immediately before presenting and require the
-   claimed digest. Present the complete resolved plan at the one approval gate
+    - For Tier 3, the preparation worker follows
+      `references/tier3-workflow.md`.
+   If mandatory reviewer delegation is unavailable, report a blocker; never
+   substitute inline or same-context review.
+4. The preparation worker recomputes the plan SHA-256 immediately before its
+   final handoff and requires the claimed digest. Main presents the complete
+   resolved plan from that handoff at the one approval gate
    under the canonical approval contract. It includes the full execution card,
    implementation step, boundaries, interfaces/invariants, acceptance checks,
    role dispositions, and unresolved decisions. Any material presentation
    change invalidates approval and requires a new complete presentation.
-5. After approval, implement continuously through propagation, targeted checks,
-   domain review, accepted fixes, hygiene, and acceptance verification. Every
+5. After approval, main dispatches bounded workers and continues through
+   propagation, targeted checks, domain review, accepted fixes, hygiene, and acceptance verification. Every
    implementer delegation prompt carries the required delegation-basis and
    context records, the bounded brief fields
    (`../../references/subagent-reporting.md`), and the truth-grounding
@@ -99,18 +108,25 @@ their transitions with ad hoc WorktreeCli commands.
    with the actual code, trust the code and return the contradiction to the
    manager rather than forcing the plan's description. Pause only for a safety
    blocker or the final landing confirmation. Never edit the claimed plan.
-6. Before completion, require `plan claim-status` to report
-   `ownedByReceipt: true`, then invoke `Complete-NextPlan.ps1` with the receipt
+6. Before completion, an `implementer` requires `plan claim-status` to report
+   `ownedByReceipt: true`, then invokes `Complete-NextPlan.ps1` with the receipt
    path and receipt SHA-256. A digest mismatch is terminal
    and leaves the Plan and claim intact. The sidecar writes a recoverable
    manifest, deletes the Plan, removes only direct child dependency edges, and
    leaves the receipt-bound claim `awaiting-landing`. Rejection follows the same
    path only with explicit user authority.
-7. Run `/verify-changes`, then `/finalize-changes`. Continue through commit and
-   reconciliation preparation; only the canonical landing confirmation may
-   authorize primary history mutation.
+7. Main dispatches `/verify-changes` to a fresh read-only `reviewer`, then
+   dispatches `/finalize-changes` to an `implementer`. The finalization worker
+   continues through commit and reconciliation preparation and returns the exact
+   landing summary; main presents it and obtains the canonical landing
+   confirmation. Only after that confirmation does main resume the worker to
+   perform primary history mutation.
 
 ## Primary advance
+
+A preparation or finalization `implementer`, according to the active stage,
+performs the mechanics in this section and returns blockers or decision needs to
+main; main does not inspect or mutate repository or claim state.
 
 A primary advance never blocks or reroutes a claim. `claim-next` selects Plans
 from the session worktree tree and requires the session `HEAD` to be an ancestor
