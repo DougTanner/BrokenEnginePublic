@@ -124,8 +124,21 @@ void ServerFleetManager::ProcessSpawnIntoFleetRequests()
 
 		engine::ClientGuid guid = pClient->clientGuid;
 		auto it = mFleets.find(guid);
-		if (it == mFleets.end() || FindFleetIndexByGuid(it->second, rRequest.fleetGuid) < 0)
+		if (it == mFleets.end())
 		{
+			continue;
+		}
+
+		int64_t iFleetIndex = FindFleetIndexByGuid(it->second, rRequest.fleetGuid);
+		if (iFleetIndex < 0)
+		{
+			continue;
+		}
+
+		const Fleet& rFleet = it->second.at(static_cast<size_t>(iFleetIndex));
+		if (rFleet.members.size() >= kiMaxFleetMembers)
+		{
+			LOG(kNetwork, kWarning, "ServerFleetManager::ProcessSpawnIntoFleetRequests Client: {} FleetGuid: ({},{}) at member cap {}, ignoring spawn", rRequest.iClientId, rRequest.fleetGuid.uiHigh, rRequest.fleetGuid.uiLow, kiMaxFleetMembers);
 			continue;
 		}
 
