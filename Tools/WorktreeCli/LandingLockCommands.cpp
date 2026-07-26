@@ -104,6 +104,127 @@ namespace toolcli
 			}
 			return MakeLandingLocator(repository);
 		}
+
+		enum class LandingRecordState
+		{
+			kReadable,
+			kAbsent,
+			kUnverifiable,
+		};
+
+		enum class LandingReleaseOperation
+		{
+			kRelease,
+			kSteal,
+		};
+
+		int EmitLandingConflict(const Locator& rLocator, const nlohmann::json& rMetadata, LandingRecordState eRecordState)
+		{
+			if (eRecordState == LandingRecordState::kReadable)
+			{
+				PrintMetadata(landing::LandingStatus(rMetadata, rLocator));
+			}
+			else if (eRecordState == LandingRecordState::kAbsent)
+			{
+				std::cout << "{\"held\":false}\n";
+			}
+			else
+			{
+				std::cout << "{\"held\":true,\"leaseState\":\"unverifiable\"}\n";
+			}
+			return kiExitStateConflict;
+		}
+
+		int HandleClaim(const Locator& rLocator, nlohmann::json& rMetadata, bool bExists, const std::wstring& rOwner, const std::wstring& rSession, const std::wstring& rWorktree, int64_t iLeaseSeconds)
+		{
+			if (bExists)
+			{
+				return EmitLandingConflict(rLocator, rMetadata, LandingRecordState::kReadable);
+			}
+			rMetadata = landing::NewLandingMetadata(rLocator, rOwner, rSession, rWorktree, iLeaseSeconds);
+			if (!WriteMetadataAtomic(rLocator.path, rMetadata))
+			{
+				FailWindows("write lock metadata");
+				return kiExitFailure;
+			}
+			PrintMetadata(landing::LandingStatus(rMetadata, rLocator));
+			return kiExitOk;
+		}
+
+		int HandleRefresh(const Locator& rLocator, nlohmann::json& rMetadata, bool bExists, const std::wstring& rOwner)
+		{
+			std::optional<landing::LandingLease> lease = bExists ? landing::ValidateLandingLease(rMetadata, rLocator, CurrentUtcTicks()) : std::nullopt;
+			if (!lease || lease->owner != WideToUtf8(rOwner))
+			{
+				return EmitLandingConflict(rLocator, rMetadata, bExists ? LandingRecordState::kReadable : LandingRecordState::kAbsent);
+			}
+			const std::string timestamp = CurrentUtcTimestamp();
+			uint64_t uiHeartbeatTicks = 0;
+			ParseUtcTimestamp(timestamp, uiHeartbeatTicks);
+			if (uiHeartbeatTicks < lease->uiHeartbeatTicks)
+			{
+				return EmitLandingConflict(rLocator, rMetadata, LandingRecordState::kReadable);
+			}
+			rMetadata["heartbeatAt"] = timestamp;
+			rMetadata["expiresAt"] = FormatUtcTimestamp(uiHeartbeatTicks + static_cast<uint64_t>(lease->iDurationSeconds) * 10'000'000ull);
+			if (!WriteMetadataAtomic(rLocator.path, rMetadata))
+			{
+				FailWindows("refresh lock metadata");
+				return kiExitFailure;
+			}
+			PrintMetadata(landing::LandingStatus(rMetadata, rLocator));
+			return kiExitOk;
+		}
+
+		int HandleRecover(const Locator& rLocator, nlohmann::json& rMetadata, bool bExists, const std::wstring& rOwner, const std::wstring& rExpectedOwner, const std::wstring& rSession, const std::wstring& rWorktree, int64_t iLeaseSeconds)
+		{
+			uint64_t uiNow = CurrentUtcTicks();
+			std::optional<landing::LandingLease> lease = bExists ? landing::ValidateLandingLease(rMetadata, rLocator, uiNow) : std::nullopt;
+			if (!lease || lease->owner != WideToUtf8(rExpectedOwner) || uiNow < lease->uiExpiresTicks || !landing::AllRegisteredWorktreesClear(rLocator))
+			{
+				return EmitLandingConflict(rLocator, rMetadata, bExists ? LandingRecordState::kReadable : LandingRecordState::kAbsent);
+			}
+			nlohmann::json revalidatedMetadata;
+			if (!ReadMetadata(rLocator.path, revalidatedMetadata))
+			{
+				std::error_code error;
+				const bool bRevalidatedExists = std::filesystem::exists(rLocator.path, error);
+				return EmitLandingConflict(rLocator, rMetadata, !error && !bRevalidatedExists ? LandingRecordState::kAbsent : LandingRecordState::kUnverifiable);
+			}
+			if (revalidatedMetadata != rMetadata)
+			{
+				return EmitLandingConflict(rLocator, revalidatedMetadata, LandingRecordState::kReadable);
+			}
+			rMetadata = landing::NewLandingMetadata(rLocator, rOwner, rSession, rWorktree, iLeaseSeconds);
+			if (!WriteMetadataAtomic(rLocator.path, rMetadata))
+			{
+				FailWindows("recover lock metadata");
+				return kiExitFailure;
+			}
+			PrintMetadata(landing::LandingStatus(rMetadata, rLocator));
+			return kiExitOk;
+		}
+
+		int HandleReleaseOrSteal(const Locator& rLocator, const nlohmann::json& rMetadata, bool bExists, LandingReleaseOperation eOperation, const std::wstring& rOwner, const std::wstring& rExpectedOwner)
+		{
+			if (!bExists || (eOperation == LandingReleaseOperation::kRelease && !HasOwner(rMetadata, rOwner)) || (eOperation == LandingReleaseOperation::kSteal && !HasOwner(rMetadata, rExpectedOwner)))
+			{
+				return EmitLandingConflict(rLocator, rMetadata, bExists ? LandingRecordState::kReadable : LandingRecordState::kAbsent);
+			}
+
+			if (eOperation == LandingReleaseOperation::kRelease)
+			{
+				if (::DeleteFileW(rLocator.path.c_str()) == FALSE)
+				{
+					FailWindows("release lock");
+					return kiExitFailure;
+				}
+				return kiExitOk;
+			}
+
+			// steal: a lease-based landing lock is never stolen; recover is the expired-lease takeover.
+			return EmitLandingConflict(rLocator, rMetadata, LandingRecordState::kReadable);
+		}
 	}
 
 	int RunLandingLockCommand(int iArgumentCount, wchar_t* pArgumentValues[])
@@ -182,8 +303,7 @@ namespace toolcli
 		{
 			if (!bExists)
 			{
-				std::cout << "{\"held\":false}\n";
-				return kiExitStateConflict;
+				return EmitLandingConflict(*locator, metadata, LandingRecordState::kAbsent);
 			}
 			PrintMetadata(landing::LandingStatus(metadata, *locator));
 			return kiExitOk;
@@ -191,103 +311,20 @@ namespace toolcli
 
 		if (verb == L"claim")
 		{
-			if (bExists)
-			{
-				PrintMetadata(landing::LandingStatus(metadata, *locator));
-				return kiExitStateConflict;
-			}
-			metadata = landing::NewLandingMetadata(*locator, owner, session, worktree, iLeaseSeconds);
-			if (!WriteMetadataAtomic(locator->path, metadata))
-			{
-				FailWindows("write lock metadata");
-				return kiExitFailure;
-			}
-			PrintMetadata(landing::LandingStatus(metadata, *locator));
-			return kiExitOk;
+			return HandleClaim(*locator, metadata, bExists, owner, session, worktree, iLeaseSeconds);
 		}
 
 		if (verb == L"refresh")
 		{
-			std::optional<landing::LandingLease> lease = bExists ? landing::ValidateLandingLease(metadata, *locator, CurrentUtcTicks()) : std::nullopt;
-			if (!lease || lease->owner != WideToUtf8(owner))
-			{
-				if (bExists)
-				{
-					PrintMetadata(landing::LandingStatus(metadata, *locator));
-				}
-				return kiExitStateConflict;
-			}
-			const std::string timestamp = CurrentUtcTimestamp();
-			uint64_t uiHeartbeatTicks = 0;
-			ParseUtcTimestamp(timestamp, uiHeartbeatTicks);
-			if (uiHeartbeatTicks < lease->uiHeartbeatTicks)
-			{
-				return kiExitStateConflict;
-			}
-			metadata["heartbeatAt"] = timestamp;
-			metadata["expiresAt"] = FormatUtcTimestamp(uiHeartbeatTicks + static_cast<uint64_t>(lease->iDurationSeconds) * 10'000'000ull);
-			if (!WriteMetadataAtomic(locator->path, metadata))
-			{
-				FailWindows("refresh lock metadata");
-				return kiExitFailure;
-			}
-			PrintMetadata(landing::LandingStatus(metadata, *locator));
-			return kiExitOk;
+			return HandleRefresh(*locator, metadata, bExists, owner);
 		}
 
 		if (verb == L"recover")
 		{
-			uint64_t uiNow = CurrentUtcTicks();
-			std::optional<landing::LandingLease> lease = bExists ? landing::ValidateLandingLease(metadata, *locator, uiNow) : std::nullopt;
-			if (!lease || lease->owner != WideToUtf8(expectedOwner) || uiNow < lease->uiExpiresTicks || !landing::AllRegisteredWorktreesClear(*locator))
-			{
-				if (bExists)
-				{
-					PrintMetadata(landing::LandingStatus(metadata, *locator));
-				}
-				return kiExitStateConflict;
-			}
-			nlohmann::json revalidatedMetadata;
-			if (!ReadMetadata(locator->path, revalidatedMetadata) || revalidatedMetadata != metadata)
-			{
-				return kiExitStateConflict;
-			}
-			metadata = landing::NewLandingMetadata(*locator, owner, session, worktree, iLeaseSeconds);
-			if (!WriteMetadataAtomic(locator->path, metadata))
-			{
-				FailWindows("recover lock metadata");
-				return kiExitFailure;
-			}
-			PrintMetadata(landing::LandingStatus(metadata, *locator));
-			return kiExitOk;
+			return HandleRecover(*locator, metadata, bExists, owner, expectedOwner, session, worktree, iLeaseSeconds);
 		}
 
-		if (!bExists || (verb == L"release" && !HasOwner(metadata, owner)) || (verb == L"steal" && !HasOwner(metadata, expectedOwner)))
-		{
-			if (bExists)
-			{
-				PrintMetadata(landing::LandingStatus(metadata, *locator));
-			}
-			else
-			{
-				std::cout << "{\"held\":false}\n";
-			}
-			return kiExitStateConflict;
-		}
-
-		if (verb == L"release")
-		{
-			if (::DeleteFileW(locator->path.c_str()) == FALSE)
-			{
-				FailWindows("release lock");
-				return kiExitFailure;
-			}
-			return kiExitOk;
-		}
-
-		// steal: a lease-based landing lock is never stolen; recover is the expired-lease takeover.
-		PrintMetadata(landing::LandingStatus(metadata, *locator));
-		return kiExitStateConflict;
+		return HandleReleaseOrSteal(*locator, metadata, bExists, verb == L"release" ? LandingReleaseOperation::kRelease : LandingReleaseOperation::kSteal, owner, expectedOwner);
 	}
 
 }

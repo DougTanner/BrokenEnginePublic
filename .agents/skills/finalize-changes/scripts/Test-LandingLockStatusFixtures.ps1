@@ -177,6 +177,24 @@ try {
 	Assert-Run $release 'correct-owner release' 0
 	Assert-True ([string]::IsNullOrWhiteSpace($release.Stdout)) 'correct-owner release emits no metadata'
 
+	$refreshAbsent = Invoke-Lock @('lock', 'refresh', '--repo', $commonDirectory, '--owner', $ownerB) $fixtureRoot
+	Assert-Run $refreshAbsent 'refresh absent' 2
+	Assert-True ($refreshAbsent.Stdout -ceq ('{"held":false}' + [Environment]::NewLine)) 'refresh absent emits exact held=false JSON'
+	Assert-True ($null -ne $refreshAbsent.Json) 'refresh absent emitted JSON'
+	if ($null -ne $refreshAbsent.Json) {
+		Assert-True ($refreshAbsent.Json.held -eq $false) 'refresh absent held=false'
+		Assert-True ('claimantPid' -notin @($refreshAbsent.Json.PSObject.Properties.Name)) 'refresh absent omits claimantPid'
+	}
+
+	$recoverAbsent = Invoke-Lock (@('lock', 'recover') + $baseB + @('--expect', $ownerA, '--lease-seconds', '60')) $fixtureRoot
+	Assert-Run $recoverAbsent 'recover absent' 2
+	Assert-True ($recoverAbsent.Stdout -ceq ('{"held":false}' + [Environment]::NewLine)) 'recover absent emits exact held=false JSON'
+	Assert-True ($null -ne $recoverAbsent.Json) 'recover absent emitted JSON'
+	if ($null -ne $recoverAbsent.Json) {
+		Assert-True ($recoverAbsent.Json.held -eq $false) 'recover absent held=false'
+		Assert-True ('claimantPid' -notin @($recoverAbsent.Json.PSObject.Properties.Name)) 'recover absent omits claimantPid'
+	}
+
 	$absent = Invoke-Lock @('lock', 'status', '--repo', $commonDirectory) $fixtureRoot
 	Assert-Run $absent 'status absent' 2
 	Assert-True ($null -ne $absent.Json) 'status absent emitted JSON'
@@ -188,10 +206,24 @@ try {
 	Assert-True ($script:ProcessIds.Count -eq @($script:ProcessIds | Sort-Object -Unique).Count) 'each command used a distinct process'
 	$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
 	$commandsSource = Join-Path $repositoryRoot 'Tools\WorktreeCli\LandingLockCommands.cpp'
-	if (Test-Path -LiteralPath $commandsSource -PathType Leaf) {
-		$directRawPrint = Select-String -LiteralPath $commandsSource -Pattern 'PrintMetadata\s*\(\s*metadata\s*\)'
-		Assert-True ($null -eq $directRawPrint) 'LandingLockCommands has no direct PrintMetadata(metadata)'
-	}
+	if (-not (Test-Path -LiteralPath $commandsSource -PathType Leaf)) { throw "LandingLockCommands source is unavailable: $commandsSource" }
+	$commandsText = Get-Content -LiteralPath $commandsSource -Raw
+	$emitterStart = $commandsText.IndexOf('int EmitLandingConflict(')
+	$emitterEnd = $commandsText.IndexOf('int HandleClaim(', $emitterStart)
+	$recoverStart = $commandsText.IndexOf('int HandleRecover(')
+	$recoverEnd = $commandsText.IndexOf('int HandleReleaseOrSteal(', $recoverStart)
+	if ($emitterStart -lt 0 -or $emitterEnd -le $emitterStart -or $recoverStart -lt 0 -or $recoverEnd -le $recoverStart) { throw 'LandingLockCommands source regions are unavailable for routing assertions.' }
+	$emitterSource = $commandsText.Substring($emitterStart, $emitterEnd - $emitterStart)
+	$recoverSource = $commandsText.Substring($recoverStart, $recoverEnd - $recoverStart)
+	$directRawPrint = Select-String -LiteralPath $commandsSource -Pattern 'PrintMetadata\s*\(\s*metadata\s*\)'
+	Assert-True ($null -eq $directRawPrint) 'LandingLockCommands has no direct PrintMetadata(metadata)'
+	$allConflictReturns = [regex]::Matches($commandsText, 'return\s+kiExitStateConflict\s*;')
+	$emitterConflictReturns = [regex]::Matches($emitterSource, 'return\s+kiExitStateConflict\s*;')
+	Assert-True ($allConflictReturns.Count -eq 1 -and $emitterConflictReturns.Count -eq 1) 'LandingLockCommands centralizes conflict exits in emitter'
+	$revalidatedMetadataRouting = [regex]::IsMatch($recoverSource, '(?s)if\s*\(\s*revalidatedMetadata\s*!=\s*rMetadata\s*\)\s*\{\s*return\s+EmitLandingConflict\s*\(\s*rLocator\s*,\s*revalidatedMetadata\s*,\s*LandingRecordState::kReadable\s*\)\s*;\s*\}')
+	Assert-True $revalidatedMetadataRouting 'recover revalidation mismatch emits revalidated metadata'
+	$failedRereadPolicy = [regex]::IsMatch($recoverSource, '(?s)if\s*\(\s*!ReadMetadata\s*\(\s*rLocator\.path\s*,\s*revalidatedMetadata\s*\)\s*\)\s*\{\s*std::error_code\s+error\s*;\s*const\s+bool\s+bRevalidatedExists\s*=\s*std::filesystem::exists\s*\(\s*rLocator\.path\s*,\s*error\s*\)\s*;\s*return\s+EmitLandingConflict\s*\(\s*rLocator\s*,\s*rMetadata\s*,\s*!error\s*&&\s*!bRevalidatedExists\s*\?\s*LandingRecordState::kAbsent\s*:\s*LandingRecordState::kUnverifiable\s*\)\s*;\s*\}')
+	Assert-True $failedRereadPolicy 'recover failed re-read routes through absent or unverifiable policy'
 }
 catch {
 	$script:Failures.Add("fixture exception: $($_.Exception.Message)")
