@@ -558,6 +558,9 @@ bool GameSaveLoad::ReadGrid(const engine::FileFlags_t& rFlags, const std::filesy
 	// deserialization throws CorruptStreamException (or .at()/bad_alloc) — abort the load gracefully
 	// (return false) so a hand-crafted or truncated save file can't overrun a buffer or crash the server.
 	int64_t iNextGlobalId = 0;
+	int64_t iLoadedTick = 0;
+	float fLoadedTime = 0.0f;
+	bool bHasLoadedClock = false;
 	try
 	{
 		// Bound the frame count against the stream (each coord frame serializes at least its GridCoord).
@@ -587,6 +590,24 @@ bool GameSaveLoad::ReadGrid(const engine::FileFlags_t& rFlags, const std::filesy
 			fileStream >> *pFrame;
 			rSub.pCurrent = std::move(pFrame);
 			rSub.pNext = std::make_unique<game::Frame>();
+
+			const int64_t iTick = rSub.pCurrent->interpolate.iTick;
+			const float fCurrentTime = rSub.pCurrent->interpolate.fCurrentTime;
+			if (!bHasLoadedClock)
+			{
+				if (iTick < 0 || iTick > std::numeric_limits<int64_t>::max() - engine::TimeStep::kiMaxAccumulatorTicks || !std::isfinite(fCurrentTime))
+				{
+					throw common::CorruptStreamException("invalid frame clock");
+				}
+
+				iLoadedTick = iTick;
+				fLoadedTime = fCurrentTime;
+				bHasLoadedClock = true;
+			}
+			else if (iTick != iLoadedTick || std::bit_cast<uint32_t>(fCurrentTime) != std::bit_cast<uint32_t>(fLoadedTime))
+			{
+				throw common::CorruptStreamException("inconsistent frame clocks");
+			}
 		}
 
 		// Trust boundary (save file): the client grid coord is file-derived and every load entry
@@ -597,11 +618,6 @@ bool GameSaveLoad::ReadGrid(const engine::FileFlags_t& rFlags, const std::filesy
 			throw common::CorruptStreamException("client grid coord absent from frames");
 		}
 
-		if (!mrGameBase.mCoordFrames.empty())
-		{
-			mrGameBase.SetTickCounter(mrGameBase.mCoordFrames.begin()->second.pCurrent->interpolate.iTick);
-			mrGameBase.SetCurrentTime(mrGameBase.mCoordFrames.begin()->second.pCurrent->interpolate.fCurrentTime);
-		}
 	}
 	catch (const std::exception& rException)
 	{
@@ -630,6 +646,8 @@ bool GameSaveLoad::ReadGrid(const engine::FileFlags_t& rFlags, const std::filesy
 	// mid-load throw caught above, or a silent stream failure at the good() gate) returns first, so the
 	// fresh-fallback game keeps minting from its own clean base rather than a torn/advanced one.
 	mrGameBase.SetNextGlobalId(iNextGlobalId);
+	mrGameBase.SetTickCounter(iLoadedTick);
+	mrGameBase.SetCurrentTime(fLoadedTime);
 
 	LOG(kDefault, kDebug, "ReadGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
 	return true;
