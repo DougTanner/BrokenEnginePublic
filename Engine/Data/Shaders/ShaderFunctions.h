@@ -55,10 +55,10 @@ vec2 BaseHeightPosition(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f
 	return (f3InPosition + max(fMult, 0.0f) * f3ToEyeNormal).xy;
 }
 
-vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Position, float fSize, float fSpeed, vec2 f2Offset)
+vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Position, float fSize, float fSpeed, vec2 f2Offset, vec2 f2PositionGradX, vec2 f2PositionGradY)
 {
 	// BC5 normal map: only RG stored, standard convention (encoded=0.5 -> 0, encoded=1 -> +1).
-	vec2 f2RG = texture(normalSampler, f2Offset + fSize * f2Position + fSpeed * vec2(globalLayout.fElapsedTime, globalLayout.fElapsedTime)).rg;
+	vec2 f2RG = textureGrad(normalSampler, f2Offset + fSize * f2Position + fSpeed * vec2(globalLayout.fElapsedTime, globalLayout.fElapsedTime), fSize * f2PositionGradX, fSize * f2PositionGradY).rg;
 	vec2 f2XY = 2.0f * f2RG - 1.0f;
 	float fZ = sqrt(clamp(1.0f - dot(f2XY, f2XY), 0.0f, 1.0f));
 	return vec3(f2XY, fZ);
