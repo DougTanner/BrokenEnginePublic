@@ -14,9 +14,10 @@ namespace toolcli
 
 		void ReportProcessFailure(const RunProcessOptions& rOptions, std::string_view operation)
 		{
+			const DWORD uiError = ::GetLastError();
 			if (rOptions.failureSink)
 			{
-				rOptions.failureSink(std::string(operation) + " failed (Windows error " + std::to_string(::GetLastError()) + ")");
+				rOptions.failureSink(std::string(operation) + " failed (Windows error " + std::to_string(uiError) + ")");
 			}
 		}
 	}
@@ -167,8 +168,20 @@ namespace toolcli
 					result.output.append(pBuffer, uiRead);
 				}
 			}
+			const DWORD uiReadError = ::GetLastError();
+			if (uiReadError != ERROR_BROKEN_PIPE)
+			{
+				ReportProcessFailure(rOptions, "read process output");
+				hPipeRead.Reset();
+				::WaitForSingleObject(hProcess.Get(), INFINITE);
+				return std::nullopt;
+			}
 		}
-		::WaitForSingleObject(hProcess.Get(), INFINITE);
+		if (::WaitForSingleObject(hProcess.Get(), INFINITE) != WAIT_OBJECT_0)
+		{
+			ReportProcessFailure(rOptions, "wait for process");
+			return std::nullopt;
+		}
 		if (::GetExitCodeProcess(hProcess.Get(), &result.uiExitCode) == FALSE)
 		{
 			ReportProcessFailure(rOptions, "read process exit code");
