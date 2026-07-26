@@ -194,7 +194,22 @@ try {
 	Clear-SessionStores @($sessions, $archivedSessions)
 	New-Transcript $transcript '66666666-6666-6666-6666-666666666666' $producing $startBeforeCutoff $coveringEnd $commitTimestamp
 	New-Transcript (Join-Path $bucket "rollout-$($commitTimestamp.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture))-77777777-7777-7777-7777-777777777777.jsonl") '77777777-7777-7777-7777-777777777777' $producing $startBeforeCutoff $coveringEnd $commitTimestamp
-	Assert-Finder (Invoke-Finder -Finder $finder -Commit $commit -ReviewRoot $review -Sessions $sessions -ArchivedSessions $archivedSessions) 2 'transcript.ambiguous'
+	$script:FixtureStage = 'multiple root candidates'
+	$response = Invoke-Finder -Finder $finder -Commit $commit -ReviewRoot $review -Sessions $sessions -ArchivedSessions $archivedSessions
+	Assert-Finder $response 2 'transcript.needs-selection'
+	Assert-True ($response.Result.status -eq 'needs-selection') 'Multiple root candidates did not return needs-selection.'
+	Assert-True ($response.Result.candidates.Count -eq 2) 'Multiple root candidates were not both listed.'
+	$candidateIds = @($response.Result.candidates | ForEach-Object { $_.sessionId })
+	Assert-True ($candidateIds -contains '66666666-6666-6666-6666-666666666666' -and $candidateIds -contains '77777777-7777-7777-7777-777777777777') 'Root candidate list lost a session ID.'
+	# Both fixture roots share a start, so this asserts the documented sessionId tiebreak.
+	$orderKeys = @($response.Result.candidates | ForEach-Object { "$($_.sessionStartUtc)`0$($_.sessionId)" })
+	Assert-True ((($orderKeys) -join '|') -ceq ((@($orderKeys | Sort-Object)) -join '|')) 'Root candidates were not ordered by session start then session ID.'
+	foreach ($rootCandidate in $response.Result.candidates) {
+		foreach ($evidenceField in @('startsBeforeAuthorUtc', 'commitHashMentions', 'descendantCount', 'descendants')) {
+			Assert-True ($null -ne $rootCandidate.PSObject.Properties[$evidenceField]) "[$script:FixtureStage] Root candidate is missing evidence field $evidenceField."
+		}
+	}
+	Assert-True (-not [string]::IsNullOrWhiteSpace($response.Result.commit.authoredUtc)) 'Result did not report the commit author timestamp.'
 
 	Clear-SessionStores @($sessions, $archivedSessions)
 	[void] (New-Item -ItemType Directory -Path $bucket -Force)
