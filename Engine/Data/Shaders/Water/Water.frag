@@ -56,68 +56,9 @@ layout (location = 3) in vec3 f3InNormal;
 // Output
 layout (location = 0) out vec4 f4OutColor;
 
-// BC5 normal map: only XY stored, reconstruct Z = sqrt(1 - X^2 - Y^2). Sign-inverted XY decode is intentional (matches per-island flip convention upstream).
-vec3 DecodeNormal(vec2 f2Encoded)
-{
-	vec2 f2XY = vec2(1.0f - 2.0f * f2Encoded.x, 1.0f - 2.0f * f2Encoded.y);
-	return vec3(f2XY, sqrt(clamp(1.0f - dot(f2XY, f2XY), 0.0f, 1.0f)));
-}
-
-float Fresnel(vec3 f3CameraPosition, vec3 f3Position, vec3 f3InNormal, float fReduction)
-{
-	vec3 f3Normal = normalize(f3InNormal);
-
-	// Schlick's approximation fresnel
-	float fCosTheta = dot(f3Normal, normalize(f3CameraPosition - f3Position));
-	float fF0 = globalLayout.fWaterFresnel;
-	float fPow = 1.0f - fCosTheta;
-	fPow = fPow * fPow * fPow * fPow; // Note: ^4 instead of ^5
-	return clamp(fF0 + (fReduction - fF0) * fPow, 0.0f, 1.0f);
-}
-
-#if WATER_SPEC_AA_MODE == 1
-// Box-filtered power lobe: mean of x^p over the [fLow, fHigh] slice of the pixel footprint — the closed
-// form of what MSAA sample-shading approximated with 4 point samples. Bounds arrive pre-clamped to [0, 1]
-// as log2 values; the sub-zero part of the footprint contributes 0, so the divisor stays the full width.
-float BoxFilteredLobe(float fIntensity, float fPower, float fLogLow, float fLogHigh, float fFootprintInv)
-{
-	return fIntensity * (exp2((fPower + 1.0f) * fLogHigh) - exp2((fPower + 1.0f) * fLogLow)) * fFootprintInv / (fPower + 1.0f);
-}
-#elif WATER_SPEC_AA_MODE == 2 || WATER_SPEC_AA_MODE == 3
-// Widen a power lobe by slope-space variance (Phong <-> Beckmann equivalence: alpha^2 ~= 2/(p+2)) and
-// conserve integrated lobe energy: p' = 2/(2/(p+2) + kernel) - 2 clamped at 0 (a negative power would
-// spike as s -> 0), amplitude x (1+p')/(1+p) — the highlight broadens and dims instead of just dimming
-// (Toksvig/Hill energy form).
-// fAlphaSq = 2/(power+2) and fOnePlusPowerInv = 1/(1+power) are the lobe's uniform-only constants, folded
-// CPU-side (LightingUniforms.cpp) and passed per lobe. The varying (1+p') numerator amplitude stays here.
-float FilteredPowerLobe(float fIntensity, float fAlphaSq, float fOnePlusPowerInv, float fSpecularLog2, float fKernel)
-{
-	float fFilteredPower = max(2.0f / (fAlphaSq + fKernel) - 2.0f, 0.0f);
-	return fIntensity * ((1.0f + fFilteredPower) * fOnePlusPowerInv) * exp2(fFilteredPower * fSpecularLog2);
-}
-
-#if WATER_SPEC_AA_MIP_HANDOFF
-// Lerped lookup into one group's slice of the baked per-mip Toksvig variance table. Entries past the
-// real mip chain are pre-padded with the last value at pack time, so clamping to the table bounds is
-// sufficient — no per-texture mip count needed.
-float MipVarianceLookup(int iTableBase, float fLod)
-{
-	float fClamped = clamp(fLod, 0.0f, float(kiWaterSpecAAMipTableSize - 1));
-	int iLow = int(fClamped);
-	int iHigh = min(iLow + 1, kiWaterSpecAAMipTableSize - 1);
-	return mix(mainLayout.pfWaterSpecAAMipVariance[iTableBase + iLow], mainLayout.pfWaterSpecAAMipVariance[iTableBase + iHigh], fClamped - float(iLow));
-}
-
-// Mean unresolved variance across one sample group's three octaves; the size multipliers are the
-// group's compile-time constants from the SAMPLE_NORMAL_PRECISE call sites.
-float GroupMipVariance(int iTableBase, float fLodBase, float fSizeMultA, float fSizeMultB, float fSizeMultC)
-{
-	return (MipVarianceLookup(iTableBase, fLodBase + log2(fSizeMultA))
-		+ MipVarianceLookup(iTableBase, fLodBase + log2(fSizeMultB))
-		+ MipVarianceLookup(iTableBase, fLodBase + log2(fSizeMultC))) / 3.0f;
-}
-#endif
-#endif
+#include "WaterNormalSampling.h"
+#include "WaterSpecular.h"
+#include "WaterReflectionProjection.h"
 
 void main()
 {
@@ -144,95 +85,7 @@ void main()
 	vec3 f3ToEyeNormal = normalize(vec3(-f2InInitialPosition, mainLayout.f4EyePosition.z));
 	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, globalLayout.fLightingWaterSkyboxNormalSoften));
 
-	// Normal map sampling with precision-safe UV computation
-	float fSizeOne = mainLayout.fLightingSampledNormalsOneSize;
-	float fSizeTwo = mainLayout.fLightingSampledNormalsTwoSize;
-	float fSizeThree = mainLayout.fLightingSampledNormalsThreeSize;
-	vec2 f2ReducedOrigin = vec2(globalLayout.fWaterReducedNormalOriginX, globalLayout.fWaterReducedNormalOriginY);
-	vec2 f2ReducedOriginTwo = vec2(globalLayout.fWaterReducedNormalOriginTwoX, globalLayout.fWaterReducedNormalOriginTwoY);
-	vec2 f2ReducedOriginThree = vec2(globalLayout.fWaterReducedNormalOriginThreeX, globalLayout.fWaterReducedNormalOriginThreeY);
-	vec2 f2ReducedTime = vec2(globalLayout.fWaterReducedNormalTimeX, globalLayout.fWaterReducedNormalTimeY);
-	vec2 f2ReducedTimeTwo = vec2(globalLayout.fWaterReducedNormalTimeTwoX, globalLayout.fWaterReducedNormalTimeTwoY);
-	vec2 f2ReducedTimeThree = vec2(globalLayout.fWaterReducedNormalTimeThreeX, globalLayout.fWaterReducedNormalTimeThreeY);
-	vec2 f2LocalDx = dFdx(f2InInitialPosition);
-	vec2 f2LocalDy = dFdy(f2InInitialPosition);
-
-	// Per-sample weights resolved CPU-side by camera eye height (LightingUniforms.cpp), then weighted-sum-then-normalize.
-	// normalize() is scale-invariant so absolute weight magnitudes don't matter; only ratios do. Weight 0 disables a
-	// sample group entirely — the weight is a uniform (warp-coherent branch), so a faded-out band skips its 3 fetches.
-	float fWeightOne = mainLayout.fWaterNormalWeightOne;
-	float fWeightTwo = mainLayout.fWaterNormalWeightTwo;
-	float fWeightThree = mainLayout.fWaterNormalWeightThree;
-
-	// Per-sample rotation (in each group below): m2UvRotX = R(-θ) rotates worldUV → texUV (texture pattern appears
-	// CCW-rotated by θ in world). m2NormalRotX = R(+θ) is its inverse, applied to the sampled tangent-space
-	// normal.xy to bring it back into world frame.
-	// Note: reducedOrigin is already rotated on the CPU (WaterUniforms.cpp uses the same per-sample
-	// rotation angle to rotate cameraXY before fmod). Rotating it again here would double-rotate
-	// AND break precision: the wrap shift sizeMult*10 must be integer for fract() to absorb it,
-	// but R*(sizeMult*10, 0) is non-integer for arbitrary θ. So m2UvRot is applied to the
-	// camera-relative position and derivatives only — the reducedOrigin stays as-is. reducedTime
-	// carries the same invariant: it is the per-frame scroll delta already rotated CPU-side before
-	// accumulation/fmod, so it must not be rotated here either.
-	#define SAMPLE_NORMAL_PRECISE(sampler, size, reducedOrigin, reducedTime, m2UvRot, sizeMult, speedMult, offset) \
-	{ \
-		float fCallSize = sizeMult * size; \
-		vec2 f2UV = offset \
-			+ fCallSize * (m2UvRot * f2InInitialPosition) \
-			+ sizeMult * reducedOrigin \
-			+ speedMult * reducedTime; \
-		vec2 f2Dx = fCallSize * (m2UvRot * f2LocalDx); \
-		vec2 f2Dy = fCallSize * (m2UvRot * f2LocalDy); \
-		f3Accum += DecodeNormal(textureGrad(sampler, fract(f2UV), f2Dx, f2Dy).rg); \
-	}
-
-	// Sample One (3 octaves) — atlas index selected at runtime via uiWaterNormalIndexOne.
-	vec3 f3SampledNormalOne = vec3(0.0f);
-	if (fWeightOne > 0.0f)
-	{
-		mat2 m2UvRotOne = mat2(globalLayout.f4WaterNormalRotationOne);
-		mat2 m2NormalRotOne = mat2(globalLayout.f4WaterNormalRotationOne.xzyw);
-		vec3 f3Accum = vec3(0.0f);
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, f2ReducedTime, m2UvRotOne, 0.2f, 1.1f, vec2(0.1f, 0.2f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, f2ReducedTime, m2UvRotOne, 1.1f, 1.2f, vec2(0.2f, 0.3f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], fSizeOne, f2ReducedOrigin, f2ReducedTime, m2UvRotOne, 2.5f, 1.3f, vec2(0.3f, 0.4f))
-		f3SampledNormalOne = f3Accum;
-		f3SampledNormalOne.xy = m2NormalRotOne * f3SampledNormalOne.xy;
-	}
-
-	// Sample Two (3 octaves)
-	vec3 f3SampledNormalTwo = vec3(0.0f);
-	if (fWeightTwo > 0.0f)
-	{
-		mat2 m2UvRotTwo = mat2(globalLayout.f4WaterNormalRotationTwo);
-		mat2 m2NormalRotTwo = mat2(globalLayout.f4WaterNormalRotationTwo.xzyw);
-		vec3 f3Accum = vec3(0.0f);
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, f2ReducedTimeTwo, m2UvRotTwo, 0.3f, 1.4f, vec2(0.4f, 0.5f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, f2ReducedTimeTwo, m2UvRotTwo, 1.2f, 1.5f, vec2(0.6f, 0.7f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], fSizeTwo, f2ReducedOriginTwo, f2ReducedTimeTwo, m2UvRotTwo, 3.0f, 1.6f, vec2(0.8f, 0.9f))
-		f3SampledNormalTwo = f3Accum;
-		f3SampledNormalTwo.xy = m2NormalRotTwo * f3SampledNormalTwo.xy;
-	}
-
-	// Sample Three (3 octaves) — extends the One/Two octave pattern linearly.
-	vec3 f3SampledNormalThree = vec3(0.0f);
-	if (fWeightThree > 0.0f)
-	{
-		mat2 m2UvRotThree = mat2(globalLayout.f4WaterNormalRotationThree);
-		mat2 m2NormalRotThree = mat2(globalLayout.f4WaterNormalRotationThree.xzyw);
-		vec3 f3Accum = vec3(0.0f);
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, f2ReducedTimeThree, m2UvRotThree, 0.4f, 1.7f, vec2(1.0f, 1.1f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, f2ReducedTimeThree, m2UvRotThree, 1.3f, 1.8f, vec2(1.2f, 1.3f))
-		SAMPLE_NORMAL_PRECISE(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], fSizeThree, f2ReducedOriginThree, f2ReducedTimeThree, m2UvRotThree, 3.5f, 1.9f, vec2(1.4f, 1.5f))
-		f3SampledNormalThree = f3Accum;
-		f3SampledNormalThree.xy = m2NormalRotThree * f3SampledNormalThree.xy;
-	}
-
-	#undef SAMPLE_NORMAL_PRECISE
-
-	// Guard against NaN: if all three weight sliders resolve to 0 the sum is the zero vector and normalize() returns NaN.
-	vec3 f3WeightedSum = fWeightOne * f3SampledNormalOne + fWeightTwo * f3SampledNormalTwo + fWeightThree * f3SampledNormalThree;
-	vec3 f3SampledNormal = f3WeightedSum / max(length(f3WeightedSum), kfEpsilon);
+	WaterNormalSamplingResult normalResult = SampleWaterNormals();
 
 	// Color (noise with precision-safe UV — same pact as SAMPLE_NORMAL_PRECISE above).
 	// CPU stores fmod(freq*camera, 10.0) so mult * 10 must be integer for fract() to absorb the wrap.
@@ -271,158 +124,11 @@ void main()
 	float fSunScalar     = globalLayout.fWaterSunScalar;
 	float fAmbientScalar = globalLayout.fWaterAmbientScalar;
 
-	// Skybox. The Ryfjallet prefiltered cubemap bound here (kPrefilteredWaterCrc) is oriented to
-	// match engine Z-up, so the reflection vector is sampled directly with no Y-up swizzle.
-	const float fSkyboxNormalBlendWave = mainLayout.fLightingWaterSkyboxNormalBlendWave;
-	vec3 f3SkyboxWaveNormal = normalize((1.0f - fSkyboxNormalBlendWave) * f3SampledNormal + fSkyboxNormalBlendWave * f3InNormal);
-	vec3 f3SkyboxColor = textureLod(skyboxSampler, -reflect(f3ToEyeNormal, f3SkyboxWaveNormal), mainLayout.fLightingWaterSkyboxLod).xyz;
-	vec3 f3SkyboxColorSun = f3SkyboxColor * f3SunOrMoon;
-
-	float fReflectionTerrainMultiplier = clamp(-fTerrainElevation * globalLayout.fWaterDepthReflectionFeatherInv, 0.0f, 1.0f);
-	// f4WaterBiasedSunNormal = normalize((0,0,fLightingWaterSkyboxSunBias) + f4SunMoonNormal), folded CPU-side.
-	vec3 f3BiasedSunNormal = globalLayout.f4WaterBiasedSunNormal.xyz;
-
-	// Specular lobes (One/Two/Three), inlined from Specular() in ShaderFunctions.h. The high-power One lobe
-	// (power ~200) is sub-pixel-narrow and flickers if evaluated pointwise; WATER_SPEC_AA_MODE selects an
-	// analytic filter for the lobes — see the define at the top of this file.
-	float fIntensityOne = globalLayout.fLightingWaterSkyboxOne;
-	float fPowerOne = mainLayout.fLightingWaterSkyboxOnePower;
-	float fIntensityTwo = mainLayout.fLightingWaterSkyboxTwo;
-	float fPowerTwo = mainLayout.fLightingWaterSkyboxTwoPower;
-	float fIntensityThree = mainLayout.fLightingWaterSkyboxThree;
-	float fPowerThree = mainLayout.fLightingWaterSkyboxThreePower;
-	float fSpecularSum = 0.0f;
-#if WATER_SPEC_AA_MODE != 4
-	vec3 f3LightReflectionNormal = reflect(f3BiasedSunNormal, reflect(f3ToEyeNormal, f3SkyboxWaveNormal));
-	float fSpecularFactor = dot(vec3(-1.0f, 1.0f, -1.0f) * f3ToEyeNormal, f3LightReflectionNormal);
-#endif
-
-#if WATER_SPEC_AA_MODE == 0
-	if (fSpecularFactor > 0.0f)
-	{
-		float fSpecularLog2 = log2(fSpecularFactor);
-		fSpecularSum =
-			fIntensityOne   * exp2(fPowerOne   * fSpecularLog2) +
-			fIntensityTwo   * exp2(fPowerTwo   * fSpecularLog2) +
-			fIntensityThree * exp2(fPowerThree * fSpecularLog2);
-	}
-#elif WATER_SPEC_AA_MODE == 1
-	// Derivatives taken before any branch (helper-invocation-safe). The variance slider scales the filter
-	// width: 0.25 (default) maps to the exact pixel footprint.
-	float fFootprint = 4.0f * mainLayout.fWaterSpecAAVariance * length(vec2(dFdx(fSpecularFactor), dFdy(fSpecularFactor)));
-	// min() guards the few-ULP case where the unit-vector dot exceeds 1.0 and both clamped bounds would
-	// collapse to 1.0 — a zero-width integral (dark pixel) at the exact highlight peak.
-	float fClampedFactor = min(fSpecularFactor, 1.0f);
-	float fHigh = clamp(fClampedFactor + 0.5f * fFootprint, 0.0f, 1.0f);
-	if (fFootprint > kfEpsilon && fHigh > 0.0f)
-	{
-		float fLow = clamp(fClampedFactor - 0.5f * fFootprint, 0.0f, 1.0f);
-		float fLogHigh = log2(fHigh);
-		float fLogLow = fLow > 0.0f ? log2(fLow) : -128.0f; // exp2((p+1) * -128) flushes to +0
-		float fFootprintInv = 1.0f / fFootprint;
-		fSpecularSum =
-			BoxFilteredLobe(fIntensityOne,   fPowerOne,   fLogLow, fLogHigh, fFootprintInv) +
-			BoxFilteredLobe(fIntensityTwo,   fPowerTwo,   fLogLow, fLogHigh, fFootprintInv) +
-			BoxFilteredLobe(fIntensityThree, fPowerThree, fLogLow, fLogHigh, fFootprintInv);
-	}
-	else if (fSpecularFactor > 0.0f)
-	{
-		// Degenerate footprint — fall back to the pointwise lobes
-		float fSpecularLog2 = log2(fSpecularFactor);
-		fSpecularSum =
-			fIntensityOne   * exp2(fPowerOne   * fSpecularLog2) +
-			fIntensityTwo   * exp2(fPowerTwo   * fSpecularLog2) +
-			fIntensityThree * exp2(fPowerThree * fSpecularLog2);
-	}
-#elif WATER_SPEC_AA_MODE == 2 || WATER_SPEC_AA_MODE == 3
-	#if WATER_SPEC_AA_MIP_HANDOFF
-	// Minification handoff: the octave fetches' mips have already averaged away sub-texel normal
-	// variance (BC5 + DecodeNormal re-unitize every sample), so the screen-space kernels below can't
-	// see it — the source of camera-zoom flicker. Recompute each octave's fetch LOD analytically from
-	// the same gradients SAMPLE_NORMAL_PRECISE passed to textureGrad, look up the baked per-mip
-	// Toksvig variance, and add the unresolved slope variance to the lobe kernel. Weight shares are
-	// squared because weighted-sum-then-normalize scales each octave's slope contribution linearly.
-	// ALU only — no extra fetches.
-	float fMipKernel = 0.0f;
-	float fWeightTotal = fWeightOne + fWeightTwo + fWeightThree;
-	if (fWeightTotal > 0.0f)
-	{
-		float fDerivLog2 = log2(max(max(length(f2LocalDx), length(f2LocalDy)), 1e-12f)) + mainLayout.fWaterNormalMipBias;
-		float fLodBaseOne = fDerivLog2 + log2(fSizeOne * float(textureSize(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexOne], 0).x));
-		float fLodBaseTwo = fDerivLog2 + log2(fSizeTwo * float(textureSize(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexTwo], 0).x));
-		float fLodBaseThree = fDerivLog2 + log2(fSizeThree * float(textureSize(pWaterNormalSamplers[mainLayout.uiWaterNormalIndexThree], 0).x));
-		// Relative-weight squares are uniform (weights are CPU-resolved by camera height), folded into
-		// fWaterNormalWRelSq* (LightingUniforms.cpp). Octave size multipliers must match SAMPLE_NORMAL_PRECISE above.
-		float fMipVariance =
-			mainLayout.fWaterNormalWRelSqOne   * GroupMipVariance(0 * kiWaterSpecAAMipTableSize, fLodBaseOne, 0.2f, 1.1f, 2.5f) +
-			mainLayout.fWaterNormalWRelSqTwo   * GroupMipVariance(1 * kiWaterSpecAAMipTableSize, fLodBaseTwo, 0.3f, 1.2f, 3.0f) +
-			mainLayout.fWaterNormalWRelSqThree * GroupMipVariance(2 * kiWaterSpecAAMipTableSize, fLodBaseThree, 0.4f, 1.3f, 3.5f);
-	#if WATER_SPEC_AA_FADE_HANDOFF
-		// Fade handoff: reference the near-camera full-weight appearance — each group also adds its
-		// TOTAL variance (last table entry, everything averaged away) times the weight share the
-		// height fade removed, so far water keeps its statistical roughness through the fade band.
-		float fWeightTotalFull = mainLayout.fWaterNormalWeightFullOne + mainLayout.fWaterNormalWeightFullTwo + mainLayout.fWaterNormalWeightFullThree;
-		if (fWeightTotalFull > 0.0f)
-		{
-			float fWRelFullOne = mainLayout.fWaterNormalWeightFullOne / fWeightTotalFull;
-			float fWRelFullTwo = mainLayout.fWaterNormalWeightFullTwo / fWeightTotalFull;
-			float fWRelFullThree = mainLayout.fWaterNormalWeightFullThree / fWeightTotalFull;
-			fMipVariance +=
-				max(fWRelFullOne * fWRelFullOne - mainLayout.fWaterNormalWRelSqOne, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[1 * kiWaterSpecAAMipTableSize - 1] +
-				max(fWRelFullTwo * fWRelFullTwo - mainLayout.fWaterNormalWRelSqTwo, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[2 * kiWaterSpecAAMipTableSize - 1] +
-				max(fWRelFullThree * fWRelFullThree - mainLayout.fWaterNormalWRelSqThree, 0.0f) * mainLayout.pfWaterSpecAAMipVariance[3 * kiWaterSpecAAMipTableSize - 1];
-		}
-	#endif
-		// The factor 2 maps Toksvig inverse-power variance into the kernel's alpha^2 ~= 2/(p+2) domain
-		// (Toksvig: 1/p' = 1/p + variance, so the FilteredPowerLobe kernel contribution is 2*variance).
-		fMipKernel = mainLayout.fWaterSpecAAMipScale * 2.0f * fMipVariance;
-	}
-	#else
-	const float fMipKernel = 0.0f;
-	#endif
-	#if WATER_SPEC_AA_MODE == 2
-	// Slope-space variance from the screen-space change of the reflection normal (Vlachos GDC15 / Filament form)
-	vec3 f3NormalDx = dFdx(f3SkyboxWaveNormal);
-	vec3 f3NormalDy = dFdy(f3SkyboxWaveNormal);
-	float fKernel = min(2.0f * mainLayout.fWaterSpecAAVariance * (dot(f3NormalDx, f3NormalDx) + dot(f3NormalDy, f3NormalDy)) + fMipKernel, mainLayout.fWaterSpecAAThreshold);
-	#else
-	// Toksvig-style variance from the agreement of the nine summed octave normals: length(f3WeightedSum)
-	// shrinks as the octaves disagree (each DecodeNormal result is ~unit). Note: BC5 + DecodeNormal
-	// re-unitizes each sample, so this measures inter-wave disagreement, not true footprint mip variance
-	// (that part is restored by the WATER_SPEC_AA_MIP_HANDOFF term).
-	float fAgreement = length(f3WeightedSum) * mainLayout.fWaterNormalWeightSumInv;
-	float fKernel = min(mainLayout.fWaterSpecAAVariance * (1.0f - fAgreement) / max(fAgreement, 0.001f) + fMipKernel, mainLayout.fWaterSpecAAThreshold);
-	#endif
-	if (fSpecularFactor > 0.0f)
-	{
-		float fSpecularLog2 = log2(fSpecularFactor);
-		fSpecularSum =
-			FilteredPowerLobe(fIntensityOne,   mainLayout.f4WaterSkyboxLobeAlphaSq.x, mainLayout.f4WaterSkyboxLobeOnePlusPowerInv.x, fSpecularLog2, fKernel) +
-			FilteredPowerLobe(fIntensityTwo,   mainLayout.f4WaterSkyboxLobeAlphaSq.y, mainLayout.f4WaterSkyboxLobeOnePlusPowerInv.y, fSpecularLog2, fKernel) +
-			FilteredPowerLobe(fIntensityThree, mainLayout.f4WaterSkyboxLobeAlphaSq.z, mainLayout.f4WaterSkyboxLobeOnePlusPowerInv.z, fSpecularLog2, fKernel);
-	}
-#elif WATER_SPEC_AA_MODE == 4
-	// Genuine 4x supersample of the only aliasing term: re-evaluate the reflect->dot->lobe chain (pure ALU,
-	// fetches unchanged) at four derivative-extrapolated normals and average.
-	vec3 f3NormalDx = dFdx(f3SkyboxWaveNormal);
-	vec3 f3NormalDy = dFdy(f3SkyboxWaveNormal);
-	for (int i = 0; i < 4; i++)
-	{
-		vec2 f2Offset = vec2((i & 1) != 0 ? 0.5f : -0.5f, (i & 2) != 0 ? 0.5f : -0.5f);
-		vec3 f3SubNormal = normalize(f3SkyboxWaveNormal + f2Offset.x * f3NormalDx + f2Offset.y * f3NormalDy);
-		float fSubFactor = dot(vec3(-1.0f, 1.0f, -1.0f) * f3ToEyeNormal, reflect(f3BiasedSunNormal, reflect(f3ToEyeNormal, f3SubNormal)));
-		if (fSubFactor > 0.0f)
-		{
-			float fSubLog2 = log2(fSubFactor);
-			fSpecularSum +=
-				fIntensityOne   * exp2(fPowerOne   * fSubLog2) +
-				fIntensityTwo   * exp2(fPowerTwo   * fSubLog2) +
-				fIntensityThree * exp2(fPowerThree * fSubLog2);
-		}
-	}
-	fSpecularSum *= 0.25f;
-#endif
-	float fReflection = mainLayout.fLightingWaterSkyboxIntensity * fReflectionTerrainMultiplier * fSpecularSum;
+	WaterSpecularResult specularResult = ComposeWaterSpecular(normalResult, f3ToEyeNormal, f3InNormal, f3SunOrMoon, fTerrainElevation);
+	vec3 f3SkyboxColor = specularResult.f3SkyboxColor;
+	vec3 f3SkyboxColorSun = specularResult.f3SkyboxColorSun;
+	float fReflectionTerrainMultiplier = specularResult.fReflectionTerrainMultiplier;
+	float fReflection = specularResult.fReflection;
 
 	// Factor the skybox combine so Height Darken can weight base color and skybox specular independently:
 	// mix(A, B, t) + add*t*B = (1-t)*A + (1+add)*t*B → base = (1-fReflection)*f3LightingColor, specular = (1+fSkyboxAdd)*fReflection*f3SkyboxColorSun.
@@ -466,40 +172,7 @@ void main()
 
 	// Sample lighting texture at projected base-height x/y
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, vec3(f2WorldInitialPosition, 0.0f));
-	vec2 f2PositionAtBaseHeightFinal = f2PositionAtBaseHeight;
-	float fReflectedScale = mainLayout.fLightingWaterReflectedAmount * mainLayout.fLightingWaterReflectedIntensity;
-
-	if (fReflectedScale > 0.0f)
-	{
-		// Reflected base-height lighting-texture sample: reflect the eye ray about the water normal and
-		// project the reflected ray to fBaseHeight. Distortion scales the normal's XY
-		// before renormalization so wave tilt (not the slow eye-to-point gradient) is
-		// the dominant contributor to the reflected sample position.
-		vec3 f3ReflectedNormal = mix(f3SampledNormal, f3InNormal, mainLayout.fLightingWaterReflectedNormalBlendWave);
-		f3ReflectedNormal = normalize(vec3(f3ReflectedNormal.xy * mainLayout.fLightingWaterReflectedDistortion, f3ReflectedNormal.z));
-		vec3 f3WaterWorld = vec3(f2WorldInitialPosition, 0.0f);
-		vec3 f3EyeToPoint = normalize(f3WaterWorld - mainLayout.f4EyePosition.xyz);
-		vec3 f3ReflectedRay = reflect(f3EyeToPoint, f3ReflectedNormal);
-		// Guard grazing-normal divide: clamp z away from zero so fReflectedMult can't overflow to +Inf
-		float fReflectedMult = (globalLayout.fBaseHeight - f3WaterWorld.z) / max(f3ReflectedRay.z, 1e-4f);
-		vec2 f2PositionAtBaseHeightReflected = (f3WaterWorld + max(fReflectedMult, 0.0f) * f3ReflectedRay).xy;
-
-		// Power-curve compression on the XY offset above FalloffStart so heavily-bent
-		// normals don't sample hundreds of world units away. Power=1 is passthrough.
-		vec2 f2ReflectedOffset = f2PositionAtBaseHeightReflected - f3WaterWorld.xy;
-		float fOffsetDistance = length(f2ReflectedOffset);
-		float fFalloffStart = mainLayout.fLightingWaterReflectedFalloffStart;
-		if (fOffsetDistance > fFalloffStart)
-		{
-			float fNewDistance = fFalloffStart + pow(fOffsetDistance - fFalloffStart, mainLayout.fLightingWaterReflectedFalloffPower);
-			f2PositionAtBaseHeightReflected = f3WaterWorld.xy + f2ReflectedOffset * (fNewDistance / fOffsetDistance);
-			fOffsetDistance = fNewDistance;
-		}
-
-		float fReflectedFresnel = mix(1.0f, Fresnel(mainLayout.f4EyePosition.xyz, f3WaterWorld, f3ReflectedNormal, 1.0f), mainLayout.fLightingWaterReflectedFresnel);
-		float fReflectedAmount = clamp(fReflectedScale * fReflectedFresnel, 0.0f, 1.0f);
-		f2PositionAtBaseHeightFinal = mix(f2PositionAtBaseHeight, f2PositionAtBaseHeightReflected, fReflectedAmount);
-	}
+	vec2 f2PositionAtBaseHeightFinal = ProjectWaterReflection(normalResult, f2WorldInitialPosition, f2PositionAtBaseHeight);
 
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeightFinal, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4LightingBaseHeight[3];
@@ -530,7 +203,7 @@ void main()
 
 	// Water lighting
 	const float fWaterNormalBlendWave = mainLayout.fLightingWaterNormalBlendWave;
-	vec3 f3LightingNormal = (1.0f - fWaterNormalBlendWave) * f3SampledNormal + fWaterNormalBlendWave * f3InNormal;
+	vec3 f3LightingNormal = (1.0f - fWaterNormalBlendWave) * normalResult.f3SampledNormal + fWaterNormalBlendWave * f3InNormal;
 	vec3 f3WaterLighting = WaterLighting(pf4LightingBaseHeight, f3LightingNormal, mainLayout.fLightingWaterNormalSoften, mainLayout.fLightingWaterOne, mainLayout.fLightingWaterOnePower, mainLayout.fLightingWaterTwo, mainLayout.fLightingWaterTwoPower, mainLayout.fLightingWaterThree, mainLayout.fLightingWaterThreePower, mainLayout.fLightingWaterPowerMode);
 	float fDepthAttenuation = clamp(-fTerrainElevation * globalLayout.fWaterDepthReflectionFeatherInv, 0.0f, 1.0f);
 	vec3 f3WaterLightingScaled = fDepthAttenuation * globalLayout.fLightingTimeOfDayMultiplier * mainLayout.fLightingWaterIntensity * f3WaterLighting;

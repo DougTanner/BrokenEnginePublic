@@ -788,6 +788,9 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelSkinned.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelStatic.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Water\WaterNormalSampling.h" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Water\WaterSpecular.h" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Water\WaterReflectionProjection.h" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Water\WaterDisplacement.comp" />
   </ItemGroup>
