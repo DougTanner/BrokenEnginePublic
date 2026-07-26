@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <exception>
 #include <filesystem>
 #include <functional>
 #include <optional>
