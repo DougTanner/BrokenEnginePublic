@@ -175,7 +175,7 @@ void TweaksScreenBase::WrapperSlider(std::string_view label, int64_t iSection, f
 	{
 		if (mbAuditMode)
 		{
-			// Heap: STL hash buckets allocate. Audit runs once per session at first tweaks-UI open; suppression mirrors TweaksSliderMap::Get().
+			// Heap: STL hash buckets allocate. Audit runs once per TweaksScreen lifetime and is re-armed by graphics reconstruction; suppression mirrors TweaksSliderMap::Get().
 			ScopedSuppressAllocationTracking suppress;
 			std::unordered_map<std::string_view, Wrapper*>& rSliderMap = TweaksSliderMap::Get();
 			if (rSliderMap.contains(mapKey))
@@ -449,8 +449,8 @@ void TweaksScreenBase::RunSliderAuditFrame()
 {
 	if constexpr (kbDebugInput)
 	{
-		// Lighting has 5 subtabs (Write/Combine/Read/Visible/Lighting); cycle that many frames so every gated WrapperSlider call fires.
-		static constexpr int8_t kiAuditFrameCount = 5;
+		// Lighting has 5 subtabs (Write/Combine/Read/Visible/Lighting); ImGui applies selection on the following tab-bar frame, so frames 0-4 queue tabs and frame 5 renders Lighting.
+		static constexpr int8_t kiAuditFrameCount = 6;
 
 		if (miAuditFrame == 0)
 		{
@@ -473,7 +473,6 @@ void TweaksScreenBase::RunSliderAuditFrame()
 		// Synthetic offscreen window: BeginTabBar / WrapperSeparatorText / etc. need an active window, but we don't want anything visible or interactive.
 		ImGui::SetNextWindowPos(ImVec2(-10000.0f, -10000.0f));
 		ImGui::SetNextWindowSize(ImVec2(1.0f, 1.0f));
-		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
 		static constexpr ImGuiWindowFlags kAuditFlags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus;
 		if (ImGui::Begin("##slider-audit", nullptr, kAuditFlags))
 		{
@@ -483,7 +482,6 @@ void TweaksScreenBase::RunSliderAuditFrame()
 			}
 		}
 		ImGui::End();
-		ImGui::PopStyleVar();
 
 		mbAuditMode = false;
 

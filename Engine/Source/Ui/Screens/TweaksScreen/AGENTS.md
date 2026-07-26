@@ -9,7 +9,7 @@ Client-only, debug-input-gated ImGui screen for engine and game wrapper settings
 - Section layout persists as an engine-owned POD embedded by value in the game settings struct, gated by a CRC over the registered stable keys in order. A mismatch discards the saved layout and keeps constructor defaults, so adding, removing, or reordering sections resets window layout instead of misapplying it.
 - Whole game-owned sections enter through registration; sub-tabs inside an engine section use the base extension hooks.
 - Each slider registrar maps static, globally unique keys to wrappers. Map storage is program-lifetime and allocation suppression is required during its construction. A display label may differ from its key to avoid ImGui ID collisions.
-- Wrapper declaration order and each section's slider order stay aligned. The first-open debug audit visits every subtab and reports missing or orphaned registrations.
+- Wrapper declaration order and each section's slider order stay aligned. The debug audit runs once per TweaksScreen lifetime, is re-armed by graphics reconstruction, visits every subtab, and reports missing or orphaned registrations.
 - Tabbed sections persist their active tab. Loading force-selects the saved tab for one frame, after which normal rendering updates the stored selection.
 - A render path uses at most one ImGui table. When a game hook owns a table, its engine parent renders outside one. Sliders inside multi-column tables use the cell-width multiplier rather than the full-window default.
 - While dragging, only the owning section remains visible; the toggle bar and saved window layouts stay stable.

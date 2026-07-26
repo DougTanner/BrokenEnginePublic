@@ -109,7 +109,7 @@ public:
 	common::Flags<TweakSectionFlags> mSectionCollapsed {};
 	float mfToggleBarBottom = 0.0f;
 
-	// One-shot first-open slider-map drift audit. Cycles mActiveSubtab[] across 5 frames so multi-tab sections (Lighting=5, Water=4, Wind/Smoke=2) are fully exercised.
+	// Slider-map drift audit runs once per TweaksScreen lifetime and is re-armed by graphics reconstruction. Cycles mActiveSubtab[] across 6 frames: frames 0-4 queue tabs and frame 5 settles the final selection.
 	// miAuditFrame: 0..(kiAuditFrameCount-1) = audit running, -1 = audit complete.
 	std::unordered_set<std::string_view> mAuditTouched;
 	std::unordered_set<std::string_view> mAuditMissed;
