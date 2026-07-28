@@ -76,6 +76,11 @@ disappeared during recovery; the response's `plan` and `message` fields say
 which. It blocks the landing as `plan.recovery-conflict` and needs user judgment
 on the named Plan — never a retry and never an override.
 
+When terminal preparation removes the last Plan in a nested directory, terminal
+recovery tolerates an already-missing empty last-Plan parent; a non-directory parent
+remains an error. The authoritative scratch coverage is
+`.agents/scripts/Test-WorktreeCliPlanScheduler.ps1`.
+
 ### Primary rewrite (squash)
 
 A failed `git merge-base --is-ancestor $env:BROKEN_ENGINE_BASELINE <primary tip>`

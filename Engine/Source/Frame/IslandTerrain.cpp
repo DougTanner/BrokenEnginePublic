@@ -204,7 +204,7 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 		rTemplate.miMeshVertexCount = rIslandHeader.iMeshVertexCount;
 		rTemplate.miMeshIndexCount = rIslandHeader.iMeshIndexCount;
 		rTemplate.miValidAreaVertexCount = rIslandHeader.iValidAreaVertexCount;
-		const std::byte* pAfterHeightmap = reinterpret_cast<const std::byte*>(rLazyChunk.pData) + iHeightmapBytes;
+		const std::byte* pAfterHeightmap = rLazyChunk.pData + iHeightmapBytes;
 		rTemplate.mpf2ValidAreaVertices = reinterpret_cast<const XMFLOAT2*>(pAfterHeightmap + iMeshBytes);
 
 #if defined(BT_CLIENT)

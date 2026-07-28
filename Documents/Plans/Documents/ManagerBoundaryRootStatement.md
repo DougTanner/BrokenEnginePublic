@@ -5,7 +5,7 @@ Status: open decision / record. The Design question below is unanswered, so a se
 
 ## Context
 
-The Plan `Documents/Plans/Documents/ManagerOnlyCoreWorkflow.md`, deleted by `c369fd01`, carried a Design item requiring an explicit prohibition: "Prohibit the main from inspecting task repository code, diffs, logs, or transcripts; editing tracked artifacts; building, testing, or reviewing; and performing Plan-claim, Git, reconciliation, or landing mechanics."
+The Plan completed by `c369fd01` carried a Design item requiring an explicit prohibition: "Prohibit the main from inspecting task repository code, diffs, logs, or transcripts; editing tracked artifacts; building, testing, or reviewing; and performing Plan-claim, Git, reconciliation, or landing mechanics."
 
 That session's first commit `90973a80` implemented it as the opening root `AGENTS.md` "Subagents" bullet. The user later directed its removal on bloat grounds, and the original bullet — "Main session is manager; subagents execute work to keep main context clean" — was restored and is what `c369fd01` landed.
 
@@ -15,9 +15,9 @@ Root `AGENTS.md` "Diagnosis Discipline" ranks an explicit user statement above t
 
 Root `AGENTS.md` steps 1-8 assign each mechanic to a role. They govern every tracked change, and for most mechanics the assignment names a performer without also forbidding main from performing it.
 
-One prohibition binds main universally:
+One assignment governs delegated review and audit work:
 
-- Root `AGENTS.md:40` — "Every review is the `reviewer` role without exception". Main is barred from reviewing at any tier, on any path.
+- Root `AGENTS.md:40` — every delegated review or audit is the `reviewer` role. Manually triggered parent/manager orchestrators such as `/next-plan-review` are not delegated reviewers: they remain in the parent and dispatch their own reviewer.
 
 Four more bind only inside their own path or situation:
 
@@ -26,11 +26,11 @@ Four more bind only inside their own path or situation:
 - `.agents/skills/next-plan/SKILL.md:127-129` — the `## Primary advance` section: "main does not inspect or mutate repository or claim state."
 - `.agents/skills/finalize-changes/SKILL.md:19-21` — finalization: "Main only adjudicates its concise handoffs, presents the exact summary and confirmation question, and resumes the worker after the user's answer."
 
-The residual gap is therefore: main inspecting task repository evidence, editing tracked artifacts, building, and performing Plan-claim, Git, reconciliation, or landing mechanics carry no general prohibition — minus what the four path-scoped clauses above already cover inside their own situations (Tier-3 `/external-grill-plan`, liveness judging, `/next-plan` primary advance, `/finalize-changes` finalization), and minus review work, which `AGENTS.md:40` already bars everywhere.
+The residual gap is therefore: main inspecting task repository evidence, editing tracked artifacts, building, and performing Plan-claim, Git, reconciliation, or landing mechanics carry no general prohibition — minus what the four path-scoped clauses above already cover inside their own situations (Tier-3 `/external-grill-plan`, liveness judging, `/next-plan` primary advance, `/finalize-changes` finalization), and minus delegated review or audit work assigned to reviewers. Manually triggered parent/manager orchestrators remain in the parent while dispatching their child reviewer.
 
 ## Design
 
-Open decision for the user: does the manager boundary need any root-level statement, given that review is already barred universally and every other explicit prohibition is path-scoped?
+Open decision for the user: does the manager boundary need any root-level statement, given that delegated reviews and audits are assigned to reviewers while manually triggered parent/manager orchestrators remain in the parent and dispatch their reviewer, and every other explicit prohibition is path-scoped?
 
 - Outcome A — no statement needed. This record closes with the user's authority recorded.
 - Outcome B — a statement is needed, in the root `AGENTS.md` "Subagents" bullet list, materially shorter than the removed bullet.

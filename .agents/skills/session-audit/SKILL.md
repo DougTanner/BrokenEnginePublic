@@ -2,12 +2,9 @@
 name: session-audit
 description: >-
   Final fresh-eyes audit of late, reconciled, or previously unseen integration
-  hypotheses in a complete logical change. Use when the user explicitly asks
-  for a "session audit" or final fresh-eyes pass. Otherwise invoke exactly once
-  only when the root Change Workflow records late semantic fixes, manual
-  reconciliation or invalidated assumptions, Tier-3 cross-file integration, or
-  contract-significant regions unseen by domain review. Findings only; never
-  edits.
+  hypotheses in a complete logical change. Use when explicitly requested or
+  when the post-reconciliation typed evaluator requires it. Findings only;
+  never edits.
 allowed-tools: [Read, Grep, Glob, PowerShell]
 ---
 
@@ -37,6 +34,11 @@ Require a self-contained, immutable brief containing:
 - completed applicable domain-review handoffs for every changed artifact type,
   plus reconciliation, build, external-API-verification, accepted-fix/retest,
   residual, and focus-area handoffs (`none` is valid for each).
+- the complete `broken-engine-session-audit-input/v1` evaluator input and its
+  `broken-engine-session-audit-decision/v1` result. Require a well-formed
+  `required:true` decision; explicit user requests are represented in that
+  input and always require the audit. A well-formed `required:false` decision
+  means this skill must not be dispatched automatically.
 
 For an explicit user request, main dispatches one preparation `implementer` to
 assemble the required brief from repository state — baseline and tip commits,
@@ -44,7 +46,7 @@ the changed-file manifest from `git`, and stage dispositions. The worker returns
 that brief with the user-authorized audit scope mapped to the same bounded late,
 reconciled, or unseen-integration hypotheses; main then dispatches the reviewer.
 For a workflow-triggered audit, the finalization or preparation implementer
-assembles the same brief and returns it through main. Return `BLOCKED` when lifecycle identity, attribution, intent, a
+assembles the same brief and evaluator evidence and returns it through main. Tier-3 cross-file scope alone and a no-op reconciliation are not independent triggers. Return `BLOCKED` when lifecycle identity, attribution, intent, a
 mode disposition, or an applicable prerequisite domain review is missing,
 ambiguous, moving, or incomplete. The assigned implementer's assembly from
 repository state is the only allowed source; the auditor never reconstructs

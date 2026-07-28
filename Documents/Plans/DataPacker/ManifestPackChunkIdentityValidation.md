@@ -5,7 +5,7 @@
 
 `RunExportJobs<T>` in `DataPacker/Source/Main.cpp` publishes a completed export by renaming the generated header, manifest, and pack in sequence. A process kill after the manifest rename but before the pack rename can leave a new manifest beside the old pack. When the triggering change was a deleted source asset, the new manifest and current live jobs both contain N paths while the old pack still contains N+1 chunks, so the existing manifest-count and fingerprint-newer-than-pack dirty checks both pass.
 
-The rejected `ManifestPackPublishConsistency.md` Plan proposed comparing manifest path CRCs with live-job path CRCs. Plan audit proved that comparison cannot observe this failure: both collections come from the same N current jobs, while the stale identity exists only in the old pack. The published manifest must instead be validated against the pack bytes it addresses.
+The rejected earlier Plan proposed comparing manifest path CRCs with live-job path CRCs. Plan audit proved that comparison cannot observe this failure: both collections come from the same N current jobs, while the stale identity exists only in the old pack. The published manifest must instead be validated against the pack bytes it addresses.
 
 The existing format already carries the needed identity. Each manifest `common::ChunkLocation` records a path-derived `crc`, offset, and size, while every packed chunk begins with a `common::ChunkHeader` carrying the same path-derived `crc`. The manifest table begins at the 16-byte-aligned offset after `common::DataHeader`, not immediately after the 24-byte header.
 

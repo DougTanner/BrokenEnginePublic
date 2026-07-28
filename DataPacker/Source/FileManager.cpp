@@ -187,7 +187,7 @@ uint64_t AddChecked(uint64_t uiLeft, uint64_t uiRight)
 
 }
 
-FileManager::FileManager(std::span<char*> argvSpan)
+FileManager::FileManager(std::span<char*> argvSpan, InitializationMode eMode)
 {
 	ASSERT(gpFileManager == nullptr);
 
@@ -224,12 +224,17 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	// Extract project name from project data directory
 	mProjectName = mpInputDirectories[1].parent_path().filename().string();
 	mOutputDirectory = std::filesystem::absolute(mOutputDirectory).lexically_normal();
-	InitializeWorktreeOutputs();
+	InitializeWorktreeOutputs(eMode);
 	if (mDataOutput.meState == OutputRootState::kAbsent)
 	{
 		EstablishOutputDestinationParent(mOutputDirectory);
 		std::filesystem::create_directories(mOutputDirectory);
 		mDataOutput.meState = OutputRootState::kLocal;
+	}
+	if (eMode == InitializationMode::kDataOnly)
+	{
+		LOG(kDefault, kDebug, "Output directory: \"{}\"", mOutputDirectory.string());
+		return;
 	}
 
 	// Input data directories
@@ -261,25 +266,28 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	LOG(kDefault, kDebug, "Output directory: \"{}\"", mOutputDirectory.string());
 }
 
-void FileManager::InitializeWorktreeOutputs()
+void FileManager::InitializeWorktreeOutputs(InitializationMode eMode)
 {
 	mDataOutput.mDestination = mOutputDirectory;
-	mAttributionOutput.mDestination = mOutputDirectory.parent_path() / "Attribution";
-	std::filesystem::file_status dataStatus = std::filesystem::symlink_status(mDataOutput.mDestination);
-	std::filesystem::file_status attributionStatus = std::filesystem::symlink_status(mAttributionOutput.mDestination);
-	mDataOutput.meState = dataStatus.type() == std::filesystem::file_type::not_found ? OutputRootState::kAbsent : OutputRootState::kLocal;
-	mAttributionOutput.meState = attributionStatus.type() == std::filesystem::file_type::not_found ? OutputRootState::kAbsent : OutputRootState::kLocal;
-	for (OutputRootInfo* pRoot : { &mDataOutput, &mAttributionOutput })
+	std::array<OutputRootInfo*, 2> roots { &mDataOutput, &mAttributionOutput };
+	std::span<OutputRootInfo*> outputRoots(roots.data(), eMode == InitializationMode::kFull ? roots.size() : 1);
+	if (eMode == InitializationMode::kFull)
 	{
+		mAttributionOutput.mDestination = mOutputDirectory.parent_path() / "Attribution";
+	}
+	for (OutputRootInfo* pRoot : outputRoots)
+	{
+		std::filesystem::file_status status = std::filesystem::symlink_status(pRoot->mDestination);
+		pRoot->meState = status.type() == std::filesystem::file_type::not_found ? OutputRootState::kAbsent : OutputRootState::kLocal;
 		DWORD uiAttributes = GetFileAttributesW(pRoot->mDestination.native().c_str());
 		if (uiAttributes != INVALID_FILE_ATTRIBUTES && (uiAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
 		{
 			pRoot->meState = OutputRootState::kUnvalidatedReparse;
 		}
 	}
-	auto RejectUnvalidatedReparse = [this]()
+	auto RejectUnvalidatedReparse = [outputRoots]()
 	{
-		for (const OutputRootInfo* pRoot : { &mDataOutput, &mAttributionOutput })
+		for (const OutputRootInfo* pRoot : outputRoots)
 		{
 			if (pRoot->meState == OutputRootState::kUnvalidatedReparse)
 			{
@@ -345,10 +353,13 @@ void FileManager::InitializeWorktreeOutputs()
 		throw std::runtime_error(std::format("Primary ThirdParty source must be an ordinary non-reparse directory: {}", primaryThirdPartyDirectory.string()));
 	}
 	mThirdPartyDirectory = std::move(primaryThirdPartyDirectory);
-	const std::filesystem::path expectedAttribution = expected.parent_path() / "Attribution";
 	mDataOutput.mSource = primaryRoot / expected.lexically_relative(repositoryRoot);
-	mAttributionOutput.mSource = primaryRoot / expectedAttribution.lexically_relative(repositoryRoot);
-	for (OutputRootInfo* pRoot : { &mDataOutput, &mAttributionOutput })
+	if (eMode == InitializationMode::kFull)
+	{
+		const std::filesystem::path expectedAttribution = expected.parent_path() / "Attribution";
+		mAttributionOutput.mSource = primaryRoot / expectedAttribution.lexically_relative(repositoryRoot);
+	}
+	for (OutputRootInfo* pRoot : outputRoots)
 	{
 		EstablishOutputDestinationParent(pRoot->mDestination);
 		if (pRoot->meState == OutputRootState::kAbsent && IsReparsePoint(pRoot->mSource))

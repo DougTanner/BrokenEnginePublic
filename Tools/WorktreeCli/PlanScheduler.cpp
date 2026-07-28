@@ -321,7 +321,7 @@ namespace toolcli
 					return false;
 				}
 			}
-			return !error;
+			return !error || error == std::errc::no_such_file_or_directory;
 		}
 
 		bool ParsePlanBytes(Plan& rPlan)

@@ -152,7 +152,10 @@ foreach ($module in @('AgentScriptCommon.psm1', 'WorktreeCliSessionExclusion.psm
 [IO.File]::WriteAllText((Join-Path $primary 'base.txt'), 'base', [Text.UTF8Encoding]::new($false))
 New-Item -ItemType Directory -Force (Join-Path $primary 'Documents\Plans') | Out-Null
 $metadata = '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-01T00:00:00.000Z","dependsOn":[]} -->'
-[IO.File]::WriteAllText((Join-Path $primary 'Documents\Plans\Recovery.md'), "$metadata`n# Recovery fixture`n", [Text.UTF8Encoding]::new($false))
+$terminalPlan = 'Documents/Plans/Terminal/Recovery.md'
+$primaryTerminalPlan = Join-Path $primary $terminalPlan
+[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($primaryTerminalPlan)) | Out-Null
+[IO.File]::WriteAllText($primaryTerminalPlan, "$metadata`n# Recovery fixture`n", [Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText((Join-Path $primary 'Documents\Plans\AGENTS.md'), '# Directory guidance', [Text.UTF8Encoding]::new($false))
 Invoke-ScratchGit $primary @('add', '-A') | Out-Null
 Invoke-ScratchGit $primary @('commit', '-m', 'fixture base') | Out-Null
@@ -305,12 +308,15 @@ Assert-True ($baseline -ceq ((@(Invoke-ScratchGit $session @('rev-parse','HEAD')
 # Claim and prepare in the session before approval. The terminal receipt remains
 # live through landing; a retry uses the same receipt after the primary advance.
 $receiptPath = Join-Path $session 'Temp\terminal-claim.json'
-$claim = (Invoke-WorktreeCli @('plan','claim-next','--repo',$commonDirectory,'--primary-worktree',$primary,'--worktree',$session,'--branch',$sessionBranch,'--owner',$owner,'--session',$owner,'--write-claim-receipt',$receiptPath,'--plan','Documents/Plans/Recovery.md') | ConvertFrom-Json -Depth 100)
+$claim = (Invoke-WorktreeCli @('plan','claim-next','--repo',$commonDirectory,'--primary-worktree',$primary,'--worktree',$session,'--branch',$sessionBranch,'--owner',$owner,'--session',$owner,'--write-claim-receipt',$receiptPath,'--plan',$terminalPlan) | ConvertFrom-Json -Depth 100)
 Assert-True $claim.claimed 'fixture claimed terminal Plan through receipt flow'
 Assert-True ($claim.receipt.sha256 -cmatch '^[0-9a-f]{64}$') 'fixture claim returns receipt hash'
 $prepared = (Invoke-WorktreeCli @('plan','prepare-completion','--repo',$commonDirectory,'--worktree',$session,'--claim-receipt',$claim.receipt.path,'--claim-receipt-sha256',$claim.receipt.sha256) | ConvertFrom-Json -Depth 100)
 Assert-True ($prepared.prepared -and $prepared.claimState -ceq 'awaiting-landing') 'fixture prepares terminal receipt state'
-$lateChildMarker = '<!-- broken-engine-plan/v1 {"createdUtc":"2024-01-02T00:00:00.000Z","dependsOn":["Documents/Plans/Recovery.md"]} -->'
+$terminalPlanParent = [IO.Path]::GetDirectoryName((Join-Path $session $terminalPlan))
+Remove-Item -LiteralPath $terminalPlanParent -Force
+Assert-True (-not (Test-Path -LiteralPath $terminalPlanParent)) 'last-Plan parent is absent before finalization reruns terminal preparation'
+$lateChildMarker = "<!-- broken-engine-plan/v1 {`"createdUtc`":`"2024-01-02T00:00:00.000Z`",`"dependsOn`": [`"$terminalPlan`"]} -->"
 [IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\LateChild.md'), "$lateChildMarker`n# Late child fixture`n", [Text.UTF8Encoding]::new($false))
 Invoke-ScratchGit $session @('add','-A') | Out-Null
 Invoke-ScratchGit $session @('commit','-m','fixture terminal completion') | Out-Null
@@ -346,17 +352,20 @@ Invoke-ScratchGit $session @('commit','-m','fixture refreshed terminal candidate
 $approved = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
 # The landing reruns terminal preparation, so a terminal target carrying third-party bytes blocks as a
 # named recovery conflict needing user judgment, never as a bare prepare failure.
-[IO.File]::WriteAllText((Join-Path $session 'Documents\Plans\Recovery.md'), "$metadata`n# Recovery fixture with third-party bytes`n", [Text.UTF8Encoding]::new($false))
-Invoke-ScratchGit $session @('add','Documents/Plans/Recovery.md') | Out-Null
+Invoke-ScratchGit $session @('checkout',$baseline,'--',$terminalPlan) | Out-Null
+[IO.File]::WriteAllText((Join-Path $session $terminalPlan), "$metadata`n# Recovery fixture with third-party bytes`n", [Text.UTF8Encoding]::new($false))
+Invoke-ScratchGit $session @('add',$terminalPlan) | Out-Null
 Invoke-ScratchGit $session @('commit','-m','fixture third-party terminal target bytes') | Out-Null
 $conflictTip = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
 $landingParameters.ExpectedCurrentTip = $conflictTip
 $landingParameters.ApprovedSessionCommit = $conflictTip
 $run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
 Assert-Outcome $run 'terminal-target-third-party-bytes' 2 'blocked' 'plan.recovery-conflict'
-if ($null -ne $run.Json) { Assert-True ($run.Json.message -clike '*Documents/Plans/Recovery.md*') 'recovery conflict names the conflicting Plan path' }
-Invoke-ScratchGit $session @('rm','--quiet','--','Documents/Plans/Recovery.md') | Out-Null
+if ($null -ne $run.Json) { Assert-True ($run.Json.message -clike "*$terminalPlan*") 'recovery conflict names the conflicting Plan path' }
+Invoke-ScratchGit $session @('rm','--quiet','--',$terminalPlan) | Out-Null
 Invoke-ScratchGit $session @('commit','-m','fixture restores terminal target deletion') | Out-Null
+if (Test-Path -LiteralPath $terminalPlanParent) { Remove-Item -LiteralPath $terminalPlanParent -Force }
+Assert-True (-not (Test-Path -LiteralPath $terminalPlanParent)) 'last-Plan parent remains absent before terminal landing'
 $approved = (@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()
 $landingParameters.ExpectedCurrentTip = $approved
 $landingParameters.ApprovedSessionCommit = $approved
@@ -369,7 +378,7 @@ $landingParameters.TerminalDisposition = 'completed'
 $run = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
 Assert-Outcome $run 'receipt-terminal-landing' 0 'landed' 'ok'
 if ($null -ne $run.Json) { Assert-True $run.Json.primaryAdvanced 'terminal landing advanced primary'; Assert-True $run.Json.planClaim.released 'terminal landing released receipt-bound claim' }
-Assert-True (-not (Test-Path -LiteralPath (Join-Path $primary 'Documents\Plans\Recovery.md'))) 'terminal landing removed Plan from primary'
+Assert-True (-not (Test-Path -LiteralPath (Join-Path $primary $terminalPlan))) 'terminal landing removed last Plan from primary'
 
 # Re-running landing after primary has advanced must recover terminal proof,
 # not recreate scheduler state or publish any auxiliary plan work.

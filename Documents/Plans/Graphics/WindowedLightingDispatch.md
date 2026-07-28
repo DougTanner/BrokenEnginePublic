@@ -3,7 +3,7 @@
 
 ## Context
 
-The approved shadow-only split (`WindowedLightingShadowDispatch.md`) has completed and been removed from
+The approved shadow-only split has completed and been removed from
 `Documents/Plans/`; this plan's metadata `dependsOn` is empty and it has no live prerequisite. This plan is the
 recorded follow-up debt from that split: lighting deposit, the spread chain, combine, and temporal history still
 pay full-texture cost.

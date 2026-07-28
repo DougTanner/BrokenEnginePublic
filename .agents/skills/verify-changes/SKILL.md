@@ -135,10 +135,15 @@ For every requested build, require one authoritative
   warnings; and
 - for game builds, data mode and trigger, `RunDataPacker`, canonical data and
   generated-include paths, prepared-data or generation authority, Gaea-guard
-  disposition, selected-data snapshot, and primary snapshot when Local.
+  disposition, and each exact `broken-engine-data-oracle/v1` receipt path,
+  SHA-256, Data path, mode, baseline, and aggregate digest. Require a current
+  passing `Test-DataOracleReceipt.ps1` result against every selected receipt;
+  Local mode also requires the independent primary Shared receipt. Never infer
+  a receipt identity, accept a path/mode/baseline mismatch, or require Shared
+  and Local receipts to equal.
 
 Require schema/result/exit consistency, complete retained log, intended target
-and selection, all requested targets, snapshot consistency across consumers,
+and selection, all requested targets, oracle consistency across consumers,
 and no later manifest edit that invalidates the build. Terminal text is not a
 substitute. A truncated diagnostic set requires the retained log.
 

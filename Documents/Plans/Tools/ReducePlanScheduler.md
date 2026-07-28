@@ -40,14 +40,14 @@ The listed scope is both target and ceiling: make the smallest complete split th
 - `Tools/WorktreeCli/PlanScheduler.cpp`: delete the moved regions listed in Design, add `#include "PlanMetadata.h"`, and drop the now-unused `<fstream>` and `<functional>` includes. Everything else — `Arguments`, `Claim`, the forward declarations, the retained helpers, the claim/receipt coordination block, the Git resolvers, `ValidateBaselineMetadata`, `ParseArguments`, the `Run*` handlers, and `RunPlanSchedulerCommand` — stays byte-identical.
 - New `Tools/WorktreeCli/PlanMetadata.h` and `Tools/WorktreeCli/PlanMetadata.cpp`: exactly two new files, contents pinned in Design.
 - `Tools/WorktreeCli/Platforms/VisualStudio2026/WorktreeCli.vcxproj` and `.vcxproj.filters`: one new `ClCompile` and one new `ClInclude`, reconciled via `/update-vcxproj`.
-- New `Documents/Plans/Tools/ReducePlanSchedulerCommandLayer.md` via `/create-follow-up-plans`, carrying the residual split of the claim/receipt, resolver, and command-handler blocks with the measured budgets from Notes. Metadata `dependsOn` is `[]`: this Plan is deleted at completion, so a dependency edge on it would land as a stale-edge notice, and the extracted boundary is already in the tree before the follow-up becomes claimable.
+- `Documents/Plans/Tools/ReducePlanSchedulerCommandLayer.md` uniquely owns the command-layer follow-up, carrying the residual claim/receipt, resolver, and command-handler blocks with the measured budgets from Notes. Its metadata depends on this Plan because the extraction establishes its required boundary; that edge becomes a satisfied stale edge after this terminal Plan is deleted.
 
 **Out of scope:**
 
 - Bringing `PlanScheduler.cpp` to or below the 10,000 `bt-token-v1` threshold. That needs the command layer split and belongs to the follow-up Plan.
 - Moving `ValidateBaselineMetadata`, the claim/receipt coordination helpers, the Git/commit resolvers, `ResolveContext`/`ResolveReceiptContext`, `ParseArguments`, the `Run*` handlers, or `RunPlanSchedulerCommand`.
 - Any change to plan selection, metadata/marker parsing rules, dependency-cycle handling, claim/receipt validation, healing, landing, reparent behavior, storage layout, command stdout/stderr schemas, or exit codes. Move declarations and definitions verbatim.
-- Merging with, or ordering against, the include cleanup (`Architecture_IncludeDependencies.md`).
+- Merging with, or ordering against, the completed include cleanup.
 - Any per-function token budget; this Plan targets only the file-level split.
 - Editing `.agents/scripts/Test-WorktreeCliPlanScheduler.ps1` — it is a read-only acceptance fixture, not an edit target.
 
@@ -78,7 +78,7 @@ Reconcile Visual Studio membership and filters with `/update-vcxproj`, then run 
 - New `Tools/WorktreeCli/PlanMetadata.h` / `PlanMetadata.cpp` — the plan-metadata parse and dependency-graph core plus the three shared leaf helpers.
 - `Tools/WorktreeCli/Platforms/VisualStudio2026/WorktreeCli.vcxproj` and `.vcxproj.filters` — new-file tool-project membership, reconciled via `/update-vcxproj`.
 - `.agents/scripts/Test-WorktreeCliPlanScheduler.ps1` — read-only scheduler behavior fixtures used for acceptance verification.
-- New `Documents/Plans/Tools/ReducePlanSchedulerCommandLayer.md` — follow-up increment carrying the threshold.
+- `Documents/Plans/Tools/ReducePlanSchedulerCommandLayer.md` — unique follow-up increment carrying the threshold.
 
 ## Acceptance criteria
 
@@ -86,10 +86,10 @@ Reconcile Visual Studio membership and filters with `/update-vcxproj`, then run 
 - `PlanMetadata.h` declares exactly the symbols listed in Design and nothing else; `ParsePlanBytes` and `ParsePlan` are anonymous-namespace-internal to `PlanMetadata.cpp`; `Arguments` and `Claim` remain anonymous in `PlanScheduler.cpp`; `PlanScheduler.h` is unchanged; no new exported or public WorktreeCli surface.
 - WorktreeCli (tool project) compiles PCH-less after membership reconciliation, with exactly one new `ClCompile` and one new `ClInclude` in `WorktreeCli.vcxproj`, matching mirrored `.vcxproj.filters` entries, and no entries for any other project.
 - Scheduler behavior is byte-identical: `validate`, `claim-next`, `claim-status`, `unclaim`, `prepare-completion`, `prepare-rejection`, `release-after-landing`, and `reparent-claims` produce unchanged JSON and exit codes, verified against the existing `Test-WorktreeCliPlanScheduler.ps1` fixtures and equivalent live command checks.
-- `Documents/Plans/Tools/ReducePlanSchedulerCommandLayer.md` exists with valid byte-zero metadata and `plan validate` reports no diagnostics for it.
+- `Documents/Plans/Tools/ReducePlanSchedulerCommandLayer.md` has executable byte-zero metadata that depends on this Plan, and `plan validate` reports no diagnostics for it.
 
 ## Notes
 
 - Measured residual blocks for the follow-up Plan (pre-split line numbers, `bt-token-v1`): claim/receipt coordination, Git resolvers, `ValidateBaselineMetadata`, and the context resolvers (484-1107) 5,787; claim-lifecycle handlers `RunValidate` through `RenderDependencies` (1108-1475) 5,194; terminal handlers `RunPrepare` through `RunReparentClaims` (1476-2002) 6,344. With the ~2,156 of includes, shared structs, small helpers, `ParseArguments`, and dispatch left over, that is 19,481 — so the follow-up needs at least a two-unit split of the command layer to reach 10,000.
-- Same-file, non-directional overlaps (line-drift only, whoever lands second re-cites); no directional ordering required, so metadata `dependsOn` stays empty: `Architecture_IncludeDependencies.md` (removes an include — this Plan also edits the include block, still line-drift only). No existing Plan owns this file-level split.
-- Structural precedent: `ReducePipelineManager.md`, `ReduceWaterFragmentShader.md`.
+- The completed include cleanup has only same-file, non-directional line drift (whoever lands second re-cites; this Plan's metadata stays empty). By contrast, `Documents/Plans/Tools/ReducePlanSchedulerCommandLayer.md` uniquely owns the file-level command split and depends directionally on this Plan.
+- Structural precedent: `ReducePipelineManager.md`, completed water-fragment-shader reduction.

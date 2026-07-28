@@ -464,7 +464,7 @@ static void PopulateShadowSunExtension(shaders::GlobalLayout& rGlobalLayout, flo
 	}
 }
 
-static int64_t ShadowWindowGroupCount(int32_t iMin, int32_t iMax)
+static constexpr int64_t ShadowWindowGroupCount(int32_t iMin, int32_t iMax)
 {
 	return (static_cast<int64_t>(iMax) - iMin + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
 }

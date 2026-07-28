@@ -40,7 +40,7 @@ The listed scope is both target and ceiling: make the smallest complete change f
 
 **Out of scope (all options):**
 
-- Restructuring the `StatusChange` codec itself, or converting messages to paired write/read definitions — `Documents/Plans/Network/Architecture_WireFormatPairing.md` and `Documents/Plans/Network/WireFormatPairingGameSide.md`.
+- Restructuring the `StatusChange` codec itself, or converting messages to paired write/read definitions — completed separately by the wire-format pairing work.
 - Retroactively bumping `kuiProtocolVersion` for already-landed layout changes; the gap is forward-looking.
 - Save/replay versioning, which `Frame::kiVersion` already covers correctly.
 - Backward compatibility for straddling builds — rejection is the wanted outcome, not negotiation.
@@ -69,7 +69,7 @@ Tier 3 — wire/protocol surface. Option B changes handshake bytes directly; Opt
 ## Coordination
 
 - `Documents/Plans/Frame/TransferArrivalGracePeriodDiscarded.md`: its Option B is the concrete reachable instance of this gap. If that option is chosen, the two must co-land or this plan must land first.
-- `Documents/Plans/Network/Architecture_WireFormatPairing.md`, `Documents/Plans/Network/WireFormatPairingGameSide.md`, `Documents/Plans/Network/FleetRequestsByGuid.md`: incompatible wire changes may share one new `kuiProtocolVersion` only when atomically co-landed; otherwise each incompatible release bumps beyond the current version 7. Whatever rule this plan establishes governs those bumps.
+- The completed wire-format pairing and FleetGuid request re-key changes: incompatible wire changes may share one new `kuiProtocolVersion` only when atomically co-landed; otherwise each incompatible release bumps beyond the current version 7. Whatever rule this plan establishes governs those bumps.
 
 ## Notes
 

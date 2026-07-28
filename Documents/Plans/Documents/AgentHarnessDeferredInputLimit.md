@@ -7,7 +7,7 @@ The `key` command reads `holdFrames` as `int64_t`, narrows it to `int32_t`, and 
 
 Every deferred command is subject to the `AgentCommandServer` liveness budget of `kiDeferredTimeoutDrains = 1800` (`Engine/Source/Agent/AgentCommandServer.h:67-69`), with the `Drain()` timeout evaluated before its deferred poll (`Engine/Source/Agent/AgentCommandServer.cpp:252-261`). On the client, `Drain()` starts the script before `AgentInput::AdvanceFrame()` (`Engine/Source/Main.cpp:372-383`); a key script requires one press frame, `holdFrames` hold frames, and a final completion frame (`AgentScriptKind::kKey` case in `Engine/Source/Agent/AgentInput.cpp:329-356`). The poll completes two drains after a positive hold's final hold frame, so the current safe maximum is `kiDeferredTimeoutDrains - 2 = 1798` frames. A `holdFrames:4800` request was observed to fail after roughly 15.6 seconds with the deferred timeout even while the key script continued; three sequential `holdFrames:1500` requests succeeded.
 
-This is a pre-existing, out-of-scope residual from `DisabledPassGatingPerfAudit`. It is not the single-in-flight/concurrency root owned by `Documents/Plans/Network/AgentTransportConcurrentCommands.md`: this plan does not change transport sequencing or allow concurrent commands.
+This is a pre-existing, out-of-scope residual from `DisabledPassGatingPerfAudit`. It is not the single-in-flight/concurrency root: this plan does not change transport sequencing or allow concurrent commands.
 
 ## Design
 

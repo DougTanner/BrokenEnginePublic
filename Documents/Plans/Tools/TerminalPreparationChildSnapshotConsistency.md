@@ -20,7 +20,7 @@ If a Plan file changes on disk between the scan and the loop:
 
 The shape predates the recent change. The prior implementation also rendered from the snapshot; it merely had a whole-file digest comparison in front of it, which happened to conflict on any divergence. Removing that comparison (correctly — it refused legitimately reconciled bodies) left the snapshot read as the only classifier input.
 
-**Scope interaction that deferred this.** The immediately-prior change's approved design (`Documents/Plans/Tools/TerminalManifestReconciliationTolerance.md`, Design section 1) explicitly required "no new parsing, no new file I/O, no new helper" for this loop, and listed `ParsePlanBytes`, `BuildPlans`, and the `Plan` struct as out of scope. Re-reading and re-parsing per child was therefore out of bounds there, and is exactly what this Plan authorizes.
+**Scope interaction that deferred this.** The immediately-prior change's approved design explicitly required "no new parsing, no new file I/O, no new helper" for this loop, and listed `ParsePlanBytes`, `BuildPlans`, and the `Plan` struct as out of scope. Re-reading and re-parsing per child was therefore out of bounds there, and is exactly what this Plan authorizes.
 
 ## Design
 
@@ -80,6 +80,8 @@ No determinism/CRC, wire protocol, serialization, save/replay, threading, or all
 - All other `Test-WorktreeCliPlanScheduler.ps1` cases and `plan validate` behaviour are unchanged.
 
 ## Coordination
+
+`Documents/Plans/Tools/ReducePlanSchedulerCommandLayer.md` moves the body this Plan changes, `RunPrepare`, into `PlanSchedulerTerminalCommands.cpp`. This is a nondirectional same-body overlap, not a prerequisite: neither Plan declares a metadata dependency. Whichever lands second reconciles this Plan's fresh-byte classification behavior into the moved body, re-cites symbols and fixture lines, and preserves the command-layer split.
 
 `Documents/Plans/Tools/ReducePlanScheduler.md` extracts `ParsePlanBytes`, `ParsePlan`, `BuildPlans`, `NormalizePlanPath`, `ReadBytes`, and `struct Plan` into a new `PlanMetadata.cpp`/`.h` pair while keeping every `Run*` handler, including `RunPrepare`, in `PlanScheduler.cpp`. Root cause and boundary differ (file size versus which bytes a decision reads), and this Plan is implementable in either order, so **no metadata dependency is declared**: an edge would block this Plan behind a large Tier-3 split it does not need.
 

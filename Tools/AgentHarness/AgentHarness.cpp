@@ -10,7 +10,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -37,6 +39,78 @@ namespace toolcli
 			kReadinessFailure,
 		};
 
+		struct SocketCommandArguments
+		{
+			int64_t iPort = 0;
+			int64_t iTimeoutMilliseconds = kiDefaultResponseTimeoutMilliseconds;
+			std::wstring owner;
+			std::string inlineRequest;
+			bool bReadStandardInput = false;
+		};
+
+		class ScopedWindowsSockets
+		{
+		public:
+			ScopedWindowsSockets() = default;
+			~ScopedWindowsSockets()
+			{
+				if (mbInitialized)
+				{
+					::WSACleanup();
+				}
+			}
+
+			ScopedWindowsSockets(const ScopedWindowsSockets&) = delete;
+			ScopedWindowsSockets& operator=(const ScopedWindowsSockets&) = delete;
+
+			bool Initialize()
+			{
+				WSADATA data {};
+				mbInitialized = ::WSAStartup(MAKEWORD(2, 2), &data) == 0;
+				return mbInitialized;
+			}
+
+		private:
+			bool mbInitialized = false;
+		};
+
+		class ScopedSocket
+		{
+		public:
+			ScopedSocket() = default;
+			~ScopedSocket()
+			{
+				Reset();
+			}
+
+			ScopedSocket(const ScopedSocket&) = delete;
+			ScopedSocket& operator=(const ScopedSocket&) = delete;
+
+			bool Create()
+			{
+				Reset();
+				mSocket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+				return mSocket != INVALID_SOCKET;
+			}
+
+			[[nodiscard]] SOCKET Get() const
+			{
+				return mSocket;
+			}
+
+			void Reset()
+			{
+				if (mSocket != INVALID_SOCKET)
+				{
+					::closesocket(mSocket);
+					mSocket = INVALID_SOCKET;
+				}
+			}
+
+		private:
+			SOCKET mSocket = INVALID_SOCKET;
+		};
+
 		void PrintUsage(std::ostream& rOutput)
 		{
 			rOutput << "Usage: AgentHarness.exe --owner TOKEN --port N [--timeout-ms 15000] -\n";
@@ -45,16 +119,25 @@ namespace toolcli
 			rOutput << "       AgentHarness.exe --help\n";
 		}
 
-		std::string ReadAllStandardInput()
+		bool ReadAllStandardInput(std::string& rInput)
 		{
-			std::string input;
 			char pBuffer[4096] {};
 			size_t uiRead = 0;
 			while ((uiRead = std::fread(pBuffer, 1, sizeof(pBuffer), stdin)) > 0)
 			{
-				input.append(pBuffer, uiRead);
+				if (rInput.size() > kuiMaxRequestBytes || uiRead > kuiMaxRequestBytes - rInput.size())
+				{
+					Fail("request exceeds 1 MiB");
+					return false;
+				}
+				rInput.append(pBuffer, uiRead);
 			}
-			return input;
+			if (std::ferror(stdin))
+			{
+				Fail("standard input read failed");
+				return false;
+			}
+			return true;
 		}
 
 		bool RefreshHeartbeatIfDue(const std::wstring& rOwner, std::chrono::steady_clock::time_point& rNextHeartbeatDue)
@@ -284,14 +367,9 @@ namespace toolcli
 			return ::ioctlsocket(socket, FIONBIO, &uiBlocking) == 0;
 		}
 
-		int RunSocketCommand(int iArgumentCount, wchar_t* pArgumentValues[])
+		bool ParseSocketCommandArguments(int iArgumentCount, wchar_t* pArgumentValues[], SocketCommandArguments& rArguments)
 		{
-			int64_t iPort = 0;
-			int64_t iTimeoutMilliseconds = kiDefaultResponseTimeoutMilliseconds;
-			bool bReadStandardInput = false;
-			std::wstring owner;
-			std::string request;
-			bool bHaveRequest = false;
+			bool bHaveRequestSource = false;
 
 			for (int i = 1; i < iArgumentCount; ++i)
 			{
@@ -302,243 +380,298 @@ namespace toolcli
 					{
 						Fail("socket option requires a value");
 						PrintUsage(std::cerr);
-						return kiExitFailure;
+						return false;
 					}
 					if (argument == L"--port")
 					{
-						iPort = std::wcstoll(pArgumentValues[i], nullptr, 10);
+						wchar_t* pEnd = nullptr;
+						rArguments.iPort = std::wcstoll(pArgumentValues[i], &pEnd, 10);
+						if (pEnd == pArgumentValues[i] || *pEnd != L'\0')
+						{
+							Fail("--port must be in the range 1..65535");
+							PrintUsage(std::cerr);
+							return false;
+						}
 					}
 					else if (argument == L"--timeout-ms")
 					{
-						iTimeoutMilliseconds = std::wcstoll(pArgumentValues[i], nullptr, 10);
+						wchar_t* pEnd = nullptr;
+						rArguments.iTimeoutMilliseconds = std::wcstoll(pArgumentValues[i], &pEnd, 10);
+						if (pEnd == pArgumentValues[i] || *pEnd != L'\0')
+						{
+							Fail("--timeout-ms must be in the range 1..600000");
+							PrintUsage(std::cerr);
+							return false;
+						}
 					}
 					else
 					{
-						owner = pArgumentValues[i];
+						rArguments.owner = pArgumentValues[i];
 					}
 				}
 				else if (argument == L"-")
 				{
-					bReadStandardInput = true;
+					if (bHaveRequestSource)
+					{
+						Fail("exactly one request JSON source is required");
+						PrintUsage(std::cerr);
+						return false;
+					}
+					rArguments.bReadStandardInput = true;
+					bHaveRequestSource = true;
 				}
 				else
 				{
-					request = WideToUtf8(argument);
-					bHaveRequest = true;
+					if (bHaveRequestSource)
+					{
+						Fail("exactly one request JSON source is required");
+						PrintUsage(std::cerr);
+						return false;
+					}
+					rArguments.inlineRequest = WideToUtf8(argument);
+					bHaveRequestSource = true;
 				}
 			}
 
-			if (iPort <= 0 || iPort > 65535)
+			if (rArguments.iPort <= 0 || rArguments.iPort > 65535)
 			{
 				Fail("--port must be in the range 1..65535");
 				PrintUsage(std::cerr);
-				return kiExitFailure;
+				return false;
 			}
-			if (iTimeoutMilliseconds <= 0 || iTimeoutMilliseconds > 600000)
+			if (rArguments.iTimeoutMilliseconds <= 0 || rArguments.iTimeoutMilliseconds > 600000)
 			{
 				Fail("--timeout-ms must be in the range 1..600000");
 				PrintUsage(std::cerr);
-				return kiExitFailure;
+				return false;
 			}
-			if (owner.empty())
+			if (rArguments.owner.empty())
 			{
 				Fail("--owner is required");
 				PrintUsage(std::cerr);
-				return kiExitFailure;
+				return false;
 			}
-			if (bReadStandardInput)
-			{
-				request = ReadAllStandardInput();
-				bHaveRequest = true;
-			}
-			if (!bHaveRequest || request.empty())
+			if (!bHaveRequestSource)
 			{
 				Fail("no request JSON provided");
 				PrintUsage(std::cerr);
-				return kiExitFailure;
+				return false;
 			}
-			if (request.size() > kuiMaxRequestBytes)
-			{
-				Fail("request exceeds 1 MiB");
-				return kiExitFailure;
-			}
-			if (!RefreshHarnessHeartbeat(owner))
-			{
-				Fail("harness heartbeat refresh failed");
-				return kiExitFailure;
-			}
-			std::chrono::steady_clock::time_point nextHeartbeatDue = std::chrono::steady_clock::now() + std::chrono::milliseconds(kiHeartbeatIntervalMilliseconds);
+			return true;
+		}
 
-			WSADATA windowsSocketsData {};
-			if (::WSAStartup(MAKEWORD(2, 2), &windowsSocketsData) != 0)
-			{
-				Fail("WSAStartup failed");
-				return kiExitFailure;
-			}
+		std::optional<std::string> ExchangeFramedSocketCommand(ScopedSocket& rSocket, const SocketCommandArguments& rArguments, const std::string& rRequest, std::chrono::steady_clock::time_point& rNextHeartbeatDue)
+		{
 			sockaddr_in address {};
 			address.sin_family = AF_INET;
-			address.sin_port = ::htons(static_cast<uint16_t>(iPort));
+			address.sin_port = ::htons(static_cast<uint16_t>(rArguments.iPort));
 			::inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
 
-			SOCKET socket = INVALID_SOCKET;
-			int iResult = kiExitFailure;
-			do
+			// Retry the connect until the overall --timeout-ms deadline so a peer whose listen socket is not yet
+			// bound (freshly launched) is tolerated. Each try gets its own short timeout, and a failed non-blocking
+			// connect leaves the socket unusable, so it is closed and recreated every attempt. A dead port therefore
+			// consumes the full budget by design.
+			const std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
+			const std::chrono::steady_clock::time_point deadline = startTime + std::chrono::milliseconds(rArguments.iTimeoutMilliseconds);
+			bool bConnected = false;
+			bool bSocketCreateFailed = false;
+			bool bHeartbeatFailed = false;
+			for (;;)
 			{
-				// Retry the connect until the overall --timeout-ms deadline so a peer whose listen socket is not yet
-				// bound (freshly launched) is tolerated. Each try gets its own short timeout, and a failed non-blocking
-				// connect leaves the socket unusable, so it is closed and recreated every attempt. A dead port therefore
-				// consumes the full budget by design.
-				const std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
-				const std::chrono::steady_clock::time_point deadline = startTime + std::chrono::milliseconds(iTimeoutMilliseconds);
-				bool bConnected = false;
-				bool bSocketCreateFailed = false;
-				bool bHeartbeatFailed = false;
-				for (;;)
+				if (std::chrono::steady_clock::now() >= deadline)
 				{
-					if (std::chrono::steady_clock::now() >= deadline)
-					{
-						break;
-					}
-					if (!RefreshHeartbeatIfDue(owner, nextHeartbeatDue))
-					{
-						bHeartbeatFailed = true;
-						break;
-					}
-					if (std::chrono::steady_clock::now() >= deadline)
-					{
-						break;
-					}
-					socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-					if (socket == INVALID_SOCKET)
-					{
-						bSocketCreateFailed = true;
-						break;
-					}
-					if (ConnectWithTimeout(socket, address, kiConnectAttemptTimeoutMilliseconds))
-					{
-						bConnected = true;
-						break;
-					}
-					::closesocket(socket);
-					socket = INVALID_SOCKET;
-					if (std::chrono::steady_clock::now() >= deadline)
-					{
-						break;
-					}
-					if (!RefreshHeartbeatIfDue(owner, nextHeartbeatDue))
-					{
-						bHeartbeatFailed = true;
-						break;
-					}
-					std::chrono::milliseconds retrySleep(kiConnectRetrySleepMilliseconds);
-					const std::chrono::milliseconds heartbeatSleep = std::chrono::duration_cast<std::chrono::milliseconds>(nextHeartbeatDue - std::chrono::steady_clock::now());
-					if (heartbeatSleep < retrySleep)
-					{
-						retrySleep = heartbeatSleep;
-					}
-					if (retrySleep.count() > 0)
-					{
-						std::this_thread::sleep_for(retrySleep);
-					}
-				}
-				if (!bConnected)
-				{
-					if (bHeartbeatFailed)
-					{
-						Fail("harness heartbeat refresh failed");
-					}
-					else if (bSocketCreateFailed)
-					{
-						Fail("socket creation failed");
-					}
-					else
-					{
-						int64_t iElapsedMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
-						Fail("connect to 127.0.0.1 failed or timed out after " + std::to_string(iElapsedMilliseconds) + " ms");
-					}
 					break;
 				}
-				u_long uiNonBlocking = 1;
-				if (::ioctlsocket(socket, FIONBIO, &uiNonBlocking) != 0)
+				if (!RefreshHeartbeatIfDue(rArguments.owner, rNextHeartbeatDue))
 				{
-					Fail("could not configure connected socket for non-blocking I/O");
+					bHeartbeatFailed = true;
 					break;
 				}
-
-				uint32_t uiPayloadLength = static_cast<uint32_t>(request.size());
-				unsigned char pLengthPrefix[4] =
+				if (std::chrono::steady_clock::now() >= deadline)
 				{
-					static_cast<unsigned char>(uiPayloadLength & 0xffu),
-					static_cast<unsigned char>((uiPayloadLength >> 8) & 0xffu),
-					static_cast<unsigned char>((uiPayloadLength >> 16) & 0xffu),
-					static_cast<unsigned char>((uiPayloadLength >> 24) & 0xffu),
-				};
-				SocketOperationResult eSendResult = SendAll(socket, reinterpret_cast<const char*>(pLengthPrefix), sizeof(pLengthPrefix), iTimeoutMilliseconds, owner, nextHeartbeatDue);
-				if (eSendResult == SocketOperationResult::kSuccess)
-				{
-					eSendResult = SendAll(socket, request.data(), request.size(), iTimeoutMilliseconds, owner, nextHeartbeatDue);
-				}
-				if (eSendResult != SocketOperationResult::kSuccess)
-				{
-					FailSocketOperation(eSendResult, "send failed");
 					break;
 				}
-
-				unsigned char pResponseLengthPrefix[4] {};
-				SocketOperationResult eReceiveResult = ReceiveAll(socket, reinterpret_cast<char*>(pResponseLengthPrefix), sizeof(pResponseLengthPrefix), iTimeoutMilliseconds, owner, nextHeartbeatDue);
-				if (eReceiveResult != SocketOperationResult::kSuccess)
+				if (!rSocket.Create())
 				{
-					FailSocketOperation(eReceiveResult, "no response (timed out or peer closed)");
+					bSocketCreateFailed = true;
 					break;
 				}
-				uint32_t uiResponseLength = static_cast<uint32_t>(pResponseLengthPrefix[0]) |
-					(static_cast<uint32_t>(pResponseLengthPrefix[1]) << 8) |
-					(static_cast<uint32_t>(pResponseLengthPrefix[2]) << 16) |
-					(static_cast<uint32_t>(pResponseLengthPrefix[3]) << 24);
-				if (uiResponseLength == 0 || uiResponseLength > kuiMaxResponseBytes)
+				if (ConnectWithTimeout(rSocket.Get(), address, kiConnectAttemptTimeoutMilliseconds))
 				{
-					Fail("response length out of range");
+					bConnected = true;
 					break;
 				}
-
-				std::string response(uiResponseLength, '\0');
-				eReceiveResult = ReceiveAll(socket, response.data(), uiResponseLength, iTimeoutMilliseconds, owner, nextHeartbeatDue);
-				if (eReceiveResult != SocketOperationResult::kSuccess)
+				rSocket.Reset();
+				if (std::chrono::steady_clock::now() >= deadline)
 				{
-					FailSocketOperation(eReceiveResult, "incomplete response (timed out or peer closed)");
 					break;
 				}
-				if (!RefreshHarnessHeartbeat(owner))
+				if (!RefreshHeartbeatIfDue(rArguments.owner, rNextHeartbeatDue))
+				{
+					bHeartbeatFailed = true;
+					break;
+				}
+				std::chrono::milliseconds retrySleep(kiConnectRetrySleepMilliseconds);
+				const std::chrono::milliseconds heartbeatSleep = std::chrono::duration_cast<std::chrono::milliseconds>(rNextHeartbeatDue - std::chrono::steady_clock::now());
+				if (heartbeatSleep < retrySleep)
+				{
+					retrySleep = heartbeatSleep;
+				}
+				if (retrySleep.count() > 0)
+				{
+					std::this_thread::sleep_for(retrySleep);
+				}
+			}
+			if (!bConnected)
+			{
+				if (bHeartbeatFailed)
 				{
 					Fail("harness heartbeat refresh failed");
-					break;
 				}
-				std::cout << response << '\n';
-				try
+				else if (bSocketCreateFailed)
 				{
-					nlohmann::json parsed = nlohmann::json::parse(response);
-					if (parsed.contains("ok") && parsed["ok"].is_boolean())
-					{
-						iResult = parsed["ok"].get<bool>() ? kiExitOk : kiExitStateConflict;
-					}
-					else
-					{
-						Fail("response missing boolean \"ok\" field");
-					}
+					Fail("socket creation failed");
 				}
-				catch (const std::exception& rException)
+				else
 				{
-					Fail(std::string("response is not valid JSON: ") + rException.what());
+					int64_t iElapsedMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
+					Fail("connect to 127.0.0.1 failed or timed out after " + std::to_string(iElapsedMilliseconds) + " ms");
 				}
+				return std::nullopt;
 			}
-			while (false);
-
-			if (socket != INVALID_SOCKET)
+			u_long uiNonBlocking = 1;
+			if (::ioctlsocket(rSocket.Get(), FIONBIO, &uiNonBlocking) != 0)
 			{
-				::closesocket(socket);
+				Fail("could not configure connected socket for non-blocking I/O");
+				return std::nullopt;
 			}
-			::WSACleanup();
-			return iResult;
+
+			uint32_t uiPayloadLength = static_cast<uint32_t>(rRequest.size());
+			unsigned char pLengthPrefix[4] =
+			{
+				static_cast<unsigned char>(uiPayloadLength & 0xffu),
+				static_cast<unsigned char>((uiPayloadLength >> 8) & 0xffu),
+				static_cast<unsigned char>((uiPayloadLength >> 16) & 0xffu),
+				static_cast<unsigned char>((uiPayloadLength >> 24) & 0xffu),
+			};
+			SocketOperationResult eSendResult = SendAll(rSocket.Get(), reinterpret_cast<const char*>(pLengthPrefix), sizeof(pLengthPrefix), rArguments.iTimeoutMilliseconds, rArguments.owner, rNextHeartbeatDue);
+			if (eSendResult == SocketOperationResult::kSuccess)
+			{
+				eSendResult = SendAll(rSocket.Get(), rRequest.data(), rRequest.size(), rArguments.iTimeoutMilliseconds, rArguments.owner, rNextHeartbeatDue);
+			}
+			if (eSendResult != SocketOperationResult::kSuccess)
+			{
+				FailSocketOperation(eSendResult, "send failed");
+				return std::nullopt;
+			}
+
+			unsigned char pResponseLengthPrefix[4] {};
+			SocketOperationResult eReceiveResult = ReceiveAll(rSocket.Get(), reinterpret_cast<char*>(pResponseLengthPrefix), sizeof(pResponseLengthPrefix), rArguments.iTimeoutMilliseconds, rArguments.owner, rNextHeartbeatDue);
+			if (eReceiveResult != SocketOperationResult::kSuccess)
+			{
+				FailSocketOperation(eReceiveResult, "no response (timed out or peer closed)");
+				return std::nullopt;
+			}
+			uint32_t uiResponseLength = static_cast<uint32_t>(pResponseLengthPrefix[0]) |
+				(static_cast<uint32_t>(pResponseLengthPrefix[1]) << 8) |
+				(static_cast<uint32_t>(pResponseLengthPrefix[2]) << 16) |
+				(static_cast<uint32_t>(pResponseLengthPrefix[3]) << 24);
+			if (uiResponseLength == 0 || uiResponseLength > kuiMaxResponseBytes)
+			{
+				Fail("response length out of range");
+				return std::nullopt;
+			}
+
+			std::string response(uiResponseLength, '\0');
+			eReceiveResult = ReceiveAll(rSocket.Get(), response.data(), uiResponseLength, rArguments.iTimeoutMilliseconds, rArguments.owner, rNextHeartbeatDue);
+			if (eReceiveResult != SocketOperationResult::kSuccess)
+			{
+				FailSocketOperation(eReceiveResult, "incomplete response (timed out or peer closed)");
+				return std::nullopt;
+			}
+			return response;
+		}
+
+		int PrintResponseAndInterpretExitCode(const std::string& rResponse)
+		{
+			std::cout << rResponse << '\n';
+			try
+			{
+				nlohmann::json parsed = nlohmann::json::parse(rResponse);
+				if (parsed.contains("ok") && parsed["ok"].is_boolean())
+				{
+					return parsed["ok"].get<bool>() ? kiExitOk : kiExitStateConflict;
+				}
+				Fail("response missing boolean \"ok\" field");
+			}
+			catch (const std::exception& rException)
+			{
+				Fail(std::string("response is not valid JSON: ") + rException.what());
+			}
+			return kiExitFailure;
+		}
+
+		int RunSocketCommand(int iArgumentCount, wchar_t* pArgumentValues[])
+		{
+			try
+			{
+				SocketCommandArguments arguments {};
+				if (!ParseSocketCommandArguments(iArgumentCount, pArgumentValues, arguments))
+				{
+					return kiExitFailure;
+				}
+				std::string request = arguments.inlineRequest;
+				if (arguments.bReadStandardInput && !ReadAllStandardInput(request))
+				{
+					return kiExitFailure;
+				}
+				if (request.empty())
+				{
+					Fail("no request JSON provided");
+					PrintUsage(std::cerr);
+					return kiExitFailure;
+				}
+				if (request.size() > kuiMaxRequestBytes)
+				{
+					Fail("request exceeds 1 MiB");
+					return kiExitFailure;
+				}
+				if (!RefreshHarnessHeartbeat(arguments.owner))
+				{
+					Fail("harness heartbeat refresh failed");
+					return kiExitFailure;
+				}
+				std::chrono::steady_clock::time_point nextHeartbeatDue = std::chrono::steady_clock::now() + std::chrono::milliseconds(kiHeartbeatIntervalMilliseconds);
+
+				ScopedWindowsSockets windowsSockets;
+				if (!windowsSockets.Initialize())
+				{
+					Fail("WSAStartup failed");
+					return kiExitFailure;
+				}
+				ScopedSocket socket;
+				std::optional<std::string> response = ExchangeFramedSocketCommand(socket, arguments, request, nextHeartbeatDue);
+				if (!response)
+				{
+					return kiExitFailure;
+				}
+				if (!RefreshHarnessHeartbeat(arguments.owner))
+				{
+					Fail("harness heartbeat refresh failed");
+					return kiExitFailure;
+				}
+				return PrintResponseAndInterpretExitCode(*response);
+			}
+			catch (const std::exception&)
+			{
+				Fail("socket command failed");
+				return kiExitFailure;
+			}
+			catch (...)
+			{
+				Fail("socket command failed with an unknown exception");
+				return kiExitFailure;
+			}
 		}
 	}
 }

@@ -175,7 +175,7 @@ void PackChunks::LoadPackFiles()
 
 		// Trust boundary: iChunkCount comes from the manifest header; a garbage count would drive an unbounded resize
 		// (bad_alloc terminate) or a torn read. Bound it by what the file can actually hold before allocating.
-		int64_t iChunkTableOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::DataHeader)));
+		constexpr int64_t iChunkTableOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::DataHeader)));
 		manifestStream.seekg(0, std::ios::end);
 		int64_t iManifestSize = static_cast<int64_t>(manifestStream.tellg());
 		int64_t iMaxChunks = (iManifestSize - iChunkTableOffset) / static_cast<int64_t>(sizeof(common::ChunkLocation));

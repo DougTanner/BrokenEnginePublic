@@ -197,7 +197,7 @@ void ImGuiManager::SetupThemeGeometry(float fUiScale)
 	// leaves it at 1.0f and relies on the first Prepare to apply gUiFontScale.
 	// FontSizeBase resets to 0.0f and self-heals (re-derived from the default font's LegacySize on next font update).
 	ImGuiStyle defaultStyle;
-	std::copy(std::begin(rStyle.Colors), std::end(rStyle.Colors), std::begin(defaultStyle.Colors));
+	std::copy(std::begin(rStyle.Colors), std::end(rStyle.Colors), std::span(defaultStyle.Colors).begin());
 	rStyle = defaultStyle;
 
 	// WindowRounding stays small: RegisterOpaqueRect occlusion rects are rectangular, so with gOpaqueUi on, large rounding

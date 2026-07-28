@@ -211,7 +211,7 @@ void ClientSessionRuntime::PollAndDrain(const NetworkTimeState& rTimeState)
 	mrSession.ProcessReceivedGamePackets();
 	mrSession.ApplyReceivedStaticData();
 	mrSession.ApplyReceivedFullStates();
-	(void)mrSession.ApplyReceivedUpdates();
+	[[maybe_unused]] const bool bHasNewData = mrSession.ApplyReceivedUpdates();
 
 	SendAckAndFlush();
 }

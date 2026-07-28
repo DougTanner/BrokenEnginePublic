@@ -11,8 +11,9 @@ allowed-tools: [Read, Bash]
 
 Claude Code runs every delegated reviewer or auditor role — `plan-audit`,
 `repo-code-review`, `glsl-review`, `adversarial-review`, `session-audit`,
-`next-plan-review`, and external review lenses — on Codex/Sol through this
-skill. A `/codex-review` invocation of a target skill constitutes the
+and external review lenses — on Codex/Sol through this skill. Parent/manager
+orchestrators that dispatch their own child reviewer, including manually
+triggered `/next-plan-review`, are excluded. A `/codex-review` invocation of a target skill constitutes the
 delegated-`reviewer` execution context; it is not an "inline run" in the target
 skills' vocabulary, and `/verify-changes` records it as the reviewer pass. Codex
 callers must stop instead of invoking this skill recursively — their reviewer

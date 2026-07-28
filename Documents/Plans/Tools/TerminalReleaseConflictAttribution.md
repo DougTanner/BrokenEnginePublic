@@ -68,6 +68,8 @@ No determinism/CRC, wire protocol, serialization, save/replay, threading, alloca
 
 ## Coordination
 
+`Documents/Plans/Tools/ReducePlanSchedulerCommandLayer.md` moves the body this Plan changes, `RunReleaseAfterLanding`, into `PlanSchedulerTerminalCommands.cpp`. This is a nondirectional same-body overlap, not a prerequisite: neither Plan declares a metadata dependency. Whichever lands second reconciles this Plan's blocker-attribution behavior into the moved body, re-cites symbols and fixture lines, and preserves the command-layer split.
+
 `Documents/Plans/Tools/ReducePlanScheduler.md` splits the metadata parse and dependency-graph core out of `PlanScheduler.cpp` while keeping every `Run*` handler — including `RunReleaseAfterLanding` — in that file. Different boundary (file size versus conflict attribution), no ordering requirement, no metadata edge; whichever lands second re-cites line numbers.
 
 `Documents/Plans/Tools/TerminalPreparationChildSnapshotConsistency.md` and `Documents/Plans/Tools/AtomicWritePlanFileVisibility.md` both work in `RunPrepare` and in the terminal-preparation block of `.agents/scripts/Test-WorktreeCliPlanScheduler.ps1`. This Plan touches neither `RunPrepare` nor that fixture block — its coverage goes in the release block at `:299-306` — so there is no ordering requirement; only fixture line numbers move.

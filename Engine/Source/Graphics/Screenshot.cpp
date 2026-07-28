@@ -42,7 +42,7 @@ void ReportCaptureFailure(std::string_view error, bool bPublishResult, uint64_t 
 	}
 }
 
-bool IsBgra(VkFormat vkFormat);
+constexpr bool IsBgra(VkFormat vkFormat);
 
 } // namespace
 
@@ -357,18 +357,18 @@ const char* FormatName(VkFormat vkFormat)
 	}
 }
 
-bool IsFourByteColor(VkFormat vkFormat)
+constexpr bool IsFourByteColor(VkFormat vkFormat)
 {
 	return vkFormat == VK_FORMAT_R8G8B8A8_UNORM || vkFormat == VK_FORMAT_R8G8B8A8_SRGB
 		|| vkFormat == VK_FORMAT_B8G8R8A8_UNORM || vkFormat == VK_FORMAT_B8G8R8A8_SRGB;
 }
 
-bool IsBgra(VkFormat vkFormat)
+constexpr bool IsBgra(VkFormat vkFormat)
 {
 	return vkFormat == VK_FORMAT_B8G8R8A8_UNORM || vkFormat == VK_FORMAT_B8G8R8A8_SRGB;
 }
 
-bool IsSingleChannelNormalizable(VkFormat vkFormat)
+constexpr bool IsSingleChannelNormalizable(VkFormat vkFormat)
 {
 	return vkFormat == VK_FORMAT_R16_UNORM || vkFormat == VK_FORMAT_R16_SFLOAT || vkFormat == VK_FORMAT_R32_SFLOAT;
 }

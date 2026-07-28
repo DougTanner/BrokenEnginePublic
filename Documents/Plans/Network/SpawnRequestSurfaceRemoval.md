@@ -79,7 +79,7 @@ The listed scope is both target and ceiling. Make the smallest complete change t
 - Spawn/respawn *policy*. `QueueSpawnForClient`, `mClientsWaitingForSpawn`, `mDeadClientIds`, `mProcessedClientIds`, `NewClients`, and `FinalizeNewClients` keep their current behavior — the only change is that the always-empty second entry point disappears.
 - The live fleet spawn packets `kClientSpawnIntoFleetRequest` / `kClientRespawnInFleetRequest` and their handlers, contract rows, and `HudScreen.cpp` callers.
 - Reordering, renaming, or renumbering any surviving `PacketType` or `GamePacketType` enumerator beyond the shift the deletion mechanically causes.
-- Game message wire-format pairing (`kServerAssignPlayer`, `kServerPlayerState`, `kServerFleetSync`) — tracked by `Documents/Plans/Network/WireFormatPairingGameSide.md`; byte-identical there, no interaction with this bump.
+- Game message wire-format pairing (`kServerAssignPlayer`, `kServerPlayerState`, `kServerFleetSync`) — completed separately; byte-identical there, no interaction with this bump.
 - The `StatusChange` batch codec and its version gate — `Documents/Plans/Network/StatusChangeWireVersionGate.md`.
 
 ## Risk tier and invariants
@@ -101,10 +101,10 @@ The listed scope is both target and ceiling. Make the smallest complete change t
 
 ## Coordination
 
-- Protocol/version batch with `Documents/Plans/Network/FleetRequestsByGuid.md`: these wire breaks may share one new `kuiProtocolVersion` bump only when atomically co-landed; otherwise each incompatible release bumps beyond the current version 7. (The unsubscribe-epoch wire change already consumed version 7 independently.)
+- Protocol/version batch with the completed FleetGuid request re-key: these wire breaks may share one new `kuiProtocolVersion` bump only when atomically co-landed; otherwise each incompatible release bumps beyond the current version 7. (The unsubscribe-epoch wire change already consumed version 7 independently.)
 - `Documents/Plans/Network/StatusChangeWireVersionGate.md` decides when a wire-layout change must bump `kuiProtocolVersion`; whichever of the two lands second follows the rule the first established.
 
 ## Notes
 
 - Deletion is not cheaper than relocation on the wire — both renumber and both bump. It is cheaper everywhere else: no new enumerator, contract row, queue, send wrapper, or decode branch, and one more dead function removed.
-- `Documents/Plans/Network/ServerSpawnRateBounding.md` names `ProcessSpawnRequests` in its out-of-scope boundary. That is a boundary statement, not a dependency; if it lands after this plan, the reference is simply stale and needs no action here.
+- The completed server spawn-rate-bound change named `ProcessSpawnRequests` in its out-of-scope boundary. That is a boundary statement, not a dependency, and needs no action here.

@@ -206,7 +206,7 @@ int64_t CommitPlacement(CellContext& rContext, common::crc_t crc, XMFLOAT2 f2Wor
 bool PlaceAnchor(CellContext& rContext, common::crc_t crc, float fTargetLocalX, float fTargetLocalY, float fRotation, XMFLOAT2& rAcceptedLocalOut)
 {
 	const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(crc);
-	XMFLOAT2 rectHull[4];
+	XMFLOAT2 rectHull[4] {};
 	int32_t iLocalCount = 0;
 	const XMFLOAT2* pLocalHull = LocalHull(rTemplate, rectHull, iLocalCount);
 
@@ -240,7 +240,7 @@ bool PlaceAnchor(CellContext& rContext, common::crc_t crc, float fTargetLocalX, 
 bool TryTouchPlace(CellContext& rContext, common::crc_t crc, int64_t iHost, float fDir, float fRotation, int64_t& rPlacedIndexOut)
 {
 	const IslandTemplate& rTemplate = gpIslandTerrain->mIslands.at(crc);
-	XMFLOAT2 rectHull[4];
+	XMFLOAT2 rectHull[4] {};
 	int32_t iLocalCount = 0;
 	const XMFLOAT2* pLocalHull = LocalHull(rTemplate, rectHull, iLocalCount);
 

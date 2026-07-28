@@ -39,7 +39,7 @@ bool CurveWidget(std::string_view label, CurveData& rCurve)
 		ImPlot::SetupAxesLimits(0.0, 1.0, static_cast<double>(fYMin), static_cast<double>(fYMax), ImPlotCond_Always);
 
 		// Faint vertical tick per spread-pass sample position (drawn first so it sits behind the curve).
-		float pfPassTicks[shaders::kiMaxSpreadPasses];
+		float pfPassTicks[shaders::kiMaxSpreadPasses] {};
 		for (int i = 0; i < shaders::kiMaxSpreadPasses; ++i)
 		{
 			float fT = 0.5f;
@@ -65,8 +65,8 @@ bool CurveWidget(std::string_view label, CurveData& rCurve)
 		}
 
 		// Curve polyline (256 samples through the monotone-cubic evaluator).
-		float pfX[kiCurveSamples + 1];
-		float pfY[kiCurveSamples + 1];
+		float pfX[kiCurveSamples + 1] {};
+		float pfY[kiCurveSamples + 1] {};
 		for (int i = 0; i <= kiCurveSamples; ++i)
 		{
 			float fT = static_cast<float>(i) / static_cast<float>(kiCurveSamples);

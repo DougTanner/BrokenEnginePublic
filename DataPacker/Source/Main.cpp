@@ -400,6 +400,14 @@ bool MainThread(int argc, char* argv[])
 	return bSuccess;
 }
 
+bool MaterializeData(char* argv[])
+{
+	common::ThreadLocal threadLocal(1024, std::nullopt, false);
+	std::array<char*, 4> fileManagerArguments { argv[0], argv[2], argv[3], argv[4] };
+	auto pFileManager = std::make_unique<FileManager>(fileManagerArguments, FileManager::InitializationMode::kDataOnly);
+	return gpFileManager->EnsureLocal(FileManager::OutputRoot::kData) != FileManager::EnsureLocalResult::kCancelled;
+}
+
 int main(int argc, char* argv[])
 {
 	// Prevent multiple instances from running simultaneously
@@ -415,6 +423,16 @@ int main(int argc, char* argv[])
 
 	auto runOnce = [&]() -> bool
 	{
+		if (argc >= 2 && std::string_view(argv[1]) == "--materialize-data")
+		{
+			// CLI trust boundary: data materialization takes exactly the two input roots and output Data path
+			if (argc != 5)
+			{
+				std::printf("--materialize-data requires exactly <engine-data> <project-data> <output-data>\n");
+				return false;
+			}
+			return MaterializeData(argv);
+		}
 		if (argc >= 2 && std::string_view(argv[1]).starts_with("--rdo-sweep"))
 		{
 			// CLI trust boundary: each sweep mode takes exactly one image/intermediate path

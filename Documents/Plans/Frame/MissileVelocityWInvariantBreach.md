@@ -87,7 +87,7 @@ Tier 3 — the change alters bits inside the `/fp:strict` CRC'd deterministic ti
 
 ## Coordination
 
-- Frame version/save/replay batch with `Documents/Plans/Frame/MissileTransferSpawnAttributes.md`, `Documents/Plans/Frame/TransferArrivalGracePeriodDiscarded.md`, and `Documents/Plans/Frame/PlayerTransferUuidPreservation.md`: all shift CRC'd tick state, so co-landing consolidates the save/replay invalidation into one window. There is no last-lander bump to wait for — the plan that anchored this batch has landed and consumed its own collection bumps (`MissilesPostRender` 7→8, `PlayersPostRender` 18→19, `SpaceshipsInterpolate` 1→2) — so a member landing alone owns its own increment of the `Frame.cpp:36` base literal.
+- Frame version/save/replay batch with `Documents/Plans/Frame/MissileTransferSpawnAttributes.md` and `Documents/Plans/Frame/TransferArrivalGracePeriodDiscarded.md`: all remaining members shift CRC'd tick state, so co-landing consolidates the save/replay invalidation into one window. The completed player-transfer preservation work already consumed its collection bumps (`MissilesPostRender` 7→8, `PlayersPostRender` 18→19, `SpaceshipsInterpolate` 1→2), so a member landing alone owns its own increment of the `Frame.cpp:36` base literal.
 - `Documents/Plans/Frame/MissileTransferSpawnAttributes.md` also bumps `MissilesPostRender::kiVersion` and edits the same missile transfer seam. Do not interleave: whichever lands second re-verifies the other's citations in `Missiles.cpp` / `MissilesUpdate.cpp` against current source first.
 
 ## Notes

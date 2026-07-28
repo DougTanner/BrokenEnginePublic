@@ -69,5 +69,5 @@ Implement in this order so every intermediate edit remains comprehensible and bu
 
 ## Notes
 
-- Duplicate mapping: `PipelineDescriptorInfosRightSize.md` owns `PipelineInfo` storage and `WindowedLightingDispatch.md` owns windowed-lighting behavior; the completed shadow-dispatch and registration-ownership plans have been removed at completion. No live plan owns this world lighting/shadow construction boundary.
+- Duplicate mapping: completed descriptor-info right-sizing established `PipelineInfo` storage and `WindowedLightingDispatch.md` owns windowed-lighting behavior; the completed shadow-dispatch and registration-ownership plans have been removed at completion. No live plan owns this world lighting/shadow construction boundary.
 - The metadata dependency is sufficient directional coordination. Do not edit `WindowedLightingDispatch.md` for this reduction; after its completion, this plan is the sole owner of the extraction.

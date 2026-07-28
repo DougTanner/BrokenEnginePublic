@@ -80,12 +80,12 @@ namespace toolcli
 			FailBuild(std::string(operation) + " failed (Windows error " + std::to_string(::GetLastError()) + ")");
 		}
 
-		std::optional<ProcessResult> RunBuildProcess(const std::filesystem::path& rExecutable, const std::vector<std::wstring>& rArguments, bool bCaptureOutput)
+		std::optional<ProcessResult> RunBuildProcess(const std::filesystem::path& rExecutable, const std::vector<std::wstring>& rArguments)
 		{
 			RunProcessOptions options;
-			options.bCaptureOutput = bCaptureOutput;
+			options.bCaptureOutput = true;
 			options.bKillOnJobClose = true;
-			options.failureSink = Fail;
+			options.failureSink = FailBuild;
 			return RunProcess(&rExecutable, rArguments, options);
 		}
 
@@ -111,18 +111,22 @@ namespace toolcli
 				{
 					std::wstring name = iAttempt == 0 ? baseName + L".log" : baseName + L"-" + std::to_wstring(iAttempt) + L".log";
 					std::filesystem::path candidate = rDirectory / name;
-					Handle hFile(::CreateFileW(candidate.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr));
-					if (hFile.IsValid())
+					const std::filesystem::path extendedCandidate = ExtendedLengthPath(candidate);
+					const HANDLE hRawFile = ::CreateFileW(extendedCandidate.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+					if (hRawFile == INVALID_HANDLE_VALUE)
 					{
-						mhFile = std::move(hFile);
-						mPath = std::move(candidate);
-						return true;
+						const DWORD uiError = ::GetLastError();
+						if (uiError != ERROR_FILE_EXISTS)
+						{
+							FailBuild("create retained build log failed (Windows error " + std::to_string(uiError) + ")");
+							return false;
+						}
+						continue;
 					}
-					if (::GetLastError() != ERROR_FILE_EXISTS)
-					{
-						FailBuildWindows("create retained build log");
-						return false;
-					}
+					Handle hFile(hRawFile);
+					mhFile = std::move(hFile);
+					mPath = std::move(candidate);
+					return true;
 				}
 				FailBuild("could not create a collision-free retained build log name");
 				return false;
@@ -376,7 +380,7 @@ namespace toolcli
 			}
 
 			std::vector<std::wstring> arguments = { vswherePath.native(), L"-latest", L"-products", L"*", L"-requires", L"Microsoft.Component.MSBuild", L"-find", L"MSBuild\\**\\Bin\\MSBuild.exe" };
-			std::optional<ProcessResult> result = RunBuildProcess(vswherePath, arguments, true);
+			std::optional<ProcessResult> result = RunBuildProcess(vswherePath, arguments);
 			if (!result || result->uiExitCode != 0)
 			{
 				return std::nullopt;
@@ -430,10 +434,15 @@ namespace toolcli
 			std::wstring lockName = ToLowerInvariant(rTarget.stem().native()) + L".lock";
 			rLockPath = lockDirectory / lockName;
 			int64_t iWaitSeconds = GetBuildLockWaitSeconds();
-			for (int64_t iElapsedSeconds = 0; iElapsedSeconds <= iWaitSeconds; iElapsedSeconds += 5)
+			const std::chrono::steady_clock::time_point waitStart = std::chrono::steady_clock::now();
+			const std::chrono::steady_clock::time_point deadline = waitStart + std::chrono::seconds(iWaitSeconds);
+			const std::filesystem::path extendedLockPath = ExtendedLengthPath(rLockPath);
+			while (true)
 			{
-				riWaitedSeconds = iElapsedSeconds;
-				Handle hLock(::CreateFileW(rLockPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_HIDDEN, nullptr));
+				const HANDLE hRawLock = ::CreateFileW(extendedLockPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_HIDDEN, nullptr);
+				const DWORD uiError = hRawLock == INVALID_HANDLE_VALUE ? ::GetLastError() : ERROR_SUCCESS;
+				Handle hLock(hRawLock);
+				riWaitedSeconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - waitStart).count();
 				if (hLock.IsValid())
 				{
 					std::string owner = std::to_string(::GetCurrentProcessId()) + "\n";
@@ -444,21 +453,27 @@ namespace toolcli
 					rpDisposition = "acquired";
 					return hLock;
 				}
-				if (::GetLastError() != ERROR_SHARING_VIOLATION && ::GetLastError() != ERROR_LOCK_VIOLATION)
+				if (uiError != ERROR_SHARING_VIOLATION && uiError != ERROR_LOCK_VIOLATION)
 				{
-					FailBuildWindows("acquire build lock");
+					FailBuild("acquire build lock failed (Windows error " + std::to_string(uiError) + ")");
 					return std::nullopt;
 				}
-				if (iElapsedSeconds == iWaitSeconds)
+				const std::chrono::steady_clock::time_point currentTime = std::chrono::steady_clock::now();
+				if (currentTime >= deadline)
 				{
-					break;
+					rpDisposition = "timeout";
+					FailBuild("timed out waiting for build lock after " + std::to_string(iWaitSeconds) + " seconds");
+					return std::nullopt;
 				}
-				std::wcerr << L"WorktreeCli: waiting for build lock on " << rTarget.stem().native() << L" (" << iElapsedSeconds << L"s elapsed)\n";
-				std::this_thread::sleep_for(std::chrono::seconds(5));
+				std::wcerr << L"WorktreeCli: waiting for build lock on " << rTarget.stem().native() << L" (" << riWaitedSeconds << L"s elapsed)\n";
+				const std::chrono::steady_clock::time_point sleepTime = std::chrono::steady_clock::now();
+				if (sleepTime >= deadline)
+				{
+					continue;
+				}
+				const std::chrono::steady_clock::duration remaining = deadline - sleepTime;
+				std::this_thread::sleep_for((std::min)(remaining, std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::seconds(5))));
 			}
-			rpDisposition = "timeout";
-			FailBuild("timed out waiting for build lock after " + std::to_string(iWaitSeconds) + " seconds");
-			return std::nullopt;
 		}
 
 		bool HasRequiredProperty(const std::vector<std::wstring>& rArguments, std::wstring_view propertyName)
@@ -491,20 +506,27 @@ namespace toolcli
 			return ToLowerInvariant(std::move(result));
 		}
 
-		bool InvalidateSelectedObjects(const std::filesystem::path& rMsBuild, const std::filesystem::path& rProject, const std::vector<std::wstring>& rBuildArguments, const std::vector<std::filesystem::path>& rSelectedFiles, RetainedLog& rLog, nlohmann::json& rInvalidatedObjects)
+		struct BuildItem
 		{
-			if (!HasRequiredProperty(rBuildArguments, L"Configuration") || !HasRequiredProperty(rBuildArguments, L"Platform"))
-			{
-				FailBuild("--files requires Configuration and Platform properties");
-				return false;
-			}
+			std::filesystem::path source;
+			std::filesystem::path object;
+		};
 
+		struct EvaluatedCompileItems
+		{
+			std::filesystem::path intermediateDirectory;
+			std::wstring comparableIntermediateDirectory;
+			std::unordered_map<std::wstring, BuildItem> items;
+		};
+
+		std::optional<EvaluatedCompileItems> EvaluateProjectCompileItems(const std::filesystem::path& rMsBuild, const std::filesystem::path& rProject, const std::vector<std::wstring>& rBuildArguments, RetainedLog& rLog)
+		{
 			std::vector<std::wstring> queryArguments = { rMsBuild.native(), rProject.native() };
 			queryArguments.insert(queryArguments.end(), rBuildArguments.begin(), rBuildArguments.end());
 			queryArguments.emplace_back(L"/getProperty:IntDir");
 			queryArguments.emplace_back(L"/getItem:ClCompile");
 			queryArguments.emplace_back(L"/nologo");
-			std::optional<ProcessResult> queryResult = RunBuildProcess(rMsBuild, queryArguments, true);
+			std::optional<ProcessResult> queryResult = RunBuildProcess(rMsBuild, queryArguments);
 			if (queryResult)
 			{
 				rLog.Write(queryResult->output.data(), queryResult->output.size());
@@ -512,17 +534,9 @@ namespace toolcli
 			if (!queryResult || queryResult->uiExitCode != 0)
 			{
 				FailBuild("MSBuild project evaluation failed");
-				return false;
+				return std::nullopt;
 			}
 
-			struct BuildItem
-			{
-				std::filesystem::path source;
-				std::filesystem::path object;
-			};
-			std::filesystem::path intermediateDirectory;
-			std::wstring comparableIntermediateDirectory;
-			std::unordered_map<std::wstring, BuildItem> items;
 			try
 			{
 				nlohmann::json evaluation = nlohmann::json::parse(queryResult->output);
@@ -532,25 +546,26 @@ namespace toolcli
 					!evaluation["Items"].contains("ClCompile") || !evaluation["Items"]["ClCompile"].is_array())
 				{
 					FailBuild("MSBuild evaluation omitted or malformed IntDir or ClCompile");
-					return false;
+					return std::nullopt;
 				}
 
 				std::wstring intermediateDirectoryValue = Utf8ToWide(evaluation["Properties"]["IntDir"].get<std::string>());
 				if (intermediateDirectoryValue.empty())
 				{
 					FailBuild("invalid evaluated IntDir");
-					return false;
+					return std::nullopt;
 				}
-				intermediateDirectory = intermediateDirectoryValue;
-				comparableIntermediateDirectory = ComparablePath(intermediateDirectory);
-				if (comparableIntermediateDirectory.empty())
+				EvaluatedCompileItems result;
+				result.intermediateDirectory = intermediateDirectoryValue;
+				result.comparableIntermediateDirectory = ComparablePath(result.intermediateDirectory);
+				if (result.comparableIntermediateDirectory.empty())
 				{
 					FailBuild("invalid evaluated IntDir");
-					return false;
+					return std::nullopt;
 				}
-				if (comparableIntermediateDirectory.back() != L'\\')
+				if (result.comparableIntermediateDirectory.back() != L'\\')
 				{
-					comparableIntermediateDirectory.push_back(L'\\');
+					result.comparableIntermediateDirectory.push_back(L'\\');
 				}
 
 				for (const nlohmann::json& rItem : evaluation["Items"]["ClCompile"])
@@ -564,7 +579,7 @@ namespace toolcli
 					{
 						source = rProject.parent_path() / source;
 					}
-					std::filesystem::path object = intermediateDirectory;
+					std::filesystem::path object = result.intermediateDirectory;
 					if (rItem.contains("ObjectFileName") && rItem["ObjectFileName"].is_string() && !rItem["ObjectFileName"].get<std::string>().empty())
 					{
 						object = Utf8ToWide(rItem["ObjectFileName"].get<std::string>());
@@ -577,16 +592,32 @@ namespace toolcli
 					{
 						object /= source.stem().native() + L".obj";
 					}
-					items.emplace(ComparablePath(source), BuildItem
+					result.items.emplace(ComparablePath(source), BuildItem
 					{
 						.source = source,
 						.object = object,
 					});
 				}
+				return result;
 			}
 			catch (const std::exception& rException)
 			{
 				FailBuild(std::string("could not read MSBuild evaluation: ") + rException.what());
+				return std::nullopt;
+			}
+		}
+
+		bool InvalidateSelectedObjects(const std::filesystem::path& rMsBuild, const std::filesystem::path& rProject, const std::vector<std::wstring>& rBuildArguments, const std::vector<std::filesystem::path>& rSelectedFiles, RetainedLog& rLog, nlohmann::json& rInvalidatedObjects)
+		{
+			if (!HasRequiredProperty(rBuildArguments, L"Configuration") || !HasRequiredProperty(rBuildArguments, L"Platform"))
+			{
+				FailBuild("--files requires Configuration and Platform properties");
+				return false;
+			}
+
+			std::optional<EvaluatedCompileItems> evaluation = EvaluateProjectCompileItems(rMsBuild, rProject, rBuildArguments, rLog);
+			if (!evaluation)
+			{
 				return false;
 			}
 
@@ -598,27 +629,150 @@ namespace toolcli
 					return false;
 				}
 				std::wstring comparableSource = ComparablePath(rSelectedFile);
-				auto it = items.find(comparableSource);
-				if (comparableSource.empty() || it == items.end())
+				auto it = evaluation->items.find(comparableSource);
+				if (comparableSource.empty() || it == evaluation->items.end())
 				{
 					FailBuild("selected .cpp is not a ClCompile member: " + WideToUtf8(rSelectedFile.native()));
 					return false;
 				}
 				std::wstring comparableObject = ComparablePath(it->second.object);
-				if (comparableObject.empty() || !comparableObject.starts_with(comparableIntermediateDirectory))
+				if (comparableObject.empty() || !comparableObject.starts_with(evaluation->comparableIntermediateDirectory))
 				{
 					FailBuild("evaluated object path escapes IntDir");
 					return false;
 				}
-				if (std::filesystem::exists(it->second.object) && ::DeleteFileW(it->second.object.c_str()) == FALSE)
+				const std::filesystem::path extendedObjectPath = ExtendedLengthPath(it->second.object);
+				if (::DeleteFileW(extendedObjectPath.c_str()) == FALSE)
 				{
-					FailBuildWindows("delete selected object");
-					return false;
+					const DWORD uiError = ::GetLastError();
+					if (uiError != ERROR_FILE_NOT_FOUND && uiError != ERROR_PATH_NOT_FOUND)
+					{
+						FailBuild("delete selected object failed (Windows error " + std::to_string(uiError) + ")");
+						return false;
+					}
 				}
 				std::wcerr << L"WorktreeCli: invalidated " << it->second.object.native() << L'\n';
 				rInvalidatedObjects.push_back(WideToUtf8(it->second.object.native()));
 			}
 			return true;
+		}
+
+		nlohmann::json NewBuildResult()
+		{
+			nlohmann::json result;
+			result["schemaVersion"] = kBuildResultSchema;
+			result["status"] = "fail";
+			result["failureKind"] = "tool";
+			result["startedAt"] = coordination::CurrentUtcTimestamp();
+			result["target"] = nullptr;
+			result["worktreeRoot"] = nullptr;
+			result["arguments"] = nlohmann::json::array();
+			result["selectedFiles"] = nlohmann::json::array();
+			result["invalidatedObjects"] = nlohmann::json::array();
+			result["lock"] = { { "disposition", "not-attempted" }, { "path", nullptr }, { "waitedSeconds", 0 } };
+			result["msbuild"] = { { "discovered", false }, { "path", nullptr }, { "launched", false }, { "exitCode", nullptr } };
+			result["retainedLog"] = nullptr;
+			result["diagnostics"] = nlohmann::json::array();
+			result["diagnosticsTruncated"] = false;
+			return result;
+		}
+
+		int EmitBuildResult(nlohmann::json& rResult, int iExitCode, int64_t iElapsedMilliseconds)
+		{
+			rResult["exitCode"] = iExitCode;
+			rResult["elapsedMilliseconds"] = iElapsedMilliseconds;
+			rResult["messages"] = sBuildMessages;
+			std::cout << rResult.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << '\n';
+			return iExitCode;
+		}
+
+		struct BuildExecutionState
+		{
+			nlohmann::json& rResult;
+			const std::filesystem::path& rTarget;
+			const std::vector<std::wstring>& rBuildArguments;
+			const std::vector<std::filesystem::path>& rSelectedFiles;
+			const std::filesystem::path& rWorktreeRoot;
+			const std::filesystem::path& rMsBuild;
+			RetainedLog retainedLog;
+			DiagnosticParser parser;
+
+			void FinalizeStreams()
+			{
+				rResult["retainedLog"]["bytes"] = retainedLog.GetBytes();
+				rResult["retainedLog"]["complete"] = !retainedLog.HasFailure();
+				rResult["diagnostics"] = parser.GetDiagnostics();
+				rResult["diagnosticsTruncated"] = parser.WereDiagnosticsTruncated();
+			}
+		};
+
+		int RunBuildExecution(BuildExecutionState& rState)
+		{
+			if (!rState.retainedLog.Open(rState.rWorktreeRoot / L"Temp" / L"AgentBuildLogs", rState.rTarget.stem().native()))
+			{
+				return kiExitFailure;
+			}
+			rState.rResult["retainedLog"] = { { "path", WideToUtf8(rState.retainedLog.GetPath().native()) }, { "bytes", 0 }, { "complete", false } };
+
+			std::filesystem::path lockPath;
+			int64_t iWaitedSeconds = 0;
+			const char* pLockDisposition = "failed";
+			std::optional<Handle> buildLock = AcquireBuildLock(rState.rWorktreeRoot, rState.rTarget, lockPath, iWaitedSeconds, pLockDisposition);
+			rState.rResult["lock"]["path"] = WideToUtf8(lockPath.native());
+			rState.rResult["lock"]["waitedSeconds"] = iWaitedSeconds;
+			rState.rResult["lock"]["disposition"] = pLockDisposition;
+			if (!buildLock)
+			{
+				return kiExitFailure;
+			}
+
+			if (!rState.rSelectedFiles.empty() && !InvalidateSelectedObjects(rState.rMsBuild, rState.rTarget, rState.rBuildArguments, rState.rSelectedFiles, rState.retainedLog, rState.rResult["invalidatedObjects"]))
+			{
+				rState.FinalizeStreams();
+				return kiExitFailure;
+			}
+
+			std::vector<std::wstring> arguments = { rState.rMsBuild.native(), rState.rTarget.native() };
+			arguments.insert(arguments.end(), rState.rBuildArguments.begin(), rState.rBuildArguments.end());
+			// Persistent MSBuild worker nodes inherit the pipe write handle and would stall the
+			// drain long after the build completes; honor an explicit caller choice when present.
+			bool bHasNodeReuse = false;
+			for (const std::wstring& rArgument : rState.rBuildArguments)
+			{
+				std::wstring lower = ToLowerInvariant(rArgument);
+				if (lower.starts_with(L"/nodereuse:") || lower.starts_with(L"-nodereuse:") || lower.starts_with(L"/nr:") || lower.starts_with(L"-nr:"))
+				{
+					bHasNodeReuse = true;
+					break;
+				}
+			}
+			if (!bHasNodeReuse)
+			{
+				arguments.emplace_back(L"/nodeReuse:false");
+			}
+			std::wcerr << L"WorktreeCli: building " << rState.rTarget.native() << L'\n' << std::flush;
+			std::optional<DWORD> msbuildExitCode = RunMsBuildToLog(rState.rMsBuild, arguments, rState.retainedLog, rState.parser);
+			rState.FinalizeStreams();
+			if (!msbuildExitCode)
+			{
+				return kiExitFailure;
+			}
+
+			rState.rResult["msbuild"]["launched"] = true;
+			rState.rResult["msbuild"]["exitCode"] = *msbuildExitCode;
+			if (*msbuildExitCode != 0)
+			{
+				rState.rResult["failureKind"] = "msbuild";
+				return static_cast<int>(*msbuildExitCode);
+			}
+			if (rState.retainedLog.HasFailure())
+			{
+				// A successful build without its complete retained log is a visible tool failure.
+				return kiExitFailure;
+			}
+			rState.rResult["status"] = "success";
+			rState.rResult["failureKind"] = "none";
+			return kiExitOk;
 		}
 	}
 
@@ -626,32 +780,7 @@ namespace toolcli
 	{
 		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 		sBuildMessages.clear();
-
-		nlohmann::json result;
-		result["schemaVersion"] = kBuildResultSchema;
-		result["status"] = "fail";
-		result["failureKind"] = "tool";
-		result["startedAt"] = coordination::CurrentUtcTimestamp();
-		result["target"] = nullptr;
-		result["worktreeRoot"] = nullptr;
-		result["arguments"] = nlohmann::json::array();
-		result["selectedFiles"] = nlohmann::json::array();
-		result["invalidatedObjects"] = nlohmann::json::array();
-		result["lock"] = { { "disposition", "not-attempted" }, { "path", nullptr }, { "waitedSeconds", 0 } };
-		result["msbuild"] = { { "discovered", false }, { "path", nullptr }, { "launched", false }, { "exitCode", nullptr } };
-		result["retainedLog"] = nullptr;
-		result["diagnostics"] = nlohmann::json::array();
-		result["diagnosticsTruncated"] = false;
-
-		// Every path out of this command emits exactly one schema-versioned JSON result on stdout.
-		const auto EmitResult = [&result, start](int iExitCode) -> int
-		{
-			result["exitCode"] = iExitCode;
-			result["elapsedMilliseconds"] = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
-			result["messages"] = sBuildMessages;
-			std::cout << result.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << '\n';
-			return iExitCode;
-		};
+		nlohmann::json result = NewBuildResult();
 
 		std::vector<std::filesystem::path> selectedFiles;
 		int iIndex = 2;
@@ -665,14 +794,14 @@ namespace toolcli
 			if (selectedFiles.empty() || iIndex >= iArgumentCount || std::wstring_view(pArgumentValues[iIndex]) != L"--")
 			{
 				FailBuild("--files requires one or more .cpp paths followed by --");
-				return EmitResult(kiExitFailure);
+				return EmitBuildResult(result, kiExitFailure, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
 			}
 			++iIndex;
 		}
 		if (iIndex >= iArgumentCount)
 		{
 			FailBuild("build requires a project or solution path");
-			return EmitResult(kiExitFailure);
+			return EmitBuildResult(result, kiExitFailure, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
 		}
 
 		std::filesystem::path target = pArgumentValues[iIndex++];
@@ -695,12 +824,12 @@ namespace toolcli
 		if (!selectedFiles.empty() && !EndsWithCaseInsensitive(target.native(), L".vcxproj"))
 		{
 			FailBuild("--files requires a .vcxproj target");
-			return EmitResult(kiExitFailure);
+			return EmitBuildResult(result, kiExitFailure, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
 		}
 		if (!std::filesystem::is_regular_file(target))
 		{
 			FailBuild("build target does not exist");
-			return EmitResult(kiExitFailure);
+			return EmitBuildResult(result, kiExitFailure, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
 		}
 
 		std::optional<std::filesystem::path> worktreeRoot = FindWorktreeRoot(target);
@@ -717,84 +846,20 @@ namespace toolcli
 		if (!worktreeRoot || !msbuildPath)
 		{
 			FailBuild("could not locate worktree root or MSBuild");
-			return EmitResult(kiExitFailure);
+			return EmitBuildResult(result, kiExitFailure, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
 		}
 
-		RetainedLog retainedLog;
-		if (!retainedLog.Open(*worktreeRoot / L"Temp" / L"AgentBuildLogs", target.stem().native()))
+		BuildExecutionState state
 		{
-			return EmitResult(kiExitFailure);
-		}
-		result["retainedLog"] = { { "path", WideToUtf8(retainedLog.GetPath().native()) }, { "bytes", 0 }, { "complete", false } };
-
-		std::filesystem::path lockPath;
-		int64_t iWaitedSeconds = 0;
-		const char* pLockDisposition = "failed";
-		std::optional<Handle> buildLock = AcquireBuildLock(*worktreeRoot, target, lockPath, iWaitedSeconds, pLockDisposition);
-		result["lock"]["path"] = WideToUtf8(lockPath.native());
-		result["lock"]["waitedSeconds"] = iWaitedSeconds;
-		result["lock"]["disposition"] = pLockDisposition;
-		if (!buildLock)
-		{
-			return EmitResult(kiExitFailure);
-		}
-
-		DiagnosticParser parser;
-		const auto FinalizeStreams = [&result, &retainedLog, &parser]()
-		{
-			result["retainedLog"]["bytes"] = retainedLog.GetBytes();
-			result["retainedLog"]["complete"] = !retainedLog.HasFailure();
-			result["diagnostics"] = parser.GetDiagnostics();
-			result["diagnosticsTruncated"] = parser.WereDiagnosticsTruncated();
+			.rResult = result,
+			.rTarget = target,
+			.rBuildArguments = buildArguments,
+			.rSelectedFiles = selectedFiles,
+			.rWorktreeRoot = *worktreeRoot,
+			.rMsBuild = *msbuildPath,
 		};
-
-		if (!selectedFiles.empty() && !InvalidateSelectedObjects(*msbuildPath, target, buildArguments, selectedFiles, retainedLog, result["invalidatedObjects"]))
-		{
-			FinalizeStreams();
-			return EmitResult(kiExitFailure);
-		}
-
-		std::vector<std::wstring> arguments = { msbuildPath->native(), target.native() };
-		arguments.insert(arguments.end(), buildArguments.begin(), buildArguments.end());
-		// Persistent MSBuild worker nodes inherit the pipe write handle and would stall the
-		// drain long after the build completes; honor an explicit caller choice when present.
-		bool bHasNodeReuse = false;
-		for (const std::wstring& rArgument : buildArguments)
-		{
-			std::wstring lower = ToLowerInvariant(rArgument);
-			if (lower.starts_with(L"/nodereuse:") || lower.starts_with(L"-nodereuse:") || lower.starts_with(L"/nr:") || lower.starts_with(L"-nr:"))
-			{
-				bHasNodeReuse = true;
-				break;
-			}
-		}
-		if (!bHasNodeReuse)
-		{
-			arguments.emplace_back(L"/nodeReuse:false");
-		}
-		std::wcerr << L"WorktreeCli: building " << target.native() << L'\n' << std::flush;
-		std::optional<DWORD> msbuildExitCode = RunMsBuildToLog(*msbuildPath, arguments, retainedLog, parser);
-		FinalizeStreams();
-		if (!msbuildExitCode)
-		{
-			return EmitResult(kiExitFailure);
-		}
-
-		result["msbuild"]["launched"] = true;
-		result["msbuild"]["exitCode"] = *msbuildExitCode;
-		if (*msbuildExitCode != 0)
-		{
-			result["failureKind"] = "msbuild";
-			return EmitResult(static_cast<int>(*msbuildExitCode));
-		}
-		if (retainedLog.HasFailure())
-		{
-			// A successful build without its complete retained log is a visible tool failure.
-			return EmitResult(kiExitFailure);
-		}
-		result["status"] = "success";
-		result["failureKind"] = "none";
-		return EmitResult(kiExitOk);
+		const int iExecutionExitCode = RunBuildExecution(state);
+		return EmitBuildResult(result, iExecutionExitCode, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
 	}
 
 	// The stdout contract is exactly one schema-versioned result even when the body throws
@@ -802,27 +867,9 @@ namespace toolcli
 	static int EmitFallbackBuildResult(std::string_view message)
 	{
 		Fail(message);
-		nlohmann::json result;
-		result["schemaVersion"] = kBuildResultSchema;
-		result["status"] = "fail";
-		result["failureKind"] = "tool";
-		result["startedAt"] = coordination::CurrentUtcTimestamp();
-		result["target"] = nullptr;
-		result["worktreeRoot"] = nullptr;
-		result["arguments"] = nlohmann::json::array();
-		result["selectedFiles"] = nlohmann::json::array();
-		result["invalidatedObjects"] = nlohmann::json::array();
-		result["lock"] = { { "disposition", "not-attempted" }, { "path", nullptr }, { "waitedSeconds", 0 } };
-		result["msbuild"] = { { "discovered", false }, { "path", nullptr }, { "launched", false }, { "exitCode", nullptr } };
-		result["exitCode"] = kiExitFailure;
-		result["elapsedMilliseconds"] = 0;
-		result["retainedLog"] = nullptr;
-		result["diagnostics"] = nlohmann::json::array();
-		result["diagnosticsTruncated"] = false;
-		result["messages"] = sBuildMessages;
-		result["messages"].push_back(std::string(message));
-		std::cout << result.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << '\n';
-		return kiExitFailure;
+		nlohmann::json result = NewBuildResult();
+		sBuildMessages.emplace_back(message);
+		return EmitBuildResult(result, kiExitFailure, 0);
 	}
 
 	int RunBuildCommand(int iArgumentCount, wchar_t* pArgumentValues[])

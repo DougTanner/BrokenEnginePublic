@@ -30,7 +30,7 @@ gpGame->mFrameInputs...statusChanges.push_back(spawnChange);
 
 The player is spawned with default flagship state and a default wanted coordinate, attached to no fleet. `ServerFleetManager::OnPlayerSpawned` then discovers the missing fleet and returns early, so nothing repairs the attachment.
 
-This is pre-existing and was not introduced by `Documents/Plans/Network/FleetRequestsByGuid.md`. Before that change the queue stored a fleet *index*: a delete either pushed the index out of range, producing this same default-data spawn, or shifted it onto a **different** fleet, producing a wrong-fleet spawn. Keying on `FleetGuid` removed the wrong-fleet outcome and made the failure uniformly "fleet not found"; it did not add drop-on-missing semantics. That change's own acceptance criterion covers dropping a *request* whose guid no longer resolves, which `ProcessSpawnIntoFleetRequests` does correctly — this plan covers the later window, after the request has already been accepted and queued.
+This is pre-existing and was not introduced by the completed FleetGuid request re-key. Before that change the queue stored a fleet *index*: a delete either pushed the index out of range, producing this same default-data spawn, or shifted it onto a **different** fleet, producing a wrong-fleet spawn. Keying on `FleetGuid` removed the wrong-fleet outcome and made the failure uniformly "fleet not found"; it did not add drop-on-missing semantics. That change's own acceptance criterion covers dropping a *request* whose guid no longer resolves, which `ProcessSpawnIntoFleetRequests` does correctly — this plan covers the later window, after the request has already been accepted and queued.
 
 ## Design
 
@@ -79,7 +79,7 @@ Decide during implementation whether the removal belongs in `BuildFrameInputs` b
 
 ## Notes
 
-- Found by adversarial review during `Documents/Plans/Network/FleetRequestsByGuid.md`, which closed the wrong-fleet half of this window. The remaining half is the fleet-less spawn recorded here.
+- Found by adversarial review during the completed FleetGuid request re-key, which closed the wrong-fleet half of this window. The remaining half is the fleet-less spawn recorded here.
 - **Confirmed at runtime** during that change's harness verification, not merely by inspection. Queueing a spawn-into while paused, deleting the same fleet while still paused, then unpausing produced:
 
   ```

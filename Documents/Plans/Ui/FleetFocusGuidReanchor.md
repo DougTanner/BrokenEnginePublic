@@ -26,7 +26,7 @@ The window is one network round trip, which is ample for a fleet-cycle keypress.
 
 Observable consequences: the camera follows the wrong fleet, and fleet-directed UI actions issued through `FocusedFleet()` target the wrong fleet.
 
-The `Documents/Plans/Network/FleetRequestsByGuid.md` change removed the *server-side* half of this bug class by keying fleet requests and server queues on `FleetGuid`; it explicitly left `FleetSelection`/`Game` focus state out of scope (that plan's out-of-scope list). This plan closes the remaining client-side half. The two are independent: after the wire re-key, requests always target whichever fleet `FocusedFleet()` returns, so a wrong focus produces a wrong-but-consistent request rather than a second, separate misresolution.
+The completed FleetGuid request re-key removed the *server-side* half of this bug class by keying fleet requests and server queues on `FleetGuid`; it explicitly left `FleetSelection`/`Game` focus state out of scope. This plan closes the remaining client-side half. The two are independent: after the wire re-key, requests always target whichever fleet `FocusedFleet()` returns, so a wrong focus produces a wrong-but-consistent request rather than a second, separate misresolution.
 
 ## Design
 
@@ -53,7 +53,7 @@ The implementer chooses whether to factor the guid-match loop into a small priva
 ## Out of scope
 
 - The server-side fleet vector, its mid-vector `erase`, and the in-order fleet-sync wire layout — the ordering is legitimate; the client must tolerate it, not constrain it.
-- `Documents/Plans/Network/FleetRequestsByGuid.md`'s completed request/queue re-key. That work is landed and independent.
+- The completed request/queue re-key. That work is landed and independent.
 - Persisted client settings layout and `mRememberedFleetGuid`/`mRememberedFocusedShipId` semantics — reused as-is; no versioned-file change.
 - Replacing `miFocusedFleetIndex` with a stored `FleetGuid` member as the focus representation. Re-anchoring on sync is the smaller complete fix; changing the member's type would touch every accessor and `HudScreen` caller for no additional correctness.
 - `Fleet::iFlagshipIndex` and `iMemberIndex` addressing generally — members are appended and marked dead, never reordered.

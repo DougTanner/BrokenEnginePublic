@@ -2,7 +2,7 @@
 
 ## Context
 
-Follow-up deferred from `AgentHarness3_FrameQueriesAndInjection.md` (grill decision 2026-07-09). Harness3's `query_*` commands read only the CRC'd Frame SOA collections via `gpGame->CurrentFrame(coord)`. Server-global (non-Frame) state — the things Claude Code will want to inspect when verifying scenarios or diagnosing server behavior — has no query surface. User direction: expose all of it, keeping the `query_*` naming convention so the commands are discoverable alongside the Harness3 set after the AgentHarness6 skill documents the surface.
+Follow-up deferred from the 2026-07-09 AgentHarness3 grill decision. Harness3's `query_*` commands read only the CRC'd Frame SOA collections via `gpGame->CurrentFrame(coord)`. Server-global (non-Frame) state — the things Claude Code will want to inspect when verifying scenarios or diagnosing server behavior — has no query surface. User direction: expose all of it, keeping the `query_*` naming convention so the commands are discoverable alongside the Harness3 set after the AgentHarness6 skill documents the surface.
 
 ## Design
 
@@ -33,4 +33,4 @@ All read-only, server-only, serialized under the AgentHarness1 `Drain()` guard; 
 
 ## Notes
 
-Invariant exposure: none — read-only JSON over server-local state; no wire/CRC/`kiVersion` change. Executes after `AgentHarness6_SceneDescriptionAndDocs.md` (Harness6's skill documents the command surface; this plan extends it — update the skill's command list as a rider).
+Invariant exposure: none — read-only JSON over server-local state; no wire/CRC/`kiVersion` change. Executes after the AgentHarness6 skill documents the command surface; this plan extends it and updates its command list as a rider.

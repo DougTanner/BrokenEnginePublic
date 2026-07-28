@@ -59,7 +59,7 @@ Old-owner cleanup may refresh its heartbeat; that does not invalidate staleness 
 
 ## Launch
 
-Require the latest `/compile` result's `DataBuildMode`, `RunDataPacker=false`, canonical `GameDataDirectory`, and selected-data required-file identity snapshot. Recheck the selected snapshot before each launch. In Local mode, also recheck the primary snapshot before launch and after verification. Stop on any changed, missing, or newly appeared required file. Never infer or switch data mode, fall back to Shared data, or run DataPacker/Gaea/texture export.
+Require the latest `/compile` result's `DataBuildMode`, `RunDataPacker=false`, canonical `GameDataDirectory`, fixed baseline, and selected `broken-engine-data-oracle/v1` receipt path and SHA-256. Before each launch and after verification, invoke the compile package's `scripts/Test-DataOracleReceipt.ps1` with that exact receipt/path/mode/baseline tuple and require its typed passing result. In Local mode, do the same for the independent primary Shared receipt. Stop on any receipt, path, mode, baseline, inventory, or byte mismatch. Never infer an identity, compare Shared and Local receipts for equality, switch data mode, fall back to Shared data, or run DataPacker/Gaea/texture export.
 
 Use the compiled configuration suffix. Ordinary same-machine runs pass `--loopback-only`. Create log parents under `$ROOT\Temp`. Do not change process working directories; `--data-directory` is the only data-root override.
 
@@ -70,6 +70,8 @@ The selected project's harness doc owns the concrete launch block — the server
 Agent-mode executables start minimized without activation. Capture commands temporarily restore the client without activation and re-minimize it. A criterion that depends on render progression must hold a visible window for its duration — capture restores an iconic window only for the readback and re-minimizes it, so a capture taken mid-scenario silently returns the client to the non-rendering state. Use `window_state` to hold visibility across such a scenario. Omit `--windowed` only when native-resolution UI sizing/readability is part of acceptance. Add the optional `--renderdoc` client argument only for GPU frame capture; it force-loads renderdoc.dll and drops the Vulkan validation layer, so keep it off ordinary runs (see the RenderDoc capture reference `references/renderdoc.md`).
 
 After launching either executable, poll `ping` in a bounded external loop until exit `0` before the first real command; readiness comes in two layers. One `ping` internally retries the loopback connect until its `--timeout-ms` deadline, covering the window before the listener has bound. A connected `ping` can still answer only once the main thread reaches its command-drain point, so long client startup (terrain elevation and priority-texture waits) can time out the recv phase even after connect succeeds — a single timeout is not fatal, so keep retrying in the loop. `tick` of `-1` means the listener is up but the game is not yet created (see the command reference `references/command-reference.md` for `ping`).
+
+Invoke `scripts/Wait-IslandSceneReady.ps1` only after launch and only when an approved criterion depends on island footprints or rendered islands. Supply the exact `-AgentHarness`, harness-lock `-Owner`, client `-ClientPort`, bounded `-TimeoutSeconds`, and absolute ignored `-ArtifactPath`; do not rename or replace the retained `$ServerPid`/`$ClientPid` lifecycle variables. The helper requires client `ping` with `tick >= 0`, restores the client with `window_state {minimized:false}`, and requires the complete `clientGridCoord` plus nonempty island footprints to be byte-stable across two consecutive canonical samples. Exit `0` is usable only with a `broken-engine-island-scene-readiness/v1` artifact reporting `Status:success`, `Code:ready`, and `Ready:true`; missing, malformed, or failed evidence blocks the criterion. The selected project document owns the concrete invocation.
 
 Before relinking or relaunching, send `quit` and wait for the retained exact PID. A live executable locks its image. Do not launch a duplicate to displace it — with `SO_REUSEADDR`, a duplicate on the same port binds alongside the live listener instead of failing fast, and connection routing between the two becomes nondeterministic. The engine listener sets `SO_REUSEADDR` and briefly retries address-in-use binds, so relaunch immediately once the exact PID has exited and rely on the ping poll for readiness — never invent a sleep window.
 
@@ -103,7 +105,7 @@ After every successful, failed, crashed, or abandoned launch attempt:
 1. Send `quit` to both ports with the current owner; server quit autosaves.
 2. Wait for `$ServerPid` and `$ClientPid` when assigned, then verify only those exact PIDs are absent. Stop only a retained exact PID when clean quit cannot connect or complete. Never use a process-name search or name-based kill.
 3. Run `lock release --key default --owner $Owner` and report exit `0` verbatim.
-4. In Local data mode, recheck the primary identity snapshot.
+4. In Local data mode, reverify the independent primary Shared oracle.
 
 An owner mismatch is a hard stop. Never remove coordination state manually.
 

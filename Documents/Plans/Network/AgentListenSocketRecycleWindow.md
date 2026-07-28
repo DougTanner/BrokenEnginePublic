@@ -55,7 +55,7 @@ The listed scope is both target and ceiling: make the smallest complete change t
 **Out of scope:**
 
 - `mActiveSocket` and the `recv` path in `ServeConnection` — the same close-to-unblock idiom applies there, but this plan is scoped to the listen socket unless the chosen mechanism makes the connection socket a mechanical follow-on.
-- The single-in-flight request/response model, `Drain()`, `DeferResponse()`, and the deferred-poll branch — owned by `Documents/Plans/Network/AgentTransportConcurrentCommands.md`, a different root cause (`Drain` lockstep, not descriptor lifetime).
+- The single-in-flight request/response model, `Drain()`, `DeferResponse()`, and the deferred-poll branch — a different root cause (`Drain` lockstep, not descriptor lifetime).
 - The constructor's `SO_REUSEADDR` bind-retry policy and its comments.
 - Multi-connection support, `listen()` backlog changes, and any protocol change.
 

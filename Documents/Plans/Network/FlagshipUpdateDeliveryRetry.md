@@ -62,7 +62,7 @@ The listed scope is both target and ceiling: make the smallest complete change s
 - The nav-mode stall the promoted ship itself suffers once it *does* receive its update — owned by `Documents/Plans/Frame/PromotedFlagshipNavStall.md`.
 - Flagship selection policy in `ShiftFlagshipAfterDeath` — unchanged, as are `TickFleetTimers`, `QueueFlagshipUpdate`, and their enqueue call sites (`FleetNavigationController.cpp:109`, `:215`; `ServerFleetManager.cpp:295`).
 - Making `FleetMember::coord` continuously authoritative (a general fleet-member coord-tracking rework) — this plan only needs delivery to survive a stale coord, not to eliminate staleness. `OnPlayerTransferred` is unchanged.
-- The `mClientOwnedPlayerIds` / `authorizedCoords` parallel-vector registry refactor — `Documents/Plans/Network/Refactor_ServerClientPlayerRegistry.md`.
+- The `mClientOwnedPlayerIds` / `authorizedCoords` parallel-vector registry refactor — completed separately.
 - The `DetectPlayerDeaths` mid-transfer death-detection skip itself (`ServerClientManager.cpp:298-302`) — cited as the overlapping trigger window, not changed here.
 - Any wire-format or client-side change: `kUpdateFleet` payload and `UpdateFleetData` are untouched.
 - `ServerSession.cpp` — the load-reset call site is reached through `ClearPendingFlagshipUpdates` and needs no edit.

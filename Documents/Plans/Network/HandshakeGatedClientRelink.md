@@ -7,7 +7,7 @@ At baseline `374e4e8d6517d02c5cc665d03fb549823f4bd100`, `Server::Connect` create
 
 The accepted `ClientHello` later installs the persisted GUID and sets `bHandshakeComplete` (`Engine/Source/Network/Server/ServerReceive.cpp`, `ClientHello`), but does not clear or re-run the game-side new-client path. Consequently a reconnect reaches the server with its original world player intact, yet receives neither ownership relink nor assign/player-state packets. Runtime confirmation against that baseline sequence showed the restored server client and advancing subscriptions/ticks, one persisted player global ID, an empty client ownership/fleet list, and no reconnect relink or assign log.
 
-`Refactor_ServerClientPlayerRegistry.md` intentionally preserves this connect behavior while consolidating relink into `ClientPlayerRegistry::RelinkFromFrames`; it does not own handshake lifecycle. This is a separate bugfix that depends on that registry path.
+The completed client-player-registry refactor intentionally preserves this connect behavior while consolidating relink into `ClientPlayerRegistry::RelinkFromFrames`; it does not own handshake lifecycle. This is a separate bugfix that depends on that registry path.
 
 ## Design
 
@@ -54,4 +54,4 @@ Read-only contract evidence:
 
 ## Coordination
 
-- Directional prerequisite: `Documents/Plans/Network/Refactor_ServerClientPlayerRegistry.md` provides the single `ClientPlayerRegistry::RelinkFromFrames` call site this fix gates. Its later deletion as a completed Plan is a satisfied stale scheduler dependency, not permission to fold this lifecycle fix into that Plan.
+- Directional prerequisite: the completed client-player-registry refactor provides the single `ClientPlayerRegistry::RelinkFromFrames` call site this fix gates. Its deletion as a completed Plan is a satisfied stale scheduler dependency, not permission to fold this lifecycle fix into that refactor.

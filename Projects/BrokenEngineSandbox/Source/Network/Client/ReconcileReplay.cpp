@@ -8,16 +8,6 @@ namespace game
 
 #if defined(BT_CLIENT)
 
-RingLayout ComputeRetention(int64_t iHeadPhysical, int64_t iSnapshotCount, int64_t iConfirmedIndex)
-{
-	int64_t iHeadAdvance = std::max<int64_t>(0, iConfirmedIndex - engine::kiRenderBehindTicks);
-	return {
-		.iHead = SnapshotIndex(iHeadPhysical, iHeadAdvance),
-		.iCount = iSnapshotCount - iHeadAdvance,
-		.iConfirmedInner = iConfirmedIndex - iHeadAdvance,
-	};
-}
-
 void ReconcileInjectPendingFullState(CoordWork& rWork)
 {
 	engine::CoordFrames& rFrames = *rWork.pFrames;

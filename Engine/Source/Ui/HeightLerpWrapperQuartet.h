@@ -18,6 +18,11 @@ struct HeightLerpWrapperQuartet
 	float Resolve(float fEyeHeight) const;
 };
 
-float LerpAtHeight(float fEyeHeight, float fStartHeight, float fEndHeight, float fLow, float fHigh);
+constexpr float LerpAtHeight(float fEyeHeight, float fStartHeight, float fEndHeight, float fLow, float fHigh)
+{
+	const float fSpan = std::max(fEndHeight - fStartHeight, 0.001f);
+	const float fT = std::clamp((fEyeHeight - fStartHeight) / fSpan, 0.0f, 1.0f);
+	return std::lerp(fLow, fHigh, fT);
+}
 
 } // namespace engine

@@ -80,7 +80,7 @@ using ChunkFlags_t = Flags<ChunkFlags>;
 // carries either compression flag. Texture chunks are LZ4-compressed today; kZlibCompressed stays a
 // legal on-disk form (the chunk decode path still handles it). Single predicate so every
 // "is this chunk compressed" test covers both codecs rather than double-checking each flag at each site.
-inline bool IsCompressed(ChunkFlags_t flags)
+constexpr bool IsCompressed(ChunkFlags_t flags)
 {
 	return (flags & ChunkFlags::kLz4Compressed) || (flags & ChunkFlags::kZlibCompressed);
 }

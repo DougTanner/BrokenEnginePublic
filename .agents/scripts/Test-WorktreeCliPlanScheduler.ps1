@@ -242,6 +242,31 @@ try {
 	$healed = Invoke-Cli 0 @('plan','validate','--repo',$repo,'--worktree',$primary,'--baseline',$baseline)
 	Assert-Result $healed 'validate' 'invalid' 'invalid-plans'; Assert-True ($healed.healedClaims.Count -eq 4) 'Corrupt/schema/orphan/invalid-name claim records were not self-healed.'
 
+	# Recovery after Git has dropped an empty last-Plan parent treats only a missing directory as an empty cleanup set.
+	# A non-directory at that same path remains a deterministic cleanup failure.
+	$lastPlan = 'Documents/Plans/LastPlanParent/Only.md'
+	$lastPlanParent = Join-Path $session 'Documents/Plans/LastPlanParent'
+	Set-Plan $primary $lastPlan '2024-01-10T00:00:00.000Z'
+	Commit $primary 'last plan parent fixture'
+	& git.exe -C $session merge --ff-only main | Out-Null
+	$lastReceipt = Join-Path $session 'Temp/last-plan-parent.json'
+	$lastClaim = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-last','--session','session-last','--write-claim-receipt',$lastReceipt,'--plan',$lastPlan)
+	Assert-Result $lastClaim 'claim-next' 'ok' 'claimed'
+	$lastPrepared = Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$lastClaim.receipt.path,'--claim-receipt-sha256',$lastClaim.receipt.sha256)
+	Assert-Result $lastPrepared 'prepare-completion' 'ok' 'prepared'; Assert-True ($lastPrepared.claimState -ceq 'awaiting-landing' -and -not (Test-Path -LiteralPath (Join-Path $session $lastPlan))) 'Last Plan did not reach awaiting-landing deletion state.'
+	Remove-Item -LiteralPath $lastPlanParent -Force
+	[IO.File]::WriteAllText($lastPlanParent, 'not a directory', $utf8)
+	$lastBlocked = Invoke-Cli 1 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$lastClaim.receipt.path,'--claim-receipt-sha256',$lastClaim.receipt.sha256)
+	Assert-Result $lastBlocked 'prepare-completion' 'error' 'orphan-cleanup-failed'
+	Remove-Item -LiteralPath $lastPlanParent -Force
+	$lastRecovered = Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$lastClaim.receipt.path,'--claim-receipt-sha256',$lastClaim.receipt.sha256)
+	Assert-Result $lastRecovered 'prepare-completion' 'ok' 'recovered'; Assert-True ($lastRecovered.claimState -ceq 'awaiting-landing' -and $lastRecovered.changedPaths.Count -eq 0 -and -not (Test-Path -LiteralPath $lastPlanParent)) 'Missing last-Plan parent did not recover as an empty cleanup set.'
+	Commit $session 'last plan parent deletion'
+	$lastLanded = (& git.exe -C $session rev-parse HEAD).Trim()
+	& git.exe -C $primary merge --ff-only $lastLanded | Out-Null
+	$lastRelease = Invoke-Cli 0 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$lastClaim.receipt.path,'--claim-receipt-sha256',$lastClaim.receipt.sha256,'--landed-commit',$lastLanded)
+	Assert-Result $lastRelease 'release-after-landing' 'ok' 'released'
+
 	# Completion/rejection are receipt bound. Completion rewrites direct children, deletes only the target, recovers after a
 	# restart, and release proves terminal state plus is idempotent after the landing has advanced.
 	$terminalReceipt = Join-Path $session 'Temp/terminal.json'; $terminalClaim = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-e','--session','session-e','--write-claim-receipt',$terminalReceipt,'--plan','Documents/Plans/Test/Older.md')
@@ -560,6 +585,6 @@ try {
 	$markedGuidanceClaim = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-guidance','--session','session-guidance','--write-claim-receipt',(Join-Path $session 'Temp/marked-guidance.json'),'--plan',$markedGuidance)
 	Assert-Result $markedGuidanceClaim 'claim-next' 'ok' 'none-available'; Assert-True (-not $markedGuidanceClaim.claimed) 'Directory guidance carrying a valid marker was claimable.'
 
-	[pscustomobject]@{ schemaVersion = 'broken-engine-plan-scheduler-fixtures/v1'; status = 'pass'; code = 'ok'; cases = @('mandatory byte-zero metadata, directory-guidance exemption, canonical timestamps, and immutability','deep tracked paths','baseline deletion, primary-advance notice, and stale non-executable dependency classification','targeted validation','deterministic ordering','dependency and cycle quarantine','marker-less plan document loudness, unclaimability, and unrelated claimability','directory guidance non-executable and unclaimable with or without a marker','behind-session claim tolerance and diverged-session refusal','claim baseline identity, ancestry healing, and canonical timestamps','receipt-bound claims and unclaim','receipt containment and rollback','terminal atomic orphan cleanup, awaiting retry, preparing recovery, and current-primary release proof','reconciled child body tolerance, restored dependency-edge rewrite, and named target third-party conflict','reparent across live claim states with receipt rewrite and post-rebase heal safety','no-claims and foreign-worktree reparent isolation','completion and release against landed squashed history','mid-conflict reparent with validate heal-delete hazard','reparent of a claim stamped at a post-advance primary commit newer than the receipt baseline','healing isolation, primary-removed ineligibility, and dependency drift','map-independent one-claim-per-session terminal reclaim') } | ConvertTo-Json -Depth 5 -Compress
+	[pscustomobject]@{ schemaVersion = 'broken-engine-plan-scheduler-fixtures/v1'; status = 'pass'; code = 'ok'; cases = @('mandatory byte-zero metadata, directory-guidance exemption, canonical timestamps, and immutability','deep tracked paths','baseline deletion, primary-advance notice, and stale non-executable dependency classification','targeted validation','deterministic ordering','dependency and cycle quarantine','marker-less plan document loudness, unclaimability, and unrelated claimability','directory guidance non-executable and unclaimable with or without a marker','behind-session claim tolerance and diverged-session refusal','claim baseline identity, ancestry healing, and canonical timestamps','receipt-bound claims and unclaim','receipt containment and rollback','last-Plan missing-parent recovery and non-directory failure','terminal atomic orphan cleanup, awaiting retry, preparing recovery, and current-primary release proof','reconciled child body tolerance, restored dependency-edge rewrite, and named target third-party conflict','reparent across live claim states with receipt rewrite and post-rebase heal safety','no-claims and foreign-worktree reparent isolation','completion and release against landed squashed history','mid-conflict reparent with validate heal-delete hazard','reparent of a claim stamped at a post-advance primary commit newer than the receipt baseline','healing isolation, primary-removed ineligibility, and dependency drift','map-independent one-claim-per-session terminal reclaim') } | ConvertTo-Json -Depth 5 -Compress
 }
 finally { if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Force -Recurse } }

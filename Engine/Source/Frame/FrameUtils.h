@@ -92,7 +92,7 @@ void ForEachBeginRender(TypeList<TS...>, int64_t iCommandBuffer, const std::unor
 }
 
 template<typename... TS>
-void ForEachEndRender(TypeList<TS...>, int64_t iCommandBuffer)
+constexpr void ForEachEndRender(TypeList<TS...>, int64_t iCommandBuffer)
 {
 	([&]
 	{
@@ -104,7 +104,7 @@ void ForEachEndRender(TypeList<TS...>, int64_t iCommandBuffer)
 }
 
 template<typename... TS>
-void ForEachRegister(TypeList<TS...>)
+constexpr void ForEachRegister(TypeList<TS...>)
 {
 	([&]
 	{
@@ -116,7 +116,7 @@ void ForEachRegister(TypeList<TS...>)
 }
 
 template<typename... TS>
-void ForEachGraphicsResources(TypeList<TS...>)
+constexpr void ForEachGraphicsResources(TypeList<TS...>)
 {
 	([&]
 	{

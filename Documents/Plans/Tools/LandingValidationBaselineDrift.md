@@ -15,7 +15,7 @@ So when primary edits the claimed Plan after the wrapper baseline is pinned, the
 
 Observed on 2026-07-26, landing session branch `claude/4a2a1c15-78f8-4827-8bb3-c77b631233a2` onto `2.0.0`. Wrapper receipt baseline `1e45be94`; primary tip `13099512`; claim receipt `primaryCommit` `0949f6d2`. Primary commit `d7bb83f5` ("Enrol transcript finder plan in scheduler") had edited the claimed Plan in between:
 
-| commit | role | blob of `Documents/Plans/Documents/MandatoryExecutablePlanMetadata.md` |
+| commit | role | blob of the completed mandatory-executable-plan-metadata Plan |
 |---|---|---|
 | `1e45be94` | wrapper receipt baseline | `c0acfec2623f5848c8b0df6587502af8117bb19e` |
 | `0949f6d2` | claim receipt `primaryCommit` | `6345ca1b97f9b26621bad5f61a005c7dbc232424` |

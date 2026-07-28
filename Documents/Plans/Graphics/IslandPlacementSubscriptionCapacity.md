@@ -7,7 +7,7 @@
 
 `IslandChainPlacement` bounds one cell at 107 placements (six big islands plus six 16-slot Small surrounds and five tail Smalls). The current Small-role ceiling is 16 x 101 = 1616. Independently of current asset-bucket membership, allowing any one template to occupy every placement yields the conservative per-template safety bound 16 x 107 = 1712. At placement 1025, `EmitPlacement` asserts before it writes a neighbouring template's slab, and `common::Assert` throws. No overflow has been observed; this is a proven unbounded-by-current-capacity correctness risk, not a reported runtime failure.
 
-This residual predates the approved comment-only `IslandPlacementSsboResidency.md` outcome. That Plan owns resident-memory scaling options and is not changed here; this Plan owns only the sticky-subscription capacity proof and correction.
+This residual predates the approved comment-only SSBO-residency outcome. That completed work decided resident-memory scaling options and is not changed here; this Plan owns only the sticky-subscription capacity proof and correction.
 
 ## Design
 
@@ -28,7 +28,7 @@ The correction keeps the fixed `templateIndex * kiMaxPlacementsPerTemplate` addr
 
 - Changing `kiDesiredCoordSlots`, sticky duration, confirmation/adoption, `mActiveCoords`, or any client/server wire or subscription behavior.
 - Changing island generation rules, deterministic layout, CRC/replay behavior, `.pack` data, or asset bucket selection.
-- Compact/dynamic SSBO arenas, active-template remapping, lower resident-memory targets, or any alternative from `IslandPlacementSsboResidency.md`.
+- Compact/dynamic SSBO arenas, active-template remapping, lower resident-memory targets, or any previously considered residency alternative.
 - Replacing fixed SSBO slabs, indirect first-instance offsets, or record-once command buffers; dynamic recovery after an overflow is not a substitute for the compile-time bound.
 
 ## Risk tier and invariants

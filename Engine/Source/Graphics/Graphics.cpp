@@ -24,7 +24,7 @@ constexpr int64_t kiReferenceWidth = 3840;
 // Smoke-sim pixel budget at the reference width (smoke resolution scales by actual/reference width).
 constexpr float kfSmokeReferencePixels = 8192.0f;
 
-static int64_t SnapToDetailBlock(int64_t iExtent)
+static constexpr int64_t SnapToDetailBlock(int64_t iExtent)
 {
 	int64_t iSnappedExtent = kiDetailBlockSize;
 	while ((10 * iSnappedExtent) / 9 < iExtent)

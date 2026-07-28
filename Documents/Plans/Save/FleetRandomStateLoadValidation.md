@@ -37,7 +37,7 @@ rNewFleet.guid.uiLow = common::RandomNext(mRandomEngine);
 
 With zero state every fleet is minted `{0, 0}`, which collides with the repository-wide "absent fleet" sentinel `FleetGuid::IsValid()` (`Fleet.h:13`, true only when a lane is nonzero) and makes every fleet's identifier identical. Downstream, guid-keyed fleet resolution selects the first match, spawn dedup collapses distinct fleets into one key, and `mRememberedFleetGuid` restore (`FleetSelection.cpp:128`) silently fails. Fleet identity is now the addressing mechanism for client requests and for server queues that outlive a poll, so a degenerate identifier misdirects real operations rather than merely weakening randomness.
 
-Found by adversarial review during `Documents/Plans/Network/FleetRequestsByGuid.md`. That change consumed the existing `IsValid()` sentinel convention; it did not introduce this gap, and the gap predates it.
+Found by adversarial review during the completed FleetGuid request re-key. That change consumed the existing `IsValid()` sentinel convention; it did not introduce this gap, and the gap predates it.
 
 ## Design
 

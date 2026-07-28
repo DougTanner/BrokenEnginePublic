@@ -46,7 +46,7 @@ Then delete the two child-Plan workarounds in `.agents/scripts/Test-WorktreeCliP
 
 - The temp file's creation attributes at `CoordinationStore.cpp:293`, the `.tmp.<pid>.<seq>` filename shape, the rename-as-publish structure, and `RemovePlanAtomicTemporarySiblings` in any form.
 - Making `%LOCALAPPDATA%` coordination records visible, or changing lock/claim storage layout, schema, lifetime, healing, or enumeration.
-- The build lock's separate `OPEN_ALWAYS`/hidden-attribute path (owned by `Refactor_BuildCommandReliability.md`).
+- The build lock's separate `OPEN_ALWAYS`/hidden-attribute path, completed by the prior build-command reliability change.
 - Any change to `plan prepare-completion` classification, manifest contents, `changedPaths`, conflict codes, exit codes, or stdout JSON.
 - Retrofitting attribute repair onto Plan files already left hidden by earlier runs. One `attrib -h -t` by the user clears those; a migration path is not warranted.
 - Adding a unit test or a new test project. The existing integration fixture is the verification surface.

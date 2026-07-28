@@ -44,7 +44,7 @@ int64_t DisplayLength(const char* pcLabel)
 	return iLength;
 }
 
-char LowerAscii(char cChar)
+constexpr char LowerAscii(char cChar)
 {
 	return (cChar >= 'A' && cChar <= 'Z') ? static_cast<char>(cChar - 'A' + 'a') : cChar;
 }

@@ -4,7 +4,7 @@ Project-specific launch configuration, verification recipes, durable caveats, an
 
 ## Launch
 
-Follow the skill's generic launch requirements (data-snapshot checks, `--loopback-only`, `$ROOT\Temp` log parents, and Codex `Start-Process -PassThru` PID retention), then launch these executables:
+Follow the skill's generic launch requirements (data-oracle checks, `--loopback-only`, `$ROOT\Temp` log parents, and Codex `Start-Process -PassThru` PID retention), then launch these executables:
 
 ```powershell
 $Output = Join-Path $ROOT 'Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output'
@@ -29,6 +29,24 @@ $ClientPid = $ClientProcess.Id
 ```
 
 Debug/Profile clients auto-connect; Release requires `click "LOCAL SERVER"`. The server loads its exit autosave, so use `reset` when the scenario needs fresh state.
+
+For an approved island-footprint or island-render criterion only, run the readiness helper after both processes launch, preserving the `$ServerPid` and `$ClientPid` variables above:
+
+```powershell
+$IslandReadinessArtifact = Join-Path $TempDir 'island-scene-readiness.json'
+& "$ROOT\.agents\skills\agent-harness\scripts\Wait-IslandSceneReady.ps1" `
+	-AgentHarness $AgentHarness -Owner $Owner -ClientPort 27101 `
+	-TimeoutSeconds 120 -ArtifactPath $IslandReadinessArtifact
+if ($LASTEXITCODE -ne 0) { throw "Island scene readiness failed; inspect '$IslandReadinessArtifact'." }
+$IslandReadiness = Get-Content -Raw -LiteralPath $IslandReadinessArtifact | ConvertFrom-Json -Depth 100
+if ($IslandReadiness.SchemaVersion -cne 'broken-engine-island-scene-readiness/v1' -or
+	$IslandReadiness.Status -cne 'success' -or $IslandReadiness.Code -cne 'ready' -or
+	$IslandReadiness.Ready -isnot [bool] -or -not $IslandReadiness.Ready) {
+	throw "Invalid island readiness evidence: '$IslandReadinessArtifact'."
+}
+```
+
+This is a criterion-specific gate, not general launch readiness. It holds the client visible and proves a ready client tick plus two stable complete footprint samples.
 
 ## Canonical verification
 

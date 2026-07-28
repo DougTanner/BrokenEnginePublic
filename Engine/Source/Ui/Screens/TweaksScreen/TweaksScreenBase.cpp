@@ -494,11 +494,11 @@ void TweaksScreenBase::RunSliderAuditFrame()
 		{
 			// Heap: TweaksSliderMap iteration touches its hash buckets; mirror the registration-side suppression.
 			ScopedSuppressAllocationTracking suppress;
-			for (const auto& [rKey, pWrapper] : TweaksSliderMap::Get())
+			for (const std::pair<const std::string_view, Wrapper*>& rEntry : TweaksSliderMap::Get())
 			{
-				if (!mAuditTouched.contains(rKey))
+				if (!mAuditTouched.contains(rEntry.first))
 				{
-					LOG(kDefault, kWarning, "TweaksSliderMap: orphan key '{}'", rKey);
+					LOG(kDefault, kWarning, "TweaksSliderMap: orphan key '{}'", rEntry.first);
 				}
 			}
 			for (std::string_view missedKey : mAuditMissed)

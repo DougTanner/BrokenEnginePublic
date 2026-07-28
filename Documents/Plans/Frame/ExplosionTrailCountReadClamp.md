@@ -3,7 +3,7 @@
 
 ## Context
 
-Found by adversarial review during the `Documents/Plans/Frame/CollectionDifferenceCountSafety.md` session and confirmed against the current tree. Pre-existing and independent of that change: it reproduces with equal row counts on both sides, so the common-row bound landed there neither introduces nor mitigates it.
+Found by adversarial review during the completed collection-difference-count safety session and confirmed against the current tree. Pre-existing and independent of that change: it reproduces with equal row counts on both sides, so the common-row bound landed there neither introduces nor mitigates it.
 
 `ExplosionsInterpolate` stores trail state as a fixed array of per-slot row arrays: `float* pfTrailTimes[kiMaxExplosionTrails]` (`Engine/Source/Frame/Collections/Explosions/Explosions.h:153`), with `kiMaxExplosionTrails = 8` (`Explosions.h:23`). The per-row slot count `int32_t* __restrict piTrailCounts` (`Explosions.h:149`) is clamped to that maximum only at spawn — `std::min(rInfo.uiTrailCount, kiMaxExplosionTrails)` (`ExplosionsSpawn.cpp:51`).
 
@@ -44,7 +44,7 @@ Determinism note: the clamp changes deserialized bytes only for out-of-range inp
 
 - Any change to CRC composition, `SharedMembers()`/`Members()` tuples, collection layout, `kiVersion`, `.pack` layout, wire protocol, or serialization order. The clamp must not alter the format or the bytes of valid input.
 - Generic per-element member validation for other collections. Only the explosion trail count is proven exposed; a general mechanism is a separate architectural decision.
-- The ID-map bijection and capacity-stride ceilings owned by `Documents/Plans/Frame/CollectionReadIndexHardening.md` — different root cause and boundary, no file-region overlap.
+- The ID-map bijection and capacity-stride ceilings addressed by completed collection-read hardening — different root cause and boundary, no file-region overlap.
 - Changing any consumer loop's diagnostic behavior, and converting any existing `CorruptStreamException` path to clamping.
 
 ## Risk tier and invariants

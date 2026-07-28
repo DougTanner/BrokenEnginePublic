@@ -290,7 +290,7 @@ void HudScreen::RenderFleetPanel(float fTarget)
 	ImGui::BeginDisabled(!bCanDelete || mDeleteFleetToggle.IsPending());
 	if (ImGui::Button("[-]##Fleet"))
 	{
-		if (gpClientSession != nullptr)
+		if (pFleet != nullptr && gpClientSession != nullptr)
 		{
 			mDeleteFleetToggle.SetPending();
 			gpClientSession->SendDeleteFleetRequest(pFleet->guid);
