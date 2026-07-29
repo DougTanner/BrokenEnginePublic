@@ -382,6 +382,8 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[m
 				.fTime = rCurrentPostRender.pfTimes[i],
 				.fNextJitter = rCurrentPostRender.pfNextJitter[i],
 				.fDeltaRotation = rCurrentPostRender.pfDeltaRotations[i],
+				.fDeltaRotationMax = rCurrentPostRender.pfDeltaRotationMax[i],
+				.fPitch = rCurrentPostRender.pfPitches[i],
 #if defined(BT_CLIENT)
 				.smokeTrailId = rCurrentInterpolate.puiSmokeTrails[i],
 #endif
@@ -468,11 +470,15 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	float fExhaustLength = (flags & kFalling) ? 0.0f : kfMissileExhaustLength + common::Random<kfMissileExhaustLengthRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfExhaustLengths[iIndex] = fExhaustLength;
 	rCurrentPostRender.pfNextJitter[iIndex] = rInfo.fNextJitter;
-	rCurrentPostRender.pfDeltaRotationMax[iIndex] = (flags & kFalling) ? 0.0f : kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.postRender.randomEngine);
+	rCurrentPostRender.pfDeltaRotationMax[iIndex] = rInfo.bTransfer
+		? rInfo.fDeltaRotationMax
+		: (flags & kFalling) ? 0.0f : kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfAccelerations[iIndex] = rInfo.fAcceleration;
 
 	// Create sound with random pitch variation
-	float fPitch = (flags & kFalling) ? 0.0f : kfMissilePitchMin + common::Random<kfMissilePitchRandom>(rFrame.postRender.randomEngine);
+	float fPitch = rInfo.bTransfer
+		? rInfo.fPitch
+		: (flags & kFalling) ? 0.0f : kfMissilePitchMin + common::Random<kfMissilePitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 

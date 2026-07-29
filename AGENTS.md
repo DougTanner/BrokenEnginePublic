@@ -1,12 +1,11 @@
 # Broken Engine
 
-A C++23 Vulkan game engine client/server using data-oriented design, with data pre-packer (offline; runtime reads only `.pack` chunks). Top-down RTS-scale camera: kilometers above an ocean with islands, small units on screen. West is -x, East is +x, North is +y, South is -y, Up is +z, Down is -z. Client/server simulation is deterministic; rare user input favors CPU/GPU smoothness over round-trip latency. The world is an unbounded sparse grid of cells, each simulated independently in parallel. Fixed sim tick rate; render free-runs via interpolation. PostRender state is bit-deterministic (`/fp:strict`, CRC-checked per tick); Interpolate/render and client-only visuals are not, and stay out of the CRC.
+A client/server game engine using data-oriented design, with data pre-packer (offline; runtime reads only `.pack` chunks). Top-down RTS-scale camera: kilometers above an ocean with islands, small units on screen. West is -x, East is +x, North is +y, South is -y, Up is +z, Down is -z. Client/server simulation is deterministic; rare user input favors CPU/GPU smoothness over round-trip latency. The world is an unbounded sparse grid of cells, each simulated independently in parallel. Fixed sim tick rate; render free-runs via interpolation. PostRender state is bit-deterministic (`/fp:strict`, CRC-checked per tick); Interpolate/render and client-only visuals are not, and stay out of the CRC.
 
 ## Environment
 
 - Visual Studio 2026, C++23, Vulkan 1.2, Windows 10+
 - Agent shells: Claude Code runs in Git Bash; Codex CLI runs in PowerShell 7. Claude calls `pwsh` explicitly for PowerShell 7 scripts.
-- Fresh-machine bootstrap: `Documents/FreshMachineSetup.md`
 
 ## IMPORTANT: Context management and agent selection
 
@@ -50,8 +49,8 @@ The user's request is implementation authority for Tier 1 and Tier 2 changes; ag
 Definitions:
 
 - Execution card — pre-implementation record of goal, out-of-scope boundary, tier trigger, affected interfaces/invariants, acceptance checks, and roles.
-- Final-evidence gate — the `/verify-changes` acceptance table plus `/finalize-changes` path. Required for executable Plan claim mutation or completion, reconciliation, requested primary commit or landing, a wrapper session completing its work, shared build/bootstrap work, or Tier-3 integration; any `/next-plan` claim uses it regardless of tier.
-- Reconciliation — `/finalize-changes` rebasing the verified session branch onto the current primary tip; a conflict-free rebase needs no re-verification. Mechanics, conflicts, and the non-blocking `missing-plan-file` notice: `/finalize-changes` and `.agents/skills/next-plan/references/execution-gates.md`.
+- Final-evidence gate — the `/verify-changes` acceptance table plus `/finalize-changes` path. Required for executable Plan claim mutation or completion, rebase, requested primary commit or landing, a wrapper session completing its work, shared build/bootstrap work, or Tier-3 integration; any `/next-plan` claim uses it regardless of tier.
+- Rebase — `/finalize-changes` rebasing the verified session branch onto the current primary tip; a conflict-free rebase needs no re-verification. Mechanics, conflicts, and the non-blocking `missing-plan-file` notice: `/finalize-changes` and `.agents/skills/next-plan/references/execution-gates.md`.
 - Executable Plan — tracked `Documents/Plans/**/*.md` with byte-zero `broken-engine-plan/v1` metadata; selection and marker rules: `Documents/Plans/AGENTS.md`. `Documents/Features` is manual.
 - Wrapper session — session started through `.claude/claude-worktree.sh` or `.codex/codex-worktree.ps1`, owning an isolated worktree identified by its private-Git receipt; receipt and reattach rules: `.agents/references/wrapper-sessions.md`.
 
@@ -67,14 +66,14 @@ A reviewer may escalate the tier when the changed bytes expose a higher-risk sur
 
 ### Steps
 
-1. Approve and classify. From user intent — plus an `implementer`'s repository preparation whenever the work is Tier 2+ or needs repository evidence to classify — main pins the objective, approved stage dispositions, tier and triggers, roles, acceptance checks, and execution card. Tier 1 and Tier 2 authorize implementation; Tier 3, Plan claim, reconciliation, and landing also require an execution card.
+1. Approve and classify. From user intent — plus an `implementer`'s repository preparation whenever the work is Tier 2+ or needs repository evidence to classify — main pins the objective, approved stage dispositions, tier and triggers, roles, acceptance checks, and execution card. Tier 1 and Tier 2 authorize implementation; Tier 3, Plan claim, rebase, and landing also require an execution card.
 2. Plan review. Tier 2+ starts from an `implementer`-prepared plan; Tier 1 skips this. Main dispatches a `reviewer` for `/plan-audit` and reports a blocker if that role is unavailable. For Tier 3, an `implementer` owns `/external-grill-plan` repository evidence and iterative decision briefs; a `locator` resolves external claim packets; main only adjudicates and interviews from those handoffs, then presents the resolved plan for approval. Brief and iteration contract: `.agents/skills/next-plan/references/tier3-workflow.md`. Plans may include optional `/agent-harness` verification.
 3. Implement and propagate. Main splits the work into disjoint slices where possible and dispatches one `implementer` each in parallel, each making the smallest complete assigned change and returning affected-site triggers; then an `implementer` runs `/update-affected-code` after any C++ or GLSL change. Review-fix exceptions belong to `/resolve-findings`.
 4. Run targeted pre-review checks. `Implementer`s run applicable static checks. Main routes every `Build required` handoff to a `builder` before covered work advances; full builds and runtime or harness scenarios remain acceptance-matrix work.
 5. Review and resolve correctness. Main dispatches exactly one fresh `reviewer` per changed artifact type, scoped to changed bytes and reached contracts: C++ → `/repo-code-review`; shaders → `/glsl-review`; Tier-1 non-C++ → direct coherence; other Tier-2+ artifacts → fresh-eyes coherence, whose reviewer also fixes and self-verifies sub-semantic issues (meaning-preserving wording, formatting) in that pass when its dispatch route permits edits; whatever it cannot fix routes with the semantic findings. Each dispatch carries the authorization check: for every changed region the reviewer names the plan clause or user instruction authorizing it and reports an unauthorized region as a finding. Main adjudicates once and routes accepted fixes to a separate `implementer`; only affected regions are re-reviewed and retested, and a second wave requires a reproducible blocker. Tier 3 adds `/adversarial-review`; any tier may use it for one concrete unresolved reachable hypothesis.
 6. Apply triggered hygiene: a `mechanic` runs `/code-style-review` for changed C++ and `/update-vcxproj` for file membership or whole-file affinity changes; a fresh `reviewer` runs `/validate-skill` for changed `.agents/skills/*/SKILL.md`; an `implementer` runs `/update-claude-docs` after C++ or GLSL changes. Documentation inspects affected AGENTS.md scope but may need no edit.
 7. Verify the acceptance matrix. Main dispatches a fresh read-only `reviewer` to map every approved criterion and invariant to decisive evidence, including each duplicate check's independent signal. Tier 1 uses static, schema, link, validator, and changed-C++ compilation checks; Tier 2 adds the smallest observable scenario; Tier 3 adds exposed invariant or integration checks. Passing completes only the current stage. An `implementer` routes proven out-of-scope leftovers through `/create-follow-up-plans`.
-8. Reconcile, audit when triggered, and finalize. A final-evidence gate dispatches `/verify-changes` to a fresh read-only `reviewer`. After reconciliation, the finalization `implementer` assembles the complete `broken-engine-session-audit-input/v1` evidence and evaluates it with `.agents/skills/finalize-changes/scripts/Test-SessionAuditRequirement.ps1`. Skip `/session-audit` automatically only when its typed decision is well-formed and reports `required:false`; missing, malformed, or unproven evidence requires the audit, and an explicit user request always requires it. An `implementer` running `/finalize-changes` owns reconciliation, commit, landing, and claim release; WorktreeCli alone parses or mutates scheduler state — validate before Plan selection or mutation, after a landing that changes Plan files, and after primary completion. After all stage checks pass, wrapper sessions proceed to finalization by default, but main obtains the required confirmation before any primary mutation. Scheduler and landing mechanics: `.agents/skills/next-plan/references/execution-gates.md`. Landing completes only a repository stage; the session ends only when every stage is complete or explicitly deferred, with a tracked follow-up Plan where required.
+8. Rebase, audit when triggered, and finalize. A final-evidence gate dispatches `/verify-changes` to a fresh read-only `reviewer`. After rebasing, the finalization `implementer` assembles the complete `broken-engine-session-audit-input/v1` evidence and evaluates it with `.agents/skills/finalize-changes/scripts/Test-SessionAuditRequirement.ps1`. Skip `/session-audit` automatically only when its typed decision is well-formed and reports `required:false`; missing, malformed, or unproven evidence requires the audit, and an explicit user request always requires it. An `implementer` running `/finalize-changes` owns rebasing, commit, landing, and claim release; WorktreeCli alone parses or mutates scheduler state — validate before Plan selection or mutation, after a landing that changes Plan files, and after primary completion. After all stage checks pass, wrapper sessions proceed to finalization by default, but main obtains the required confirmation before any primary mutation. Scheduler and landing mechanics: `.agents/skills/next-plan/references/execution-gates.md`. Landing completes only a repository stage; the session ends only when every stage is complete or explicitly deferred, with a tracked follow-up Plan where required.
 
 ### Convergence
 
@@ -89,15 +88,20 @@ Once a stage's required checks pass, stop changing it: advance to the next stage
 - No useless ASSERTs: an ASSERT that throws one line before the code would crash anyway adds false safety — remove it; prefer making the condition impossible in calling code, or recovering gracefully. Resolution ladder: `/repo-code-review`.
 - Comment the non-obvious, not the mechanism: never explain a language feature or house pattern the declaration already shows. Comment what the code cannot say — an invariant, a required ordering, a consequence. Review: `/code-style-review`.
 - Do not add unit tests
-- Response style: concise — no pleasantries, hedging, or restating the request. Cut the words around the facts, never the facts; explain fully when asked. Never compress errors, irreversible-action confirmations, or order-sensitive step sequences. In code and commit messages: drop articles where natural, fragments fine, technical terms unchanged. Pattern: [thing] [action] [reason]
 
-## Resolving Ambiguity
+### User Interaction
+
+- IMPORTANT: Every question or decision request must be answerable from the current message without hidden reasoning or remembered scrollback. Identify the concrete issue and referents, summarize the context needed to decide, and explain what the answer changes or blocks. When relevant, give options, trade-offs, and a recommendation.
+- Lead with the outcome, answer, or next action. Omit preparatory framing, praise, pleasantries, and restatements of the request.
+- Explain fully when asked; use headings so a longer explanation stays skimmable.
+
+### Resolving Ambiguity
 
 - Trivial choices (naming, small implementation details, equivalent approaches): pick the simplest and proceed.
 - Non-trivial ties (two viable approaches, neither architectural): fan out `researcher` subagents to validate each, compare pros/cons, then pick the simplest good solution.
 - Architectural decisions (new system shape, public API, data layout, threading model): stop and ask the user, presenting the problem, proposed solutions, and pros/cons of each.
 
-## Diagnosis Discipline
+### Diagnosis Discipline
 
 - Verify root cause before editing: state the suspected root cause, then confirm it — either close code inspection shows the bug unambiguously and deterministically, or logs directly evidence it. "I know what the bug is" is not verification.
 - If uncertain, say so and re-investigate — never fabricate justifications when challenged.

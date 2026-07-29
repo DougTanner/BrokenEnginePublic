@@ -1,0 +1,6 @@
+interface:
+  display_name: "Code Quality Metrics"
+  short_description: "Compare deterministic C++ quality snapshots"
+  default_prompt: "Use $code-quality-metrics with -Mode Snapshot for Engine/Source recursively."
+policy:
+  allow_implicit_invocation: false

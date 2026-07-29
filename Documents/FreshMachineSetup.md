@@ -10,7 +10,9 @@ Recovery for a clone made without Developer Mode: enable it, open a new terminal
 
 ## 2. Install prerequisites
 
-Per [README.md](../README.md): Visual Studio 2026 Community (Desktop development with C++, Game development with C++, Windows 11 SDK), the Vulkan SDK, Git for Windows, PowerShell 7 (`pwsh`), Windows Terminal, and the agent CLIs (Claude Code and/or Codex CLI).
+Per [README.md](../README.md): Visual Studio 2026 Community (Desktop development with C++, Game development with C++, Windows 11 SDK), the Vulkan SDK, Git for Windows, PowerShell 7 (`pwsh`), Windows Terminal, x64 CPython 3.12 or newer, and the agent CLIs (Claude Code and/or Codex CLI).
+
+`code-quality-metrics` selects the first `python` Application resolved through normal PATH precedence and verifies it is x64 CPython 3.12 or newer. It does not use the `py` launcher as a fallback.
 
 ## 3. Clone with symlinks and submodules
 
@@ -19,6 +21,8 @@ git -c core.symlinks=true clone --recurse-submodules <repository-url>
 ```
 
 This clone is the **primary checkout**. Agent sessions run in linked worktrees that share its immutable build outputs; the steps below prepare those outputs once.
+
+The first recursive submodule initialization requires network access. For an existing checkout that needs the metrics dependency, run `git submodule update --init --recursive -- ThirdParty/scb-check`; its first fetch also requires network access. The first `code-quality-metrics` run also requires network access to bootstrap its locked dependencies.
 
 ## 4. Build primary ThirdParty in all three configurations
 

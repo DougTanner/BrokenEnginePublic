@@ -300,11 +300,15 @@ inline constexpr bool XmIsInf(float fValue)
 // BT_DATA_PACKER, so the consumption includes live in one place rather than scattered across the DataPacker
 // .cpp/.h files. The library *implementation* units stay in the Prebuilts/Source/DataPacker unity .cpp's by
 // necessity. Config defines/pragmas not covered by the global warning span above travel with their header.
-#if defined(BT_DATA_PACKER)
-	// Windows tool-only dependencies: BCrypt content hashing and reparse-point FSCTL queries (FileManager)
+#if defined(BT_ENGINE) || defined(BT_DATA_PACKER)
+	// FileManager uses BCrypt to bind replay manifests to the exact persisted component bytes.
 	#include <bcrypt.h>
-	#include <winioctl.h>
 	#pragma comment(lib, "bcrypt.lib")
+#endif
+
+#if defined(BT_DATA_PACKER)
+	// Offline file traversal needs reparse-point FSCTL queries.
+	#include <winioctl.h>
 
 	// DirectXTK - WAV parsing
 	#include "DirectXTK/Audio/WAVFileReader.h"

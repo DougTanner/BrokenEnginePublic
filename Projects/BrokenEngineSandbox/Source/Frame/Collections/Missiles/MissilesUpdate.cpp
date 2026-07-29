@@ -152,7 +152,13 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 				uint32_t uiRandom = common::Random(2u, rFrame.postRender.randomEngine);
 				float fDeltaAnglePercentExtra = 1.0f + 3.0f * fDeltaAnglePercent;
 				float fDeltaAngleJitter = !uiTarget.IsValid() ? kfDeltaAngleJitterRandom : kfDeltaAngleJitterRandomWithTarget;
-				if (uiRandom == 0) { vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fDeltaAnglePercentExtra * (-kfDirectionJitterRandom + common::Random(2.0f * kfDirectionJitterRandom, rFrame.postRender.randomEngine)))); }
+				if (uiRandom == 0)
+				{
+					vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fDeltaAnglePercentExtra * (-kfDirectionJitterRandom + common::Random(2.0f * kfDirectionJitterRandom, rFrame.postRender.randomEngine))));
+#if defined(BT_DEBUG)
+					common::ValidateVector<false>(vecVelocity);
+#endif
+				}
 				if (uiRandom == 1) { fDeltaRotation += fDeltaAnglePercentExtra * (-fDeltaAngleJitter + fDeltaAngleJitter * common::Random<2.0f>(rFrame.postRender.randomEngine)); }
 			}
 
@@ -235,6 +241,9 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 		}
 
 		// Save dynamic fields (static fields copied via memcpy in AllocateAndCopy)
+#if defined(BT_DEBUG)
+		common::ValidateVector<false>(vecVelocity);
+#endif
 		rCurrent.pVecVelocities[i] = vecVelocity;
 		rCurrent.pVecStoredDirections[i] = vecStoredDirection;
 		rCurrent.puiTargets[i] = uiTarget;

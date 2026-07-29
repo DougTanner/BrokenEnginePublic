@@ -34,11 +34,44 @@ Read root and target-applicable `AGENTS.md` files before dispatch. Plan authorin
 needs the checkout and a baseline commit for `create-follow-up-plans`; outside a
 wrapper session that baseline is `HEAD`.
 
+## Phase 0: Bounded Metric Evidence
+
+Before architecture analysis, invoke `code-quality-metrics` Snapshot once with
+the resolved relative-POSIX target, the same `Exact`, `Directory`, or
+`Recursive` scope mode, and the absolute checkout root. This single capture
+analyzes the complete corpus and the resolved target together; do not substitute
+separate corpus and target runs. Use the public `Invoke-CodeQualityMetrics.ps1`
+entry point with `-Mode Snapshot -Target <resolved-relative-POSIX-path> -Scope
+<resolved-mode> -RepositoryRoot <absolute-checkout-root>`, and consume the
+`current` CaptureView fields documented by
+`../code-quality-metrics/references/MetricContract.md`.
+
+An operational failure, including the entry point's exit `2`, blocks the
+pipeline. Treat every reported parse omission as an explicit metric residual,
+not a pipeline failure. Identify target paths from `current.targetManifest` and
+forward only these investigation hints to both native analysis phases:
+
+- at most 10 target file outliers and 10 target area outliers from
+  `current.targetOutliers`, each ordered by delta descending then key;
+- at most 10 target-intersecting `current.cloneGroups`, ordered by target-flagged
+  SLOC descending then `groupHash`, with no more than four target and four
+  external instances per group;
+- at most 10 target `current.highComplexityFunctions`, ordered by mass descending
+  then canonical identity; and
+- at most 10 target `current.skips`, ordered by path.
+
+Every hint category states its total and truncated counts, including zeroes.
+The forwarded hints are bounded evidence to inspect, never findings: they do
+not expand the original target, create Plans, alter the Debt Score, or replace
+source inspection. Retain corpus coverage and all parse-omission residuals for
+the final summary even when only target omissions are forwarded.
+
 ## Phase 1: Architecture Shape
 
 Invoke `external-architecture-review` natively through the normal skill surface
-with the resolved target and scope mode. Do not open a client-specific skill
-installation or reproduce its workflow here.
+with the resolved target and scope mode. Include the Phase-0 bounded hints as
+investigation evidence without expanding the target. Do not open a client-specific
+skill installation or reproduce its workflow here.
 
 Retain its scoped manifest, authorities, verified findings, external-claim
 residuals, and handoff note for Phase 2. Do not choose plan locations, filenames,
@@ -47,8 +80,9 @@ groups, collisions, dependencies, or duplicate dispositions at this stage.
 ## Phase 2: In-Function Mechanics
 
 Invoke `external-refactor-clean` natively through the normal skill surface with
-the same target and scope mode. Include the Phase-1 investigation paths as
-evidence to inspect, without expanding the original finding boundary.
+the same target and scope mode. Include the Phase-0 bounded hints and Phase-1
+investigation paths as evidence to inspect, without expanding the original
+finding boundary.
 
 Keep its file-size triage separate from ordinary findings. Every oversized file
 retains the explicit disposition `run /reduce-file <path>`; do not analyze it
@@ -114,6 +148,8 @@ After successful verification and the applicable finalization disposition,
 report:
 
 - exact target, scope mode, file count, and applicable authorities;
+- metric profile, target and corpus coverage, bounded-hint total/truncated
+  counts, and every metric residual;
 - architecture and refactor-clean finding counts;
 - created, updated, duplicate-mapped, rejected, and residual items, with every
   oversized file still shown as `run /reduce-file <path>`;

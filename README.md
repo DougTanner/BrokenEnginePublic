@@ -24,12 +24,16 @@ Setting up a new machine? [Documents/FreshMachineSetup.md](Documents/FreshMachin
 		- Windows 11 SDK (10.0.26100.6901)
 	- Optional components can also be installed later from "Tools" -> "Get Tools and Features..."
 
+- x64 CPython 3.12 or newer. `code-quality-metrics` uses the first `python` Application resolved through normal PATH precedence, then verifies that it is a supported CPython installation. The `py` launcher is not used as a fallback.
+
 ## Git
 
 - **Enable Windows Developer Mode _before_ cloning** (Settings -> System -> For developers -> Developer Mode -> On). This grants the privilege Git needs to create symlinks. Without it, symlinked files check out as plain text files containing the link target instead of working links — notably `.claude/skills`, which points to the repository's canonical tracked `.agents/skills` directory at `../.agents/skills` and exposes those skills to Claude Code.
 - Repository should be cloned with `--recurse-submodules` and symlink support enabled so Codex and Claude Code share the same skills:
 	- With Developer Mode on, clone with `git -c core.symlinks=true clone --recurse-submodules <repository-url>`
-	- Or use "git submodule init" & "git submodule update" after cloning
+	- A fresh clone initializes every submodule recursively and requires network access on that first run.
+	- In an existing checkout, initialize the metrics dependency with `git submodule update --init --recursive -- ThirdParty/scb-check`; this also requires network access the first time it fetches the pinned commit.
+	- The first `code-quality-metrics` run requires network access to bootstrap its locked dependencies.
 	- If you already cloned without Developer Mode, enable it, open a new terminal (so the new privilege takes effect), then enable symlinks for that clone with `git config core.symlinks true` before restoring the link with `git checkout -- .claude/skills`
 - Line endings are LF, enforced by the tracked `.gitattributes` (`* text=auto eol=lf`), so `core.autocrlf` no longer affects checkouts and no LF/CRLF conversion warnings occur.
 	- If you cloned before `.gitattributes` existed, refresh an existing clone's working tree to LF with `git add --renormalize .` then `git checkout-index -a -f` (clean tree required).

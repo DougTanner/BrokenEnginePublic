@@ -216,8 +216,28 @@ void ServerTransferManager::HarvestTransfers()
 	common::ScopedWorkbufferArena transfersArena = rWorkbuffer.Push();
 	CollectTransfers(transfersArena);
 	std::span<const ClientTransferInfo> clientTransfers = transfersArena.Span<const ClientTransferInfo>();
+	for (auto& [rCoord, rTransfers] : mReplayTransferFixtures)
+	{
+		auto it = gpGame->mCoordFrames.find(rCoord);
+		if (it == gpGame->mCoordFrames.end() || it->second.pNext == nullptr)
+		{
+			gpGame->CreateFrameAtCoord(rCoord);
+			engine::CoordFrames& rFrames = gpGame->mCoordFrames.at(rCoord);
+			rFrames.pNext = std::make_unique<Frame>();
+			std::swap(rFrames.pCurrent, rFrames.pNext);
+		}
+
+		auto& rDestinationTransfers = mTransfers.try_emplace(rCoord).first->second;
+		rDestinationTransfers.insert(rDestinationTransfers.end(), std::make_move_iterator(rTransfers.begin()), std::make_move_iterator(rTransfers.end()));
+	}
+	mReplayTransferFixtures.clear();
 
 	SortTransfersByType();
+
+	for (const auto& [rCoord, rTransfers] : mTransfers)
+	{
+		gpGame->CaptureHarvestedTransfers(rCoord, rTransfers, *gpGame->mCoordFrames.at(rCoord).pNext);
+	}
 
 	// Log 5: capture pre-transfer CRCs from frame state (populated by RunFrameTick
 	// before HarvestTransfers runs). Zero extra Crcs() calls - just read. preCrcs is indexed by
@@ -302,7 +322,25 @@ void ServerTransferManager::HarvestTransfers()
 void ServerTransferManager::ResetState()
 {
 	mTransfers.clear();
+	mReplayTransferFixtures.clear();
 	mPendingSubscriptionUpdates.clear();
+}
+
+bool ServerTransferManager::QueueReplayTransferFixture(engine::GridCoord destination, StatusChange transfer)
+{
+	if constexpr (!kbDebugInput)
+	{
+		return false;
+	}
+
+	if (!IsTransferType(transfer.eType) || !std::holds_alternative<TransferData>(transfer.data) ||
+		(transfer.eType != StatusChangeType::kTransferPlayer && !IsDestinationLive(destination)))
+	{
+		return false;
+	}
+
+	mReplayTransferFixtures.try_emplace(destination).first->second.push_back(std::move(transfer));
+	return true;
 }
 
 bool ServerTransferManager::HasPendingSubscriptionUpdate(int64_t iClientId) const

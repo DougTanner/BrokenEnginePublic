@@ -1,3 +1,48 @@
+Third-Party Notices
+
+This skill contains adaptations of the following MIT-licensed works.
+
+Seth Hobson — wshobson/commands, arch-review
+Source: https://github.com/wshobson/commands/blob/b1433688ed54448a867f919f9f659d58415615ac/arch-review.md
+License: https://github.com/wshobson/commands/blob/cd321abf56a5fbf25d392b837253d97ad473457a/LICENSE
+Adaptation: Renamed and converted the generic slash command into a
+repository-native, read-only Broken Engine review. Specialized it for C++23
+data-oriented/Vulkan architecture and parallel dependency, pattern/layer, and
+coupling/cohesion analysis.
+
+Matt Pocock — mattpocock/skills, improve-codebase-architecture
+Source: https://github.com/mattpocock/skills/blob/d1beb4fe61574b3325ed96cd0d9a31966d31a02a/improve-codebase-architecture/SKILL.md
+License: https://github.com/mattpocock/skills/blob/2817544484ea89558aabd8a0360e042888fad713/LICENSE
+Adaptation: Later incorporated deep-module framing, dependency
+classifications, organic and friction-led exploration, and opinionated
+recommendation synthesis into the existing engine-specific workflow.
+
+Seth Hobson upstream MIT license
+
+MIT License
+
+Copyright (c) 2024
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Matt Pocock upstream MIT license
+
 MIT License
 
 Copyright (c) 2026 Matt Pocock

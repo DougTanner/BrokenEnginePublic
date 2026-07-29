@@ -5,6 +5,7 @@
 #include "Game.h"
 #include "MenuUtils.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/LightingWrappersBase.h"
 #include "Ui/Localization.h"
 #include "Ui/SunMoonWrappersBase.h"
 
@@ -196,6 +197,7 @@ void GraphicsMenuScreen::Render()
 		}
 
 		WrapperToggle("Wind", &engine::gWindEnabled);
+		ColumnSlider("Lighting Update Cadence", &engine::gLightingUpdateCadence);
 
 		ImGui::Separator();
 

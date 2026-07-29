@@ -86,6 +86,7 @@ public:
 	void BuildFrameInputs();
 	void CreateFrameAtCoord(engine::GridCoord coord);
 	void HarvestTransfers();
+	void CaptureHarvestedTransfers(engine::GridCoord coord, std::span<const StatusChange> transfers, const Frame& rPreTransferFrame);
 
 #if defined(BT_SERVER)
 	std::unique_ptr<ServerSession> mpServerSession;

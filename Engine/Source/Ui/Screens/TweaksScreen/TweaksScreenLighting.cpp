@@ -60,6 +60,7 @@ const TweaksSliderMapRegistrar gLightingRegistrar
 	// Write - Temporal
 	{"Texel Ramp Speed", &gLightingTexelRampMetersPerSec},
 	{"Temporal Blend", &gLightingTemporalBlend},
+	{"Lighting Update Cadence", &gLightingUpdateCadence},
 	// Combine
 	{"Combine Max Brightness", &gCombineMaxBrightness},
 	{"Combine Contrast", &gCombineContrast},
@@ -181,8 +182,9 @@ void TweaksScreenBase::RenderLightingSection()
 				WrapperSlider("Output Compress", iSection, 1.0f, "Spread Output Compress End");
 
 				WrapperSeparatorText("4. Temporal");
-				WrapperSlider("Texel Ramp Speed", iSection, 1.0f, "Texel Ramp Speed");
+				WrapperSlider("Texel Contraction Speed", iSection, 1.0f, "Texel Ramp Speed");
 				WrapperSlider("Temporal Blend", iSection, 1.0f, "Temporal Blend");
+				WrapperSlider("Update Cadence", iSection, 1.0f, "Lighting Update Cadence");
 
 				ImGui::EndTable();
 			}

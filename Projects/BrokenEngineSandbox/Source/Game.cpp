@@ -389,6 +389,13 @@ void Game::HarvestTransfers()
 #endif
 }
 
+void Game::CaptureHarvestedTransfers(engine::GridCoord coord, std::span<const StatusChange> transfers, const Frame& rPreTransferFrame)
+{
+#if defined(BT_SERVER)
+	mGameSaveLoad.CaptureHarvestedTransfers(coord, transfers, rPreTransferFrame);
+#endif
+}
+
 void Game::ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput)
 {
 	// Heap: Spawns into frame may grow SOA buffers
@@ -451,8 +458,10 @@ void Game::Reset()
 	game::gpCamera->mVecPreviousTargetPosition = {};
 	game::gpCamera->mfJumpStartTime = 0.0f;
 	game::gpCamera->mbJumping = false;
-	game::gpCamera->mfShadowTexelEyeHeight = 0.0f; // Re-snap the shadow texel grid to the new session's zoom (no cross-session ramp)
-	game::gpCamera->mfLightingTexelEyeHeight = 0.0f; // Re-snap the lighting texel grid to the new session's zoom (no cross-session ramp)
+	// Reinitialize both references directly to the new session's live zoom on the next camera update; do not carry
+	// contraction across sessions.
+	game::gpCamera->mfShadowTexelEyeHeight = 0.0f;
+	game::gpCamera->mfLightingTexelEyeHeight = 0.0f;
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	engine::WindTrailsInterpolate::ResetRenderState();

@@ -365,12 +365,13 @@ static void XM_CALLCONV PopulateShadowStretch(shaders::GlobalLayout& rGlobalLayo
 
 static void PopulateShadowArea(shaders::GlobalLayout& rGlobalLayout, float fShadowTextureSizeWidth, float fShadowTextureSizeHeight, float& rfWorldTexelX, float& rfFullWidth)
 {
-	// Shadow area: ramped-world-size texels. The texel world size is sized so a constant on-screen pixel count
+	// Shadow area: world-sized texels from a coverage-safe camera-height reference. The reference expands immediately
+	// with outward zoom and contracts at its existing rate on inward zoom, so it is never below the live eye height.
+	// The texel world size is sized so a constant on-screen pixel count
 	// (textureWidth / kfShadowHeadroomMultiplier) spans the live straight-down frustum width at the camera's
-	// rate-limited mfShadowTexelEyeHeight -- so it is fixed at a settled height (the grid snaps cleanly under XY pan
-	// -> no shimmer) and only rescales while the ramp tracks a zoom. The steady-state ray-marched sub-window is
-	// therefore near-constant on screen at every settled height; a fast zoom-out transiently grows
-	// it toward the full texture (then the CLAMP_TO_BORDER edge covers any overflow). Reading the actual (clamped)
+	// mfShadowTexelEyeHeight, so it is fixed at a settled height (the grid snaps cleanly under XY pan -> no shimmer)
+	// and only rescales immediately outward or gradually inward. The headroom keeps the live render area inside the
+	// full footprint throughout either transition. Reading the actual (clamped)
 	// extent keeps the world coverage device-clamp-invariant; the headroom multiplier cancels out of the window count.
 	// f4ShadowArea is the full footprint, camera-centered and snapped to the current texel grid (integer-texel pan).
 	// The base texel derives from the analytic straight-down frustum width (gFov/aspect), never the snapped
@@ -381,8 +382,7 @@ static void PopulateShadowArea(shaders::GlobalLayout& rGlobalLayout, float fShad
 	// Visible window (texels): map the actually rendered world rect (f4RenderVisibleArea — unprojected
 	// corners plus the extra-top/bottom margins and quad-grid snap, CameraBase.cpp) into the texel-snapped
 	// footprint — only this region is ray-marched. floor/ceil covers partial edge texels and the
-	// up-to-one-texel snap offset of f4Area's origin; the clamps cap the transient when a fast zoom-out
-	// outruns the texel ramp (overflow reads no-shadow via the border).
+	// up-to-one-texel snap offset of f4Area's origin; the clamps remain the final bounds guard for device-clamped extents.
 	const XMFLOAT4& rf4RenderVisibleArea = game::gpCamera->f4RenderVisibleArea;
 	const int64_t iTextureWidth = static_cast<int64_t>(fShadowTextureSizeWidth);
 	const int64_t iTextureHeight = static_cast<int64_t>(fShadowTextureSizeHeight);
@@ -411,8 +411,9 @@ static void PopulateShadowArea(shaders::GlobalLayout& rGlobalLayout, float fShad
 	SetShadowWindowBounds(rGlobalLayout.iShadowBlurHMinX, rGlobalLayout.iShadowBlurHMinY, rGlobalLayout.iShadowBlurHMaxX, rGlobalLayout.iShadowBlurHMaxY, blurHBounds);
 	SetShadowWindowBounds(rGlobalLayout.iShadowSourceMinX, rGlobalLayout.iShadowSourceMinY, rGlobalLayout.iShadowSourceMaxX, rGlobalLayout.iShadowSourceMaxY, sourceBounds);
 
-	// Latch the previous visible rectangle together with the previous world area. A recreate makes both
-	// previous values current and forces pure-current temporal output, so undefined history is never sampled.
+	// Latch the previous visible rectangle together with the previous world area. A recreate makes both previous values
+	// current and forces pure-current temporal output. Outward zoom does not reset shadow history: the prior valid bounds
+	// reject every newly exposed sample, and the history copy seeds the enlarged current rectangle for the next frame.
 	static ShadowTemporalWindowLatch sTemporalWindowLatch {};
 	ShadowWindowBounds previousVisibleBounds {};
 	rGlobalLayout.fShadowTemporalBlend = sTemporalWindowLatch.Update(rGlobalLayout.f4ShadowArea, visibleBounds, gbShadowTemporalReset, gShadowTemporalBlend.Get(), rGlobalLayout.f4ShadowAreaPrevious, previousVisibleBounds);

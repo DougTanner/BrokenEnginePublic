@@ -97,10 +97,9 @@ struct TransferData
 			rSelf.fNextBlasterFireTime, rSelf.fNextSecondarySpawnTime, rSelf.fShieldCooldown, rSelf.fShieldDownSoundCooldown,
 			rSelf.fAnimationTime, rSelf.fShieldRotation, rSelf.fShieldShrink, rSelf.uiPlayerFlags,
 			rSelf.fNextBlasterSpawnTime,
-			rSelf.fArrivalGracePeriod,
 			rSelf.fNavigationDelay,
 			rSelf.fDeltaRotationDelay, rSelf.fTime, rSelf.fNextJitter,
-			rSelf.fDeltaRotation,
+			rSelf.fDeltaRotation, rSelf.fDeltaRotationMax, rSelf.fPitch,
 			rSelf.globalPlayerId,
 			rSelf.fleetWantedCoord,
 			rSelf.uiPendingFleetWantedCoordTicks,
@@ -147,9 +146,6 @@ struct TransferData
 	// Spaceship timers
 	float fNextBlasterSpawnTime = 0.0f;
 
-	// Arrival grace period (shared across player/spaceship transfers)
-	float fArrivalGracePeriod = 0.0f;
-
 	// Navigation delay (player transfers only)
 	float fNavigationDelay = 60.0f;
 
@@ -160,6 +156,8 @@ struct TransferData
 
 	// Live turn rate (spaceship and missile transfers)
 	float fDeltaRotation = 0.0f;
+	float fDeltaRotationMax = 0.0f;
+	float fPitch = 0.0f;
 
 	// Global player ID (player transfers only)
 	engine::global_id_t globalPlayerId {};

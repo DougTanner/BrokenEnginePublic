@@ -99,7 +99,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 
 struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 {
-	static constexpr int64_t kiVersion = 8;
+	static constexpr int64_t kiVersion = 9;
 
 	// Allocate and copy
 	static void AllocateAndCopy(MissilesPostRender& rCurrent, const MissilesPostRender& rPrevious);
@@ -161,6 +161,8 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 		engine::alignment_t alignment {};
 		float fDeltaRotationDelay = 0.0f;
 		float fDeltaRotation = 0.0f;
+		float fDeltaRotationMax = 0.0f;
+		float fPitch = 0.0f;
 		float fTime = 0.0f;
 		float fNextJitter = 0.0f;
 		// Arrival from a neighbouring cell: restore every carried value verbatim instead of defaulting.

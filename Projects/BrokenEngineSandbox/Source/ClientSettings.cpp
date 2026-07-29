@@ -4,6 +4,7 @@
 
 #include "Game.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
+#include "Ui/LightingWrappersBase.h"
 #include "Ui/MiscWrappersBase.h"
 #include "Ui/SoundSettingsWrappersBase.h"
 #include "Ui/SunMoonWrappersBase.h"
@@ -73,7 +74,7 @@ enum class GraphicsSettingsFlags : uint8_t
 
 struct GraphicsSettings
 {
-	static constexpr int64_t kiVersion = 8;
+	static constexpr int64_t kiVersion = 9;
 
 	common::Flags<GraphicsSettingsFlags> flags {};
 	uint8_t uiPad[3] {};
@@ -86,6 +87,7 @@ struct GraphicsSettings
 	float fSmokeSimulationPixels = 0.0f;
 	float fSmokeSimulationArea = 0.0f;
 	float fMinimumAmbient = 0.0f;
+	float fLightingUpdateCadence = 1.0f;
 	float fUiOpacity = 0.9f;
 	float fUiFontScale = 1.0f;
 	engine::UiTheme eUiTheme = engine::UiTheme::kNavalSteel;
@@ -109,6 +111,7 @@ void SaveGraphicsSettings()
 		.fSmokeSimulationPixels = engine::gSmokeSimulationPixels.Get(),
 		.fSmokeSimulationArea = engine::gSmokeSimulationArea.Get(),
 		.fMinimumAmbient = engine::gSunMoonMinimumAmbient.Get(),
+		.fLightingUpdateCadence = engine::gLightingUpdateCadence.Get(),
 		.fUiOpacity = engine::gUiOpacity.Get(),
 		.fUiFontScale = engine::gUiFontScale.Get(),
 		.eUiTheme = engine::GetUiTheme(),
@@ -145,6 +148,14 @@ bool LoadGraphicsSettings()
 		engine::gSmokeSimulationPixels.Set(graphicsSettings.fSmokeSimulationPixels);
 		engine::gSmokeSimulationArea.Set(graphicsSettings.fSmokeSimulationArea);
 		engine::gSunMoonMinimumAmbient.Set(graphicsSettings.fMinimumAmbient);
+		if (std::isfinite(graphicsSettings.fLightingUpdateCadence))
+		{
+			engine::gLightingUpdateCadence.Set(graphicsSettings.fLightingUpdateCadence);
+		}
+		else
+		{
+			engine::gLightingUpdateCadence.ResetToDefault();
+		}
 		engine::gWindEnabled.Set(graphicsSettings.flags & GraphicsSettingsFlags::kWind);
 		engine::gOpaqueUi.Set(graphicsSettings.flags & GraphicsSettingsFlags::kOpaqueUi);
 		engine::gUiOpacity.Set(graphicsSettings.fUiOpacity);
@@ -172,6 +183,7 @@ void ResetGraphicsSettings()
 	engine::gSmokeSimulationPixels.ResetToDefault();
 	engine::gSmokeSimulationArea.ResetToDefault();
 	engine::gSunMoonMinimumAmbient.ResetToDefault();
+	engine::gLightingUpdateCadence.ResetToDefault();
 	engine::gWindEnabled.ResetToDefault();
 	engine::gOpaqueUi.ResetToDefault();
 	engine::gUiOpacity.ResetToDefault();

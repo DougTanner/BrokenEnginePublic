@@ -29,7 +29,6 @@ static void SerializeSpaceshipTransfer(uint8_t*& pCursor, const game::TransferDa
 	WriteUint32(pCursor, rData.alignment.uiValue);
 	WriteFloat(pCursor, rData.fHealth);
 	WriteFloat(pCursor, rData.fNextBlasterSpawnTime);
-	WriteFloat(pCursor, rData.fArrivalGracePeriod);
 	WriteFloat(pCursor, rData.fDeltaRotation);
 }
 
@@ -44,6 +43,8 @@ static void SerializeMissileTransfer(uint8_t*& pCursor, const game::TransferData
 	WriteFloat(pCursor, rData.fTime);
 	WriteFloat(pCursor, rData.fNextJitter);
 	WriteFloat(pCursor, rData.fDeltaRotation);
+	WriteFloat(pCursor, rData.fDeltaRotationMax);
+	WriteFloat(pCursor, rData.fPitch);
 #if defined(BT_CLIENT)
 	int64_t iSmokeTrailId = rData.smokeTrailId.ToUuid().Value();
 #else
@@ -68,7 +69,6 @@ static void SerializePlayerTransfer(uint8_t*& pCursor, const game::TransferData&
 	WriteFloat(pCursor, rData.fShieldRotation);
 	WriteFloat(pCursor, rData.fShieldShrink);
 	WriteUint16(pCursor, rData.uiPlayerFlags);
-	WriteFloat(pCursor, rData.fArrivalGracePeriod);
 	WriteFloat(pCursor, rData.fNavigationDelay);
 	WriteInt64(pCursor, rData.globalPlayerId.iValue);
 	WriteGridCoord(pCursor, rData.fleetWantedCoord);
@@ -96,7 +96,6 @@ static void DeserializeSpaceshipTransfer(const uint8_t*& pCursor, game::Transfer
 	rData.alignment = alignment_t(ReadUint32(pCursor));
 	rData.fHealth = ReadFloat(pCursor);
 	rData.fNextBlasterSpawnTime = ReadFloat(pCursor);
-	rData.fArrivalGracePeriod = ReadFloat(pCursor);
 	rData.fDeltaRotation = ReadFloat(pCursor);
 }
 
@@ -111,6 +110,8 @@ static void DeserializeMissileTransfer(const uint8_t*& pCursor, game::TransferDa
 	rData.fTime = ReadFloat(pCursor);
 	rData.fNextJitter = ReadFloat(pCursor);
 	rData.fDeltaRotation = ReadFloat(pCursor);
+	rData.fDeltaRotationMax = ReadFloat(pCursor);
+	rData.fPitch = ReadFloat(pCursor);
 	[[maybe_unused]] int64_t iSmokeTrailId = ReadInt64(pCursor);
 #if defined(BT_CLIENT)
 	rData.smokeTrailId = smoke_trails_t(engine::uuid_t(iSmokeTrailId));
@@ -133,7 +134,6 @@ static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferDat
 	rData.fShieldRotation = ReadFloat(pCursor);
 	rData.fShieldShrink = ReadFloat(pCursor);
 	rData.uiPlayerFlags = ReadUint16(pCursor);
-	rData.fArrivalGracePeriod = ReadFloat(pCursor);
 	rData.fNavigationDelay = ReadFloat(pCursor);
 	rData.globalPlayerId.iValue = ReadInt64(pCursor);
 	rData.fleetWantedCoord = ReadGridCoord(pCursor);
@@ -161,9 +161,9 @@ static int64_t StatusChangeItemWireSize(game::StatusChangeType eType)
 		case game::StatusChangeType::kSpawnPlayer:       return kiI64 + kiU8 + kiCoord + kiU8;
 		case game::StatusChangeType::kRespawnPlayer:     return 0;
 		case game::StatusChangeType::kTransferBlaster:   return 2 * kiVec4 + kiU8 + kiU32 + 3 * kiF32;
-		case game::StatusChangeType::kTransferSpaceship: return 3 * kiVec4 + kiU32 + 4 * kiF32;
-		case game::StatusChangeType::kTransferMissile:   return 3 * kiVec4 + kiU32 + 5 * kiF32 + kiI64;
-		case game::StatusChangeType::kTransferPlayer:    return 3 * kiVec4 + kiU32 + 11 * kiF32 + kiU16 + kiI64 + kiCoord + 2 * kiU8;
+		case game::StatusChangeType::kTransferSpaceship: return 3 * kiVec4 + kiU32 + 3 * kiF32;
+		case game::StatusChangeType::kTransferMissile:   return 3 * kiVec4 + kiU32 + 7 * kiF32 + kiI64;
+		case game::StatusChangeType::kTransferPlayer:    return 3 * kiVec4 + kiU32 + 10 * kiF32 + kiU16 + kiI64 + kiCoord + 2 * kiU8;
 		case game::StatusChangeType::kDestroyPlayer:     return kiI64;
 		case game::StatusChangeType::kUpdatePlayer:      return kiI64 + kiU8 + kiF32 + kiU8;
 		case game::StatusChangeType::kUpdateFleet:       return kiI64 + kiU8 + kiCoord + kiU8;

@@ -27,6 +27,18 @@ constexpr float kfJumpDistanceThreshold = 50.0f;
 constexpr float kfJumpDuration = 2.0f;
 constexpr float kfJumpCancelThreshold = 5.0f;
 
+static void UpdateTexelEyeHeightReference(float fLiveEyeHeight, float fContractionMetersPerSecond, float fDeltaTime, float& rfReferenceEyeHeight)
+{
+	if (rfReferenceEyeHeight == 0.0f || fLiveEyeHeight > rfReferenceEyeHeight)
+	{
+		rfReferenceEyeHeight = fLiveEyeHeight;
+		return;
+	}
+
+	float fMaxContraction = fContractionMetersPerSecond * fDeltaTime;
+	rfReferenceEyeHeight = std::max(rfReferenceEyeHeight - fMaxContraction, fLiveEyeHeight);
+}
+
 constexpr float Smoothstep(float t)
 {
 	t = std::clamp(t, 0.0f, 1.0f);
@@ -222,6 +234,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 	mVecPreviousTargetPosition = vecTargetPosition;
 
+	const float fEyeHeightBeforeZoom = mfCameraEyeHeight;
 	int iScrollDelta = gpInput->mCameraInput.iScrollDelta;
 	if (iScrollDelta != 0)
 	{
@@ -265,37 +278,19 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		}
 	}
 
-	// Ramp the shadow texel grid's reference height toward the live eye height, rate-limited so the texel world
-	// size (linear in this height) rescales too slowly to perceive. The target tracks the live height at ALL heights
-	// (no clamp): the texels keep coarsening with zoom so the ray-marched window stays at its steady-state target
-	// (constant on-screen pixel size) at every settled height rather than growing toward the texture max.
-	// kfShadowHeadroomMultiplier sizes the texture; only a fast zoom-out that outruns this ramp transiently overflows
-	// the texture (window clamps to its extent), where the CLAMP_TO_BORDER white edge reads as no-shadow until the
-	// ramp settles and the window returns to the steady-state size.
-	float fTexelTarget = mfCameraEyeHeight;
-	if (mfShadowTexelEyeHeight == 0.0f) // Uninitialized: snap (no startup ramp)
+	// Lighting temporal history has no prior-valid-window bounds, so every frame with actual outward eye movement
+	// uses pure-current lighting and re-seeds history after the enlarged world area is rendered. Compare the live
+	// Hermite result rather than its target so carried velocity and direction reversals follow visible motion.
+	if (mfCameraEyeHeight > fEyeHeightBeforeZoom)
 	{
-		mfShadowTexelEyeHeight = fTexelTarget;
-	}
-	else
-	{
-		float fMaxStep = engine::gShadowTexelRampMetersPerSec.Get() * fDeltaTime;
-		mfShadowTexelEyeHeight += std::clamp(fTexelTarget - mfShadowTexelEyeHeight, -fMaxStep, fMaxStep);
+		engine::gbLightingTemporalReset = true;
 	}
 
-	// Identical unclamped ramp for the lighting texel grid, independent of shadow's (its own meters-per-sec cap;
-	// kfLightingHeadroomMultiplier sizes its textures). The window stays at its steady-state target at every settled
-	// height; a fast zoom-out that overflows the texture reads black (no light) via CLAMP_TO_BORDER until the ramp settles.
-	float fLightingTexelTarget = mfCameraEyeHeight;
-	if (mfLightingTexelEyeHeight == 0.0f) // Uninitialized: snap (no startup ramp)
-	{
-		mfLightingTexelEyeHeight = fLightingTexelTarget;
-	}
-	else
-	{
-		float fMaxStep = engine::gLightingTexelRampMetersPerSec.Get() * fDeltaTime;
-		mfLightingTexelEyeHeight += std::clamp(fLightingTexelTarget - mfLightingTexelEyeHeight, -fMaxStep, fMaxStep);
-	}
+	// Keep each world-texel reference at or above the live eye height: zero initialization and outward zoom snap
+	// immediately for full viewport coverage, while inward zoom contracts at the existing independent rates so the
+	// density change remains gradual. At a settled height both references converge to the live height.
+	UpdateTexelEyeHeightReference(mfCameraEyeHeight, engine::gShadowTexelRampMetersPerSec.Get(), fDeltaTime, mfShadowTexelEyeHeight);
+	UpdateTexelEyeHeightReference(mfCameraEyeHeight, engine::gLightingTexelRampMetersPerSec.Get(), fDeltaTime, mfLightingTexelEyeHeight);
 
 	// Eye sits directly above target along +Z (straight-down view).
 	// W=0 — eye-local offset, not a homogeneous point; added to mVecPosition (W=1) preserves position.

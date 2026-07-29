@@ -51,9 +51,12 @@ Inspect available depth and concurrency. Dispatch one `reviewer` role per lens b
 
 ### Lens D — Cohesion and Generation Residue
 
-- Apply the deep-module test: prefer small interfaces that hide substantial complexity; flag shallow indirection, god-managers, and excessive cross-manager knowledge.
+- Treat depth as a property of the interface: it is everything callers and verification must know. Prefer small interfaces that hide substantial complexity; investigate shallow indirection, god-managers, and excessive cross-manager knowledge.
+- Apply the deletion test to a suspected shallow module by tracing where its complexity goes. Complexity redistributed into named callers is evidence the module earns its keep; complexity that disappears may indicate pass-through, but is investigation evidence only.
+- Count adapters only when optional variation or swappability justifies the seam: one adapter is hypothetical, while two current concrete adapters normally demonstrate actual variation. Authority-required trust, platform, build-affinity, ThirdParty, producer/consumer, CPU/GPU, client/server, and other invariant contracts are exempt from adapter counting, but still require structural-impact and locality/leverage evidence.
+- Do not recommend a new seam, adapter, test-only extraction, or testing infrastructure solely for testability.
 - Find cosmetic or bypassed abstractions, abandoned sibling patterns, substantial cross-file duplication, dead modules, and producer/consumer seams with mismatched contracts.
-- Require concrete structural impact; do not infer a defect merely from stylistic difference or the history of AI generation.
+- Require concrete structural impact plus demonstrated locality and leverage: concentrate change, knowledge, or verification and increase capability per interface knowledge. Do not infer a defect merely from stylistic difference or the history of AI generation.
 
 ### Lens E — ThirdParty Replacement
 
@@ -64,15 +67,18 @@ Inspect available depth and concurrency. Dispatch one `reviewer` role per lens b
 
 ## Finding and Claim Contracts
 
-Every reviewer reports each finding in this exact shape:
+Every reviewer reports each finding in this exact shape. Lenses A, B, C, and E omit the Lens D evidence field entirely; Lens D alone includes it after `Evidence`.
 
 ```markdown
 - [severity/category] `path:line` — `symbol or contract`
   - Evidence: repository-observed fact; controlling authority citation when applicable
+  - Lens D evidence: Interface surface: <caller/verification knowledge>; Deletion: <where complexity goes>; Seam: <actual variants or controlling invariant>; Locality/leverage: <concrete payoff>
   - Impact: concrete architectural or invariant consequence
   - Correction: smallest structural correction or investigation needed
   - Confidence: HIGH | MEDIUM | LOW
 ```
+
+Lens-D tests are investigation heuristics only: they do not automatically establish findings or mandate abstraction or testing infrastructure without complete applicable evidence and concrete structural impact.
 
 Use precise symbols and evidence, not thematic summaries. Unused includes and dead-code candidates must retain confidence labels. Report no-finding conclusions explicitly for assigned lens checks.
 
@@ -82,7 +88,7 @@ After reviewer waves complete, route every such request through `verify-external
 
 ## Consolidate and Report
 
-Deduplicate by root cause, preserve the strongest evidence, and cross-reference systemic findings without inflating their count. Choose one most impactful architectural improvement and name its modules, correction, and reason. Do not invent findings to populate a section.
+Deduplicate by root cause, preserve the strongest evidence, and cross-reference systemic findings without inflating their count. Any prioritized Lens-D recommendation preserves its interface, deletion, seam, and locality/leverage evidence and payoff. Choose one most impactful architectural improvement and name its modules, correction, and reason. Do not invent findings to populate a section.
 
 Return:
 

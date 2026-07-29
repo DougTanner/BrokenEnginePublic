@@ -78,10 +78,11 @@ void main()
 	// Window: the texture is pre-sized for headroom, but at a settled eye height only the on-screen region feeds the
 	// final image — process just the LIVE visible window plus a one-pass-gather margin (so each pass's immediate gather
 	// stays correct up to the screen edge; the iterative higher-order spill is decay-attenuated, not the
-	// cumulative reach). The window tracks f4VisibleArea, so a
-	// fast zoom-out — whose lagging ramped texels make f4LightingArea cover less than the frustum — naturally expands it
-	// to use more of the texture, then it returns to the cropped steady state as the ramp settles (mirrors the shadow
-	// visible-window crop). A cumulative-reach margin here would exceed the headroom and never crop (full-texture cost).
+	// cumulative reach). The lighting-area reference expands immediately with outward zoom and contracts gradually
+	// inward, so reference lag no longer shrinks raw-frustum coverage. The configured one-pass margin can still exceed
+	// fixed headroom and remains clamped to the texture extent; at settled height the raw-frustum window returns to its
+	// normal cropped size (mirrors the shadow visible-window crop). A cumulative-reach margin here would exceed the
+	// headroom and never crop (full-texture cost).
 	float fMarginX = globalLayout.f2SpreadMargin.x;
 	float fMarginY = globalLayout.f2SpreadMargin.y;
 	if (f2ElevTexcoord.x < -fMarginX || f2ElevTexcoord.x > 1.0f + fMarginX || f2ElevTexcoord.y < -fMarginY || f2ElevTexcoord.y > 1.0f + fMarginY)

@@ -101,7 +101,6 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [[ma
 				.fShieldShrink = rCurrentInterpolate.pfShieldShrinks[i],
 #endif
 				.uiPlayerFlags = static_cast<uint16_t>(std::to_underlying(rCurrentPostRender.pFlags[i].meFlags) & ~std::to_underlying(kTransfer)),
-				.fArrivalGracePeriod = rCurrentPostRender.pfArrivalGracePeriods[i],
 				.fNavigationDelay = rCurrentPostRender.pfNavigationDelays[i],
 			},
 			.iEntityId = rCurrentPostRender.puiIds[i].ToUuid().Value(),
@@ -245,6 +244,12 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 		}
 	}
 
+	if ((flags & kIsFlagship) && riNavDirection == 5 && (fleetWantedCoord == rStaticData.coord))
+	{
+		riNavDirection = 4;
+		rVecIslandDestination = XMVectorZero();
+	}
+
 	// Frame change timer: cycle back to island destination when roaming
 	if (riNavDirection == -1)
 	{
@@ -292,12 +297,10 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 		// ServerFleetManager::OnPlayerDeath -> FleetNavigationController::ShiftFlagshipAfterDeath moves the
 		// fleet's flagship index after the removal tick, ProcessFlagshipUpdates drains that into a kUpdateFleet
 		// whose Update-phase handler writes kIsFlagship, and the next Update finds the new flagship or takes the
-		// fleet-override path above. Two cases stall longer and are not fixed here, because an in-frame exit
-		// would rewrite CRC'd nav flags and invalidate every existing replay: the promoted ship itself holds
-		// mode 5 — it now fails the proximity scan's !kIsFlagship guard, and ShiftFlagshipAfterDeath aims
-		// wantedCoord at its own coord, so the fleet override cannot fire either — until TickFleetTimers issues
-		// a new cardinal after fNavigationDelay; and agent-injected players belong to no Fleet, so they never
-		// receive that kUpdateFleet at all (harness-only).
+		// fleet-override path above. A promoted flagship recovers on D+2, once its reassigned kIsFlagship and
+		// same-cell wanted coord are navigation-visible: the predicate above enters mode 4 and clears the stale
+		// flagship destination without advancing the fleet's rally timer. Agent-injected players belong to no
+		// Fleet, so they never receive that kUpdateFleet at all (harness-only).
 		// Mirror mode 4's three entry draws (island pick + footprint X + footprint Y) so flipping
 		// between modes 4 and 5 does not desync the shared random stream. Only the draw COUNT matters:
 		// every common::Random advances the engine exactly once regardless of the max argument, so the

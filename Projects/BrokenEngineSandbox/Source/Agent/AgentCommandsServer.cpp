@@ -3,10 +3,12 @@
 #if defined(BT_SERVER)
 
 #include "Agent/AgentCommandsServerQueries.h"
+#include "Frame/Collections/Players/Players.h"
 #include "Game.h"
 #include "Network/Server/ServerBroadcaster.h"
 #include "Network/Server/ServerClientManager.h"
 #include "Network/Server/ServerFleetManager.h"
+#include "Network/Server/ServerTransferManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace game
@@ -195,6 +197,11 @@ void CommandReplayRecord([[maybe_unused]] const nlohmann::json& rParams, [[maybe
 		else if (bFlagPending)
 		{
 			// Cancel a pending transition (e.g. a stop request voids a not-yet-started recording).
+			if (!gpGame->mGameSaveLoad.IsRecording())
+			{
+				gpServerSession->mpTransferManager->mReplayTransferFixtures.clear();
+				gpGame->mGameSaveLoad.mReplayTransferCaptureInfo = {};
+			}
 			gpGame->mGameFlags.Clear(engine::GameFlags::kSaveReplay);
 			rResult["pending"] = false;
 		}
@@ -217,6 +224,28 @@ void CommandReplayPlay([[maybe_unused]] const nlohmann::json& rParams, [[maybe_u
 		// Same semantics as F8 / kClientReplayPlaybackRequest: starts playback, or cancels if already replaying.
 		gpGame->mGameFlags.Set(engine::GameFlags::kLoadReplay);
 		rResult["pending"] = true;
+	}
+}
+
+void CommandReplayTransferCapture([[maybe_unused]] const nlohmann::json& rParams, nlohmann::json& rResult)
+{
+	if constexpr (!kbDebugInput)
+	{
+		throw std::runtime_error("replay_transfer_capture requires kbDebugInput build");
+	}
+	else
+	{
+		const GameSaveLoad::ReplayTransferCaptureInfo& rCaptureInfo = gpGame->mGameSaveLoad.mReplayTransferCaptureInfo;
+		rResult["recordingEventTick"] = rCaptureInfo.iRecordingEventTick;
+		rResult["playbackEventTick"] = rCaptureInfo.iPlaybackEventTick;
+		rResult["writerInputTick"] = rCaptureInfo.iWriterInputTick;
+		rResult["followingEmptyInputTick"] = rCaptureInfo.iFollowingEmptyInputTick;
+		rResult["firstWriterInputTick"] = rCaptureInfo.iFirstWriterInputTick;
+		rResult["writerInputCount"] = rCaptureInfo.iWriterInputCount;
+		rResult["playerCount"] = rCaptureInfo.iPlayerCount;
+		rResult["spaceshipCount"] = rCaptureInfo.iSpaceshipCount;
+		rResult["blasterCount"] = rCaptureInfo.iBlasterCount;
+		rResult["missileCount"] = rCaptureInfo.iMissileCount;
 	}
 }
 
@@ -275,13 +304,17 @@ void CommandReplayInjectPersistenceFailure([[maybe_unused]] const nlohmann::json
 		{
 			eFailurePoint = GameSaveLoad::ReplayPersistenceFailurePoint::kMetadata;
 		}
+		else if (stage == "inventory")
+		{
+			eFailurePoint = GameSaveLoad::ReplayPersistenceFailurePoint::kInventory;
+		}
 		else if (stage == "final_manifest")
 		{
 			eFailurePoint = GameSaveLoad::ReplayPersistenceFailurePoint::kFinalManifest;
 		}
 		else
 		{
-			throw std::runtime_error("'stage' must be invalidation|grid|coordinate_writer|metadata|final_manifest");
+			throw std::runtime_error("'stage' must be invalidation|grid|coordinate_writer|metadata|inventory|final_manifest");
 		}
 
 		if ((eFailurePoint == GameSaveLoad::ReplayPersistenceFailurePoint::kManifestInvalidation ||
@@ -371,6 +404,112 @@ namespace
 bool IsCoordActive(engine::GridCoord coord)
 {
 	return std::find(gpGame->mActiveCoords.begin(), gpGame->mActiveCoords.end(), coord) != gpGame->mActiveCoords.end();
+}
+
+bool AreAdjacent(engine::GridCoord source, engine::GridCoord destination)
+{
+	const int64_t iDeltaX = static_cast<int64_t>(destination.x) - source.x;
+	const int64_t iDeltaY = static_cast<int64_t>(destination.y) - source.y;
+	return (iDeltaX != 0 || iDeltaY != 0) && std::abs(iDeltaX) <= 1 && std::abs(iDeltaY) <= 1;
+}
+
+void CommandReplayTransferFixture(const nlohmann::json& rParams, nlohmann::json& rResult)
+{
+	if constexpr (!kbDebugInput)
+	{
+		throw std::runtime_error("replay_transfer_fixture requires kbDebugInput build");
+	}
+	else
+	{
+		if (gpGame->mGameSaveLoad.IsReplaying())
+		{
+			throw std::runtime_error("cannot queue replay transfer fixture during replay playback");
+		}
+		const bool bPendingStart = (gpGame->mGameFlags & engine::GameFlags::kPaused) &&
+			(gpGame->mGameFlags & engine::GameFlags::kSaveReplay) && !gpGame->mGameSaveLoad.IsRecording();
+		if (!gpGame->mGameSaveLoad.IsRecording() && !bPendingStart)
+		{
+			throw std::runtime_error("replay_transfer_fixture requires active recording or a paused pending recording start");
+		}
+		if (!rParams.contains("type") || !rParams.at("type").is_string())
+		{
+			throw std::runtime_error("replay_transfer_fixture requires string 'type'");
+		}
+		bool bPauseAfterWriterInput = false;
+		if (rParams.contains("pauseAfterWriterInput"))
+		{
+			if (!rParams.at("pauseAfterWriterInput").is_boolean())
+			{
+				throw std::runtime_error("'pauseAfterWriterInput' must be bool");
+			}
+			bPauseAfterWriterInput = rParams.at("pauseAfterWriterInput").get<bool>();
+		}
+
+		const std::string type = rParams.at("type").get<std::string>();
+		StatusChangeType eType {};
+		if (type == "player")
+		{
+			eType = StatusChangeType::kTransferPlayer;
+		}
+		else if (type == "spaceship")
+		{
+			eType = StatusChangeType::kTransferSpaceship;
+		}
+		else if (type == "blaster")
+		{
+			eType = StatusChangeType::kTransferBlaster;
+		}
+		else if (type == "missile")
+		{
+			eType = StatusChangeType::kTransferMissile;
+		}
+		else
+		{
+			throw std::runtime_error("'type' must be player|spaceship|blaster|missile");
+		}
+
+		const engine::GridCoord source = CoordFromParam(rParams, "source");
+		const engine::GridCoord destination = CoordFromParam(rParams, "destination");
+		if (!AreAdjacent(source, destination))
+		{
+			throw std::runtime_error("'source' and 'destination' must be distinct adjacent coords");
+		}
+		if (!IsCoordActive(source))
+		{
+			throw std::runtime_error("'source' is not active");
+		}
+		const auto sourceIt = gpGame->mCoordFrames.find(source);
+		if (sourceIt == gpGame->mCoordFrames.end() || sourceIt->second.pCurrent == nullptr || sourceIt->second.pNext == nullptr)
+		{
+			throw std::runtime_error("'source' frame is not ready");
+		}
+
+		TransferData data {
+			.vecPosition = XMVectorSet(static_cast<float>(destination.x) * Frame::kfCellWidth, static_cast<float>(destination.y) * Frame::kfCellHeight, 0.0f, 1.0f),
+			.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
+			.vecVelocity = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
+			.alignment = gpGame->PlayerAlignment(),
+			.fHealth = 1.0f,
+			.fShield = 1.0f,
+			.uiTypeIndex = PlayersInterpolate::suiBlasterTypeIndex,
+			.globalPlayerId = engine::global_id_t {eType == StatusChangeType::kTransferPlayer ? gpGame->GenerateGlobalId() : 0},
+			.fleetWantedCoord = destination,
+		};
+		StatusChange transfer {.eType = eType, .data = std::move(data)};
+		if (!gpServerSession->mpTransferManager->QueueReplayTransferFixture(destination, std::move(transfer)))
+		{
+			throw std::runtime_error("replay transfer fixture destination is not live for this type");
+		}
+		if (bPauseAfterWriterInput)
+		{
+			gpGame->mGameSaveLoad.mReplayTransferCaptureInfo.iPauseAfterWriterInputCount = 1;
+		}
+
+		rResult["type"] = type;
+		rResult["source"] = {source.x, source.y};
+		rResult["destination"] = {destination.x, destination.y};
+		rResult["pauseAfterWriterInput"] = bPauseAfterWriterInput;
+	}
 }
 
 int64_t PlayerUuidFromParam(const nlohmann::json& rChange)
@@ -571,6 +710,11 @@ bool ExecuteAgentCommandServer(std::string_view cmd, const nlohmann::json& rPara
 		CommandReplayPlay(rParams, rResult);
 		return true;
 	}
+	if (cmd == "replay_transfer_capture")
+	{
+		CommandReplayTransferCapture(rParams, rResult);
+		return true;
+	}
 	if (cmd == "replay_drop_retained_end_frame")
 	{
 		CommandReplayDropRetainedEndFrame(rParams, rResult);
@@ -579,6 +723,11 @@ bool ExecuteAgentCommandServer(std::string_view cmd, const nlohmann::json& rPara
 	if (cmd == "replay_inject_persistence_failure")
 	{
 		CommandReplayInjectPersistenceFailure(rParams, rResult);
+		return true;
+	}
+	if (cmd == "replay_transfer_fixture")
+	{
+		CommandReplayTransferFixture(rParams, rResult);
 		return true;
 	}
 	if (cmd == "query_frame")

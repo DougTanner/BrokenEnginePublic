@@ -17,6 +17,12 @@ enum class FileFlags : uint64_t
 };
 using FileFlags_t = common::Flags<FileFlags>;
 
+struct FileContentDigest
+{
+	int64_t iByteCount = 0;
+	std::array<uint8_t, 32> sha256 {};
+};
+
 // Eager chunk (loaded at boot)
 struct EagerChunk
 {
@@ -167,6 +173,8 @@ public:
 	bool Exists(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 	std::fstream OpenFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 	void RemoveFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
+	[[nodiscard]] bool ComputeSha256(std::span<const std::byte> bytes, std::array<uint8_t, 32>& rOut);
+	[[nodiscard]] bool ComputeOrdinaryFileSha256(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, FileContentDigest& rOut);
 
 	// Crash-safe write: opens "<rFilename>.tmp" for write, runs fnWrite(stream), closes, then atomically renames to rFilename.
 	// On stream failure or rename failure the previous good file remains intact and the .tmp is removed. Returns false on any failure.

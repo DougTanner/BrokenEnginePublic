@@ -88,7 +88,9 @@ inline int64_t giShadowActivePixelsX = 0; // Profile GPU-screen readout: ray-mar
 inline int64_t giShadowActivePixelsY = 0; // Profile GPU-screen readout: ray-marched sub-window height in texels
 
 // Lighting
-inline bool gbLightingTemporalReset = false; // Set by CreateLightingTextures; re-arms the PopulateLightingParameters first-frame guard so a recreate doesn't blend stale history for one frame
+// Set by CreateLightingTextures and by Camera on every frame with outward live-eye movement. PopulateLightingParameters
+// consumes it to force pure-current output and re-seed history; any lighting refresh cadence must refresh while it is pending.
+inline bool gbLightingTemporalReset = false;
 inline int64_t giLightingDepositPixelsX = 0; // Profile GPU-screen readout: full deposit texture width in texels (deposit is not windowed)
 inline int64_t giLightingDepositPixelsY = 0; // Profile GPU-screen readout: full deposit texture height in texels
 inline int64_t giLightingSpreadStartActivePixelsX = 0; // Profile GPU-screen readout: cropped on-screen window width in start-pass (gSpreadTextureMultiplierStart) spread texels

@@ -12,6 +12,8 @@ Game-layer packet extensions, status-change serialization, and multiplayer orche
 ## Status-Change Wire Format
 
 - `StatusChangeType` is declared with Frame status data, but its append-only wire compatibility contract is owned here. Adding a type requires matching serialization, deserialization, wire-size, and default-data handling; keep the per-item maximum large enough for every payload.
+- Any incompatible `StatusChange` or `TransferData` layout change — type tag, field order, field width, variant arm membership, or per-item wire size — requires the game codec author to increment `engine::kuiProtocolVersion`; Engine Network owns the shared Hello rejection gate.
+- The protocol gate is distinct from `FrameInput::kiVersion` (replay-input compatibility) and `Frame::kiVersion` (deterministic-Frame/save/replay compatibility); neither Frame version substitutes for the protocol bump.
 - Serialization groups changes deterministically by type, then wraps the batch in an LZ4 envelope. The uncompressed-size prefix is a trust boundary and must be clamped before reserving scratch memory.
 - Deserialization bounds every item through the co-located wire-size contract and rejects the entire batch on an invalid type, short read, or decompression failure. Client-only values still occupy identical server-side wire space.
 - Wire-sensitive event enums and sender/receiver ordering move together. Local-only synthesized states never enter the stream.

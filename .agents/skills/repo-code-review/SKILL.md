@@ -21,44 +21,71 @@ documentation.
 
 Require a self-contained brief containing:
 
-- the fixed baseline, complete immutable C++ diff, and exact changed
-  files/regions, separated from pre-existing and concurrently owned changes;
+- the fixed baseline as a full Git SHA, complete immutable authorized C++ diff,
+  and exact changed files/regions, separated from pre-existing and concurrently
+  owned changes;
+- an identity-bound
+  `broken-engine-code-quality-target-manifest/v1` derived exactly from that
+  authorized diff (or focused re-review), with baseline/current identities for
+  additions, deletions, and renames; it excludes pre-existing and concurrently
+  owned changes;
 - approved intent, plan and deltas, affected contracts, and declared
   invariants;
 - implementation handoff, acceptance criteria, affected-site triggers, and any
   prior findings relevant to a focused re-review;
 - checkout path and applicable repository instructions.
 
-Return `BLOCKED` when the diff boundary, intent, or invariants are missing or
-moving. Do not reconstruct them from a mutable merge base or expand a supplied
-review into an unbounded repository audit. After an accepted fix, review only
-the fixed region and directly affected paths unless a reproducible failure
-justifies another wave.
+Return `BLOCKED` when the fixed baseline, diff boundary, target manifest, intent,
+or invariants are missing or moving. Do not reconstruct them from a mutable merge
+base, derive a broader target manifest from checkout changes, or expand a supplied
+review into an unbounded repository audit. After an accepted fix, review only the
+fixed region and directly affected paths unless a reproducible failure justifies
+another wave.
 
 ## Workflow
 
-1. Read the changed regions in full-function context, their applicable
+1. Run `code-quality-metrics` Compare early with the supplied target manifest,
+   fixed baseline, absolute checkout root, and one profile for both captures.
+   Use the public `Invoke-CodeQualityMetrics.ps1` entry point with `-Mode Compare
+   -TargetManifest <supplied-manifest> -Baseline <fixed-full-sha>
+   -RepositoryRoot <absolute-checkout-root>`, and record its `profile`,
+   `targetSelection`, and `comparison` evidence. This findings-only review
+   permits no mutation except the entry point's validated ignored
+   `Temp/CodeQualityMetrics` cache and capture writes; do not write a manifest,
+   output file, source, or repository metadata. An operational failure,
+   including exit `2`, leaves the review incomplete with `NEEDS_ACTION`, not a
+   correctness finding. Record `comparison.contextChanges` without widening the
+   review scope.
+2. Read the changed regions in full-function context, their applicable
    `AGENTS.md`, and the producers, consumers, callers, and mirrored paths needed
    to trace the declared contracts. Diff-only inspection is insufficient.
-2. Search changed signatures, semantics, enum values, layouts, ownership,
+3. Search changed signatures, semantics, enum values, layouts, ownership,
    guards, frame phases, and serialization identities across every affected
    site. Check substantial new logic against existing helpers and deliberate
    mirrored patterns.
-3. Apply the relevant checks below. Turn a checklist concern into a finding
+4. Apply the relevant checks below. Turn a checklist concern into a finding
    only when a concrete changed path makes the failure reachable.
-4. Try to disprove each candidate finding against guards, caller preconditions,
+5. Try to disprove each candidate finding against guards, caller preconditions,
    lifecycle, and current repository contracts. Report the smallest correction,
    without implementing it.
-5. Emit an atomic `/verify-external-claims` request for every candidate finding
+6. Emit an atomic `/verify-external-claims` request for every candidate finding
    that depends on a non-obvious external API, language, specification, OS, or
    library fact. Do not browse or present that fact as confirmed.
-6. Measure changed `.cpp` files with
+7. Measure changed `.cpp` files with
    `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`.
    Record a size observation only when the changed region exposes a concrete
    cohesive split. Return it as a manager follow-up candidate; never reduce the
    file or prescribe an inline reduction during review.
-7. Return the report and the conditional `/update-vcxproj` trigger. Never read
+8. Return the report and the conditional `/update-vcxproj` trigger. Never read
    or grep project XML in this review.
+
+Metrics remain advisory. A regression or classification never becomes a finding
+or changes a clean review to non-PASS. Only independent source inspection may
+promote a substantial new near-copy under the duplication rule below, or another
+reachable correctness violation. Structural-erosion changes are advisory
+follow-up evidence. A target parse omission makes the review incomplete with
+`NEEDS_ACTION`, not a finding; a corpus-only omission is an advisory residual
+and preserves PASS. Report coverage and the disposition from `comparison`.
 
 ## Correctness Checks
 
@@ -216,8 +243,10 @@ ordering. Do not apply this check to semantic codecs or serialization adapters.
 Flag incomplete integration and reachable edge failures. Flag overbuilt code
 only when the change adds an unused option, one-use indirection with no required
 contract, or speculative path with no current consumer. Flag substantial new
-near-copies or repeated multi-condition logic after proving an existing helper
-fits. Deliberate client/server and collection mirrors remain parallel.
+near-copies or repeated multi-condition logic only after independent source
+inspection proves an existing helper fits. Compare clone evidence is an
+investigation lead, not a finding by itself. Deliberate client/server and
+collection mirrors remain parallel.
 
 Exclude micro-simplifications, style preferences, naming, header placement
 other than the required `Common/ExternalHeaders.h` rule above, formatting, and
@@ -258,16 +287,21 @@ finding is `Required`. Omit empty optional sections.
 ### Size Observations
 - `path` (`N bt-token-v1`) — <cohesive split and why it is a manager follow-up candidate>
 
+### Metric Evidence
+- profile and target-manifest status — <Compare result>
+- target/corpus/common-parsed-cohort and coverage — <bounded `comparison` evidence>
+- context changes and metric residual disposition — <count/status; no scope expansion>
+
 ### Files Reviewed
 - `path` — <regions and affected paths traced>
 
 ### Recommendation
-PASS | NEEDS FIXES | BLOCKED
+PASS | NEEDS ACTION | BLOCKED
 
 Status: PASS | NEEDS_ACTION | BLOCKED
 Changed files: none
 Functions/regions touched: none
-Decisive checks: <reads, searches, traces, and measurements>
+Decisive checks: <Compare result and bounded metric evidence; reads, searches, traces, and measurements>
 Project membership trigger: /update-vcxproj — <paths/reason> | none
 Build required: none
 Residuals: <pre-existing defect, incomplete trace, pending external verdict, or none>

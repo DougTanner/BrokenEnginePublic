@@ -36,8 +36,8 @@ std::tuple<int64_t, int64_t> TextureManager::DetailTextureSize(float fMultiplier
 std::tuple<int64_t, int64_t> TextureManager::LightingDetailTextureSize(float fMultiplier)
 {
 	// Pre-size every lighting deposit/spread/combine texture by Camera::kfLightingHeadroomMultiplier so the constant
-	// on-screen-pixel-size texel grid has transient room to grow under a fast zoom-out before it runs off the texture
-	// (where the CLAMP_TO_BORDER edge reads as no light). Centralized so all lighting consumers stay byte-consistent
+	// on-screen-pixel-size texel grid retains coverage margin while its camera-height reference expands immediately
+	// outward and contracts gradually inward. Centralized so all lighting consumers stay byte-consistent
 	// (deposit quads must land on the same texels the area math snaps to). Clamp AFTER the multiply (DetailTextureSize
 	// clamps pre-multiply); force width even so downstream half-width math stays integer.
 	auto [iBaseX, iBaseY] = DetailTextureSize(fMultiplier);
@@ -410,8 +410,8 @@ void TextureManager::CreateSamplers()
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotBorder]));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotBorder], "Border");
-	// White border (opaque 1.0): the shadow texture is inverse (1.0 = fully lit / no shadow), so a sample beyond the
-	// huge texture's extent (a fast zoom-out that outruns the texel ramp) reads "no shadow" instead of smearing the edge.
+	// White border (opaque 1.0): the shadow texture is inverse (1.0 = fully lit / no shadow), so any sample beyond the
+	// texture extent reads "no shadow" instead of smearing the edge.
 	vkSamplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mpSamplers[kSamplerSlotBorderWhite]));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mpSamplers[kSamplerSlotBorderWhite], "BorderWhite");

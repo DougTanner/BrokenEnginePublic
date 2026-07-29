@@ -61,6 +61,8 @@ void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& rD
 				.alignment = rData.alignment,
 				.fDeltaRotationDelay = rData.fDeltaRotationDelay,
 				.fDeltaRotation = rData.fDeltaRotation,
+				.fDeltaRotationMax = rData.fDeltaRotationMax,
+				.fPitch = rData.fPitch,
 				.fTime = rData.fTime,
 				.fNextJitter = rData.fNextJitter,
 				.bTransfer = true,

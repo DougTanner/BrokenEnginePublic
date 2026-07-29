@@ -8,6 +8,8 @@ Shared ENet transport, slot subscriptions, ACK state, discovery, wire cursors, a
 - Each coordinate slot has independent ACK floor, bitfield, and epoch state. Epoch mismatch drops stale traffic after slot reuse; unsubscribe carries the observed epoch, so a stale request cannot free a reused slot while the server still ACKs the no-op.
 - Engine packet types remain below `kGamePacketStart`; game packets are forwarded opaquely.
 - The handshake verifies protocol version, deterministic Frame version, and ordered island-manifest identity before accepting a peer.
+- Every incompatible game `StatusChange` or `TransferData` wire-layout change requires its game codec owner to increment `engine::kuiProtocolVersion`; Engine Network owns the shared version and Hello rejection gate.
+- `Frame::kiVersion` is a separate deterministic-Frame/save/replay compatibility gate, not a substitute for the protocol-version bump.
 - Cursor primitives are unchecked. Validate exact fixed layouts or gate every variable-length read with `BoundedCursor` before passing its cursor to a primitive.
 - Client-to-server packet additions require a contract row, size and semantic validation, handshake/debug gating where applicable, per-tick rate limits, and violation reporting through the server contract path. Send commands at tick cadence, not render cadence.
 - ENet service, discovery polling, sends, and simulation queues are main-thread-only. Their workbuffer and state have no locking by design.

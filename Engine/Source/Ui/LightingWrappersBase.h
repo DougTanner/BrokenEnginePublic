@@ -59,6 +59,7 @@ extern Wrapper gSpreadOutputCompressEnd;
 // Write - Temporal
 extern Wrapper gLightingTexelRampMetersPerSec;
 extern Wrapper gLightingTemporalBlend;
+extern Wrapper gLightingUpdateCadence;
 
 // Combine (Uchimura tone curve)
 extern Wrapper gCombineMaxBrightness;

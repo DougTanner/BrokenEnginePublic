@@ -20,10 +20,12 @@ public:
 
 	void HarvestTransfers();
 	void ResetState();
+	bool QueueReplayTransferFixture(engine::GridCoord destination, StatusChange transfer);
 
 	bool HasPendingSubscriptionUpdate(int64_t iClientId) const;
 
 	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mTransfers;
+	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mReplayTransferFixtures;
 	std::vector<SubscriptionUpdate> mPendingSubscriptionUpdates;
 
 private:

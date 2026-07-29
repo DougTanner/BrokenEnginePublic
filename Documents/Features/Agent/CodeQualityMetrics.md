@@ -41,15 +41,15 @@ The following scope is both target and ceiling. Implement the smallest complete 
 
   `BrokenEngineExtended` is the default when `-Profile` is omitted. `Compare` requires `Baseline`. Review manifests use a versioned JSON list of baseline/current path pairs, supporting additions, deletions, and renames. Logs go to stderr; canonical JSON goes to stdout and, when requested, identically to `OutputPath`. Exit `0` means analysis completed; exit `2` means invalid input, bootstrap failure, capture drift, or analysis failure.
 
-- Emit `broken-engine-code-quality-metrics/v1` JSON with tool/runtime identity, corpus and target manifests, coverage, parse failures, metrics, file/area outliers, clone groups, high-complexity functions, and comparison evidence. Use relative POSIX paths, sorted collections, UTF-8/LF, rounded 12-decimal floating values, and no timestamps, durations, absolute paths, or other volatile fields.
-- Bootstrap an ignored venv under `Temp/CodeQualityMetrics/`, keyed by exact Python interpreter identity, submodule SHA, and `requirements.lock` hash. Install upstream dependencies with `pip --require-hashes --only-binary=:all:`; these PyPI artifacts must match hashes committed in the trusted GitHub lock.
+- Emit `broken-engine-code-quality-metrics/v2` JSON with tool/runtime identity, corpus and target manifests, coverage, parse failures, metrics, file/area outliers, clone groups, high-complexity functions, and comparison evidence. Its `tool` object is `{adapterVersion,lockSha256,python,disableSg}` with `adapterVersion` set to `"3"`. Use relative POSIX paths, sorted collections, UTF-8/LF, rounded 12-decimal floating values, and no timestamps, durations, absolute paths, or other volatile fields.
+- Bootstrap an ignored venv under `Temp/CodeQualityMetrics/`, keyed by exact Python interpreter identity and `requirements.lock` hash. Compare authenticates the provisioned analyzer internally, archives it into a fresh ignored stage, and imports that staged source; its gitlink pin is only an archive selector, not a metric, cache, or report identity. Install upstream dependencies with `pip --require-hashes --only-binary=:all:`; these PyPI artifacts must match hashes committed in the trusted GitHub lock.
 - Make bootstrap concurrency-safe with a per-key named mutex, unique staging venv, import/`sg.exe`/identity validation, completion marker, and atomic same-volume promotion. Rebuild only invalid caches beneath a validated Temp root.
 - Require Python 3.12+ and document first-run network behavior and existing-checkout submodule hydration in README/FreshMachineSetup.
 
 ## Metric and Workflow Behavior
 
 - Analyze repository-owned C++ discovered from tracked plus untracked/nonignored files, excluding `ThirdParty`, `.agents`, `.claude`, `Temp`, and ignored/generated files.
-- `BrokenEngineExtended` adds `.h` to upstream’s C++ dispatch through a process-local adapter; `StrictUpstream` uses upstream extensions unchanged. Always label the profile and reject cross-profile comparisons.
+- `BrokenEngineExtended` adds `.h` to upstream’s C++ dispatch through a process-local adapter and writes a fixed byte-preserving normalized parser capture: only `__restrict`, `XM_CALLCONV`, eligible leading explicit instantiations, and whole logical preprocessor directives are masked after raw identity validation. Raw manifests, compiler input, source-span hashes, and coordinates remain unchanged. `StrictUpstream` uses upstream extensions and raw capture bytes unchanged. Always label the profile and reject cross-profile comparisons.
 - Compute:
 
   - Function mass = `cyclomatic complexity × sqrt(function SLOC)`.

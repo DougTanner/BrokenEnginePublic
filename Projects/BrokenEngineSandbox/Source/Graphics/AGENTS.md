@@ -13,7 +13,8 @@ Client-only `Camera` derives from `engine::CameraBase`. The engine base owns mat
 
 - Long-distance target changes use a bounded smoothstep jump that may re-anchor from the current position. Normal tracking tightens with camera height.
 - Mouse wheel input updates a persisted, clamped eye-height target. Height and velocity re-anchor while scrolling so repeated input remains smooth; the gameplay zoom ceiling is not a texel-grid boundary.
-- Shadow and lighting camera heights ramp independently toward live eye height. Their zero sentinel snaps the first frame after reset; the engine renderer converts them to world texel grids.
+- Shadow and lighting camera-height references expand immediately with outward live-eye motion and contract independently at their existing rates inward. Their zero sentinel initializes directly to live height, and each initialized reference remains at or above live height before the engine renderer converts it to a world texel grid.
+- Every frame whose post-zoom live eye height exceeds its pre-zoom height marks lighting temporal history for a pure-current re-seed by the next `RenderGlobal`; shadow temporal history relies on prior-valid-window bounds instead.
 - Camera update captures diff-checked client state each render frame. Preserve that publication point when changing zoom persistence or reset behavior.
 
 ## See Also

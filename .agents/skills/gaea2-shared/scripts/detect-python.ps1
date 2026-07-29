@@ -8,7 +8,7 @@
 #   0 - found, prints "OK <python.exe-path> Python <major>.<minor>"
 #   1 - missing or version too old, prints reason
 #
-# Bootstrap for the gaea2-* family skills (and gaea1-load); they pass the
+# Bootstrap for the gaea2-* family skills; they pass the
 # detected exe path explicitly to the Python scripts in this directory.
 
 $minMajor = 3

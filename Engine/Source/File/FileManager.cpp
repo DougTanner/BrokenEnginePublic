@@ -11,6 +11,97 @@ namespace engine
 
 using enum FileFlags;
 
+namespace
+{
+
+class Sha256Hasher
+{
+public:
+
+	Sha256Hasher()
+	{
+		if (::BCryptOpenAlgorithmProvider(&mpAlgorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0)
+		{
+			return;
+		}
+
+		DWORD uiObjectLength = 0;
+		DWORD uiResultLength = 0;
+		if (::BCryptGetProperty(mpAlgorithm, BCRYPT_OBJECT_LENGTH, reinterpret_cast<PUCHAR>(&uiObjectLength), sizeof(uiObjectLength), &uiResultLength, 0) < 0 ||
+			uiResultLength != sizeof(uiObjectLength))
+		{
+			return;
+		}
+		mHashObject.resize(uiObjectLength);
+		if (::BCryptCreateHash(mpAlgorithm, &mpHash, mHashObject.data(), uiObjectLength, nullptr, 0, 0) < 0)
+		{
+			return;
+		}
+		mbValid = true;
+	}
+
+	~Sha256Hasher()
+	{
+		if (mpHash != nullptr)
+		{
+			::BCryptDestroyHash(mpHash);
+		}
+		if (mpAlgorithm != nullptr)
+		{
+			::BCryptCloseAlgorithmProvider(mpAlgorithm, 0);
+		}
+	}
+
+	Sha256Hasher(const Sha256Hasher&) = delete;
+	Sha256Hasher& operator=(const Sha256Hasher&) = delete;
+
+	bool Update(std::span<const std::byte> bytes)
+	{
+		return mbValid && bytes.size() <= std::numeric_limits<ULONG>::max() &&
+			(bytes.empty() || ::BCryptHashData(mpHash, reinterpret_cast<PUCHAR>(const_cast<std::byte*>(bytes.data())), static_cast<ULONG>(bytes.size()), 0) >= 0);
+	}
+
+	bool Finish(std::array<uint8_t, 32>& rDigest)
+	{
+		return mbValid && ::BCryptFinishHash(mpHash, rDigest.data(), static_cast<ULONG>(rDigest.size()), 0) >= 0;
+	}
+
+private:
+
+	BCRYPT_ALG_HANDLE mpAlgorithm = nullptr;
+	BCRYPT_HASH_HANDLE mpHash = nullptr;
+	std::vector<uint8_t> mHashObject;
+	bool mbValid = false;
+};
+
+class FileHandle
+{
+public:
+
+	explicit FileHandle(HANDLE hFile)
+		: mhFile(hFile)
+	{
+	}
+	~FileHandle()
+	{
+		if (mhFile != INVALID_HANDLE_VALUE)
+		{
+			::CloseHandle(mhFile);
+		}
+	}
+
+	HANDLE Get() const
+	{
+		return mhFile;
+	}
+
+private:
+
+	HANDLE mhFile = INVALID_HANDLE_VALUE;
+};
+
+}
+
 FileManager::FileManager()
 {
 	ASSERT(gpFileManager == nullptr);
@@ -157,6 +248,76 @@ void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::p
 	std::filesystem::path file = GetFilePath(rFlags, rFilename);
 	LOG(kLoading, kDebug, "Remove \"{}\" at \"{}\"", rFilename.string(), file.string());
 	std::filesystem::remove(file);
+}
+
+bool FileManager::ComputeSha256(std::span<const std::byte> bytes, std::array<uint8_t, 32>& rOut)
+{
+	Sha256Hasher hasher;
+	std::array<uint8_t, 32> digest {};
+	while (!bytes.empty())
+	{
+		const size_t uiChunkSize = std::min(bytes.size(), static_cast<size_t>(std::numeric_limits<ULONG>::max()));
+		if (!hasher.Update(bytes.first(uiChunkSize)))
+		{
+			return false;
+		}
+		bytes = bytes.subspan(uiChunkSize);
+	}
+	if (!hasher.Finish(digest))
+	{
+		return false;
+	}
+	rOut = digest;
+	return true;
+}
+
+bool FileManager::ComputeOrdinaryFileSha256(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, FileContentDigest& rOut)
+{
+	const std::filesystem::path filePath = GetFilePath(rFlags, rFilename);
+	const DWORD uiAttributes = ::GetFileAttributesW(filePath.c_str());
+	if (uiAttributes == INVALID_FILE_ATTRIBUTES || (uiAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0)
+	{
+		return false;
+	}
+
+	FileHandle file(::CreateFileW(filePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN, nullptr));
+	if (file.Get() == INVALID_HANDLE_VALUE)
+	{
+		return false;
+	}
+
+	BY_HANDLE_FILE_INFORMATION information {};
+	if (::GetFileInformationByHandle(file.Get(), &information) == FALSE || (information.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0)
+	{
+		return false;
+	}
+
+	Sha256Hasher hasher;
+	std::array<std::byte, 64 * 1024> buffer {};
+	int64_t iByteCount = 0;
+	for (;;)
+	{
+		DWORD uiBytesRead = 0;
+		if (::ReadFile(file.Get(), buffer.data(), static_cast<DWORD>(buffer.size()), &uiBytesRead, nullptr) == FALSE ||
+			uiBytesRead > buffer.size() || iByteCount > std::numeric_limits<int64_t>::max() - static_cast<int64_t>(uiBytesRead) ||
+			!hasher.Update(std::span<const std::byte>(buffer.data(), uiBytesRead)))
+		{
+			return false;
+		}
+		iByteCount += uiBytesRead;
+		if (uiBytesRead == 0)
+		{
+			break;
+		}
+	}
+
+	FileContentDigest digest {.iByteCount = iByteCount};
+	if (!hasher.Finish(digest.sha256))
+	{
+		return false;
+	}
+	rOut = digest;
+	return true;
 }
 
 bool FileManager::CommitAtomicWrite(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, bool bWriteSucceeded)

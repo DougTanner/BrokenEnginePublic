@@ -12,27 +12,100 @@
 namespace engine
 {
 
-static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, float fSpreadDistanceStart, float fSpreadDistanceEnd)
+static bool IsVisibleAreaInsideHeldCombineCrop(const XMFLOAT4& rf4VisibleArea, const XMFLOAT4& rf4HeldVisibleArea, const XMFLOAT4& rf4HeldLightingArea, float fCombineTextureWidth, float fCombineTextureHeight)
 {
-	// Lighting area: world-sized ramped texels in a pre-sized texture (mirror of the shadow-area path in
+	float fHeldCombineTexelX = (rf4HeldLightingArea.z - rf4HeldLightingArea.x) / fCombineTextureWidth;
+	float fHeldCombineTexelY = (rf4HeldLightingArea.y - rf4HeldLightingArea.w) / fCombineTextureHeight;
+	return rf4VisibleArea.x >= rf4HeldVisibleArea.x - fHeldCombineTexelX
+		&& rf4VisibleArea.z <= rf4HeldVisibleArea.z + fHeldCombineTexelX
+		&& rf4VisibleArea.y <= rf4HeldVisibleArea.y + fHeldCombineTexelY
+		&& rf4VisibleArea.w >= rf4HeldVisibleArea.w - fHeldCombineTexelY;
+}
+
+struct LightingTemporalAreaLatch
+{
+	bool bInitialized = false;
+	XMFLOAT4 f4CurrentArea {};
+	XMFLOAT4 f4PreviousArea {};
+	float fBlend = 1.0f;
+
+	float Update(const XMFLOAT4& rf4CurrentArea, bool& rbReset, float fRequestedBlend, XMFLOAT4& rf4PreviousArea)
+	{
+		if (rbReset)
+		{
+			rbReset = false;
+			bInitialized = false;
+		}
+
+		float fResolvedBlend = fRequestedBlend;
+		if (!bInitialized)
+		{
+			f4CurrentArea = rf4CurrentArea;
+			f4PreviousArea = rf4CurrentArea;
+			bInitialized = true;
+			fResolvedBlend = 1.0f;
+		}
+		else
+		{
+			f4PreviousArea = f4CurrentArea;
+			f4CurrentArea = rf4CurrentArea;
+		}
+
+		rf4PreviousArea = f4PreviousArea;
+		fBlend = fResolvedBlend;
+		return fBlend;
+	}
+};
+
+static bool sbLightingRefreshFrame = true; // Cached before global lighting publication so the spread, combine, and temporal chain share one refresh epoch
+
+static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, float fSpreadDistanceStart, float fSpreadDistanceEnd, bool bScheduledRefresh)
+{
+	// Lighting area: world-sized texels from a raw-frustum-safe camera-height reference (mirror of the shadow-area path in
 	// PopulateShadowParameters). The deposit/spread/combine textures are pre-sized (RenderTargetTextures, via
 	// LightingDetailTextureSize) by kfLightingHeadroomMultiplier; the texel world size is sized so a constant
 	// on-screen pixel count (textureWidth / kfLightingHeadroomMultiplier) spans the live frustum width at the camera's
-	// rate-limited mfLightingTexelEyeHeight, so it is fixed at a settled eye height (the grid snaps cleanly under XY pan
-	// -> no shimmer) and only rescales while the ramp tracks a zoom. Reading the actual (clamped) extent keeps coverage
+	// mfLightingTexelEyeHeight. That reference expands immediately outward and contracts at its existing rate inward,
+	// so it never falls below live height; the grid stays fixed at a settled height and snapped cleanly under XY pan.
+	// Reading the actual (clamped) extent keeps raw-frustum coverage
 	// device-clamp-invariant and snaps deposit quads onto integer texels; the headroom multiplier cancels out of the
 	// window count. f4LightingArea is the full camera-centered footprint snapped to the deposit texel grid. Snapping to
 	// the deposit grid (not combine) is load-bearing: deposit is where lights rasterize, so its grid must move in
 	// integer-texel steps under pan. Spread/combine/temporal resample the same world rectangle at their own resolutions.
 	float fLightingTextureWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width);
 	float fLightingTextureHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height);
+	float fCombineTextureWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width);
+	float fCombineTextureHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height);
+	const XMFLOAT4& rVisibleArea = game::gpCamera->f4RenderVisibleArea;
 
 	WorldSizedTexelArea area = ComputeWorldSizedTexelArea(game::Camera::kfLightingHeadroomMultiplier, game::gpCamera->mfLightingTexelEyeHeight, fLightingTextureWidth, fLightingTextureHeight, gpSwapchainManager->mfAspectRatio, gFov.Get(), game::gpCamera->mVecPosition);
-	rGlobalLayout.f4LightingArea = area.f4Area;
+
+	// Temporal accumulation must publish current area, previous area, and blend from one refresh epoch. On a
+	// cadence skip the recorded chain writes no spread/combine/temporal work, so keep its world mapping held. Its
+	// recorded crop covers the last visible area plus two combine texels, so the next visible area can move one held
+	// combine texel before it needs a refresh.
+	static LightingTemporalAreaLatch sTemporalAreaLatch {};
+	static XMFLOAT4 sf4HeldVisibleArea {};
+	static bool sbHeldVisibleArea = false;
+	sbLightingRefreshFrame = bScheduledRefresh || !sTemporalAreaLatch.bInitialized || !sbHeldVisibleArea
+		|| !IsVisibleAreaInsideHeldCombineCrop(rVisibleArea, sf4HeldVisibleArea, sTemporalAreaLatch.f4CurrentArea, fCombineTextureWidth, fCombineTextureHeight);
+	if (sbLightingRefreshFrame)
+	{
+		rGlobalLayout.fLightingTemporalBlend = sTemporalAreaLatch.Update(area.f4Area, gbLightingTemporalReset, gLightingTemporalBlend.Get(), rGlobalLayout.f4LightingAreaPrevious);
+		rGlobalLayout.f4LightingArea = sTemporalAreaLatch.f4CurrentArea;
+		sf4HeldVisibleArea = rVisibleArea;
+		sbHeldVisibleArea = true;
+	}
+	else
+	{
+		rGlobalLayout.f4LightingArea = sTemporalAreaLatch.f4CurrentArea;
+		rGlobalLayout.f4LightingAreaPrevious = sTemporalAreaLatch.f4PreviousArea;
+		rGlobalLayout.fLightingTemporalBlend = sTemporalAreaLatch.fBlend;
+	}
 
 	// Lighting-area extent reciprocal (LightingSpread.frag world->texcoord multiply).
-	float fLightingAreaWidth = area.f4Area.z - area.f4Area.x;
-	float fLightingAreaHeight = area.f4Area.y - area.f4Area.w;
+	float fLightingAreaWidth = rGlobalLayout.f4LightingArea.z - rGlobalLayout.f4LightingArea.x;
+	float fLightingAreaHeight = rGlobalLayout.f4LightingArea.y - rGlobalLayout.f4LightingArea.w;
 	rGlobalLayout.f2LightingAreaExtentInv.x = 1.0f / fLightingAreaWidth;
 	rGlobalLayout.f2LightingAreaExtentInv.y = 1.0f / fLightingAreaHeight;
 
@@ -40,25 +113,13 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, flo
 	// spread window margin (LightingSpread.frag), both expressed in visible-area UV: a 2-texel bilinear guard and the
 	// max spread reach. f4VisibleArea mirrors gpCamera->f4RenderVisibleArea (GlobalUniforms). Spread distances arrive
 	// as CPU staging locals from RenderLightingGlobal (mapped layouts are write-only — never read back).
-	const XMFLOAT4& rVisibleArea = game::gpCamera->f4RenderVisibleArea;
 	float fVisibleWidth = rVisibleArea.z - rVisibleArea.x;
 	float fVisibleHeight = rVisibleArea.y - rVisibleArea.w;
-	float fCombineTextureWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width);
-	float fCombineTextureHeight = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height);
 	rGlobalLayout.f2CombineMargin.x = 2.0f * (fLightingAreaWidth / fCombineTextureWidth) / fVisibleWidth;
 	rGlobalLayout.f2CombineMargin.y = 2.0f * (fLightingAreaHeight / fCombineTextureHeight) / fVisibleHeight;
 	float fMaxReach = std::max(fSpreadDistanceStart, fSpreadDistanceEnd);
 	rGlobalLayout.f2SpreadMargin.x = fMaxReach / fVisibleWidth;
 	rGlobalLayout.f2SpreadMargin.y = fMaxReach / fVisibleHeight;
-
-	// Temporal accumulation: feed the previous frame's lighting area so LightingTemporal.comp can reproject the
-	// history into the current grid (mirror of the shadow previous-area latch). First frame: previous == current and
-	// blend forced to 1.0 (pure current) so the uninitialized history textures are never shown; that frame's copy
-	// seeds valid history. Once-per-frame latch (RenderFrameGlobal runs once per frame).
-	// A Graphics recreate (device-lost / settings) rebuilt the lighting history textures with undefined contents while
-	// this static survived. The reset re-arms the first-frame guard so this frame blends pure-current and re-seeds history.
-	static TemporalAreaLatch sTemporalAreaLatch {};
-	rGlobalLayout.fLightingTemporalBlend = sTemporalAreaLatch.Update(rGlobalLayout.f4LightingArea, gbLightingTemporalReset, gLightingTemporalBlend.Get(), rGlobalLayout.f4LightingAreaPrevious);
 
 	// Edge-fade denominator reciprocal (LightingDepositEdgeFade), deliberately floored unlike smoke/wind's ceil-based
 	// full-coverage dispatch grids. The minimum of one keeps the tile count nonzero if a device clamp produces a
@@ -70,7 +131,7 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, flo
 
 	// Profile GPU-screen readouts (active pixel dimensions). Deposit rasterizes/clears its whole footprint (not windowed),
 	// so report the full deposit extent. Spread processes only the live on-screen visible window in its own texels (mirror
-	// of the shadow ray-march sub-window), clamped to the texture extent for the fast-zoom-out transient. The spread
+	// of the shadow ray-march sub-window), clamped to the texture extent as a final bounds guard. The spread
 	// textures ramp resolution per pass (gSpreadTextureMultiplierStart at pass 0 -> gSpreadTextureMultiplierEnd at the last
 	// active pass), so report both the start-pass and end-pass windows.
 	giLightingDepositPixelsX = static_cast<int64_t>(fLightingTextureWidth);
@@ -91,6 +152,11 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, flo
 void RenderLightingGlobal(int64_t iCommandBuffer)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
+
+	static int64_t siLightingRefreshFrame = 0;
+	int64_t iLightingUpdateCadence = gLightingUpdateCadence.Get<int64_t>();
+	++siLightingRefreshFrame;
+	bool bScheduledLightingRefresh = gbLightingTemporalReset || siLightingRefreshFrame % iLightingUpdateCadence == 0;
 
 	// Generate run-unique seed once and reuse every frame: stable noise pattern across the run, no temporal flicker.
 	static const uint32_t skuiRandomSeed = []
@@ -192,7 +258,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	}
 
 	// Lighting world-area / temporal / tile / readout population — colocated here so the whole Lighting region lives in one file (region ownership).
-	PopulateLightingParameters(rGlobalLayout, fSpreadDistanceStart, fSpreadDistanceEnd);
+	PopulateLightingParameters(rGlobalLayout, fSpreadDistanceStart, fSpreadDistanceEnd, bScheduledLightingRefresh);
 }
 
 void RenderLightingMain(int64_t iCommandBuffer)
@@ -354,7 +420,7 @@ void RenderLightingSpreadIndirect(int64_t iCommandBuffer)
 	// ungated build), just far cheaper: idle kGpuTimerLightingSpread measured 645 us -> 84-92 us (Debug, 1600x904).
 	// Must run after FrameInterpolate::EndRender (the deposit writers accumulate giLightingDepositInstances
 	// there), which is why this is a separate entry point from RenderLightingMain.
-	int64_t iInstanceCount = giLightingDepositInstances > 0 ? 1 : 0;
+	int64_t iInstanceCount = sbLightingRefreshFrame && giLightingDepositInstances > 0 ? 1 : 0;
 
 	// All kiMaxSpreadPasses pipelines, not just the gSpreadPassCount active ones. Which passes the Main CB
 	// actually draws is decided at record time, and the slots come back zeroed from every pipeline recreate
@@ -368,6 +434,13 @@ void RenderLightingSpreadIndirect(int64_t iCommandBuffer)
 	{
 		gpPipelineManager->mSpreadPipelines[iPass].WriteIndirectBuffer(iCommandBuffer, iInstanceCount);
 	}
+
+	uint32_t uiCombineWidth = gpTextureManager->mRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width;
+	uint32_t uiCombineHeight = gpTextureManager->mRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height;
+	int64_t iGroupCountX = sbLightingRefreshFrame ? TileCount(uiCombineWidth) : 0;
+	int64_t iGroupCountY = sbLightingRefreshFrame ? TileCount(uiCombineHeight) : 0;
+	gpPipelineManager->mCombinePipeline.WriteIndirectComputeBuffer(iCommandBuffer, iGroupCountX, iGroupCountY, sbLightingRefreshFrame ? 1 : 0);
+	gpPipelineManager->mLightingTemporalPipeline.WriteIndirectComputeBuffer(iCommandBuffer, iGroupCountX, iGroupCountY, sbLightingRefreshFrame ? 1 : 0);
 }
 
 } // namespace engine

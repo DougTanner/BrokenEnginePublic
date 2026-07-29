@@ -187,21 +187,17 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 			.uiHeight = uiCombineHeight,
 		};
 
-		uint32_t uiCombineGroupsX = TileCount(uiCombineWidth);
-		uint32_t uiCombineGroupsY = TileCount(uiCombineHeight);
 		vkCmdPushConstants(vkCommandBuffer, rCombinePipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::CombinePushConstantsLayout), &combinePushConstants);
-		vkCmdDispatch(vkCommandBuffer, uiCombineGroupsX, uiCombineGroupsY, 1);
+		vkCmdDispatchIndirect(vkCommandBuffer, rCombinePipeline.mIndirectVkBuffer, static_cast<VkDeviceSize>(iCommandBuffer) * sizeof(VkDispatchIndirectCommand));
 	}
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
 
 	// Phase 3: Temporal accumulation — reproject + EMA-blend the previous frame's combine into the 4 combine outputs
 	// in place, then copy the blended result into the 4 history textures for next frame. De-flickers the texel-ramp
-	// resample (mirror of the shadow temporal pass). Runs unconditionally every frame even when gLightingTemporalBlend
-	// == 1.0 (disabled): the mix() is then a no-op but the dispatch + copies still execute (a recorded copy can't be
-	// indirect-gated — the region is fixed at record time — and gating would need a destroy-tier CB re-record on the
-	// enable/disable edge; blend flows purely through the uniform). Same-layout self-transition: barrier so combine's
-	// writes finish before temporal reads them in place.
+	// resample (mirror of the shadow temporal pass). The recorded copy still runs on cadence skips because its fixed
+	// region cannot be indirect-gated; copying held combine content is idempotent. Same-layout self-transition: barrier
+	// so combine's writes finish before temporal reads them in place.
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingTemporal);
 	for (int64_t iColor = 0; iColor < 3; ++iColor)
 	{
@@ -211,13 +207,7 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 	rRenderTargetTextures.mAmbientCombineTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadWrite);
 	rRenderTargetTextures.mAmbientHistoryTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadOnly);
 
-	{
-		uint32_t uiCombineWidth = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width;
-		uint32_t uiCombineHeight = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height;
-		uint32_t uiTemporalGroupsX = TileCount(uiCombineWidth);
-		uint32_t uiTemporalGroupsY = TileCount(uiCombineHeight);
-		gpPipelineManager->mLightingTemporalPipeline.RecordCompute(iCommandBuffer, vkCommandBuffer, uiTemporalGroupsX, uiTemporalGroupsY);
-	}
+	gpPipelineManager->mLightingTemporalPipeline.RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
 
 	// Copy the blended combine outputs into the history textures for next frame.
 	for (int64_t iColor = 0; iColor < 3; ++iColor)

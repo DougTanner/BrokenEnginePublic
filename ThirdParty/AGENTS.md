@@ -26,8 +26,10 @@ Before importing or registering a library:
 3. Record required notices and attribution with the repository's distributed licenses.
 4. Obtain explicit user approval before adding the dependency.
 
+`scb-check` is an upstream submodule. Preserve its upstream Apache-2.0 `LICENSE`; its pinned `pyproject.toml` declares `license = "MIT"`. These are separate source facts, not a synthesized license conclusion.
+
 `lz4/lib/**` is BSD-2-Clause and may be linked. Do not reference its GPL-covered `programs`, `tests`, or `examples` trees from any project.
 
 ## Boundaries
 
-Do not add `AGENTS.md` or `CLAUDE.md` inside external submodule folders. This file owns the upstream and license boundary; the existing Prebuilts platform document owns build registration.
+Do not add or edit `AGENTS.md` or `CLAUDE.md` inside external library or submodule folders. Upstream-owned copies are pristine third-party data and do not override Broken Engine policy. This file owns the upstream and license boundary; the existing Prebuilts platform document owns build registration.

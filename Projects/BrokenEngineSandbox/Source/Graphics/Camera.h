@@ -29,9 +29,10 @@ public:
 	// coverage), so this is purely the gameplay limit on how far the camera can pull back.
 	static constexpr float kfEyeHeightMaxRelease = 600.0f;
 	// Headroom multipliers: the shadow and lighting (deposit/spread/combine) textures are allocated this much larger
-	// than the wanted on-screen pixel size so the processed window can transiently grow during a fast zoom-out before
-	// it runs off the texture (where the CLAMP_TO_BORDER edge reads as no-shadow / no-light). The steady-state window
-	// equals the wanted pixel size at every settled height regardless of this value -- it only sets the transient room.
+	// than the wanted on-screen pixel size. Because their texel-height references never fall below live eye height,
+	// this margin keeps the raw live-frustum footprints inside their textures throughout zoom transitions. Optional
+	// filter and spread margins can still reach their existing texture-bounds clamps. At settled height, the raw
+	// live-frustum window equals the wanted pixel size regardless of this value.
 	static constexpr float kfShadowHeadroomMultiplier = 1.5f;
 	static constexpr float kfLightingHeadroomMultiplier = 1.5f;
 	// Initial zoom-target on construction: a few wheel-clicks above the default for a comfortable opening frame with
@@ -69,12 +70,12 @@ public:
 	float mfEyeVelocity = 0.0f;
 	bool mbEyeZooming = false;
 
-	// Eye height the shadow texel grid is currently sized for; ramps toward the live eye height (rate-limited)
-	// so the texel world size changes too slowly to perceive. 0 = uninitialized (snap to target on first frame).
+	// Eye-height reference that sizes the shadow texel grid. Expands immediately with outward zoom and contracts
+	// at the shadow rate inward. 0 = uninitialized (snap directly to live height on first frame).
 	float mfShadowTexelEyeHeight = 0.0f;
 
-	// Eye height the lighting texel grid is currently sized for; ramps toward the live eye height (rate-limited),
-	// independent of the shadow ramp. 0 = uninitialized (snap to target on first frame).
+	// Eye-height reference that sizes the lighting texel grid. Expands immediately with outward zoom and contracts
+	// at the independent lighting rate inward. 0 = uninitialized (snap directly to live height on first frame).
 	float mfLightingTexelEyeHeight = 0.0f;
 
 };

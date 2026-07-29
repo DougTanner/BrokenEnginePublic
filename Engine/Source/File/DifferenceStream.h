@@ -21,7 +21,7 @@ public:
 
 	using difference_t = std::tuple<int64_t, DIFFERENCE_TYPE>;
 
-	DifferenceStreamWriter(const SAVED_TYPE& rSavedStart, const DIFFERENCE_TYPE& rInitialDifference)
+	DifferenceStreamWriter(const SAVED_TYPE& rSavedStart, const DIFFERENCE_TYPE& rInitialDifference, bool bRecordInitialChecksum = true)
 	{
 		mDifferences.reserve(1024);
 
@@ -32,14 +32,22 @@ public:
 		mCurrentDifference = rInitialDifference;
 		LOG(kDefault, kVerbose, "DifferenceStreamWriter at frame {}: Saved start: {} Initial difference: {}", iStartTick, mSavedStart.Crc(), mInitialDifference.Crc());
 
-		// Record initial checksum
+		// Normal streams validate their saved start on the first replay tick. A coordinate activated by
+		// a transfer instead validates its post-transfer frame when its one-shot input is consumed.
 		mChecksums.reserve(1024);
-		mChecksums.push_back(mSavedStart.Crc());
-		LOG(kDefault, kVerbose, "Checksum DifferenceStreamWriter {}: {}", iStartTick, *std::prev(mChecksums.end()));
+		mbRecordsInitialChecksum = bRecordInitialChecksum;
+		if (mbRecordsInitialChecksum)
+		{
+			mChecksums.push_back(mSavedStart.Crc());
+			LOG(kDefault, kVerbose, "Checksum DifferenceStreamWriter {}: {}", iStartTick, *std::prev(mChecksums.end()));
+		}
 
 		if constexpr (kbReplayFullFrames)
 		{
-			mFullFramesStream << mSavedStart;
+			if (mbRecordsInitialChecksum)
+			{
+				mFullFramesStream << mSavedStart;
+			}
 		}
 	}
 
@@ -108,9 +116,8 @@ public:
 			}
 		});
 
-		// Write checksums for validation
-		mChecksums.push_back(rSavedEnd.Crc());
-		LOG(kDefault, kVerbose, "Checksum DifferenceStreamWriter Save {}: {}", rSavedEnd.interpolate.iTick, *std::prev(mChecksums.end()));
+		// The caller records the terminal input and its saved end frame before Save. Do not duplicate
+		// either boundary here: the reader consumes that terminal input before retiring the coord.
 		const std::filesystem::path checksumsFilename = std::filesystem::path(rFilename).concat(".checksums");
 		const bool bChecksumsWritten = gpFileManager->WriteFileAtomically(fileFlags, checksumsFilename, [&](std::fstream& rChecksumStream)
 		{
@@ -138,7 +145,6 @@ public:
 		if constexpr (kbReplayFullFrames)
 		{
 			// Write complete frame snapshots for debugging
-			mFullFramesStream << rSavedEnd;
 			const std::filesystem::path fullFramesFilename = std::filesystem::path(rFilename).concat(".fullframes");
 			const bool bFullFramesWritten = gpFileManager->WriteFileAtomically(fileFlags, fullFramesFilename, [&](std::fstream& rFullFramesStream)
 			{
@@ -192,6 +198,7 @@ private:
 	DIFFERENCE_TYPE mCurrentDifference {};
 
 	std::vector<common::crc_t> mChecksums;
+	bool mbRecordsInitialChecksum = false;
 
 	std::stringstream mFullFramesStream;
 };
@@ -203,7 +210,7 @@ public:
 
 	using difference_t = std::tuple<int64_t, DIFFERENCE_TYPE>;
 
-	DifferenceStreamReader(const FileFlags_t& rFileFlags, const std::filesystem::path& rFilename, SAVED_TYPE& rSavedStart, DIFFERENCE_TYPE& rInitialDifference)
+	DifferenceStreamReader(const FileFlags_t& rFileFlags, const std::filesystem::path& rFilename, SAVED_TYPE& rSavedStart, DIFFERENCE_TYPE& rInitialDifference, bool bRecordsInitialChecksum = true)
 	{
 		// Read header with version info, start/end states and metadata
 		std::fstream headerStream = gpFileManager->OpenFile(rFileFlags, rFilename);
@@ -241,68 +248,124 @@ public:
 		mCurrentDifference = rInitialDifference;
 		common::Read(headerStream, mDifferenceCount);
 		headerStream >> mSavedEnd;
+		if (!headerStream || mDifferenceCount < 0 || rSavedStart.interpolate.iTick < 0 ||
+			mSavedEnd.interpolate.iTick < rSavedStart.interpolate.iTick || mSavedEnd.interpolate.iTick > std::numeric_limits<int64_t>::max() - 1)
+		{
+			LOG(kDefault, kWarning, "DifferenceStreamReader header is invalid");
+			return;
+		}
+		if (headerStream.peek() != std::char_traits<char>::eof())
+		{
+			LOG(kDefault, kWarning, "DifferenceStreamReader header has trailing data");
+			return;
+		}
+		// end + 1 is representable by the header gate above. Bound the span before loading differences
+		// so a hostile tick range cannot overflow later byte-count calculations or drive allocations.
+		const int64_t iChecksumSpan = mSavedEnd.interpolate.iTick - rSavedStart.interpolate.iTick + 1;
+		if (iChecksumSpan > std::numeric_limits<int64_t>::max() / static_cast<int64_t>(sizeof(common::crc_t)))
+		{
+			LOG(kDefault, kWarning, "Checksum range is too large");
+			return;
+		}
 
 		miStartTick = rSavedStart.interpolate.iTick;
 		LOG(kDefault, kVerbose, "DifferenceStreamReader at frame {}: Saved start: {} Initial difference: {}", miStartTick, rSavedStart.Crc(), rInitialDifference.Crc());
 
-		// Load difference records
-		if (mDifferenceCount > 0)
+		// Every writer publishes an empty .frames sibling when no input changes. Require and fully consume it
+		// so replay staging never accepts a torn stream set.
+		std::fstream fileStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".frames"));
+		if (!fileStream)
 		{
-			std::fstream fileStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".frames"));
-			// Trust boundary (replay .frames file): bound the difference count against the stream before
-			// allocating; each record serializes at least an int64 tick plus one byte of difference.
-			common::ValidateDeserializedCount(mDifferenceCount, sizeof(int64_t) + 1, fileStream, "DifferenceStreamReader differences");
-			mDifferences.reserve(mDifferenceCount);
-			for (int64_t i = 0; i < mDifferenceCount; ++i)
+			LOG(kDefault, kWarning, "Recorded frames file is missing");
+			return;
+		}
+		// Trust boundary (replay .frames file): bound the difference count against the stream before
+		// allocating; each record serializes at least an int64 tick plus one byte of difference.
+		common::ValidateDeserializedCount(mDifferenceCount, sizeof(int64_t) + 1, fileStream, "DifferenceStreamReader differences");
+
+		// Load difference records
+		mDifferences.reserve(mDifferenceCount);
+		for (int64_t i = 0; i < mDifferenceCount; ++i)
+		{
+			int64_t iTick = 0;
+			common::Read(fileStream, iTick);
+			if (fileStream.gcount() != static_cast<std::streamsize>(sizeof(iTick)))
 			{
-				int64_t iTick = 0;
-				common::Read(fileStream, iTick);
-				if (fileStream.gcount() != static_cast<std::streamsize>(sizeof(iTick)))
+				LOG(kDefault, kWarning, "Recorded frames file size doesn't match header");
+				return;
+			}
+			DIFFERENCE_TYPE difference {};
+			if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
+			{
+				common::Read(fileStream, difference);
+				if (fileStream.gcount() != static_cast<std::streamsize>(sizeof(DIFFERENCE_TYPE)))
 				{
 					LOG(kDefault, kWarning, "Recorded frames file size doesn't match header");
 					return;
 				}
-				DIFFERENCE_TYPE difference {};
-				if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
-				{
-					common::Read(fileStream, difference);
-					if (fileStream.gcount() != static_cast<std::streamsize>(sizeof(DIFFERENCE_TYPE)))
-					{
-						LOG(kDefault, kWarning, "Recorded frames file size doesn't match header");
-						return;
-					}
-				}
-				else
-				{
-					fileStream >> difference;
-					if (!fileStream)
-					{
-						LOG(kDefault, kWarning, "Recorded frames file size doesn't match header");
-						return;
-					}
-				}
-				mDifferences.emplace_back(iTick, std::move(difference));
 			}
-
-			mDifferencesIterator = mDifferences.begin();
+			else
+			{
+				fileStream >> difference;
+				if (!fileStream)
+				{
+					LOG(kDefault, kWarning, "Recorded frames file size doesn't match header");
+					return;
+				}
+			}
+			if (iTick <= miStartTick || iTick > mSavedEnd.interpolate.iTick + 1 ||
+				(!mDifferences.empty() && iTick <= std::get<0>(mDifferences.back())))
+			{
+				LOG(kDefault, kWarning, "Recorded frames file has non-canonical tick data");
+				return;
+			}
+			mDifferences.emplace_back(iTick, std::move(difference));
+		}
+		if (fileStream.peek() != std::char_traits<char>::eof())
+		{
+			LOG(kDefault, kWarning, "Recorded frames file has trailing data");
+			return;
 		}
 
-		// Load checksums for validation
-		int64_t iChecksumCount = mSavedEnd.interpolate.iTick - rSavedStart.interpolate.iTick + 1;
+		mDifferencesIterator = mDifferences.begin();
+
+		std::fstream checksumStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".checksums"));
+		if (!checksumStream)
+		{
+			LOG(kDefault, kWarning, "Checksum file is missing");
+			return;
+		}
+		const int64_t iChecksumBytes = common::StreamBytesRemaining(checksumStream);
+		if (iChecksumBytes < 0 || iChecksumBytes % static_cast<int64_t>(sizeof(common::crc_t)) != 0)
+		{
+			LOG(kDefault, kWarning, "Checksum file size is invalid");
+			return;
+		}
+		const int64_t iChecksumCount = iChecksumBytes / static_cast<int64_t>(sizeof(common::crc_t));
+		const int64_t iExpectedChecksumCount = iChecksumSpan;
+		if (iChecksumCount != iExpectedChecksumCount)
+		{
+			LOG(kDefault, kWarning, "Checksum file size doesn't match replay tick span");
+			return;
+		}
+		mReaderFlags.Set(ReaderFlags::kRecordsInitialChecksum, bRecordsInitialChecksum);
+		// Trust boundary (replay .checksums file): bound the checksum count against the stream before resize.
+		common::ValidateDeserializedCount(iChecksumCount, sizeof(common::crc_t), checksumStream, "DifferenceStreamReader checksums");
+		mChecksums.resize(iChecksumCount);
 		if (iChecksumCount > 0)
 		{
-			std::fstream checksumStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".checksums"));
-			// Trust boundary (replay .checksums file): bound the checksum count against the stream before resize.
-			common::ValidateDeserializedCount(iChecksumCount, sizeof(common::crc_t), checksumStream, "DifferenceStreamReader checksums");
-			mChecksums.resize(iChecksumCount);
 			common::Read(checksumStream, mChecksums);
 			int64_t iBytesRead = checksumStream.gcount();
-			if (iBytesRead != static_cast<int64_t>(sizeof(common::crc_t) * iChecksumCount))
+			if (iBytesRead != static_cast<int64_t>(sizeof(common::crc_t)) * iChecksumCount)
 			{
 				LOG(kDefault, kWarning, "Checksum file size doesn't match expected count (expected {}, got {})", iChecksumCount, iBytesRead / sizeof(common::crc_t));
-				DEBUG_BREAK();
-				mChecksums.clear();
+				return;
 			}
+		}
+		if (checksumStream.peek() != std::char_traits<char>::eof())
+		{
+			LOG(kDefault, kWarning, "Checksum file has trailing data");
+			return;
 		}
 
 		if constexpr (kbReplayFullFrames)
@@ -312,18 +375,21 @@ public:
 			if (fullFramesFile)
 			{
 				mFullFramesStream << fullFramesFile.rdbuf();
-				SAVED_TYPE firstFrame;
-				mFullFramesStream >> firstFrame;
-				if (firstFrame.Crc() != rSavedStart.Crc())
+				if (mReaderFlags & ReaderFlags::kRecordsInitialChecksum)
 				{
-					// Stale/mismatched debug file: discard it so frame comparisons don't reference the wrong baseline
-					LOG(kDefault, kWarning, "Full frames file doesn't match saved start frame, discarding");
-					DEBUG_BREAK();
-					mFullFramesStream.str({});
-				}
-				else
-				{
-					++miFullFramesIndex;
+					SAVED_TYPE firstFrame;
+					mFullFramesStream >> firstFrame;
+					if (firstFrame.Crc() != rSavedStart.Crc())
+					{
+						// Stale/mismatched debug file: discard it so frame comparisons don't reference the wrong baseline
+						LOG(kDefault, kWarning, "Full frames file doesn't match saved start frame, discarding");
+						DEBUG_BREAK();
+						mFullFramesStream.str({});
+					}
+					else
+					{
+						++miFullFramesIndex;
+					}
 				}
 			}
 		}
@@ -339,6 +405,21 @@ public:
 	const SAVED_TYPE& GetSavedEnd() const
 	{
 		return mSavedEnd;
+	}
+
+	int64_t GetStartTick() const
+	{
+		return miStartTick;
+	}
+
+	bool IsTerminalTick(int64_t iTick) const
+	{
+		return iTick == mSavedEnd.interpolate.iTick + 1;
+	}
+
+	bool TerminalConsumed() const
+	{
+		return (mReaderFlags & ReaderFlags::kTerminalChecksumValidated) && mDifferencesIterator == mDifferences.end();
 	}
 
 	void ValidateChecksum(int64_t iTick, const SAVED_TYPE& rSavedCurrent)
@@ -384,12 +465,15 @@ public:
 			}
 			LOG(kNetwork, kError, "LogDifferences CRC Client: {} Server: {}", savedChecksum, currentChecksum);
 		}
+
+		mReaderFlags.Set(ReaderFlags::kTerminalChecksumValidated, IsTerminalTick(iTick));
 	}
 
 	bool LoadDifference(int64_t iTick, DIFFERENCE_TYPE& rDifference)
 	{
-		// Check if reached end of recording
-		if (mSavedEnd.interpolate.iTick + 1 == iTick)
+		// The terminal tick applies its final input to the retained saved end frame, validates it,
+		// and only then lets the game retire this reader without dispatching another frame.
+		if (iTick > mSavedEnd.interpolate.iTick + 1)
 		{
 			return false;
 		}
@@ -425,6 +509,12 @@ public:
 
 private:
 
+	enum class ReaderFlags : uint8_t
+	{
+		kRecordsInitialChecksum = 0x01,
+		kTerminalChecksumValidated = 0x02,
+	};
+
 	bool mbLoaded = false;
 
 	SAVED_TYPE mSavedEnd {};
@@ -436,6 +526,7 @@ private:
 
 	std::vector<common::crc_t> mChecksums;
 	int64_t miStartTick = 0;
+	common::Flags<ReaderFlags> mReaderFlags;
 
 	std::stringstream mFullFramesStream;
 	int64_t miFullFramesIndex = 0;

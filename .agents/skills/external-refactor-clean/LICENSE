@@ -1,6 +1,20 @@
+Third-Party Notices
+
+This skill contains an adaptation of the following MIT-licensed work.
+
+Seth Hobson — wshobson/commands, refactor-clean
+Source: https://github.com/wshobson/commands/blob/7f6d9fe5383c5611324ec367ad629c53df849d75/refactor-clean.md
+License: https://github.com/wshobson/commands/blob/cd321abf56a5fbf25d392b837253d97ad473457a/LICENSE
+Adaptation: Converted the generic refactoring command into a read-only Broken
+Engine analysis and planning workflow. Specialized its checks for C++ and
+data-oriented design, hot-path allocations, flags, aligned math, workbuffers,
+layer boundaries, client/server guards, and repository review routing.
+
+Seth Hobson upstream MIT license
+
 MIT License
 
-Copyright (c) 2026 Matt Pocock
+Copyright (c) 2024
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

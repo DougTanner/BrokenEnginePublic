@@ -419,7 +419,6 @@ void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame, [
 				.alignment = rCurrentPostRender.pAlignments[i],
 				.fHealth = rCurrentPostRender.pfHealths[i],
 				.fNextBlasterSpawnTime = rCurrentPostRender.pfNextBlasterSpawnTimes[i],
-				.fArrivalGracePeriod = rCurrentPostRender.pfArrivalGracePeriods[i],
 				.fDeltaRotation = rCurrentInterpolate.pfDeltaRotations[i],
 			},
 			.iPushedTick = rFrame.interpolate.iTick,

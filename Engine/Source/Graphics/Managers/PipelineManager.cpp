@@ -225,7 +225,7 @@ void PipelineManager::CreateLightingPipelines()
 	mCombinePipeline.Create(
 	{
 		.name = "LightCombine",
-		.flags = {kCompute, kPushConstants},
+		.flags = {kCompute, kPushConstants, kIndirectHostVisible},
 		.ppShaders = {&mShaders.at(data::kShadersLightingLightCombinecompCrc)},
 		.iPushConstantBytes = sizeof(shaders::CombinePushConstantsLayout),
 		.pDescriptorInfos =
@@ -246,7 +246,7 @@ void PipelineManager::CreateLightingPipelines()
 	mLightingTemporalPipeline.Create(
 	{
 		.name = "LightingTemporal",
-		.flags = {kCompute},
+		.flags = {kCompute, kIndirectHostVisible},
 		.ppShaders = {&mShaders.at(data::kShadersLightingLightingTemporalcompCrc)},
 		.pDescriptorInfos =
 		{

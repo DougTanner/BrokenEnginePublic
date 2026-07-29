@@ -7,6 +7,9 @@
 namespace engine
 {
 
+// Bounds dormant agent-command connection latency to 20 wakes per second; dtor notification does not depend on this cadence.
+static constexpr std::chrono::milliseconds kListenerRetryInterval = 50ms;
+
 AgentCommandServer::AgentCommandServer(int64_t iPort)
 {
 	// WSAStartup is guaranteed by NetworkManager (enet_initialize), constructed before this.
@@ -69,6 +72,15 @@ AgentCommandServer::AgentCommandServer(int64_t iPort)
 		throw StartupException("agent listen failed");
 	}
 
+	u_long uiNonBlocking = 1;
+	if (ioctlsocket(mListenSocket, FIONBIO, &uiNonBlocking) == SOCKET_ERROR)
+	{
+		LOG(kNetwork, kError, "AgentCommandServer listener non-blocking configuration failed: {}", WSAGetLastError());
+		closesocket(mListenSocket);
+		mListenSocket = INVALID_SOCKET;
+		throw StartupException("agent listener non-blocking configuration failed");
+	}
+
 	LOG(kNetwork, kInfo, "AgentCommandServer listening on 127.0.0.1:{}", iPort);
 
 	mListenerThread = std::jthread([this](std::stop_token stopToken)
@@ -79,12 +91,12 @@ AgentCommandServer::AgentCommandServer(int64_t iPort)
 
 AgentCommandServer::~AgentCommandServer()
 {
-	// Request stop, then close both sockets to unblock accept/recv, and wake a pending response wait. The
-	// jthread member joins after this body. Sockets are closed under the lock (INVALID guard prevents a double
-	// close race with the listener's own end-of-connection close).
-	mListenerThread.request_stop();
+	// Request stop, then close both sockets under the lock and wake a pending response wait. Listener close is
+	// serialized with accept instead of interrupting it; active-socket close still unblocks recv. The jthread joins
+	// after this body. INVALID guards prevent a double close race with listener end-of-connection teardown.
 	{
 		std::unique_lock lock(mMutex);
+		mListenerThread.request_stop();
 		if (mListenSocket != INVALID_SOCKET)
 		{
 			closesocket(mListenSocket);
@@ -109,30 +121,53 @@ void AgentCommandServer::ListenerLoop(std::stop_token stopToken)
 	// parse and socket buffers live on the heap, off the sim path.
 	common::ThreadLocal threadLocal(64 * 1024);
 
-	while (!stopToken.stop_requested())
+	while (true)
 	{
-		// Snapshot the listen socket under the lock — the dtor closes it and stores INVALID_SOCKET under mMutex to
-		// unblock this accept. Reading the member unlocked would race that write.
-		SOCKET listenSocket = INVALID_SOCKET;
+		SOCKET clientSocket = INVALID_SOCKET;
 		{
 			std::unique_lock lock(mMutex);
-			listenSocket = mListenSocket;
-		}
-		if (listenSocket == INVALID_SOCKET)
-		{
-			break;
+			if (stopToken.stop_requested() || mListenSocket == INVALID_SOCKET)
+			{
+				break;
+			}
+
+			clientSocket = accept(mListenSocket, nullptr, nullptr);
+			if (clientSocket == INVALID_SOCKET)
+			{
+				int iAcceptError = WSAGetLastError();
+				if (iAcceptError == WSAEWOULDBLOCK)
+				{
+					mResponseReady.wait_for(lock, kListenerRetryInterval, [&stopToken]()
+					{
+						return stopToken.stop_requested();
+					});
+					continue;
+				}
+				if (stopToken.stop_requested())
+				{
+					break;
+				}
+
+				LOG(kNetwork, kError, "AgentCommandServer accept failed: {}", iAcceptError);
+				break;
+			}
 		}
 
-		SOCKET clientSocket = accept(listenSocket, nullptr, nullptr);
-		if (clientSocket == INVALID_SOCKET)
+		u_long uiBlocking = 0;
+		if (ioctlsocket(clientSocket, FIONBIO, &uiBlocking) == SOCKET_ERROR)
 		{
-			// The dtor closes mListenSocket to unblock this accept; any other failure is unrecoverable for a
-			// single loopback listener.
-			break;
+			LOG(kNetwork, kError, "AgentCommandServer accepted socket blocking configuration failed: {}", WSAGetLastError());
+			closesocket(clientSocket);
+			continue;
 		}
 
 		{
 			std::unique_lock lock(mMutex);
+			if (stopToken.stop_requested())
+			{
+				closesocket(clientSocket);
+				break;
+			}
 			mActiveSocket = clientSocket;
 		}
 

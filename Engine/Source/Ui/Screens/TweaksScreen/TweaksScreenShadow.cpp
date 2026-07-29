@@ -46,7 +46,7 @@ void TweaksScreenBase::RenderShadowSection()
 
 	WrapperSeparatorText("Quality / Perf");
 	WrapperSlider("Resolution", iSection);
-	WrapperSlider("Texel Ramp Speed", iSection, 2.0f, "Shadow Texel Ramp Speed");
+	WrapperSlider("Texel Contraction Speed", iSection, 2.0f, "Shadow Texel Ramp Speed");
 	WrapperSlider("Temporal Blend", iSection, 2.0f, "Shadow Temporal Blend");
 
 	WrapperSeparatorText("Feather");
