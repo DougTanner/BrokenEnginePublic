@@ -70,42 +70,9 @@ void main()
 	float fOutputThreshold = mix(globalLayout.fSpreadOutputThresholdStart, globalLayout.fSpreadOutputThresholdEnd, fT);
 	float fOutputCompress = mix(globalLayout.fSpreadOutputCompressStart, globalLayout.fSpreadOutputCompressEnd, fT);
 
-	// World position of this spread texel and its on-screen (visible-area) UV — reused for the window early-out
-	// and the height-fade elevation sample.
+	// World position of this spread texel and its on-screen (visible-area) UV for the height-fade elevation sample.
 	vec2 f2WorldPos = VisibleAreaToWorld(f2InTexcoord, globalLayout.f4LightingArea);
 	vec2 f2ElevTexcoord = WorldToVisibleArea(vec3(f2WorldPos, 0.0f), globalLayout.f4VisibleArea);
-
-	// Window: the texture is pre-sized for headroom, but at a settled eye height only the on-screen region feeds the
-	// final image — process just the LIVE visible window plus a one-pass-gather margin (so each pass's immediate gather
-	// stays correct up to the screen edge; the iterative higher-order spill is decay-attenuated, not the
-	// cumulative reach). The lighting-area reference expands immediately with outward zoom and contracts gradually
-	// inward, so reference lag no longer shrinks raw-frustum coverage. The configured one-pass margin can still exceed
-	// fixed headroom and remains clamped to the texture extent; at settled height the raw-frustum window returns to its
-	// normal cropped size (mirrors the shadow visible-window crop). A cumulative-reach margin here would exceed the
-	// headroom and never crop (full-texture cost).
-	float fMarginX = globalLayout.f2SpreadMargin.x;
-	float fMarginY = globalLayout.f2SpreadMargin.y;
-	if (f2ElevTexcoord.x < -fMarginX || f2ElevTexcoord.x > 1.0f + fMarginX || f2ElevTexcoord.y < -fMarginY || f2ElevTexcoord.y > 1.0f + fMarginY)
-	{
-		// Outside the window: carry the accumulation chain forward (raw deposit at pass 0, decayed previous after)
-		// and emit no combine snapshot.
-		if (fPassIndex > 0.0f)
-		{
-			f4OutRed = fAccumulationDecay * texture(redSampler, f2InTexcoord);
-			f4OutGreen = fAccumulationDecay * texture(greenSampler, f2InTexcoord);
-			f4OutBlue = fAccumulationDecay * texture(blueSampler, f2InTexcoord);
-		}
-		else
-		{
-			f4OutRed = texture(redSampler, f2InTexcoord);
-			f4OutGreen = texture(greenSampler, f2InTexcoord);
-			f4OutBlue = texture(blueSampler, f2InTexcoord);
-		}
-		f4OutRedSpread = vec4(0.0f);
-		f4OutGreenSpread = vec4(0.0f);
-		f4OutBlueSpread = vec4(0.0f);
-		return;
-	}
 
 	// Height fade: attenuate spread above base height
 	float fElevation = texture(elevationSampler, f2ElevTexcoord).x;

@@ -16,17 +16,14 @@ param(
 	[Parameter(Mandatory)][string] $SessionOwner,
 	[Parameter(Mandatory)][string] $SessionLabel,
 	[Parameter(Mandatory)][string] $ApprovedSessionCommit,
-	[string] $ClaimReceiptPath,
-	[string] $ClaimReceiptSha256,
-	[ValidateSet('none', 'completed', 'rejected')][string] $TerminalDisposition = 'none',
+	[Parameter(Mandatory)][string] $ApprovedCandidateTree,
 	[string] $CandidateReceiptPath,
-	[string] $CandidateReceiptSha256
+	[string] $CandidateReceiptSha256,
+	[ValidateSet('none', 'compare-and-swap', 'post-reset')][string] $FixtureFailure = 'none'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$claimReceiptPathBound = $PSBoundParameters.ContainsKey('ClaimReceiptPath')
-$claimReceiptSha256Bound = $PSBoundParameters.ContainsKey('ClaimReceiptSha256')
 $candidateReceiptPathBound = $PSBoundParameters.ContainsKey('CandidateReceiptPath')
 $candidateReceiptSha256Bound = $PSBoundParameters.ContainsKey('CandidateReceiptSha256')
 
@@ -35,6 +32,9 @@ if (-not (Test-Path -LiteralPath $commonModule)) {
 	$commonModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
 }
 Import-Module $commonModule -Force
+$receiptModule = Join-Path $PSScriptRoot '..\..\..\scripts\PlanClaimReceipt.psm1'
+if (-not (Test-Path -LiteralPath $receiptModule)) { $receiptModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\PlanClaimReceipt.psm1' }
+Import-Module $receiptModule -Force -DisableNameChecking
 
 $exclusionModule = Join-Path $PSScriptRoot '..\..\..\scripts\WorktreeCliSessionExclusion.psm1'
 if (-not (Test-Path -LiteralPath $exclusionModule)) {
@@ -50,8 +50,9 @@ $result = [ordered]@{
 	primaryAdvanced = $false
 	identities = [ordered]@{ currentWorktree = $null; primaryWorktree = $null; gitCommonDirectory = $null; currentBranch = $null; primaryBranch = $null }
 	tips = [ordered]@{ approvedSession = $ApprovedSessionCommit; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip; current = $null; primary = $null }
+	candidate = [ordered]@{ commit = $ApprovedSessionCommit; tree = $ApprovedCandidateTree; treeVerified = $false }
 	locks = [ordered]@{ landingOwner = $null; landingClaimed = $false; landingReleased = $false; claim = $null }
-	planClaim = [ordered]@{ requested = $claimReceiptPathBound; released = $false; receipt = $ClaimReceiptPath }
+	planClaim = [ordered]@{ present = $false; state = 'absent'; disposition = 'none'; preparation = $null; release = $null; released = $false }
 	planValidation = $null
 	candidateBootstrap = $null
 	cleanup = [ordered]@{ worktreesClear = $null; worktreeProblems = @() }
@@ -66,8 +67,7 @@ $script:LandingOwner = $null
 $script:LandingClaimed = $false
 $script:PrimaryIdentity = $null
 $script:CurrentIdentity = $null
-$script:ClaimReceiptPath = $ClaimReceiptPath
-$script:ClaimReceiptSha256 = $ClaimReceiptSha256
+$script:PlanReceipt = $null
 $script:PlanCompletionTerminalProven = $false
 $script:CertifiedForeignDiagnosticFingerprints = $null
 $script:FailureExitCode = 0
@@ -123,7 +123,6 @@ function Invoke-Preflight([string] $Checkpoint, [string] $CurrentTip, [string] $
 		$arguments.Add('-CandidateReceiptSha256')
 		$arguments.Add($CandidateReceiptSha256)
 	}
-	if ($claimReceiptPathBound) { foreach ($argument in @('-ClaimReceiptPath',$ClaimReceiptPath,'-ClaimReceiptSha256',$ClaimReceiptSha256)) { $arguments.Add($argument) } }
 	$response = Invoke-FinalizeNativeText 'pwsh.exe' $arguments.ToArray() $script:CurrentIdentity.Worktree
 	$preflightResult = Get-JsonResponse $response "finalization preflight $Checkpoint"
 	if ($response.ExitCode -ne 0 -or $preflightResult.status -cne 'pass' -or $preflightResult.code -cne 'ok') {
@@ -136,7 +135,7 @@ function Invoke-Preflight([string] $Checkpoint, [string] $CurrentTip, [string] $
 
 function Assert-ReconciledPlanMetadata {
 	$arguments = @('plan', 'validate', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:CurrentIdentity.Worktree, '--baseline', $Baseline)
-	if ($claimReceiptPathBound) { $arguments += @('--terminal-receipt', $ClaimReceiptPath, '--terminal-receipt-sha256', $ClaimReceiptSha256) }
+	if ($null -ne $script:PlanReceipt) { $arguments += @('--terminal-receipt', $script:PlanReceipt.Path, '--terminal-receipt-sha256', $script:PlanReceipt.Sha256) }
 	$response = Invoke-WorktreeCli $arguments
 	$validation = Get-JsonResponse $response 'reconciled Plan metadata validation'
 	# Record decision-relevant fields only: `plans` carries one entry per repository Plan and never informs the landing.
@@ -202,6 +201,10 @@ function Assert-PrimaryAdvanceState {
 	if ((Invoke-FinalizeGit $primary.Worktree @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) {
 		Throw-Landing 2 'git.primary-dirty' 'Primary worktree is not clean immediately before landing.'
 	}
+	if ((Invoke-FinalizeGit $primary.Worktree @('rev-parse', "$ApprovedSessionCommit^{tree}")).Trim() -cne $ApprovedCandidateTree) {
+		Throw-Landing 2 'candidate.tree-changed' 'Approved session commit no longer has the reviewed candidate tree.'
+	}
+	$result.candidate.treeVerified = $true
 	if (-not (Test-FinalizeGitSuccess $primary.Worktree @('merge-base', '--is-ancestor', $ExpectedPrimaryTip, $ApprovedSessionCommit))) {
 		Throw-Landing 2 'git.primary-not-ancestor' 'Approved session commit does not descend from the approved primary tip.'
 	}
@@ -211,9 +214,37 @@ function Assert-PrimaryAdvanceState {
 	}
 }
 
+function Advance-PrimaryExactCandidate {
+	$expectedCheckout = (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', 'HEAD')).Trim()
+	$expectedStatus = Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('status', '--porcelain=v1', '-z', '--untracked-files=all')
+	$expectedForCas = if ($FixtureFailure -ceq 'compare-and-swap') { '0000000000000000000000000000000000000000' } else { $ExpectedPrimaryTip }
+	$advance = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'update-ref', "refs/heads/$PrimaryBranch", $ApprovedSessionCommit, $expectedForCas) $script:PrimaryIdentity.Worktree
+	if ($advance.ExitCode -ne 0) { Throw-Landing 2 'git.compare-and-swap-failed' 'Primary branch changed before exact candidate advance.' }
+	$result.primaryAdvanced = $true
+	$result.tips.current = $ApprovedSessionCommit
+	$result.tips.primary = $ApprovedSessionCommit
+	try {
+		$reset = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'reset', '--hard', $ApprovedSessionCommit) $script:PrimaryIdentity.Worktree
+		if ($reset.ExitCode -ne 0) { throw "Primary checkout did not update to the exact candidate: $($reset.Stderr.Trim())" }
+		if ($FixtureFailure -ceq 'post-reset') { throw 'Fixture forced post-reset failure.' }
+		$actual = (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "refs/heads/$PrimaryBranch")).Trim()
+		$actualTree = (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "$actual^{tree}")).Trim()
+		if ($actual -cne $ApprovedSessionCommit -or $actualTree -cne $ApprovedCandidateTree) { throw 'Primary ref does not equal the exact verified candidate and tree.' }
+	}
+	catch {
+		$reason = $_.Exception.Message
+		$rollback = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'update-ref', "refs/heads/$PrimaryBranch", $ExpectedPrimaryTip, $ApprovedSessionCommit) $script:PrimaryIdentity.Worktree
+		if ($rollback.ExitCode -ne 0) { Throw-Landing 1 'git.rollback-failed' "Exact candidate advance postcondition failed and guarded rollback failed: $reason" }
+		$restore = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'reset', '--hard', $expectedCheckout) $script:PrimaryIdentity.Worktree
+		if ($restore.ExitCode -ne 0 -or (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "refs/heads/$PrimaryBranch")).Trim() -cne $ExpectedPrimaryTip -or (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', 'HEAD')).Trim() -cne $expectedCheckout -or (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('status', '--porcelain=v1', '-z', '--untracked-files=all')) -cne $expectedStatus) { Throw-Landing 1 'git.rollback-failed' "Exact candidate advance rollback did not restore the expected primary checkout: $reason" }
+		$result.primaryAdvanced = $false
+		Throw-Landing 2 'candidate.postcondition-failed' $reason
+	}
+}
+
 function Complete-LandedState {
-	if ($claimReceiptPathBound) {
-		$release = Invoke-WorktreeCli @('plan','release-after-landing','--worktree',$script:CurrentIdentity.Worktree,'--claim-receipt',$ClaimReceiptPath,'--claim-receipt-sha256',$ClaimReceiptSha256,'--landed-commit',$ApprovedSessionCommit)
+	if ($null -ne $script:PlanReceipt) {
+		$release = Invoke-WorktreeCli @('plan','release-after-landing','--worktree',$script:CurrentIdentity.Worktree,'--claim-receipt',$script:PlanReceipt.Path,'--claim-receipt-sha256',$script:PlanReceipt.Sha256,'--landed-commit',$ApprovedSessionCommit)
 		$releaseJson = Get-JsonResponse $release 'post-landing plan release'
 		$result.planClaim.release = $releaseJson
 		$hasReleased = $releaseJson.PSObject.Properties.Name -ccontains 'released' -and $releaseJson.released -is [bool] -and $releaseJson.released
@@ -222,6 +253,7 @@ function Complete-LandedState {
 		$expectedCode = if ($hasReleased) { 'released' } elseif ($hasAlreadyReleased) { 'already-released' } else { '' }
 		if ($release.ExitCode -ne 0 -or -not $terminalStateVerified -or $hasReleased -eq $hasAlreadyReleased -or $releaseJson.code -cne $expectedCode) { Throw-Landing $(if ($release.ExitCode -eq 2) { 2 } else { 1 }) 'plan.release-failed' 'Receipt-bound Plan release failed after primary advance.' }
 		$result.planClaim.released = $true
+		Remove-PlanClaimReceipt $script:PlanReceipt
 	}
 	$registration = Test-FinalizeWorktreeRegistration $script:PrimaryIdentity.Worktree $script:CurrentIdentity.Worktree $CurrentBranch $ApprovedSessionCommit
 	if (-not $registration.Registered) { Throw-Landing 2 'session.registration-invalid' $registration.Message }
@@ -230,11 +262,11 @@ function Complete-LandedState {
 }
 
 try {
+	if ($FixtureFailure -cne 'none' -and $env:BROKEN_ENGINE_FINALIZE_WORKFLOW_FIXTURE -cne '1') { Throw-Landing 1 'input.fixture-forbidden' 'Fixture-only inputs require the finalization workflow fixture environment.' }
 	if ($ApprovedSessionCommit -cnotmatch '^[0-9a-f]{40}$' -or $ExpectedCurrentTip -cnotmatch '^[0-9a-f]{40}$' -or $ExpectedPrimaryTip -cnotmatch '^[0-9a-f]{40}$') {
 		Throw-Landing 1 'input.commit-invalid' 'Approved and expected commits must be lowercase 40-character object IDs.'
 	}
-	if ($claimReceiptPathBound -ne $claimReceiptSha256Bound -or ($claimReceiptPathBound -and ([string]::IsNullOrWhiteSpace($ClaimReceiptPath) -or $ClaimReceiptSha256 -cnotmatch '^[0-9a-f]{64}$'))) { Throw-Landing 1 'input.plan-claim-invalid' 'Claim receipt path and SHA-256 must be supplied together.' }
-	if (($TerminalDisposition -ceq 'none') -ne (-not $claimReceiptPathBound)) { Throw-Landing 1 'input.terminal-disposition-invalid' 'TerminalDisposition and the claim receipt must either both be supplied or both be absent.' }
+	if ($ApprovedCandidateTree -cnotmatch '^[0-9a-f]{40}$') { Throw-Landing 1 'input.candidate-tree-invalid' 'ApprovedCandidateTree must be a lowercase 40-character object ID.' }
 	if ($candidateReceiptPathBound -ne $candidateReceiptSha256Bound -or ($candidateReceiptPathBound -and ([string]::IsNullOrWhiteSpace($CandidateReceiptPath) -or $CandidateReceiptSha256 -cnotmatch '^[0-9a-f]{64}$'))) {
 		Throw-Landing 1 'input.candidate-invalid' 'Candidate receipt path and lowercase SHA-256 must be supplied together.'
 	}
@@ -261,8 +293,12 @@ try {
 	$script:LandingTransientOwner = $landingOwner
 	if ($script:CurrentIdentity.Head -ceq $ApprovedSessionCommit -and
 		(Test-FinalizeGitSuccess $script:PrimaryIdentity.Worktree @('merge-base', '--is-ancestor', $ApprovedSessionCommit, $script:PrimaryIdentity.Head))) {
+		if ((Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "$ApprovedSessionCommit^{tree}")).Trim() -cne $ApprovedCandidateTree) { Throw-Landing 2 'candidate.tree-changed' 'Recovery candidate tree does not equal the exact verified tree.' }
 		$preflight = Invoke-Preflight 'post-advance-recovery' $ApprovedSessionCommit $script:PrimaryIdentity.Head
 		$script:WorktreeCliPath = [string]$preflight.worktreeCli.path
+		$script:PlanReceipt = Get-PlanClaimReceipt $script:CurrentIdentity.Worktree
+		$result.planClaim = $preflight.planClaim
+		foreach ($name in @('preparation','release','released')) { if ($result.planClaim.PSObject.Properties.Name -cnotcontains $name) { Add-Member -InputObject $result.planClaim -NotePropertyName $name -NotePropertyValue $(if ($name -eq 'released') { $false } else { $null }) } }
 		$result.primaryAdvanced = $true
 		Complete-LandedState
 		[Console]::Out.Write(($result | ConvertTo-Json -Depth 12 -Compress))
@@ -272,30 +308,14 @@ try {
 	$preflight = Invoke-Preflight 'pre-mutation' $ExpectedCurrentTip $ExpectedPrimaryTip
 	if ($preflight.tips.current -cne $ApprovedSessionCommit) { Throw-Landing 2 'approval.session-tip-changed' 'Session tip is not the explicit user-approved commit.' }
 	$script:WorktreeCliPath = [string] $preflight.worktreeCli.path
+	$script:PlanReceipt = Get-PlanClaimReceipt $script:CurrentIdentity.Worktree
+	$result.planClaim = $preflight.planClaim
+	foreach ($name in @('preparation','release','released')) { if ($result.planClaim.PSObject.Properties.Name -cnotcontains $name) { Add-Member -InputObject $result.planClaim -NotePropertyName $name -NotePropertyValue $(if ($name -eq 'released') { $false } else { $null }) } }
 	$result.identities.currentWorktree = [string] $preflight.identities.currentWorktree
 	$result.identities.primaryWorktree = [string] $preflight.identities.primaryWorktree
 	$result.identities.gitCommonDirectory = [string] $preflight.identities.gitCommonDirectory
-	if ($claimReceiptPathBound) {
-		$operation = if ($TerminalDisposition -ceq 'rejected') { 'prepare-rejection' } else { 'prepare-completion' }
-		$prepareArguments = @('plan', $operation, '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:CurrentIdentity.Worktree, '--claim-receipt', $ClaimReceiptPath, '--claim-receipt-sha256', $ClaimReceiptSha256)
-		if ($TerminalDisposition -ceq 'rejected') { $prepareArguments += '--user-authorized-rejection' }
-		$preparedResponse = Invoke-WorktreeCli $prepareArguments
-		$prepared = Get-JsonResponse $preparedResponse 'pre-landing terminal preparation'
-		if ($preparedResponse.ExitCode -ne 0 -or -not $prepared.prepared -or $prepared.claimState -cne 'awaiting-landing') {
-			if ($prepared.code -ceq 'recovery-conflict') {
-				# Reconciled Plan bytes no longer conflict, so a surviving conflict is third-party target bytes or a child that vanished mid-recovery: route the named Plan to user judgment, never a retry or override.
-				$conflictPlan = if ($prepared.PSObject.Properties.Name -ccontains 'plan') { [string] $prepared.plan } else { 'unreported Plan path' }
-				Throw-Landing $(if ($preparedResponse.ExitCode -eq 2) { 2 } else { 1 }) 'plan.recovery-conflict' "Terminal preparation conflicts on Plan '$conflictPlan': $($prepared.message). Resolve under the terminal preparation conflict rule in .agents/skills/next-plan/references/execution-gates.md."
-			}
-			Throw-Landing $(if ($preparedResponse.ExitCode -eq 2) { 2 } else { 1 }) 'plan.prepare-failed' 'Receipt-bound Plan terminal preparation could not be proven before landing.'
-		}
-		if ($prepared.PSObject.Properties.Name -cnotcontains 'disposition' -or $prepared.disposition -isnot [string] -or $prepared.disposition -cne $TerminalDisposition) {
-			Throw-Landing 2 'plan.disposition-mismatch' 'Prepared Plan terminal disposition does not match the approved landing disposition.'
-		}
-		$result.planClaim.preparation = $prepared
-		if ($prepared.PSObject.Properties.Name -ccontains 'changedPaths' -and @($prepared.changedPaths).Count -ne 0) {
-			Throw-Landing 2 'approval.refresh-required' 'Terminal preparation changed Plan metadata after approval; revalidate and obtain refreshed landing confirmation.'
-		}
+	if ($null -ne $script:PlanReceipt) {
+		if ($preflight.planClaim.state -cne 'awaiting-landing' -or $preflight.planClaim.disposition -notin @('completed','rejected')) { Throw-Landing 2 'plan.not-terminal' 'Plan claim is not in a prepared terminal state.' }
 	}
 	Assert-ReconciledPlanMetadata
 
@@ -324,11 +344,7 @@ try {
 
 	Assert-PrimaryAdvanceState
 	Refresh-LandingOwner
-	$rebase = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'rebase', $ApprovedSessionCommit) $script:PrimaryIdentity.Worktree
-	if ($rebase.ExitCode -ne 0) { Throw-Landing 1 'git.primary-rebase-failed' "Primary rebase failed: $($rebase.Stdout)$($rebase.Stderr)" }
-	$result.primaryAdvanced = $true
-	$result.tips.current = $ApprovedSessionCommit
-	$result.tips.primary = $ApprovedSessionCommit
+	Advance-PrimaryExactCandidate
 	Release-LandingLockIfSafe
 	if ($script:LandingClaimed) { Throw-Landing 2 'landing-lock.release-failed' 'Landing lock could not be released after the primary advance.' }
 	Complete-LandedState

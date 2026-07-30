@@ -91,8 +91,8 @@ try {
 		$repairJson = & "$PSHOME\pwsh.exe" -NoProfile -File $repairScript -RepositoryRoot $root -Worktree $reattachTarget -WorktreeCliExecutable $worktreeCli
 		if ($LASTEXITCODE -ne 0) { throw "Automatic session re-parent check failed (exit $LASTEXITCODE): $($repairJson -join '; ')." }
 		$repair = ($repairJson -join "`n" | ConvertFrom-Json -Depth 100)
-		# Echo only an actionable re-parent result so the resumed agent has the reparented claim-receipt
-		# sha256s; a 'not-needed' pass stays silent so a normal reattach is quiet.
+		# Echo only actionable re-parent state; receipt identities remain internal to
+		# the scheduler sidecars, which rediscover their deterministic local receipt.
 		if ($repair.status -cne 'not-needed') { Write-Host ($repairJson -join "`n") }
 		# All provenance is receipt-derived: the strictly validated in-worktree receipt is the
 		# sole reattach authority now that no session ledger claim exists.

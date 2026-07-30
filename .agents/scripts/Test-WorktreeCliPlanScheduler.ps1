@@ -332,6 +332,79 @@ try {
 	Assert-Result $release 'release-after-landing' 'ok' 'released'; Assert-True ($release.released -and $release.terminalStateVerified) 'Terminal release did not prove terminal state.'
 	$releaseRetry = Invoke-Cli 0 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256,'--landed-commit',$landed)
 	Assert-Result $releaseRetry 'release-after-landing' 'ok' 'already-released'
+	# An absent terminal target is idempotent only when the scheduler can prove every local record is harmless. A malformed
+	# target, a non-regular target, and malformed/non-regular competitor records all fail closed without retiring the receipt
+	# or reporting receipt identity details.
+	$terminalReceiptBytes = [IO.File]::ReadAllBytes($terminalClaim.receipt.path)
+	$terminalReceiptIdentity = Get-Content -LiteralPath $terminalClaim.receipt.path -Raw | ConvertFrom-Json -Depth 100
+	$terminalClaimPath = [string]$terminalReceiptIdentity.claimPath
+	Assert-True (-not (Test-Path -LiteralPath $terminalClaimPath)) 'Released terminal claim path is absent before absence-proof cases.'
+	[IO.File]::WriteAllText($terminalClaimPath, '{not-json', $utf8)
+	$malformedTargetBytes = [IO.File]::ReadAllBytes($terminalClaimPath)
+	$malformedTarget = Invoke-Cli 2 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256,'--landed-commit',$landed)
+	Assert-Result $malformedTarget 'release-after-landing' 'conflict' 'target-claim-unproven'
+	Assert-True ((Test-Path -LiteralPath $terminalClaimPath) -and ([Convert]::ToHexString([IO.File]::ReadAllBytes($terminalClaimPath)) -ceq [Convert]::ToHexString($malformedTargetBytes)) -and ((($malformedTarget | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Older\.md|claimPath|sha256|receipt'))) 'Malformed target claim changed, was deleted, or leaked receipt identity.'
+	Remove-Item -LiteralPath $terminalClaimPath -Force
+	New-Item -ItemType Directory -Path $terminalClaimPath | Out-Null
+	$directoryTarget = Invoke-Cli 2 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256,'--landed-commit',$landed)
+	Assert-Result $directoryTarget 'release-after-landing' 'conflict' 'target-claim-unproven'
+	Assert-True ((Test-Path -LiteralPath $terminalClaimPath -PathType Container) -and ((($directoryTarget | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Older\.md|claimPath|sha256|receipt'))) 'Non-regular target claim was changed, deleted, or leaked receipt identity.'
+	Remove-Item -LiteralPath $terminalClaimPath -Force -Recurse
+	$malformedCompetitorPath = Join-Path $claimsDirectory 'release-unrelated-malformed.json'
+	[IO.File]::WriteAllText($malformedCompetitorPath, '{not-json', $utf8)
+	$malformedCompetitorBytes = [IO.File]::ReadAllBytes($malformedCompetitorPath)
+	$malformedCompetitor = Invoke-Cli 2 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256,'--landed-commit',$landed)
+	Assert-Result $malformedCompetitor 'release-after-landing' 'conflict' 'competitor-scan-unproven'
+	Assert-True ((Test-Path -LiteralPath $malformedCompetitorPath) -and ([Convert]::ToHexString([IO.File]::ReadAllBytes($malformedCompetitorPath)) -ceq [Convert]::ToHexString($malformedCompetitorBytes)) -and ((($malformedCompetitor | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Older\.md|claimPath|sha256|receipt'))) 'Malformed competitor changed, was deleted, or leaked receipt identity.'
+	Remove-Item -LiteralPath $malformedCompetitorPath -Force
+	$directoryCompetitorPath = Join-Path $claimsDirectory 'release-unrelated-directory.json'
+	New-Item -ItemType Directory -Path $directoryCompetitorPath | Out-Null
+	$directoryCompetitor = Invoke-Cli 2 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256,'--landed-commit',$landed)
+	Assert-Result $directoryCompetitor 'release-after-landing' 'conflict' 'competitor-scan-unproven'
+	Assert-True ((Test-Path -LiteralPath $directoryCompetitorPath -PathType Container) -and ((($directoryCompetitor | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Older\.md|claimPath|sha256|receipt'))) 'Non-regular competitor was changed, deleted, or leaked receipt identity.'
+	Remove-Item -LiteralPath $directoryCompetitorPath -Force -Recurse
+
+	# A different live terminal claim with the same session identity blocks stale receipt recovery even though the old target is
+	# absent. The new receipt remains owned and recoverable; once it releases, unrelated claimed and expired records are inert.
+	& git.exe -C $session merge --ff-only main | Out-Null
+	$competingReceipt = Join-Path $session 'Temp/competing-terminal.json'
+	$competingClaim = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-e','--session','session-e','--write-claim-receipt',$competingReceipt,'--plan','Documents/Plans/Test/Alpha.md')
+	Assert-Result $competingClaim 'claim-next' 'ok' 'claimed'
+	$competingPrepared = Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$competingClaim.receipt.path,'--claim-receipt-sha256',$competingClaim.receipt.sha256)
+	Assert-Result $competingPrepared 'prepare-completion' 'ok' 'prepared'
+	Commit $session 'competing terminal Plan deletion'
+	$competingLanded = (& git.exe -C $session rev-parse HEAD).Trim()
+	& git.exe -C $primary merge --ff-only $competingLanded | Out-Null
+	[IO.File]::WriteAllBytes($terminalClaim.receipt.path, $terminalReceiptBytes)
+	$terminalCompetitor = Invoke-Cli 2 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256,'--landed-commit',$competingLanded)
+	Assert-Result $terminalCompetitor 'release-after-landing' 'conflict' 'competing-terminal-claim'
+	Assert-True (([Convert]::ToHexString([IO.File]::ReadAllBytes($terminalClaim.receipt.path)) -ceq [Convert]::ToHexString($terminalReceiptBytes)) -and ((($terminalCompetitor | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Alpha\.md|Older\.md|claimPath|sha256|receipt'))) 'Competing terminal claim retired or leaked a Plan or receipt identity.'
+	$competingStatus = Invoke-Cli 0 @('plan','claim-status','--worktree',$session,'--claim-receipt',$competingClaim.receipt.path,'--claim-receipt-sha256',$competingClaim.receipt.sha256)
+	Assert-Result $competingStatus 'claim-status' 'ok' 'claimed'; Assert-True ($competingStatus.ownedByReceipt -and $competingStatus.claimState -ceq 'awaiting-landing') 'Competing terminal claim was not retained as its own live receipt.'
+	$competingRecovery = Invoke-Cli 0 @('plan','prepare-completion','--repo',$repo,'--worktree',$session,'--claim-receipt',$competingClaim.receipt.path,'--claim-receipt-sha256',$competingClaim.receipt.sha256)
+	Assert-Result $competingRecovery 'prepare-completion' 'ok' 'recovered'
+	$competingRelease = Invoke-Cli 0 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$competingClaim.receipt.path,'--claim-receipt-sha256',$competingClaim.receipt.sha256,'--landed-commit',$competingLanded)
+	Assert-Result $competingRelease 'release-after-landing' 'ok' 'released'
+	Assert-True (@(Get-ChildItem -LiteralPath $claimsDirectory -Force).Count -eq 0) 'Competing terminal release did not leave an empty claims directory.'
+	Remove-Item -LiteralPath $claimsDirectory -Force
+	$missingClaimsDirectory = Invoke-Cli 0 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256,'--landed-commit',$competingLanded)
+	Assert-Result $missingClaimsDirectory 'release-after-landing' 'ok' 'already-released'
+	Assert-True (-not (Test-Path -LiteralPath $claimsDirectory)) 'Missing claims directory was recreated by stale receipt recovery.'
+	$unrelatedReceipt = Join-Path $session 'Temp/unrelated-release.json'
+	$unrelatedClaim = Invoke-Cli 0 @('plan','claim-next','--repo',$repo,'--primary-worktree',$primary,'--worktree',$session,'--branch','fixture-session','--owner','owner-release-unrelated','--session','session-release-unrelated','--write-claim-receipt',$unrelatedReceipt,'--plan','Documents/Plans/Test/Zulu.md')
+	Assert-Result $unrelatedClaim 'claim-next' 'ok' 'claimed'
+	$ordinaryCompetitor = Invoke-Cli 0 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256,'--landed-commit',$competingLanded)
+	Assert-Result $ordinaryCompetitor 'release-after-landing' 'ok' 'already-released'
+	Assert-True ((($ordinaryCompetitor | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Zulu\.md|claimPath|sha256|receipt')) 'Ordinary unrelated claim leaked claim identity during stale recovery.'
+	$unrelatedIdentity = Get-Content -LiteralPath $unrelatedClaim.receipt.path -Raw | ConvertFrom-Json -Depth 100
+	$unrelatedRecord = Get-Content -LiteralPath $unrelatedIdentity.claimPath -Raw | ConvertFrom-Json -Depth 100 -DateKind String
+	$unrelatedRecord.claimedAt = '2020-01-01T00:00:00.000Z'; $unrelatedRecord.expiresAt = '2020-01-03T00:00:00.000Z'
+	[IO.File]::SetAttributes($unrelatedIdentity.claimPath, [IO.FileAttributes]::Normal)
+	[IO.File]::WriteAllText($unrelatedIdentity.claimPath, (($unrelatedRecord | ConvertTo-Json -Depth 100) + "`n"), $utf8)
+	$harmlessCompetitors = Invoke-Cli 0 @('plan','release-after-landing','--repo',$repo,'--worktree',$session,'--claim-receipt',$terminalClaim.receipt.path,'--claim-receipt-sha256',$terminalClaim.receipt.sha256,'--landed-commit',$competingLanded)
+	Assert-Result $harmlessCompetitors 'release-after-landing' 'ok' 'already-released'
+	Assert-True ((($harmlessCompetitors | ConvertTo-Json -Depth 20 -Compress) -notmatch 'Zulu\.md|claimPath|sha256|receipt')) 'Harmless competitor scan leaked claim identity.'
+	Remove-Item -LiteralPath $unrelatedIdentity.claimPath -Force
 
 	# Re-parent after a primary squash. `git reset --soft <root> && git commit` orphans the old baseline, the
 	# wrapper `git rebase --onto <new> <old> <branch>` replays session commits, and `plan reparent-claims` moves

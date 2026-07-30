@@ -14,6 +14,9 @@ RENAME_SIMILARITY=50
 MAX_ANALYZER_SOURCE_ENTRIES=1024; MAX_ANALYZER_SOURCE_BYTES=1024*1024
 
 class MetricsError(RuntimeError): pass
+class TargetMetricFailure(MetricsError):
+ def __init__(self,code:str,message:str,failures:list[dict[str,Any]]):
+  super().__init__(message);self.code=code;self.message=message;self.failures=failures
 def fail(s:str)->None: raise MetricsError(s)
 def digest(b:bytes)->str:return hashlib.sha256(b).hexdigest()
 def run(root:Path,*a:str)->bytes:
@@ -25,8 +28,12 @@ def canon(s:str)->str:
  p=PurePosixPath(s)
  if any(x in {"",".",".."} for x in p.parts): fail("path must be canonical relative POSIX")
  return "/".join(p.parts)
+def pure_glsl_header(p:str,profile:str)->bool:
+ if profile!="BrokenEngineExtended" or Path(p).suffix.lower()!=".h":return False
+ parts=PurePosixPath(p).parts
+ return any(parts[index:index+2]==("Data","Shaders") for index in range(len(parts)-1)) and parts[-1] not in {"ShaderLayouts.h","ShaderLayoutsBase.h"}
 def supported(p:str,profile:str)->bool:
- return p.split("/",1)[0] not in EXCLUDED and Path(p).suffix.lower() in ({".c++",".cc",".cpp",".cxx",".hh",".hpp",".hxx"}|({".h"} if profile=="BrokenEngineExtended" else set()))
+ return p.split("/",1)[0] not in EXCLUDED and Path(p).suffix.lower() in ({".c++",".cc",".cpp",".cxx",".hh",".hpp",".hxx"}|({".h"} if profile=="BrokenEngineExtended" else set())) and not pure_glsl_header(p,profile)
 def check_components(root:Path,p:Path,require_file:bool)->None:
  try: p.relative_to(root)
  except ValueError: fail("path escapes repository")
@@ -132,6 +139,15 @@ def outlier_buckets(files:list[dict[str,Any]],areas:list[dict[str,Any]],corpus_m
 def nodes(node:Any,kind:str)->Iterable[Any]:
  if node.type==kind:yield node
  for child in node.children:yield from nodes(child,kind)
+def normalized_tree_problem(parsed:Any,source:bytes)->dict[str,int|str]|None:
+ candidates=[];pending=[parsed.native_tree.root_node]
+ while pending:
+  node=pending.pop();pending.extend(node.children)
+  if node.type=="ERROR":candidates.append((node.start_byte,0,"normalized-tree-error"))
+  elif node.is_missing:candidates.append((node.start_byte,1,"normalized-tree-missing-node"))
+ if not candidates:return None
+ offset,_,code=min(candidates);offset=min(max(offset,0),len(source));line=source.count(b"\n",0,offset)+1;column=offset-(source.rfind(b"\n",0,offset)+1)
+ return {"stage":"dispatch-parse","code":code,"line":line,"column":column}
 def declarator_name(node:Any)->Any:
  if node.type in {"identifier","field_identifier"}:return node
  child=node.child_by_field_name("declarator")
@@ -180,7 +196,7 @@ def typed_signatures(parsed:Any)->dict[tuple[int,str],str|None]:
  return out
 def capture(entries:dict[str,tuple[dict[str,str],bytes]],profile:str,capture_root:Path,analyzer_source:Path)->dict[str,Any]:
  empty={"structuralErosion":metric(0,0,False),"verbosity":metric(0,0,False)}
- if not entries:return {"corpusManifest":[],"corpusCounts":{"supported":0,"parsed":0,"omitted":0},"skips":[],"corpusMetrics":empty,"files":[],"areas":[],"outliers":[],"cloneGroups":[],"highComplexityFunctions":[],"_functions":[],"_parsed":set(),"_instances":[]}
+ if not entries:return {"corpusManifest":[],"corpusCounts":{"supported":0,"parsed":0,"omitted":0},"skips":[],"corpusMetrics":empty,"files":[],"areas":[],"outliers":[],"cloneGroups":[],"highComplexityFunctions":[],"_functions":[],"_parsed":set(),"_instances":[],"_failures":[]}
  sys.path.insert(0,str(analyzer_source))
  try:
   import scb_check.pipeline as pipe
@@ -194,13 +210,25 @@ def capture(entries:dict[str,tuple[dict[str,str],bytes]],profile:str,capture_roo
   pipe.dispatch_parse_source_file=parse
  try:
   with tempfile.TemporaryDirectory(prefix="capture-",dir=capture_root) as t:
-   cr=Path(t); pm={}; files=[]; sloc={}; signatures={}
-   for rel,(_,b) in entries.items():
+   cr=Path(t); pm={}; files=[]; sloc={}; signatures={};failures=[]
+   for rel in sorted(entries):
+    _,b=entries[rel]
     analysis_bytes=normalize_cpp_bytes(b) if profile=="BrokenEngineExtended" else b
-    f=cr.joinpath(*rel.split("/"));f.parent.mkdir(parents=True,exist_ok=True);f.write_bytes(analysis_bytes);f=f.resolve();pm[f]=rel;files.append(f)
+    f=cr.joinpath(*rel.split("/"));f.parent.mkdir(parents=True,exist_ok=True);f.write_bytes(analysis_bytes);f=f.resolve();pm[f]=rel
     try:
-     parsed=parse(f,analysis_bytes.decode("utf-8","replace"));sloc[rel]=set(parsed.module.sloc_lines);signatures[rel]=typed_signatures(parsed)
-    except Exception:pass
+     parsed=parse(f,analysis_bytes.decode("utf-8","replace"))
+    except Exception:
+     failures.append({"path":rel,"stage":"dispatch-parse","code":"dispatch-parse-failure","line":1,"column":0});continue
+    else:
+     try:problem=normalized_tree_problem(parsed,analysis_bytes)
+     except Exception:
+      failures.append({"path":rel,"stage":"dispatch-parse","code":"normalized-tree-unavailable","line":1,"column":0});continue
+     if problem is not None:
+      failures.append({"path":rel,**problem});continue
+    files.append(f)
+    sloc[rel]=set(parsed.module.sloc_lines)
+    try:signatures[rel]=typed_signatures(parsed)
+    except Exception:failures.append({"path":rel,"stage":"signature-extraction","code":"signature-extraction-failure","line":1,"column":0})
    with contextlib.redirect_stdout(sys.stderr):result=pipe.analyze_files(tuple(sorted(files)),include_all=True,disable_sg=True)
  except Exception as e:
   fail(f"analyzer failed: {e}")
@@ -223,11 +251,11 @@ def capture(entries:dict[str,tuple[dict[str,str],bytes]],profile:str,capture_roo
  files=[{"path":p,"area":area(p),"metrics":metrics((x for x in funcs if x["path"]==p),((x["path"],i) for x in inst if x["path"]==p for i in range(x["startLine"],x["endLine"]+1)),{p:sloc[p]})} for p in sorted(sloc)]
  areas=area_rows(files);out=outlier_buckets(files,areas,cm)
  groups=[{"groupHash":g,"instances":[x for x in inst if x["groupHash"]==g]} for g in sorted(ordinal)]
- return {"corpusManifest":[entries[p][0] for p in sorted(entries)],"corpusCounts":{"supported":len(entries),"parsed":len(sloc),"omitted":len(entries)-len(sloc)},"skips":[{"path":p,"code":"upstream-omitted"} for p in sorted(set(entries)-set(sloc))],"corpusMetrics":cm,"files":files,"areas":areas,"outliers":out,"cloneGroups":groups,"highComplexityFunctions":[x for x in funcs if x["cc"]>10],"_functions":funcs,"_parsed":set(sloc),"_instances":inst}
+ return {"corpusManifest":[entries[p][0] for p in sorted(entries)],"corpusCounts":{"supported":len(entries),"parsed":len(sloc),"omitted":len(entries)-len(sloc)},"skips":[{"path":p,"code":"upstream-omitted"} for p in sorted(set(entries)-set(sloc))],"corpusMetrics":cm,"files":files,"areas":areas,"outliers":out,"cloneGroups":groups,"highComplexityFunctions":[x for x in funcs if x["cc"]>10],"_functions":funcs,"_parsed":set(sloc),"_instances":inst,"_failures":failures}
 def restrict(v:dict[str,Any],paths:set[str])->dict[str,Any]:
- fs=[x for x in v["files"] if x["path"] in paths]; return {"targetManifest":[x for x in v["corpusManifest"] if x["path"] in paths],"targetCounts":{"supported":len(paths),"parsed":len(v["_parsed"]&paths),"omitted":len(paths-v["_parsed"])},"targetMetrics":aggregate(fs),"targetOutliers":outlier_buckets(fs,area_rows(fs),v["corpusMetrics"])}
+ fs=[x for x in v["files"] if x["path"] in paths]; return {"targetManifest":[x for x in v["corpusManifest"] if x["path"] in paths],"targetCounts":{"supported":len(paths),"parsed":len(v["_parsed"]&paths),"omitted":len(paths-v["_parsed"])},"targetMetrics":aggregate(fs),"targetOutliers":outlier_buckets(fs,area_rows(fs),v["corpusMetrics"]),"_failures":[x for x in v["_failures"] if x["path"] in paths]}
 def capture_view(corpus:dict[str,Any],target:dict[str,Any])->dict[str,Any]:
- return {"corpusManifest":corpus["corpusManifest"],"targetManifest":target["targetManifest"],"corpusCounts":corpus["corpusCounts"],"targetCounts":target["targetCounts"],"skips":corpus["skips"],"corpusMetrics":corpus["corpusMetrics"],"targetMetrics":target["targetMetrics"],"files":corpus["files"],"areas":corpus["areas"],"outliers":corpus["outliers"],"targetOutliers":target["targetOutliers"],"cloneGroups":corpus["cloneGroups"],"highComplexityFunctions":corpus["highComplexityFunctions"],"_functions":corpus["_functions"],"_parsed":corpus["_parsed"],"_instances":corpus["_instances"]}
+ return {"corpusManifest":corpus["corpusManifest"],"targetManifest":target["targetManifest"],"corpusCounts":corpus["corpusCounts"],"targetCounts":target["targetCounts"],"skips":corpus["skips"],"corpusMetrics":corpus["corpusMetrics"],"targetMetrics":target["targetMetrics"],"files":corpus["files"],"areas":corpus["areas"],"outliers":corpus["outliers"],"targetOutliers":target["targetOutliers"],"cloneGroups":corpus["cloneGroups"],"highComplexityFunctions":corpus["highComplexityFunctions"],"_functions":corpus["_functions"],"_parsed":corpus["_parsed"],"_instances":corpus["_instances"],"_targetFailures":target["_failures"]}
 def deltas(b:dict[str,Any],c:dict[str,Any],reasons:list[str])->dict[str,Any]:
  out={}
  for n in ("structuralErosion","verbosity"):
@@ -304,12 +332,13 @@ def build(q:dict[str,Any])->dict[str,Any]:
  if not root.is_absolute() or not cap.is_absolute() or not cap.is_dir():fail("invalid capture root")
  check_components(root,cap,False)
  if q["profile"] not in {"BrokenEngineExtended","StrictUpstream"}:fail("invalid profile")
- if not isinstance(q["tool"],dict) or set(q["tool"])!={"adapterVersion","lockSha256","python","disableSg"} or q["tool"]["adapterVersion"]!="3":fail("invalid tool identity")
+ if not isinstance(q["tool"],dict) or set(q["tool"])!={"adapterVersion","lockSha256","python","disableSg"} or q["tool"]["adapterVersion"]!="4":fail("invalid tool identity")
  if not isinstance(q["tool"]["python"],dict) or set(q["tool"]["python"])!={"implementation","version","architecture","executableSha256"}:fail("invalid python identity")
  analyzer_source=validate_analyzer_source(root,q["analyzerSource"])
  before=current(root,q["profile"])
  if q["mode"]=="Snapshot":
   target=canon(q["target"]);p=root.joinpath(*target.split("/"))
+  if q["scope"]=="Exact" and pure_glsl_header(target,q["profile"]):fail(f"target is not classified as C++ for BrokenEngineExtended: {target}")
   if q["scope"]=="Exact": paths={target} if target in before else fail("Exact target not discovered")
   else:
    check_components(root,p,False)
@@ -322,6 +351,7 @@ def build(q:dict[str,Any])->dict[str,Any]:
    for s,raw,out in (("baseline",br,bt),("current",before,ct)):
     x=pair[s]
     if x is not None:
+     if pure_glsl_header(x["path"],q["profile"]):fail(f"target is not classified as C++ for BrokenEngineExtended: {x['path']}")
      if raw.get(x["path"],(None,))[0]!=x:fail(f"identity mismatch: {x['path']}")
      out.add(x["path"])
    if pair["baseline"] is None and pair["current"]["path"] in br:fail("false add pair")
@@ -330,6 +360,13 @@ def build(q:dict[str,Any])->dict[str,Any]:
     if pair["baseline"]["path"] in before or pair["current"]["path"] in br:fail("cross-path pair is not an actual rename")
     if not rename_pair(br[pair["baseline"]["path"]][1],before[pair["current"]["path"]][1],cap):fail("cross-path pair is not a Git rename")
   bv=cv_b=capture(br,q["profile"],cap,analyzer_source);cv_c=capture(before,q["profile"],cap,analyzer_source);base=capture_view(bv,restrict(bv,bt));cur=capture_view(cv_c,restrict(cv_c,ct))
+  failures=[]
+  for side,view in (("baseline",base),("current",cur)):
+   failures.extend({"side":side,"path":failure["path"],"stage":failure["stage"],"code":failure["code"],"line":failure["line"],"column":failure["column"]} for failure in view["_targetFailures"])
+  failures.sort(key=lambda x:(0 if x["side"]=="baseline" else 1,x["path"],x["line"],x["column"],x["stage"],x["code"]))
+  dispatch_failures=[x for x in failures if x["stage"]=="dispatch-parse"]
+  if dispatch_failures:raise TargetMetricFailure("target-parse-failure","sanitize the listed target spelling and rerun Compare",dispatch_failures)
+  if failures:raise TargetMetricFailure("target-signature-extraction-failure","investigate target signature extraction and rerun Compare",failures)
   context=[{"path":p,"change":"added" if p not in br else "removed" if p not in before else "modified"} for p in sorted(set(br)|set(before)) if p not in bt and p not in ct and br.get(p,(None,))[0]!=before.get(p,(None,))[0]]
   pair_states=[((pair["baseline"]or{}).get("path"),(pair["current"]or{}).get("path")) for pair in pairs]
   logical_membership=any(not bp or not cp for bp,cp in pair_states) or any(x["change"] in {"added","removed"} for x in context)
@@ -354,5 +391,6 @@ def main()->int:
  a=argparse.ArgumentParser();a.add_argument("--request",required=True);z=a.parse_args()
  try:
   r=build(json.loads(Path(z.request).read_text(encoding="utf-8")));o={k:norm(r[k]) for k in ("schemaVersion","mode","profile","tool","targetSelection","baseline","current","comparison")};sys.stdout.write(json.dumps(o,separators=(",",":"),ensure_ascii=False,allow_nan=False)+"\n");return 0
+ except TargetMetricFailure as e:print(json.dumps({"code":e.code,"message":e.message,"failures":e.failures},separators=(",",":"),ensure_ascii=False,allow_nan=False),file=sys.stderr);return 2
  except (MetricsError,OSError,ValueError,KeyError,TypeError) as e:print("CodeQualityMetrics: "+str(e),file=sys.stderr);return 2
 if __name__=="__main__":raise SystemExit(main())

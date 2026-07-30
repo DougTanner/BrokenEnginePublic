@@ -70,12 +70,14 @@ skill dispatches its required fresh reviewer.
    path, or sweep Claude data.
 4. Prove the parent started before and covered the commit, used the eligible
    retained registered worktree selected by the finder, and recorded
-   finalization producing the full hash. An
-   exact ID or filename is selection evidence, not production proof. Include a
-   child only when a parent delegation event and bounded return window prove
-   that child's relationship; include every material
-   implementation, review, verification, debugging, Plan-claim, or landing child.
-   Ambiguous parentage blocks transcript conclusions.
+   finalization producing the full hash. An exact ID or filename is selection
+   evidence, not production proof. Inventory every direct ordinary child and
+   headless execution that the proven invoking parent/main attempted, including
+   planning, nonmaterial, failed, and aborted attempts; the invoking parent/main
+   is not an inventory row. An ordinary child relationship requires both its
+   parent delegation event and bounded return window. Do not use the finder or
+   its descendants as inventory authority. Ambiguous parentage blocks transcript
+   conclusions.
 
    The finder's `descendants` list is discovery metadata, not proof:
    `session_meta.source` records a *claimed* relationship, while the parent
@@ -95,20 +97,22 @@ limit the review to Git evidence. Never infer timing, review, or worktree facts.
 
 ## Fresh transcript analysis
 
-Delegate the proven parent and material child IDs to exactly one fresh
+Delegate the proven parent and every routing-inventory row to exactly one fresh
 `reviewer`; delegation is required and has no inline fallback. Give it a
 fresh/none, self-contained brief with commit facts, sanitized locators, trust
 rules, and targeted event ranges. Require it to inspect every core delegation
-event in the proven parent/child transcripts; verify each `Delegation basis`
-and `Context` record against `.agents/references/subagent-reporting.md`. Flag
-an inherited-context Codex turn fork unless it is the smallest positive turn
-fork with a concrete reason authoritative conversation text could not safely be
+event in the proven transcripts; verify each `Delegation basis` and `Context`
+record against `.agents/references/subagent-reporting.md`. Flag an
+inherited-context Codex turn fork unless it is the smallest positive turn fork
+with a concrete reason authoritative conversation text could not safely be
 summarized. Require the standard handoff:
 
 ```text
 Status: PASS | BLOCKED
 Changed files: none
 Decisive checks: provenance; sessions read; sourced timeline; pauses; conformance, minimality, and process evidence
+Ceremony-time evidence: cited per-agent ceremony/actual-work/unattributed intervals; excluded pauses/passive waits; uncertain intervals; lower/upper bounds
+Model-routing evidence: cited inventory for every direct child/headless attempt, including concern, proof chain, configured and actual route, verdict, and exposed cost
 Build required: none
 Residuals: missing transcript or unverifiable fact, or none
 ```
@@ -117,7 +121,11 @@ Require every transcript conclusion to cite its session ID and timestamp or
 event/line location. Conclusions concerning delegation compliance must also
 cite the relevant `Delegation basis`/`Context` record. The main session confirms
 decisive cited ranges against Git and repository artifacts; it does not reread
-whole transcripts.
+whole transcripts. The handoff also returns concise, cited per-agent aggregates
+of ceremony, actual-work, and unattributed intervals; excluded pauses/passive
+waits; uncertain intervals; and ceremony-share lower/upper bounds. Its concise
+`Model-routing evidence` inventory lets the parent confirm cited ranges and
+commit-time configuration artifacts without rereading transcripts.
 
 ## Reconstruct and assess
 
@@ -139,6 +147,43 @@ elapsed time. Builds, harness work, debugging, and review are active work.
 Required implementation and landing approvals are not waste; flag only extra
 loops or unexplained waits.
 
+## Measure ceremony time
+
+Classify each transcript-observable active interval exactly once as `ceremony`,
+`actual work`, or `unattributed`. Ceremony is work whose immediate object is a
+workflow-control artifact: creating, reading, reconciling, validating, hashing,
+packaging, explaining, or coordinating execution cards, manifests,
+SHA/content identities, claims, readiness/receipt material, or
+approval/finalization packets. Actual work is engineering or repository work
+directly delivering or validating the landed objective: investigation,
+implementation, propagation, debugging, build/harness setup or result analysis,
+and substantive review/testing. Engineering planning or coordination whose
+immediate object is delivery or validation of the landed objective is actual
+work. Split an evidenced mixed interval; otherwise classify it as
+`unattributed`.
+
+Measure non-overlapping active intervals within each agent and sum those
+per-agent intervals as active agent-time; it is not wall-clock time. Exclude
+explicit user/external pauses and passive waits from active agent-time, while
+retaining the overall timing disclosure above. Use only cited timestamps or
+event ranges, tool runtimes, and Git/tool evidence; never infer private
+reasoning. For each category, report time, share, coverage, confidence, and a
+range when evidence is sparse.
+
+Let `T = ceremony + actual work + unattributed` observed active agent-time.
+Category shares use `T`; coverage is `(ceremony + actual work) / T`. For a
+category-ambiguous interval, the lower ceremony bound assigns all of it away
+from ceremony and the upper bound assigns all of it to ceremony. Show an exact
+point ceremony share only when the evidence supports it. When `T = 0`, report
+the measure as `unverified`, not a division.
+
+Control disposition is orthogonal to the time category: separately label each
+control as `required safety/control`, `candidate removable`, or `unverified`.
+Required ceremony remains ceremony, but is not automatically waste. Preserve
+the unchanged-input/non-firing safeguards: a removal or consolidation
+recommendation requires measured cost, frequency, unique signal, and its safety
+tradeoff; one quiet run is not removal evidence.
+
 Assess core-delegation compliance with concrete evidence: manager-only core
 activity; a depth-one worker tree; one bounded worker per concern; prohibited
 duplicate search, restatement, or consensus work; artifact-path-plus-selector
@@ -148,6 +193,47 @@ verification, and required disjoint fan-out are legitimate independent work,
 not duplicate effort. A compliance finding cites the delegation record,
 session ID and timestamp or event/line location, artifact selector, or concrete
 repeated operation.
+
+## Verify execution-model routing
+
+For every routing-inventory row, classify the actual assigned task before
+considering its role label: `planning/design`, `review/audit`,
+`implementation/propagation/documentation`, `judgment-heavy research`,
+`locate/build/mechanical`, or `unable to classify`. Compare that concern with
+the commit-time governing mapping and fallback, not with the requested role
+alone. The Fable exception overrides the commit-time planner default only for
+genuinely bounded `planning/design`. A Fable child doing any other concern is a
+violation, including one labelled `planner` that actually implements or reviews
+and one labelled `implementer`.
+
+For every route outside that Fable exception, use the commit-time governing
+mapping and fallback. The expected route is: review/audit through `/codex-review`
+to Codex/Sol, with Opus compliant only when the documented `CODEX-UNAVAILABLE`
+fallback is proved; implementation/propagation/documentation and judgment-heavy
+research to Opus; and locate/build/mechanical to Sonnet. When the assigned task
+is unable to classify, or the governing mapping cannot be established, do not
+infer compliance.
+
+Use only these admissible proof chains. An ordinary Claude child is compliant
+only with its parent delegation event, bounded returned child relationship, and
+child-session execution metadata naming the actual executor/model. A headless
+`/codex-review` is compliant only with its parent wrapper invocation/result, the
+commit-time `.codex/codex-review.ps1` explicit model pin, and bounded structured
+output. A requested role, explicit requested model, or configured mapping proves
+intent only; a missing required element is `unverified`. Record the parent
+event and child or headless route; relationship evidence; actual concern;
+requested role/type and explicit model; commit-time configured mapping; actual
+executor/model proof; fallback evidence; verdict; exposed tokens/active time;
+and citation. Aggregate affected-child counts and token/active-time cost only
+where exposed; otherwise report cost as unavailable.
+
+Verdicts are `compliant`, `compliant fallback`, `violation`, `unverified`, or
+`not-executed`. `not-executed` is a nonfinding only when the parent event/result
+conclusively proves the dispatch failed before any executor started. A started
+child later aborted or interrupted still needs normal actual-model proof and a
+normal verdict. Every `violation` or `unverified` row is a cited finding. Prefer
+a routing mechanism or evidence fix before reminder prose; no routing result is
+automatically P0.
 
 This audit does not code-review the implementation, infer defects or failure
 modes, claim correctness, or request extra testing to establish correctness.
@@ -184,12 +270,18 @@ Assess in this order:
    loops caused by concrete new evidence. A payload finding must carry a
    measured size and the signal it bought. Do not penalize a narrow change
    for having no unnecessary subagents.
-5. Process overhead: reconcile count, landing-phase active time, duplicate
+5. Execution-model routing: inventory and verify every direct child/headless
+   attempt using the concern-first classification, admissible proof chains, and
+   verdict rules above.
+6. Ceremony time: classify and measure active agent-time using the rules above;
+   distinguish required controls from removable candidates before treating the
+   burden as waste.
+7. Process overhead: reconcile count, landing-phase active time, duplicate
    validations, and unchanged-input rebuild/review/verification.
-6. Isolation and landing: wrapper/claim/readiness evidence when applicable,
+8. Isolation and landing: wrapper/claim/readiness evidence when applicable,
    meta-tool failures, linear-history and parent proofs, conflicts, and
    receipt-bound claim release when applicable.
-7. Speed: complexity-adjusted active time, productive costs, and avoidable
+9. Speed: complexity-adjusted active time, productive costs, and avoidable
    approval or external waits.
 
 Never label repetition from identical landed bytes alone. A repetition or
@@ -209,6 +301,8 @@ extra reconcile, or elapsed-time threshold is automatically P0.
 - Governing-scope conformance: aligned | partial | divergent | unverified — <basis>
 - Solution minimality: minimal | mixed | overengineered | unverified — <basis>
 - Process assessment: <outcome>
+- Execution-model routing: compliant | compliant fallback | violation | unverified — <affected-child count; exposed token/active-time cost or unavailable; basis>
+- Ceremony share of observed active agent-time: <point share | lower–upper bound | unverified> — <T, coverage, confidence, basis>
 
 ## Evidence timeline
 | Time | Event | Evidence | Assessment |
@@ -219,6 +313,12 @@ extra reconcile, or elapsed-time threshold is automatically P0.
 ### Solution minimality
 ### Workflow coverage
 ### Token efficiency
+### Execution-model routing
+| Parent event / child or headless route | Relationship evidence | Actual concern | Requested role/type and explicit model | Commit-time configured mapping | Actual executor/model proof | Fallback evidence | Verdict | Tokens / active time | Citation |
+|---|---|---|---|---|---|---|---|---|---|
+### Ceremony-time measurement
+| Agent/session | Ceremony | Actual work | Unattributed | Excluded pauses/waits | Coverage | Ceremony share/bounds | Confidence | Evidence |
+|---|---:|---:|---:|---:|---:|---:|---|---|
 ### Process overhead
 ### Worktree isolation and landing
 ### Speed
@@ -229,6 +329,7 @@ extra reconcile, or elapsed-time threshold is automatically P0.
    - Change: <specific workflow/script/instruction>
    - Expected benefit: <benefit>
    - Tradeoff: <cost or none material>
+   - Ceremony ranking: <measured burden, frequency, unique signal, and safety risk; when applicable>
 
 ## Strengths to preserve
 - <proven control or none identified>
@@ -246,4 +347,9 @@ explain the safety tradeoff of weakening any tier-required control. Rank a
 mechanism fix, a skill-to-skill contract correction, or a deleted obligation
 above any new rule an agent must remember; a proposed rule states why the
 mechanism could not be fixed, and weighs per-change cost against how often the
-problem fires.
+problem fires. Rank proven `candidate removable` ceremony by burden/frequency,
+unique signal, and safety risk: higher burden/frequency, lower unique signal,
+and lower safety risk rank first. Place it before recommendations that add or
+retain ceremony. A demonstrated higher-risk P0/blocking issue may outrank such
+a removal; otherwise do not let a required-control or new-rule recommendation
+displace proven lowest-value removable ceremony.

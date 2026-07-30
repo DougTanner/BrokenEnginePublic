@@ -10,7 +10,7 @@
 # back a replacement whose postconditions fail, and reruns the structural
 # preflight against the final tip. Callers never reconstruct its Git commands
 # inline. The review window opens later: Show-FinalizeApprovalReview.ps1 owns the
-# SmartGit launch and workflow step 4 calls it last, once the returned tip is bound
+# SmartGit launch and workflow step 5 calls it last, once the returned tip is bound
 # into a fully staged landing.
 #
 # Success contract: exit 0, schema broken-engine-finalize-approval-preparation/v1,
@@ -32,19 +32,19 @@ param(
 	[Parameter(Mandatory)][string] $ExpectedPrimaryTip,
 	[Parameter(Mandatory)][string] $SessionOwner,
 	[string] $WaitSeconds = '60',
-	[string] $ClaimReceiptPath,
-	[string] $ClaimReceiptSha256,
 	[string] $CandidateReceiptPath,
 	[string] $CandidateReceiptSha256,
+	[string] $VerifiedCandidateCommit,
+	[string] $VerifiedCandidateTree,
 	[ValidateSet('none', 'compare-and-swap', 'postcondition', 'final-dirty')][string] $FixtureFailure = 'none'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$claimReceiptPathBound = $PSBoundParameters.ContainsKey('ClaimReceiptPath')
-$claimReceiptSha256Bound = $PSBoundParameters.ContainsKey('ClaimReceiptSha256')
 $candidateReceiptPathBound = $PSBoundParameters.ContainsKey('CandidateReceiptPath')
 $candidateReceiptSha256Bound = $PSBoundParameters.ContainsKey('CandidateReceiptSha256')
+$verifiedCandidateCommitBound = $PSBoundParameters.ContainsKey('VerifiedCandidateCommit')
+$verifiedCandidateTreeBound = $PSBoundParameters.ContainsKey('VerifiedCandidateTree')
 $workflowModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
 if (-not (Test-Path -LiteralPath $workflowModule)) {
 	$workflowModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
@@ -71,11 +71,12 @@ $result = [ordered]@{
 		rollback = 'not-required'
 	}
 	candidateBootstrap = $null
+	verifiedCandidate = [ordered]@{ commit = $VerifiedCandidateCommit; tree = $VerifiedCandidateTree; matched = $false }
 	preflight = [ordered]@{
 		initial = $null
 		final = $null
 	}
-	planClaim = [ordered]@{ receipt = $ClaimReceiptPath; sha256 = $ClaimReceiptSha256 }
+	planClaim = [ordered]@{ present = $false; state = 'absent'; disposition = 'none' }
 }
 
 $script:CurrentIdentity = $null
@@ -149,7 +150,6 @@ function Invoke-Preflight([string] $CurrentTip)
 	{
 		foreach ($argument in @('-CandidateReceiptPath', $CandidateReceiptPath, '-CandidateReceiptSha256', $CandidateReceiptSha256)) { $arguments.Add($argument) }
 	}
-	if ($claimReceiptPathBound) { foreach ($argument in @('-ClaimReceiptPath',$ClaimReceiptPath,'-ClaimReceiptSha256',$ClaimReceiptSha256)) { $arguments.Add($argument) } }
 	$response = Invoke-FinalizeNativeText 'pwsh.exe' $arguments.ToArray() $CurrentWorktree
 	$preflightResult = Get-JsonResponse $response 'Finalization preflight'
 	if ($response.ExitCode -ne 0 -or $preflightResult.status -cne 'pass' -or $preflightResult.code -cne 'ok')
@@ -287,6 +287,12 @@ try
 	}
 	Assert-Input ($SessionOwner -cmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') 'SessionOwner must be a canonical lowercase GUID.'
 	Assert-Input ($candidateReceiptPathBound -eq $candidateReceiptSha256Bound) 'Candidate receipt path and SHA-256 must be supplied together.'
+	Assert-Input ($verifiedCandidateCommitBound -eq $verifiedCandidateTreeBound) 'Verified candidate commit and tree must be supplied together.'
+	if ($verifiedCandidateCommitBound) {
+		Assert-Input ($VerifiedCandidateCommit -cmatch '^[0-9a-f]{40}$' -and $VerifiedCandidateTree -cmatch '^[0-9a-f]{40}$') 'Verified candidate identities must be lowercase 40-character object IDs.'
+		Assert-Input (Test-FinalizeGitSuccess $CurrentWorktree @('rev-parse', '--verify', "$VerifiedCandidateCommit^{commit}")) 'Verified candidate commit does not exist.'
+		Assert-Input ((Invoke-FinalizeGit $CurrentWorktree @('rev-parse', "$VerifiedCandidateCommit^{tree}")).Trim() -ceq $VerifiedCandidateTree) 'Verified candidate tree does not match its commit.'
+	}
 	if ($candidateReceiptPathBound)
 	{
 		Assert-Input (-not [string]::IsNullOrWhiteSpace($CandidateReceiptPath)) 'CandidateReceiptPath must not be blank.'
@@ -331,6 +337,8 @@ try
 		Throw-Preparation 2 'git.session-range-has-merge' 'Session range contains a merge commit.'
 	}
 	$originalTree = Get-GitText @('rev-parse', "$actualTip^{tree}")
+	if ($verifiedCandidateCommitBound -and $originalTree -cne $VerifiedCandidateTree) { Throw-Preparation 2 'candidate.tree-changed' 'Reconciled session tree no longer equals the reviewed candidate tree.' }
+	if ($verifiedCandidateCommitBound) { $result.verifiedCandidate.matched = $true }
 	$result.squash.originalTree = $originalTree
 
 	if ($range.Count -eq 1)
@@ -376,7 +384,7 @@ try
 		Throw-Preparation 2 'preflight.final-identity-mismatch' 'Final preflight did not bind the approved session tip and primary tip.'
 	}
 	$result.candidateBootstrap = Get-CandidateBootstrapCertification $result.tips.approvedSession
-	$result.planClaim.prepared = $true
+	$result.planClaim = $result.preflight.final.planClaim
 	if ($FixtureFailure -ceq 'final-dirty')
 	{
 		[IO.File]::WriteAllText((Join-Path $script:CurrentIdentity 'fixture-final-dirty.tmp'), 'fixture', [Text.UTF8Encoding]::new($false))

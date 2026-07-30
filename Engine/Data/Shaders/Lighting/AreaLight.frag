@@ -41,6 +41,10 @@ layout (location = 2) out vec4 f4OutColorBlue;
 
 void main()
 {
+	ivec2 i2Texel = ivec2(gl_FragCoord.xy);
+	if (any(lessThan(i2Texel, ivec2(globalLayout.iLightingDepositMinX, globalLayout.iLightingDepositMinY))) || any(greaterThanEqual(i2Texel, ivec2(globalLayout.iLightingDepositMaxX, globalLayout.iLightingDepositMaxY))))
+		discard;
+
 	// Compute all color channels simultaneously
 	vec4 f4Color = unpackUnorm4x8(pQuads[iInInstanceIndex].uiColor).abgr;
 

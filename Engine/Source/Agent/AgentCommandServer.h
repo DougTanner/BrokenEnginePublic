@@ -41,6 +41,10 @@ public:
 	// Only one request is ever in flight, so there is a single deferred slot. Main-thread only.
 	void DeferResponse(std::function<std::optional<nlohmann::json>()> poll);
 
+	// Deferred-poll liveness bound (~30 s at 60 fps): a capture lost to a device-loss Graphics recreation (mailboxes
+	// wiped) never resolves, so cap the wait and publish a failure rather than deadlock the channel forever.
+	static constexpr int64_t kiDeferredTimeoutDrains = 1800;
+
 private:
 
 	// A request parsed off the listener thread and handed to the main thread. bParsed == false means the frame
@@ -63,10 +67,6 @@ private:
 
 	static constexpr uint32_t kuiMaxRequestBytes = 1u * 1024u * 1024u; // 1 MiB — larger request frames are rejected
 	static constexpr int64_t kiMaxResponseBytes = 16ll * 1024ll * 1024ll; // 16 MiB response cap
-
-	// Deferred-poll liveness bound (~30 s at 60 fps): a capture lost to a device-loss Graphics recreation (mailboxes
-	// wiped) never resolves, so cap the wait and publish a failure rather than deadlock the channel forever.
-	static constexpr int64_t kiDeferredTimeoutDrains = 1800;
 
 	SOCKET mListenSocket = INVALID_SOCKET;
 	SOCKET mActiveSocket = INVALID_SOCKET; // current connection; closed by the dtor to unblock recv

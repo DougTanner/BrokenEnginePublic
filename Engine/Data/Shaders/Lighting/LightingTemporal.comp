@@ -27,32 +27,27 @@ layout (set = 1, binding = 8, rgba8) uniform image2D combineImageAmbient; // keC
 // settled grid history == current so it is a no-op. Mirror of ShadowTemporal.comp over the four combine outputs.
 void main()
 {
-	uint uiX = gl_GlobalInvocationID.x;
-	uint uiY = gl_GlobalInvocationID.y;
+	ivec2 i2Coord = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iLightingValidMinX, globalLayout.iLightingValidMinY);
+	if (any(greaterThanEqual(i2Coord, ivec2(globalLayout.iLightingValidMaxX, globalLayout.iLightingValidMaxY))))
+		return;
+	float fBlend = globalLayout.fLightingTemporalBlend;
+	if (fBlend >= 1.0f)
+		return;
 
 	ivec2 i2Size = imageSize(combineImageR);
-	if (int(uiX) >= i2Size.x || int(uiY) >= i2Size.y)
-		return;
-
-	ivec2 i2Coord = ivec2(uiX, uiY);
-	vec2 f2Uv = (vec2(float(uiX), float(uiY)) + 0.5f) / vec2(i2Size);
-
-	// Window: only the on-screen region (+ 2-texel bilinear margin) feeds the final image — LightCombine left the
-	// rest untouched (zeroed), so skip it here too. Same test as the combine window so the blended set matches.
+	vec2 f2Uv = (vec2(i2Coord) + 0.5f) / vec2(i2Size);
 	vec2 f2World = VisibleAreaToWorld(f2Uv, globalLayout.f4LightingArea);
-	vec2 f2VisibleUv = WorldToVisibleArea(vec3(f2World, 0.0f), globalLayout.f4VisibleArea);
-	float fMarginX = globalLayout.f2CombineMargin.x;
-	float fMarginY = globalLayout.f2CombineMargin.y;
-	if (f2VisibleUv.x < -fMarginX || f2VisibleUv.x > 1.0f + fMarginX || f2VisibleUv.y < -fMarginY || f2VisibleUv.y > 1.0f + fMarginY)
-		return;
 
 	// This texel's world position -> previous-frame UV. Disocclusion (reprojected UV outside [0,1] = newly
 	// revealed): keep current (the history fetch would be off-grid / stale).
 	vec2 f2PreviousUv = WorldToVisibleArea(vec3(f2World, 0.0f), globalLayout.f4LightingAreaPrevious);
-	if (f2PreviousUv.x < 0.0f || f2PreviousUv.x > 1.0f || f2PreviousUv.y < 0.0f || f2PreviousUv.y > 1.0f)
+	ivec2 i2HistorySize = textureSize(historyR, 0);
+	ivec2 i2PreviousFirstTexel = ivec2(floor(f2PreviousUv * vec2(i2HistorySize) - 0.5f));
+	ivec2 i2PreviousLastTexel = i2PreviousFirstTexel + ivec2(1);
+	ivec4 i4HistoryBounds = ivec4(globalLayout.iLightingHistoryValidMinX, globalLayout.iLightingHistoryValidMinY, globalLayout.iLightingHistoryValidMaxX, globalLayout.iLightingHistoryValidMaxY);
+	if (any(lessThan(i2PreviousFirstTexel, i4HistoryBounds.xy)) || any(greaterThanEqual(i2PreviousLastTexel, i4HistoryBounds.zw)))
 		return;
 
-	float fBlend = globalLayout.fLightingTemporalBlend;
 	imageStore(combineImageR, i2Coord, mix(textureLod(historyR, f2PreviousUv, 0.0f), imageLoad(combineImageR, i2Coord), fBlend));
 	imageStore(combineImageG, i2Coord, mix(textureLod(historyG, f2PreviousUv, 0.0f), imageLoad(combineImageG, i2Coord), fBlend));
 	imageStore(combineImageB, i2Coord, mix(textureLod(historyB, f2PreviousUv, 0.0f), imageLoad(combineImageB, i2Coord), fBlend));

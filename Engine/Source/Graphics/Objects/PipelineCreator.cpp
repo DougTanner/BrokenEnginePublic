@@ -18,8 +18,7 @@ static constexpr float kfDepthBiasSlopeFactor = -3.0f;
 static constexpr int64_t kiMaxColorAttachments = 6;
 
 // Push-constant range size for a pipeline's layout: the per-pipeline override when set, else the default
-// 16-byte PushConstantsLayout. Must equal the shader's declared push-constant block (LightCombine uses the
-// 8-byte CombinePushConstantsLayout) so the layout doesn't reserve bytes the dispatch never sets.
+// 16-byte PushConstantsLayout. It must match the shader's declared push-constant block.
 static uint32_t ResolvePushConstantBytes(const Pipeline& rPipeline)
 {
 	return rPipeline.mInfo.iPushConstantBytes > 0 ? static_cast<uint32_t>(rPipeline.mInfo.iPushConstantBytes) : static_cast<uint32_t>(sizeof(shaders::PushConstantsLayout));

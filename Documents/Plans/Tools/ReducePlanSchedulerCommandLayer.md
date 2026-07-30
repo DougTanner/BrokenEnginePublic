@@ -1,4 +1,4 @@
-<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-27T13:00:56.750Z","dependsOn":["Documents/Plans/Tools/ReducePlanScheduler.md"]} -->
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-27T13:00:56.750Z","dependsOn":[]} -->
 # Split WorktreeCli's plan-scheduler command layer
 
 ## Context

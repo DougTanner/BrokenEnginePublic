@@ -397,9 +397,12 @@ exit $exitCode
 	Assert-True ($LASTEXITCODE -eq 0) 'Idempotent repair rerun did not exit 0.'
 	$notNeeded = ($notNeededOutput -join "`n") | ConvertFrom-Json
 	Assert-True ($notNeeded.status -ceq 'not-needed') 'Idempotent repair rerun did not report not-needed.'
+	Assert-True ($notNeeded.PSObject.Properties.Name -cnotcontains 'updatedReceipts') 'Repair output exposed updated receipt identities.'
+	Assert-True (($notNeededOutput -join "`n") -notmatch 'next-plan-claim|sha256') 'Repair output exposed a receipt path or hash.'
 	$secondRun = & $invokeStart
 	Assert-True ($secondRun.ExitCode -eq 0) "Idempotent second reattach failed: $($secondRun.Output -join '; ')"
 	Assert-True ($null -eq (Get-RepairResult $secondRun)) 'Idempotent second reattach re-ran the squash repair.'
+	Assert-True ((Get-OutputText $secondRun) -notmatch 'next-plan-claim|sha256|updatedReceipts') 'Wrapper output exposed receipt identity.'
 	Write-Host 'PASS idempotent re-parent: rerun is not-needed and reattach is normal'
 
 	# (f) Autostash pop-conflict: an uncommitted edit collides with the squashed content when the autostash is

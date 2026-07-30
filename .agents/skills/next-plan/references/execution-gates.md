@@ -43,12 +43,26 @@ none of those and never invalidates approval.
 
 ## 3. Continuous execution
 
+Required order: terminal preparation -> candidate creation -> reconciliation/single-parent squash -> exact candidate verification -> finalization summary and explicit confirmation -> primary mutation.
+
 After implementation approval, main continues without another resume request by
 dispatching or resuming the assigned workers through implementation,
 propagation, checks, review, accepted fixes, final verification, Plan terminal
-preparation, reconciliation, and finalization preparation. Terminal preparation
-is not a terminal result. Do not stop at an implementation handoff or a
-preparation-ready status.
+preparation, candidate creation, reconciliation/single-parent squash, exact
+candidate verification, and finalization preparation. Terminal preparation is
+not a terminal result. The mandatory order is terminal preparation -> candidate
+creation -> reconciliation/single-parent squash -> exact candidate verification
+-> finalization summary and explicit confirmation -> primary mutation. Do not
+stop at an implementation handoff or a preparation-ready status.
+
+`/verify-changes` runs only after terminal preparation and reconciliation return
+one exact candidate commit/tree. It requires the fixed baseline, candidate
+commit/tree, sole parent, and current candidate tip; missing, non-commit,
+wrong-parent, wrong-tree, or changed-tip identity blocks. Candidate authorized
+paths equal declared caller ownership UNION receipt-proven terminal
+`changedPaths`; no extra path may enter the candidate. A later fix or changed
+reconciliation result creates a replacement candidate and requires affected
+verification before the workflow continues.
 
 A material scope or acceptance change returns to state 2. A safety blocker may
 stop the workflow, but clearing it resumes the same approved route without
@@ -96,7 +110,8 @@ primary `WorktreeCli.exe`. It re-parents the session onto the squashed tip and
 also rewrites the durable wrapper receipt — without that receipt fix the next
 reattach is unrecoverable, since the old baseline is no longer an ancestor of the
 worktree HEAD. Re-export `BROKEN_ENGINE_BASELINE` to the reported `newBaseline`,
-and replace any remembered claim-receipt sha256 with the `updatedReceipts` values.
+and continue with deterministic receipt discovery; later sidecars recalculate
+the current receipt bytes themselves.
 The repair runs before any `plan validate` or `claim-next` — healing at the
 post-rebase/pre-reparent boundary deletes live claims. A `reparented-conflict`
 result has two kinds keyed by `rebaseInProgress`: true is a mid-rebase conflict

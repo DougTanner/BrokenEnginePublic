@@ -1,6 +1,6 @@
 # Sole SmartGit review-tool boundary for a session landing.
 #
-# Invoked last in workflow step 4 — after approval preparation returned the
+# Invoked last in workflow step 5 — after approval preparation returned the
 # approved tip — as the final tool invocation before the landing summary renders.
 # Opening the log window here means the user returns from their review to a
 # finished confirmation question rather than a working agent. Callers never

@@ -18,11 +18,6 @@ layout (set = 1, binding = 5, rgba8) uniform writeonly image2D combineImageG; //
 layout (set = 1, binding = 6, rgba8) uniform writeonly image2D combineImageB; // keCombineFormat
 layout (set = 1, binding = 7, rgba8) uniform writeonly image2D combineImageAmbient; // keCombineFormat
 
-layout (push_constant) uniform PushConstants
-{
-	CombinePushConstantsLayout pushConstants;
-};
-
 // Uchimura tone curve (Gran Turismo Sport)
 // P: max brightness, a: contrast, m: linear start, c: toe curvature, b: black tightness. The segment constants
 // S0/S1/CP are precomputed on the CPU from those inputs plus linear-length (globalLayout.fCombineS0/S1/CP).
@@ -73,29 +68,11 @@ float UchimuraScalar(float fX)
 
 void main()
 {
-	uint uiX = gl_GlobalInvocationID.x;
-	uint uiY = gl_GlobalInvocationID.y;
-	if (uiX >= pushConstants.uiWidth || uiY >= pushConstants.uiHeight)
+	ivec2 i2Coord = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iLightingValidMinX, globalLayout.iLightingValidMinY);
+	if (any(greaterThanEqual(i2Coord, ivec2(globalLayout.iLightingValidMaxX, globalLayout.iLightingValidMaxY))))
 		return;
 
-	vec2 f2Uv = (vec2(uiX, uiY) + vec2(0.5f)) / vec2(pushConstants.uiWidth, pushConstants.uiHeight);
-	ivec2 i2Coord = ivec2(uiX, uiY);
-
-	// Window: combine textures are pre-sized to cover the visible area at the lighting headroom reference, but only
-	// the on-screen region feeds the final image. Skip texels outside the visible window (plus a 2-texel bilinear
-	// margin so edge consumers never sample a zeroed texel). Mirror of the spread-window early-out.
-	vec2 f2WorldPos = VisibleAreaToWorld(f2Uv, globalLayout.f4LightingArea);
-	vec2 f2VisibleUv = WorldToVisibleArea(vec3(f2WorldPos, 0.0f), globalLayout.f4VisibleArea);
-	float fMarginX = globalLayout.f2CombineMargin.x;
-	float fMarginY = globalLayout.f2CombineMargin.y;
-	if (f2VisibleUv.x < -fMarginX || f2VisibleUv.x > 1.0f + fMarginX || f2VisibleUv.y < -fMarginY || f2VisibleUv.y > 1.0f + fMarginY)
-	{
-		imageStore(combineImageR, i2Coord, vec4(0.0f));
-		imageStore(combineImageG, i2Coord, vec4(0.0f));
-		imageStore(combineImageB, i2Coord, vec4(0.0f));
-		imageStore(combineImageAmbient, i2Coord, vec4(0.0f));
-		return;
-	}
+	vec2 f2Uv = (vec2(i2Coord) + vec2(0.5f)) / vec2(imageSize(combineImageR));
 
 	float fPassCount = globalLayout.fSpreadPassCount;
 	uint uiPassCount = uint(fPassCount);

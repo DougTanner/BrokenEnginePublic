@@ -12,8 +12,12 @@ allowed-tools: [Read, Grep, Glob, "Bash(git diff *)", "Bash(git status *)", "Bas
 Run only when the root `AGENTS.md` final-evidence gate applies. Main dispatches
 one fresh `reviewer` context separate from implementation and prior review.
 That worker is a read-only verifier: do not delegate, edit files, resolve
-findings, build, launch a runtime or harness, mutate Plan claims, or create an
-evidence artifact. It inspects the final tree and validates supplied evidence;
+findings, build, launch a runtime or harness, invoke Plan mutation commands
+(`claim-next`, `unclaim`, terminal preparation, or release), alter the active
+deterministic receipt, alter the tracked tree, or create an evidence artifact.
+Canonical `plan validate` may perform its established stale machine-local claim
+healing; that is the sole permitted scheduler side effect and is not
+side-effect-free. It inspects the final tree and validates supplied evidence;
 return missing or stale work to main for adjudication and routing.
 
 ## Inputs
@@ -22,6 +26,8 @@ Main supplies, and the verifier requires:
 
 - absolute adopted checkout, fixed session-start baseline commit, and route:
   `session-finalization` or explicitly authorized `primary-commit`;
+- exact reconciled candidate commit and expected candidate tree, created after
+  terminal Plan preparation and reconciliation/single-parent squash;
 - final approved plan and approved deltas (`none` is valid);
 - execution-control record with tier/triggers, required/conditional roles and
   dispositions, initial acceptance matrix, and every declared invariant;
@@ -33,43 +39,41 @@ unapproved delta. Require the adopted path to equal its Git top level, the
 baseline to resolve exactly, and primary checkout use only on the
 `primary-commit` route.
 
-## Final Manifest
+## Candidate identity and inventory
 
-1. Derive the tracked manifest from `git diff --raw <baseline> --` and append
-   `git ls-files --others --exclude-standard`. Preserve status, rename
-   source/destination, and untracked identity. This covers committed, staged,
-   and unstaged changes from the fixed baseline.
-   Record each entry's mode and content identity, `-` for a deletion. Mode is
-   part of the identity, so a `100644`→`100755` or symlink↔regular change counts
-   even when content is unchanged. Mode and content come from different sources,
-   and neither substitutes for the other:
-   - Mode: the destination-mode column of `git diff --raw` for a tracked entry,
-     which is exact for committed and uncommitted changes alike because mode
-     needs no hashing; the filesystem entry type for an untracked one. Do not
-     use `git status --porcelain=v2` — it reports only against HEAD/index, so an
-     entry changed in an earlier session commit is clean there and yields no
-     record at all.
-   - Content: route on the mode first, never on whether a command succeeded.
-     For a regular file use `git hash-object -- <path>`, the only way to hash
-     unstaged bytes — `git diff --raw` zeroes its destination OID against a
-     working tree. For a submodule gitlink (`160000`) use
-     `git submodule status -- <path>`, whose leading `+`/`-` also carries index
-     divergence and uninitialized state. For a symlink (`120000`) use its link
-     target. Never invoke `git hash-object` on a gitlink or a symlink: on a
-     gitlink and on a directory symlink it dies, but on a file symlink it
-     silently succeeds and returns the *target file's* blob, which records a
-     plausible wrong identity and hides a retarget to a same-content path.
-2. Reconcile every entry against the caller-owned path list and handoffs. Block
-   on an unowned entry, an owned path absent from the manifest without an
-   explained no-change disposition, a status mismatch, or a handoff claiming
-   bytes outside its ownership. Return the manifest inline with both the mode
-   and content-identity columns, which `/finalize-changes` requires as inputs;
-   no report file is required.
-3. A caller fix ends the current run. On re-entry, recompute and reconcile the
-   whole manifest, add the fix handoff, and invalidate only evidence affected by
-   the new bytes. Require the handoff sequence to prove no later manifest edit
-   invalidated each accepted check, review, build, receipt, or data snapshot.
-4. Inventory touched ignored or non-worktree state from the handoffs. Require
+Required order: terminal preparation -> candidate creation -> reconciliation/single-parent squash -> exact candidate verification -> finalization summary and explicit confirmation -> primary mutation.
+
+1. Resolve the supplied candidate with `git rev-parse --verify
+   <candidate>^{commit}` and its tree with `git rev-parse <candidate>^{tree}`.
+   Require exact equality to the supplied commit and tree and exactly one parent.
+   On a session route, require the adopted-checkout `HEAD` to equal the candidate
+   and its sole parent to be the reconciled primary tip recorded by the
+   finalization handoff. On a primary-commit route, require the candidate parent
+   and adopted-checkout `HEAD` to equal the current primary tip without advancing
+   that ref. The fixed baseline
+   must still resolve exactly and the reconciliation record must account for any
+   primary advance from it. Missing, non-commit, wrong-parent, wrong-tree, or
+   changed-tip identity is a blocker, never an evidence waiver.
+2. Derive the reviewed inventory directly from Git: use `git diff --raw -M
+   <candidate>^ <candidate>` and the corresponding name-status output, retaining
+   paths, modes, additions, deletions, renames, symlinks, and gitlinks. The
+   candidate is clean by construction, so do not mix index/worktree state or
+   manufacture per-entry content identities. Derive the fixed-baseline delta
+   separately when required to account for the complete session history; the
+   candidate-parent delta is the exact scope being reviewed and landed.
+3. Reconcile the derived changed-path set exactly against the declared
+   caller-owned paths UNION receipt-proven terminal `changedPaths`. Block on an
+   unowned candidate path, an authorized changed path absent from the candidate
+   without an explained no-change disposition, or a handoff claiming bytes
+   outside that union. Return the Git-derived inventory inline with the baseline,
+   candidate commit, and candidate tree; no synthetic identity envelope is an
+   input to `/finalize-changes`.
+4. A caller fix ends the current run. It creates and reconciles a replacement
+   candidate before re-entry; recompute the Git inventory, add the fix handoff,
+   and invalidate evidence affected by the changed candidate delta. Require the
+   handoff sequence to prove no later candidate replacement invalidated each
+   accepted check, review, build, receipt, or data snapshot.
+5. Inventory touched ignored or non-worktree state from the handoffs. Require
    its exact path, owner contract or serialization mechanism, evidence, and one
    disposition: `unchanged`, `intentionally persisted`, `restored`, or
    `residual`. A residual is non-passing.
@@ -161,20 +165,19 @@ tree mismatch requires a rebuilt candidate.
 
 ### Executable Plan validation
 
-For a changed executable plan in a session worktree, use the current checkout's
-provisioned `Tools/WorktreeCli/Platforms/VisualStudio2026/Output/WorktreeCli.exe`
-and record the read-only session prevalidation from `plan validate --repo
-<canonical-common-dir> --worktree <session-worktree> --baseline
-<baseline-commit>`. When holding a terminal Plan claim receipt, append
-`--terminal-receipt <receipt-path> --terminal-receipt-sha256 <sha256>`; omit
-the pair entirely for ordinary no-claim work. Without it a completed Plan
-whose Markdown file is deleted returns `status: invalid`, `code:
-invalid-plans`, and diagnostic `baseline-plan-missing-or-demoted`. The receipt
-must be an ordinary file below `<session-worktree>/Temp`, and the claim state
-must be `preparing` or `awaiting-landing` — `Complete-NextPlan.ps1` already
-leaves `awaiting-landing` before this skill runs. Require exit `0`, the
-versioned JSON contract, `status: valid`, `code: ok`, and no failing
-diagnostic. Record stale dependency notices and healed claims. Never validate
+For a changed executable Plan in a session worktree, invoke
+`scripts/Test-VerifyPlanPrevalidation.ps1 -Worktree <absolute-session-worktree>
+-Baseline <baseline-commit>`. It derives wrapper provenance and the provisioned
+WorktreeCli, discovers any deterministic Plan receipt internally, and is the
+only verification-stage Plan prevalidation route. Require exit `0`, `status:
+pass`, `code: ok`, and `validation.status: valid`; record its safe claim state
+and terminal proof. On validation failure it returns top-level `status:
+blocked`, `code: validation.failed`, with WorktreeCli detail in
+`validation.diagnostics`. An absent receipt uses ordinary validation. A present
+`claimed` receipt proves its Plan bytes then also uses ordinary validation; a
+present `awaiting-landing` receipt with disposition `completed` or `rejected`
+uses the internal terminal proof. A `preparing`, invalid, or unowned present
+receipt blocks. Record stale dependency notices and healed claims. Never validate
 `Documents/Features` as scheduler input. Otherwise record `not triggered — no
 executable-Plan change`.
 
@@ -185,17 +188,19 @@ by this pre-commit audit.
 
 ## Decision and Output
 
-The verifier returns `Verification: PASS` only when the manifest reconciles and
-every in-scope item passes with current evidence. Any failure, blocker, unverified item,
-unresolved claim, unadjudicated refutation, stale evidence, or missing input
-returns `Verification: BLOCKED`. Consolidate all such items once; do not retry,
-fix, waive, downgrade, or create a follow-up. Main adjudicates and routes
-work, then starts a new verification run after any mutation. A `PASS` is scoped
-to the manifest it audited; report that manifest and baseline with the table,
-and treat any later manifest change as voiding it. Stop when the matrix passes.
+The verifier returns `Verification: PASS` only when the candidate identity and
+ownership reconciliation pass and every in-scope item has current evidence. Any
+failure, blocker, unverified item, unresolved claim, unadjudicated refutation,
+stale evidence, or missing input returns `Verification: BLOCKED`. Consolidate
+all such items once; do not retry, fix, waive, downgrade, or create a follow-up.
+Main adjudicates and routes work, then starts a new verification run after any
+candidate replacement. A `PASS` is bound to its fixed baseline and exact
+candidate commit/tree; any candidate, parent, tree, or tip change voids it.
+Stop when the matrix passes.
 
-Follow `../../references/subagent-reporting.md`
-and return: verification result; route, adopted checkout, and baseline; inline
-manifest; acceptance, review, and API rows; plan prevalidation; AgentTools
-pre-approval obligation when applicable; fix/re-entry history or `none`;
-non-passing items or `none`; and `Residuals: <blocker or none>` last.
+Follow `../../references/subagent-reporting.md` and return: verification result;
+route, adopted checkout, fixed baseline, candidate commit/tree, sole parent,
+and Git-derived changed-file inventory; acceptance, review, and API rows; plan
+prevalidation; AgentTools pre-approval obligation when applicable; fix/re-entry
+history or `none`; non-passing items or `none`; and `Residuals: <blocker or
+none>` last.

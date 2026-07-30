@@ -29,18 +29,31 @@ Keep history linear. Reconciliation runs `git rebase <primary-branch>` from the 
 
 ## Inputs
 
-- The `/verify-changes` completion summary: `Verification: PASS`, its fixed baseline commit, its inline final manifest carrying each entry's mode and content identity, and every in-scope acceptance check passed
+- The `/verify-changes` completion summary: `Verification: PASS`, its fixed
+  baseline, exact reconciled candidate commit/tree and sole parent, Git-derived
+  changed-file inventory, and every in-scope acceptance check passed
 - Current and primary checkout identities; for a session landing, the durable session identity resolved by `Get-AgentWorktreeSessionProvenance` from the in-worktree receipt
-- When a terminal Plan claim is held: Plan identity, receipt path and SHA-256,
-  and approved completion or rejection disposition. Supply no Plan receipt for
-  ordinary no-claim work or a deferral already released through `plan unclaim`.
+- When a terminal Plan claim is held: its internally resolved state and
+  disposition. Sidecars discover the deterministic local receipt; its identity
+  never enters a handoff. A deferred or absent claim is ordinary no-claim work.
 
 ## Sidecars
 
 These scripts own the mechanics; never reconstruct their Git, lock, WorktreeCli, or SmartGit commands inline. Each documents its contract and returns one JSON object. `Test-FinalizePreflight.ps1`, `Invoke-FinalizeApprovalPreparation.ps1`, `Test-AgentToolsCandidateCertification.ps1`, and `Invoke-AgentToolsPromotion.ps1` succeed only on exit `0`, `status: pass`, `code: ok`; `Invoke-FinalizeLanding.ps1` succeeds only on exit `0`, `status: landed`, `code: ok`. Exit `2` is a deterministic blocker. `Show-FinalizeApprovalReview.ps1` accepts exit `0` with `opened`, `unavailable`, or `failed`; only its invalid-input exit `1` blocks. Coordination results carry top-level `disposition`, `requiresUserAuthority`, and retry timing: `retryable-wait` and `shared-quiescence` never require external repair/decision authority; `authority-required` requires it; input/internal failures are `terminal`. Keep plumbing output out of the user transcript: print only `status`, `code`, and decision-relevant fields.
 
 - `scripts/Test-FinalizePreflight.ps1` — canonical read-only structural preflight (identity, clean Git state, WorktreeCli capability, session-landing receipt, and optional terminal Plan receipt). Approval preparation and landing both invoke it. During the one-shot scheduler cutover, an approval-bound v2 candidate receipt may supply the current WorktreeCli when the canonical executable lacks required scheduler capabilities; certification binds that executable to the approved source. All other paths remain canonical and strict.
-- `scripts/Invoke-FinalizeApprovalPreparation.ps1` — invoked once per landing on the final clean session tree; squashes the linear session range to one tree-identical commit whose sole parent is the current primary tip. Its returned `approvedSession` tip is the landing candidate. A later primary advance rebases that candidate directly; it does not rerun this script.
+- `scripts/Invoke-FinalizeCandidateCommit.ps1` — creates the candidate only
+  after terminal Plan preparation. It stages only the authorized-path union,
+  preserves disjoint staged, unstaged, and untracked state, and blocks a mixed
+  owned path. On a session route it produces the pre-reconciliation candidate;
+  on a primary-commit route it uses a temporary index and does not advance the
+  real primary ref or alter its real index until its later exact-candidate CAS.
+- `scripts/Invoke-FinalizeApprovalPreparation.ps1` — reconciles the session
+  candidate and squashes it to one tree-identical commit whose sole parent is
+  the current primary tip. Its returned candidate commit/tree is the only
+  session landing candidate passed to `/verify-changes`. A later primary
+  advance rebases that verified candidate directly; it does not rebuild an
+  equivalent commit from mutable worktree bytes.
 - `scripts/Invoke-FinalizeLockClaim.ps1` — bounded pre-confirmation reconcile-lease claim. It exposes the common claim/status/exact-expiry/recover policy also used by post-confirmation landing: live contention is retryable, exactly validated expired metadata recovers automatically only through WorktreeCli's owner-CAS/all-worktrees-clear primitive, and unverifiable metadata requires external repair/decision authority and is never overridden or bypassed.
 - `scripts/Wait-AgentToolsQuiescence.ps1` — required bounded read-only shared-artifact gate. Invoke it only for a canonical shared-artifact mutation:
 
@@ -52,18 +65,30 @@ These scripts own the mechanics; never reconstruct their Git, lock, WorktreeCli,
   ```
 
   The durable session owner holds no WorktreeCli ledger claim; this gate waits only on in-flight transient operation claims. After a client restart `$env:BROKEN_ENGINE_SESSION_OWNER` is unset; resolve the durable owner from the in-worktree receipt (`Get-AgentWorktreeSessionProvenance`) instead. It emits one `broken-engine-shared-quiescence/v1` JSON result. Exit `0` reports `quiescent` or `shared-quiescence`, always with `requiresUserAuthority:false`, `retryAfterSeconds`, `waitedMilliseconds`, and `liveBlockers`; an unreadable, malformed, or invalid coordination ledger exits `2` as `authority-required` with `requiresUserAuthority:true`. Other input/internal failures exit `1` as `terminal` with no-authority. Reinvoke only after `retryAfterSeconds` when it reports `shared-quiescence`.
-- `scripts/Show-FinalizeApprovalReview.ps1` — sole owner of the SmartGit review-window launch, invoked last in step 4 immediately before the landing summary so the user returns from their review to a finished confirmation question. `unavailable`/`failed` is non-blocking: surface its message and exact `manualCommand` in the approval response. Not re-invoked after a post-confirmation re-rebase.
-- `scripts/Invoke-FinalizeLanding.ps1` — exclusive owner of the post-approval landing transaction (structural preflight, Plan validation, locks, ancestry proofs, primary ref advance, and receipt-bound terminal claim release).
-- `scripts/Test-SessionAuditRequirement.ps1` — read-only post-reconciliation evaluator. Supply one complete `broken-engine-session-audit-input/v1` JSON object containing the repository root, exact pre-rebase/rebased commits, `/verify-changes` manifest, and exact dependency-overlap evidence: primary changed paths, declared `directDependencyPaths`, and their overlap with the union of session-changed and direct-dependency paths; also supply conflict/domain/adversarial coverage dispositions, late-fix/manual-resolution/invalidated-assumption/unseen-region flags, and explicit-user-request flag. It emits one `broken-engine-session-audit-decision/v1` object; only exit `0` with well-formed `required:false` permits automatic skip. Missing or malformed evidence, a decision mismatch, or `required:true` requires `/session-audit`.
+- `scripts/Show-FinalizeApprovalReview.ps1` — sole owner of the SmartGit review-window launch, invoked last in step 5 immediately before the landing summary so the user returns from their review to a finished confirmation question. `unavailable`/`failed` is non-blocking: surface its message and exact `manualCommand` in the approval response. Not re-invoked after a post-confirmation re-rebase.
+- `scripts/Invoke-FinalizeLanding.ps1` — exclusive owner of the post-approval
+  landing transaction (structural preflight, Plan validation, locks, ancestry
+  proofs, guarded primary ref advance to the exact verified candidate, and
+  receipt-bound terminal claim release). It never reconstructs a primary commit
+  from the mutable worktree or uses `git commit --only` to recreate evidence.
+- `scripts/Test-SessionAuditRequirement.ps1` — read-only post-reconciliation
+  evaluator. Supply one complete `broken-engine-session-audit-input/v2` JSON
+  object containing repository identity, exact pre/post-reconciliation candidate
+  commits, and Git-native deltas derived from their parents; exact
+  dependency-overlap evidence; conflict/domain/adversarial
+  coverage dispositions; late-fix/manual-resolution/invalidated-assumption/
+  unseen-region flags; and explicit-user-request flag. It emits one
+  `broken-engine-session-audit-decision/v2` object; only exit `0` with
+  well-formed `required:false` permits automatic skip. Missing or malformed
+  evidence, a decision mismatch, or `required:true` requires `/session-audit`.
 - `scripts/Test-AgentToolsCandidateCertification.ps1` — read-only v2 receipt certification against immutable executables, stable before/after manifests, same-checkout source bytes, and expected-commit clean-filter blobs, including primary-resolved `json.hpp`. Any exit `2` mismatch requires a rebuilt candidate.
-- `scripts/Invoke-AgentToolsPromotion.ps1` — guarded AgentTools promotion, invoked only by workflow step 5b after a landing whose diff requires it; never run it for any other purpose.
+- `scripts/Invoke-AgentToolsPromotion.ps1` — guarded AgentTools promotion, invoked only by workflow step 6b after a landing whose diff requires it; never run it for any other purpose.
 
 ## Terminal Plan claims
 
-Carry the exact receipt path, SHA-256, and approved completion or rejection
-disposition through preflight, approval preparation, and landing. The receipt
-must remain an ordinary file beneath session `Temp`; changed, missing, reparse,
-foreign, or disposition-mismatched receipts block before primary mutation.
+Preflight, approval preparation, and landing rediscover the deterministic
+receipt beneath session `Temp`. A changed, missing, reparse, foreign, or
+disposition-mismatched receipt blocks before primary mutation.
 
 Terminal preparation writes a recoverable manifest, deletes the selected Plan,
 and removes only direct child dependency edges. A recovery that changes child
@@ -83,31 +108,78 @@ Fixtures are assertion-driven developer checks, not sidecars. They emit determin
 
 ## Workflow
 
-1. Confirm `/verify-changes` reported every in-scope check passed; stop on any failed, blocked, or unverified item. Then recompute the final manifest from that summary's baseline exactly as `/verify-changes` `## Final Manifest` item 1 derives it — a read-only query like the Overlap check's inline `git diff --name-only`, never a reconstruction of a sidecar-owned transaction — and require equality with the supplied manifest entry for entry: path, status, rename source/destination, untracked identity, mode, and content identity. A matching path set with a differing mode or content identity is a post-audit change and does not pass — content identity is per entry type exactly as item 1 records it (blob for a regular file, the whole `git submodule status` line including its leading `+`/`-` for a gitlink, link target for a symlink), so a submodule-pointer move counts. Any difference means the tree mutated after the audit: stop and report `re-verification required`. This comparison is a precondition of the commit, not a one-time gate: it must hold immediately before each `git commit` in steps 2 and 3, with no user wait, approval question, or other tool call between it and that commit. Staging already-verified new files is the one permitted intervening operation on either route — both commits use `--only -- <verified paths>`, which requires a new path to be staged first — and the comparison is computed before that staging. Staging changes only how Git reports an entry, moving it out of `git ls-files --others` and into `git diff --raw` as `A`, so comparing a post-staging recompute against a pre-staging manifest would fire `re-verification required` on an unchanged, correctly-owned file. Running it here as well fails fast, but an early pass never substitutes for the commit-adjacent one — step 2's confirmation wait is exactly the interval in which an already-verified path can change. Recompute before the commit and before reconciliation, because committing retracks untracked entries and a rebase re-parents the diff base. Once committed the session's content identity is the `approvedSession` tip, and changes after landing confirmation are already governed by `../next-plan/references/execution-gates.md` and step 5 — add no second mechanism there. The verified manifest is the `<verified paths>` set used in steps 2 and 3; never widen it. A user decision to land despite a failed criterion is not a substitute for a passing table: it authorizes a revised acceptance set as an approved delta, after which a fresh `/verify-changes` run must return `Verification: PASS` on the current manifest.
-2. Primary checkout: leave verified changes uncommitted and stop unless the user explicitly requested a commit. For a requested commit, the worker prepares and returns the landing summary fields (`## Context`, `## What landed`, `## Primary commit`, stating `Primary has not been committed.`). Main renders them and asks `Confirm commit of this change on primary branch <primary-branch>?`. Only after an explicit affirmative response does main resume the worker to claim the landing lock under the common typed policy — live foreign contention is retryable, exactly validated expired metadata recovers automatically through WorktreeCli's owner-CAS/all-worktrees-clear primitive, and only unverifiable metadata requires external repair/decision authority and is never overridden or bypassed — run the structural preflight, `git commit -F <message-file> --only -- <verified paths>` preserving unrelated index entries (write the message to a scratch file first; never place `-m` or any flag after `--`, where Git parses it as a pathspec), validate committed primary with `plan validate --baseline`, release any receipt-bound terminal claim only after the committed terminal state is proven, release the lock, and report `COMMITTED`.
-3. Session worktree: start from the verified pre-reconcile acceptance matrix. Bind only that verified set to the session branch: inspect staged, unstaged, and untracked state; stop if a path mixes unrelated edits with the session change; stage only new session files; `git commit -F <message-file> --only -- <verified paths>` preserving unrelated index entries. Any remaining unrelated dirty status blocks reconciliation. Then claim the reconcile lock and reconcile automatically before landing approval. When primary has advanced, rebase the session onto it. A conflict-free rebase carries the verified evidence forward unchanged; a stale-baseline `missing-plan-file` notice is non-blocking and reconciliation resolves it (canonical rule: `../next-plan/references/execution-gates.md`). Reconciliation mutates only the session worktree; it never advances primary.
+Required order: terminal preparation -> candidate creation -> reconciliation/single-parent squash -> exact candidate verification -> finalization summary and explicit confirmation -> primary mutation.
 
-   Reconcile lock. Before checking primary or rebasing, invoke `Invoke-FinalizeLockClaim.ps1` so primary cannot advance while reconciliation, conflict re-verification, a triggered `/session-audit`, and approval preparation run. Its common policy is also used by `Invoke-FinalizeLanding.ps1`: it polls a foreign live lease for at most 55 seconds, then returns `retryable-wait` with `requiresUserAuthority:false`; it recovers only exactly validated expired metadata through WorktreeCli's owner-CAS/all-worktrees-clear primitive; unverifiable metadata returns `authority-required` and requires external repair/decision authority, never an override or bypass. `claimantPid` is the PID of the one-shot WorktreeCli command and normally exits after producing its result; never use PID existence as session or lease liveness evidence. Authoritative evidence is the command exit/result plus `leaseState`, `heartbeatAt`, and `expiresAt`. Hold the lease only across agent-driven work, refreshing it (`lock refresh --owner`) at each long-stage boundary (conflict re-verification, a triggered audit, approval preparation). Release it before any user-facing wait — a conflict needing user judgment, the SmartGit review window, the landing summary and confirmation — and before step 5, whose `Invoke-FinalizeLanding.ps1` claims its own lease post-approval and would block on a still-held reconcile lease.
+1. Prepare terminal Plans before candidate creation. The terminal sidecar discovers its
+   receipt internally, writes only its recoverable scheduler state, deletes the
+   selected Plan and direct child edges, and leaves an `awaiting-landing` claim.
+   It persists its original receipt-bound result and manifest digest at
+   `Temp/next-plan-terminal-result.json`; candidate creation validates that proof
+   against the current receipt-bound claim state instead of replaying preparation.
+   Its receipt-proven `changedPaths` join the declared caller-owned paths as the
+   exact authorization union. A receipt, proof, digest, recovery, or mixed-path failure
+   blocks before candidate creation; no terminal state is recreated after a
+   primary advance.
+2. Create and reconcile the candidate before verification, in this mandatory
+   order: terminal preparation -> candidate creation -> reconciliation/
+   single-parent squash -> exact candidate verification -> finalization summary
+   and explicit confirmation -> primary mutation. `Invoke-FinalizeCandidateCommit.ps1`
+   constructs the candidate from only the authorization union. It preserves
+   disjoint staged, unstaged, and untracked state, but blocks any owned path
+   containing mixed unrelated edits. For a session, claim the reconcile lease
+   and rebase/squash to one exact candidate whose sole parent is the current
+   primary tip. For a primary commit, use a temporary index to construct that
+   candidate without moving primary. Never continue with a missing, non-commit,
+   wrong-parent, wrong-tree, or changed-tip candidate.
 
-   Overlap check. After (or instead of a conflicted) rebase, intersect primary's changed paths since the session base (`git diff --name-only <session-base>..<primary-tip>`) with the session's changed files and the files they directly depend on. An empty intersection with a clean rebase proceeds silently. A non-empty intersection: inspect only the overlapping files for semantic breaks a textual merge hides — an API or symbol the session calls, a data/`.pack`/save layout the session reads or writes, or a CRC/SOA/version invariant the session touches.
-
-   Determinism counters. When BOTH sides changed the same version/compatibility summand (`Frame::kiVersion` component summands, `kuiProtocolVersion`, DataPacker `.pack`/`DataHeader::kiVersion`/`Export*::GetVersion`), key the resolution on the individual summand, never the computed total: same logical change → keep the textual value; independent changes → `common-base + (number of independent bumps)`. Never stack a summand only one side touched. When only one side changed a summand, git merged it correctly — leave it.
-
-   Conflicts and session-audit decision. Plan metadata is tracked in Git; claim files are machine-local state and never participate in a rebase. Resolve code or Plan-file conflicts by hand, identify which acceptance rows the resolved bytes invalidate, and rerun only those rows; unchanged rows retain their evidence. A resolution or late fix that changes any manifest field — entry membership, status, rename source/destination, mode, or content identity — is not a row-level rerun: stop and report `re-verification required`. Row-level rerun covers only a resolution whose manifest is identical to the audited one. After reconciliation and overlap inspection, assemble the complete v1 evaluator input from immutable Git and handoff evidence and invoke `Test-SessionAuditRequirement.ps1`. Automatic skip is allowed only when the evaluator proves identical pre/post-rebase session deltas, equality with the verified manifest, exact empty dependency overlap, conflict-free reconciliation, complete required domain and adversarial coverage, no late semantic fix, manual resolution, invalidated assumption, or unseen contract-significant region, and no explicit user request. Do not substitute Tier-3 classification or a no-op-reconciliation assertion for this decision. When `required:true` or evaluation evidence is missing/malformed, return the assembled audit brief plus decision to main before approval preparation; main dispatches the reviewer and adjudicates its handoff, then resumes finalization. Main dispatches accepted audit fixes to an `implementer`, then routes only the checks invalidated by those fixes before resuming finalization. Stop only when a conflict genuinely needs user judgment; release the reconcile lease first and re-claim on resume.
-4. Apply the canonical shared-artifact definition (`../next-plan/references/execution-gates.md#canonical-shared-artifacts`) before approval preparation. Only a landing with a listed shared-artifact mutation performs the ledger gate. Invoke `scripts/Wait-AgentToolsQuiescence.ps1` exactly as specified above, excluding the cooperating owner. On `shared-quiescence`, release any owned reconcile or landing lease and reinvoke after its `retryAfterSeconds` until `quiescent`; on `terminal`, stop. Then re-claim the reconcile lease and reconcile again because primary may have advanced. Never infer this gate from an ordinary tracked path or from code shared by client and server.
-
-   Before approval preparation, carry the exact terminal Plan receipt path, SHA-256, and disposition when present; omit all receipt arguments for ordinary no-claim work. When AgentTools promotion is triggered, run `Test-AgentToolsCandidateCertification.ps1` against the reconciled tip; a mismatch blocks approval and requires a rebuild. If the canonical executable lacks the required scheduler capability during the one-shot cutover, pass the exact candidate receipt path and SHA-256 to `Invoke-FinalizeApprovalPreparation.ps1`; its returned `candidateBootstrap` identity is approval-bound and the same pair must be passed to `Invoke-FinalizeLanding.ps1`. Never supply an executable path directly. Run `Invoke-FinalizeApprovalPreparation.ps1` once on the final clean tree and retain its returned `approvedSession` tip and receipt identities. Release the reconcile lease here. Run `Show-FinalizeApprovalReview.ps1` last, then return these landing-summary fields to main before any primary mutation:
+   Reconcile lock, overlap, and conflicts. `Invoke-FinalizeLockClaim.ps1` owns
+   the bounded lease policy: foreign live contention is retryable; only exactly
+   validated expiry recovers through WorktreeCli; unverifiable state needs
+   authority and is never bypassed. Refresh only during agent-driven work and
+   release before a user wait. Inspect dependency overlap and semantic merge
+   hazards after a rebase; resolve conflicts according to the existing
+   determinism-counter rule. A conflict resolution or late fix creates a
+   replacement candidate and routes only the checks invalidated by its
+   Git-native delta. Reconciliation never advances primary.
+3. Dispatch `/verify-changes` only after step 2 returns the exact candidate.
+   It derives the reviewed inventory from Git and returns `Verification: PASS`
+   bound to the fixed baseline and candidate commit/tree. Do not present a
+   summary or request confirmation until that pass exists. A later candidate,
+   parent, tree, or tip change requires a replacement-candidate verification.
+4. After the verifier passes, assemble and evaluate the v2 session-audit input
+   from the pre/post-reconciliation candidate parent deltas, conflict and
+   overlap evidence, coverage, late-fix/manual-resolution/unseen-region flags,
+   and the explicit-request flag. Evidence may carry forward only for an
+   identical conflict-free delta with no dependency overlap. A changed delta,
+   conflict resolution, overlap, late fix, or required audit routes affected
+   checks/audit before finalization continues. Missing or malformed evidence
+   fails closed. When the evaluator requires an audit, return its brief and
+   decision to main; accepted fixes create a replacement candidate and restart
+   from the affected verification.
+5. Apply the canonical shared-artifact definition (`../next-plan/references/execution-gates.md#canonical-shared-artifacts`) after exact candidate verification and before the summary. Only a listed mutation runs `Wait-AgentToolsQuiescence.ps1`; release leases on `shared-quiescence`, wait, then reconcile again because primary may have advanced. A changed reconciliation result is a replacement candidate and must be verified before proceeding. Run `Show-FinalizeApprovalReview.ps1` last, then return these landing-summary fields to main before any primary mutation:
    - `## Context` — the original problem, its concrete consequences, and the intended outcome.
    - `## What landed` — the final user-visible or workflow-visible outcome, grouped by plan objective, without internal algorithms, command plumbing, or test procedure.
-   - `## Landing` — state `Primary has not advanced.`, then the primary branch, session branch, disposition of every remaining objective stage, and the exact remaining operation.
-   - Shared-artifact clause — required exactly when step 5b's trigger fires (the landed diff changes any non-Markdown path under `Tools/WorktreeCli/`, `Tools/AgentHarness/`, or `Tools/ToolCommon/`): state that landing replaces the canonical AgentTools binaries every linked worktree consumes, and name any changed CLI contract. Disclosure only; omit it on any other landing.
+   - Session route: `## Landing` — state `Primary has not advanced.`, then the primary branch, session branch, disposition of every remaining objective stage, and the exact remaining operation.
+   - Primary route: `## Primary commit` — state `Primary is still uncommitted.`, then the primary branch, disposition of every remaining objective stage, and the exact remaining operation.
+   - Shared-artifact clause — required exactly when step 6b's trigger fires (the landed diff changes any non-Markdown path under `Tools/WorktreeCli/`, `Tools/AgentHarness/`, or `Tools/ToolCommon/`): state that landing replaces the canonical AgentTools binaries every linked worktree consumes, and name any changed CLI contract. Disclosure only; omit it on any other landing.
 
-   Main renders the returned summary as the last content before the confirmation question with no tool invocation between them. Because a terminal transcript may scroll the summary away, the confirmation prompt itself restates the essentials so the approval is self-contained: what the change is in one sentence, the changed-file count and kind (code vs docs/plans), and the session branch. End with exactly: `Confirm landing this change from <session-branch> onto primary branch <primary-branch>?` Only an explicit affirmative response is landing sign-off; a decline or non-answer leaves primary unchanged.
-5. Only that response permits main to resume the finalization worker, which invokes `Invoke-FinalizeLanding.ps1` with the approved candidate, current tips, and—when approval bound it—the exact candidate receipt path/SHA-256. If primary advanced after confirmation, do not return to the user: the worker rebases the approved candidate onto the new tip (repeating step 3's conflict handling if needed), then invokes the landing with the refreshed tips. A `landing-lock.claim-failed` blocker can now also mean another session's reconcile lease: exit `2` is a retryable state conflict — poll `lock status` and re-invoke when the lease clears. Return for a refreshed summary only when a conflict needs user judgment or the session's own bytes changed.
+   Main renders the returned summary as the last content before the confirmation question with no tool invocation between them. Because a terminal transcript may scroll the summary away, the confirmation prompt itself restates the essentials so the approval is self-contained: what the change is in one sentence, the changed-file count and kind (code vs docs/plans), and the route branch. On a session route, end with exactly: `Confirm landing this change from <session-branch> onto primary branch <primary-branch>?` On a primary route, end with exactly: `Confirm commit of this change on primary branch <primary-branch>?` Only an explicit affirmative response is primary-mutation sign-off; a decline or non-answer leaves primary unchanged.
+6. Only that response permits main to resume the finalization worker. For a
+   session route, it invokes `Invoke-FinalizeLanding.ps1` with the exact
+   verified candidate and expected old primary ref. For a primary-commit route,
+   it resumes `Invoke-FinalizeCandidateCommit.ps1 -Route primary-commit` with
+   `-AdvancePrimary` and the exact verified candidate commit/tree; that sidecar
+   advances the named primary ref by guarded CAS (with guarded rollback if its
+   postcondition fails). Never reconstruct the candidate with `git commit --only`
+   from mutable worktree state. If primary advanced after
+   confirmation, rebase the verified candidate, repeat the required reconciliation,
+   candidate verification, and v2 audit decision, then land without a new user
+   response only when the semantic delta is retained. Return for a refreshed
+   summary only when a conflict needs user judgment or the session bytes change.
 
-   Post-landing terminal release. Newly tracked Plans require no publication step. For a completed or rejected Plan, `Invoke-FinalizeLanding.ps1` reruns receipt-bound terminal preparation before mutation, requires `awaiting-landing`, validates the reconciled Plan tree, and calls `plan release-after-landing` only after primary contains the terminal state. A `recovery-conflict` from that rerun blocks as `plan.recovery-conflict` naming the conflicting Plan; resolve it under the terminal preparation conflict rule in `../next-plan/references/execution-gates.md`. If the process dies after primary advances, reinvoke the same sidecar with the same receipt identity: post-advance recovery proves containment and terminality before idempotent release without replaying the advance. A session that never lands leaves its claim untouched.
+   Post-landing terminal release. Newly tracked Plans require no publication step. For a completed or rejected Plan, terminal preparation already occurred before candidate creation; `Invoke-FinalizeLanding.ps1` requires the receipt to remain `awaiting-landing`, proves the landed primary contains that exact terminal candidate tree, and only then calls `plan release-after-landing`. A `recovery-conflict` discovered before candidate creation blocks as `plan.recovery-conflict` naming the conflicting Plan; resolve it under the terminal preparation conflict rule in `../next-plan/references/execution-gates.md`. If the process dies after primary advances, reinvoke the same sidecar with the verified candidate and current-tip inputs: it rediscovers the deterministic Plan receipt, then proves containment and terminality before idempotent release without replaying the advance. A session that never lands leaves its claim untouched.
 
-   5b — AgentTools promotion (conditional). Required exactly when the landed diff changes any non-Markdown path under `Tools/WorktreeCli/`, `Tools/AgentHarness/`, or `Tools/ToolCommon/`. Accept only a `broken-engine-agenttools-candidate/v2` receipt. After landing, promotion reruns certification against the landed commit; unchanged manifest identities survive a content-preserving rebase, while any membership, bytes, clean-filter blob, receipt, or executable mismatch requires a rebuild. Promotion writes the source stamp from the certification's commit identities. Run:
+   6b — AgentTools promotion (conditional). Required exactly when the landed diff changes any non-Markdown path under `Tools/WorktreeCli/`, `Tools/AgentHarness/`, or `Tools/ToolCommon/`. Accept only a `broken-engine-agenttools-candidate/v2` receipt. After landing, promotion reruns certification against the landed commit; unchanged source identities survive a content-preserving rebase, while any membership, bytes, clean-filter blob, receipt, or executable mismatch requires a rebuild. Promotion writes the source stamp from the certification's commit identities. Run:
 
    ```powershell
    & "$ROOT\.agents\skills\finalize-changes\scripts\Invoke-AgentToolsPromotion.ps1" `
@@ -116,7 +188,7 @@ Fixtures are assertion-driven developer checks, not sidecars. They emit determin
    ```
 
    The durable session owner holds no standing ledger claim; `-CooperatingSessionOwner` exempts only a same-session in-flight operation claim. When `$env:BROKEN_ENGINE_SESSION_OWNER` is unset after a client restart, take the durable owner from the in-worktree receipt (`Get-AgentWorktreeSessionProvenance`). Run `scripts/Test-AgentToolsPromotionFixtures.ps1` only when this contract changes. The landing always stands after a promotion blocker: certification mismatches require rebuild; `promotion.rolled-back` restored the prior pair; `promotion.receipt-failed` leaves a promoted, verified, stamped pair; `promotion.shared-quiescence` is retryable and never asks for authority; `promotion.rollback-failed` is an authority-required hard stop with the named backup. Non-triggering landings skip promotion.
-6. Verify the session worktree is clean, still registered, and contained in primary. Check registration with `Test-FinalizeWorktreeRegistration` from `../../scripts/FinalizeWorkflowCommon.psm1`, which compares canonical Windows path identity — never string-compare `git worktree list` paths (forward slashes) against local paths (backslashes). Retain worktree and branch for user-managed cleanup. Repository success completes only the current stage. If another stage remains active, continue it in this session; if its next action needs approval, present that gate. When every stage is complete or explicitly user-deferred to an unclaimed tracked Plan, end with:
+7. Verify the session worktree is clean, still registered, and contained in primary. Check registration with `Test-FinalizeWorktreeRegistration` from `../../scripts/FinalizeWorkflowCommon.psm1`, which compares canonical Windows path identity — never string-compare `git worktree list` paths (forward slashes) against local paths (backslashes). Retain worktree and branch for user-managed cleanup. Repository success completes only the current stage. If another stage remains active, continue it in this session; if its next action needs approval, present that gate. When every stage is complete or explicitly user-deferred to an unclaimed tracked Plan, end with:
 
    ```text
    SESSION COMPLETE
@@ -137,4 +209,4 @@ Stop and report the exact blocker before any operation that would require broade
 - SmartGit status and manual command when launch failed
 - Files/regions touched during finalization (conflict resolutions), or `none`
 - Residuals: blocker or `none` (always last)
-- For `LANDED` with step 6 fully satisfied, the exact `SESSION COMPLETE` block last.
+- For `LANDED` with step 7 fully satisfied, the exact `SESSION COMPLETE` block last.

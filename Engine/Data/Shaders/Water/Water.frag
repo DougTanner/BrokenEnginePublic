@@ -176,12 +176,12 @@ void main()
 
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeightFinal, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4LightingBaseHeight[3];
-	ReadLighting(pf4LightingBaseHeight, pLightingSamplers, f2LightingTexcoordBaseHeight);
+	ReadLighting(globalLayout, pf4LightingBaseHeight, pLightingSamplers, f2LightingTexcoordBaseHeight);
 
 	// Ambient sample — straight-down base-height projection, no reflection offset.
 	// Uses the precomputed direction-averaged ambient texture (single fetch replaces three EWNS samples).
 	vec2 f2LightingTexcoordBaseHeightAmbient = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
-	vec3 f3AmbientSum = texture(ambientLightingSampler, f2LightingTexcoordBaseHeightAmbient).xyz;
+	vec3 f3AmbientSum = ReadAmbientLighting(globalLayout, ambientLightingSampler, f2LightingTexcoordBaseHeightAmbient);
 
 	// Scale base-height lighting (hue-preserving: pow applied to per-direction luminance/average scalar)
 	float fWaterEwnsPowMode = mainLayout.fLightingWaterEwnsPowMode;

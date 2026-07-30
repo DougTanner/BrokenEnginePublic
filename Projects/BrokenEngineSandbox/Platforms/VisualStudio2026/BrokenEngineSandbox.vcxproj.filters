@@ -101,7 +101,7 @@
       <UniqueIdentifier>{f735fc98-db68-43b0-90a5-e54f991c5b03}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\Data\Shaders\Wind">
-      <UniqueIdentifier>{b2c3d4e5-f6a7-8901-bcde-f12345678901}</UniqueIdentifier>
+      <UniqueIdentifier>{b753438c-4173-4b94-b8bd-640c5c3b7ef2}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\Data\Shaders\Particles">
       <UniqueIdentifier>{7c20a050-d218-4028-943e-01e189435f8b}</UniqueIdentifier>
@@ -110,7 +110,7 @@
       <UniqueIdentifier>{15395b20-d654-41aa-b729-6167684ca833}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\Memory">
-      <UniqueIdentifier>{a1b2c3d4-e5f6-7890-abcd-ef1234567890}</UniqueIdentifier>
+      <UniqueIdentifier>{04a4b412-131a-4034-94da-2e855ee8f6cd}</UniqueIdentifier>
     </Filter>
     <Filter Include="Game\Frame">
       <UniqueIdentifier>{0bce964a-aa76-4e39-b2da-686fc91624a0}</UniqueIdentifier>
@@ -200,7 +200,7 @@
       <UniqueIdentifier>{fbbb7c04-30bf-4a1f-aec6-6a4e95b1ac4c}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\Ui\Screens\TweaksScreen">
-      <UniqueIdentifier>{a1b2c3d4-e5f6-7890-abcd-ef1234567890}</UniqueIdentifier>
+      <UniqueIdentifier>{07b1cd88-a8c6-4392-ac16-96fc6a0f0416}</UniqueIdentifier>
     </Filter>
     <Filter Include="Game\Ui\Screens">
       <UniqueIdentifier>{212658d4-68e3-46eb-b66e-07fd431eb65e}</UniqueIdentifier>
@@ -1487,6 +1487,12 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\PointLight.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingClear.comp">
+      <Filter>Engine\Data\Shaders\Lighting</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingHistoryCopy.comp">
+      <Filter>Engine\Data\Shaders\Lighting</Filter>
+    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\FirstLightSpread.comp">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
@@ -1530,6 +1536,9 @@
       <Filter>Engine\Data\Shaders\Quads</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsVisibleArea.vert">
+      <Filter>Engine\Data\Shaders\Quads</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsLightingWindowed.vert">
       <Filter>Engine\Data\Shaders\Quads</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadCommon.h">

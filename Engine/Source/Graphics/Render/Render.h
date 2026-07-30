@@ -91,13 +91,13 @@ inline int64_t giShadowActivePixelsY = 0; // Profile GPU-screen readout: ray-mar
 // Set by CreateLightingTextures and by Camera on every frame with outward live-eye movement. PopulateLightingParameters
 // consumes it to force pure-current output and re-seed history; any lighting refresh cadence must refresh while it is pending.
 inline bool gbLightingTemporalReset = false;
-inline int64_t giLightingDepositPixelsX = 0; // Profile GPU-screen readout: full deposit texture width in texels (deposit is not windowed)
-inline int64_t giLightingDepositPixelsY = 0; // Profile GPU-screen readout: full deposit texture height in texels
-inline int64_t giLightingSpreadStartActivePixelsX = 0; // Profile GPU-screen readout: cropped on-screen window width in start-pass (gSpreadTextureMultiplierStart) spread texels
-inline int64_t giLightingSpreadStartActivePixelsY = 0; // Profile GPU-screen readout: cropped on-screen window height in start-pass spread texels
-inline int64_t giLightingSpreadEndActivePixelsX = 0; // Profile GPU-screen readout: cropped on-screen window width in end-pass (gSpreadTextureMultiplierEnd) spread texels
-inline int64_t giLightingSpreadEndActivePixelsY = 0; // Profile GPU-screen readout: cropped on-screen window height in end-pass spread texels
-inline int64_t giLightingDepositInstances = 0; // Light-deposit quads this frame. Reset at the top of RenderFrameMain, accumulated by the three deposit EndRender writers (AreaLights, PointLights, HexShields), consumed by RenderLightingSpreadIndirect to gate the spread chain
+inline int64_t giLightingDepositPixelsX = 0; // Profile GPU-screen readout: bounded deposit-clear width in texels
+inline int64_t giLightingDepositPixelsY = 0; // Profile GPU-screen readout: bounded deposit-clear height in texels
+inline int64_t giLightingSpreadStartActivePixelsX = 0; // Profile GPU-screen readout: backward-closed start-pass spread width in texels
+inline int64_t giLightingSpreadStartActivePixelsY = 0; // Profile GPU-screen readout: backward-closed start-pass spread height in texels
+inline int64_t giLightingSpreadEndActivePixelsX = 0; // Profile GPU-screen readout: backward-closed final-pass spread width in texels
+inline int64_t giLightingSpreadEndActivePixelsY = 0; // Profile GPU-screen readout: backward-closed final-pass spread height in texels
+inline int64_t giLightingDepositInstances = 0; // Light-deposit quads this frame, reset and accumulated by the deposit EndRender writers; refreshes always process the bounded clear/spread chain so empty deposits publish fresh zeroes.
 void RenderLightingGlobal(int64_t iCommandBuffer);
 void RenderLightingMain(int64_t iCommandBuffer);
 void RenderLightingSpreadIndirect(int64_t iCommandBuffer);

@@ -67,15 +67,24 @@ that filters file.
 
 For every affected project and filters file:
 
-1. Parse XML with an XML parser and fail on any parse error.
-2. Require each intended item exactly once and each forbidden or stale item zero
-   times, including old paths for removals/renames.
-3. Require exactly one matching filters item for each intended project item,
-   the expected mirrored filter text, and zero forbidden/stale filters items.
-4. Require every referenced filter and ancestor declaration exactly once and
-   every `UniqueIdentifier` value unique case-insensitively within the file.
-5. In fix mode, re-run all checks after edits. Leave any failed invariant as a
-   visible `FAIL`; never report a partial reconciliation as success.
+1. The mechanic verifies the intended ownership, each affected path's expected
+   project membership, and its logical filter text. In fix mode, reconcile only
+   the authorized additions, removals, renames, or affinity changes; require
+   each intended item exactly once and each forbidden or stale item zero times,
+   including old paths for removals/renames.
+2. After that check (and again after any fix), invoke the structural validator
+   once for each affected project pair:
+
+   ```powershell
+   pwsh -NoProfile -File .agents/skills/update-vcxproj/scripts/Test-VcxprojPair.ps1 -ProjectPath <project>.vcxproj
+   ```
+
+   Require exit `0`. On exit `1` or `2`, surface its compact JSON `code` and
+   violations as `FAIL`, correct only authorized XML, then rerun the command.
+   Do not manually recreate the validator's XML parse, full mirror, filter
+   declaration, ancestor, or GUID checks after it passes.
+3. Leave any failed invariant as a visible `FAIL`; never report a partial
+   reconciliation as success.
 
 ## Report
 

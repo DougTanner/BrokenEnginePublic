@@ -444,6 +444,10 @@ void CommandReplayTransferFixture(const nlohmann::json& rParams, nlohmann::json&
 			}
 			bPauseAfterWriterInput = rParams.at("pauseAfterWriterInput").get<bool>();
 		}
+		if (bPauseAfterWriterInput && gpGame->mGameSaveLoad.mReplayTransferCaptureInfo.iPauseAfterWriterInputCount != -1)
+		{
+			throw std::runtime_error("replay_transfer_fixture pauseAfterWriterInput is already armed");
+		}
 
 		const std::string type = rParams.at("type").get<std::string>();
 		StatusChangeType eType {};
@@ -484,14 +488,60 @@ void CommandReplayTransferFixture(const nlohmann::json& rParams, nlohmann::json&
 			throw std::runtime_error("'source' frame is not ready");
 		}
 
+		XMVECTOR vecPosition = XMVectorSet(static_cast<float>(destination.x) * Frame::kfCellWidth, static_cast<float>(destination.y) * Frame::kfCellHeight, engine::gBaseHeight.Get(), 1.0f);
+		if (eType == StatusChangeType::kTransferBlaster)
+		{
+			auto destinationIt = gpGame->mCoordFrames.find(destination);
+			if (destinationIt == gpGame->mCoordFrames.end())
+			{
+				throw std::runtime_error("replay transfer fixture destination frame is not ready");
+			}
+
+			engine::FrameStaticData& rDestinationStaticData = destinationIt->second.staticData;
+			if (rDestinationStaticData.elevationGrid.empty() && !rDestinationStaticData.islands.empty())
+			{
+				// Heap: Build the one-time derived terrain grid before this command samples it.
+				ScopedSuppressAllocationTracking suppress;
+				engine::gpIslandTerrain->BuildElevationGrid(rDestinationStaticData.coord, rDestinationStaticData.islands, rDestinationStaticData.elevationGrid);
+			}
+			XMFLOAT4A f4Area {};
+			XMStoreFloat4A(&f4Area, rDestinationStaticData.vecArea);
+			// Blasters are destroyed by point-terrain contact, so place this debug fixture in a terrain-clear
+			// cell and verify the first fixed-tick movement remains clear too.
+			constexpr int64_t kiTerrainGridDim = 20;
+			float fPitchX = (f4Area.z - f4Area.x) / static_cast<float>(kiTerrainGridDim);
+			float fPitchY = (f4Area.y - f4Area.w) / static_cast<float>(kiTerrainGridDim);
+			bool bFoundTerrainClearPosition = false;
+			for (int64_t iGridY = 0; iGridY < kiTerrainGridDim && !bFoundTerrainClearPosition; ++iGridY)
+			{
+				for (int64_t iGridX = 0; iGridX < kiTerrainGridDim; ++iGridX)
+				{
+					XMVECTOR vecCandidate = XMVectorSet(f4Area.x + (static_cast<float>(iGridX) + 0.5f) * fPitchX, f4Area.w + (static_cast<float>(iGridY) + 0.5f) * fPitchY, engine::gBaseHeight.Get(), 1.0f);
+					XMVECTOR vecNextCandidate = XMVectorSet(XMVectorGetX(vecCandidate) + kfDeltaTime, XMVectorGetY(vecCandidate), engine::gBaseHeight.Get(), 1.0f);
+					if (engine::gpIslandTerrain->FrameElevation(rDestinationStaticData, vecCandidate) < engine::gBaseHeight.Get() &&
+						engine::gpIslandTerrain->FrameElevation(rDestinationStaticData, vecNextCandidate) < engine::gBaseHeight.Get())
+					{
+						vecPosition = vecCandidate;
+						bFoundTerrainClearPosition = true;
+						break;
+					}
+				}
+			}
+			if (!bFoundTerrainClearPosition)
+			{
+				throw std::runtime_error("replay transfer fixture destination has no terrain-clear Blaster position");
+			}
+		}
+
 		TransferData data {
-			.vecPosition = XMVectorSet(static_cast<float>(destination.x) * Frame::kfCellWidth, static_cast<float>(destination.y) * Frame::kfCellHeight, 0.0f, 1.0f),
+			.vecPosition = vecPosition,
 			.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
 			.vecVelocity = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
 			.alignment = gpGame->PlayerAlignment(),
 			.fHealth = 1.0f,
 			.fShield = 1.0f,
 			.uiTypeIndex = PlayersInterpolate::suiBlasterTypeIndex,
+			.fDeltaRotationMax = eType == StatusChangeType::kTransferMissile ? 2.0f : 0.0f,
 			.globalPlayerId = engine::global_id_t {eType == StatusChangeType::kTransferPlayer ? gpGame->GenerateGlobalId() : 0},
 			.fleetWantedCoord = destination,
 		};
@@ -502,7 +552,8 @@ void CommandReplayTransferFixture(const nlohmann::json& rParams, nlohmann::json&
 		}
 		if (bPauseAfterWriterInput)
 		{
-			gpGame->mGameSaveLoad.mReplayTransferCaptureInfo.iPauseAfterWriterInputCount = 1;
+			gpGame->mGameSaveLoad.mReplayTransferCaptureInfo.iPauseAfterWriterInputCount = bPendingStart ? 1 :
+				gpGame->mGameSaveLoad.mReplayTransferCaptureInfo.iWriterInputCount + 2;
 		}
 
 		rResult["type"] = type;

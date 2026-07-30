@@ -39,18 +39,27 @@ the review.
 
 ## Implementation and stop rule
 
+Required order: terminal preparation -> candidate creation -> reconciliation/single-parent squash -> exact candidate verification -> finalization summary and explicit confirmation -> primary mutation.
+
 Main dispatches the bounded roles for implementation and the normal Tier 3
 checks: targeted compile/static checks, one correctness review, bounded
 adversarial review, and triggered hygiene. Permit one focused fix/retest. A
 second pass requires a reproduced decisive blocker and is limited to invalidated
 regions and checks.
 
-Main dispatches `/verify-changes` to a fresh read-only `reviewer` only when a
-final-evidence gate (root `AGENTS.md` definition) applies.
+At a final-evidence gate, an `implementer` performs terminal Plan preparation,
+candidate creation, and reconciliation/single-parent squash before main
+dispatches `/verify-changes` to a fresh read-only `reviewer`. The reviewer binds
+the acceptance matrix to that exact candidate commit/tree and fixed baseline;
+a missing, non-commit, wrong-parent, wrong-tree, or changed-tip candidate is a
+blocker, not a reason to verify mutable worktree bytes.
 
-After verified Tier 3 queue completion, main dispatches `/finalize-changes` to
-an `implementer` and remains in the contract's continuous-execution state while
-that worker performs reconciliation and primary-mutation preparation. The only
-ordinary later stop is the exact primary-mutation confirmation that main
-presents and obtains under that contract; after confirmation, main resumes the
-worker for the mutation.
+After candidate verification, main dispatches `/finalize-changes` to an
+`implementer` and remains in the contract's continuous-execution state while
+that worker evaluates the v2 session-audit evidence and prepares the primary
+mutation. The only ordinary later stop is the exact primary-mutation
+confirmation that main presents and obtains under that contract; after
+confirmation, main resumes the worker for the mutation. The mandatory order is
+terminal preparation -> candidate creation -> reconciliation/single-parent
+squash -> exact candidate verification -> finalization summary and explicit
+confirmation -> primary mutation.

@@ -25,10 +25,11 @@ pwsh -NoProfile -File .agents/skills/code-quality-metrics/scripts/Invoke-CodeQua
 ```
 
 Use `Exact` for one file, `Directory` for direct files, and `Recursive` for descendants. The
-default profile is `BrokenEngineExtended`; its fixed normalizer writes a parser-only, byte-preserving
-capture for the limited Broken Engine C++ extensions while real C++ remains untouched. Use
+default profile is `BrokenEngineExtended`; it classifies `.h` files beneath contiguous `Data/Shaders`
+components as GLSL, except the dual-language `ShaderLayouts.h` and `ShaderLayoutsBase.h`, and its fixed
+normalizer writes a parser-only, byte-preserving capture for the limited Broken Engine C++ extensions while real C++ remains untouched. Use
 `StrictUpstream` only when `.h` inputs must remain unsupported; it parses raw capture bytes. Treat
-parse omissions as reported coverage, not failures.
+corpus-only parse omissions as reported advisory coverage, not failures.
 
 ## Compare
 
@@ -43,13 +44,18 @@ pwsh -NoProfile -File .agents/skills/code-quality-metrics/scripts/Invoke-CodeQua
 Do not broaden targets from checkout changes. Context changes remain visible but suppress target
 attribution. The command writes canonical compact JSON to stdout and, when requested, an identical
 `-OutputPath` file. It logs diagnostics to stderr; exit `2` means inputs, capture, bootstrap,
-analyzer, drift, or output persistence failed.
+analyzer, drift, or output persistence failed. A target dispatch-parse failure instead emits one
+compact `target-parse-failure` object: apply the listed narrow parser-only sanitizer spot-fix and
+rerun Compare before interpreting metrics. A target signature-extraction failure is separate:
+investigate it and rerun; do not treat it as a sanitizer instruction. Neither target failure has
+success JSON or an output file. A Compare result cannot support PASS until every authorized target
+has complete parsing and signature extraction; corpus-only `upstream-omitted` rows stay advisory.
 
 Compare authenticates the provisioned analyzer internally, archives it into a fresh ignored stage,
 and imports that staged source. Its gitlink pin is only an archive selector, not a metric, cache, or
 report identity. The report schema is
 `broken-engine-code-quality-metrics/v2`; its `tool` object is
-`{adapterVersion,lockSha256,python,disableSg}` with `adapterVersion` set to `"3"`.
+`{adapterVersion,lockSha256,python,disableSg}` with `adapterVersion` set to `"4"`.
 
 ## Interpretation
 

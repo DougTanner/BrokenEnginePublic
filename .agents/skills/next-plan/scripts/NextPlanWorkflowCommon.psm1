@@ -8,6 +8,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'FinalizeWorkflowComm
 Import-Module (Join-Path $sharedScripts 'FinalizeWorkflowCommon.psm1') -Force
 Import-Module (Join-Path $sharedScripts 'AgentArtifactStore.psm1') -Force -DisableNameChecking
 Import-Module (Join-Path $sharedScripts 'AgentWorktreeSession.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $sharedScripts 'PlanClaimReceipt.psm1') -Force -DisableNameChecking
 
 function New-NextPlanStateBlocker([string] $Message) {
 	$exception = [InvalidOperationException]::new($Message)
@@ -54,4 +55,8 @@ function Get-NextPlanSha256([byte[]] $Bytes) { return [Convert]::ToHexString([Se
 function Get-NextPlanFileSha256([string] $Path) { return Get-NextPlanSha256 ([IO.File]::ReadAllBytes($Path)) }
 function Assert-NextPlanRepositoryPath([string] $Worktree,[string] $Path,[string] $Label) { $full=Get-FinalizeRootPreservingFullPath $Path; $relative=[IO.Path]::GetRelativePath($Worktree,$full); if ([IO.Path]::IsPathRooted($relative) -or $relative -eq '..' -or $relative.StartsWith("..$([IO.Path]::DirectorySeparatorChar)",[StringComparison]::Ordinal)) { throw "$Label must be contained by the session worktree." }; $existing=Get-FinalizeExistingWindowsIdentity $full $Label; if (-not $existing.Equals($full,[StringComparison]::OrdinalIgnoreCase)) { throw "$Label uses a reparse point." }; return $full }
 function Assert-NextPlanGitPath([string] $Path) { Assert-FinalizeGitPath $Path }
-Export-ModuleMember -Function New-NextPlanStateBlocker,Test-NextPlanStateBlocker,Get-NextPlanContext,Invoke-NextPlanProcess,ConvertFrom-NextPlanProcessJson,Get-NextPlanSha256,Get-NextPlanFileSha256,Assert-NextPlanRepositoryPath,Assert-NextPlanGitPath
+function Get-NextPlanClaimReceiptPath([string] $Worktree) { Get-PlanClaimReceiptPath $Worktree }
+function Get-NextPlanClaimReceipt([string] $Worktree) { Get-PlanClaimReceipt $Worktree }
+function Assert-NextPlanClaimReceiptPlanBytes($Receipt,[string] $Worktree) { Assert-PlanClaimReceiptPlanBytes $Receipt $Worktree }
+function Remove-NextPlanClaimReceipt($Receipt) { Remove-PlanClaimReceipt $Receipt }
+Export-ModuleMember -Function New-NextPlanStateBlocker,Test-NextPlanStateBlocker,Get-NextPlanContext,Invoke-NextPlanProcess,ConvertFrom-NextPlanProcessJson,Get-NextPlanSha256,Get-NextPlanFileSha256,Assert-NextPlanRepositoryPath,Assert-NextPlanGitPath,Get-NextPlanClaimReceiptPath,Get-NextPlanClaimReceipt,Assert-NextPlanClaimReceiptPlanBytes,Remove-NextPlanClaimReceipt

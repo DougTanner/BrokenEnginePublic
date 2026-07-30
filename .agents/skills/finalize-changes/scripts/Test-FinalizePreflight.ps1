@@ -30,16 +30,12 @@ param(
 	[string] $ExpectedPrimaryTip,
 	[string] $SessionOwner,
 	[string] $WaitSeconds = '60',
-	[string] $ClaimReceiptPath,
-	[string] $ClaimReceiptSha256,
 	[string] $CandidateReceiptPath,
 	[string] $CandidateReceiptSha256
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$claimReceiptPathBound = $PSBoundParameters.ContainsKey('ClaimReceiptPath')
-$claimReceiptSha256Bound = $PSBoundParameters.ContainsKey('ClaimReceiptSha256')
 $candidateReceiptPathBound = $PSBoundParameters.ContainsKey('CandidateReceiptPath')
 $candidateReceiptSha256Bound = $PSBoundParameters.ContainsKey('CandidateReceiptSha256')
 $workflowModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
@@ -47,6 +43,9 @@ if (-not (Test-Path -LiteralPath $workflowModule)) {
 	$workflowModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
 }
 Import-Module $workflowModule -Force
+$receiptModule = Join-Path $PSScriptRoot '..\..\..\scripts\PlanClaimReceipt.psm1'
+if (-not (Test-Path -LiteralPath $receiptModule)) { $receiptModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\PlanClaimReceipt.psm1' }
+Import-Module $receiptModule -Force -DisableNameChecking
 
 $result = [ordered]@{
 	schemaVersion = 'broken-engine-finalize-preflight/v1'
@@ -59,7 +58,7 @@ $result = [ordered]@{
 	tips = [ordered]@{ baseline = $Baseline; current = $null; primary = $null; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip }
 	worktreeCli = [ordered]@{ outputPath = $null; outputLinkTarget = $null; path = $null; selection = 'canonical'; capabilityResult = 'not-checked'; requiredCapabilities = @(); candidate = $null }
 	claim = [ordered]@{ classification = if ($Mode -eq 'primary-commit') { 'not-required' } else { 'not-checked' }; owner = $SessionOwner; worktree = $null }
-	planClaim = [ordered]@{ receipt = $ClaimReceiptPath; sha256 = $ClaimReceiptSha256 }
+	planClaim = [ordered]@{ present = $false; state = 'absent'; disposition = 'none'; validation = $null }
 }
 
 function Complete-Preflight([int] $ExitCode, [string] $Status, [string] $Code, [string] $Message) {
@@ -217,8 +216,6 @@ try {
 	$parsedWaitSeconds = 0
 	Assert-Input ([int]::TryParse($WaitSeconds, [Globalization.NumberStyles]::None, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsedWaitSeconds)) 'WaitSeconds must be an integer between 1 and 660.'
 	Assert-Input ($parsedWaitSeconds -ge 1 -and $parsedWaitSeconds -le 660) 'WaitSeconds must be between 1 and 660.'
-	Assert-Input ($claimReceiptPathBound -eq $claimReceiptSha256Bound) 'Claim receipt path and SHA-256 must be supplied together.'
-	if ($claimReceiptPathBound) { Assert-Input (-not [string]::IsNullOrWhiteSpace($ClaimReceiptPath)) 'ClaimReceiptPath must not be blank.'; Assert-Input ($ClaimReceiptSha256 -cmatch '^[0-9a-f]{64}$') 'ClaimReceiptSha256 must be 64 lowercase hexadecimal characters.' }
 	Assert-Input ($candidateReceiptPathBound -eq $candidateReceiptSha256Bound) 'Candidate receipt path and SHA-256 must be supplied together.'
 	if ($candidateReceiptPathBound) {
 		Assert-Input (-not [string]::IsNullOrWhiteSpace($CandidateReceiptPath)) 'CandidateReceiptPath must not be blank.'
@@ -275,20 +272,6 @@ try {
 	}
 	if ($Mode -eq 'session-landing' -and (Invoke-Git $primaryIdentity @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) { Stop-Validation 'git.primary-dirty' 'Primary worktree is not clean for session landing.' }
 	if ($Mode -eq 'session-landing' -and (Invoke-Git $currentIdentity @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) { Stop-Validation 'git.session-dirty' 'Session worktree has remaining staged, unstaged, or untracked status.' }
-	if ($claimReceiptPathBound) {
-		$receiptPath = if ([IO.Path]::IsPathRooted($ClaimReceiptPath)) { Get-RootPreservingFullPath $ClaimReceiptPath } else { Get-RootPreservingFullPath (Join-Path $currentIdentity $ClaimReceiptPath) }
-		$receiptItem = Get-Item -LiteralPath $receiptPath -Force -ErrorAction SilentlyContinue
-		if ($null -eq $receiptItem -or $receiptItem.PSIsContainer -or ($receiptItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Stop-Validation 'plan-claim-receipt.invalid' 'Claim receipt must be an existing ordinary file.' }
-		$receiptIdentity = Get-ExistingWindowsIdentity $receiptItem.FullName 'Claim receipt'
-		if (-not $receiptIdentity.Equals($receiptPath, [StringComparison]::OrdinalIgnoreCase)) { Stop-Validation 'plan-claim-receipt.reparse' 'Claim receipt must not resolve through a reparse point.' }
-		$tempIdentity = Get-ExistingWindowsIdentity (Join-Path $currentIdentity 'Temp') 'Session Temp'
-		$relativeReceipt = [IO.Path]::GetRelativePath($tempIdentity, $receiptIdentity)
-		if ([IO.Path]::IsPathRooted($relativeReceipt) -or $relativeReceipt -eq '..' -or $relativeReceipt.StartsWith("..$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::Ordinal)) { Stop-Validation 'plan-claim-receipt.outside-temp' 'Claim receipt must be contained by session Temp.' }
-		$receiptSha256 = (Get-FileHash -LiteralPath $receiptIdentity -Algorithm SHA256).Hash.ToLowerInvariant()
-		if ($receiptSha256 -cne $ClaimReceiptSha256) { Stop-Validation 'plan-claim-receipt.identity-changed' 'Claim receipt bytes differ from the approval-bound SHA-256.' }
-		$result.planClaim.receipt = $receiptIdentity
-		$result.planClaim.bytes = $receiptItem.Length
-	}
 
 	$relativeOutput = 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
 	$primaryOutput = Get-Item -LiteralPath (Join-Path $primaryIdentity $relativeOutput) -Force -ErrorAction Stop
@@ -333,6 +316,20 @@ try {
 		$result.worktreeCli.candidate = [ordered]@{ receiptPath = $CandidateReceiptPath; receiptSha256 = $CandidateReceiptSha256; executablePath = $candidate.Executable; executableSha256 = $candidate.Certification.executables.WorktreeCli.sha256 }
 	}
 	$result.worktreeCli.capabilityResult = 'pass'
+	if ($Mode -eq 'session-landing') {
+		$planReceipt = Get-PlanClaimReceipt $currentIdentity
+		if ($null -ne $planReceipt) {
+			$claimStatusResponse = Invoke-NativeText $result.worktreeCli.path @('plan','claim-status','--worktree',$currentIdentity,'--claim-receipt',$planReceipt.Path,'--claim-receipt-sha256',$planReceipt.Sha256) $currentIdentity
+			if ([string]::IsNullOrWhiteSpace($claimStatusResponse.Stdout)) { Stop-Validation 'plan-claim.status-invalid' 'WorktreeCli did not return Plan claim status.' }
+			try { $claimStatus = $claimStatusResponse.Stdout.Trim() | ConvertFrom-Json -Depth 20 -ErrorAction Stop } catch { Stop-Validation 'plan-claim.status-invalid' 'WorktreeCli returned invalid Plan claim status.' }
+			$postAdvanceRecovery = $Checkpoint -ceq 'post-advance-recovery'
+			if (($claimStatusResponse.ExitCode -ne 0 -or -not $claimStatus.ownedByReceipt) -and -not $postAdvanceRecovery) { Stop-Validation 'plan-claim.status-failed' 'The deterministic Plan receipt is not a live owned claim.' }
+			$result.planClaim.present = $true
+			$result.planClaim.state = if ($postAdvanceRecovery -and ($claimStatusResponse.ExitCode -ne 0 -or -not $claimStatus.ownedByReceipt)) { 'release-recovery' } else { [string]$claimStatus.claimState }
+			if ($claimStatus.PSObject.Properties.Name -ccontains 'disposition') { $result.planClaim.disposition = [string]$claimStatus.disposition }
+			if ($result.planClaim.state -ceq 'claimed') { Assert-PlanClaimReceiptPlanBytes $planReceipt $currentIdentity }
+		}
+	}
 
 	if ($Mode -eq 'session-landing') {
 		$module = Join-Path $currentIdentity '.agents\scripts\AgentWorktreeSession.psm1'

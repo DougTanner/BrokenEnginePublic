@@ -154,6 +154,12 @@ void GameBase::ServerUpdate()
 	{
 		LOG(kDefault, kWarning, "ServerUpdate FullTicks: {} (expected 1)", iFullTicks);
 	}
+	int64_t iUnusedTicks = 0;
+	if (game::gpGame->mGameSaveLoad.mReplayTransferCaptureInfo.iPauseAfterWriterInputCount != -1 && iFullTicks > 1)
+	{
+		iUnusedTicks = iFullTicks - 1;
+		iFullTicks = 1;
+	}
 	mfLastDeltaTime = static_cast<float>(iFullTicks) * game::kfDeltaTime;
 
 	PrepareActiveSet();
@@ -199,6 +205,17 @@ void GameBase::ServerUpdate()
 		BuildAndDispatchFrameTicks(rActiveCoords);
 		FinalizeFrameTick();
 		++iFinalizedTicks;
+		if (mGameFlags & GameFlags::kPaused) [[unlikely]]
+		{
+			mTimeStep.ClearAccumulator();
+			iFullTicks = iFinalizedTicks;
+			mfLastDeltaTime = static_cast<float>(iFinalizedTicks) * game::kfDeltaTime;
+			break;
+		}
+	}
+	if (iUnusedTicks > 0 && !(mGameFlags & GameFlags::kPaused))
+	{
+		mTimeStep.AbsorbUnusedTicks(iUnusedTicks);
 	}
 	if (iFullTicks > 0)
 	{

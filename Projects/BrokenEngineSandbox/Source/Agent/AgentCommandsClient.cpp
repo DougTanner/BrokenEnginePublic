@@ -288,6 +288,42 @@ int64_t DesyncProbeCountParameter(const nlohmann::json& rParameters, std::string
 	return iCount;
 }
 
+int32_t KeyHoldFramesParameter(const nlohmann::json& rParameters)
+{
+	if (!rParameters.contains("holdFrames"))
+	{
+		return 1;
+	}
+
+	const nlohmann::json& rHoldFrames = rParameters.at("holdFrames");
+	if (!rHoldFrames.is_number_integer())
+	{
+		throw std::runtime_error("key 'holdFrames' must be an integer");
+	}
+
+	static constexpr int64_t kiMaxKeyHoldFrames = engine::AgentCommandServer::kiDeferredTimeoutDrains - 2;
+	if (rHoldFrames.is_number_unsigned())
+	{
+		uint64_t uiHoldFrames = rHoldFrames.get<uint64_t>();
+		if (uiHoldFrames > static_cast<uint64_t>(kiMaxKeyHoldFrames))
+		{
+			throw std::runtime_error("key 'holdFrames' must be an integer in [0," + std::to_string(kiMaxKeyHoldFrames) + "]");
+		}
+		return static_cast<int32_t>(uiHoldFrames);
+	}
+
+	int64_t iHoldFrames = rHoldFrames.get<int64_t>();
+	if (iHoldFrames < 0)
+	{
+		return 0;
+	}
+	if (iHoldFrames > kiMaxKeyHoldFrames)
+	{
+		throw std::runtime_error("key 'holdFrames' must be an integer in [0," + std::to_string(kiMaxKeyHoldFrames) + "]");
+	}
+	return static_cast<int32_t>(iHoldFrames);
+}
+
 enum class CaptureCommandPhase : uint8_t
 {
 	kAwaitRestore,
@@ -1166,7 +1202,7 @@ void CommandKey(const nlohmann::json& rParams, [[maybe_unused]] nlohmann::json& 
 	engine::AgentScript script;
 	script.eKind = engine::AgentScriptKind::kKey;
 	script.iKeyVk = ParseKeyVk(rParams.at("key").get<std::string>());
-	script.iHoldFrames = rParams.contains("holdFrames") ? std::max<int32_t>(0, static_cast<int32_t>(rParams.at("holdFrames").get<int64_t>())) : 1;
+	script.iHoldFrames = KeyHoldFramesParameter(rParams);
 	BeginScriptAndDefer(script, false, false, false, std::string());
 }
 

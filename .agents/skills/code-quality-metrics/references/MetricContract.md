@@ -24,6 +24,28 @@ deterministic `--no-index --no-ext-diff --find-renames=50%` similarity detection
 for the immutable baseline and current bytes. It rejects unknown, malformed, unrelated, and
 still-existing cross-path pairs.
 
+## Target capture failures
+
+Compare requires complete parsing and signature extraction for every authorized target identity.
+An authorized target dispatch-parse failure exits `2`, writes no stdout or `-OutputPath` file, and
+writes exactly one stderr line prefixed `CodeQualityMetrics: ` followed by compact JSON:
+
+```json
+{"code":"target-parse-failure","message":"sanitize the listed target spelling and rerun Compare","failures":[{"side":"baseline","path":"...","stage":"dispatch-parse","code":"normalized-tree-error","line":1,"column":0}]}
+```
+
+Each failure has exactly `side`, `path`, `stage`, `code`, `line`, and `column`. Sides sort baseline
+before current, then path and normalized location. Dispatch-parse codes are exactly
+`dispatch-parse-failure`, `normalized-tree-error`, `normalized-tree-missing-node`, or
+`normalized-tree-unavailable`; line is one-based and column is the normalized byte column. Fix the
+narrow parser-only sanitizer spelling and rerun Compare; never accept this result as a score or
+coverage omission.
+
+Target signature extraction is distinct. It exits `2` with the same bounded failure-field shape,
+top-level code `target-signature-extraction-failure`, and message `investigate target signature
+extraction and rerun Compare`. Investigate that failure and rerun; it is not a sanitizer instruction.
+Corpus-only parser omissions remain `upstream-omitted` coverage rows and advisory.
+
 ## Output
 
 Output is compact UTF-8 JSON without BOM and with exactly one final LF. Object keys retain the
@@ -33,7 +55,7 @@ value appears. Top-level fields, in this order, are `schemaVersion`, `mode`, `pr
 `targetSelection`, `baseline`, `current`, and `comparison`; `schemaVersion` is
 `broken-engine-code-quality-metrics/v2`.
 
-`tool` is `{adapterVersion,lockSha256,python,disableSg}` with `adapterVersion` set to `"3"`; its `python` value is
+`tool` is `{adapterVersion,lockSha256,python,disableSg}` with `adapterVersion` set to `"4"`; its `python` value is
 `{implementation,version,architecture,executableSha256}`. `targetSelection` is
 `{kind,scope,target,paths}` for Snapshot and `{kind,pairs,paths}` for Compare. Compare canonicalizes
 each selected pair to `{baseline,current}` and each identity to `{path,mode,sha256}`, independent
@@ -95,14 +117,27 @@ raw source bytes. `BrokenEngineExtended` then creates a parser-only, byte-preser
 replaces masked non-newline bytes with ASCII spaces, retaining every byte count, CR/LF byte, physical
 line, and byte column. `StrictUpstream` writes raw bytes unchanged.
 
+For `BrokenEngineExtended`, supported C++ paths include the upstream C++ extensions plus `.h`, except a
+`.h` beneath contiguous `Data/Shaders` components is pure GLSL and excluded. The only exceptions are
+`ShaderLayouts.h` and `ShaderLayoutsBase.h`: both remain C++ inputs and their direct `BT_ENGINE` C++
+branch is captured. An Exact Snapshot or either non-null Compare target identity for a classified pure
+GLSL header exits `2` before identity mismatch with `target is not classified as C++ for
+BrokenEngineExtended: <path>`.
+
 The fixed normalizer lexically skips ordinary strings, character literals, raw strings, line comments,
-and block comments before recognition. It masks only identifier-bounded `__restrict` and
-`XM_CALLCONV`; a preprocessor directive whose `#` is the first non-horizontal-whitespace code byte of
-a physical line, including backslash-continuations and trailing comments; and a leading `template
-class` or `template struct` explicit instantiation that ends with `;` on its logical line and has no
-body braces. It does not alter real C++ files, compiler input, profile support, coverage policy, or
-bootstrap identity. Parser-derived group hashes may reflect this capture, while typed signatures,
-function/clone coordinates, SLOC, and raw-span hashes retain source coordinates and raw identities.
+and block comments before recognition. It blanks directives and structurally selects direct
+`defined(BT_ENGINE)`/`ifdef BT_ENGINE` branches, retaining the true C++ payload and unrelated nested
+conditional payloads while blanking known inactive GLSL payload. It also masks identifier-bounded
+compatibility tokens `__restrict`, `XM_CALLCONV`, `CONSTEXPR`, `INLINE`, `INIT`, and `STD`; SAL annotations
+`_Ret_range_`, `_Out_writes_to_`, `_Ret_notnull_`, `_Post_writable_byte_size_`, `_Ret_maybenull_`,
+`_Success_`, `_In_`, and `_In_opt_`; and API/calling-convention tokens `WINAPI`, `CALLBACK`, `VKAPI_ATTR`,
+`VKAPI_CALL`, and `IMGUI_IMPL_API`. It also masks namespace-scope explicit and extern template declarations,
+deleted declarations, nested aggregate designators before braced initializers, and the parenthesized
+assignment-comma fold. Empty-brace defaults are masked only in function or template parameter-list delimiter
+contexts. Every transform replaces only non-newline bytes with spaces. It does not alter real C++ files,
+compiler input, profile support, coverage policy, or bootstrap identity.
+Parser-derived group hashes may reflect this capture, while typed signatures, function/clone coordinates,
+SLOC, and raw-span hashes retain source coordinates and raw identities.
 
 The entrypoint authenticates the provisioned source internally, archives it into a fresh ignored
 stage, and imports the staged source. Its gitlink pin is only an archive selector. The venv key and

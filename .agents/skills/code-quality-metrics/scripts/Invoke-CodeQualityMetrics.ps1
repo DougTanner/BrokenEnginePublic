@@ -15,6 +15,22 @@ $ErrorActionPreference = 'Stop'
 
 function Write-Diagnostic([string]$Message) { [Console]::Error.WriteLine("CodeQualityMetrics: $Message") }
 function Fail([string]$Message) { Write-Diagnostic $Message; exit 2 }
+function Get-TargetFailureDiagnostic([string]$Diagnostics) {
+    $lines = @($Diagnostics -split "`r?`n" | Where-Object { $_ })
+    if ($lines.Count -ne 1) { return $null }
+    try {
+        $diagnostic = $lines[0] | ConvertFrom-Json -ErrorAction Stop
+        if ($diagnostic.code -notin @('target-parse-failure', 'target-signature-extraction-failure') -or $diagnostic.message -isnot [string] -or $null -eq $diagnostic.failures) { return $null }
+        if (@($diagnostic.PSObject.Properties.Name | Sort-Object) -join ',' -ne 'code,failures,message') { return $null }
+        foreach ($failure in @($diagnostic.failures)) {
+            if (@($failure.PSObject.Properties.Name | Sort-Object) -join ',' -ne 'code,column,line,path,side,stage' -or $failure.side -notin @('baseline', 'current') -or $failure.path -isnot [string] -or $failure.stage -notin @('dispatch-parse', 'signature-extraction') -or $failure.code -isnot [string] -or $failure.line -isnot [long] -or $failure.column -isnot [long]) { return $null }
+            if ($failure.line -lt 1 -or $failure.column -lt 0 -or ($failure.stage -eq 'dispatch-parse' -and $failure.code -notin @('dispatch-parse-failure', 'normalized-tree-error', 'normalized-tree-missing-node', 'normalized-tree-unavailable')) -or ($failure.stage -eq 'signature-extraction' -and $failure.code -ne 'signature-extraction-failure')) { return $null }
+            if (($diagnostic.code -eq 'target-parse-failure' -and $failure.stage -ne 'dispatch-parse') -or ($diagnostic.code -eq 'target-signature-extraction-failure' -and $failure.stage -ne 'signature-extraction')) { return $null }
+        }
+        return $lines[0]
+    }
+    catch { return $null }
+}
 function Get-Sha256([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
 function Assert-OrdinaryDirectory([string]$Path, [string]$Root) {
     $resolvedRoot = [IO.Path]::GetFullPath($Root)
@@ -186,6 +202,7 @@ function Test-BootstrapEnvironment([string]$Environment, [string]$Key, [string]$
 }
 
 $failure = $null
+$targetFailure = $null
 $pendingText = $null
 $pendingOutputPath = $null
 $sourceStage = $null
@@ -267,10 +284,11 @@ try {
     } finally {
         if ($mutex) { try { $mutex.ReleaseMutex() } catch {} ; $mutex.Dispose() }
     }
-    $request = [ordered]@{ mode = $Mode; repositoryRoot = $repository; profile = $Profile; captureRoot = $environment; analyzerSource = Get-CanonicalPath $sourceStage.Source; tool = [ordered]@{ adapterVersion = '3'; lockSha256 = $lockSha; python = [ordered]@{ implementation = $probe.implementation; version = $probe.version; architecture = $probe.arch; executableSha256 = $pythonSha }; disableSg = $true } }
+    $request = [ordered]@{ mode = $Mode; repositoryRoot = $repository; profile = $Profile; captureRoot = $environment; analyzerSource = Get-CanonicalPath $sourceStage.Source; tool = [ordered]@{ adapterVersion = '4'; lockSha256 = $lockSha; python = [ordered]@{ implementation = $probe.implementation; version = $probe.version; architecture = $probe.arch; executableSha256 = $pythonSha }; disableSg = $true } }
     if ($Mode -eq 'Snapshot') { $request.target = $Target; $request.scope = $Scope } else { $request.targetManifest = [IO.Path]::GetFullPath($TargetManifest); $request.baseline = $Baseline }
     $requestPath = Join-Path $environment ("request-" + [guid]::NewGuid().ToString('N') + '.json')
     $requestFailure = $null
+    $requestTargetFailure = $null
     try {
         [IO.File]::WriteAllText($requestPath, ($request | ConvertTo-Json -Compress -Depth 5), [Text.UTF8Encoding]::new($false))
         $venvPython = Join-Path $environment 'Scripts\python.exe'
@@ -296,8 +314,15 @@ try {
             $payload = $stdoutTask.GetAwaiter().GetResult()
             $diagnostics = $stderrTask.GetAwaiter().GetResult()
             if ($analyzerProcess.ExitCode -ne 0) {
-                foreach ($line in $diagnostics -split "`r?`n") { if ($line) { Write-Diagnostic $line } }
-                throw 'Metrics analyzer failed.'
+                $requestTargetFailure = Get-TargetFailureDiagnostic $diagnostics
+                if ($null -eq $requestTargetFailure) {
+                    $classificationDiagnostic = 'CodeQualityMetrics: target is not classified as C++ for BrokenEngineExtended: '
+                    if ($diagnostics.TrimEnd("`r", "`n").StartsWith($classificationDiagnostic, [StringComparison]::Ordinal) -and @($diagnostics -split "`r?`n" | Where-Object { $_ }).Count -eq 1) {
+                        throw "target is not classified as C++ for BrokenEngineExtended: $($diagnostics.TrimEnd("`r", "`n").Substring($classificationDiagnostic.Length))"
+                    }
+                    foreach ($line in $diagnostics -split "`r?`n") { if ($line) { Write-Diagnostic $line } }
+                    throw 'Metrics analyzer failed.'
+                }
             }
         } finally { $analyzerProcess.Dispose() }
         $pendingText = $payload.TrimEnd("`r", "`n") + "`n"
@@ -320,6 +345,7 @@ try {
         }
     }
     if ($null -ne $requestFailure) { throw $requestFailure }
+    if ($null -ne $requestTargetFailure) { $targetFailure = $requestTargetFailure }
 }
 catch {
     $failure = $_.Exception.Message
@@ -340,6 +366,7 @@ finally {
     }
 }
 if ($null -ne $failure) { Fail $failure }
+if ($null -ne $targetFailure) { [Console]::Error.WriteLine("CodeQualityMetrics: $targetFailure"); exit 2 }
 try {
     if ($pendingOutputPath) {
         [IO.File]::WriteAllText($pendingOutputPath, $pendingText, [Text.UTF8Encoding]::new($false))

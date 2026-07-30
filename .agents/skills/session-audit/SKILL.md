@@ -20,8 +20,8 @@ correctness, style, documentation, shader, or validation passes.
 Require a self-contained, immutable brief containing:
 
 - absolute adopted worktree, fixed session-start baseline commit, reconciled
-  worktree tip, and primary tip;
-- final changed-file and touched-region manifest, with implementation,
+  candidate commit/tree, its sole parent, and primary tip;
+- Git-derived candidate changed-file inventory and touched regions, with implementation,
   propagation, review-fix, conditional-role, and reconciliation attribution,
   excluding named pre-existing or concurrently owned work;
 - final approved plan and exact approved deltas, declared invariants, and
@@ -34,15 +34,23 @@ Require a self-contained, immutable brief containing:
 - completed applicable domain-review handoffs for every changed artifact type,
   plus reconciliation, build, external-API-verification, accepted-fix/retest,
   residual, and focus-area handoffs (`none` is valid for each).
-- the complete `broken-engine-session-audit-input/v1` evaluator input and its
-  `broken-engine-session-audit-decision/v1` result. Require a well-formed
+- the complete `broken-engine-session-audit-input/v2` evaluator input and its
+  `broken-engine-session-audit-decision/v2` result. Require a well-formed
   `required:true` decision; explicit user requests are represented in that
   input and always require the audit. A well-formed `required:false` decision
   means this skill must not be dispatched automatically.
 
+The v2 evaluator input names exact pre/post-reconciliation candidate commits and
+derives both deltas from their parents using Git; the brief carries the verified
+candidate tree separately. It retains the existing
+conflict, dependency-overlap, coverage, late-fix, manual-resolution,
+unseen-region, and explicit-request evidence. An identical conflict-free delta
+with no dependency overlap may retain evidence; any changed delta routes the
+affected checks and audit decision before primary mutation.
+
 For an explicit user request, main dispatches one preparation `implementer` to
-assemble the required brief from repository state — baseline and tip commits,
-the changed-file manifest from `git`, and stage dispositions. The worker returns
+assemble the required brief from repository state — baseline, candidate, parent,
+and primary commits, the Git-derived candidate inventory, and stage dispositions. The worker returns
 that brief with the user-authorized audit scope mapped to the same bounded late,
 reconciled, or unseen-integration hypotheses; main then dispatches the reviewer.
 For a workflow-triggered audit, the finalization or preparation implementer
@@ -54,8 +62,11 @@ these inputs from conversation history or a mutable merge base.
 
 ## Method
 
-1. Confirm the checkout and supplied commit identities, then inventory only the
-   final manifest against the fixed baseline and tips.
+Required order: terminal preparation -> candidate creation -> reconciliation/single-parent squash -> exact candidate verification -> finalization summary and explicit confirmation -> primary mutation.
+
+1. Confirm the checkout, fixed baseline, candidate commit/tree, sole parent,
+   and primary identities, then derive and inventory only the candidate-parent
+   delta from Git.
 2. For each triggered mode, inspect only its named regions and the minimum
    callers, consumers, mirrors, contracts, and whole-file context needed to
    prove or refute its hypotheses. Stop when all authorized hypotheses resolve.

@@ -68,16 +68,26 @@ void CommandBufferRecordMain::RecordLightingDeposit(VkCommandBuffer vkCommandBuf
 {
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingDeposit);
 
-	VkClearValue pClearValues[3] {};
+	RenderTargetTextures& rRenderTargetTextures = gpTextureManager->mRenderTargetTextures;
+	for (Texture& rLightingTexture : rRenderTargetTextures.mpLightingTextures)
+	{
+		rLightingTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
+	}
+	gpPipelineManager->mLightingClearPipeline.RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
+	for (Texture& rLightingTexture : rRenderTargetTextures.mpLightingTextures)
+	{
+		rLightingTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kColorAttachment);
+	}
+
 	VkRenderPassBeginInfo vkRenderPassBeginInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 		.pNext = nullptr,
-		.renderPass = gpTextureManager->mRenderTargetTextures.mLightingVkRenderPass,
-		.framebuffer = gpTextureManager->mRenderTargetTextures.mLightingVkFramebuffer,
-		.renderArea = {.offset = {0, 0}, .extent = {gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width, gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height}},
-		.clearValueCount = static_cast<uint32_t>(std::size(pClearValues)),
-		.pClearValues = pClearValues,
+		.renderPass = rRenderTargetTextures.mLightingVkRenderPass,
+		.framebuffer = rRenderTargetTextures.mLightingVkFramebuffer,
+		.renderArea = { .offset = {0, 0}, .extent = {rRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width, rRenderTargetTextures.mpLightingTextures[0].mInfo.extent.height}},
+		.clearValueCount = 0,
+		.pClearValues = nullptr,
 	};
 	vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 	for (const auto& [rCrc, pPipeline] : gpPipelineManager->mDynamicPipelines.mPipelineMaps[kDynamicPipelineLighting])
@@ -134,7 +144,11 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 		{
 			uint32_t uiPassWidth = rRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.width;
 			uint32_t uiPassHeight = rRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent.height;
-			VkClearValue pSpreadClearValues[6] {};
+			for (int64_t iColor = 0; iColor < 3; ++iColor)
+			{
+				rRenderTargetTextures.mpSpreadTextures[iPass][iColor].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+				rRenderTargetTextures.mpSpreadOnlyTextures[iPass][iColor].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+			}
 			VkRenderPassBeginInfo vkSpreadRenderPassBeginInfo
 			{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -142,13 +156,11 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 				.renderPass = rRenderTargetTextures.mSpreadVkRenderPass,
 				.framebuffer = rRenderTargetTextures.mpSpreadVkFramebuffers[iPass],
 				.renderArea = { .offset = {0, 0}, .extent = {uiPassWidth, uiPassHeight}},
-				.clearValueCount = static_cast<uint32_t>(std::size(pSpreadClearValues)),
-				.pClearValues = pSpreadClearValues,
+				.clearValueCount = 0,
+				.pClearValues = nullptr,
 			};
-			// Draw indirect so RenderLightingSpreadIndirect can drop the instance count to 0 on a frame with no
-			// light deposit, without re-recording this CB. Begin/end and the clear stay unconditional: the
-			// pSpreadClearValues LOAD_OP_CLEAR still zeroes all 6 attachments, which is exactly what the gather
-			// over an all-zero deposit would have written.
+			// The refresh predicate owns this indirect instance count. On a refresh it draws the shader-generated
+			// valid window even with no deposits; on a cadence skip it leaves these LOAD-op attachments untouched.
 			vkCmdBeginRenderPass(vkCommandBuffer, &vkSpreadRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			gpPipelineManager->mSpreadPipelines[iPass].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {static_cast<float>(uiPassWidth), static_cast<float>(uiPassHeight), static_cast<float>(iPass), 0.0f});
 			vkCmdEndRenderPass(vkCommandBuffer);
@@ -173,31 +185,12 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 	}
 	rRenderTargetTextures.mAmbientCombineTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeReadWrite);
 
-	{
-		Pipeline& rCombinePipeline = gpPipelineManager->mCombinePipeline;
-		int64_t iDescriptorSetIndex = rCombinePipeline.mbPerCommandBuffer ? iCommandBuffer : 0;
-		vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rCombinePipeline.mVkPipeline);
-		BindComputeDescriptorSets(vkCommandBuffer, rCombinePipeline.mVkPipelineLayout, rCombinePipeline.mVkExternalDescriptorSetLayout, iCommandBuffer, iDescriptorSetIndex, rCombinePipeline.mVkDescriptorSets);
-
-		uint32_t uiCombineWidth = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.width;
-		uint32_t uiCombineHeight = rRenderTargetTextures.mpCombineTextures[0].mInfo.extent.height;
-		shaders::CombinePushConstantsLayout combinePushConstants
-		{
-			.uiWidth = uiCombineWidth,
-			.uiHeight = uiCombineHeight,
-		};
-
-		vkCmdPushConstants(vkCommandBuffer, rCombinePipeline.mVkPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shaders::CombinePushConstantsLayout), &combinePushConstants);
-		vkCmdDispatchIndirect(vkCommandBuffer, rCombinePipeline.mIndirectVkBuffer, static_cast<VkDeviceSize>(iCommandBuffer) * sizeof(VkDispatchIndirectCommand));
-	}
+	gpPipelineManager->mCombinePipeline.RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
 
-	// Phase 3: Temporal accumulation — reproject + EMA-blend the previous frame's combine into the 4 combine outputs
-	// in place, then copy the blended result into the 4 history textures for next frame. De-flickers the texel-ramp
-	// resample (mirror of the shadow temporal pass). The recorded copy still runs on cadence skips because its fixed
-	// region cannot be indirect-gated; copying held combine content is idempotent. Same-layout self-transition: barrier
-	// so combine's writes finish before temporal reads them in place.
+	// Phase 3: Temporal accumulation reprojects + EMA-blends the previous history into the 4 combine outputs in place,
+	// then the history-copy compute pipeline publishes the bounded blended result into distinct history images.
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingTemporal);
 	for (int64_t iColor = 0; iColor < 3; ++iColor)
 	{
@@ -209,20 +202,24 @@ void CommandBufferRecordMain::RecordLightingSpreadPipeline(VkCommandBuffer vkCom
 
 	gpPipelineManager->mLightingTemporalPipeline.RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
 
-	// Copy the blended combine outputs into the history textures for next frame.
+	// Same-layout transitions make temporal writes visible to the history-copy shader, whose independent storage outputs
+	// preserve temporal's no-sampled/output-alias contract.
 	for (int64_t iColor = 0; iColor < 3; ++iColor)
 	{
-		rRenderTargetTextures.mpCombineTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kTransferSource);
-		rRenderTargetTextures.mpLightingHistoryTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kTransferDestination);
-		rRenderTargetTextures.mpLightingHistoryTextures[iColor].RecordCopyImageFrom(vkCommandBuffer, rRenderTargetTextures.mpCombineTextures[iColor]);
-		rRenderTargetTextures.mpCombineTextures[iColor].TransitionImageLayout(vkCommandBuffer, kTransferSource, kShaderReadOnly);
-		rRenderTargetTextures.mpLightingHistoryTextures[iColor].TransitionImageLayout(vkCommandBuffer, kTransferDestination, kShaderReadOnly);
+		rRenderTargetTextures.mpCombineTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadWrite);
+		rRenderTargetTextures.mpLightingHistoryTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kComputeReadWrite);
 	}
-	rRenderTargetTextures.mAmbientCombineTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kTransferSource);
-	rRenderTargetTextures.mAmbientHistoryTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kTransferDestination);
-	rRenderTargetTextures.mAmbientHistoryTexture.RecordCopyImageFrom(vkCommandBuffer, rRenderTargetTextures.mAmbientCombineTexture);
-	rRenderTargetTextures.mAmbientCombineTexture.TransitionImageLayout(vkCommandBuffer, kTransferSource, kShaderReadOnly);
-	rRenderTargetTextures.mAmbientHistoryTexture.TransitionImageLayout(vkCommandBuffer, kTransferDestination, kShaderReadOnly);
+	rRenderTargetTextures.mAmbientCombineTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadWrite);
+	rRenderTargetTextures.mAmbientHistoryTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kComputeReadWrite);
+	gpPipelineManager->mLightingHistoryCopyPipeline.RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
+
+	for (int64_t iColor = 0; iColor < 3; ++iColor)
+	{
+		rRenderTargetTextures.mpCombineTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+		rRenderTargetTextures.mpLightingHistoryTextures[iColor].TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+	}
+	rRenderTargetTextures.mAmbientCombineTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
+	rRenderTargetTextures.mAmbientHistoryTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingTemporal);
 
 	// Final barrier: compute → fragment (combine textures are now readable by fragment shaders)

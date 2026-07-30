@@ -69,16 +69,22 @@ produce the work under examination.
 
 ## Final-evidence gate
 
+Required order: terminal preparation -> candidate creation -> reconciliation/single-parent squash -> exact candidate verification -> finalization summary and explicit confirmation -> primary mutation.
+
 A final-evidence gate (root `AGENTS.md` definition) returns the `/verify-changes`
 acceptance table inline — one row per criterion
-(`criterion | decisive check | status | evidence`), the changed-file list, and
-residuals, plus the fixed baseline and the inline final manifest carrying each
-entry's mode and content identity, which `/finalize-changes` recomputes and
-compares before it commits. There is no report artifact or manifest range to
-forward; `/finalize-changes` consumes the inline result. Apart from that manifest
-column, intermediate delegates never manufacture compact envelopes, hashes,
-IDs, dependency graphs, or evidence locators; citing an existing artifact or
-log path with its selector (Default handoff) is not manufacturing one.
+(`criterion | decisive check | status | evidence`), the Git-derived changed-file
+list, and residuals, plus the fixed baseline and exact reconciled candidate
+commit and tree. `/finalize-changes` consumes those immutable identities and
+must block if the candidate is missing, ceases to resolve to that tree, has the
+wrong parent, or (on a session route) is no longer the verified session tip;
+the primary route instead requires current primary to remain its verified
+parent. There is no report
+artifact or agent-built content-identity envelope to forward. Apart from those
+candidate identities, intermediate delegates never manufacture compact
+envelopes, hashes, IDs, dependency graphs, or evidence locators; citing an
+existing artifact or log path with its selector (Default handoff) is not
+manufacturing one.
 
 ## Liveness and interruption
 

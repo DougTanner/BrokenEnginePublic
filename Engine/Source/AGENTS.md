@@ -26,7 +26,7 @@ Update Frame Update Pipeline (`../../Documents/Architecture/FrameUpdatePipeline.
 
 - Client ring indices use `SnapshotIndex`; server ticks swap dual frame buffers. ID minting is server-authoritative.
 - Client rendering interpolates only populated coord rings and never extrapolates past committed state. `ResetClientState()` is the reset point for per-coord client counters.
-- Client simulation advances only through reconcile and is capped by the clock-servo ceiling. Server update owns network pre-tick, save/load/replay, simulation, broadcast, resend, and autosave ordering.
+- Client simulation advances only through reconcile and is capped by the clock-servo ceiling. Server update owns network pre-tick, save/load/replay, simulation, broadcast, resend, and autosave ordering. Before an armed debug replay capture reaches its pause target, it consumes at most one accumulated tick and returns the remainder to `TimeStep`; when the target pauses the update, use the normal accumulator-clearing semantics.
 - Per-coord simulation dispatch uses pre-resolved `ActiveFrameRef` entries and thread-local state. Engine session runtimes own reusable network mechanics and phase order; game façades own gameplay policy and persistence. See game Source (`../../Projects/BrokenEngineSandbox/Source/AGENTS.md`).
 
 ## Crash Reporting

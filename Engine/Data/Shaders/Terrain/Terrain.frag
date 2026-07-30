@@ -119,11 +119,12 @@ void main()
 
 	// Sample lighting texture, at world x/y and at projected base-height x/y
 	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);
-	vec4 pf4Lighting[3] = {texture(pLightingSamplers[0], f2LightingTexcoord), texture(pLightingSamplers[1], f2LightingTexcoord), texture(pLightingSamplers[2], f2LightingTexcoord)};
+	vec4 pf4Lighting[3];
+	ReadLighting(globalLayout, pf4Lighting, pLightingSamplers, f2LightingTexcoord);
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
 	// Direction-averaged base-height lighting (single fetch replaces three EWNS samples — feeds both ambient and BlendSmoke).
-	vec3 f3AmbientSum = texture(ambientLightingSampler, f2LightingTexcoordBaseHeight).xyz;
+	vec3 f3AmbientSum = ReadAmbientLighting(globalLayout, ambientLightingSampler, f2LightingTexcoordBaseHeight);
 
 	// Apply directional and ambient lighting
 	vec3 f3Directional = DirectionalLighting(pf4Lighting, f3Normal, mainLayout.fLightingDirectionalIntensity, mainLayout.fLightingDirectionalPower, mainLayout.fLightingDirectionalPowerMode);

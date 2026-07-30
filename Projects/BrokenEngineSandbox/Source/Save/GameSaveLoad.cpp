@@ -785,6 +785,10 @@ void GameSaveLoad::SaveLoadReplay()
 					.iBlasterCount = recordingCaptureInfo.iBlasterCount,
 					.iMissileCount = recordingCaptureInfo.iMissileCount,
 				};
+				// Replay I/O is outside sim time; do not carry its wall time or pre-load debt into the new loop.
+				mrGameBase.mTimeStep.ClearAccumulator();
+				mrGameBase.mTimeStep.mRealTime.Reset();
+				mrGameBase.mfLastDeltaTime = 0.0f;
 			}
 			catch (const std::exception& rException)
 			{

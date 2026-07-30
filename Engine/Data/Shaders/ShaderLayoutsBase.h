@@ -194,14 +194,6 @@ struct PushConstantsLayout
 	vec4 f4Pipeline INIT; // Per-pipeline push payload; .w carries the model material index (read by Model.frag / ModelSkinned.vert)
 };
 
-// LightCombine.comp push constants — the combine dispatch's output dimensions. Dual-language so the
-// C++ push (CommandBufferRecordMain) and the shader block stay structurally in sync (no uint->vec4 pun).
-struct CombinePushConstantsLayout
-{
-	uint32_t uiWidth INIT;
-	uint32_t uiHeight INIT;
-};
-
 struct GlobalLayout
 {
 	uint32_t uiRandomSeed INIT;
@@ -337,9 +329,26 @@ struct GlobalLayout
 	vec4 f4LightingArea INIT;
 	vec4 f4LightingAreaPrevious INIT; // Previous-frame f4LightingArea, for LightingTemporal.comp reprojection
 	vec2 f2LightingAreaExtentInv INIT; // 1 / lighting-area extent (LightingSpread.frag world->texcoord)
-	vec2 f2CombineMargin INIT; // 2-texel bilinear window margin in visible-area UV; LightCombine.comp + LightingTemporal.comp share the combine extent
 	float fLightingTemporalBlend INIT; // EMA weight toward current; 1.0 on the first frame so seeded history is never shown
 	vec2 f2LightingDepositSizeInv INIT; // 1 / (lightTiles * kiComputeTileSize) (LightingDepositEdgeFade)
+	// Half-open texel rectangles. Deposit is cleared every frame; current/previous combine validity advances only
+	// with the cadence epoch, so filtered consumers and temporal history never see stale in-allocation texels.
+	int32_t iLightingDepositMinX INIT;
+	int32_t iLightingDepositMinY INIT;
+	int32_t iLightingDepositMaxX INIT;
+	int32_t iLightingDepositMaxY INIT;
+	int32_t iLightingValidMinX INIT;
+	int32_t iLightingValidMinY INIT;
+	int32_t iLightingValidMaxX INIT;
+	int32_t iLightingValidMaxY INIT;
+	int32_t iLightingHistoryValidMinX INIT;
+	int32_t iLightingHistoryValidMinY INIT;
+	int32_t iLightingHistoryValidMaxX INIT;
+	int32_t iLightingHistoryValidMaxY INIT;
+	int32_t piLightingSpreadMinX[kiMaxSpreadPasses] INIT;
+	int32_t piLightingSpreadMinY[kiMaxSpreadPasses] INIT;
+	int32_t piLightingSpreadMaxX[kiMaxSpreadPasses] INIT;
+	int32_t piLightingSpreadMaxY[kiMaxSpreadPasses] INIT;
 
 	// Spread Start (radial directional spread)
 	float fSpreadDirectionCountStart INIT;
@@ -374,8 +383,6 @@ struct GlobalLayout
 	float fSpreadHeightMultiplier INIT;
 	float fSpreadHeightEndHeightInv INIT; // 1 / max(spreadHeightEndHeight, 0.001) (LightingSpread.frag height fade)
 	float fSpreadHeightPower INIT;
-
-	vec2 f2SpreadMargin INIT; // max(spreadDistanceStart, spreadDistanceEnd) / visible extent (LightingSpread.frag window early-out)
 
 	// Shadow
 	float fShadowWidthScale INIT;

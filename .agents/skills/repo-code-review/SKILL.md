@@ -29,6 +29,9 @@ Require a self-contained brief containing:
   authorized diff (or focused re-review), with baseline/current identities for
   additions, deletions, and renames; it excludes pre-existing and concurrently
   owned changes;
+- a C++ target manifest that excludes pure GLSL `.h` files beneath `Data/Shaders`, while retaining
+  `ShaderLayouts.h` and `ShaderLayoutsBase.h`; route those dual-language headers to both this C++
+  review and the GLSL review;
 - approved intent, plan and deltas, affected contracts, and declared
   invariants;
 - implementation handoff, acceptance criteria, affected-site triggers, and any
@@ -83,9 +86,14 @@ Metrics remain advisory. A regression or classification never becomes a finding
 or changes a clean review to non-PASS. Only independent source inspection may
 promote a substantial new near-copy under the duplication rule below, or another
 reachable correctness violation. Structural-erosion changes are advisory
-follow-up evidence. A target parse omission makes the review incomplete with
-`NEEDS_ACTION`, not a finding; a corpus-only omission is an advisory residual
-and preserves PASS. Report coverage and the disposition from `comparison`.
+follow-up evidence. A `target-parse-failure` makes the review incomplete with
+`NEEDS_ACTION`, not a finding: request a separate authorized implementer to
+apply the listed narrow sanitizer spot-fix, then rerun Compare in focused
+review. A `target-signature-extraction-failure` is also incomplete;
+investigate it and rerun, without treating it as a sanitizer instruction. Do
+not return PASS until every authorized target has complete parsing and signature
+extraction. A corpus-only `upstream-omitted` row is an advisory residual and
+preserves PASS. Report coverage and the disposition from `comparison`.
 
 ## Correctness Checks
 

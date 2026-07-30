@@ -51,7 +51,6 @@ function Complete-Repair([string] $Status, [string] $OldBaseline, [string] $NewB
 		oldBaseline = $OldBaseline
 		newBaseline = $NewBaseline
 		reparentedClaims = @($ReparentedClaims)
-		updatedReceipts = @($UpdatedReceipts)
 	}
 	# oldBaseline stays the immutable receipt baseline for schema stability; forkBound is the true fork point
 	# the rebase replayed from (>= oldBaseline after a pre-claim advance), present whenever the sidecar derived

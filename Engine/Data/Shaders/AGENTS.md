@@ -16,6 +16,7 @@ Vulkan 1.2 GLSL compiled to SPIR-V by DataPacker. The project `ShaderLayouts.h` 
 ## Lighting and Vector Invariants
 
 - Directional lighting uses four EWNS channels. Light-source deposits derive directional weights from world-space source offsets; surface-normal deposits use the projected blended normal. Keep the documented epsilon fallbacks at family leaves.
+- Final lighting helpers return no lighting when the complete bilinear footprint falls outside the published valid rectangle. Terrain, water, and model consumers must preserve that rejection instead of admitting in-texture stale texels.
 - Skip redundant normalization only where the identity is proven: `reflect(I, N)` preserves length for unit inputs, and `cross(a, b)` is unit only for unit orthogonal inputs.
 - Do not call GLSL `inverse()` on matrices. Supply inverse transforms from the CPU or use a proven family-specific alternative.
 

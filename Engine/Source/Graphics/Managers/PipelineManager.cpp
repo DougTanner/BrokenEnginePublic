@@ -181,13 +181,26 @@ void PipelineManager::CreateLightingPipelines()
 {
 	RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;
 
+	mLightingClearPipeline.Create(
+	{
+		.name = "LightingClear",
+		.flags = {kCompute, kIndirectHostVisible},
+		.ppShaders = {&mShaders.at(data::kShadersLightingLightingClearcompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kGlobalLayoutUniformBuffers},
+			{.flags = kStorageImages, .pTexture = &rTextures.mpLightingTextures[0]},
+			{.flags = kStorageImages, .pTexture = &rTextures.mpLightingTextures[1]},
+			{.flags = kStorageImages, .pTexture = &rTextures.mpLightingTextures[2]},
+		},
+	});
+
 	// Spread pipelines (radial directional spread, fragment shader with MRT)
 	// Pass 0 reads deposit textures, passes 1+ read previous pass spread textures
-	// kIndirectHostVisible gives each pass a per-framebuffer VkDrawIndexedIndirectCommand slot so
-	// RenderLightingSpreadIndirect can gate the whole chain to zero instances on a frame that deposited no
-	// light, without re-recording the Main CB (same flag set as kPipelineSmokeClearA/B below). The flag also
-	// defers the Pipeline::Create texture request to the first WriteIndirectBuffer with instances, which is a
-	// no-op here: these pipelines bind only render-target textures, never disk-loaded chunks.
+	// kIndirectHostVisible gives each pass a per-framebuffer VkDrawIndexedIndirectCommand slot so the refresh
+	// predicate can suppress the chain without re-recording the Main CB. The flag also defers the Pipeline::Create
+	// texture request to the first WriteIndirectBuffer with instances, which is a no-op here: these pipelines bind
+	// only render-target textures, never disk-loaded chunks.
 	for (int64_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
 	{
 		mSpreadPipelineNames[iPass] = std::format("LightingSpread{}", iPass);
@@ -195,7 +208,7 @@ void PipelineManager::CreateLightingPipelines()
 		{
 			.name = mSpreadPipelineNames[iPass],
 			.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingSpreadfragCrc)},
+			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsLightingWindowedvertCrc), &mShaders.at(data::kShadersLightingLightingSpreadfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 			.vkRenderPass = rTextures.mSpreadVkRenderPass,
 			.vkExtent3D = rTextures.mpSpreadTextures[iPass][0].mInfo.extent,
@@ -225,9 +238,8 @@ void PipelineManager::CreateLightingPipelines()
 	mCombinePipeline.Create(
 	{
 		.name = "LightCombine",
-		.flags = {kCompute, kPushConstants, kIndirectHostVisible},
+		.flags = {kCompute, kIndirectHostVisible},
 		.ppShaders = {&mShaders.at(data::kShadersLightingLightCombinecompCrc)},
-		.iPushConstantBytes = sizeof(shaders::CombinePushConstantsLayout),
 		.pDescriptorInfos =
 		{
 			{.flags = kGlobalLayoutUniformBuffers},
@@ -259,6 +271,25 @@ void PipelineManager::CreateLightingPipelines()
 			{.flags = kStorageImages, .pTexture = &rTextures.mpCombineTextures[1]},
 			{.flags = kStorageImages, .pTexture = &rTextures.mpCombineTextures[2]},
 			{.flags = kStorageImages, .pTexture = &rTextures.mAmbientCombineTexture},
+		},
+	});
+
+	mLightingHistoryCopyPipeline.Create(
+	{
+		.name = "LightingHistoryCopy",
+		.flags = {kCompute, kIndirectHostVisible},
+		.ppShaders = {&mShaders.at(data::kShadersLightingLightingHistoryCopycompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kGlobalLayoutUniformBuffers},
+			{.flags = kStorageImages, .pTexture = &rTextures.mpCombineTextures[0]},
+			{.flags = kStorageImages, .pTexture = &rTextures.mpCombineTextures[1]},
+			{.flags = kStorageImages, .pTexture = &rTextures.mpCombineTextures[2]},
+			{.flags = kStorageImages, .pTexture = &rTextures.mAmbientCombineTexture},
+			{.flags = kStorageImages, .pTexture = &rTextures.mpLightingHistoryTextures[0]},
+			{.flags = kStorageImages, .pTexture = &rTextures.mpLightingHistoryTextures[1]},
+			{.flags = kStorageImages, .pTexture = &rTextures.mpLightingHistoryTextures[2]},
+			{.flags = kStorageImages, .pTexture = &rTextures.mAmbientHistoryTexture},
 		},
 	});
 }

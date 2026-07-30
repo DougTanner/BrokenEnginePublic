@@ -16,6 +16,7 @@
 - The replay manifest is the generation commit marker and authenticated inventory. Recording start invalidates it before replacing any component; recording stop publishes it only after writers and metadata succeed. Playback validates its canonical component identities, byte counts, SHA-256 digests, and generation root before reading components or adopting staged state.
 - Writer state persists across frames. A writer's first coord eviction is terminal: retain that coord's last complete frame and never resume the writer. Missing retained terminal state invalidates that coord's replay files without skipping attempts for other writers or metadata.
 - Playback readers retire independently at recorded endpoints. Loop only after the last reader retires, and stop the current fixed-tick iteration before loading the next loop.
+- Successful replay adoption starts a fresh fixed-step wall-clock interval. Replay validation and file I/O are outside simulation time; never carry their elapsed time or accumulated tick debt into the restored loop, or a batch of extra ticks can break replay CRCs.
 - Replay compares recorded checksums with resimulation each tick. Transfer harvest remains disabled during playback so the deterministic stream matches recording.
 - Replay coord lists are deterministic and manifest counts are bounded before allocation.
 

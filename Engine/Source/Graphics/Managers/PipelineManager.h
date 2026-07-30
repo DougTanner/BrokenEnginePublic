@@ -92,11 +92,17 @@ public:
 	// mirrors mShadowPipelineNames in DynamicPipelines)
 	std::string mSpreadPipelineNames[shaders::kiMaxSpreadPasses];
 
+	// Clears the active lighting deposit window before the LOAD-op deposit MRT.
+	Pipeline mLightingClearPipeline;
+
 	// Combine pipeline (tone map accumulate → UNORM, all 3 colors in one dispatch)
 	Pipeline mCombinePipeline;
 
 	// Temporal-accumulation pass after combine: reprojects + EMA-blends the 4 combine outputs in place against history
 	Pipeline mLightingTemporalPipeline;
+
+	// Publishes the temporal-blended combine outputs into the distinct persistent history images.
+	Pipeline mLightingHistoryCopyPipeline;
 
 	DynamicPipelines mDynamicPipelines;
 };

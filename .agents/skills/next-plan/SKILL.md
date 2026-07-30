@@ -2,7 +2,7 @@
 name: next-plan
 description: Validates and deterministically claims one Git-backed Documents/Plans Plan through WorktreeCli, resolves it against current code, and presents it at the single implementation-approval gate. Use only when the latest user request explicitly invokes `/next-plan` or `$next-plan`.
 disable-model-invocation: true
-argument-hint: "[Documents/Plans/...]"
+argument-hint: "[Documents/Plans/... | filename.md]"
 allowed-tools: [Read, Write, Grep, Glob, Agent, Edit, PowerShell, AskUserQuestion]
 ---
 
@@ -29,7 +29,9 @@ main session.
   workflow; an invocation earlier in unrelated history does not start one.
 - Bare invocation selects the oldest eligible Plan by immutable `createdUtc`
   then canonical UTF-8 path. A canonical `Documents/Plans/...` argument selects
-  that exact Plan. Reject Features and every other argument instead of guessing.
+  that exact Plan. A filename-only argument selects its exact case-sensitive
+  leaf-name match only when one validated executable Plan has it; zero or
+  duplicate matches block. Reject Features and every other path shape.
 - Require a wrapper-created isolated worktree, authoritative primary
   checkout/branch, and a clean session tree. Never create or adopt a worktree.
 - Derive WorktreeCli, Git identities, baseline, and owner through
@@ -45,18 +47,29 @@ Each sidecar emits one JSON result: exit `0` succeeds, `2` is a deterministic
 state blocker, and `1` is malformed input or internal failure. Do not recreate
 their transitions with ad hoc WorktreeCli commands.
 
-- `scripts/Invoke-NextPlanClaim.ps1` accepts an
-  optional canonical `-Plan`. It verifies the provisioned WorktreeCli is a
-  nonempty ordinary file; requires a clean session tree; writes a receipt
-  beneath session `Temp`; and verifies the receipt SHA-256.
-- `scripts/Complete-NextPlan.ps1` requires the receipt
-  path and SHA-256 from the claim. Completion invokes `plan prepare-completion`;
+- `scripts/Invoke-NextPlanClaim.ps1` accepts an optional canonical `-Plan` or
+  filename-only `-Plan`. Resolve a filename only after validation finds exactly
+  one case-sensitive executable leaf-name match; zero or duplicate matches
+  block without a claim. It verifies the provisioned WorktreeCli is a nonempty
+  ordinary file; requires a clean session tree; reuses and digest-checks an
+  owned deterministic receipt; authoritatively retires only an already-absent
+  stale receipt; writes a new deterministic receipt beneath session `Temp`; and
+  internally verifies claimed Plan bytes.
+- `scripts/Complete-NextPlan.ps1` discovers the deterministic local receipt.
+  Completion invokes `plan prepare-completion`;
   explicit user-authorized rejection invokes `plan prepare-rejection`. Require
-  `workflowTerminal: false` and `nextAction: finalize-changes`.
+  `workflowTerminal: false` and `nextAction: finalize-changes`. On success it
+  persists the original receipt-bound terminal result and manifest digest at
+  `Temp/next-plan-terminal-result.json`; later candidate creation validates this
+  proof and never replays terminal preparation.
+- `scripts/Defer-NextPlan.ps1` discovers the deterministic local receipt and
+  releases only an ordinary live claim. It never defers `awaiting-landing`.
 - Run `scripts/Test-NextPlanWorkflowSidecars.ps1`
   when a sidecar changes, never during ordinary selection.
 
 ## Workflow
+
+Required order: terminal preparation -> candidate creation -> reconciliation/single-parent squash -> exact candidate verification -> finalization summary and explicit confirmation -> primary mutation.
 
 1. Main dispatches one preparation `implementer` to run the claim sidecar for
    the resolved Plan. It validates primary metadata
@@ -68,10 +81,10 @@ their transitions with ad hoc WorktreeCli commands.
 2. The preparation worker reads the selected plan and current code. Treat every
    plan claim — paths, symbols, cited lines, described current behavior — as a hypothesis to confirm
    against the current tree; when reality contradicts the plan, reality wins.
-   Keep the claimed plan immutable.
-   Compute its SHA-256 and require an exact match with the claim digest before
-   the first `/plan-audit` or, for Tier 1, before presentation. A mismatch is
-   terminal: retain the claim and stop without review, presentation, or re-claim.
+   Keep the claimed plan immutable. Invoke `Invoke-NextPlanClaim.ps1`
+   idempotently before the first `/plan-audit` or, for Tier 1, before
+   presentation. Its hidden Plan-byte integrity gate blocks a mismatch; retain
+   the claim and stop without review, presentation, or re-claim.
    Carry stale citation corrections in the execution card. Remove unnecessary
    steps/checks from the resolved presentation rather than granting them
    authority. If the problem is gone, return the decision requirement so main
@@ -92,8 +105,8 @@ their transitions with ad hoc WorktreeCli commands.
       `references/tier3-workflow.md`.
    If mandatory reviewer delegation is unavailable, report a blocker; never
    substitute inline or same-context review.
-4. The preparation worker recomputes the plan SHA-256 immediately before its
-   final handoff and requires the claimed digest. Main presents the complete
+4. The preparation worker invokes `Invoke-NextPlanClaim.ps1` idempotently
+   immediately before its final handoff. Main presents the complete
    resolved plan from that handoff at the one approval gate
    under the canonical approval contract. It includes the full execution card,
    implementation step, boundaries, interfaces/invariants, acceptance checks,
@@ -108,19 +121,26 @@ their transitions with ad hoc WorktreeCli commands.
    with the actual code, trust the code and return the contradiction to the
    manager rather than forcing the plan's description. Pause only for a safety
    blocker or the final landing confirmation. Never edit the claimed plan.
-6. Before completion, an `implementer` requires `plan claim-status` to report
-   `ownedByReceipt: true`, then invokes `Complete-NextPlan.ps1` with the receipt
-   path and receipt SHA-256. A digest mismatch is terminal
-   and leaves the Plan and claim intact. The sidecar writes a recoverable
+6. Before final evidence, an `implementer` invokes `Complete-NextPlan.ps1` with no
+   arguments for completion or only `-Reject` for explicit user-authorized
+   rejection. Its hidden receipt and Plan-byte checks block a mismatch and
+   leave the Plan and claim intact. The sidecar writes a recoverable
    manifest, deletes the Plan, removes only direct child dependency edges, and
    leaves the receipt-bound claim `awaiting-landing`. Rejection follows the same
    path only with explicit user authority.
-7. Main dispatches `/verify-changes` to a fresh read-only `reviewer`, then
-   dispatches `/finalize-changes` to an `implementer`. The finalization worker
-   continues through commit and reconciliation preparation and returns the exact
-   landing summary; main presents it and obtains the canonical landing
-   confirmation. Only after that confirmation does main resume the worker to
-   perform primary history mutation.
+7. After terminal preparation, the finalization `implementer` creates the
+   authorized candidate and reconciles/squashes it to one exact single-parent
+   candidate commit/tree. Main dispatches `/verify-changes` to a fresh read-only
+   reviewer only after that candidate exists; missing, non-commit, wrong-parent,
+   wrong-tree, or changed-tip identity blocks rather than waiving evidence.
+   `/finalize-changes` then consumes the verified candidate, completes the v2
+   audit decision and finalization preparation, and returns the exact landing
+   summary. Main presents it and obtains the canonical landing confirmation.
+   Only after that confirmation does main resume the worker to advance primary
+   to the exact verified candidate. The mandatory order is terminal preparation
+   -> candidate creation -> reconciliation/single-parent squash -> exact
+   candidate verification -> finalization summary and explicit confirmation ->
+   primary mutation.
 
 ## Primary advance
 
@@ -134,9 +154,8 @@ of (or equal to) the primary tip, so a fresh or behind session claims with no
 pre-claim rebase or re-baseline. An `ok: true` stale-baseline `missing-plan-file`
 notice is non-blocking, and `/finalize-changes` reconciliation resolves the
 advance. After claim, a primary advance does not by itself invalidate the
-receipt. Deferral invokes `plan unclaim` with the durable receipt and hash,
-making the Plan immediately eligible again; never unclaim an `awaiting-landing`
-terminal receipt.
+receipt. Deferral invokes `Defer-NextPlan.ps1`, making the Plan immediately
+eligible again; never defer an `awaiting-landing` terminal receipt.
 
 If instead primary may have been squash-rewritten — the cheap mid-session trigger
 is a failed `git merge-base --is-ancestor $env:BROKEN_ENGINE_BASELINE <primary
@@ -148,7 +167,7 @@ running
 `$env:BROKEN_ENGINE_WORKTREE_PATH`, and `-WorktreeCliExecutable` the primary
 `WorktreeCli.exe`. It re-parents the session and rewrites the durable wrapper
 receipt; re-export `BROKEN_ENGINE_BASELINE` to the reported `newBaseline` and
-adopt the `updatedReceipts` sha256. Run the repair before any `plan validate` or
+continue through deterministic receipt discovery. Run the repair before any `plan validate` or
 `claim-next`. A `reparented-conflict` is either a mid-rebase conflict
 (`rebaseInProgress` true — resolve, `git rebase --continue`, no scheduler op until
 it completes) or an autostash pop-conflict after a completed rebase
@@ -158,7 +177,7 @@ it completes) or an autostash pop-conflict after a completed rebase
 ## Handoff before approval
 
 ```text
-Claim: <Plan path or none; receipt path/hash when claimed>
+Claim: <Plan path or none; internally resolved state when claimed>
 Classification: Tier 1 | Tier 2 | Tier 3 and trigger
 Route: <fast path | Tier 3 preparation | retained>
 Residuals: <blocker or none>

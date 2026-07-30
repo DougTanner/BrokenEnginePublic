@@ -1,0 +1,31 @@
+#version 460
+
+#include "ShaderLayouts.h"
+
+layout (local_size_x = kiComputeTileSize, local_size_y = kiComputeTileSize) in;
+
+layout (set = 0, binding = kiGlobalBindingGlobalUniform) uniform globalUniform
+{
+	GlobalLayout globalLayout;
+};
+
+layout (set = 1, binding = 1, rgba8) uniform readonly image2D combineImageR;
+layout (set = 1, binding = 2, rgba8) uniform readonly image2D combineImageG;
+layout (set = 1, binding = 3, rgba8) uniform readonly image2D combineImageB;
+layout (set = 1, binding = 4, rgba8) uniform readonly image2D combineImageAmbient;
+layout (set = 1, binding = 5, rgba8) uniform writeonly image2D historyImageR;
+layout (set = 1, binding = 6, rgba8) uniform writeonly image2D historyImageG;
+layout (set = 1, binding = 7, rgba8) uniform writeonly image2D historyImageB;
+layout (set = 1, binding = 8, rgba8) uniform writeonly image2D historyImageAmbient;
+
+void main()
+{
+	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iLightingValidMinX, globalLayout.iLightingValidMinY);
+	if (any(greaterThanEqual(i2Texel, ivec2(globalLayout.iLightingValidMaxX, globalLayout.iLightingValidMaxY))))
+		return;
+
+	imageStore(historyImageR, i2Texel, imageLoad(combineImageR, i2Texel));
+	imageStore(historyImageG, i2Texel, imageLoad(combineImageG, i2Texel));
+	imageStore(historyImageB, i2Texel, imageLoad(combineImageB, i2Texel));
+	imageStore(historyImageAmbient, i2Texel, imageLoad(combineImageAmbient, i2Texel));
+}

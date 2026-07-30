@@ -1,4 +1,4 @@
-<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-23T02:29:45.983Z","dependsOn":["Documents/Plans/Graphics/WindowedLightingDispatch.md"]} -->
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-07-23T02:29:45.983Z","dependsOn":[]} -->
 # Reduce PipelineManager by extracting the world lighting/shadow pipeline family
 
 ## Context
