@@ -2,7 +2,7 @@
 name: add-collection-member
 description: >-
   Add a Structure-of-Arrays member pointer to an engine or game Collection without breaking allocation, persistence, serialization, CRC, transfer, hydration, or identity behavior. Use when adding a field, member, or data column to a collection, and proactively whenever an implementation adds a `* __restrict` pointer to a Collection struct. Follow the complete layout-change checklist even when the request names only the declaration.
-allowed-tools: [Read, Edit]
+allowed-tools: [Read, Edit, Bash, PowerShell]
 ---
 
 # Add a Collection Member
@@ -30,8 +30,8 @@ Stop and report a stale exemplar if it no longer demonstrates the claimed varian
    - Existing split collection: shared column in `SharedMembers()`; client-only column in `ClientMembers()`; preserve `Members()` composition.
    - Existing `Members()`-only collection: add it to `Members()`; do not introduce `SharedMembers()` merely because the collection is server-visible.
    - Preserve C-array-of-pointer placement as one tuple entry; the collection helpers visit its elements.
-3. Confirm `SharedMembers()` remains a subset of `Members()`. The tuple drives allocation, growth, swap/remove, build-local read/write, and normally shared CRC/read; omission corrupts layout.
-4. Bump the changed struct's `kiVersion` for every game collection and server-visible engine collection. Confirm every current engine `kiVersion` declaration and the `Frame::kiVersion` sum before finalizing; each live version-bearing struct contributes its term, so bumping the struct changes the sum. Pure client-only engine collections such as Sounds and Puffs have no version term and do not change persisted shared layout.
+3. The tuple drives allocation, growth, swap/remove, build-local read/write, and normally shared CRC/read; omission corrupts layout. The collection-layout auditor (see below) settles the subset and guard relations.
+4. Bump the changed struct's `kiVersion` for every game collection and server-visible engine collection. Each live version-bearing struct contributes its term, so bumping the struct changes the sum. Pure client-only engine collections such as Sounds and Puffs have no version term and do not change persisted shared layout.
 
 There is no separate server-write path to update. Frame broadcast uses the same `CollectionWrite(..., cols.Members())` walk as the save format; on server builds, a split collection's `Members()` must equal `SharedMembers()`. `SharedCollectionRead()` allocates/zeros full client storage and reads the shared tuple.
 
@@ -40,7 +40,7 @@ There is no separate server-write path to update. Frame broadcast uses the same 
 Decide CRC and diagnostic membership independently.
 
 - A shared member normally reaches `SharedCollectionCrc()` through existing `SharedMembers()` or `Members()`.
-- If the collection has `SharedCrcMembers()`, explicitly include or exclude the member and preserve the subset relation. This is a determinism contract; if intended membership is unresolved, classify the decision Tier 3 (see root AGENTS.md, Risk tiers) and stop for user direction.
+- If the collection has `SharedCrcMembers()`, explicitly include or exclude the member and preserve the subset relation. This is part of the rules that keep the simulation bit-identical across client and server; if intended membership is unresolved, classify the decision Tier 3 (see root AGENTS.md, Risk tiers) and stop for user direction.
 - Decide separately whether `LogDifferences()` should compare the member. Its coverage may intentionally differ from CRC membership. Follow the collection's live diagnostic intent; use `common::LogDifference<"name">` for scalar-like values and `common::LogDifference_Vec` for vectors. Client-only collections may have no difference logger.
 
 ## Persistence and producers
@@ -69,8 +69,9 @@ Trace how every row receives and retains the value.
 
 ## Completion checklist
 
-- [ ] Pointer and correct tuple position; split/accessor shape preserved
-- [ ] Version bump and `Frame::kiVersion` contribution verified when applicable
+- [ ] Pointer declared in the intended tuple position; the split/accessor shape
+  the collection already used is preserved
+- [ ] Version bumped on the changed struct when applicable
 - [ ] CRC membership decided; difference logging decided independently
 - [ ] Allocation/copy or unconditional Update persistence complete
 - [ ] Spawn/Add/controller initialization and all parameter callers complete
@@ -78,9 +79,33 @@ Trace how every row receives and retains the value.
 - [ ] Transfer send, wire, receive, and destination initialization complete when applicable
 - [ ] Client hydration, local creation, persistence, and teardown complete when applicable
 - [ ] Identity semantics and agent-query exposure explicitly decided
-- [ ] Paired cardinality, tuple subset/order, and client/server guards remain valid
+- [ ] Paired element counts remain valid and tuple order still reads as the
+  intended wire order
+- [ ] Collection-layout auditor run and clean (below)
 
 `DestroyElement`, `SwapElement`, growth, serialization, and allocation need no member-specific calls after correct tuple placement. `extern template` declarations and explicit collection instantiations also do not change for a member-only edit.
+
+## Collection-layout auditor
+
+`.agents/scripts/Test-CollectionLayout.ps1` owns the mechanical sweeps: every declared SOA column appears exactly once in the effective `Members()` tuple, `SharedMembers()`/`ClientMembers()` partition it, `SharedCrcMembers()` and `PersistentMembers()` stay subsets, no `BT_CLIENT`-guarded column sits in `SharedMembers()`, declaration and accessor guards match, and every collection `kiVersion` declaration and `Frame::kiVersion` term resolve to each other. Never reconstruct these operations inline. It audits only and never writes, generates, or repairs header text.
+
+In Codex's PowerShell 7 terminal:
+
+```powershell
+$RepositoryRoot = (git rev-parse --show-toplevel).Trim()
+$Script = Join-Path $RepositoryRoot '.agents/scripts/Test-CollectionLayout.ps1'
+pwsh -NoProfile -ExecutionPolicy Bypass -File $Script
+```
+
+In Claude Code's Git Bash terminal, convert the script path first:
+
+```bash
+repository_root="$(git rev-parse --show-toplevel)"
+script="$(cygpath -w "$repository_root/.agents/scripts/Test-CollectionLayout.ps1")"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$script"
+```
+
+It prints one JSON object. `status` `pass` (exit 0) means no violations; `failed` (exit 1) reports violations with path, line, collection, member, and rule; `blocked` (exit 2) means an accessor shape, tuple entry, guard form, or `Frame::kiVersion` sum the parser could not resolve, which is never a pass; `error` (exit 1) means the run itself failed, such as a missing or empty `-Path`. The report is capped at 32 items and 8192 bytes, so `truncated` and `omittedCount` can hide violations: rerun until `totalCount` is 0, or account for `totalCount` and `omittedCount` before recording the violations as addressed. Any violation, blocked, or error outcome blocks completion until it is fixed or explicitly recorded. Pass `-Path` to narrow the sweep to specific headers or directories, `;`-separated for more than one. Judgment stays here: tuple position and wire order, CRC membership, diagnostic membership, and intentional client-only exclusion.
 
 ## Framework references
 

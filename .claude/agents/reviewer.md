@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Plan, code, shader, and session reviews; audits; adversarial falsification. Findings only unless the invoked skill or the caller's prompt authorizes edits.
+description: Plan, code, shader, and session reviews; audits; adversarial review that tries to disprove the change. Findings only unless the invoked skill or the caller's prompt authorizes edits.
 model: opus
 effort: medium
 disallowedTools: Agent

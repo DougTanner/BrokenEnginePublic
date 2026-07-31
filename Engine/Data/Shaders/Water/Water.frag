@@ -227,5 +227,7 @@ void main()
 	vec2 f2SmokeTexcoord = WorldToSmokeTexcoord(globalLayout.f4SmokeArea, f2PositionAtBaseHeight);
 	float fSmokeRaw = globalLayout.fSmokeMax * texture(smokeSampler, f2SmokeTexcoord).x;
 	float fSmokePow = clamp(pow(fSmokeRaw, globalLayout.fSmokePower), 0.0f, 1.0f);
+	// The 4.0f un-averages the ambient target: Lighting/LightCombine.comp stores 0.25 * (E+W+N+S) and
+	// BlendSmokePrecomputed expects the un-averaged sum. Terrain/Terrain.frag carries the identical scale.
 	f4OutColor.xyz = BlendSmokePrecomputed(f4OutColor.xyz, fSmokePow, 4.0f * f3AmbientSum, globalLayout);
 }

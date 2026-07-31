@@ -27,12 +27,16 @@ execution remains in the Change Workflow.
 
 ## 1. Extract
 
-`.diagsession` is an OPC/ZIP package. Extract it without renaming or a
-platform-specific archive command:
+`.diagsession` is an OPC/ZIP package. .NET reads it by content, so extract it
+without renaming and without a platform-specific archive command:
 
 ```text
-python -m zipfile -e <capture.diagsession> <scratch-directory>
+pwsh -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::ExtractToDirectory('<capture.diagsession>', '<scratch-directory>')"
 ```
+
+Both paths must be absolute: `ExtractToDirectory` resolves relative paths
+against the process working directory, not the shell's. Do not substitute
+`Expand-Archive`, which rejects a non-`.zip` extension.
 
 The CPU trace is `*/sc.user*.etl`; `.counters` is JSON metadata and
 `metadata.xml` identifies the capture tools. Keep extraction in disposable
@@ -94,9 +98,23 @@ share remains investigable as excess copying, clearing, or data movement.
 
 ## 4. Compute per-process shares
 
+Locate host Python first, from repository root:
+
 ```text
-python .agents/skills/analyze-diagsession/scripts/profile_shares.py <profile.txt> --process BrokenEngineSandbox [--top N]
+pwsh -ExecutionPolicy Bypass -File .agents/scripts/Detect-Python.ps1
 ```
+
+Exit 0 prints `OK <python-exe-path> Python X.Y`; capture `<python-exe-path>`
+and invoke the script with it (bare `python` may resolve to nothing). Exit 1
+prints `MISSING ...` or `STALE ...` — report that instead of guessing an
+interpreter.
+
+```text
+"<python-exe-path>" .agents/skills/analyze-diagsession/scripts/profile_shares.py <profile.txt> --process BrokenEngineSandbox [--top N]
+```
+
+From PowerShell, prefix the quoted path with the call operator
+(`& "<python-exe-path>" ...`); Git Bash runs the line as written.
 
 Weights approximate sampled microseconds. Use each process's own total, not the
 global percentage that includes Idle and other processes. xperf profile output
@@ -130,7 +148,7 @@ Interpolate classification only after the same source confirmation.
 
 For each top non-OS/driver cluster, gather full function bodies, call sites with
 enclosing loop and frame-phase context, and container/comparator types behind
-template hits. Include memory helpers when their clustered share is material.
+template hits. Include memory helpers when their clustered share is meaningful.
 
 Report first:
 
@@ -148,5 +166,5 @@ Do not author Plan files directly. Route proven optimization residuals through
 metadata, and dependencies; no Plan claim is required.
 
 When a landing gate applies (defined in root `AGENTS.md`), complete
-`/verify-changes` and `/finalize-changes`; no post-landing row publication
-exists.
+`/verify-changes` and `/finalize-changes`; there is no step that adds a plan row
+after the change lands.

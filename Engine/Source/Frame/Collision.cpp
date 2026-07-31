@@ -388,6 +388,9 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 		CollideLayerPair(rAlignments, sLayerPairZones.at(static_cast<size_t>(i)));
 	}
 
+	// One global sort, not per layer pair. The trailing layer/object keys are load-bearing: for the fixed
+	// layer-registration order client and server share, they make the equal-time order total and reproducible.
+	// Sorting by fTimeOfImpact alone leaves equal-time candidates in an arbitrary order and desyncs client and server.
 	std::sort(rScratch.candidates.begin(), rScratch.candidates.begin() + rScratch.iCandidateCount, [](const CollisionCandidate& rLeftCandidate, const CollisionCandidate& rRightCandidate)
 	{
 		return std::tie(rLeftCandidate.fTimeOfImpact, rLeftCandidate.uiLayerA, rLeftCandidate.iObjectA, rLeftCandidate.uiLayerB, rLeftCandidate.iObjectB) <

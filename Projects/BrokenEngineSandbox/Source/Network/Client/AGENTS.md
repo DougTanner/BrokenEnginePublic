@@ -1,6 +1,6 @@
 # Network Client - Session and Reconciliation
 
-Client-only game networking. `ClientSession` is the game-policy façade over `engine::ClientSessionRuntime`; it owns receive-side hydration (filling collection slots from received data — see `../../Frame/Collections/AGENTS.md`), reconciliation, and desync/gameplay policy.
+Client-only game networking. `ClientSession` is the game-policy wrapper over `engine::ClientSessionRuntime`; it owns receive-side hydration (filling collection slots from received data — see `../../Frame/Collections/AGENTS.md`), reconciliation, and desync/gameplay policy.
 
 ## Ownership
 
@@ -19,7 +19,7 @@ Client-only game networking. `ClientSession` is the game-policy façade over `en
 
 - A server-validated tick is frozen and must not be simulated again. Matching speculative CRCs advance confirmation without replay; unresolved mismatches or due pending authoritative state enter rollback and replay. Future full states stay queued until due; a due state beyond an update gap becomes the authoritative ring base.
 - Preserve render-behind history when advancing confirmed state. Replay and catch-up must remain within the coordinate ring budget.
-- Apply transfer `StatusChange`s after each tick, matching server Destroy/Spawn order, and recompute the Frame CRC when transfers modify the result.
+- Apply transfer `StatusChange`s after each tick, matching server Destroy/Spawn order, and recompute the Frame CRC when transfers modify the result. The server recomputes the same way after its own transfers land, so this side's frame only matches the broadcast CRC if both sides recompute; dropping either recompute turns every cross-cell transfer into a reported desync.
 - Server-load notification clears coord, clock, identity, fleet, subscription, and reconciler state before the client accepts post-load data.
 - Player-event, timespeed, and fleet-sync handlers have independent log-and-continue exception boundaries. Static-data application, full-state hydration, and tick-update application remain outside those catches.
 - Sticky desired subscriptions reduce visible churn; the engine slot queue owns transport throttling. During a real debug-frame wait or the synthetic full-state fixture stall, transport polling and receive-buffer drains continue while subscription updates, simulation, and reconciliation remain stalled.

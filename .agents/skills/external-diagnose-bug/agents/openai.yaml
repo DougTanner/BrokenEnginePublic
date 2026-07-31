@@ -1,0 +1,6 @@
+interface:
+  display_name: "External Diagnose Bug"
+  short_description: "Prove a bug's root cause before any fix"
+  default_prompt: "Use $external-diagnose-bug to find the root cause of this failure."
+policy:
+  allow_implicit_invocation: true

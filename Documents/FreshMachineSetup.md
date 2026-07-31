@@ -12,7 +12,7 @@ Recovery for a clone made without Developer Mode: enable it, open a new terminal
 
 Per [README.md](../README.md): Visual Studio 2026 Community (Desktop development with C++, Game development with C++, Windows 11 SDK), the Vulkan SDK, Git for Windows, PowerShell 7 (`pwsh`), Windows Terminal, x64 CPython 3.12 or newer, and the agent CLIs (Claude Code and/or Codex CLI).
 
-`code-quality-metrics` selects the first `python` Application resolved through normal PATH precedence and verifies it is x64 CPython 3.12 or newer. It does not use the `py` launcher as a fallback.
+Every skill that needs host Python requires x64 CPython 3.12 or newer. `code-quality-metrics` selects the first `python` Application resolved through normal PATH precedence per its metric contract; the `gaea2-*` and `analyze-diagsession` skills locate an interpreter through `.agents/scripts/Detect-Python.ps1`, which also probes well-known install directories. Neither route uses the `py` launcher as a fallback.
 
 ## 3. Clone with symlinks and submodules
 

@@ -31,7 +31,7 @@ Safety of the adoption: a session owns exactly one worktree and lands from it se
 
 Reject the alternatives of shortening the 3600-second lease (it must outlive a real landing) and of releasing the claim unconditionally on failure (that discards the deliberate retention rule protecting an uninspectable repository).
 
-Also add one clause to the `Invoke-FinalizeLanding.ps1` script bullet in `.agents/skills/finalize-changes/SKILL.md` stating that a re-invocation adopts a landing claim its own session and worktree retained, while a caller-held reconciliation lease is still foreign contention. Leave the release/retention rule itself unchanged.
+Also add one clause to the `Invoke-FinalizeLanding.ps1` script bullet in `.agents/skills/finalize-changes/SKILL.md` stating only the adoption rule: a re-invocation adopts a landing claim its own session and worktree retained. For the foreign-contention side, that clause cites the existing `SKILL.md` lease-release ordering prose rather than restating it, so the caller-lease-is-foreign-contention reason stays stated exactly once. Leave the release/retention rule itself unchanged.
 
 ## Critical files
 
@@ -64,4 +64,8 @@ Invariants to preserve: exactly one owner holds the landing lock during a primar
 
 ## Notes
 
-The design assumes the `SKILL.md` script text added by `Documents/Plans/Documents/FinalizeLandingLeaseRelease.md` — landing claims under its own fresh owner token, so the caller must release its reconciliation lease first. If that text is absent when this plan is implemented, state the adoption rule as a self-contained clause instead of amending it.
+The design assumes the `SKILL.md` script text added by `Documents/Plans/Documents/FinalizeLandingLeaseRelease.md` — landing claims under its own fresh owner token, so the caller must release its reconciliation lease first. If that text is absent when this plan is implemented, state the lease-release ordering rule and its foreign-contention reason once in `SKILL.md` and have the adoption clause cite it, rather than restating that reason inside the adoption clause.
+
+## Coordination
+
+`Documents/Plans/Agents/PlanLifecycleSkillBodyTrim.md` moves `.agents/skills/finalize-changes/SKILL.md` `## Bundled scripts` into `references/scripts.md`, keeping the lease-release ordering rule in `SKILL.md` as prose. That is the section holding the `Invoke-FinalizeLanding.ps1` bullet this plan amends. Whichever lands second applies its edit to the relocated reference text rather than to `SKILL.md`; in both orders the statement that a caller-held reconciliation lease is foreign contention, and that a prior landing's own retained claim is adoptable, ends up stated exactly once.

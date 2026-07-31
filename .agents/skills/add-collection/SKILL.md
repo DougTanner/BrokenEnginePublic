@@ -7,12 +7,12 @@ description: >-
   collection registration; and ForEach phase participation. Also use
   proactively whenever implementation creates a struct derived from
   Collection<T>.
-allowed-tools: [Read, Edit, Write, Glob, Grep]
+allowed-tools: [Read, Edit, Write, Glob, Grep, Bash, PowerShell]
 ---
 
 # Add a Collection
 
-Add paired Interpolate/PostRender storage without breaking cardinality, tuple
+Add paired Interpolate/PostRender storage without breaking element counts, tuple
 order, serialization, deterministic CRCs, save/replay versions, or build
 affinity. Follow the live exemplar closest to the requested ownership model;
 do not synthesize a collection from a generic full-header template.
@@ -60,8 +60,8 @@ subset of `Members()` and any `SharedCrcMembers()` a subset of
 
 Create Interpolate/PostRender structs and their implementation files beside the
 chosen exemplar. `Update` is mandatory and must use its generic dispatch
-signature. Optional hooks merged into the surrounding phase need no no-op boilerplate: absent or
-non-invocable hooks skip silently, while `Update` and direct/manual calls remain
+signature. Optional hooks merged into the surrounding phase need no no-op boilerplate: absent
+hooks or hooks that cannot be called skip silently, while `Update` and direct/manual calls remain
 compile-checked. Declare `extern template struct Collection<...>` for both
 structs and explicitly instantiate both in one implementation file.
 
@@ -99,10 +99,9 @@ Define `static constexpr int64_t kiVersion` on both structs for every game
 collection pair and every server-visible engine pair. Add both terms to
 `game::Frame::kiVersion` in `Projects/BrokenEngineSandbox/Source/Frame/Frame.cpp`.
 Pure client-only engine collections do not alter persisted shared layout and do
-not contribute version terms. Before finalizing, search every engine collection
-`kiVersion` declaration and verify each server-visible term is present in the
-Frame sum; `PushersInterpolate` and `PushersPostRender` are the live engine
-example.
+not contribute version terms. `PushersInterpolate` and `PushersPostRender` are
+the live engine example. The collection-layout auditor (see Verification) checks
+declarations and sum terms against each other in both directions.
 
 Use `CollectionFlags::kIdToIndex` only when external owners need a stable
 handle. Prefer `AddIndexableElement`, `AddIndexableElementWithId`, and
@@ -114,26 +113,28 @@ lifecycle, such as Sounds' client-only UUID stream, not on the flag itself.
 
 - [ ] Ownership/location: engine versus game and shared versus client-only
   ownership are explicit; Interpolate/PostRender files and guards match it.
-- [ ] Members: every SOA column ran `add-collection-member`; tuple variants,
-  ordering, extern declarations, and explicit instantiations match the chosen
-  exemplar.
-- [ ] Registration: both frame halves are stored and registered; engine
-  counts and server tuples or game pointers, constructors, includes, and tuples
-  are complete; producer precedes consumer.
-- [ ] Version sum: both per-struct terms exist for game or server-visible
-  engine state; pure client-only engine state is excluded.
+- [ ] Members: every SOA column ran `add-collection-member`; tuple order,
+  extern declarations, and explicit instantiations match the chosen exemplar.
+  Tuple membership itself is checked by the collection-layout auditor (see
+  Verification), never by a hand sweep.
+- [ ] Registration: both halves of the frame — Interpolate and PostRender — are
+  stored and registered; engine counts and server tuples or game pointers,
+  constructors, includes, and tuples are complete; producer precedes consumer.
+- [ ] Version sum: decide that this collection needs version terms at all —
+  game and server-visible engine state does, pure client-only engine state does
+  not. The auditor checks the sum once the terms exist.
 - [ ] Construction/initialization: paired growth keeps counts aligned and
   every new row/owned handle is initialized before CRC or use.
 - [ ] Phases: `AllocateAndCopy`, `LogDifferences`, and `Update` are present with
   their required signatures. Optional `Register`, GraphicsResources,
   render, collision, AreaDamage, Transfer, Destroy, and Spawn hooks merged into
   the surrounding phase are declared only when needed and must match their
-  exact dispatch signatures; an absent or
-  non-invocable hook skips silently. Direct/manual calls remain compile-checked.
-- [ ] Serialization/CRC: `Members`, `SharedMembers`, and optional
-  `SharedCrcMembers` have correct subset and wire order; tuple registration
-  reaches Write/Read and, for server-visible state, ServerRead, CRC, and
-  LogDifferences.
+  exact dispatch signatures; absent
+  hooks or hooks that cannot be called skip silently. Direct/manual calls remain compile-checked.
+- [ ] Serialization/CRC: tuple entries sit in the intended wire order, and
+  tuple registration reaches Write/Read and, for server-visible state,
+  ServerRead, CRC, and LogDifferences. Order is yours to judge; the subset and
+  guard relations belong to the auditor.
 - [ ] Copy: `AllocateAndCopy` allocates the full tuple and preserves each
   field whose Update path does not unconditionally rewrite it.
 - [ ] Identity: ID maps are added only when needed and maintained through
@@ -157,12 +158,52 @@ lifecycle, such as Sounds' client-only UUID stream, not on the flag itself.
 ## Verification
 
 - Resolve every cited path and symbol against the final tree.
-- Search engine `kiVersion` declarations and the `Frame::kiVersion` sum for
-  parity.
+- Run the collection-layout auditor (below) and clear every violation.
 - Compile every affected client/server target through the repository `compile`
   workflow after the C++ and project-membership stages are complete.
 - Run the acceptance scenario required by the task; use the agent harness only
   for runtime-observable criteria.
+
+### Collection-layout auditor
+
+`.agents/scripts/Test-CollectionLayout.ps1` owns the mechanical sweeps: every
+declared SOA column appears exactly once in the effective `Members()` tuple,
+`SharedMembers()`/`ClientMembers()` partition it, `SharedCrcMembers()` and
+`PersistentMembers()` stay subsets, no `BT_CLIENT`-guarded column sits in
+`SharedMembers()`, declaration and accessor guards match, and every collection
+`kiVersion` declaration and `Frame::kiVersion` term resolve to each other. Never
+reconstruct these operations inline. It audits only and never writes, generates,
+or repairs header text.
+
+In Codex's PowerShell 7 terminal:
+
+```powershell
+$RepositoryRoot = (git rev-parse --show-toplevel).Trim()
+$Script = Join-Path $RepositoryRoot '.agents/scripts/Test-CollectionLayout.ps1'
+pwsh -NoProfile -ExecutionPolicy Bypass -File $Script
+```
+
+In Claude Code's Git Bash terminal, convert the script path first:
+
+```bash
+repository_root="$(git rev-parse --show-toplevel)"
+script="$(cygpath -w "$repository_root/.agents/scripts/Test-CollectionLayout.ps1")"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$script"
+```
+
+It prints one JSON object. `status` `pass` (exit 0) means no violations;
+`failed` (exit 1) reports violations with path, line, collection, member, and
+rule; `blocked` (exit 2) means an accessor shape, tuple entry, guard form, or
+`Frame::kiVersion` sum the parser could not resolve, which is never a pass;
+`error` (exit 1) means the run itself failed, such as a missing or empty
+`-Path`. The report is capped at 32 items and 8192 bytes, so `truncated` and
+`omittedCount` can hide violations: rerun until `totalCount` is 0, or account
+for `totalCount` and `omittedCount` before recording the violations as
+addressed. Any violation, blocked, or error outcome blocks completion until it
+is fixed or explicitly recorded. Pass `-Path` to narrow the sweep to specific
+headers or directories, `;`-separated for more than one. Judgment stays here:
+tuple position and wire order, CRC membership, diagnostic membership, and
+intentional client-only exclusion.
 
 ## References
 

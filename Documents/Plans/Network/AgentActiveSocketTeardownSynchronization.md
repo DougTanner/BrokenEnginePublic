@@ -50,7 +50,7 @@ Replace only the active-connection teardown synchronization so shutdown never re
 
 ## Acceptance criteria
 
-- An external-claim request verifies the selected Winsock cancellation behavior for the supported Windows configuration before implementation. Together with structural ownership/path inspection of every active-socket receive, send, stop, and final-close path, this is the decisive evidence for the unsupported concurrent-close defect.
+- An external-claim request verifies the selected Winsock cancellation behavior for the supported Windows configuration before implementation. Together with structural ownership/path inspection of every active-socket receive, send, stop, and final-close path, this evidence settles the question on its own for the unsupported concurrent-close defect.
 - Structural inspection proves one final-close owner after connection I/O exits, no destructor-side concurrent close of `mActiveSocket`, and no lock held across `ServeConnection` or other blocking connection I/O.
 - Debug x64 client and server builds compile the changed transport source.
 - Via `/agent-harness`, ordinary client and server launch/ping/quit is regression smoke only: it must preserve clean exit and expected logs, but it makes no claim to hold an idle connection in a next-frame receive or to cover a pending response.

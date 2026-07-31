@@ -12,9 +12,9 @@ allowed-tools: [Read, Grep, Glob, Bash, PowerShell]
 
 # Repository C++ Review
 
-Run one fresh `reviewer` pass. Findings only: do not edit, run mutating
-commands, implement fixes, invoke other agents, or delegate. Review logic and
-correctness, not style, formatting, naming, general comment quality, or
+Run one fresh `reviewer` pass. Findings only: do not edit, run commands that
+change state, implement fixes, invoke other agents, or delegate. Review logic
+and correctness, not style, formatting, naming, general comment quality, or
 documentation.
 
 ## Required Inputs
@@ -25,18 +25,31 @@ Require a self-contained brief containing:
   and exact changed files/regions, separated from pre-existing and concurrently
   owned changes;
 - an identity-bound
-  `broken-engine-code-quality-target-manifest/v1` derived exactly from that
+  `broken-engine-code-quality-target-manifest/v1` produced by
+  `.agents/scripts/Get-SessionChangeInventory.ps1 -EmitTargetManifest` from that
   authorized diff (or focused re-review), with baseline/current identities for
   additions, deletions, and renames; it excludes pre-existing and concurrently
   owned changes;
-- a C++ target manifest that excludes pure GLSL `.h` files beneath `Data/Shaders`, while retaining
-  `ShaderLayouts.h` and `ShaderLayoutsBase.h`; route those dual-language headers to both this C++
-  review and the GLSL review;
+- that manifest's C++ target selection, which is the same run's `cpp` and
+  `dual-language-header` classes; those class rules are the only statement of
+  which `.h` files are GLSL-only, and every `dual-language-header` entry routes
+  to both this C++ review and the GLSL review;
 - approved intent, plan and deltas, affected contracts, and declared
   invariants;
-- implementation handoff, acceptance criteria, affected-site triggers, and any
-  prior findings relevant to a focused re-review;
+- implementation handoff, acceptance criteria, notes on which other code sites
+  the change may affect, and any prior findings relevant to a focused re-review;
 - checkout path and applicable repository instructions.
+
+The manifest comes from one read-only run that writes no file:
+`pwsh -NoProfile -File .agents/scripts/Get-SessionChangeInventory.ps1
+-RepositoryRoot <absolute repository toplevel> -Baseline <full 40-character SHA>
+-EmitTargetManifest`, adding `-IncludeUntracked <comma-separated paths>` for
+authorized untracked additions and `-Head <commit>` for a committed head. In Claude Code's
+Git Bash terminal convert the script path and root with `cygpath -w` exactly as
+`../cleanup-worktrees/SKILL.md` shows. On `status` `pass` (exit 0) stdout carries
+only the manifest bytes; `blocked` (exit 2) or `error` (exit 1) leaves stdout
+empty and reports the envelope on stderr, which counts as a missing manifest
+below. Never rebuild the manifest or restate the class decision inline.
 
 Return `BLOCKED` when the session baseline, diff boundary, target manifest, intent,
 or invariants are missing or moving. Do not reconstruct them from a mutable merge
@@ -49,16 +62,23 @@ another round.
 
 1. Run `code-quality-metrics` Compare early with the supplied target manifest,
    session baseline, absolute checkout root, and one profile for both captures.
-   Use the public `Invoke-CodeQualityMetrics.ps1` entry point with `-Mode Compare
-   -TargetManifest <supplied-manifest> -Baseline <fixed-full-sha>
-   -RepositoryRoot <absolute-checkout-root>`, and record its `profile`,
-   `targetSelection`, and `comparison` evidence. This findings-only review
-   permits no mutation except the entry point's validated ignored
+   Call the digest wrapper `pwsh -NoProfile -File
+   .agents/skills/code-quality-metrics/scripts/Get-CodeQualityEvidence.ps1 -Mode
+   Compare -TargetManifest <supplied-manifest> -Baseline <fixed-full-sha>
+   -RepositoryRoot <absolute-checkout-root>`, omitting `-EvidenceDirectory` so
+   this review retains no file, and record the digest's `profile`,
+   `targetSelection`, `coverage`, and `comparison` evidence. Never reconstruct
+   the wrapper's field selection or summarization inline. This findings-only
+   review permits no changes except the entry point's validated ignored
    `Temp/CodeQualityMetrics` cache and capture writes; do not write a manifest,
-   output file, source, or repository metadata. An operational failure,
-   including exit `2`, leaves the review incomplete with `NEEDS_ACTION`, not a
-   correctness finding. Record `comparison.contextChanges` without widening the
-   review scope.
+   output file, source, or repository metadata. Every failure emits one error
+   envelope with null digest fields: exit `1` carries `evidence.contract-mismatch`
+   naming the exact field path for a contract violation, or `internal.error` for
+   any other unexpected operational error; exit `2` forwards the entry point's own
+   error verbatim in `underlying`. An
+   operational failure, including either exit, leaves the review incomplete with
+   `NEEDS_ACTION`, not a correctness finding. Record
+   `comparison.contextChanges` without widening the review scope.
 2. Read the changed regions in full-function context, their applicable
    `AGENTS.md`, and the producers, consumers, callers, and mirrored paths needed
    to trace the declared contracts. Diff-only inspection is insufficient.
@@ -71,13 +91,14 @@ another round.
 5. Try to disprove each candidate finding against guards, caller preconditions,
    lifecycle, and current repository contracts. Report the smallest correction,
    without implementing it.
-6. Emit an atomic `/verify-external-claims` request for every candidate finding
-   that depends on a non-obvious external API, language, specification, OS, or
-   library fact. Do not browse or present that fact as confirmed.
-7. Measure changed `.cpp` files with
-   `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`.
-   Record a size observation only when the changed region exposes a concrete
-   cohesive split. Return it as a manager follow-up candidate; never reduce the
+6. Emit a single-claim `/verify-external-claims` request for every candidate
+   finding that depends on a non-obvious external API, language,
+   specification, OS, or library fact. Do not browse or present that fact as confirmed.
+7. Measure the changed `.cpp` files in one batched run:
+   `pwsh -NoProfile -Command "& '<absolute path to Measure-Tokens.ps1>' -Path
+   'a','b','c' -Json"`. Use `-Command`, not `-File`: under `-File` the
+   comma-separated list binds as one filename and the run fails. Record a size
+   observation only when the changed region exposes a concrete cohesive split. Return it as a manager follow-up candidate; never reduce the
    file or prescribe an inline reduction during review.
 8. Return the report and the conditional `/update-vcxproj` trigger. Never read
    or grep project XML in this review.
@@ -85,14 +106,15 @@ another round.
 Metrics remain advisory. A regression or classification never becomes a finding
 or changes a clean review to non-PASS. Only independent source inspection may
 promote a substantial new near-copy under the duplication rule below, or another
-reachable correctness violation. Structural-erosion changes are advisory
-follow-up evidence. A `target-parse-failure` makes the review incomplete with
-`NEEDS_ACTION`, not a finding: request a separate authorized implementer to
-apply the listed narrow sanitizer spot-fix, then rerun Compare in focused
-review. A `target-signature-extraction-failure` is also incomplete;
-investigate it and rerun, without treating it as a sanitizer instruction. Do
-not return PASS until every authorized target has complete parsing and signature
-extraction. A corpus-only `upstream-omitted` row is an advisory residual and
+reachable correctness violation. Changes that quietly weaken the code's
+structure are advisory follow-up evidence. A `target-parse-failure` makes the
+review incomplete with `NEEDS_ACTION`, not a finding: request a separate
+authorized implementer to apply the listed narrow sanitizer spot-fix, then rerun
+Compare in focused review. A `target-signature-extraction-failure` is also
+incomplete; investigate it and rerun, without treating it as a sanitizer
+instruction. Do not return PASS until every authorized target has complete
+parsing and signature extraction. A corpus-only `upstream-omitted` row — a
+corpus file the analyzer's parser left out — is an advisory residual and
 preserves PASS. Report coverage and the outcome from `comparison`.
 
 ## Correctness Checks
@@ -107,9 +129,9 @@ file, network, OS, user, and third-party data at its owning trust boundary.
 
 ### Changed comments
 
-Treat a changed comment as a correctness issue only when it asserts a materially
-false runtime or contract fact. Changelog narration, wording, formatting, and
-documentation coherence belong outside this review.
+Treat a changed comment as a correctness issue only when it asserts a runtime
+or contract fact that is meaningfully false. Changelog narration, wording,
+formatting, and documentation coherence belong outside this review.
 
 Route comments that merely explain a language feature or established house
 pattern to `/code-style-review`; they are not correctness findings.
@@ -117,7 +139,7 @@ pattern to `/code-style-review`; they are not correctness findings.
 ### Trust boundaries and failure channels
 
 Require validation before externally controlled sizes, counts, indices, or
-payloads can allocate, iterate, index, or mutate destination state. Preserve
+payloads can allocate, iterate, index, or change destination state. Preserve
 the owning subsystem's established failure channel; there is no universal
 "never throw" or "catch everything" policy.
 
@@ -220,7 +242,7 @@ per-collection mirrors without abstracting deliberate parallel boilerplate.
 
 Engine code may call game hooks and use game globals/types; flag the reverse
 ownership leak only when an engine-owned type acquires a game-specific concept.
-Prefer game-derived aggregation surfaces where repository instructions require
+Prefer the game's own aggregation headers where repository instructions require
 them.
 
 Verify guard placement from source and aggregation context. Emit an
@@ -256,8 +278,8 @@ collection mirrors remain parallel.
 
 Exclude micro-simplifications, style preferences, naming, header placement
 other than the required `Common/ExternalHeaders.h` rule above, formatting,
-general documentation checks, and scope authorization and gold-plating, which
-`/scope-review` owns.
+general documentation checks, and scope authorization and unnecessary extra
+work, which `/scope-review` owns.
 
 ## External Claim Requests
 
@@ -289,15 +311,16 @@ finding is `Required`. Omit empty optional sections.
 - `path:line` — **Critical | Required:** <reachable failure, evidence, smallest correction>
 
 ### API Verification Requests
-<atomic requests>
+<single checkable requests>
 
 ### Size Observations
 - `path` (`N bt-token-v1`) — <cohesive split and why it is a manager follow-up candidate>
 
 ### Metric Evidence
-- profile and target-manifest status — <Compare result>
-- target/corpus/common-parsed-cohort and coverage — <short `comparison` evidence>
+- profile and target-manifest status — <digest `profile` and `targetSelection`>
+- target/corpus/common-parsed-cohort and coverage — <short `coverage` and `comparison` evidence>
 - context changes and metric residual outcome — <count/status; no scope expansion>
+- retained evidence — <`evidencePath`, only when the digest reports one>
 
 ### Files Reviewed
 - `path` — <regions and affected paths traced>

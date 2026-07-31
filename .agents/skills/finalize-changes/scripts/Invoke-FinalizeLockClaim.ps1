@@ -9,6 +9,7 @@ param(
 	[Parameter(Mandatory)][string] $SessionLabel,
 	[Parameter(Mandatory)][string] $Worktree,
 	[string] $LandingOwner,
+	[switch] $Release,
 	[ValidateRange(60, 86400)][int] $LeaseSeconds = 3600,
 	[ValidateRange(1, 55)][int] $WaitSeconds = 55,
 	[ValidateRange(50, 5000)][int] $PollMilliseconds = 500
@@ -48,6 +49,31 @@ try {
 	$item = Get-Item -LiteralPath $WorktreeCliExecutable -Force -ErrorAction Stop
 	if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -eq 0) {
 		throw "WorktreeCli executable must be a nonempty ordinary file: '$WorktreeCliExecutable'."
+	}
+	if ($Release) {
+		if ([string]::IsNullOrWhiteSpace($LandingOwner)) {
+			$result.blocker = [ordered]@{ disposition = 'terminal'; requiresUserAuthority = $false; retryAfterMilliseconds = 0 }
+			Complete-FinalizeLockClaim 1 'error' 'landing-lock.release-owner-required' 'Releasing a landing lease requires the owner token of the held lease.'
+		}
+		$result.attempts = 1
+		$releaseResult = Invoke-FinalizeNativeText $item.FullName @('lock', 'release', '--repo', $GitCommonDirectory, '--owner', $LandingOwner) $Worktree
+		if ($releaseResult.ExitCode -eq 0) {
+			Complete-FinalizeLockClaim 0 'pass' 'ok' 'Landing lease released.'
+		}
+		$status = $null
+		try { if (-not [string]::IsNullOrWhiteSpace($releaseResult.Stdout)) { $status = $releaseResult.Stdout | ConvertFrom-Json -Depth 32 -ErrorAction Stop } } catch { }
+		$output = (($releaseResult.Stdout, $releaseResult.Stderr) -join ' ').Trim()
+		if ($releaseResult.ExitCode -eq 2) {
+			# WorktreeCli reports an absent lock as a state conflict; a second release must stay idempotent.
+			if ($null -ne $status -and ($status.PSObject.Properties.Name -ccontains 'held') -and -not $status.held) {
+				Complete-FinalizeLockClaim 0 'pass' 'ok' 'Landing lease was already released.'
+			}
+			$result.lock = $status
+			$result.blocker = [ordered]@{ disposition = 'terminal'; requiresUserAuthority = $false; retryAfterMilliseconds = 0 }
+			Complete-FinalizeLockClaim 1 'error' 'landing-lock.release-denied' "WorktreeCli did not release the landing lease for this owner: $output"
+		}
+		$result.blocker = [ordered]@{ disposition = 'terminal'; requiresUserAuthority = $false; retryAfterMilliseconds = 0 }
+		Complete-FinalizeLockClaim 1 'error' 'landing-lock.release-failed' "WorktreeCli lock release failed with exit $($releaseResult.ExitCode): $output"
 	}
 	if ([string]::IsNullOrWhiteSpace($LandingOwner)) {
 		$token = Invoke-FinalizeNativeText $item.FullName @('lock', 'token') $Worktree

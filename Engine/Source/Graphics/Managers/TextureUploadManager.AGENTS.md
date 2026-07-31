@@ -2,7 +2,7 @@
 
 Global: `gpTextureUploadManager`
 
-Runs a dedicated upload thread with a fixed staging budget, persisting large-texture progress across frames. Block-compressed partial copies support BC4, BC5, and BC7. Queue selection prefers transfer-only work, but resolves to foreground adoption when transfer aliases graphics or the distinct present family so concurrent submissions do not share that queue.
+Runs a dedicated upload thread with a fixed staging budget, persisting large-texture progress across frames. That budget caps size, not rate; pacing is separate — the render loop signals the thread once per frame and the thread waits for a signal before each chunk, so uploads spread across frames instead of bursting. Block-compressed partial copies support BC4, BC5, and BC7. Queue selection prefers transfer-only work, but resolves to foreground adoption when transfer aliases graphics or the distinct present family so concurrent submissions do not share that queue.
 
 ## Ownership and Teardown
 

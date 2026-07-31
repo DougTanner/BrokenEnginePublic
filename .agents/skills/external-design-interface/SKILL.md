@@ -72,7 +72,7 @@ clarity, and deterministic-state placement. Give an opinionated recommendation
 grounded in the brief; do not rank by implementation effort.
 
 Ask the user which design or explicit hybrid to carry forward. Do not silently
-choose a public interface when multiple materially different shapes remain.
+choose a public interface when multiple meaningfully different shapes remain.
 
 ## Synthesize and Gate the Plan
 

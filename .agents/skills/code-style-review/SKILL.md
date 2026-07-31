@@ -14,7 +14,25 @@ landing gate (defined in root `AGENTS.md`).
 ## Scope
 
 - By default, review `.cpp` and `.h` ranges changed in this session, using the
-  implementation handoff and conversation edits.
+  implementation handoff and conversation edits. Derive those ranges from the
+  read-only inventory: `pwsh -NoProfile -File
+  .agents/scripts/Get-SessionChangeInventory.ps1 -RepositoryRoot <absolute
+  repository toplevel> -Baseline <full 40-character SHA> -Regions` (in Claude
+  Code's Git Bash terminal convert the script path and root with `cygpath -w`
+  exactly as `../cleanup-worktrees/SKILL.md` shows). It writes no file and
+  prints one `broken-engine-session-change-inventory/v1` object; the
+  session-changed C++ ranges are its `regions` rows whose path carries the
+  `class` `cpp` or `dual-language-header` in `entries`. Only `status` `pass`
+  (exit 0) is usable; `blocked` (exit 2) or `error` (exit 1) means the ranges are
+  unavailable — report that instead of proceeding. The entries list is capped at
+  500 rows and the regions table at 400, and the ranges are derived from both, so
+  read `truncated`: the ranges are usable only when `truncation.entries` and
+  `truncation.regions` each report an emitted count equal to the full count, and
+  if either falls short report the ranges unavailable instead of proceeding. An
+  untracked file appears only when the caller supplies it with
+  `-IncludeUntracked <comma-separated paths>`, and `counts.unlistedUntracked`
+  reports how many untracked files the run did not list. Never enumerate these
+  ranges inline.
 - When the caller supplies a cleanup scope, use exactly those C++ files and
   ranges instead. State whether the scope is session-changed or caller-supplied.
 - Shader style is out of scope; do not review or route it. The only shader
@@ -71,18 +89,36 @@ all code references can be propagated. For every rename:
 
 - Remove confirmed temporary debug instrumentation added during the session,
   including temporary `LOG`, `printf`, `DEBUG_BREAK()`, `assert(false)`,
-  `// FIXME`, and `// HACK` lines. Search again for their exact text or existing
-  unique debug tag and require zero remaining matches in session-added C++.
-  Never add a tag merely to defer cleanup, and do not alter pre-existing
-  intentional debug logs.
+  `// FIXME`, and `// HACK` lines. Take the added-versus-pre-existing
+  distinction from the residue scanner below. Search again for their exact text
+  or existing unique debug tag and require zero remaining matches in
+  session-added C++. Never add a tag merely to defer cleanup, and do not alter
+  pre-existing intentional debug logs.
 - In selected C++ comments, remove `AGENTS.md` or `CLAUDE.md` navigation text
-  only when the remaining technical statement stays complete. Delete a comment
-  whose sole content is the pointer; otherwise preserve its technical content
-  and repair punctuation. Never touch strings or non-comment code.
+  only when the remaining technical statement stays complete, taking the same
+  added-versus-pre-existing distinction from the scanner's hits of that kind.
+  Delete a comment whose sole content is the pointer; otherwise preserve its
+  technical content and repair punctuation. Never touch strings or non-comment
+  code.
 - In selected changed comments, remove text that merely explains a language
   feature or established house pattern already visible in the declaration.
   Preserve invariants, required ordering and consequences, lifetime or threading
   contracts, and platform or driver workarounds.
+
+The scanner is `pwsh -NoProfile -File
+.agents/scripts/Find-SessionDebugResidue.ps1 -RepositoryRoot <absolute
+repository toplevel> -Baseline <full 40-character SHA>`, with optional `-Head
+<commit>` and the `-IncludeUntracked` switch, which makes the scanner enumerate
+every untracked file itself and include those files in the scan, and the same
+`cygpath -w` conversion in Git Bash. It scans added lines only and prints one
+`broken-engine-session-debug-residue/v1` object with `hits` rows of `path`,
+`line`, `kind`, and `text`, plus `counts` and `truncated`. It reports candidates
+only: it never edits a file, never decides whether a hit is temporary or
+intentional, and never writes to disk, so every judgment and removal above stays
+here. Only `status` `pass` (exit 0) is usable; `blocked` (exit 2) or `error`
+(exit 1) means the session-added distinction is unavailable — report it rather
+than reconstructing these scans inline, and treat `truncated` `true` as hits the
+run did not list.
 
 ## Output
 

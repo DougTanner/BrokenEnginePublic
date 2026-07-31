@@ -6,7 +6,7 @@ description: >-
   /external-refactor-clean, or when /external-deep-analysis invokes its
   in-function phase. Route oversized files to /reduce-file and class, module,
   layer, or dependency-shape concerns to /external-architecture-review.
-allowed-tools: [Read, Grep, Glob, Bash, Agent]
+allowed-tools: [Read, Grep, Glob, Bash, Agent, PowerShell]
 ---
 
 # Refactor Clean
@@ -23,25 +23,36 @@ Require one target path and resolve it before inspection:
 - Directory: analyze directly contained `.h` and `.cpp` files. Include
   descendants only when the caller explicitly requests recursion.
 
-Enumerate a stable file manifest. For every file, map and read root `AGENTS.md`,
-all applicable nested `AGENTS.md` files from the repository root to that file,
-and `Documents/C++StyleGuide.txt`. Record this authority map in the report.
-Heuristics below locate candidates; findings cite the controlling authority.
-
-Measure each file with:
+Build the manifest with:
 
 ```powershell
-pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>
+pwsh -NoProfile -File .agents/scripts/Get-AnalysisManifest.ps1 -Path <target> -Extension .h,.cpp
 ```
 
+Add `-Recurse` only when the caller explicitly requests recursion. In Claude
+Code's Git Bash terminal, convert the script path first with `cygpath -w`, as in
+`.agents/skills/cleanup-worktrees/SKILL.md`. The result gives every in-scope
+file its repository-relative path, its ordered root-to-file `AGENTS.md`
+authority chain, its `bt-token-v1` size, and a `reduceFileCandidate` flag; never
+reconstruct that enumeration, authority walk, or per-file measurement inline. On
+blocked (exit 2), narrow the scope and rerun; on error (exit 1), report the
+blocker. Read every reported authority document and
+`Documents/C++StyleGuide.txt` before inspection, and record the authority map in
+the report. Heuristics below locate candidates; findings cite the controlling
+authority.
+
 The `bt-token-v1` value is normalized UTF-8 bytes divided by four and rounded
-up. For a function, use the same command with its inclusive `-StartLine` and
-`-EndLine` range.
+up. Measure a function directly with its inclusive range:
+
+```powershell
+pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path> -StartLine <first> -EndLine <last>
+```
 
 ## Triage and Dispatch
 
-Route headers over 5,000 bt-token-v1 and implementations over 10,000 directly
-to `run /reduce-file <path>`; do not inspect their functions here. These
+Route every file the manifest flags as a `reduceFileCandidate` — headers over
+5,000 bt-token-v1 and implementations over 10,000 — directly to
+`run /reduce-file <path>`; do not inspect their functions here. These
 thresholds are routing observations, not proof of a defect.
 
 After triage, file counts above about 15 or aggregate size above about 80,000
@@ -65,9 +76,10 @@ prove a candidate. Inspect for:
 - groups of local booleans better expressed as `common::Flags`, unaligned
   DirectXMath storage, vector operators instead of named DirectXMath functions,
   and guards wider than the locally differing statements;
-- phantom validation between trusted internal callers, useless assertions,
-  swallowed failures, ambiguous default returns, reachable empty/single/zero
-  boundary gaps, and acquire/release paths not protected by RAII;
+- needless defensive validation between trusted internal callers, useless
+  assertions, swallowed failures, ambiguous default returns, reachable
+  empty/single/zero boundary gaps, and acquire/release paths not protected by
+  RAII;
 - dense narration comments and intra-file naming or TODO drift as local residue;
   hand actual formatting enforcement to `/code-style-review`.
 

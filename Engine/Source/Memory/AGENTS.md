@@ -14,4 +14,4 @@ Overrides the global C++ `operator new`/`delete` to route through mimalloc (or o
 - Only threads with an initialized `common::gpThreadLocal` participate in tracking; engine worker threads construct one and participate, while threads that never do (OS/third-party) are naturally excluded. `std::async` tasks are not inherently excluded — the engine's DxDiag task constructs a `ThreadLocal` (`CrashReport.cpp`) and participates.
 - Debug builds route mimalloc output to VS Output and hook `SIGABRT` into `engine::HandleException` for crash reports. Shutdown reports peak heap and trips `DEBUG_BREAK` if committed memory exceeded the reserve (arena undersized).
 
-See Engine Source (`../AGENTS.md`) for the main-loop allocation boundary.
+The main-loop allocation boundary is defined at the Engine Source hub.

@@ -17,9 +17,9 @@ session baseline, ownership snapshot, and explicit mode:
 - `fix`: reconcile only authorized additions/removals/renames/whole-file
   affinity changes, then verify.
 
-An ordinary source edit without whole-file affinity change does not trigger this
-skill. Read root and scoped `AGENTS.md`, including the VisualStudio2026 project
-guidance; stop on conflicting authority.
+An ordinary source edit that does not change which executable a whole file
+belongs to does not trigger this skill. Read root and scoped `AGENTS.md`,
+including the VisualStudio2026 project guidance; stop on conflicting authority.
 
 ## Ownership
 
@@ -38,12 +38,26 @@ Classify special cases before generic extension rules:
 | game `Source/**` | client/server/both by structural affinity | source item; `Game[...]` |
 | `Common/**` | game client/server; DataPacker only by scoped authority | source item; `Common[...]` |
 
-For engine/game files, a whole-file affinity guard is the first substantive
-directive after optional BOM, whitespace, comments, header `#pragma once`, and
-include/comment prologue; it is exactly `#if defined(BT_CLIENT)` or
-`#if defined(BT_SERVER)`, and its matching final `#endif` encloses all remaining
-substantive declarations/definitions. Otherwise the file is shared. Preserve a
-documented forced-include exception and report `NOTE`.
+Resolve whole-file affinity and the owning row with one run over every affected
+path that exists on disk — additions, new names, affinity changes; never
+reconstruct the prologue scan or this table's lookup inline. A removal or an old
+rename name needs no record: the authorized change itself says the item goes.
+
+```powershell
+pwsh -NoProfile -File .agents/skills/update-vcxproj/scripts/Resolve-VcxprojMembership.ps1 <path> [<path> ...]
+```
+
+Each record carries `affinity` (`client`, `server`, `shared`, `unprovable`) with
+its `affinityCode`, and `mapping` (`resolved`, `conditional`, `unresolved`,
+`non-member`) with its `mappingCode`, `projects`, `itemType`, and `filter`.
+`resolved` is authoritative. `conditional` settles everything except the one
+named question — generated `$(GameDataDirectory)` headers, `.h` under a shader
+tree, DataPacker membership for `Common/**` — which scoped authority decides.
+`non-member` is a path deliberately never carried as a project item, a routine
+result and not a blocker. Stop and report the path, never guess, when `affinity`
+is `unprovable`, when `mapping` is `unresolved`, or when the run omits a record;
+on `files.truncated`, reinvoke in smaller batches until every path has a record.
+Preserve a documented forced-include exception and report `NOTE`.
 
 ## Reconcile and validate
 
@@ -53,8 +67,12 @@ unique lowercase-hex `{8-4-4-4-12}` GUID.
 
 For each affected project pair:
 
-1. Determine intended ownership and exact logical filter. In fix mode, require
-   each intended item once and forbidden/stale old-name items zero times.
+1. Take a `resolved` record's ownership and logical filter as given. On a
+   `conditional` record, answer only its one named question from scoped
+   authority (`Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md`)
+   and take the rest of the record as given; re-derive nothing by hand. In fix
+   mode, require each intended item once and forbidden/stale old-name items zero
+   times.
 2. Run once after inspection or repair:
 
    ```powershell
@@ -71,7 +89,7 @@ For each affected project pair:
 ## Report
 
 ```text
-<path> — <client|server|both|DataPacker|AgentHarness|WorktreeCli|AgentTools>
+<path> — <client|server|both|DataPacker|AgentHarness|WorktreeCli|AgentTools|non-member>
   <project> — filter <path|none> — verified|fixed|NOTE <detail>|FAIL <detail>
 Files changed: <project/filter paths, or none>
 Regions touched: <item groups/filter declarations, or none>

@@ -13,13 +13,13 @@ allowed-tools: [Read, Grep, Glob, Edit, "Bash(git diff *)", "Bash(git status *)"
 # Resolve Findings
 
 Run inside one delegated `implementer`. Fix only the accepted failures assigned
-by the manager and do not delegate. The manager owns adjudication and scope
+by the manager and do not delegate. The manager owns finding decisions and scope
 changes, and dispatches builds, independent verification, and all fresh-context
 review to their assigned roles.
 
 ## Required Assignment
 
-Require a self-contained assignment carrying the canonical task-brief fields
+Require a self-contained assignment carrying the authoritative task-brief fields
 (`../../references/subagent-reporting.md`) plus these skill-specific fields:
 
 - accepted finding or failure evidence and its prescribed check;
@@ -38,13 +38,13 @@ approved behavior, scope, acceptance criteria, or verification obligations.
 Structural work also returns to the manager: an in-scope acceptance failure
 blocks the active change; proven pre-existing or out-of-scope work may become a
 follow-up; user-approved expanded scope re-enters `/implement-plan` after the
-manager updates the canonical plan.
+manager updates the authoritative plan.
 
 ## Fix Workflow
 
 For each assigned item:
 
-1. State a falsifiable suspected root cause. Read the failing region and enough
+1. State a checkable suspected root cause. Read the failing region and enough
    callers, callees, logs, or sibling paths to distinguish cause from symptom.
    A failing expression alone does not establish the originating cause.
 2. Confirm the cause from direct repository inspection or supplied failure
@@ -60,8 +60,9 @@ For each assigned item:
 5. For a one-function code fix with no signature or contract change, scan its
    callers, mirrored client/server or collection patterns, shared headers, and
    stale comments. Fix only candidates inside scope and report every outside
-   candidate. Otherwise emit affected-site triggers for the manager to dispatch
-   through `/update-affected-code`, including symbol/pattern and search scope.
+   candidate. Otherwise emit notes on which other code sites may be affected for
+   the manager to dispatch through `/update-affected-code`, including
+   symbol/pattern and search scope.
 6. Audit the completed edit against the assignment, session baseline, ownership
    snapshot, and smallest plausible regression. Fix confirmed in-scope defects
    and repeat their checks. Do not claim compilation or runtime success.
@@ -71,8 +72,8 @@ approved plan and deltas, repository instructions/docs/comments, then current
 behavior. Name the contradiction and controlling source.
 
 Do not establish disputed external API, language, specification, or library
-behavior from memory. Emit one stable atomic request per proposition: name the
-symbol/rule, exact proposition, dependent item, applicable version and local
+behavior from memory. Emit one stable single-claim request per proposition:
+name the symbol/rule, exact proposition, dependent item, applicable version and local
 configuration, and candidate official source. The manager routes it to
 `/verify-external-claims`; keep the item unresolved pending that verdict.
 
@@ -96,7 +97,7 @@ Build required: <target, configuration/platform, selected project-member .cpp;
   for headers, every consuming target and configuration/platform; or none>
 External/API verification requests: <symbol/rule — proposition — dependent item
   — version/configuration — candidate official source, or none>
-Reviewer focus areas: <condition the independent verifier must falsify, or none>
+Reviewer focus areas: <condition the independent verifier must try to disprove, or none>
 Residuals: <unresolved/out-of-scope item, evidence, and next owner/action, or none>
 ```
 

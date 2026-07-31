@@ -334,7 +334,7 @@ void main()
 
 	// Cook-Torrance specular from engine directional lights (EWNS cardinal directions)
 #if ENABLE_SPECULAR_LIGHTING
-	const vec3 kCardinalDirs[4] = vec3[4](vec3(-1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, -1.0, 0.0));
+	const vec3 kCardinalDirs[4] = vec3[4](vec3(1.0, 0.0, 0.0), vec3(-1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, -1.0, 0.0));
 	vec3 specLightAccum = vec3(0.0);
 	for (int i = 0; i < 4; i++)
 	{

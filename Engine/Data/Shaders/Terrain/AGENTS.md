@@ -4,7 +4,7 @@ Terrain first composites island heightmaps into visible and shadow elevation tar
 
 ## Elevation Contract
 
-- Overlapping island footprints use MAX blending because packed chain bounds can overlap underwater. The composite elevation target is the authoritative upstream height source for water, shadow, lighting, smoke, and particle consumers.
+- Overlapping island footprints use MAX blending because the bounds of the packed mip chain can overlap underwater. That rule depends on the elevation targets being cleared to the shared sea-floor elevation, the lowest value any heightmap reaches, so a pixel covered by one island alone comes through unchanged. A higher clear value would raise terrain everywhere. The composite elevation target is the authoritative upstream height source for water, shadow, lighting, smoke, and particle consumers.
 - Mesh vertices sample the composite elevation for surface alignment, then check their own island heightmap. Vertices below the underwater cutoff sink to sea floor so an overlapping taller island cannot raise and expose baked-black submerged terrain.
 - Terrain heightmaps store beach-relative engine meters. Undersea compression is applied once in the elevation prepass; downstream users inherit that shaping.
 

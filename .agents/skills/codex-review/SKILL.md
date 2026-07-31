@@ -30,27 +30,52 @@ role already resolves to Sol.
 
 ## Method
 
-1. Assemble one scratch prompt file with sections separated by a `---` delimiter
-   line:
-   - (a) role instruction naming the assigned skill to read and execute
-   - (b) exact scope — files/regions and risk tier
-   - (c) evidence — `git -C <worktree> diff <baseline> -- <changed files>` plus
-     the full contents of any named untracked text files; represent a binary
-     untracked entry by path and status only, never by its contents
-   - (d) the required output contract
-2. Embed these guardrails as explicit prohibition lines in the prompt: a finding
-   is actionable only if it names a concrete reachable failure; NEVER propose
-   speculative refactors, abstractions, defensive validation, or scope beyond the
-   changed bytes and the assigned skill's remit; NEVER edit files; NEVER load a
-   screenshot, capture, image, or other binary payload into the review context
-   unless the assigned skill's remit is the runtime criterion that payload settles
-   — rely on the harness role's reported verdict and cited path. Output contract:
-   return the assigned skill's normal concise handoff, then append one final line
-   with a verdict token — `PASS`, `CHANGES-REQUIRED: <n>`, or `BLOCKED: <reason>`.
-   The token supplements the skill-native status vocabulary (such as
-   `NEEDS_ACTION`); it never replaces the skill's format.
+1. Assemble the prompt with
+   [scripts/New-CodexReviewPrompt.ps1](scripts/New-CodexReviewPrompt.ps1), which
+   writes the prompt file and returns only a small receipt, so the diff never
+   enters this session. NEVER reconstruct the prompt assembly, the guardrail
+   block, or the evidence collection inline, and never paste diff bytes into the
+   session. The fixed wording lives in
+   [references/prompt-template.md](references/prompt-template.md) and is changed
+   only there. The manager runs the script before dispatch; the reviewer, inside
+   the Codex `--sandbox read-only` environment, only reads the prompt file it
+   wrote. In Codex's PowerShell 7 terminal:
+
+   ```powershell
+   pwsh -NoProfile -ExecutionPolicy Bypass -File <worktree>/.agents/skills/codex-review/scripts/New-CodexReviewPrompt.ps1 -RepositoryRoot <worktree> -Baseline <full 40-character baseline SHA> -AssignedSkill <assigned skill> -ScopeFile <scope file> -PromptPath <new prompt path> [-RiskTier <1|2|3>] [-UntrackedPath <comma-separated paths>] [-Head <rev>]
+   ```
+
+   In Claude Code's Git Bash terminal, convert the script path first:
+
+   ```bash
+   repository_root="$(git rev-parse --show-toplevel)"
+   script="$(cygpath -w "$repository_root/.agents/skills/codex-review/scripts/New-CodexReviewPrompt.ps1")"
+   pwsh -NoProfile -ExecutionPolicy Bypass -File "$script" -RepositoryRoot "$repository_root" -Baseline <baseline> -AssignedSkill <assigned skill> -ScopeFile <scope file> -PromptPath <new prompt path>
+   ```
+
+   Write the judgment content yourself into `-ScopeFile`: the exact scope, the
+   files and regions authorized for review, focus notes, and current residuals.
+   The script copies that text verbatim and never authors, summarizes, or edits
+   it, and never decides which files are in scope. For a reviewer role with no
+   skill file — the Tier-2 coherence review, for one — pass a descriptive role
+   name as `-AssignedSkill` and put that role's full review contract in
+   `-ScopeFile`. `-RiskTier` adds one
+   `Risk tier: <n>` line above that text. `-PromptPath` must not already exist;
+   `-UntrackedPath` names every untracked file the review needs, and does not
+   combine with `-Head`.
+2. Read the receipt, one compact JSON object on stdout. Exit `0` carries
+   `promptPath`, `promptBytes`, `fileCount`, `binaryExcluded`, and
+   `sectionsWritten`. Exit `2` is blocked and its `code` names the fix:
+   `prompt.path-exists` — choose an unused prompt path, the existing file is left
+   untouched; `prompt.diff-too-large` — the evidence passed the 4 MB budget, so
+   split the review into smaller authorized scopes and never truncate the
+   evidence; `prompt.inventory-truncated` — name every untracked path or narrow
+   the baseline until the evidence is complete; `prompt.untracked-path-unknown` —
+   a named path is not an untracked file; `prompt.head-untracked-conflict` — a
+   commit-valued head has no untracked side. Exit `1` is a script error: stop and
+   report its `code` and `message` rather than hand-assembling a prompt.
 3. Run `pwsh -File <worktree>/.codex/codex-review.ps1 -Worktree <worktree>
-   -PromptFile <prompt> -OutFile <out>` with the maximum tool timeout (10
+   -PromptFile <the receipt's promptPath> -OutFile <out>` with the maximum tool timeout (10
    minutes). For a large diff or Tier-3 scope, run in background and wait for
    completion rather than truncating.
 4. Read `<out>`; success requires a non-empty structured result — a skill-native
@@ -62,14 +87,14 @@ role already resolves to Sol.
 ## Manager evaluation
 
 Sol over-reports edge cases and tends toward over-engineering. The calling
-manager session adjudicates each finding for concrete reachable failure and materiality
-before acting — speculative, unreachable, or gold-plating findings are rejected,
-not fixed. Interruption findings — power loss, process kill, crash or timeout
-mid-operation — are answered by the existing recovery ladder (idempotent
+manager session decides each finding on concrete reachable failure and whether it is
+meaningful before acting — findings that are speculative, unreachable, or ask for
+unnecessary extra work are rejected, not fixed. Interruption findings — power loss, process kill, crash or timeout
+mid-operation — are answered by the existing ordered fallback steps (idempotent
 re-run, lease expiry, claim healing, Git state), never by new recovery
 machinery; accept one only when a named interruption point provably defeats
-that ladder, and even then present the cost to the user before implementing.
-The existing adjudicate-once rule applies; this route adds no extra review
+those steps, and even then present the cost to the user before implementing.
+The existing decide-once rule applies; this route adds no extra review
 rounds.
 
 ## Fallback

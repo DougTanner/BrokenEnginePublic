@@ -16,27 +16,29 @@ Read the focused references only when applicable:
 
 ## Select the project
 
-Target the project the latest `/compile` result built, unless the user or plan names a different one. Default today: BrokenEngineSandbox. Before launching, read `Projects/<Project>/Documents/AgentHarness.md`; it owns the executable names, output directory, extra launch arguments, game command schemas, and canonical verification recipes referenced throughout this skill.
+Target the project the latest `/compile` result built, unless the user or plan names a different one. Default today: BrokenEngineSandbox. Before launching, read `Projects/<Project>/Documents/AgentHarness.md`; it owns the executable names, output directory, extra launch arguments, game command schemas, and authoritative verification recipes referenced throughout this skill.
 
 ## Provision and claim
 
 Provision the checkout and use only its provisioned primary AgentHarness output. Wrapper sessions use their existing WorktreeCli session owner; a non-worktree checkout may let the provisioner create a transient provisioning session.
 
-```powershell
-& "$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot $ROOT
-if ($LASTEXITCODE -ne 0) { throw "Worktree provisioning failed: $LASTEXITCODE" }
-$AgentHarness = Join-Path $ROOT 'Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe'
-if (-not (Test-Path -LiteralPath $AgentHarness -PathType Leaf)) { throw "AgentHarness missing: '$AgentHarness'." }
+Claim through `scripts/Invoke-HarnessClaim.ps1`. It provisions the checkout, requires the resolved `AgentHarness.exe`, mints the owner token, and claims the lock, printing one compact `broken-engine-harness-claim/v1` JSON object. In Codex's PowerShell 7 terminal:
 
-$Owner = & $AgentHarness lock token
-$Session = '<short task label>'
-& $AgentHarness lock claim --key default --owner $Owner --session $Session --worktree $ROOT
-$ClaimExit = $LASTEXITCODE
-if ($ClaimExit -eq 2) { & $AgentHarness lock status --key default; throw 'Harness owned by another session' }
-if ($ClaimExit -ne 0) { throw "Harness claim failed: $ClaimExit" }
+```powershell
+$Script = Join-Path $ROOT '.agents\skills\agent-harness\scripts\Invoke-HarnessClaim.ps1'
+pwsh -NoProfile -ExecutionPolicy Bypass -File $Script -RepositoryRoot $ROOT -Session '<short task label>'
 ```
 
-Report successful claim metadata verbatim. On a failed claim (`$ClaimExit -eq 2`), report the current owner's `claimedAt` and the hold duration derived from it — heartbeat never advances `claimedAt` — then decide between waiting and reordering non-harness work instead of polling blind. Hold one owner token across relaunches. Every socket command requires `--owner $Owner`: after request acquisition, AgentHarness proves ownership before Winsock/connect, refreshes it when the 60-second interval becomes due while transport remains active, and refreshes it once more before response output. Ownership loss stops local response handling with exit `1`; game work already dispatched cannot be retracted. After the first command, compare `lock status` before/after and require `heartbeatAt` to advance. `lock status` prints ordinary pretty-printed JSON; the backslashes in its `worktree` field are standard JSON escaping of the Windows path, not nested or stringified JSON. During a non-harness phase that may exceed five minutes, run `lock heartbeat --key default --owner $Owner`; otherwise quit and release before the phase, then reclaim afterward.
+In Claude Code's Git Bash terminal, convert the script path first — do the same for every script invocation below:
+
+```bash
+script="$(cygpath -w "$ROOT/.agents/skills/agent-harness/scripts/Invoke-HarnessClaim.ps1")"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$script" -RepositoryRoot "$(cygpath -w "$ROOT")" -Session '<short task label>'
+```
+
+Exit `0` (`status` `pass`) supplies the `owner` token, the resolved `agentHarness` path, and the `claim` record; hold that token in `$Owner`, keep that path in `$AgentHarness`, and report the claim metadata verbatim. Exit `2` (`status` `blocked`, code `claim.foreign-owner`) means another session holds the lock: the payload's `currentOwner` carries its `claimedAt` and the derived `holdSeconds` — heartbeat never advances `claimedAt` — so decide between waiting and reordering non-harness work instead of polling blind. The script never steals, never waits for the lock, and never touches a foreign owner's processes. Exit `1` is a failure naming its step (`claim.repository-missing`, `claim.provisioner-missing`, `claim.provision-failed`, `claim.harness-missing`, `claim.token-failed`, `claim.metadata-unreadable`, `claim.failed`, or `internal.error`); stop and report it. Never reconstruct provisioning, harness-path resolution, token minting, or the claim inline.
+
+Hold one owner token across relaunches. Every socket command requires `--owner $Owner`: after request acquisition, AgentHarness proves ownership before Winsock/connect, refreshes it when the 60-second interval becomes due while transport remains active, and refreshes it once more before response output. Ownership loss stops local response handling with exit `1`; game work already dispatched cannot be retracted. After the first command, compare `lock status` before/after and require `heartbeatAt` to advance. `lock status` prints ordinary pretty-printed JSON; the backslashes in its `worktree` field are standard JSON escaping of the Windows path, not nested or stringified JSON. During a non-harness phase that may exceed five minutes, run `lock heartbeat --key default --owner $Owner`; otherwise quit and release before the phase, then reclaim afterward.
 
 Never build AgentHarness or write through shared Output links during routine harness work; `/compile` owns AgentTools newly-built-binary production and promotion. Stop if a required executable is absent.
 
@@ -59,7 +61,7 @@ Old-owner cleanup may refresh its heartbeat; that does not invalidate staleness 
 
 ## Launch
 
-Require the latest `/compile` result's `DataBuildMode`, `RunDataPacker=false`, canonical `GameDataDirectory`, fixed data baseline, and selected `broken-engine-data-oracle/v1` receipt path and SHA-256. Before each launch and after verification, invoke the compile package's `scripts/Test-DataOracleReceipt.ps1` with that exact receipt/path/mode/baseline tuple and require its typed passing result. In Local mode, do the same for the independent primary Shared receipt. Stop on any receipt, path, mode, baseline, inventory, or byte mismatch. Never infer an identity, compare Shared and Local receipts for equality, switch data mode, fall back to Shared data, or run DataPacker/Gaea/texture export.
+Require the latest `/compile` result's `DataBuildMode`, `RunDataPacker=false`, normalized `GameDataDirectory`, fixed data baseline, and the path and SHA-256 of the selected `broken-engine-data-oracle/v1` receipt — the record file proving exactly which data files the build used. Before each launch and after verification, invoke the compile package's `scripts/Test-DataOracleReceipt.ps1` with that exact receipt/path/mode/baseline tuple and require its typed passing result. In Local mode, do the same for the independent primary Shared receipt. Stop on any receipt, path, mode, baseline, inventory, or byte mismatch. Never infer an identity, compare Shared and Local receipts for equality, switch data mode, fall back to Shared data, or run DataPacker/Gaea/texture export.
 
 Use the compiled configuration suffix. Ordinary same-machine runs pass `--loopback-only`. Create log parents under `$ROOT\Temp`. Do not change process working directories; `--data-directory` is the only data-root override.
 
@@ -69,9 +71,16 @@ The selected project's harness doc owns the concrete launch block — the server
 
 Agent-mode executables start minimized without activation. Capture commands temporarily restore the client without activation and re-minimize it. A criterion that depends on render progression must hold a visible window for its duration — capture restores an iconic window only for the readback and re-minimizes it, so a capture taken mid-scenario silently returns the client to the non-rendering state. Use `window_state` to hold visibility across such a scenario. Omit `--windowed` only when native-resolution UI sizing/readability is part of acceptance. Add the optional `--renderdoc` client argument only for GPU frame capture; it force-loads renderdoc.dll and drops the Vulkan validation layer, so keep it off ordinary runs (see the RenderDoc capture reference `references/renderdoc.md`).
 
-After launching either executable, poll `ping` in a deadline-limited external loop until exit `0` before the first real command; readiness comes in two layers. One `ping` internally retries the loopback connect until its `--timeout-ms` deadline, covering the window before the listener has bound. A connected `ping` can still answer only once the main thread reaches its command-drain point, so long client startup (terrain elevation and priority-texture waits) can time out the recv phase even after connect succeeds — a single timeout is not fatal, so keep retrying in the loop. `tick` of `-1` means the listener is up but the game is not yet created (see the command reference `references/command-reference.md` for `ping`).
+After launching either executable, wait for readiness with `scripts/Wait-HarnessPing.ps1` before the first real command. It handles one port per call, so launch order stays with you:
 
-Invoke `scripts/Wait-IslandSceneReady.ps1` only after launch and only when an approved criterion depends on island footprints or rendered islands. Supply the exact `-AgentHarness`, harness-lock `-Owner`, client `-ClientPort`, bounded `-TimeoutSeconds`, and absolute ignored `-ArtifactPath`; do not rename or replace the retained `$ServerPid`/`$ClientPid` lifecycle variables. The helper requires client `ping` with `tick >= 0`, restores the client with `window_state {minimized:false}`, and requires the complete `clientGridCoord` plus nonempty island footprints to be byte-stable across two consecutive canonical samples. Exit `0` is usable only with a `broken-engine-island-scene-readiness/v1` artifact reporting `Status:success`, `Code:ready`, and `Ready:true`; missing, malformed, or failed evidence blocks the criterion. The selected project document owns the concrete invocation.
+```powershell
+$Script = Join-Path $ROOT '.agents\skills\agent-harness\scripts\Wait-HarnessPing.ps1'
+pwsh -NoProfile -ExecutionPolicy Bypass -File $Script -AgentHarness $AgentHarness -Owner $Owner -Port 27100 -TimeoutSeconds 120
+```
+
+The script polls until the port answers `ok:true`, tolerating the individual timeouts long client startup (terrain elevation and priority-texture waits) produces after connect already succeeded. Exit `0` (`status` `pass`) reports the observed `tick`; `tick` of `-1` means the listener is up but the game is not yet created (see the command reference `references/command-reference.md` for `ping`). Exit `2` (`status` `blocked`, code `ping.timeout`) reports the attempt count and elapsed time, and blocks the first real command. Exit `1` is a setup failure. Never hand-write a ping loop or invent a sleep window in its place.
+
+Invoke `scripts/Wait-IslandSceneReady.ps1` only after launch and only when an approved criterion depends on island footprints or rendered islands. Supply the exact `-AgentHarness`, harness-lock `-Owner`, client `-ClientPort`, bounded `-TimeoutSeconds`, and absolute ignored `-ArtifactPath`; do not rename or replace the retained `$ServerPid`/`$ClientPid` lifecycle variables. The helper requires client `ping` with `tick >= 0`, restores the client with `window_state {minimized:false}`, and requires the complete `clientGridCoord` plus nonempty island footprints to be byte-stable across two consecutive normalized samples. Exit `0` is usable only with a `broken-engine-island-scene-readiness/v1` artifact reporting `Status:success`, `Code:ready`, and `Ready:true`; missing, malformed, or failed evidence blocks the criterion. The selected project document owns the concrete invocation.
 
 Before relinking or relaunching, send `quit` and wait for the retained exact PID. A live executable locks its image. Do not launch a duplicate to displace it — with `SO_REUSEADDR`, a duplicate on the same port binds alongside the live listener instead of failing fast, and connection routing between the two becomes nondeterministic. The engine listener sets `SO_REUSEADDR` and briefly retries address-in-use binds, so relaunch immediately once the exact PID has exited and rely on the ping poll for readiness — never invent a sleep window.
 
@@ -87,31 +96,37 @@ Use `--timeout-ms N` for a deferred client command; default is 15000 and maximum
 
 Request envelope: `{"cmd":"<name>","params":{...},"id":<optional JSON>}`. Omit `params` only for parameterless commands. Unknown top-level fields fail. Responses are `{"id":<echo|null>,"ok":true,"result":{...}}` or `{"id":...,"ok":false,"error":"..."}`. Parameters are an external trust boundary and invalid values must produce the error envelope.
 
-The channel permits one in-flight request. Client deferred commands occupy it until completion; another AgentHarness call waits rather than bypassing it. Do not overlap calls.
+The channel permits one request still in progress. Client deferred commands occupy it until completion; another AgentHarness call waits rather than bypassing it. Do not overlap calls.
 
 Write any multi-line PowerShell driver — anything with `function` definitions, loops, or more than a few statements — to a script file (e.g. under `$ROOT\Temp`) and run it with `pwsh -File`. Never compact such a driver into a semicolon-joined one-liner; compaction corrupts function definitions (observed: `function Snap([string]$p)` mangled into an unrecognized `Snap$d` token).
 
-## Canonical verification
+## Authoritative verification
 
 The selected project's harness doc owns the concrete setup recipe (which commands seed server state, confirm client connection, and address UI) and its replay determinism acceptance sequence. Regardless of project, hold these verification-evidence principles:
 
-- Verify with the narrowest observable combination of the project's scene, UI, screenshot, server-query, and log commands. `describe_ui`, scene/server queries, and `get_logs` close a criterion more cheaply than pixels; reach for a capture only when the criterion is genuinely about what was rendered. Stable counts such as players should agree exactly; allow bounded tick drift for churning collections.
-- Release through the lifecycle checklist below.
+- Verify with the narrowest observable combination of the project's scene, UI, screenshot, server-query, and log commands. `describe_ui`, scene/server queries, and `get_logs` close a criterion more cheaply than pixels; reach for a capture only when the criterion is genuinely about what was rendered. Stable counts such as players should agree exactly; allow bounded tick drift for collections whose entries are being added and removed rapidly.
+- Release through the lifecycle and release section below.
 
 ## Lifecycle and release
 
-After every successful, failed, crashed, or abandoned launch attempt:
+After every successful, failed, crashed, or abandoned launch attempt, release through `scripts/Invoke-HarnessRelease.ps1`. One call performs the whole sequence, and it is safe after a crashed run whose PIDs are already gone:
 
-1. Send `quit` to both ports with the current owner; server quit autosaves.
-2. Wait for `$ServerPid` and `$ClientPid` when assigned, then verify only those exact PIDs are absent. Stop only a retained exact PID when clean quit cannot connect or complete. Never use a process-name search or name-based kill.
-3. Run `lock release --key default --owner $Owner` and report exit `0` verbatim.
-4. In Local data mode, reverify the independent primary Shared oracle.
+```powershell
+$Script = Join-Path $ROOT '.agents\skills\agent-harness\scripts\Invoke-HarnessRelease.ps1'
+pwsh -NoProfile -ExecutionPolicy Bypass -File $Script -AgentHarness $AgentHarness -Owner $Owner -ServerPid $ServerPid -ClientPid $ClientPid
+```
+
+Pass only the retained exact `$ServerPid`/`$ClientPid`, and omit either one that was never assigned. The script quits both ports with the owner (server quit autosaves), waits for those exact PIDs, stops only a supplied exact PID that survived the quit, and runs `lock release` only once every supplied PID is confirmed absent. It never searches by process name and never stops a PID you did not supply.
+
+Exit `0` (`status` `pass`) means every supplied PID is absent and the lock was released; report the payload's per-step outcomes verbatim. Exit `2` (`status` `blocked`, code `release.process-survived`) means a supplied PID is still alive: no release was attempted, the claim stays held, and you decide whether to retry the release or escalate to the user. Exit `1` is a failure naming its step, including `release.lock-owner-mismatch` and `release.lock-absent`, which are never a success. Never reconstruct the quit, wait, stop, or release steps inline.
+
+Then, in Local data mode, reverify the independent oracle for the primary Shared data.
 
 An owner mismatch is a hard stop. Never remove coordination state manually.
 
 ## Process verification report
 
-Run plan-provided runtime steps when present; otherwise derive the smallest live checks for runtime-observable criteria only. Report each criterion `PASS`, `FAIL`, or `BLOCKED` with exact command/query/scene/UI/screenshot/log evidence. Treat setup limitations as blocked checks. Do not diagnose or edit a failure in this role; return reproducing commands and evidence to the main agent for `/resolve-findings` adjudication and affected-check retest.
+Run plan-provided runtime steps when present; otherwise derive the smallest live checks for runtime-observable criteria only. Report each criterion `PASS`, `FAIL`, or `BLOCKED` with exact command/query/scene/UI/screenshot/log evidence. Treat setup limitations as blocked checks. Do not diagnose or edit a failure in this role; return reproducing commands and evidence to the main agent for the `/resolve-findings` decision and affected-check retest.
 
 Captures stay on disk. The `screenshot` result `{path, width, height}` is the evidence — cite it by path. Loading an image into context is a deliberate act for a check that genuinely needs pixels, and the report names which check and why.
 

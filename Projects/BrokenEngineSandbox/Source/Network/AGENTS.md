@@ -16,7 +16,7 @@ Game-layer packet extensions, status-change serialization, and multiplayer orche
 - The protocol gate is distinct from `FrameInput::kiVersion` (replay-input compatibility) and `Frame::kiVersion` (deterministic-Frame/save/replay compatibility); neither Frame version substitutes for the protocol bump.
 - Serialization groups changes deterministically by type, then wraps the batch in an LZ4 envelope. The uncompressed-size prefix is a trust boundary and must be clamped before reserving scratch memory.
 - Deserialization bounds every item through the co-located wire-size contract and rejects the entire batch on an invalid type, short read, or decompression failure. Client-only values still occupy identical server-side wire space.
-- Wire-sensitive event enums and sender/receiver ordering move together. Local-only synthesized states never enter the stream.
+- `GameMessages` owns the field order and byte size of game payloads. Each message struct carries one `Visit` descriptor that both the writing and the reading side route through, plus a `static_assert`ed `kiSize`, and the wire-sensitive event enums sit in the same descriptor table. Add or change a game payload there rather than hand-writing a write on one side and a matching read on the other, which is how the two sides drift apart. Local-only synthesized states never enter the stream.
 
 ## Layering
 

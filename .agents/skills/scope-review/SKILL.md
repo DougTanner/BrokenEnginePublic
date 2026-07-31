@@ -15,8 +15,8 @@ allowed-tools: [Read, Grep, Glob, PowerShell]
 # Scope Review
 
 Verify that the change is exactly what was authorized — no more — so the
-correctness reviewers can ignore scope entirely. Scope authorization and
-gold-plating findings belong to this skill alone.
+correctness reviewers can ignore scope entirely. Scope authorization findings
+and findings of unnecessary extra work belong to this skill alone.
 
 ## Inputs
 
@@ -40,8 +40,24 @@ and fixes land, only the affected regions receive a focused scope re-review.
 
 ## Review
 
-1. Enumerate changed regions from the diff — per hunk, per function or section
-   touched.
+1. Take the changed regions from the read-only inventory instead of re-deriving
+   hunks: `pwsh -NoProfile -File
+   .agents/scripts/Get-SessionChangeInventory.ps1 -RepositoryRoot <absolute
+   repository toplevel> -Baseline <full 40-character SHA> -Regions` (add `-Head
+   <commit>` for a committed head; in Claude Code's Git Bash terminal convert
+   the script path and root with `cygpath -w` exactly as
+   `../cleanup-worktrees/SKILL.md` shows). It writes no file and prints one
+   `broken-engine-session-change-inventory/v1` object whose `regions` table
+   holds one row per hunk with `path`, `kind`, new and old line ranges, and the
+   enclosing `symbol`, alongside `entries` and their `class` values. Only
+   `status` `pass` (exit 0) is usable; `blocked` (exit 2) or `error` (exit 1)
+   means the diff input is unavailable, so the `## Inputs` `BLOCKED` rule
+   applies. The table is capped at 400 rows, so read `truncation.regions` for
+   the true `full` count and the `emitted` count and treat `truncated` `true` as
+   coverage of the emitted rows only. An untracked file appears only when the
+   caller supplies it with `-IncludeUntracked <comma-separated paths>`, and
+   `counts.unlistedUntracked` reports how many untracked files the run did not
+   list. Never enumerate these regions inline.
 2. Authorization pass: map each region to the `## In scope` entry or user
    instruction that authorizes it, counting the mechanical necessities the
    named change requires (includes, declarations). An unmapped region is an
@@ -85,10 +101,18 @@ Then the summary block:
 ```text
 Baseline: <full SHA>
 Authorization source: <plan path or user-instruction identifier>
-Regions checked: <count>
+Regions checked: <emitted>/<full>
 Findings: <count or none>
 Status: PASS | NEEDS_ACTION
 ```
 
-The manager adjudicates each finding for concrete reachable failure and
-materiality under the standard defaults; this review adds no extra rounds.
+`Regions checked:` reports the `-Regions` table's row counts from
+`truncation.regions` as `emitted/full`. When they differ, only the emitted rows
+were reviewed: say so and name the unreviewed remainder rather than claiming the
+full count was checked, and the overall `Status` is then never `PASS` — at best
+`NEEDS_ACTION` with the shortfall stated, because unreviewed regions cannot be
+cleared.
+
+The manager decides each finding on whether the failure is concrete,
+reachable, and meaningful under the standard defaults; this review adds no
+extra rounds.

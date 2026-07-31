@@ -11,7 +11,7 @@ shell: powershell
 # Next Plan Review
 
 Audit one completed landing read-only. Produce an evidence-based,
-priority-sorted improvement backlog; do not retry the change, change files, mutate
+priority-sorted improvement backlog; do not retry the change, edit files, alter
 Plan claims, or inspect unrelated sessions.
 
 Run only in the invoking parent/manager context when manually triggered. Never
@@ -75,7 +75,7 @@ skill dispatches its required fresh reviewer.
    finalization producing the full hash. An exact ID or filename is selection
    evidence, not production proof. Inventory every direct ordinary child and
    headless execution that the proven invoking parent/main attempted, including
-   planning, nonmaterial, failed, and aborted attempts; the invoking parent/main
+   planning, attempts with no meaningful effect, failed, and aborted attempts; the invoking parent/main
    is not an inventory row. An ordinary child relationship requires both its
    parent delegation event and fixed return window. Do not use the finder or
    its descendants as inventory authority. Ambiguous parentage blocks transcript
@@ -105,17 +105,18 @@ single task brief from `.agents/references/subagent-reporting.md`, plus
 commit facts, sanitized locators, trust rules, and targeted event ranges.
 Require it to inspect every core delegation event and verify that brief contains
 the exact objective, owned scope/exclusions, fixed decisions, governing paths,
-affected artifacts, material identity, acceptance checks, prohibitions, and
-return format. Flag an inherited-context Codex turn fork unless it is the
-smallest positive fork and gives a concrete reason authoritative conversation
-text could not safely be summarized. Require the standard handoff:
+affected artifacts, meaningful identity, acceptance checks, prohibitions, and
+return format. Flag a Codex turn forked with the conversation context carried
+along unless it is the smallest positive fork and gives a concrete reason
+authoritative conversation text could not safely be summarized. Require the
+standard handoff:
 
 ```text
 Status: PASS | BLOCKED
 Changed files: none
 Decisive checks: provenance; sessions read; sourced timeline; pauses; conformance, minimality, and process evidence
 Control-work evidence: cited per-agent control-work/actual-work/unattributed intervals; excluded pauses/passive waits; uncertain intervals; lower/upper bounds
-Model-routing evidence: cited inventory for every direct child/headless attempt, including concern, proof chain, requested, configured, and actual model/effort route, verdict, and exposed cost
+Model-routing evidence: cited inventory for every direct child/headless attempt, including concern, the linked evidence from claim to conclusion, requested, configured, and actual model/effort route, verdict, and the cost it makes visible
 Build required: none
 Residuals: missing transcript or unverifiable fact, or none
 ```
@@ -136,7 +137,7 @@ rereading transcripts.
 Build a chronological evidence table covering the objective, tier/card/approval,
 implementation, propagation, checks, domain and conditional reviews, fix loops,
 build/harness work, reconciliation, landing approval, and landing. Include Plan
-selection, terminal preparation, and claim/release only when they occurred.
+selection, final preparation, and claim/release only when they occurred.
 Locate the governing user objective and, when present, the latest approved plan
 from transcript evidence. The latest approved plan governs conformance. Without an
 approved plan, the governing scope is the user objective plus recorded acceptance
@@ -184,7 +185,7 @@ from control work and the upper bound assigns all of it to control work. Show an
 exact point control-work share only when the evidence supports it. When `T = 0`,
 report the measure as `unverified`, not a division.
 
-The control decision is orthogonal to the time category: separately label each
+The control decision is independent of the time category: separately label each
 control as `required safety/control`, `candidate removable`, or `unverified`.
 Required control work remains control work, but is not automatically waste.
 Preserve the unchanged-input/non-firing safeguards: a removal or consolidation
@@ -192,11 +193,12 @@ recommendation requires measured cost, frequency, unique signal, and its safety
 tradeoff; one quiet run is not removal evidence.
 
 Assess core-delegation compliance with concrete evidence: manager-only core
-activity; a depth-one worker tree; one scoped worker per concern; prohibited
-duplicate search, restatement, or consensus work; artifact-path-plus-selector
-evidence forwarding rather than raw forwarding; and capsule/resume recovery
-rather than repetition of completed work. Mandatory fresh review, independent
-verification, and required disjoint fan-out are legitimate independent work,
+activity; one manager with a single level of workers below it; one scoped
+worker per concern; prohibited duplicate search, restatement, or consensus
+work; artifact-path-plus-selector evidence forwarding rather than raw
+forwarding; and capsule/resume recovery rather than repetition of completed
+work. Mandatory fresh review, independent verification, and required disjoint
+fan-out are legitimate independent work,
 not duplicate effort. A compliance finding cites the delegation record,
 session ID and timestamp or event/line location, artifact selector, or concrete
 repeated operation.
@@ -212,10 +214,11 @@ model and effort against the commit-time root `AGENTS.md` mapping and fallback,
 not the requested role alone. When the assigned task is unable to classify, or
 the governing mapping cannot be established, do not infer compliance.
 
-Use only these admissible proof chains. An ordinary Claude child is compliant
-only with its parent delegation event, recorded returned child relationship, and
-child-session execution metadata naming the actual executor/model and effort. A
-headless `/codex-review` is compliant only with its parent wrapper
+Use only these allowed evidence chains from claim to conclusion. An ordinary
+Claude child is compliant only with its parent delegation event, recorded
+returned child relationship, and child-session execution metadata naming the
+actual executor/model and effort. A headless `/codex-review` is compliant only
+with its parent wrapper
 invocation/result, the commit-time `.codex/codex-review.ps1` explicit model and
 effort pins, and fixed structured output. A requested role, explicit requested
 model/effort, or configured mapping proves intent only; when required model or
@@ -243,16 +246,16 @@ workflow process evidence only.
 Assess in this order:
 
 1. Governing-scope conformance: `aligned` when all governing work is represented
-   with no material unauthorized scope; `partial` when only part is implemented
-   without material contradiction; `divergent` when landed scope materially
+   with no meaningful unauthorized scope; `partial` when only part is implemented
+   without meaningful contradiction; `divergent` when landed scope meaningfully
    contradicts, substitutes for, or exceeds governing scope; or `unverified`
    when evidence is insufficient. This is factual scope mapping, not a
    correctness assessment. Treat required affected-site changes as propagation,
    not scope expansion.
 2. Solution minimality: `minimal` when no concrete simpler complete alternative
    is identified; `mixed` when localized removable complexity exists while the
-   core approach remains proportionate; `overengineered` when the core approach
-   or material portion is more complex than a concrete scope-conforming
+   core approach still matches the size of the change; `overengineered` when the core approach
+   or a meaningful portion is more complex than a concrete scope-conforming
    alternative; or `unverified` when evidence is insufficient. Report an issue
    only when it names landed complexity and a concrete simpler alternative that
    preserves governing scope, fixed decisions, and required invariants. Candidate
@@ -271,8 +274,8 @@ Assess in this order:
    measured size and the signal it bought. Do not penalize a narrow change
    for having no unnecessary subagents.
 5. Execution-model routing: inventory and verify every direct child/headless
-   attempt using the concern-first classification, admissible proof chains, and
-   verdict rules above.
+   attempt using the concern-first classification, allowed evidence chains,
+   and verdict rules above.
 6. Control-work share: classify and measure active agent-time using the rules
    above; distinguish required controls from removable candidates before
    treating the burden as waste.
@@ -328,7 +331,7 @@ extra reconcile, or elapsed-time threshold is automatically P0.
    - Evidence: <source>
    - Change: <specific workflow/script/instruction>
    - Expected benefit: <benefit>
-   - Tradeoff: <cost or none material>
+   - Tradeoff: <cost or no meaningful cost>
    - Control-work ranking: <measured burden, frequency, unique signal, and safety risk; when applicable>
 
 ## Strengths to preserve

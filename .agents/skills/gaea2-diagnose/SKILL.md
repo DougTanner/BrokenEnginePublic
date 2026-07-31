@@ -30,25 +30,37 @@ Confusable locations:
 
 ## Workflow
 
-### Step 1: Verify Python is available
+### Step 1: Set up the Python dispatch
 
-Same probe as the other gaea2-* skills:
+Every Python script below runs through the shared wrapper, which resolves the interpreter itself (via the shared `.agents/scripts/Detect-Python.ps1` probe) and reports it as data. Never run that probe and parse its `OK`/`MISSING`/`STALE` line yourself, and never call a script with a bare `python` or a captured interpreter path. In Claude Code's Git Bash terminal, convert the wrapper path once:
 
+```bash
+wrapper="$(cygpath -w "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/Invoke-Gaea2Python.ps1")"
 ```
-pwsh -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
+
+In a PowerShell 7 terminal use the path directly. Each call then takes the form:
+
+```bash
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "& '$wrapper' -Script <script.py> -Arguments '<arg>','<arg>'" 2>/dev/null
 ```
 
-Capture the `<python-exe-path>` for the next steps.
+A shell variable does not survive between separate tool calls, so repeat the `wrapper=` assignment in the same command as each call below. Use `-Command`, not `-File`: under `-File` an `-Arguments` list of more than one value collapses into a single token. The wrapper runs the script from the repository root whatever the current directory is, also passes the child's stderr through to yours (`2>/dev/null` when you only want the JSON), and prints one JSON object, `schemaVersion` `broken-engine-gaea2-python/v1`, carrying `interpreter`, `pythonVersion`, the child's `exitCode`, its `stdout` and `stderr` (each capped at 8192 characters, with `truncated` set when cut), plus `status`, `code`, `message`:
+
+- `ok` (exit 0) — read the script's output from `stdout`.
+- `python.missing` / `python.stale` (exit 2) — no usable x64 CPython 3.12+ interpreter, and nothing ran. Do not install anything: report to the user that Python is missing or too old, quoting `message`/`probeLine`, and — for `python.missing` — the `installCommand` the envelope carries as the suggested command for them to run (`installCommand` is null for a stale interpreter, which the user resolves by upgrading). Stop until they say it's installed.
+- `python.script-failed` (exit 1) — the script ran and failed; its own code is in `exitCode` and its diagnostics in `stderr`.
+- `script.not-found`, `probe.not-found`, `python.probe-failed`, `internal.error` (exit 1) — the dispatch itself failed; report `message`.
 
 ### Step 2: Decode the log
 
 For the QuadSpinner log streams:
 
-```
-"<python-exe-path>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/decode_gaea_err.py" --latest
+```bash
+wrapper="$(cygpath -w "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/Invoke-Gaea2Python.ps1")"
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "& '$wrapper' -Script decode_gaea_err.py -Arguments '--latest'" 2>/dev/null
 ```
 
-The decoder prints each ERR with its timestamp, trimmed to the exception line by default. Pass `--full` only when the stack trace would actually help — Newtonsoft stack traces are noisy and the first two lines almost always name the problem. If `--latest` reports no ERR lines, the error may have come from an earlier session — list `*.txt` in the log dir by mtime and try the previous one.
+The decoder's output arrives in the envelope's `stdout` field: each ERR with its timestamp, trimmed to the exception line by default. Add `'--full'` to `-Arguments` only when the stack trace would actually help — Newtonsoft stack traces are noisy and the first two lines almost always name the problem. If `--latest` reports no ERR lines, the error may have come from an earlier session — list `*.txt` in the log dir by mtime and try the previous one.
 
 A DataPacker-invoked failure is a Swarm failure like any other: decode it with `--latest-swarm`.
 
@@ -72,29 +84,31 @@ These three together tell you which sample query to run.
 
 ### Step 4: Find the valid value via shipping samples
 
-The shipping examples under `C:\Program Files\QuadSpinner\Gaea 2\Examples\` are the ground truth. Trust them over UI labels and over documentation — the Gaea UI library browser shows "Sandy", "Rocky", "Colorful", but the JSON enum the serializer expects is `Sand` / (absent for Rocky) / `Color`. Discrepancies like this recur.
+The shipping examples under `C:\Program Files\QuadSpinner\Gaea 2\Examples\` are the reliable reference. Trust them over UI labels and over documentation — the Gaea UI library browser shows "Sandy", "Rocky", "Colorful", but the JSON enum the serializer expects is `Sand` / (absent for Rocky) / `Color`. Discrepancies like this recur.
 
-Use `inspect_samples.py` to ask three kinds of questions:
+Use `inspect_samples.py`, dispatched through the same wrapper, to ask three kinds of questions (its answer is in the envelope's `stdout`):
 
-```
+```bash
+wrapper="$(cygpath -w "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/Invoke-Gaea2Python.ps1")"
+
 # What values does this enum actually accept?
-"<python>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/inspect_samples.py" --enum SatMap.Library
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "& '$wrapper' -Script inspect_samples.py -Arguments '--enum','SatMap.Library'" 2>/dev/null
 
 # What does a working node of this type look like?
-"<python>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/inspect_samples.py" --type Erosion2
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "& '$wrapper' -Script inspect_samples.py -Arguments '--type','Erosion2'" 2>/dev/null
 
 # What ports does this node have? (for wiring questions)
-"<python>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/inspect_samples.py" --ports Combine
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "& '$wrapper' -Script inspect_samples.py -Arguments '--ports','Combine'" 2>/dev/null
 ```
 
-Other useful queries when the error is less specific:
+Other useful queries when the error is less specific — same command, different `-Arguments`:
 
 ```
 # Where does this property name appear and with what values?
-"<python>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/inspect_samples.py" --field-grep Library
+-Arguments '--field-grep','Library'
 
 # What node types exist at all?
-"<python>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/inspect_samples.py" --list-types
+-Arguments '--list-types'
 ```
 
 ### Step 5: Apply the fix and re-save
@@ -131,5 +145,5 @@ Headless / DataPacker-invoked Swarm errors (from the same `*-SWARM.txt` logs; th
 ## Scope
 
 - This skill diagnoses; it does not edit the .terrain. Apply fixes via `Temp/<basename>.md` + `/gaea2-save` (Step 5); structural graph changes chain to `/gaea2-modify`.
-- Suspected Gaea-version drift: run the bundled `check_gaea_version.py` (also auto-runs from `/gaea2-load`).
+- Suspected Gaea-version drift: dispatch the bundled `check_gaea_version.py` through the Step 1 wrapper (`-Script check_gaea_version.py`, no arguments); `/gaea2-load` also runs it on every load.
 - Runtime crashes in the Gaea binary itself go to QuadSpinner support, not this skill.

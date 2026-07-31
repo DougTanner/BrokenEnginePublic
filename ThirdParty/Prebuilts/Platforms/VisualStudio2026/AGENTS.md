@@ -18,7 +18,7 @@ Supported wrapper scripts link stable primary submodule trees and primary `Outpu
 
 ## Source Organization
 
-The `.vcxproj` filters split units by consumer (`Engine`, `DataPacker`, `DataPacker\zlib`); see the parent `../../../AGENTS.md` for the per-library consumer inventory and the license policy (including the `lz4/lib`-only caveat). Compilation units come from two roots: unity wrapper `.cpp`/`.c` files under `ThirdParty/Prebuilts/Source/{Engine,DataPacker}/`, and upstream sources referenced directly in their library directories (bc7enc_rdo, zlib).
+The `.vcxproj` filters split units by consumer (`Engine`, `DataPacker`, `DataPacker\zlib`), following the source root each unit comes from. Compilation units come from two roots: unity wrapper `.cpp`/`.c` files under `ThirdParty/Prebuilts/Source/{Engine,DataPacker}/`, and upstream sources referenced directly in their library directories (bc7enc_rdo, zlib).
 
 When adding a new library:
 

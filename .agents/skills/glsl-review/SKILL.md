@@ -25,7 +25,7 @@ Read the footgun reference (`references/shader-footguns.md`) when a changed regi
 
 ## Workflow
 
-1. Derive the exact changed shader files and regions from the implementation handoff, conversation, or session-baseline diff. Include transitive shader headers and any dual-language header under `Engine/Data/Shaders/` or `Projects/*/Data/Shaders/`.
+1. Take the changed shader files and regions from the read-only inventory: `pwsh -NoProfile -File .agents/scripts/Get-SessionChangeInventory.ps1 -RepositoryRoot <absolute repository toplevel> -Baseline <full 40-character SHA> -Regions` (add `-Head <commit>` for a committed head; in Claude Code's Git Bash terminal convert the script path and root with `cygpath -w` exactly as `../cleanup-worktrees/SKILL.md` shows). It writes no file and prints one `broken-engine-session-change-inventory/v1` object: every `entries` row whose `class` is `glsl` or `dual-language-header` is in scope, and those class rules are the only statement of which `.h` files are shader sources — never restate or reconstruct that classification inline. The `regions` rows give the changed ranges. Only `status` `pass` (exit 0) is usable; `blocked` (exit 2) or `error` (exit 1) means the changed-file list is unavailable — report that outcome instead of reconstructing the list inline. The entries list is capped at 500 rows and the regions table at 400, and shader selection depends on both, so read `truncation.entries`, `truncation.regions`, and `truncated`: an emitted count below the full count in either one makes the selection incomplete, which blocks the review exactly as a non-pass status does. An untracked shader file appears only when the caller supplies it with `-IncludeUntracked <comma-separated paths>`, and `counts.unlistedUntracked` reports how many untracked files the run did not list. Include the transitive shader headers those files reach.
 2. Read the applicable shader `AGENTS.md`, each changed file, its nearby producers/consumers, and the relevant whole function. Search `ShaderFunctions.h` and family `*Common.h` files before recommending new helper logic.
 3. Trace every changed shader-facing header in both directions:
    - shader entry points that transitively `#include` it;
@@ -33,9 +33,9 @@ Read the footgun reference (`references/shader-footguns.md`) when a changed regi
    - DataPacker dependency capture from preprocessing (`-MD`/`-MF`) through dependency fingerprinting.
 4. Review changed dual-language declarations against the actual block qualifier and CPU representation. Compare field order, scalar widths, array strides, offsets, descriptor constants, writes, and binding roles. Do not infer layout from a generic `vec3` rule when `layout(scalar)` applies.
 5. Apply the checks below. Report only reachable failures supported by the changed code and repository evidence. Do not turn a generic checklist item into a finding.
-6. Emit an atomic external-claim request for every finding that depends on a non-obvious GLSL, Vulkan, extension, device, or compiler claim. Do not browse directly. Keep locally provable repository-contract findings separate.
+6. Emit an external-claim request covering one single checkable statement for every finding that depends on a non-obvious GLSL, Vulkan, extension, device, or compiler claim. Do not browse directly. Keep locally provable repository-contract findings separate.
 7. Return the report. A shader-facing shared header has both C++ and GLSL surfaces, so explicitly require `/repo-code-review` as the sibling domain review when such a header changed; this review does not replace it.
-8. Report a changed shader over ~5,000 `bt-token-v1` (measure with `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`) as a size observation in `Residuals`; splitting it via `ShaderFunctions.h`/`*Common.h` is follow-up work, not part of this findings-only review.
+8. Report a changed shader over ~5,000 `bt-token-v1` (measure every changed shader in one batched run: `pwsh -NoProfile -Command "& '<absolute path to Measure-Tokens.ps1>' -Path 'a','b','c' -Json"` — use `-Command`, not `-File`, because under `-File` the comma-separated list binds as one filename and the run fails; the single-path `-File ... -Path <path>` form still works for one file) as a size observation in `Residuals`; splitting it via `ShaderFunctions.h`/`*Common.h` is follow-up work, not part of this findings-only review.
 
 ## Broken Engine Contracts
 
@@ -87,7 +87,7 @@ Read the footgun reference (`references/shader-footguns.md`) when a changed regi
 
 ## External Claim Requests
 
-Emit one proposition per request so `/verify-external-claims` can return one verdict without adjudicating the code finding:
+Emit one proposition per request so `/verify-external-claims` can return one verdict without deciding the code finding:
 
 ```markdown
 ### External Claim Verification Request
@@ -98,7 +98,7 @@ Emit one proposition per request so `/verify-external-claims` can return one ver
 - Dependent finding: <file:line finding and why its severity depends on this proposition>
 ```
 
-Use only the official source set in the reference. If the proposition cannot be made atomic, split it. Keep the finding pending until the caller obtains `VERIFIED`, `REFUTED`, or `UNRESOLVED` evidence.
+Use only the official source set in the reference. If the proposition is not a single checkable statement, split it. Keep the finding pending until the caller obtains `VERIFIED`, `REFUTED`, or `UNRESOLVED` evidence.
 
 ## Output
 
@@ -111,7 +111,7 @@ Order findings by severity and omit empty sections:
 - P1 `path:line` — failure, reachable evidence, and smallest correction
 
 ### External Claim Verification Requests
-<atomic requests>
+<single checkable requests>
 
 ### Files Reviewed
 - `path`

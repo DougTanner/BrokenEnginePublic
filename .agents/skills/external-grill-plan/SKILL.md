@@ -10,15 +10,15 @@ allowed-tools: [Read, Grep, Glob, Agent, PowerShell, AskUserQuestion]
 
 # Grill Plan
 
-Resolve the material decisions that remain after repository exploration and a
+Resolve the meaningful decisions that remain after repository exploration and a
 fresh `/plan-audit`. The main session owns every user interaction. Delegates may
-locate evidence or verify an atomic external claim, but never interview the user
+locate evidence or verify a single checkable external claim, but never interview the user
 or choose for them.
 
 Execution splits by role: the preparation `implementer` performs every
 repository read, search, and WorktreeCli validation this skill requires and
 returns immutable decision briefs; the main session interviews the user,
-adjudicates, and dispatches the `locator` for external-claim requests. Role
+decides, and dispatches the `locator` for external-claim requests. Role
 contract: `../next-plan/references/tier3-workflow.md`.
 
 ## Required Input and Boundary
@@ -29,7 +29,7 @@ Require all of the following before starting:
 - evidence that `/plan-audit` reviewed this exact plan revision, plus the
   manager's decision on every finding;
 - user intent, applicable repository instructions, session baseline when one
-  exists, and any approved deltas;
+  exists, and any changes the user approved after the plan;
 - the draft execution card: Tier-3 triggers, roles, and each
   acceptance criterion with its decisive check and expected result.
 
@@ -44,9 +44,9 @@ plan is not Tier 3, stop and return the needed correction to the manager.
 1. Read the complete frozen plan text, audit result, finding decisions, execution
    card, applicable instructions, and every cited repository region needed to
    test its assumptions.
-2. For a bug fix, rank three to five falsifiable causal hypotheses internally.
+2. For a bug fix, rank three to five checkable causal hypotheses internally.
    Verify their predictions from code, logs, or supplied diagnostics. Ask only
-   when multiple live causes would materially change implementation or
+   when multiple live causes would meaningfully change implementation or
    verification.
 3. Run the Existing-Library Gate before other questions when the plan adds or
    rewrites a non-trivial subsystem, algorithm, or data structure.
@@ -55,6 +55,9 @@ plan is not Tier 3, stop and return the needed correction to the manager.
    rediscover code facts.
 5. Scan remaining decisions through the compact checklist below. Order them by
    dependency and batch up to three independent decisions in one interaction.
+   A pending `locator` `/verify-external-claims` verdict is an unsettled
+   prerequisite that blocks only the decisions depending on it; keep interviewing
+   the independent remaining decisions while it runs.
 6. After each answer, record the selected choice and the exact plan refinement
    it implies. Continue only with decisions newly unblocked by that answer.
 7. Run the closing checks, then return all refinements to the manager. The
@@ -62,8 +65,8 @@ plan is not Tier 3, stop and return the needed correction to the manager.
    additionally requires a fresh `/plan-audit` before this skill re-enters.
 
 Do not manufacture optional improvements, future extensibility, or routine
-confirmation questions. Stop when every material branch is evidence-resolved,
-user-resolved, or returned as a named pivot. If no material decision survives,
+confirmation questions. Stop when every meaningful branch is evidence-resolved,
+user-resolved, or returned as a named pivot. If no meaningful decision survives,
 return a no-delta handoff without asking the user anything.
 
 ## Decision Interaction
@@ -147,7 +150,7 @@ logic inseparable from internal engine types.
    rationale and continue with applicable checklist decisions.
 
 A library or design pivot always returns to the manager for incorporation and a
-fresh `/plan-audit`; it never mutates the supplied plan text in place.
+fresh `/plan-audit`; it never changes the supplied plan text in place.
 
 ## Plan Context
 
@@ -165,7 +168,7 @@ Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe plan validat
 Require exit `0`, JSON `status: valid`, and `code: ok`; otherwise stop with the
 exact diagnostic. Treat `plans` entries (`path`, `createdUtc`, `dependsOn`) as
 the tracked inventory. Read only relevant referenced Plan files to compare scope.
-Record non-blocking `notices`; do not run a scheduler mutation command.
+Record non-blocking `notices`; do not run a command that changes scheduler state.
 
 ## Closing Checks
 
@@ -181,7 +184,7 @@ Internally verify, without a routine final question:
   world-coordinate magnitude;
 - roles and acceptance checks match the Tier-3 triggers.
 
-Surface only a concrete material decision established by current evidence. Feed
+Surface only a concrete meaningful decision established by current evidence. Feed
 it through the same two-or-three-choice interaction contract.
 
 ## Handoff
@@ -189,12 +192,12 @@ it through the same two-or-three-choice interaction contract.
 Return the complete result inline. `Exact refinements` must preserve one entry
 per decision, including the selected choice and precise plan text/section
 change. `Plan delta` is relative to the frozen plan text; any behavior, scope,
-architecture, acceptance, or verification change is material.
+architecture, acceptance, or verification change is meaningful.
 
 ```text
 Plan snapshot: <inline identifier or exact path>
 Plan-audit evidence: <audited revision identifier and result>
-Plan delta: none | non-material | material
+Plan delta: none | not meaningful | meaningful
 Decisions and exact refinements:
 - <decision ID> — <selected choice> — <section and exact refinement>
 External claim verdicts:

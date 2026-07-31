@@ -344,7 +344,25 @@ if ($null -ne $run.Json) {
 	Assert-True ($run.Json.owner -ceq $reconcileOwner) 'reconcile lock preserves supplied owner'
 	Assert-True ($null -eq $run.Json.blocker) 'reconcile lock success has no blocker disposition'
 }
-Invoke-WorktreeCli @('lock', 'release', '--repo', $commonDirectory, '--owner', $reconcileOwner) | Out-Null
+$lockReleaseArguments = @('-WorktreeCliExecutable', (Join-Path $primaryOutput 'WorktreeCli.exe'), '-GitCommonDirectory', $commonDirectory, '-SessionLabel', 'finalize-fixture', '-Worktree', $session)
+$run = Invoke-JsonScript $lockClaimScript ($lockReleaseArguments + @('-LandingOwner', $reconcileOwner, '-Release'))
+Assert-Outcome $run 'reconcile-lock-release' 0 'pass' 'ok'
+if ($null -ne $run.Json) {
+	Assert-ExactProperties $run.Json @('schemaVersion','status','code','message','owner','lock','attempts','disposition','requiresUserAuthority','retryAfterMilliseconds','blocker') 'reconcile-lock-release'
+	Assert-True ($null -eq $run.Json.blocker) 'reconcile lock release success has no blocker disposition'
+}
+$releasedStatus = (@(Invoke-WorktreeCli @('lock', 'status', '--repo', $commonDirectory) 2) -join '')
+Assert-True ((($releasedStatus | ConvertFrom-Json -Depth 16).held) -eq $false) 'script release leaves the landing lock not held'
+$run = Invoke-JsonScript $lockClaimScript ($lockReleaseArguments + @('-LandingOwner', $reconcileOwner, '-Release'))
+Assert-Outcome $run 'reconcile-lock-release-idempotent' 0 'pass' 'ok'
+
+$run = Invoke-JsonScript $lockClaimScript ($lockReleaseArguments + @('-Release'))
+Assert-Outcome $run 'reconcile-lock-release-blank-owner' 1 'error' 'landing-lock.release-owner-required'
+if ($null -ne $run.Json) {
+	Assert-True ($run.Json.attempts -eq 0) 'blank-owner release reports no WorktreeCli attempts'
+}
+$releasedStatus = (@(Invoke-WorktreeCli @('lock', 'status', '--repo', $commonDirectory) 2) -join '')
+Assert-True ((($releasedStatus | ConvertFrom-Json -Depth 16).held) -eq $false) 'blank-owner release mints no token and creates no lease'
 
 $foreignLeaseOwner = [guid]::NewGuid().ToString()
 Invoke-WorktreeCli @('lock', 'claim', '--repo', $commonDirectory, '--owner', $foreignLeaseOwner, '--session', 'foreign-fixture', '--worktree', $session, '--lease-seconds', '60') | Out-Null
@@ -354,6 +372,12 @@ if ($null -ne $run.Json) {
 	Assert-True ($run.Json.disposition -ceq 'retryable-wait') 'live foreign lease exposes top-level retryable disposition'
 	Assert-True ($run.Json.blocker.disposition -ceq 'retryable-wait') 'live foreign lease is retryable'
 	Assert-True (-not $run.Json.blocker.requiresUserAuthority) 'live foreign lease needs no authority'
+}
+$run = Invoke-JsonScript $lockClaimScript ($lockReleaseArguments + @('-LandingOwner', ([guid]::NewGuid().ToString()), '-Release'))
+Assert-Outcome $run 'reconcile-lock-release-denied' 1 'error' 'landing-lock.release-denied'
+if ($null -ne $run.Json) {
+	Assert-ExactProperties $run.Json @('schemaVersion','status','code','message','owner','lock','attempts','disposition','requiresUserAuthority','retryAfterMilliseconds','blocker') 'reconcile-lock-release-denied'
+	Assert-True ($run.Json.lock.owner -ceq $foreignLeaseOwner) 'denied release reports the live foreign lease owner'
 }
 Invoke-WorktreeCli @('lock', 'release', '--repo', $commonDirectory, '--owner', $foreignLeaseOwner) | Out-Null
 

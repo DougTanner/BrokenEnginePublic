@@ -1,6 +1,6 @@
 # Projects/BrokenEngineSandbox/Data/Shaders - Game Shader Layout Wrapper
 
-Project-level extension point for the engine's shader layout system. The sole file, `ShaderLayouts.h`, is the per-project wrapper nearly every shader includes; it currently just forwards to the engine's `ShaderLayoutsBase.h` and adds nothing game-specific yet. Game-only shader constants or dual-language struct additions go after the include, so engine definitions are in scope.
+Project-level extension point for the engine's shader layout system. The sole file, `ShaderLayouts.h`, is the per-project wrapper nearly every shader includes; it currently just forwards to the engine's `ShaderLayoutsBase.h` and adds nothing game-specific yet. Game-only shader constants, or struct additions written once in a form both C++ and GLSL compile, go after the include, so engine definitions are in scope.
 
 ## Why this indirection exists
 

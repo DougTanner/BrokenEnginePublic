@@ -11,7 +11,7 @@ Game-owned command handlers expose simulation, scene, UI, capture, save/replay, 
 - Server handlers own simulation controls, status-change injection, frame and CPU profile queries, and save/replay operations. Save/load `file` values are appdata-relative bare filenames: reject empties, embedded NUL, separators, `..`, `:`, and Windows reserved device basenames.
 - Replay commands fail when `kbDebugInput` is disabled because the simulation will not consume those requests.
 - Replay transfer fixtures are server-only debug controls. Keep their injected state deterministic; a Blaster fixture must materialize a newly live destination's derived terrain grid before selecting a terrain-clear position for both its spawn and first fixed-tick movement, since Blasters destroy themselves on terrain contact.
-- Commands that wait for a later frame, renderer mailbox, or input script use the engine deferred-response path. Ensure every deferred operation can resolve or fail without blocking the single in-flight channel.
+- Commands that wait for a later frame, for the queue where messages wait for the renderer to pick them up, or for an input script use the engine deferred-response path. Ensure every deferred operation can resolve or fail without blocking the single in-flight channel.
 - Scene queries are client-only and read render-visible state. Server frame queries read deterministic simulation state and must preserve collection/type validation.
 
 ## See Also

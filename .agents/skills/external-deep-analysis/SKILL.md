@@ -39,27 +39,29 @@ Before architecture analysis, invoke `code-quality-metrics` Snapshot once with
 the resolved relative-POSIX target, the same `Exact`, `Directory`, or
 `Recursive` scope mode, and the absolute checkout root. This single capture
 analyzes the complete corpus and the resolved target together; do not substitute
-separate corpus and target runs. Use the public `Invoke-CodeQualityMetrics.ps1`
-entry point with `-Mode Snapshot -Target <resolved-relative-POSIX-path> -Scope
-<resolved-mode> -RepositoryRoot <absolute-checkout-root>`, and consume the
-`current` CaptureView fields documented by
-`../code-quality-metrics/references/MetricContract.md`.
+separate corpus and target runs. Call the digest wrapper `pwsh -NoProfile -File
+.agents/skills/code-quality-metrics/scripts/Get-CodeQualityEvidence.ps1 -Mode
+Snapshot -Target <resolved-relative-POSIX-path> -Scope <resolved-mode>
+-RepositoryRoot <absolute-checkout-root> -Phase0Hints`, and consume its
+`profile`, `targetSelection`, `coverage`, and `hints` fields. This main context
+may add `-EvidenceDirectory` with an absolute ignored `Temp/` path to retain the
+full report, which the digest names in `evidencePath`.
 
-An operational failure, including the entry point's exit `2`, blocks the
-pipeline. Treat every reported parse omission as an explicit metric residual,
-not a pipeline failure. Identify target paths from `current.targetManifest` and
-forward only these investigation hints to both native analysis phases:
+An operational failure blocks the pipeline and emits one error envelope with null
+digest fields: exit `1` carries `evidence.contract-mismatch` naming the exact
+field path for a contract violation, or `internal.error` for any other unexpected
+operational error, and exit `2` forwards the entry point's own error verbatim in
+`underlying`. Treat
+every reported parse omission as an explicit metric residual, not a pipeline
+failure.
 
-- at most 10 target file outliers and 10 target area outliers from
-  `current.targetOutliers`, each ordered by delta descending then key;
-- at most 10 target-intersecting `current.cloneGroups`, ordered by target-flagged
-  SLOC descending then `groupHash`, with no more than four target and four
-  external instances per group;
-- at most 10 target `current.highComplexityFunctions`, ordered by mass descending
-  then canonical identity; and
-- at most 10 target `current.skips`, ordered by path.
+`hints` arrives already ordered, truncated, and counted in four categories —
+target file and area outliers, target-intersecting clone groups, target
+high-complexity functions, and target skips — each stating its `total` and
+`emitted` counts, including zeroes. Forward exactly these hints to both native
+analysis phases as received; never reconstruct their selection, ordering, or
+truncation inline.
 
-Every hint category states its total and truncated counts, including zeroes.
 The forwarded hints are scoped evidence to inspect, never findings: they do
 not expand the original target, create Plans, alter the Debt Score, or replace
 source inspection. Retain corpus coverage and all parse-omission residuals for
@@ -100,28 +102,29 @@ For every candidate, require a verdict and evidence for:
    and support the claimed root cause.
 2. Benefit and safety — the proposed outcome is functional or structural,
    not cosmetic, pattern-breaking, or more risky than the proven debt.
-3. Actionability — the acceptance gap and smallest correction boundary are
-   concrete enough for a plan author.
+3. Actionability — the unmet acceptance criterion and smallest correction
+   boundary are concrete enough for a plan author.
 4. External claims — non-obvious API, specification, license, maintenance,
    or ThirdParty propositions become verification requests for the main context
    to route through `verify-external-claims`; unresolved claims remain residuals.
 
-The main context adjudicates reviewer evidence once. Drop disproven candidates,
+The main context decides on reviewer evidence once. Drop disproven candidates,
 retain verified caveats, and preserve each accepted finding's originating phase,
-symbols, evidence, invariant exposure, and acceptance gap. Keep oversized-file
-items labeled as `/reduce-file` follow-ups.
+symbols, evidence, invariant exposure, and unmet acceptance criterion. Keep
+oversized-file items labeled as `/reduce-file` follow-ups.
 
 ## Phase 4: Author and Stage Follow-Ups
 
 Invoke `create-follow-up-plans` natively with all accepted candidates, reviewer
 verdicts, user decisions, source reports, session changed-file list, and the
-deep-analysis intent that established each acceptance gap. Treat analysis
-findings as pre-existing or out-of-scope debt, never as permission to fix code.
+deep-analysis intent that established each unmet acceptance criterion. Treat
+analysis findings as pre-existing or out-of-scope debt, never as permission to
+fix code.
 
 That skill exclusively owns plan classification, area placement, naming,
 grouping, collision handling, duplicate mapping, live-plan updates, dependency
 decisions, tier triggers, and Plan metadata. Do not pre-create plan files, copy
-the metadata schema, or read or mutate machine-local scheduler data. Pass
+the metadata schema, or read or change machine-local scheduler data. Pass
 oversized files with their required `/reduce-file <path>` instruction intact.
 
 Account for every accepted item using the authoring skill's Created,
@@ -132,13 +135,13 @@ residual, not grounds for an alternate scheduling path.
 ## Phase 5: Verify and Finalize
 
 Run `verify-changes` against the final tracked plan tree and the complete
-`create-follow-up-plans` report. Map scope, finding adjudication, candidate
+`create-follow-up-plans` report. Map scope, finding decisions, candidate
 accounting, plan validation, and summary data to decisive checks. Verification
 reviewers remain findings-only; route any accepted semantic correction back
 through the owning workflow before re-verification.
 
 Then invoke `finalize-changes` for the tracked Plan files and follow its user
-sign-off contract. The scheduler discovers landed Plans from Git; never mutate
+sign-off contract. The scheduler discovers landed Plans from Git; never change
 machine-local scheduler state as a publication step.
 
 ## Summary
@@ -147,7 +150,7 @@ After successful verification and the applicable finalization outcome,
 report:
 
 - exact target, scope mode, file count, and applicable authorities;
-- metric profile, target and corpus coverage, scoped-hint total/truncated
+- metric profile, target and corpus coverage, scoped-hint total/emitted
   counts, and every metric residual;
 - architecture and refactor-clean finding counts;
 - created, updated, duplicate-mapped, rejected, and residual items, with every

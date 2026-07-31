@@ -134,6 +134,9 @@ void StreamingVoices::Clear(bool bNullVoicesBeforeDestroy)
 {
 	mFillWorker.Wait();
 
+	// Unlike Update above, the stream containers are destroyed inside this lock scope. That is only safe because
+	// StreamingVoice::OnBufferEnd is a bare atomic increment that never takes mMutex, so DestroyVoice() can wait for
+	// outstanding callbacks while we still hold it. Keep that callback lock-free.
 	std::lock_guard<std::mutex> lock(mMutex);
 
 	if (bNullVoicesBeforeDestroy)

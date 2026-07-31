@@ -1,6 +1,6 @@
 # BrokenEngineSandbox Agent Harness
 
-Project-specific launch configuration, verification recipes, durable caveats, and command schemas for driving BrokenEngineSandbox through the `/agent-harness` skill. The skill ([SKILL.md](../../../.agents/skills/agent-harness/SKILL.md)) owns provision/claim, ownership/takeover, the request/response envelope, lifecycle/release, and — in [command-reference.md](../../../.agents/skills/agent-harness/references/command-reference.md) — the four engine-shared command schemas (`ping`, `quit`, `get_logs`, `set_log_level`). Read this doc after selecting BrokenEngineSandbox and before launching; it owns the executable paths, output directory, extra launch arguments, game command schemas, and canonical verification recipes.
+Project-specific launch configuration, verification recipes, durable caveats, and command schemas for driving BrokenEngineSandbox through the `/agent-harness` skill. The skill ([SKILL.md](../../../.agents/skills/agent-harness/SKILL.md)) owns provision/claim, ownership/takeover, the request/response envelope, lifecycle/release, and — in [command-reference.md](../../../.agents/skills/agent-harness/references/command-reference.md) — the four engine-shared command schemas (`ping`, `quit`, `get_logs`, `set_log_level`). Read this doc after selecting BrokenEngineSandbox and before launching; it owns the executable paths, output directory, extra launch arguments, game command schemas, and authoritative verification recipes.
 
 ## Launch
 
@@ -48,9 +48,9 @@ if ($IslandReadiness.SchemaVersion -cne 'broken-engine-island-scene-readiness/v1
 
 This is a criterion-specific gate, not general launch readiness. It holds the client visible and proves a ready client tick plus two stable complete footprint samples.
 
-## Canonical verification
+## Authoritative verification
 
-Set up server and client state with the recipe below, then verify and release per the skill's Canonical verification evidence principles and lifecycle checklist.
+Set up server and client state with the recipe below, then verify and release per the skill's Authoritative verification evidence principles and lifecycle checklist.
 
 1. Set up server state with `reset`, then `spawn_players` or `inject_status_changes` at a coord from `status.activeCoords`; confirm through `query_players`/`query_frame`.
 2. Launch/connect the client and require `status.clientCount` to increase.
@@ -92,13 +92,13 @@ G. Abort an injected start failure: `reset`, pause, arm `replay_inject_persisten
 
 #### Replay manifest v3 integrity matrix
 
-This is a stopped-server AppData test, not an agent command. Produce the valid multi-coordinate fixture above and prove one loop. Stop/release the server, back up the complete `F7.replay.manifest`, `.grid`, `.meta`, and every coord sibling; restore the backup before each mutation and relaunch. The v3 manifest is fixed-width little-endian: version, initial tick, activation count and `(activationTick,x,y)` records; a `hasFullFrames` byte; inventory count and ordered `(kind,coordKey,byteCount,sha256[32])` entries; then the 32-byte generation digest. Kinds are grid/meta/header/frames/checksums/fullframes = 0..5. The SHA-256 preimage is, in order, the four little-endian length bytes `2B 00 00 00`, the 43 bytes of `broken-engine/replay-manifest-generation/v3` without a NUL, then the exact manifest semantic payload bytes from version through inventory.
+This is a stopped-server AppData test, not an agent command. Produce the valid multi-coordinate fixture above and prove one loop. Stop/release the server, back up the complete `F7.replay.manifest`, `.grid`, `.meta`, and every coord sibling; restore the backup before each change and relaunch. The v3 manifest is fixed-width little-endian: version, initial tick, activation count and `(activationTick,x,y)` records; a `hasFullFrames` byte; inventory count and ordered `(kind,coordKey,byteCount,sha256[32])` entries; then the 32-byte generation digest. Kinds are grid/meta/header/frames/checksums/fullframes = 0..5. The SHA-256 preimage is, in order, the four little-endian length bytes `2B 00 00 00`, the 43 bytes of `broken-engine/replay-manifest-generation/v3` without a NUL, then the exact manifest semantic payload bytes from version through inventory.
 
 For every rejection case, pause immediately after relaunch, record `status.activeCoords` and the live ID state, send `replay_play`, and require `status.replaying:false` with unchanged live state (no adoption). Corruption cases require a new `SaveLoadReplay aborted: corrupt replay data:` line.
 
 H1. Change version to `2`: reject with a new `Replay manifest version ...` line; restore v3 unchanged and require a loop as the control.
-H2. Mutate one byte or byte count of each inventory kind; then separately remove, replace with a directory, or replace with a reparse point each named artifact. Reject before grid/meta/stream parsing.
-H3. Mutate the generation digest and reject. For the binary coordinate-identity case, change a kind-2 coord-header entry from `[1,0]` to unrecorded `[2,0]` (little-endian `ToKey` bytes `00 00 00 00 02 00 00 00`), preserve inventory ordering, and recompute the generation digest; require `ReplayManifest inventory identity` to corrupt-abort before adoption. Separately test invalid fullframes flag, unknown kind, reordered inventory, duplicate inventory entry, missing/surplus entry, negative count/size, and trailing data. Reject each.
+H2. Change one byte or byte count of each inventory kind; then separately remove, replace with a directory, or replace with a reparse point each named artifact. Reject before grid/meta/stream parsing.
+H3. Change the generation digest and reject. For the binary coordinate-identity case, change a kind-2 coord-header entry from `[1,0]` to unrecorded `[2,0]` (little-endian `ToKey` bytes `00 00 00 00 02 00 00 00`), preserve inventory ordering, and recompute the generation digest; require `ReplayManifest inventory identity` to corrupt-abort before adoption. Separately test invalid fullframes flag, unknown kind, reordered inventory, duplicate inventory entry, missing/surplus entry, negative count/size, and trailing data. Reject each.
 H4. On Debug, kind-5 `.fullframes` holds complete frame snapshots distinct from the kind-3 `.frames` input-difference stream; require one kind-5 fullframes manifest entry for each recorded coord's kind-2 header, and require every named ordinary fullframes file to match its manifest size/hash identity. A clean replay control must prove the debug reader consumes the snapshots without CRC, desync, or read errors. On non-Debug, static inspection proves `kbReplayFullFrames == false` and v3 has no kind-5 entry. Do not enable runtime Release diagnostics.
 H5. While recording with no special coord requirement, arm `replay_inject_persistence_failure {"stage":"inventory"}`, stop, then call `replay_play`: it must fail with no valid manifest/adoption. This verifies manifest-last publication.
 H6. These procedures do not claim authentication or protection against files changed after preflight.

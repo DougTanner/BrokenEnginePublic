@@ -10,7 +10,7 @@ allowed-tools: [Read, Write, Grep, Glob, Agent, Edit, PowerShell, AskUserQuestio
 
 Use only for a current explicit `/next-plan` or `$next-plan` invocation. Main
 retains user intent and dispatches fixed roles; workers never delegate.
-WorktreeCli alone validates metadata, selects, claims, prepares terminal state,
+WorktreeCli alone validates metadata, selects, claims, prepares final state,
 and releases claims. `Documents/Features` is never scheduler input. The
 cross-skill stage order lives in root [AGENTS.md](../../../AGENTS.md) Step 8,
 and the landing confirmation belongs to `/finalize-changes`.
@@ -24,8 +24,8 @@ authorized primary maintenance through `/compile`. Never create/adopt a
 worktree or inspect machine-local claims directly.
 
 - Bare invocation selects the oldest eligible Plan by immutable `createdUtc`,
-  then canonical UTF-8 path.
-- A canonical `Documents/Plans/...` argument selects that Plan.
+  then normalized UTF-8 path.
+- A normalized `Documents/Plans/...` argument selects that Plan.
 - A filename selects only one exact case-sensitive executable leaf match;
   zero/duplicates block. Reject every other path shape.
 
@@ -42,16 +42,16 @@ this session already holds is returned idempotently.
 
 One preparation `implementer` verifies every Plan statement against current code;
 the Plan is immutable. Current code wins on contradiction, which is returned as
-a card correction or material delta rather than forced into the tree. If the
+a card correction or meaningful delta rather than forced into the tree. If the
 problem is gone, main asks whether to retain it or explicitly authorize obsolete
-terminal cleanup.
+final cleanup.
 
 The execution card begins with `### What does this plan do?` and `### Why this
 is good for the codebase`, each 2-4 plain sentences, then records goal, out of
 scope, tier trigger, interfaces/invariants, acceptance checks with expected
 observations, and required/conditional roles. Tier 1 skips plan audit. Tier 2
 uses one fresh `/plan-audit` reviewer. Tier 3 follows `/external-grill-plan`,
-whose canonical workflow reference owns its iterative preparation. Missing a
+whose authoritative workflow reference owns its iterative preparation. Missing a
 mandatory reviewer blocks.
 
 Invoke the claim script idempotently immediately before the final preparation
@@ -66,13 +66,13 @@ Plan and execution card before implementation: scope, invariants, role
 assignments, acceptance criteria, and unresolved decisions. Codex Plan Mode
 returns one complete `proposed_plan`; another host uses its approval UI, or asks
 one direct question. An affirmative response approves only the latest unchanged
-presentation. A material Plan, card, scope, invariant, acceptance, or decision
+presentation. A meaningful Plan, card, scope, invariant, acceptance, or decision
 change requires a new complete presentation.
 
 Skip only this pause when preparation proves the Plan is Tier 1,
-decision-complete, current, and free of material scope/acceptance delta and
+decision-complete, current, and free of meaningful scope/acceptance delta and
 unresolved decisions; main records those facts and continues. Tier 2/3,
-ambiguity, a material delta, or an unresolved decision presents for approval
+ambiguity, a meaningful delta, or an unresolved decision presents for approval
 first.
 
 After approval, or after recording that skip, continue through the root Change
@@ -90,7 +90,7 @@ dependency edges, deletes the selected Plan in the worktree, reports the
 `nextAction: finalize-changes`. The claim stays held until landing succeeds.
 
 Deferral uses `scripts/Defer-NextPlan.ps1` and only an ordinary live claim;
-never defer after terminal preparation has run. `/finalize-changes` deletes the
+never defer after final preparation has run. `/finalize-changes` deletes the
 claim after primary advances. Run `scripts/Test-NextPlanWorkflowScripts.ps1`
 only when one of those scripts changes.
 

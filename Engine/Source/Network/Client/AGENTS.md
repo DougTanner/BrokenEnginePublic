@@ -10,7 +10,7 @@ Server-update kinds land in separate buffers: per-tick coord delta updates (one 
 
 ## Subscription Receive Invariants
 
-Most receive handlers (full-state, coord-update, subscribe-accept) classify into a flag set (commit / clear-placeholder / epoch heal / reject-as-ghost) before mutating slot state, the choke point for the epoch (the reuse counter — see `../../AGENTS.md`) and ghost logic below; static data applies the same logic inline.
+Most receive handlers (full-state, coord-update, subscribe-accept) classify into a flag set (commit / clear-placeholder / epoch heal / reject-as-ghost) before mutating slot state, the choke point for the epoch (the reuse counter) and ghost logic below; static data applies the same logic inline.
 
 - Epoch check (drop rationale: hub's slot ACK model) applies only where the slot has a server-assigned epoch — a `kSubscribing` placeholder has none yet.
 - Out-of-order full state (before subscribe-accept) claims the coord for the slot only when a matching `kSubscribing` placeholder still exists, clearing that placeholder at whichever slot holds it. Without that placeholder, the full state is a ghost and triggers an epoch-qualified unsubscribe.
@@ -25,6 +25,8 @@ Most receive handlers (full-state, coord-update, subscribe-accept) classify into
 ## Transport Timing Inputs
 
 The transport seeds pipeline RTT from the handshake wall-clock delta, then refines it from a client timestamp echoed in each coord update; a monotonic guard prevents duplicate processing during multi-frame ticks. Resends skip RTT/jitter processing because off-cadence arrivals would corrupt the interarrival jitter estimate. The game session consumes these measurements for clock correction; formulas live in `../../../../Documents/Architecture/Network.md`.
+
+When the clock check finds no `kActive` slot at all, it resets the latest-server-tick baseline to "no clock yet" and returns no correction. Keep that reset with the active-slot check: the baseline feeds the ceiling on how far the client may simulate, so a stale value left behind after the last subscription drops would clamp the simulation and freeze it until a new subscription catches up.
 
 ## Other
 

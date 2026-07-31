@@ -339,6 +339,8 @@ void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCoun
 
 	VkDrawIndexedIndirectCommand& rCommand = mpIndirectMappedMemory[iCommandBuffer];
 
+	// A negative iIndexCount means "draw the whole vertex buffer"; an explicit 0 stays a real zero-index draw, which is
+	// how an empty material range is expressed. Never normalize one of the two into the other.
 	rCommand.indexCount = static_cast<uint32_t>(iIndexCount < 0 ? mInfo.pVertexBuffer->mInfo.iCount : iIndexCount);
 	rCommand.instanceCount = static_cast<uint32_t>(iInstanceCount);
 	rCommand.firstIndex = static_cast<uint32_t>(iFirstIndex);

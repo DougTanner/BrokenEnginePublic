@@ -33,12 +33,16 @@ enum class DescriptorFlags : uint64_t
 		kSamplerAny                 = 0x00010 | 0x00020 | 0x00040 | 0x00080 | 0x00100 | 0x00200 | 0x10000 | 0x20000 | 0x80000,
 	kStorageImages                  = 0x0400,
 
+	// One plain buffer shared by every frame in flight — correct only for data the CPU does not rewrite per frame.
+	// Per-frame data must use one of the framebuffer-indexed routings below instead, or the pipeline reads a buffer
+	// the CPU is concurrently writing for another frame: stale or torn values, with no validation error.
 	kUniformBuffer                  = 0x0800,
 	kStorageBuffer                  = 0x1000,
+	// Caller-supplied array of per-framebuffer buffers; the writer picks the entry matching the frame being recorded.
 	kPerCommandBufferUniformBuffers = 0x2000,
 	kPerCommandBufferStorageBuffers = 0x4000,
-	kGlobalLayoutUniformBuffers     = 0x100000,
-	kMainLayoutUniformBuffers       = 0x200000,
+	kGlobalLayoutUniformBuffers     = 0x100000, // The renderer's own per-framebuffer global layout buffers
+	kMainLayoutUniformBuffers       = 0x200000, // The renderer's own per-framebuffer main layout buffers
 
 	kModel                          = 0x8000,
 

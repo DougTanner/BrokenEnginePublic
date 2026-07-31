@@ -50,7 +50,7 @@ Invariants that must hold:
 
 - The emitted JSON keeps the `broken-engine-plan-closure-references/v1` schema and its `baseline`, `completedPlan`, `terms`, and `hits` fields; only the `hits` set grows.
 - The `-CompletedPlan` canonical-path guard still rejects any path outside the two planning trees.
-- No file under `Documents/Investigations/` gains byte-zero metadata, and the scheduler's view of the repository is unchanged.
+- No file under `Documents/Investigations/` gains a metadata line at the very first bytes of the file, and the scheduler's view of the repository is unchanged.
 
 ## Acceptance criteria
 

@@ -14,7 +14,7 @@ Caveat — capture runs drop Vulkan validation. With `renderdoc.dll` loaded (whi
 
 Launch with the selected project's harness-doc launch block (`Projects/<Project>/Documents/AgentHarness.md`), adding `--renderdoc` to the client arguments only. Confirm the API attached with `get_logs {"pattern":"renderDocHmodule|RenderDoc API"}` — expect a nonzero `renderDocHmodule` and a nonzero `RenderDoc API` pointer.
 
-Capture with `renderdoc_capture` (schema in the project harness doc, `Projects/<Project>/Documents/AgentHarness.md`). Size `--timeout-ms` for the drain-count liveness bound, not wall-clock. The default agent client is minimized, so the command restores it without activation, captures, and re-minimizes.
+Capture with `renderdoc_capture` (schema in the project harness doc, `Projects/<Project>/Documents/AgentHarness.md`). Size `--timeout-ms` for the drain-count progress bound, not wall-clock. The default agent client is minimized, so the command restores it without activation, captures, and re-minimizes.
 
 ```powershell
 '{"cmd":"renderdoc_capture","params":{"frames":1}}' |

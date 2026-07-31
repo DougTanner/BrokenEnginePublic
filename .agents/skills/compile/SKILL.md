@@ -25,7 +25,7 @@ Builds through the current checkout's WorktreeCli executable. `WorktreeCli build
 
 ## AgentTools trigger
 
-The canonical executables are `$ROOT\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` and `$ROOT\Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe`. Routine work consumes these immutable primary Outputs and never builds into or writes through them:
+The authoritative executables are `$ROOT\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` and `$ROOT\Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe`. Routine work consumes these immutable primary Outputs and never builds into or writes through them:
 
 ```powershell
 & "$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot $ROOT
@@ -38,15 +38,48 @@ if (-not (Test-Path -LiteralPath $WorktreeCli -PathType Leaf) -or -not (Test-Pat
 If either executable is missing, stop: wrappers own bootstrap. When the changed
 set contains a non-Markdown path under `Tools/WorktreeCli/`,
 `Tools/AgentHarness/`, or `Tools/ToolCommon/`, the rebuilt tools are promoted
-through `/finalize-changes`' AgentTools promotion — quiescence plus
-backup/rollback under the shared mutex — which also owns bootstrap policy. This
+through `/finalize-changes`' AgentTools promotion — waiting until there is no
+activity, plus backup/rollback under the shared mutex — which also owns bootstrap policy. This
 compile run only builds; it never promotes or copies tools. An agent changing
 shared tool infrastructure pauses and warns the user only if the change could
 cause problems for other live worktrees.
 
 ## Determine what to build
 
-Resolve identities once before selecting data mode or changed paths. An explicitly supplied session baseline from the caller or approved execution card is authoritative and must not be replaced with a later `HEAD`. Otherwise use `BROKEN_ENGINE_BASELINE` when present, then the selected checkout's current `HEAD`. Resolve `$ROOT` from `BROKEN_ENGINE_WORKTREE_PATH` when present, otherwise from `git rev-parse --show-toplevel` in the caller-supplied/current checkout. Resolve `$PRIMARY` from `BROKEN_ENGINE_PRIMARY_CHECKOUT` when present; otherwise use the parent of the absolute Git common directory (`git -C $ROOT rev-parse --path-format=absolute --git-common-dir`). Canonicalize and validate each path, require `$ROOT` to equal its Git top level, require `$PRIMARY\.git` to be an ordinary directory, and require `$BASELINE` to resolve to a commit. Environment values are wrapper-provided identity hints, not permission to move a supplied baseline.
+Resolve identities, the changed-path set, and the data-mode directories once, before selecting data mode or targets, by running the repository-owned read-only script. In Codex's PowerShell 7 terminal, from the caller-supplied/current checkout:
+
+```powershell
+$Script = Join-Path (git rev-parse --show-toplevel).Trim() '.agents/skills/compile/scripts/Resolve-CompileContext.ps1'
+# Append -RepositoryRoot/-PrimaryCheckout/-Baseline only when the caller explicitly supplied that
+# input, and -IncludeDevEnvDir only for an authorized Local generation build. An empty or unset
+# value counts as not supplied: omit the parameter so the env-hint/derived-default fallback applies.
+$ScriptArguments = @()
+if ($SuppliedBaseline) { $ScriptArguments += @('-Baseline', $SuppliedBaseline) }
+$Context = pwsh -NoProfile -ExecutionPolicy Bypass -File $Script @ScriptArguments | ConvertFrom-Json
+```
+
+In Claude Code's Git Bash terminal, convert the script path first:
+
+```bash
+script="$(cygpath -w "$(git rev-parse --show-toplevel)/.agents/skills/compile/scripts/Resolve-CompileContext.ps1")"
+# Same rule: append -Baseline "$supplied_baseline" (and -RepositoryRoot/-PrimaryCheckout) only when
+# that input was explicitly supplied.
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$script"
+```
+
+The script writes exactly one `broken-engine-compile-context/v1` JSON object to stdout; human diagnostics go to stderr. Each input takes an explicitly supplied parameter first, then the wrapper environment hint (`BROKEN_ENGINE_WORKTREE_PATH`, `BROKEN_ENGINE_PRIMARY_CHECKOUT`, `BROKEN_ENGINE_BASELINE`), then the derived default. Environment values are wrapper-provided identity hints, not permission to move a supplied baseline. Read from the result:
+
+- `status`/`code`/`message` with exit `0` pass, `2` structured blocked, `1` internal error. Any nonzero exit stops the build: report the exact `code` and `message`.
+- `repositoryRoot` (`$ROOT`), `primaryCheckout` (`$PRIMARY`), and `baseline` (`$BASELINE`, the resolved commit) — a supplied session baseline is authoritative and is never advanced to a later `HEAD`.
+- `changedPaths`/`changedPathCount` — the complete changed-path set: the single baseline diff (committed, staged, and unstaged tracked changes) plus untracked files, separator-normalized. `changedPathsTruncated`, `triggerMatchesTruncated`, `deletionOnlyCandidatesTruncated`, and code `output.capacity-exceeded` are blocking conditions, never a partial answer to work from.
+- `triggerMatches` — each changed path with the Local path trigger it matched.
+- `deletionOnlyCandidates` — trigger-matching changed paths whose baseline diff status is a deletion, with rename sides excluded. Evidence for the deletion-only exception below, never its decision.
+- `dataBuildMode` with `dataBuildModeDerivation` `path-rules-only`, plus `gameDataDirectory` and `generatedDataIncludeRoot`.
+- `devEnvDir` — present only when `-IncludeDevEnvDir` was passed.
+
+Blocking codes: `repository-root.unresolved`, `repository-root.mismatch`, `primary-checkout.unresolved`, `primary-checkout.invalid`, `baseline.unresolved`, `changed-paths.unavailable`, `changed-paths.capacity-exceeded`, `output.capacity-exceeded`, and `dev-env-dir.unresolved`.
+
+Never reconstruct these operations inline: no hand-typed changed-path `git diff`/`git ls-files` commands, no hand-resolved `$ROOT`/`$PRIMARY`/`$BASELINE`, and no inline `vswhere`/`DevEnvDir` discovery. A blocked result is a stop, not a cue to redo its work by hand.
 
 - Default: BrokenEngineSandbox client Debug.
 - If any changed file is shared (`Common/`, `Engine/`, or non-exclusive game code), build both client and server.
@@ -73,7 +106,7 @@ Parse and report only the structured result described above after every requeste
 
 ## Select runtime data mode
 
-Every worktree game build uses one data mode and one canonical directory for both client and server:
+Every worktree game build uses one data mode and one authoritative directory for both client and server:
 
 - Shared is the default for ordinary code changes. Set `$GameDataDirectory` to `$PRIMARY\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\Data`; this mode consumes primary generated headers/packs and disables every DataPacker build/export step.
 - Local is mandatory when tracked changes from `$BASELINE`, staged changes, unstaged changes, or untracked files touch `DataPacker/**`, `Engine/Data/**`, `Projects/BrokenEngineSandbox/Data/**`, `Common/DataFile.h`, generated-header logic, exporter versions/fingerprints, compression, chunk layout, or pack/manifest contracts. Set `$GameDataDirectory` to `$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\Output\Data`.
@@ -81,11 +114,11 @@ Every worktree game build uses one data mode and one canonical directory for bot
 - An absent worktree `Data` output never blocks Local. A linked worktree that has never generated has no `Output\Data` directory at all; that is the legitimate expected starting state, not missing setup. On an authorized Local generation build DataPacker seeds it from the primary checkout itself — the Local generation section below states the exact mechanism and its conditions. Never stop, ask the user to pre-stage output, or hand-run an export because the directory is absent. The only thing an agent must supply is generation *authorization*; the genuine blockers are validation and environment failures DataPacker reports itself — an unrecognized reparse point, absent primary output, or insufficient disk — never a user-prepared directory.
 - Deletion-only exception: pure deletions of source asset files under `Engine/Data/**` or `Projects/BrokenEngineSandbox/Data/**` do not trigger Local when a repository-wide search proves nothing tracked references the deleted asset's generated identity (its generated CRC constant, chunk, or path). With `RunDataPacker=false` the build consumes only pre-existing generated output, which a source deletion cannot alter — the dead chunk persists in the published pack and the unused constant in the generated header until the next real DataPacker export drops both. Record the reference-search evidence with the mode selection. Any addition, modification, rename, exporter, or contract change keeps the Local requirement.
 
-The game projects detect the canonical repository-root Git marker. A linked worktree has a `.git` file and defaults `RunDataPacker=false`; the primary checkout has a `.git` directory and preserves ordinary Local Visual Studio behavior by defaulting true. An explicit Local `RunDataPacker=true` permits deliberate worktree generation; Shared rejects true.
+The game projects detect the authoritative repository-root Git marker. A linked worktree has a `.git` file and defaults `RunDataPacker=false`; the primary checkout has a `.git` directory and preserves ordinary Local Visual Studio behavior by defaulting true. An explicit Local `RunDataPacker=true` permits deliberate worktree generation; Shared rejects true.
 
-Build the changed-path set from `git -C $ROOT diff --name-only $BASELINE --` plus `git -C $ROOT ls-files --others --exclude-standard`; normalize separators before matching. This single baseline diff includes committed, staged, and unstaged tracked changes. If a changed file may affect generated or serialized bytes and the path rules do not prove otherwise, select Local.
+The resolved context's `changedPaths` is the changed-path set, and its `dataBuildMode` covers the four path triggers only (`dataBuildModeDerivation: path-rules-only`). The remaining triggers above stay your judgment: if a changed file may affect generated or serialized bytes and the path rules do not prove otherwise, select Local even when the script reports Shared.
 
-Set `$GeneratedDataIncludeRoot` to the canonical parent of `$GameDataDirectory` (consumers include `Data/...`). Set `$RunDataPacker` to `'false'` for Shared and ordinary Local builds, or to `'true'` only for the first game build in an authorized Local generation. Pass these exact properties to every client/server `.sln` or `.vcxproj` build, including `--files`:
+Take `$DataBuildMode`, `$GameDataDirectory`, and `$GeneratedDataIncludeRoot` from the resolved context (consumers include `Data/...`); when your own judgment selects Local over a reported Shared, replace all three together — set `$DataBuildMode` to `Local` and use the Local directory above with its normalized parent — so mode and directories never disagree. Set `$RunDataPacker` to `'false'` for Shared and ordinary Local builds, or to `'true'` only for the first game build in an authorized Local generation. Pass these exact properties to every client/server `.sln` or `.vcxproj` build, including `--files`:
 
 ```powershell
 $DataProperties = @(
@@ -96,29 +129,17 @@ $DataProperties = @(
 )
 ```
 
-When `$RunDataPacker -eq 'true'`, the game project's nested DataPacker build also requires `DevEnvDir`. Resolve the exact VS2026 Community install first, then fall back to `vswhere`; require `Common7\IDE\devenv.com` or `devenv.exe`, preserve the directory's trailing separator, and append the property only for that generation build:
+When `$RunDataPacker -eq 'true'`, the game project's nested DataPacker build also requires `DevEnvDir`. Re-run the context script with `-IncludeDevEnvDir` and take its `devEnvDir` value, which already carries the trailing separator; `dev-env-dir.unresolved` blocks the generation build. Append the property only for that generation build:
 
 ```powershell
-$VsInstall = 'C:\Program Files\Microsoft Visual Studio\18\Community'
-$DevEnvDirectory = Join-Path $VsInstall 'Common7\IDE'
-if (-not (Test-Path -LiteralPath (Join-Path $DevEnvDirectory 'devenv.com') -PathType Leaf) -and -not (Test-Path -LiteralPath (Join-Path $DevEnvDirectory 'devenv.exe') -PathType Leaf))
-{
-	$VsWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-	if (-not (Test-Path -LiteralPath $VsWhere -PathType Leaf)) { throw 'Unable to locate vswhere for Visual Studio 2026.' }
-	$VsInstall = (& $VsWhere -latest -version '[18.0,19.0)' -products * -requires Microsoft.Component.MSBuild -property installationPath).Trim()
-	if (-not $VsInstall) { throw 'Unable to locate Visual Studio 2026.' }
-	$DevEnvDirectory = Join-Path $VsInstall 'Common7\IDE'
-}
-if (-not (Test-Path -LiteralPath (Join-Path $DevEnvDirectory 'devenv.com') -PathType Leaf) -and -not (Test-Path -LiteralPath (Join-Path $DevEnvDirectory 'devenv.exe') -PathType Leaf)) { throw "Visual Studio IDE executable missing under '$DevEnvDirectory'." }
-$DevEnvDirectory = $DevEnvDirectory.TrimEnd('\') + '\'
-$GenerationDataProperties = @($DataProperties) + "/p:DevEnvDir=$DevEnvDirectory"
+$GenerationDataProperties = @($DataProperties) + "/p:DevEnvDir=$($Context.devEnvDir)"
 ```
 
 Use `$GenerationDataProperties` only for the first `RunDataPacker=true` build. For every later build, set `$RunDataPacker = 'false'`, reconstruct `$DataProperties` from the four-property block above, and pass that array; `DevEnvDir` must not leak into subsequent calls.
 
-Every selected Data directory must be an absolute ordinary non-reparse directory containing exactly the 26 generated files: `Data.h`, `DataTypes.h`, and one nonempty header, manifest, and pack for each of `Audio`, `Font`, `Scene`, `Islands`, `Model`, `Shader`, `Texture`, and `Raw`. Before the first game build, create an ignored receipt parent under `$ROOT\Temp`, invoke `scripts/New-DataOracleReceipt.ps1` with the exact canonical Data path, `Shared` or `Local` mode, fixed 40-hex baseline, and absolute receipt path, and require exit `0` plus `broken-engine-data-oracle-producer-result/v1` `status:pass`, `code:ok`. Retain its receipt path and SHA-256. Before and after every consuming build, invoke `scripts/Test-DataOracleReceipt.ps1` with that exact receipt path/hash, Data path, mode, and baseline; require exit `0` plus `broken-engine-data-oracle-verifier-result/v1` `status:pass`, `code:ok`. Missing, extra, empty, replaced, reparse, or changed entries fail closed.
+Every selected Data directory must be an absolute ordinary non-reparse directory containing exactly the 26 generated files: `Data.h`, `DataTypes.h`, and one nonempty header, manifest, and pack for each of `Audio`, `Font`, `Scene`, `Islands`, `Model`, `Shader`, `Texture`, and `Raw`. Before the first game build, create an ignored receipt parent under `$ROOT\Temp`, invoke `scripts/New-DataOracleReceipt.ps1` with the exact normalized Data path, `Shared` or `Local` mode, fixed 40-hex baseline, and absolute receipt path, and require exit `0` plus `broken-engine-data-oracle-producer-result/v1` `status:pass`, `code:ok`. Retain its receipt path and SHA-256. Before and after every consuming build, invoke `scripts/Test-DataOracleReceipt.ps1` with that exact receipt path/hash, Data path, mode, and baseline; require exit `0` plus `broken-engine-data-oracle-verifier-result/v1` `status:pass`, `code:ok`. Missing, extra, empty, replaced, reparse, or changed entries fail closed.
 
-Ordinary Shared work otherwise remains unchanged: use primary Data, keep `RunDataPacker=false`, and perform no materialization or export. A Local receipt and a Shared receipt are independent identities; never require their aggregate or entry digests to equal. For Local work, also issue and verify a separate Shared receipt for primary Data before and after each game build so primary mutation fails closed.
+Ordinary Shared work otherwise remains unchanged: use primary Data, keep `RunDataPacker=false`, and perform no materialization or export. A Local receipt and a Shared receipt are independent identities; never require their aggregate or entry digests to equal. For Local work, also issue and verify a separate Shared receipt for primary Data before and after each game build so a change to primary data fails closed.
 
 Local mode may build the worktree Release DataPacker as a standalone compile check. Before an authorized same-baseline Local generation, invoke the worktree DataPacker exactly once as `& "$ROOT\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" --materialize-data "$ROOT\Engine\Data" "$ROOT\Projects\BrokenEngineSandbox\Data" $GameDataDirectory`; require exit `0`, then require Local Data to be an ordinary non-reparse directory and issue its pre-generation oracle receipt. This mode performs no exports and never creates, inspects, or materializes Attribution. Set `$RunDataPacker = 'true'` only on the first game build so the normal producer runs. In a validated linked worktree, dirty output uses copy-on-write materialization, staging primary files and atomically replacing only the affected recognized link.
 
@@ -148,7 +169,7 @@ Verify the independent primary Shared receipt after each Local game build; any p
 
 ## Explicit Microsoft PREfast verification mode
 
-Use this mode only when an approved plan explicitly requires Microsoft PREfast verification. Retain every ordinary game-build protection above: the transient operation claim discipline, immutable prebuilt WorktreeCli, worktree provisioning and lifecycle validation, WorktreeCli target serialization, synchronous foreground execution, data-mode selection, canonical `@DataProperties`, complete-data checks, and selected/primary oracle verification. Do not invoke MSBuild or `/analyze` outside WorktreeCli.
+Use this mode only when an approved plan explicitly requires Microsoft PREfast verification. Retain every ordinary game-build protection above: the rules for taking and releasing the short-lived operation lock, immutable prebuilt WorktreeCli, worktree provisioning and lifecycle validation, WorktreeCli target serialization, synchronous foreground execution, data-mode selection, authoritative `@DataProperties`, complete-data checks, and selected/primary oracle verification. Do not invoke MSBuild or `/analyze` outside WorktreeCli.
 
 Release analysis has two paths, selected by `RunCodeAnalysis`, and both fail the build on a diagnostic:
 
@@ -165,7 +186,7 @@ Force Clang-Tidy off and Microsoft code analysis on only for the Release target 
 & $WorktreeCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln" '/p:Configuration=Release' '/p:Platform=x64' @DataProperties '/p:EnableClangTidyCodeAnalysis=false' '/p:EnableMicrosoftCodeAnalysis=true' '/p:RunCodeAnalysis=true' '/verbosity:minimal'
 ```
 
-`EnableMicrosoftCodeAnalysis=true` is belt-and-braces here: the toolchain forces analysis off only on an explicit `false`, and the Release configurations set it nowhere, so passing it changes nothing today. Keep it so an upstream default change cannot silently disable the mode.
+`EnableMicrosoftCodeAnalysis=true` is an extra safety measure here: the toolchain forces analysis off only on an explicit `false`, and the Release configurations set it nowhere, so passing it changes nothing today. Keep it so an upstream default change cannot silently disable the mode.
 
 A policy failure surfaces as a nonzero MSBuild exit after the link step, with the executable already produced — analysis runs through `AfterBuildLinkTargets`. Existing binaries after a failed run are expected, not a partial success. A failing run also does not write `*.lastcodeanalysissucceeded`, so the failure correctly re-reports on the next build until it is fixed. Report the matched diagnostics from the structured `diagnostics` array, noting `diagnosticsTruncated: true` and pointing at the retained log when the cap elides the rest.
 
@@ -211,7 +232,7 @@ Only `.cpp` inputs already present in the target project are valid. After a head
 - LNK1104, LNK1168, or EXE LNK2019 can mean a client/server process still holds the executable; report it rather than diagnosing unless asked.
 - A prior killed build's `unsuccessfulbuild` marker clears on the next successful run; rerun instead of deleting tlogs.
 - A lock timeout means another WorktreeCli build still owns that target. Retry after it finishes; never delete `.claude/build-locks/` manually.
-- For game builds, report `DataBuildMode`, the `RunDataPacker` value for every build, canonical `GameDataDirectory`, canonical `GeneratedDataIncludeRoot`, and each selected oracle's exact receipt path, SHA-256, Data path, mode, baseline, and aggregate digest. In Local mode also report the independent primary Shared oracle. Report every mode-selection trigger, the Local prepared-data or generation-authorization trigger, authorized content-delta outcome, whether the Gaea guard was applied (or the exact explicit Gaea-regeneration authorization), and all post-build oracle verification results. A harness run must consume these exact identities; it must not infer, substitute, or compare Shared and Local for equality.
+- For game builds, report `DataBuildMode`, the `RunDataPacker` value for every build, normalized `GameDataDirectory`, normalized `GeneratedDataIncludeRoot`, and each selected oracle's exact receipt path, SHA-256, Data path, mode, baseline, and aggregate digest. In Local mode also report the independent oracle for the primary Shared data. Report every mode-selection trigger, the Local prepared-data or generation-authorization trigger, authorized content-delta outcome, whether the Gaea guard was applied (or the exact explicit Gaea-regeneration authorization), and all post-build oracle verification results. A harness run must consume these exact identities; it must not infer, substitute, or compare Shared and Local for equality.
 
 End with:
 

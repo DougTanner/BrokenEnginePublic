@@ -17,8 +17,8 @@ repository, and return only concrete findings and improvement suggestions for
 the manager to resolve when user input is actually needed — through
 `/external-grill-plan` for Tier 3, or directly with the user for Tier 2. The
 audit is findings-only work and never creates an approval gate; a `/next-plan`
-invocation additionally follows the canonical implementation-approval contract
-(`../next-plan/SKILL.md`, "Implementation approval").
+invocation additionally follows the authoritative implementation-approval
+contract (`../next-plan/SKILL.md`, "Implementation approval").
 
 ## Inputs and Snapshot
 
@@ -54,10 +54,30 @@ calling context.
 ## Audit
 
 1. Read the complete plan, applicable `AGENTS.md` files, and every cited code
-   region. Anchor every search to a plan claim: callers, mirrors, cited-type
+   region. Resolve the plan's citations with the bundled
+   `scripts/Test-PlanCitations.ps1`; never reconstruct its lookups inline:
+
+   ```powershell
+   $RepositoryRoot = (git rev-parse --show-toplevel).Trim()
+   $Script = Join-Path $RepositoryRoot '.agents/skills/plan-audit/scripts/Test-PlanCitations.ps1'
+   pwsh -NoProfile -File $Script <plan path>
+   ```
+
+   It writes nothing and returns one `broken-engine-plan-citations/v1` JSON
+   object on stdout: a record per backtick citation matching its grammar, with
+   path existence, line existence, and a short excerpt. The result caps how many
+   records it returns, so read `truncated` and `omittedCount` and resolve any
+   omitted citation through the direct reads this step already requires; the
+   prohibition above is against re-deriving what the script already returned, not
+   against your own reading. It renders no verdict,
+   and a token it ignores is never a finding. An unresolved citation is a lead
+   you must investigate — the plan may create that file, or the line may have
+   moved — and never an automatic finding.
+
+   Anchor every search to a plan claim: callers, mirrors, cited-type
    headers, or affected-site hunts. Do not explore unrelated plans/subsystems.
 2. Verify structural assumptions, call sites, mirrored client/server paths, ownership, data layout, frame phase, threading, determinism, serialization, build wiring, and runtime verification where relevant.
-3. Hunt unresolved options, hidden behavior changes, contradictions, magic defaults, undeclared invariant exposure, missing affected locations, ungrounded requirements or checks, scope that duplicates an existing mechanism, and any file the plan's own `## Coordination` section obliges the implementer to edit yet its scope contract omits. Require `## In scope` and `## Out of scope` headings that are each concrete enough to test a diff region against; scope naming a file without its regions is a finding.
+3. Hunt unresolved options, hidden behavior changes, contradictions, magic defaults, undeclared invariant exposure, missing affected locations, ungrounded requirements or checks, scope that duplicates an existing mechanism, and any file the plan's own `## Coordination` section obliges the implementer to edit yet its scope contract omits. Require `## In scope` and `## Out of scope` headings that are each concrete enough to test a diff region against; scope naming a file without its regions is a finding. Take heading presence from the step 1 citation check's heading-presence result and judge concreteness yourself.
 4. Ground corrections in user intent, repository contract, or necessary
    integration. Prefer reuse, narrower scope, missing propagation/verification,
    or replacement of an invalid step; otherwise report the user decision.
@@ -80,7 +100,7 @@ calling context.
    types and risks, and each acceptance criterion has an initially decisive check
    and expected result, with a named independent signal for any duplicate check.
    If evidence proves a criterion unverifiable in the available environment,
-   report a must-fix finding with an achievable replacement or a material user
+   report a must-fix finding with an achievable replacement or a meaningful user
    decision; do not defer it to an end-of-session waiver.
    Route changed C++ to `/repo-code-review`, changed GLSL to `/glsl-review`,
    and a shared CPU/GLSL dual-language header to both. Do not route
@@ -89,8 +109,8 @@ calling context.
    may not silently lower the tier.
 
 When a proposed finding depends on a non-obvious external API, language,
-specification, or library fact, do not treat it as established. Emit one atomic
-request per proposition with a stable ID:
+specification, or library fact, do not treat it as established. Emit one
+single-claim request per proposition with a stable ID:
 
 ```text
 Claim ID: PA-EXT-###
@@ -101,13 +121,13 @@ Candidate official source: <URL or exact upstream identifier, if known>
 ```
 
 The reviewer returns each request to the manager, which dispatches a separate
-`locator` through `/verify-external-claims` and then adjudicates the dependent
+`locator` through `/verify-external-claims` and then decides the dependent
 finding. Pending requests make the audit `NEEDS_ACTION`, not a confirmed
 finding.
 
 Do not edit any repository file, run `/agent-harness`, interview the user, or
 spawn another agent. The manager owns all judgment. After it
-adjudicates findings and external verdicts, every Tier-3 result, including a
+decides on findings and external verdicts, every Tier-3 result, including a
 clean pass, proceeds to `/external-grill-plan`; Tier 2 returns to the manager.
 
 ## Output
@@ -116,14 +136,14 @@ For each finding:
 
 > `PA-F-###` — `plan-path:line` or `snapshot#heading-id` — category — concrete problem — evidence: `repository-path:line` — proposed improvement
 
-If clean, state `PASS — no material plan flaws found.` Return:
+If clean, state `PASS — no meaningful plan flaws found.` Return:
 
 ```text
 Plan snapshot: <immutable identifier>
 Findings: <entries or none>
-API Verification Requests: <atomic requests or none>
+API Verification Requests: <single checkable requests or none>
 Traceability checked: <requirements/invariants <-> implementation sites/checks>
-Required next step: Tier 3 -> manager adjudication, then /external-grill-plan | Tier 2 -> manager adjudication
+Required next step: Tier 3 -> manager decision, then /external-grill-plan | Tier 2 -> manager decision
 Status: PASS | NEEDS_ACTION | BLOCKED
 Changed files: none
 Decisive checks: <read/search/trace and result>

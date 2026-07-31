@@ -6,14 +6,14 @@ description: >-
   Use when a Broken Engine review, plan audit, grill, or finding-resolution pass
   needs an authoritative verdict on non-obvious Vulkan, GLSL, DirectXMath,
   C++23, operating-system, or third-party behavior. Returns one VERIFIED,
-  REFUTED, or UNRESOLVED verdict per atomic claim with repository applicability
+  REFUTED, or UNRESOLVED verdict per single checkable claim with repository applicability
   and primary-source evidence kept separate.
 allowed-tools: [Read, Grep, Glob, Agent]
 ---
 
 # Verify External Claims
 
-Resolve requested external facts for caller adjudication. This is a read-only
+Resolve requested external facts for the caller to decide. This is a read-only
 evidence workflow: never edit, recommend a fix, review surrounding code, or
 decide whether a dependent finding or plan choice is accepted.
 
@@ -21,7 +21,7 @@ decide whether a dependent finding or plan choice is accepted.
 
 Require each request to contain:
 
-- a stable claim ID, API/symbol/rule, and one falsifiable proposition;
+- a stable claim ID, API/symbol/rule, and one checkable proposition;
 - the dependent finding, item, or decision and why the verdict matters;
 - applicable project target, version, platform, extensions/features, flags, or
   constraints, plus the smallest relevant repository paths or symbols;
@@ -59,7 +59,7 @@ Instruct the locator to:
    applicability. `REFUTED` requires completed authoritative evidence that
    contradicts the proposition or proves an unmet precondition. State the
    precise missing evidence for `UNRESOLVED`.
-5. Make no repository changes, recommendations, or finding adjudications.
+5. Make no repository changes, recommendations, or decisions about findings.
 
 Official upstream headers and locally pinned standards may use an exact
 citation without a URL. If the host cannot dispatch the locator, return
@@ -72,7 +72,7 @@ the affected verdict as `UNRESOLVED`.
 Check that the returned evidence preserves every ID, separates local
 applicability from source identity, and directly decides each proposition. Do
 not upgrade incomplete evidence. All `VERIFIED` and `REFUTED` results are
-completed evidence returned to the caller for adjudication; a refutation is not
+completed evidence returned to the caller to decide; a refutation is not
 itself permission to dismiss or modify the dependent finding.
 
 Use `PASS` only when every claim is `VERIFIED` or `REFUTED`. Any `UNRESOLVED`
@@ -88,9 +88,9 @@ Status: PASS | NEEDS_ACTION | BLOCKED
 Sources:
 - <claim ID> — <official source identity and version/revision/tag/commit; exact section/symbol/citation; optional official immutable link | none — exact unavailable evidence>
 Decisive evidence:
-- <claim ID> — applicability: <path:line and target/version/extensions/features/flags | none — exact missing configuration>; rule: <short decisive evidence | none — exact missing primary evidence>
+- <claim ID> — applicability: <path:line and target/version/extensions/features/flags | none — exact missing configuration>; rule: <short evidence that settles the question on its own | none — exact missing primary evidence>
 Per-proposition verdicts:
-- <claim ID> — VERIFIED | REFUTED | UNRESOLVED — <exact proposition> — <direct implication for dependent item, without adjudication>
+- <claim ID> — VERIFIED | REFUTED | UNRESOLVED — <exact proposition> — <direct implication for dependent item, without deciding it>
 Changed files: none
 Build required: none
 Residuals: <each unresolved claim and exact missing evidence, or none>

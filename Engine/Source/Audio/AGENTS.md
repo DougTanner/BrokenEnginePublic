@@ -8,7 +8,7 @@ Client-only 3D and streaming audio through DirectXTK `AudioEngine`. `AudioManage
 - Construct one stable `AudioEngine` and attach voice subsystems to it once. Static and streaming voices retain its raw pointer, so recover a silent or lost device by resetting the existing engine rather than replacing it.
 - Treat endpoint enumeration, graph reset, and XAudio2 results as trust boundaries. A missing device leaves a usable silent engine; recovery must clear stale source voices before normal playback resumes.
 - `AudioManager::Update` runs post-render on the main thread and owns XAudio2 pumping and buffer submission. The streaming fill worker produces buffer data, the main thread consumes it, and XAudio2 buffer callbacks publish only atomic completion. AudioEngine reset/error notifications are delivered on the caller thread.
-- Wait for the fill worker before mutating streaming containers. Destroy faded streams after releasing the streaming mutex so source-voice teardown cannot deadlock callback completion.
+- Wait for the fill worker before mutating streaming containers. Destroy faded streams after releasing the streaming mutex so source-voice teardown cannot deadlock callback completion. `Clear` is the deliberate exception: it destroys while still holding that mutex, which is safe only because the XAudio2 buffer-completion callback is a bare atomic increment that never takes the mutex. Keep that callback lock-free.
 - Suspend stops XAudio2 processing before clearing voices. Teardown distinguishes voices already destroyed by device loss from voices still owned by the engine.
 
 ## Simulation Boundary

@@ -1,6 +1,6 @@
 # Client Compatibility
 
-Host mapping for the canonical context-isolation default
+Host mapping for the authoritative context-isolation default
 (`../../../references/subagent-reporting.md`, required by root `AGENTS.md`).
 The manager gives the single implementer no inherited conversation context:
 

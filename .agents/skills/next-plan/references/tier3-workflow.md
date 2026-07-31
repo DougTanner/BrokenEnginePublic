@@ -17,7 +17,7 @@ implementation with the root `AGENTS.md` execution-card fields; for Tier 3 the
 trigger must be concrete and each acceptance check names its expected
 observation.
 
-Never edit the claimed plan file during execution; carry materially stale
+Never edit the claimed plan file during execution; carry meaningfully stale
 source-citation corrections in the execution card instead. Search for
 an affected mirrored pattern only when the intended change alters a signature,
 identity, semantics, layout, guard scope, or named invariant.
@@ -32,7 +32,7 @@ external-claim requests and unresolved residuals; it never interviews, chooses,
 or delegates. Main routes external-claim requests to a `locator` through
 `/verify-external-claims`, resumes the same worker with the exact verdicts and
 with each answer that unlocks dependent repository-backed work, and receives the
-next brief. Main alone interviews the user and adjudicates, recording the exact
+next brief. Main alone interviews the user and decides, recording the exact
 questions, answers, decisions, and refinements; it performs no repository read,
 search, or WorktreeCli work. The final handoff preserves that record and the
 worker updates the card. A decision-complete plan yields a PASS audit and a
@@ -43,6 +43,6 @@ the review.
 
 Main dispatches the assigned roles for implementation and the normal Tier 3
 checks: targeted compile/static checks, one correctness review, scoped
-adversarial review, and triggered hygiene. Permit one focused fix/retest. A
+adversarial review, and the cleanup steps the change triggers. Permit one focused fix/retest. A
 second pass requires a reproduced decisive blocker and is limited to invalidated
 regions and checks.

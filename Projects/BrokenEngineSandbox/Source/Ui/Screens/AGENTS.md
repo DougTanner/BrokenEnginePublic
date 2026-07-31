@@ -10,11 +10,14 @@ ImGui menus, HUD, modal surfaces, and the game extension of engine TweaksScreen.
 - A screen registers its rendered rectangle for world-render occlusion only while its background is fully opaque. A screen that selects its own background alpha independently of the opaque-UI setting stays unregistered, even when that alpha is fully opaque.
 - Networked controls remain disabled through `NetworkUiControl` until authoritative state resolves the request.
 - Convert localized UTF-32 strings into workbuffer-backed UTF-8 at the consuming expression; do not retain the result beyond its workbuffer lifetime.
+- The HUD is the only game UI that changes network subscription state: its fleet and player focus controls tell the client session which cells it wants, tagged with an explicit reason. A rebuilt focus button that drops that call leaves the client drawing a cell it never subscribed to. Its nav-delay slider likewise sends one fleet request on drag release, not one per frame, and marks itself pending until the server answers.
+- Opening the Graphics screen from the main menu seeds the sun-angle override from the live camera, so Time of Day starts where the sky already is; the camera keeps returning that override while the screen is up. The pause-menu entry point does not seed it, so opening Graphics in game snaps the sun — a real, existing asymmetry. Any new entry point has to choose one of the two behaviors; nothing at compile time links them.
+- The game TweaksScreen is a developer tool gated twice: it compiles in only under the `kbDebugInput` switch, and even then draws only while the runtime ImGui toggle is on. It is not a player-facing screen.
 - Settings controls bind through the shared menu helpers. Tweaks sliders instead follow the engine TweaksScreen contract (`../../../../../Engine/Source/Ui/Screens/TweaksScreen/AGENTS.md`).
 
 ## Layout and Rendering
 
-- Rendered target-resolution output is authoritative for optical balance; window bounds and text metrics are diagnostics.
+- Rendered target-resolution output is authoritative for judging whether spacing looks centered, not just whether it measures centered; window bounds and text metrics are diagnostics.
 - Menu font pushes must be balanced within the owning ImGui window. Construct scoped font helpers before `Begin` or entirely inside the window so `End` sees the expected stack.
 - Shared helpers own scaling, localization conversion, wrapper bindings, common button sizing, and menu chrome. Screen-specific layout values stay local and named.
 - Panels take their fill from the window background; accent drawing adds border and strip geometry over it and never substitutes a fill.

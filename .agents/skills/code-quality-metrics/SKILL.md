@@ -31,6 +31,10 @@ normalizer writes a parser-only, byte-preserving capture for the limited Broken 
 `StrictUpstream` only when `.h` inputs must remain unsupported; it parses raw capture bytes. Treat
 corpus-only parse omissions as reported advisory coverage, not failures.
 
+A skill that consumes only summary fields calls
+`.agents/skills/code-quality-metrics/scripts/Get-CodeQualityEvidence.ps1` instead; that digest
+wrapper runs this same entry point and returns one compact JSON object.
+
 ## Compare
 
 Compare only identities explicitly authorized by a UTF-8 target manifest:
@@ -52,10 +56,14 @@ success JSON or an output file. A Compare result cannot support PASS until every
 has complete parsing and signature extraction; corpus-only `upstream-omitted` rows stay advisory.
 
 Compare authenticates the provisioned analyzer internally, archives it into a fresh ignored scratch directory,
-and imports that copied source. Its gitlink pin is only an archive selector, not a metric, cache, or
-report identity. The report schema is
+and imports that copied source. Its recorded submodule commit only chooses which files go into the
+archive; it is not a metric, cache, or report identity. The report schema is
 `broken-engine-code-quality-metrics/v2`; its `tool` object is
 `{adapterVersion,lockSha256,python,disableSg}` with `adapterVersion` set to `"4"`.
+
+A skill that records only the comparison summary calls
+`.agents/skills/code-quality-metrics/scripts/Get-CodeQualityEvidence.ps1 -Mode Compare` instead; that
+digest wrapper runs this same entry point and forwards both target failures unchanged.
 
 ## Interpretation
 

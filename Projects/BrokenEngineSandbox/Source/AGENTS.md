@@ -2,12 +2,14 @@
 
 ## Overview
 
-Game implementation built on Engine and Common. `Game` owns the per-side sessions, unbounded coord-frame orchestration, shared fleet data, client selection/settings, and server persistence.
+BrokenEngineSandbox is a tech demo that shows off and stress-tests engine features — not a game: there is no human player and no win condition. AI-driven spaceship fleets (a flagship plus its wingmen) fight continuously spawning enemies over the island ocean, so "the client player" always means a ship the AI drives, never one a person steers. All game code lives in the `game` namespace.
+
+Game implementation built on Engine and Common. `Game` owns the per-side sessions, the coordination of cell simulation across the unbounded grid, shared fleet data, client selection/settings, and server persistence.
 
 ## Ownership
 
 - `Fleet` is the shared data model and uses persistent identifiers assigned by the server. `FleetSelection` is client-only focus and navigation UI state.
-- `ClientSession` and `ServerSession` are game-policy façades that compose engine-owned session runtimes. See `Network/AGENTS.md`.
+- `ClientSession` and `ServerSession` are game-policy wrappers that compose engine-owned session runtimes. See `Network/AGENTS.md`.
 - `GameSaveLoad` is server-only and owns save/load/replay. Its persistence and replay contracts live in `Save/AGENTS.md`.
 - Agent commands are game-dispatched, but the build-agnostic shared handlers, transport, synthetic input, and UI snapshots are engine-owned; the dispatcher tries the engine shared handlers before its side-specific ones. See `Agent/AGENTS.md`.
 

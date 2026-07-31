@@ -23,13 +23,13 @@ Choose exactly one mode from the invocation:
   cohesive split opportunity. Do not map the file, draft a plan, or edit code;
   route an accepted out-of-scope residual through `/create-follow-up-plans`.
 - Standalone or pre-approval analysis: Inspect the target and return one
-  evidence-backed material plan choice. Do not ask the user to select among
+  evidence-backed meaningful plan choice. Do not ask the user to select among
   speculative options. Produce the decision-complete draft inline; do not write
   or queue a plan unless the user explicitly authorizes that action.
 - Approved-plan execution: Treat the approved plan and deltas as the decision
   authority. Implement its assigned reduction without reopening settled design
   choices. Stop and report a contradiction if repository evidence invalidates a
-  material plan assumption.
+  meaningful plan assumption.
 
 If no path is supplied, ask for one. Never add a source marker declaring an
 oversized file accepted.
@@ -40,6 +40,14 @@ Run:
 
 ```powershell
 pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>
+```
+
+Measure several files in one batched run instead of one call per file. Use
+`-Command`, not `-File`: under `-File` the comma-separated list binds as one
+filename and the run fails.
+
+```powershell
+pwsh -NoProfile -Command "& '<absolute path to Measure-Tokens.ps1>' -Path 'a','b','c' -Json"
 ```
 
 `bt-token-v1` is normalized UTF-8 bytes divided by four, rounded up.
@@ -128,5 +136,6 @@ added or removed `.cpp` or `.h`, route project and filter membership through
 `/update-vcxproj`; do not hand-edit project XML. Every new `.cpp` or `.h` also
 requires an affected-target build through `/compile`. Remeasure every changed
 and new C++ file, run focused static checks, and report any file still above its
-applicable threshold. Return exact changed regions, affected-site triggers,
-build targets, checks, and residuals to the parent Change Workflow.
+applicable threshold. Return exact changed regions, notes on which other code
+sites may be affected, build targets, checks, and residuals to the parent Change
+Workflow.

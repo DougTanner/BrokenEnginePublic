@@ -22,9 +22,9 @@ Require a review scope path. If absent, ask for it. Resolve the scope before dis
 - Directory, non-recursive (default): enumerate only files directly in that directory. Do not silently include descendants.
 - Directory, recursive: include descendants only when the caller explicitly requests recursion.
 
-Record the exact scoped-file manifest and pass it to every reviewer. Evidence may cross the boundary to prove a scoped finding; incidental defects outside it are residuals, not findings.
+Build the scoped-file manifest by running `pwsh -NoProfile -File .agents/scripts/Get-AnalysisManifest.ps1 -Path <scope>`, adding `-Recurse` only for an explicitly recursive scope and no extension filter, so every file type in scope, including shaders, is listed. The result gives every in-scope file its repository-relative path and its ordered root-to-file `AGENTS.md` authority chain; never reconstruct that enumeration or authority walk inline. On blocked (exit 2), narrow the scope and rerun; on error (exit 1), report the blocker. Evidence may cross the boundary to prove a scoped finding; incidental defects outside it are residuals, not findings.
 
-Before dispatch, read root `AGENTS.md` and every nested `AGENTS.md` applicable to the scoped files. Preload every reviewer with those authority paths and the scoped-file manifest; require them to read the authorities before source. Findings cite the controlling `AGENTS.md` path and section or line when a repository rule supplies the judgment. Checklists are heuristics, never authority.
+Read the reported authority documents before dispatch. Preload every reviewer with those authority paths and the scoped-file manifest; require them to read the authorities before source. Findings cite the controlling `AGENTS.md` path and section or line when a repository rule supplies the judgment. Checklists are heuristics, never authority.
 
 ## Main-Context Reviewer Rounds
 
@@ -41,7 +41,7 @@ Inspect available depth and concurrency. Dispatch one `reviewer` role per lens b
 ### Lens B — Simulation and Threading
 
 - Trace determinism risks: RNG ordering, parallel floating-point reorder, CRC-participating state, `SharedMembers()` parity, and phase-crossing reads or writes.
-- Check dispatch ownership, shared mutation, worker lifetime, and Update/PostRender/Interpolate alignment against documented thread and frame rules.
+- Check dispatch ownership, shared state changes, worker lifetime, and Update/PostRender/Interpolate alignment against documented thread and frame rules.
 
 ### Lens C — Client/Server and Data Shape
 

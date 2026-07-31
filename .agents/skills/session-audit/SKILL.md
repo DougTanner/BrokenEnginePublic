@@ -11,7 +11,8 @@ allowed-tools: [Read, Grep, Glob, PowerShell]
 # Session Audit
 
 Run only on an explicit user request. Main dispatches one fresh `reviewer`. The
-reviewer does not edit, run mutating commands, implement fixes, or delegate.
+reviewer does not edit, run commands that change state, implement fixes, or
+delegate.
 Audit only hypotheses that earlier domain reviews could not have covered; do not
 repeat their artifact-level correctness, style, documentation, shader, or
 validation passes.
@@ -27,9 +28,14 @@ Require a self-contained, immutable brief containing:
 - the absolute adopted worktree and the session baseline commit;
 - the changed-file inventory and touched regions with implementation,
   propagation, review-fix, conditional-role, and reconciliation attribution,
-  excluding named pre-existing or concurrently owned work;
-- final approved plan and exact approved deltas, declared invariants, and
-  acceptance criteria;
+  excluding named pre-existing or concurrently owned work. The preparation
+  implementer assembles that inventory with the read-only
+  `.agents/scripts/Get-SessionChangeInventory.ps1 ... -Regions` run described
+  below, never by enumerating the changed files and hunks inline; the
+  attribution and the exclusion of pre-existing or concurrently owned work stay
+  the implementer's judgment, which the script does not make;
+- the final approved plan and the exact changes the user approved after it,
+  declared invariants, and acceptance criteria;
 - one decision for each conditional mode: late semantic fixes,
   reconciliation edits or invalidated assumptions, Tier-3 cross-file
   integration, and contract-significant regions unseen by domain review. Mark
@@ -38,6 +44,21 @@ Require a self-contained, immutable brief containing:
 - completed applicable domain-review handoffs for every changed artifact type,
   plus reconciliation, build, external-API-verification, accepted-fix/retest,
   residual, and focus-area handoffs (`none` is valid for each).
+
+The inventory run is `pwsh -NoProfile -File
+.agents/scripts/Get-SessionChangeInventory.ps1 -RepositoryRoot <absolute adopted
+worktree> -Baseline <full 40-character SHA> -Regions` (in Claude Code's Git Bash
+terminal convert the script path and root with `cygpath -w` exactly as
+`../cleanup-worktrees/SKILL.md` shows). It writes no file and prints one
+`broken-engine-session-change-inventory/v1` object with `entries` and their
+`class` values, `counts`, `triggers`, and the per-hunk `regions` table. Only
+`status` `pass` (exit 0) is usable; `blocked` (exit 2) or `error` (exit 1) means
+the inventory is missing for the rule below. Entries are capped at 500 rows and
+regions at 400, so the implementer reports `truncation` and `truncated` with the
+brief so a shortfall is never presented as a complete inventory. An untracked
+file appears only when the caller supplies it with `-IncludeUntracked
+<comma-separated paths>`, and `counts.unlistedUntracked` reports how many
+untracked files the run did not list.
 
 Main dispatches one preparation `implementer` to assemble that brief from
 repository state and to map the user-authorized audit scope to the same named
@@ -68,8 +89,8 @@ these inputs from conversation history.
    preconditions, handoffs, and current contracts. Put proven pre-existing or
    out-of-scope defects in `Residuals`. Exclude stale citations in a claimed
    plan that is deleted when it completes.
-7. Emit an atomic API verification request for any candidate depending on a
-   non-obvious external rule; do not present it as confirmed. The main session
+7. Emit a single-claim API verification request for any candidate depending on
+   a non-obvious external rule; do not present it as confirmed. The main session
    reads every finding, deduplicates it, and classifies Intent
    (`conformance | plan_delta`) and Scope (`non_structural | structural`) before
    dispatching any fix.

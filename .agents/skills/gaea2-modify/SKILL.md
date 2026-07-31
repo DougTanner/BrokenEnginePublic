@@ -2,13 +2,13 @@
 name: gaea2-modify
 description: Edit a Gaea 2 terrain previously loaded by /gaea2-load — add/remove/move/rewire nodes or change node properties. Operates on the Markdown file in Temp/ produced by /gaea2-load; write the result back to a .terrain with /gaea2-save.
 argument-hint: <name-or-Temp/path.md>
-allowed-tools: [Read, Edit, Write, Glob, Grep]
+allowed-tools: [Read, Edit, Write, Glob, Grep, PowerShell]
 disable-model-invocation: true
 ---
 
 # gaea2-modify
 
-Edit the Markdown view of a loaded Gaea terrain. No Python is invoked — Claude edits `Temp/<name>.md` directly. The companion `.passthrough.json` is read-only here; if a change requires altering ports or modifiers, document the limitation and ask the user.
+Edit the Markdown view of a loaded Gaea terrain. Nothing but Claude edits `Temp/<name>.md`; the only script this skill runs is the read-only validator in "Sanity checks before stopping". The companion `.passthrough.json` is read-only here; if a change requires altering ports or modifiers, document the limitation and ask the user.
 
 ## Resolve the target
 
@@ -45,7 +45,7 @@ Edit the `name: ...` line under the node's heading. If no `name:` line exists (t
    ```
 3. Add `n<NEW_ID>["<Type>"]` to the Mermaid block (between `flowchart TD` and the edges).
 4. The save step needs port info for new nodes, which lives only in `.passthrough.json`. Tell the user: "I added <Type> as node n<NEW_ID>, but its port catalogue isn't in passthrough yet — saving will use a default In/Out pair. If <Type> needs more ports (e.g. Erosion2's Flow/Wear/Deposits, Combine's secondary input), you'll need to copy the port block from another file of the same type." Offer to find a node of the same type in the shipping examples (`C:/Program Files/QuadSpinner/Gaea 2/Examples/`) and quote its port block. (`.claude/skills/gaea2-shared/examples/` is intentionally empty — see its README.)
-5. Check the per-type requirements in "Gaea 2 conventions when adding new nodes" below. Several node types need specific fields (e.g. `Version: 2`) or valid enum values, otherwise Gaea silently loads them as deactivated. The skill doesn't validate these — you must.
+5. Check the per-type requirements in "Gaea 2 conventions when adding new nodes" below. Several node types need specific fields (e.g. `Version: 2`) or valid enum values, otherwise Gaea silently loads them as deactivated. The validator in "Sanity checks before stopping" catches the field-level ones; whether an enum value is legal it cannot judge — you must.
 
 ### Remove a node
 1. Delete the entire `### n<ID>: ...` section (heading + its property lines).
@@ -106,7 +106,7 @@ A node that has no downstream path to an `Export` node (or a node explicitly mar
 Invalid enum string values cause silent deactivation. Verified valid values (from shipping examples):
 
 - `Mountain.Style`: `Strata`, `Alpine`, `Eroded` (case-sensitive; common defaults like `Basic` are rejected). Absent is also valid — 8 of 18 shipping Mountains omit `Style` and use the default.
-- `Combine.Mode`: `Add`, `Subtract`, `Multiply`, `Max`, `Min`, `Screen`, `Difference`, `GrainMerge`, `Overlay`, `HardLight`. When `Mode` is absent and `PortCount=2` with `Mask` wired, the node performs canonical mask-driven linear blend `lerp(In, Input2, Mask)` — that's the pattern shipping example `Project Arenal.terrain` uses for SatMap layer compositing.
+- `Combine.Mode`: `Add`, `Subtract`, `Multiply`, `Max`, `Min`, `Screen`, `Difference`, `GrainMerge`, `Overlay`, `HardLight`. When `Mode` is absent and `PortCount=2` with `Mask` wired, the node performs the standard mask-driven linear blend `lerp(In, Input2, Mask)` — that's the pattern shipping example `Project Arenal.terrain` uses for SatMap layer compositing.
 - `Snowfield.Direction`: compass directions — shipping examples exercise only `N` and `E` (one each); the remaining compass values (`NE`, `SE`, `S`, `SW`, `W`, `NW`) follow the same enum pattern but are not example-verified — confirm via a Gaea save/load before relying on one.
 - `Export.Format`: `UshortRaw16`, `FloatRaw32`, `PNG8`, `PNG16`, `Exr`, `Tiff16`, `GLTF` (case-sensitive — the current shipping examples contain no `Export` nodes, but their `SaveDefinition.Format: PNG16` blocks confirm the uppercase casing; the Broken Engine island archetype uses `PNG8` for color, `FloatRaw32` for elevation, `UshortRaw16` for AO, and `GLTF` for mesh). Others exist — copy from a known-good terrain when unsure.
 - `RenderIntentOverride` (not Export-specific — appears on many node types: Combine, Adjust, Stratify, ...): `Mask`, `Color`, `Heightfield` — all three observed in shipping examples.
@@ -127,14 +127,28 @@ Every shipping Mountain (18/18 at the 59-file survey) has `Seed` (int). `Height`
 
 ## Sanity checks before stopping
 
-- Every `n<ID>` referenced in the Mermaid block has a matching `### n<ID>:` section, and vice versa.
-- No duplicate IDs.
-- Every edge endpoint refers to a node that exists.
-- Property values parse as their original type (don't put a string where a float was).
-- For any newly-added node, surface the port-catalogue limitation to the user (the saver will use a default In/Out pair until passthrough is updated) so they can decide whether to copy a port block from a sibling example.
-- For any newly-added node, check the "Gaea 2 conventions when adding new nodes" section above: required `Version: 2`, valid enum values, required In wiring, reaches an Export.
+Run the validator on the edited file before reporting done. It is required, not optional, and it reads only — it never edits the Markdown or the sidecar:
 
-If any check fails, fix it before reporting done.
+```powershell
+$Wrapper = Join-Path (git rev-parse --show-toplevel) '.agents/skills/gaea2-shared/scripts/Invoke-Gaea2Python.ps1'
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "& '$Wrapper' -Script validate_markdown.py -Arguments '<Temp/name.md>'"
+```
+
+Use `-Command`, not `-File`: that is the form that passes the `-Arguments` list through intact. The wrapper resolves relative paths and `Temp/` against the repository root whatever the current directory is, and prints one `broken-engine-gaea2-python/v1` envelope. On `python.missing` / `python.stale` (exit 2) nothing ran: tell the user Python is missing or too old and never install it yourself — for `python.missing` pass on the envelope's `installCommand` as the suggested command for them to run, and for `python.stale` quote its `message`/`probeLine` instead (`installCommand` is null there; the user resolves it by upgrading). Otherwise the validator's own `broken-engine-gaea2-markdown/v1` envelope is the string in the wrapper's `stdout` field — read its `code`, not the exit code. That holds for `python.script-failed` too: the validator exits 2 on its own blocked codes, so parse the inner envelope out of `stdout` for the diagnostic code first, and fall back to the wrapper's `stderr` only when `stdout` carries no envelope. The inner codes:
+
+- `ok` — no entries; the mechanical checks pass.
+- `markdown.entries-reported` — `payload.entries` lists `{nodeId, rule, message}` findings. Fix every one before reporting done. The rules cover Mermaid-versus-section agreement in both directions, duplicate IDs, added nodes with an ID below 100, edges naming a node that doesn't exist, types missing `Version: 2`, dynamic-port nodes missing `PortCount`, unwired required In ports, an input port fed by more than one producer, and nodes with no path to an output.
+- `input.invalid`, `markdown.missing`, `markdown.unreadable`, `passthrough.missing`, `passthrough.unreadable`, `markdown.structure-unparsed` — the validator couldn't read or parse the file at all, so it proved nothing. Resolve that before reporting done.
+
+Never reconstruct this inline: don't run the shared `.agents/scripts/Detect-Python.ps1` probe the wrapper already calls, and don't invoke `validate_markdown.py` with a bare `python` or a captured interpreter path.
+
+One limit is worth knowing: the reaches-output rule is skipped entirely when the graph has no output anchor at all — no `Export` node and no node carrying `SaveDefinition`. That is common in the shipping examples (`Mesa` is one), so a dead-end chain in such a file goes unreported; examples that do carry a `SaveDefinition` anchor are checked normally.
+
+Then do the judgment the validator can't:
+
+- Check that property values still parse as their original type — don't put a string where a float was, and see the type rules under "Edit a property".
+- For any newly-added node, surface the port-catalogue limitation to the user (the saver will use a default In/Out pair until passthrough is updated) so they can decide whether to copy a port block from a sibling example.
+- For any newly-added node, check the enum values against "Per-type enum constraints" above; an invalid one silently deactivates the node and the validator won't see it.
 
 ## What this skill does NOT do
 

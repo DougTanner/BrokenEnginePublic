@@ -19,6 +19,7 @@ Update Frame Update Pipeline (`../../Documents/Architecture/FrameUpdatePipeline.
 
 - `LaunchOptions` owns command-line parsing. `--loopback-only` is independent of `--agent-port`; `--data-directory` must resolve to an existing absolute directory; port values are validated before conversion.
 - Agent launches stay minimized and suppress physical client input while preserving the close/Alt+F4 escape path. Synthetic input and command transport live in Agent (`Agent/AGENTS.md`).
+- Effective fullscreen resolves in one fixed order: the agent runtime override wins, then `--windowed WxH` forces windowed, then the saved `gFullscreen` preference applies. None of the three writes the saved preference, so an agent command or launch flag never rewrites what the user chose.
 - Client startup waits for terrain elevation and priority textures before renderer construction, then primes each framebuffer before showing the window.
 - `TextureUploadManager` and `FileManager` outlive `MainThread` so crash handling and teardown can use them. Device loss recreates `Graphics` in place.
 - Client COM uses `RO_INIT_MULTITHREADED`. Process and worker priorities, worker counts, and the single-instance policy are set in `Main.cpp`; keep agent mode non-modal.
@@ -27,8 +28,8 @@ Update Frame Update Pipeline (`../../Documents/Architecture/FrameUpdatePipeline.
 
 - Client ring indices use `SnapshotIndex`; server ticks swap dual frame buffers. ID assignment is server-authoritative.
 - Client rendering interpolates only populated coord rings and never extrapolates past committed state. `ResetClientState()` is the reset point for per-coord client counters.
-- Client simulation advances only through reconcile and is capped by the clock-servo ceiling. Server update owns network pre-tick, save/load/replay, simulation, broadcast, resend, and autosave ordering. Before an armed debug replay capture reaches its pause target, it consumes at most one accumulated tick and returns the remainder to `TimeStep`; when the target pauses the update, use the normal accumulator-clearing semantics.
-- Per-coord simulation dispatch uses pre-resolved `ActiveFrameRef` entries and thread-local state. Engine session runtimes own reusable network mechanics and phase order; game façades own gameplay policy and persistence. See game Source (`../../Projects/BrokenEngineSandbox/Source/AGENTS.md`).
+- Client simulation advances only through reconcile and is capped by the limit on how fast the clock-adjustment loop may correct. Server update owns network pre-tick, save/load/replay, simulation, broadcast, resend, and autosave ordering. Before an armed debug replay capture reaches its pause target, it consumes at most one accumulated tick and returns the remainder to `TimeStep`; when the target pauses the update, use the normal accumulator-clearing semantics.
+- Per-coord simulation dispatch uses pre-resolved `ActiveFrameRef` entries and thread-local state. Engine session runtimes own reusable network mechanics and phase order; game wrappers own gameplay policy and persistence. See game Source (`../../Projects/BrokenEngineSandbox/Source/AGENTS.md`).
 
 ## Crash Reporting
 

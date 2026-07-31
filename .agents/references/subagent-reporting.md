@@ -11,10 +11,10 @@ Every delegation supplies one self-contained brief containing:
 
 - assigned role and exact objective;
 - owned scope and explicit exclusions;
-- fixed user decisions and approved deltas;
+- fixed user decisions and changes the user approved after the plan;
 - governing repository paths;
 - known affected artifacts, symbols, or regions;
-- session baseline or other material identity;
+- session baseline or other meaningful identity;
 - acceptance checks and expected observations;
 - task-specific prohibitions; and
 - required return format.
@@ -50,9 +50,10 @@ large. Create a file under `Temp/` only when the owning workflow requires it.
 Independent review and verification use a context that did not produce the
 work. A focused correction/retest also uses an independent context.
 
-## Liveness and interruption
+## Whether a worker is still running, and interruption
 
-Judge liveness only from host status and explicit progress or partial handoffs.
+Judge whether a worker is still running only from host status and explicit
+progress or partial handoffs.
 A running host status, elapsed time, or wait boundary does not require a
 progress ping or repeated manager status command. Forward progress is a newly
 reported distinct action, narrowed search, new evidence, or synthesis; a loop
@@ -66,5 +67,7 @@ When terminal failure or documented no-progress/loop evidence exists:
 4. interrupt or replace only if the failure or no-progress evidence persists.
 
 Prefer resuming the same worker. Otherwise supply a recovery capsule containing
-objective/scope, material identity, completed evidence, unresolved issue, and
-next action so completed exploration is not repeated.
+objective/scope, meaningful identity, completed evidence, unresolved issue, next
+action, and the skill to resume with (for example `/implement-plan`,
+`/resolve-findings`, or `/update-affected-code`) so completed exploration is not
+repeated.

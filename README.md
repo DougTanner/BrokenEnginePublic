@@ -24,11 +24,11 @@ Setting up a new machine? [Documents/FreshMachineSetup.md](Documents/FreshMachin
 		- Windows 11 SDK (10.0.26100.6901)
 	- Optional components can also be installed later from "Tools" -> "Get Tools and Features..."
 
-- x64 CPython 3.12 or newer. `code-quality-metrics` uses the first `python` Application resolved through normal PATH precedence, then verifies that it is a supported CPython installation. The `py` launcher is not used as a fallback.
+- x64 CPython 3.12 or newer, required by every skill that needs host Python. `code-quality-metrics` uses the first `python` Application resolved through normal PATH precedence, then verifies that it is a supported CPython installation; the `gaea2-*` and `analyze-diagsession` skills locate an interpreter through `.agents/scripts/Detect-Python.ps1`, which also probes well-known install directories. The `py` launcher is not used as a fallback.
 
 ## Git
 
-- **Enable Windows Developer Mode _before_ cloning** (Settings -> System -> For developers -> Developer Mode -> On). This grants the privilege Git needs to create symlinks. Without it, symlinked files check out as plain text files containing the link target instead of working links — notably `.claude/skills`, which points to the repository's canonical tracked `.agents/skills` directory at `../.agents/skills` and exposes those skills to Claude Code.
+- **Enable Windows Developer Mode _before_ cloning** (Settings -> System -> For developers -> Developer Mode -> On). This grants the privilege Git needs to create symlinks. Without it, symlinked files check out as plain text files containing the link target instead of working links — notably `.claude/skills`, which points to the repository's authoritative tracked `.agents/skills` directory at `../.agents/skills` and exposes those skills to Claude Code.
 - Repository should be cloned with `--recurse-submodules` and symlink support enabled so Codex and Claude Code share the same skills:
 	- With Developer Mode on, clone with `git -c core.symlinks=true clone --recurse-submodules <repository-url>`
 	- A fresh clone initializes every submodule recursively and requires network access on that first run.

@@ -10,7 +10,7 @@ Deterministic math, random streams, vector helpers, and 2D convex-hull operation
 
 ## Random Streams
 
-`RandomEngine` is the deterministic gameplay RNG. Every draw advances the stream once; float draws are half-open and bounded integer draws include the upper bound. Seed independent streams explicitly. `TimeSeed()` is non-deterministic and must not seed shared simulation state unless that seed is distributed as deterministic input.
+`RandomEngine` is the deterministic gameplay RNG (random-number generator). All gameplay and simulation randomness flows through it — never `std::random`. `<random>` compiles here because it is a PCH include, but its distributions and `random_device` produce implementation-defined values, so a single standard-library draw in simulation code breaks bit-determinism, desyncs the per-tick CRC, and shows up only as a rare replay divergence. Every draw advances the stream once; float draws are half-open and bounded integer draws include the upper bound. Seed independent streams explicitly. `TimeSeed()` is non-deterministic and must not seed shared simulation state unless that seed is distributed as deterministic input.
 
 Adding or removing a draw changes every later result. Keep random draws and mode-transition draws outside throttled or client-only branches unless divergent consumption is intentional and isolated from shared state.
 

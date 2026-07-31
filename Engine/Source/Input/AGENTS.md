@@ -8,6 +8,8 @@
 - Because legacy keyboard messages are suppressed, hardware keyboard input does not feed ImGui. Gamepad navigation and agent-injected ImGui events use separate explicit paths.
 - Mouse wheel state is a lifetime accumulator that consumers diff. Mouse normalization uses the Vulkan framebuffer extent and may briefly leave the 0..1 range during resize.
 - The DirectXTK mouse object must exist before window creation because synchronous window messages call its static processing path.
+- Keyboard handling is hand-rolled on purpose rather than routed through DirectXTK's `Keyboard`. Adopting it would give up `RIDEV_NOLEGACY`, so Alt+F4 would arrive as an ordinary window-close message and bypass the game quit binding; it would let ImGui swallow keyboard messages; and it would break bindings that test the generic `VK_MENU`/`VK_SHIFT`/`VK_CONTROL` keys, because DirectXTK reports only the left/right-specific ones. Do not unify the keyboard onto DirectXTK to match the mouse and gamepad paths, and do not add `Keyboard.cpp` to the compiled DirectXTK units.
+- Game `Input.h` includes `Input/RawInputManager.h` directly because `Engine.h` pulls that header in only inside its client-only span, while the shared `RawInput` struct sits outside the header's own client guard. That direct include is what lets the server build see `RawInput`; it is not redundant, and moving the whole header inside the client guard breaks shared `FrameInput` code.
 
 ## Focus and Agent Input
 

@@ -24,10 +24,11 @@ Require:
   separated from pre-existing and concurrent work;
 - approved plan or concise intent, applicable repository instructions, and
   implementation handoff;
-- every affected-site trigger. Each signature, semantic, layout, and identity
-  trigger states the old contract and new contract explicitly, plus its
-  symbol/pattern and search scope. Sweep, guard, and mirror triggers state the
-  invariant and counterpart scope.
+- every note that another code site may be affected. Each signature, semantic,
+  layout, and identity note states the old contract and new contract explicitly,
+  plus its symbol/pattern and search scope. The notes for sweeping callers,
+  checking client/server guards, and updating mirrored code state the invariant
+  and counterpart scope.
 
 Return `BLOCKED` without editing when the ownership boundary, controlling
 intent, or a required old/new contract is missing. When the implementation
@@ -60,9 +61,26 @@ handoff.
    assumption remains valid.
 5. If a `Collection<T>` member or layout is added, removed, reordered, or
    retyped, read `add-collection-member` (`../add-collection-member/SKILL.md`)
-   completely and treat its live-variant checklist as authoritative. Report an
-   unresolved CRC, persistence, transfer, hydration, version, or identity
-   choice instead of inventing intent.
+   completely and treat its live-variant checklist as authoritative, and run
+   `.agents/scripts/Test-CollectionLayout.ps1` as
+   `pwsh -NoProfile -ExecutionPolicy Bypass -File <absolute script path>` (in
+   Git Bash, convert that path with `cygpath -w` first). It owns the mechanical
+   sweeps — effective `Members()` membership, the `SharedMembers()`/
+   `ClientMembers()` partition, `SharedCrcMembers()`/`PersistentMembers()`
+   subsets, client-guard placement, accessor guard parity, and
+   `Frame::kiVersion` sum completeness in both directions — and never writes,
+   generates, or repairs header text. Never reconstruct these operations
+   inline. `status` `pass` (exit 0) clears the sweep; `failed` (exit 1) reports
+   violations with path, line, collection, member, and rule; `blocked`
+   (exit 2) means an unresolvable accessor shape, tuple entry, guard form, or
+   `Frame::kiVersion` sum and is never a pass; `error` (exit 1) means the run
+   itself failed, such as a missing or empty `-Path`. The report is capped at
+   32 items and 8192 bytes, so `truncated` and `omittedCount` can hide
+   violations: rerun until `totalCount` is 0, or account for `totalCount` and
+   `omittedCount` before recording the violations as addressed. Any violation,
+   blocked, or error outcome blocks completion until it is fixed or explicitly
+   recorded. Report an unresolved CRC, persistence, transfer, hydration,
+   version, or identity choice instead of inventing intent.
 6. Edit only sites whose correctness clearly depends on the new contract.
    Leave sibling features and design-dependent counterparts as residuals. Do
    not perform style fixes, documentation updates, project membership edits,
@@ -87,7 +105,7 @@ Decisive checks: <old/new tracked searches, traces, rereads, and static checks>
 Project membership trigger: /update-vcxproj — <paths/reason> | none
 Build required: <exact targets/configuration/platform and project-member paths,
   or none>
-Reviewer focus areas: <contract and failure condition to falsify, or none>
+Reviewer focus areas: <contract and failure condition to try to disprove, or none>
 Residuals: <affected site not updated, incomplete search, ownership conflict,
   or unclassified hit, or none>
 ```

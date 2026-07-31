@@ -146,7 +146,7 @@ sequenceDiagram
         Main->>Net: SendDebugFrameRequest()
         Main->>Net: Set Client::mStateFlags kDesyncDebugMode
         Net->>Server: Debug frame request
-        Note over Main: Polling and receive adoption continue.<br/>ClientDesyncManager::IsStalled() gates physics,<br/>subscriptions, and reconciliation. Render and audio still run.
+        Note over Main: Polling and filling local slots from received state continue.<br/>ClientDesyncManager::IsStalled() gates physics,<br/>subscriptions, and reconciliation. Render and audio still run.
         alt Debug frame arrives before timeout
             Server->>Net: Debug frame response
             Main->>Main: ClientSessionRuntime::PollAndDrain() drains debug frame

@@ -11,6 +11,7 @@ Vulkan services exposed through `gp*` globals. `Graphics` constructs its manager
 - The shared descriptor pool serves graphics and compute pipelines. Most pipelines consume global Set 0, but legacy standalone compute pipelines retain their own layouts and do not. Pipeline-specific sets and bindless arrays must remain valid through partial recreation.
 - The texture-descriptor registry owns island bindless-slot metadata and descriptor registrations. Fixed bindless-array storage addresses are registry keys. During the post-fence bindless write epoch (a time window in which bindless descriptor writes are safe), eviction redirects all five island channels to slot-0 placeholders and retires their registrations before any view is freed or slot is reused; restoration exposes elevation only after the four lazy channels are ready.
 - A pipeline rebuild clears raw pipeline registrations but preserves live island-slot metadata. Registering a rebuilt bindless consumer must recreate its live per-slot descriptors so an in-flight lazy adoption still reaches that pipeline.
+- Boot fails loud when the device does not advertise `VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT` (the device's promise that it can blend into a given pixel format) for every special-format render target the MAX/ADD-blended prepasses write: elevation, lighting, smoke, and wind. Blending without it is silent undefined behavior at pipeline creation, so this device dependency is hard, unlike the sampler linear-filter probe that downgrades gracefully. Adding a blended prepass on a new format must extend that guard.
 - Pack-backed shaders, models, fonts, and textures are trust boundaries. Validate declared ranges, counts, dimensions, and derived byte sizes against the resident chunk before allocation or copy. Boot consumers throw `CorruptStreamException`; per-frame texture adoption soft-fails and preserves its placeholder.
 
 ## Responsibility Map
@@ -24,4 +25,4 @@ Vulkan services exposed through `gp*` globals. `Graphics` constructs its manager
 - ParticleManager (`ParticleManager.AGENTS.md`) - Thread-safe CPU staging for GPU particles
 - ImGuiManager (`ImGuiManager.AGENTS.md`) - UI recording, submission, scaling, and opaque regions
 
-Renderer-wide frame and recreation ordering stays in Graphics (`../AGENTS.md`); manager references own manager-specific algorithms and failure modes.
+Renderer-wide frame and recreation ordering stays in Graphics; manager references own manager-specific algorithms and failure modes.

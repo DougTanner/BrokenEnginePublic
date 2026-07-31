@@ -126,7 +126,7 @@ void main()
 			// Direction is in texcoord space: +X = east (pixel right), +Y = south (pixel down)
 			// EWNS channels: R=East(+X), G=West(-X), B=North(-Y pixel), A=South(+Y pixel)
 			// Weight = alignment of the sampling direction with each channel's axis
-			vec4 f4DirWeight = max(vec4(-f2Direction.x, f2Direction.x, -f2Direction.y, f2Direction.y), 0.0f);
+			vec4 f4DirWeight = max(vec4(f2Direction.x, -f2Direction.x, -f2Direction.y, f2Direction.y), 0.0f);
 
 			// Per-sample x/y jitter — does NOT touch f2Direction. clustering > 1 clusters near origin, < 1 pushes to rim.
 			float fSampleJitterR = pow(Random01(prng), fSampleJitterClustering);

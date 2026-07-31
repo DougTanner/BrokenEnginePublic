@@ -135,5 +135,9 @@ void main()
 	imageStore(combineImageR, i2Coord, f4FinalR);
 	imageStore(combineImageG, i2Coord, f4FinalG);
 	imageStore(combineImageB, i2Coord, f4FinalB);
+	// The ambient target stores the AVERAGE of the four EWNS channels (0.25 * (E+W+N+S)) per color channel, so
+	// consumers do one sample instead of three. Consumers needing the un-averaged sum multiply by 4:
+	// Water/Water.frag and Terrain/Terrain.frag pass 4.0f * f3AmbientSum into BlendSmokePrecomputed. Changing this
+	// 0.25f means changing both of those call sites in the same edit.
 	imageStore(combineImageAmbient, i2Coord, vec4(dot(f4FinalR, vec4(0.25f)), dot(f4FinalG, vec4(0.25f)), dot(f4FinalB, vec4(0.25f)), 1.0f));
 }

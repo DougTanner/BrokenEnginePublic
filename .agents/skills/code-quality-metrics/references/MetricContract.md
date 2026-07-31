@@ -15,7 +15,7 @@ The target manifest is UTF-8 JSON:
 
 `baseline` and `current` are nullable identities, with at least one side required. Pairs are ordinal-sorted by baseline path then
 current path. Each non-null identity contains exactly `path`, `mode`, and `sha256`; paths are
-canonical relative POSIX paths, modes are ordinary Git blob modes, and hashes are lowercase SHA-256.
+normalized relative POSIX paths, modes are ordinary Git blob modes, and hashes are lowercase SHA-256.
 The analyzer verifies every listed raw identity, pair truth, casing, profile support, and ordinary
 non-reparse file before capture. A same-path two-sided pair is valid; a one-sided pair must be an
 actual addition or deletion. A two-sided cross-path pair is valid only when its baseline path is
@@ -57,7 +57,7 @@ value appears. Top-level fields, in this order, are `schemaVersion`, `mode`, `pr
 
 `tool` is `{adapterVersion,lockSha256,python,disableSg}` with `adapterVersion` set to `"4"`; its `python` value is
 `{implementation,version,architecture,executableSha256}`. `targetSelection` is
-`{kind,scope,target,paths}` for Snapshot and `{kind,pairs,paths}` for Compare. Compare canonicalizes
+`{kind,scope,target,paths}` for Snapshot and `{kind,pairs,paths}` for Compare. Compare normalizes
 each selected pair to `{baseline,current}` and each identity to `{path,mode,sha256}`, independent
 of input JSON member order. Context-change rows are `{path,change}`.
 
@@ -140,6 +140,7 @@ Parser-derived group hashes may reflect this capture, while typed signatures, fu
 SLOC, and raw-span hashes retain source coordinates and raw identities.
 
 The entrypoint authenticates the provisioned source internally, archives it into a fresh ignored
-stage, and imports the staged source. Its gitlink pin is only an archive selector. The venv key and
+stage, and imports the staged source. Its recorded submodule commit only chooses which files go into
+the archive. The venv key and
 `complete.json` remain keyed only by Python interpreter identity and `requirements.lock` hash; they
 do not include analyzer output, normalizer, or gitlink identity.

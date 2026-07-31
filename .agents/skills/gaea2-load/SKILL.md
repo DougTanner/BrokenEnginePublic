@@ -16,35 +16,28 @@ Convert a Gaea 2 `.terrain` JSON into:
 
 1. Resolve the input path. `$ARGUMENTS` holds the user-supplied path. If it's empty or doesn't end in `.terrain`, ask the user for the file path. If it's a bare filename (no directory), try `C:/Program Files/QuadSpinner/Gaea 2/Examples/<name>.terrain` — that's where Gaea ships its example library. The shared `.claude/skills/gaea2-shared/examples/` directory is intentionally empty (the example files are © QuadSpinner and aren't redistributed); see its `README.md` for the rationale and the 28-file working set.
 
-2. Verify Python 3.10+ is available. Python may be missing or stale on a fresh dev box, and `winget install` doesn't refresh PATH in the current shell — so the bootstrap probes well-known install dirs (winget, conda, scoop, chocolatey, active venv) directly:
+2. Run the load wrapper. One call resolves the input path, checks Python, probes Gaea version drift, and runs the loader — which writes `Temp/<basename>.md` and `Temp/<basename>.passthrough.json`. In Claude Code's Git Bash terminal, convert the script path first:
+   ```bash
+   script="$(cygpath -w "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/Invoke-Gaea2Load.ps1")"
+   pwsh -NoProfile -ExecutionPolicy Bypass -File "$script" -InputPath "<input.terrain>" 2>/dev/null
    ```
-   pwsh -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/detect-python.ps1"
-   ```
-   - Exit 0 with `OK <python-exe-path> Python X.Y` → capture `<python-exe-path>` for step 3 (don't assume bare `python` is on PATH; the launcher `py.exe` is intentionally not used here).
-   - Exit 1 with `MISSING ...` or `STALE ...` → tell the user Python is missing/too old and ask for permission to install. Only after explicit approval, run:
-     ```
-     winget install Python.Python.3.12 --accept-source-agreements --accept-package-agreements
-     ```
-     Then re-run the bootstrap.
+   In a PowerShell 7 terminal pass the path directly, without the `cygpath` conversion. The wrapper resolves relative paths and `Temp/` against the repository root whatever the shell's current directory is, and passes the child processes' stderr through to yours — redirect it (`2>/dev/null` above) when you only want the JSON.
 
-3. Probe Gaea 2 version drift. Gaea's accepted enum values, required fields, and port catalogues can shift between releases. Catch this before it bites by running:
-   ```
-   "<python-exe-path>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/check_gaea_version.py"
-   ```
-   The script reads the current Gaea version from the latest session log (or, as a fallback, from `Gaea.exe`'s `ProductVersion`) and compares it against the PC-local baseline at `%LOCALAPPDATA%/BrokenEngine/AgentCache/Gaea2/gaea-version.txt`. Every worktree reuses this cache; the script safely copies an older checkout-local baseline when present and retains the legacy source for compatibility with already-running older tools.
-   - Exit 0 — version unchanged, proceed silently.
-   - Exit 1 — version changed. The script prints a structural diff (new node types, new enum values, dropped properties) to stderr. Surface this to the user in your final report as a one- or two-line note ("Gaea moved 2.3.0.0 → 2.4.0.0; SatMap.Library gained 'Volcanic'"). Suggest they check `gaea2-modify/SKILL.md`'s per-type constraints aren't stale.
-   - Exit 2 — no PC-local shared baseline exists yet; baseline cached silently, proceed.
-   - Exit 3 — could not detect a Gaea install or access the shared cache. Note it in the report but continue — this is just an information probe, not a gate.
-   The shared cache also stores a sample-structure fingerprint so the diff includes *what* changed, not just the version string. A fresh checkout can return exit 0 by reusing the PC-local baseline.
+   Stdout is one JSON object, `schemaVersion` `broken-engine-gaea2-load/v1`, with `status`, `code`, `message`:
+   - `ok` (exit 0) — `markdownPath`, `passthroughPath`, and `versionDrift` are populated. Continue to step 3.
+   - `input.needs-user` (exit 2) — the path was empty or didn't end in `.terrain`. Ask the user for the file (step 1's rule), then re-run.
+   - `python.missing` / `python.stale` (exit 2) — no usable x64 CPython 3.12+ interpreter, and nothing else ran. Do not install anything: report to the user that Python is missing or too old, quoting the envelope's `message` (it carries the probe's own `MISSING`/`STALE` line), and — for `python.missing` — the `installCommand` the envelope carries as the suggested command for them to run (`installCommand` is null for a stale interpreter, which the user resolves by upgrading). Stop until they say it's installed.
+   - `input.not-found`, `load.failed`, `load.output-missing`, `internal.error` (exit 1) — report `message` plus the envelope's `stderr`, which carries the failing script's own diagnostics.
 
-4. Run the loader using the detected Python path. Quote it (the path may contain spaces):
-   ```
-   "<python-exe-path>" "${CLAUDE_SKILL_DIR}/../gaea2-shared/scripts/load_terrain.py" "<input.terrain>"
-   ```
-   The script writes `Temp/<basename>.md` and `Temp/<basename>.passthrough.json`.
+   Never reconstruct these operations inline: don't run the shared `.agents/scripts/Detect-Python.ps1` probe the wrapper already calls and parse its `OK`/`MISSING`/`STALE` line yourself, don't invoke `check_gaea_version.py` or `load_terrain.py` with a bare `python` or a captured interpreter path, and don't chain the calls by hand.
 
-5. Report what was loaded. Read the resulting `.md` file's frontmatter and the Mermaid block, then show the user a brief summary: number of nodes, number of edges, build resolution, the Mermaid topology rendered inline. Include any version-drift note from Step 3. The user can now use `/gaea2-modify` to edit, then `/gaea2-save` to write back. If something fails when they open the result in Gaea 2, point them at `/gaea2-diagnose`.
+   Gaea's accepted enum values, required fields, and port catalogues can shift between releases, so the wrapper's `versionDrift` object exists to catch that before it bites. It carries `state` and a `notice` (the probe's own output):
+   - `unchanged` — proceed silently.
+   - `changed` — surface the `notice` to the user in your final report as a one- or two-line note ("Gaea moved 2.3.0.0 → 2.4.0.0; SatMap.Library gained 'Volcanic'"), and suggest they check that `gaea2-modify/SKILL.md`'s per-type constraints aren't stale.
+   - `baseline-cached` — no PC-local baseline existed yet; it was cached silently, proceed.
+   - `undetected` — no Gaea install or shared cache was reachable. Note it in the report but continue; drift detection is an information probe, not a gate.
+
+3. Report what was loaded. Read the resulting `.md` file's frontmatter and the Mermaid block, then show the user a brief summary: number of nodes, number of edges, build resolution, the Mermaid topology rendered inline. Include any version-drift note from step 2. The user can now use `/gaea2-modify` to edit, then `/gaea2-save` to write back. If something fails when they open the result in Gaea 2, point them at `/gaea2-diagnose`.
 
 ## Notes on the output format
 
