@@ -24,6 +24,14 @@ Replace only the active-connection teardown synchronization so shutdown never re
 - `Engine/Source/Agent/AgentCommandServer.h` — only private state or helper declarations mechanically required by the verified cancellation mechanism; preserve `mListenerThread` member order.
 - `Engine/Source/Agent/AGENTS.md` — only the active-connection teardown wording if the selected mechanism changes its durable transport invariant.
 
+## In scope
+
+- `Engine/Source/Agent/AgentCommandServer.cpp` — `~AgentCommandServer`: request shutdown and signal the selected cancellation path without closing an active descriptor `ServeConnection` can still use.
+- `Engine/Source/Agent/AgentCommandServer.cpp` — `ListenerLoop`: perform the final active-socket close and invalidation after connection I/O has exited, under the existing transport lock, and close a locally accepted socket when stop is observed before publication.
+- `Engine/Source/Agent/AgentCommandServer.cpp` — `ServeConnection`, `ReadExact`, and `SendExact`: adopt the bounded or explicitly cancellable receive/send strategy, including any change to the current blocking-mode restoration.
+- `Engine/Source/Agent/AgentCommandServer.h` — only the private state or helper declarations mechanically required by the verified cancellation mechanism; preserve `mListenerThread` member order.
+- `Engine/Source/Agent/AGENTS.md` — only the active-connection teardown wording, and only if the selected mechanism changes that durable transport invariant.
+
 ## Out of scope
 
 - Listener-socket accept/recycle behavior, including the nonblocking accept cadence and its teardown serialization, which belongs to `AgentListenSocketRecycleWindow.md`.
@@ -42,7 +50,7 @@ Replace only the active-connection teardown synchronization so shutdown never re
 
 ## Acceptance criteria
 
-- An external-claim packet verifies the selected Winsock cancellation behavior for the supported Windows configuration before implementation. Together with structural ownership/path inspection of every active-socket receive, send, stop, and final-close path, this is the decisive evidence for the unsupported concurrent-close defect.
+- An external-claim request verifies the selected Winsock cancellation behavior for the supported Windows configuration before implementation. Together with structural ownership/path inspection of every active-socket receive, send, stop, and final-close path, this is the decisive evidence for the unsupported concurrent-close defect.
 - Structural inspection proves one final-close owner after connection I/O exits, no destructor-side concurrent close of `mActiveSocket`, and no lock held across `ServeConnection` or other blocking connection I/O.
 - Debug x64 client and server builds compile the changed transport source.
 - Via `/agent-harness`, ordinary client and server launch/ping/quit is regression smoke only: it must preserve clean exit and expected logs, but it makes no claim to hold an idle connection in a next-frame receive or to cover a pending response.

@@ -35,7 +35,7 @@ signatures, any surrounding profiling scope (notably
 the existing manual subset; server tuples must be empty where the current
 server build copies no members.
 
-| Classification | Definitions and required disposition |
+| Classification | Definitions and required handling |
 | --- | --- |
 | Direct full-member migration | `BlastersPostRender` (five existing copied members); `AreaLightsPostRender`, `WindTrailsPostRender`, `PointLightsPostRender`, `HexShieldsPostRender`, `SoundsPostRender`, `SmokeTrailsPostRender`, `BillboardsPostRender`, and `PushersPostRender` (their `Members()` tuple is exactly `puiIds`); `WindRadialsPostRender`, `ExplosionsPostRender`, and `PuffsPostRender` (empty `Members()` tuples). Replace their bodies only. |
 | Persistent-tuple migration | `BlastersInterpolate` (`puiTypeIndices` plus its existing client-only child IDs/tuning); `SpaceshipsInterpolate` (`puiPushers`, `puiTargets`, plus client `puiWindTrails`); `SpaceshipsPostRender` (`pVecDamageDirections`, `pAlignments`); `PlayersInterpolate` (`puiPushers`, plus client `pWindTrails` and `pHexShields`); `PlayersPostRender` (`puiIds`, `pAlignments`, `pClientGuids`, `pGlobalPlayerIds`); `MissilesInterpolate` (client `puiAreaLights`, `puiSmokeTrails`, empty on server); and `MissilesPostRender` (`pFlags`, `pVecExplosionDirections`, `pfDeltaRotationMax`, `pfAccelerations`, `pfPitches`, client `puiSounds`, `pAlignments`). Declare each exact existing subset in tuple order, then replace only the manual sequence. |
@@ -63,6 +63,36 @@ hydration behavior, or the custom Update ownership.
   `Engine/Source/Frame/Collections/Pushers/AGENTS.md`, and
   `Projects/BrokenEngineSandbox/Source/Frame/Collections/AGENTS.md` — tuple,
   phase-carry-forward, identity, and client/server invariants to preserve.
+
+## In scope
+
+- Static inventory and classification of every `void *::AllocateAndCopy(...)`
+  definition under `Engine/Source/Frame/Collections` and
+  `Projects/BrokenEngineSandbox/Source/Frame/Collections` as helper-backed,
+  exact migration, or documented custom.
+- Direct full-member migration — replace only the allocation/copy body with
+  `engine::AllocateAndCopyMembers(rCurrent, rPrevious)` in
+  `BlastersPostRender::AllocateAndCopy` and in the `AllocateAndCopy` definitions
+  of `AreaLightsPostRender`, `WindTrailsPostRender`, `PointLightsPostRender`,
+  `HexShieldsPostRender`, `SoundsPostRender`, `SmokeTrailsPostRender`,
+  `BillboardsPostRender`, `PushersPostRender`, `WindRadialsPostRender`,
+  `ExplosionsPostRender`, and `PuffsPostRender`.
+- Persistent-tuple migration — add a `PersistentMembers()` tuple declaring the
+  exact existing copied subset in tuple order, then replace only the manual copy
+  sequence, in `BlastersInterpolate`, `SpaceshipsInterpolate`,
+  `SpaceshipsPostRender`, `PlayersInterpolate`, `PlayersPostRender`,
+  `MissilesInterpolate`, and `MissilesPostRender` under
+  `Projects/BrokenEngineSandbox/Source/Frame/Collections/{Blasters,Spaceships,Players,Missiles}/*.{h,cpp}`.
+  Preserve declaration signatures, the `SpaceshipsInterpolate` profiling scope,
+  and all `BT_CLIENT`/`BT_SERVER` membership; server tuples stay empty where the
+  current server build copies no members.
+- Audit-only confirmation that the already helper-backed definitions (both
+  `Targets` halves; the `AreaLights`, `WindTrails`, `PointLights`, `HexShields`,
+  `Sounds`, `SmokeTrails`, `Billboards`, `WindRadials`, `Explosions`, and
+  `Puffs` Interpolate halves) and the allocation-only
+  `PushersInterpolate::AllocateAndCopy` remain unchanged.
+- `Engine/Source/Frame/Collections/CollectionMemory.h` is reused unchanged; the
+  Collections `AGENTS.md` files are consulted for the invariants to preserve.
 
 ## Out of scope
 

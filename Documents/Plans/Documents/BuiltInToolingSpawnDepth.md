@@ -32,6 +32,12 @@ Both the runs and any fallback edit require explicit user direction in that sess
 - `AGENTS.md` — "IMPORTANT: Context management and agent selection" > "Subagents", the bullet naming the depth value; edited only on an observed failure.
 - `.claude/agents/{planner,reviewer,implementer,researcher,locator,builder,mechanic}.md` — `disallowedTools: Agent`; read-only evidence that role-level enforcement does not depend on the cap.
 
+## In scope
+
+- No tracked file changes when both observed runs complete: the criterion closes on the recorded observation alone.
+- `.claude/settings.json` — `env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, set to `"2"`; edited only on an observed spawn-depth or nested-agent refusal.
+- `AGENTS.md` — the "IMPORTANT: Context management and agent selection" > "Subagents" bullet naming the depth value, amended to state that the value is 2 because the named built-in requires one nested level and that the no-spawn guarantee rests on `disallowedTools: Agent` in the seven role definitions; edited only on that same observed failure.
+
 ## Out of scope
 
 - Any change to the seven role definitions, their `disallowedTools` lines, or the Change Workflow delegation contract.

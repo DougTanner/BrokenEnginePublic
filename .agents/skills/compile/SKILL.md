@@ -17,15 +17,15 @@ Builds through the current checkout's WorktreeCli executable. `WorktreeCli build
 
 - `status` (`success`/`fail`), `failureKind` (`none`/`tool`/`msbuild`), and `exitCode` — the process exit code keeps its existing meaning (MSBuild's exit code once launched; `1` for tool failures including a retained-log failure after a successful build).
 - `target`/`worktreeRoot` normalized identities, `arguments`, `selectedFiles`, `invalidatedObjects`.
-- `lock` disposition (`acquired`/`timeout`/`failed`) with the lock path and waited seconds.
+- `lock` outcome (`acquired`/`timeout`/`failed`) with the lock path and waited seconds.
 - `msbuild` discovery/launch state and MSBuild's own exit code.
 - `retainedLog` — the complete combined MSBuild stdout+stderr stream in observed read order, untruncated, below the invoking worktree's ignored `Temp/AgentBuildLogs/`. `complete: false` or a missing log is a build-result failure, never an omitted side effect.
 - `diagnostics` — structured MSBuild error/warning entries (`severity`, `code`, `file`, `line`, `column`, `project`, `message`, `raw`), capped with `diagnosticsTruncated: true` when the raw log holds more; `messages` carries tool failures and unmatched fatal lines.
 - `elapsedMilliseconds` and `startedAt`.
 
-## Bootstrap AgentTools
+## AgentTools trigger
 
-The canonical executables are `$ROOT\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` and `$ROOT\Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe`. The Codex and Claude wrappers hold no long-lived WorktreeCli session claim; bootstrap, worktree provisioning, and landing each register a transient WorktreeCli operation claim (fresh GUID) around their shared-Output consumption window so a concurrent AgentTools promotion defers until the operation releases. Routine work starts with the immutable primary Outputs. Never build either executable or write through either shared Output link in a routine checkout:
+The canonical executables are `$ROOT\Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe` and `$ROOT\Tools\AgentHarness\Platforms\VisualStudio2026\Output\AgentHarness.exe`. Routine work consumes these immutable primary Outputs and never builds into or writes through them:
 
 ```powershell
 & "$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1" -RepositoryRoot $ROOT
@@ -35,51 +35,32 @@ $AgentHarness = Join-Path $ROOT 'Tools\AgentHarness\Platforms\VisualStudio2026\O
 if (-not (Test-Path -LiteralPath $WorktreeCli -PathType Leaf) -or -not (Test-Path -LiteralPath $AgentHarness -PathType Leaf)) { throw 'AgentTools output is incomplete.' }
 ```
 
-If either primary prebuilt executable is missing, stop: worktree wrappers own AgentTools bootstrap before worktree creation. Routine mode neither builds a tool nor mutates its shared Output.
-
-### AgentTools candidate production and promotion
-
-AgentTools promotion-triggering changes — any non-Markdown path under `Tools/WorktreeCli/`, `Tools/AgentHarness/`, or `Tools/ToolCommon/` — never build into or through a canonical `Output` directory or link. They flow through two gated steps:
-
-1. Candidate production — run the bundled sidecar from the checkout that holds the changes. It takes a zero-wait exclusive file lock at that checkout's ignored `Temp\AgentToolsCandidate\.producer.lock`; another producer in the same checkout returns `candidate.concurrent-producer`, while different checkouts remain independent and never use the PC-global session ledger. It then snapshots every nonignored ordinary file under `Tools/WorktreeCli/`, `Tools/AgentHarness/`, and `Tools/ToolCommon/`, plus `ThirdParty/tinygltf/json.hpp`, builds both solutions into run-specific paths below `Temp\AgentToolsCandidate\`, parses the compiler dependency tlogs, capability-checks the pair, and re-snapshots the exact source set. Every repository-local compiler input must be present in the pre-build manifest, and membership, bytes, SHA-256, or clean-filter Git blob identity must remain unchanged:
-
-   ```powershell
-   & "$ROOT\.agents\skills\compile\scripts\New-AgentToolsCandidate.ps1" -WorktreeRoot $ROOT
-   ```
-
-   The producer emits one `broken-engine-agenttools-candidate-result/v1` JSON object. Exit `0` returns a `broken-engine-agenttools-candidate/v2` receipt path/SHA-256; the receipt records the before/after manifest and digest, dependency logs and repository-local compiler inputs, checkout/commit identity, MSBuild identity, executable hashes, capability-check identity, and before/after canonical executable identity. Exit `2` is a deterministic negative result: concurrent producer, source change (`candidate.source-changed`), missing/unbound compiler evidence, build/output/capability failure, or disturbed canonical output. Exit `1` is malformed input, Git/MSBuild discovery, OS, or internal failure. This doubles as the compile check for tool-source changes. It neither waits for other checkouts nor certifies a commit for promotion.
-
-   Finalization owns commit certification: after landing, it accepts v2 only, proves the receipt's source manifest equals the landed clean-filter blobs, rechecks candidate executable hashes, and then promotes. A rebase that preserves all manifest identities does not require a rebuild; any landed source membership or blob mismatch does. When `BuildCommand.cpp`'s result contract changes, run `scripts/Test-BuildResultFixtures.ps1` against the candidate `WorktreeCli.exe`.
-
-   Candidate production may finish while other wrapper sessions remain active.
-   Its handoff must flag AgentTools promotion as a canonical shared-artifact
-   mutation (`../next-plan/references/execution-gates.md#canonical-shared-artifacts`);
-   `/finalize-changes` uses the bounded typed quiescence sidecar until every
-   in-flight operation claim other than the landing's own clears, re-reconciles
-   if primary advanced during the wait, and presents landing confirmation only
-   after that recheck passes.
-
-2. Promotion — owned by `/finalize-changes` (`.agents/skills/finalize-changes/scripts/Invoke-AgentToolsPromotion.ps1`) and possible only during an approved session landing, after v2 commit certification succeeds. Routine builds, this skill, and unlanded session trees cannot promote; do not copy or install either executable elsewhere.
-
-Wrapper bootstrap (`.agents/scripts/Bootstrap-AgentTools.ps1`) is the only in-place build path for the shared primary Outputs, and it runs at every wrapper session start rather than only when an executable is missing. It unconditionally incremental-rebuilds `WorktreeCli.sln` and `AgentHarness.sln` (Release) and `ThirdParty.sln` (Debug/Profile/Release), so the shared binaries always match primary HEAD; up-to-date sources make it a near-no-op that writes nothing and is safe alongside live peer sessions; when sources actually changed (after a Tools/ThirdParty-touching landing), the relink can transiently fail a peer build reading the shared outputs — wrap up peer sessions around such landings. It also best-effort prebuilds `DataPacker.sln` (Release) inside the same mutex, gated on a clean `DataPacker/`/`Common/`/`ThirdParty/` tree, and stamps the built exe so a new session worktree seeds its DataPacker Output by verified copy (`.agents/scripts/Build-WorktreeDataPacker.ps1`) instead of a from-scratch compile; unlike the tool builds this prebuild only warns on failure, leaving the worktree to build DataPacker locally. It serializes concurrent bootstraps on a PC-global named mutex (transient operation claims no longer serialize peer bootstraps, since duplicate concurrent operation claims are legal), skips its builds with a loud warning when the primary has uncommitted `Tools/`/`ThirdParty/` changes, and hard-fails session start on any nonzero build exit or mutex timeout — the message says to wrap up active worktree sessions and retry, because the dominant cause is a relink blocked by a peer holding the executable. Candidate production and landing promotion above remain the flow for *certified* tool refreshes within a session landing; bootstrap is the deterministic session-start safety net beneath them.
+If either executable is missing, stop: wrappers own bootstrap. When the changed
+set contains a non-Markdown path under `Tools/WorktreeCli/`,
+`Tools/AgentHarness/`, or `Tools/ToolCommon/`, the rebuilt tools are promoted
+through `/finalize-changes`' AgentTools promotion — quiescence plus
+backup/rollback under the shared mutex — which also owns bootstrap policy. This
+compile run only builds; it never promotes or copies tools. An agent changing
+shared tool infrastructure pauses and warns the user only if the change could
+cause problems for other live worktrees.
 
 ## Determine what to build
 
-Resolve identities once before selecting data mode or changed paths. An explicitly supplied fixed baseline from the caller or approved execution card is authoritative and must not be replaced with a later `HEAD`. Otherwise use `BROKEN_ENGINE_BASELINE` when present, then the selected checkout's current `HEAD`. Resolve `$ROOT` from `BROKEN_ENGINE_WORKTREE_PATH` when present, otherwise from `git rev-parse --show-toplevel` in the caller-supplied/current checkout. Resolve `$PRIMARY` from `BROKEN_ENGINE_PRIMARY_CHECKOUT` when present; otherwise use the parent of the absolute Git common directory (`git -C $ROOT rev-parse --path-format=absolute --git-common-dir`). Canonicalize and validate each path, require `$ROOT` to equal its Git top level, require `$PRIMARY\.git` to be an ordinary directory, and require `$BASELINE` to resolve to a commit. Environment values are wrapper-provided identity hints, not permission to move a supplied baseline.
+Resolve identities once before selecting data mode or changed paths. An explicitly supplied session baseline from the caller or approved execution card is authoritative and must not be replaced with a later `HEAD`. Otherwise use `BROKEN_ENGINE_BASELINE` when present, then the selected checkout's current `HEAD`. Resolve `$ROOT` from `BROKEN_ENGINE_WORKTREE_PATH` when present, otherwise from `git rev-parse --show-toplevel` in the caller-supplied/current checkout. Resolve `$PRIMARY` from `BROKEN_ENGINE_PRIMARY_CHECKOUT` when present; otherwise use the parent of the absolute Git common directory (`git -C $ROOT rev-parse --path-format=absolute --git-common-dir`). Canonicalize and validate each path, require `$ROOT` to equal its Git top level, require `$PRIMARY\.git` to be an ordinary directory, and require `$BASELINE` to resolve to a commit. Environment values are wrapper-provided identity hints, not permission to move a supplied baseline.
 
 - Default: BrokenEngineSandbox client Debug.
 - If any changed file is shared (`Common/`, `Engine/`, or non-exclusive game code), build both client and server.
-- If the session's approved plan or acceptance matrix includes an agent-harness scenario, build both client and server in the same request regardless of changed-file affinity — the harness launches both executables and hard-stops when either is missing. A delegator requesting the build states this trigger.
+- If the session's approved plan or acceptance table includes an agent-harness scenario, build both client and server in the same request regardless of changed-file affinity — the harness launches both executables and hard-stops when either is missing. A delegator requesting the build states this trigger.
 - ThirdParty builds only on explicit request in agent-driven `/compile`; missing source or library links are provisioning failures and a routine `/compile` never rebuilds ThirdParty itself. Wrapper bootstrap does incremental-rebuild ThirdParty at every session start (see Bootstrap AgentTools), so a routine `/compile` normally finds it already current.
 - DataPacker builds Release only. WorktreeCli still supplies the normal worktree-local target serialization. Worktree session start seeds the worktree's DataPacker Release Output by verified copy from the primary bootstrap prebuild when the worktree's clean `DataPacker/`/`Common/`/`ThirdParty/` trees match the stamp, and otherwise builds it locally (`.agents/scripts/Build-WorktreeDataPacker.ps1`), so `DataPacker.exe` is already present at session start; a session that changes DataPacker-relevant sources performs a full local rebuild on its first DataPacker build. DataPacker's `"BrokenEngineDataPacker"` mutex and the AgentTools bootstrap mutex are the two PC-global build coordination points; add no others (the seed copy reuses the bootstrap mutex for its prebuild).
 
 Before any DataPacker, client, or server build, invoke `$ROOT\.agents\scripts\Provision-WorktreeThirdParty.ps1 -RepositoryRoot $ROOT` and stop on failure. Validated stable primary submodule trees plus shared immutable ThirdParty, WorktreeCli, and AgentHarness Output directories are the only exceptions to worktree-local build artifacts. When this session holds the harness lock, send `quit` with its own owner token and wait for its own retained exact PIDs before building — a live executable locks its image. When a target executable is live under a process this session cannot prove it owns, stop and report contention; never quit or stop it (`/agent-harness`, Ownership and takeover). Do not discover this as a link error.
 
-For routine work, build the checkout supplied by the caller. An isolated session worktree remains appropriate for queue operations, concurrent work, or a final-evidence gate, but is not a prerequisite for a targeted build. Keep existing build serialization and the gated AgentTools candidate/promotion path; do not share mutable build output between checkouts (the session-start DataPacker seed is a one-time verified copy the worktree then owns and may rebuild over, not shared output).
+For routine work, build the checkout supplied by the caller. An isolated session worktree remains appropriate for queue operations, concurrent work, or a landing gate, but is not a prerequisite for a targeted build. Keep existing build serialization and the gated AgentTools promotion path; do not share mutable build output between checkouts (the session-start DataPacker seed is a one-time verified copy the worktree then owns and may rebuild over, not shared output).
 
 For a delegated call, return the complete build result inline. A `builder`
 executing this skill runs the build itself and never dispatches another agent.
-A build does not create an evidence artifact; a later final-evidence gate
+A build does not create an evidence artifact; a later landing gate
 records its decisive exit status and relevant diagnostics once.
 
 DataPacker's mutex coordinates across worktrees and its shared chunks live under `%LOCALAPPDATA%\BrokenEngine\DataPackerCache\<Project>`; do not add another PC-global DataPacker lock or a checkout-local cache copy (the session-start seed copies the built `DataPacker.exe` once into the worktree's own Output — a verified artifact seed, not a shared chunk cache). Gaea raw and split intermediates use the single mutable `%LOCALAPPDATA%\BrokenEngine\DataPackerCache\<Project>\Gaea\Islands` cache; source-tree island leaves retain only tracked BC outputs.
@@ -230,7 +211,7 @@ Only `.cpp` inputs already present in the target project are valid. After a head
 - LNK1104, LNK1168, or EXE LNK2019 can mean a client/server process still holds the executable; report it rather than diagnosing unless asked.
 - A prior killed build's `unsuccessfulbuild` marker clears on the next successful run; rerun instead of deleting tlogs.
 - A lock timeout means another WorktreeCli build still owns that target. Retry after it finishes; never delete `.claude/build-locks/` manually.
-- For game builds, report `DataBuildMode`, the `RunDataPacker` value for every build, canonical `GameDataDirectory`, canonical `GeneratedDataIncludeRoot`, and each selected oracle's exact receipt path, SHA-256, Data path, mode, baseline, and aggregate digest. In Local mode also report the independent primary Shared oracle. Report every mode-selection trigger, the Local prepared-data or generation-authorization trigger, authorized content-delta disposition, whether the Gaea guard was applied (or the exact explicit Gaea-regeneration authorization), and all post-build oracle verification results. A harness run must consume these exact identities; it must not infer, substitute, or compare Shared and Local for equality.
+- For game builds, report `DataBuildMode`, the `RunDataPacker` value for every build, canonical `GameDataDirectory`, canonical `GeneratedDataIncludeRoot`, and each selected oracle's exact receipt path, SHA-256, Data path, mode, baseline, and aggregate digest. In Local mode also report the independent primary Shared oracle. Report every mode-selection trigger, the Local prepared-data or generation-authorization trigger, authorized content-delta outcome, whether the Gaea guard was applied (or the exact explicit Gaea-regeneration authorization), and all post-build oracle verification results. A harness run must consume these exact identities; it must not infer, substitute, or compare Shared and Local for equality.
 
 End with:
 

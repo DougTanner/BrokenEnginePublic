@@ -18,7 +18,7 @@ or choose for them.
 Execution splits by role: the preparation `implementer` performs every
 repository read, search, and WorktreeCli validation this skill requires and
 returns immutable decision briefs; the main session interviews the user,
-adjudicates, and dispatches the `locator` for external claim packets. Role
+adjudicates, and dispatches the `locator` for external-claim requests. Role
 contract: `../next-plan/references/tier3-workflow.md`.
 
 ## Required Input and Boundary
@@ -27,22 +27,22 @@ Require all of the following before starting:
 
 - an immutable Tier-3 plan supplied inline or by exact repository path;
 - evidence that `/plan-audit` reviewed this exact plan revision, plus the
-  manager's disposition of every finding;
-- user intent, applicable repository instructions, fixed baseline when one
+  manager's decision on every finding;
+- user intent, applicable repository instructions, session baseline when one
   exists, and any approved deltas;
-- the draft execution-control record: Tier-3 triggers, roles, and each
+- the draft execution card: Tier-3 triggers, roles, and each
   acceptance criterion with its decisive check and expected result.
 
-Load an exact-path plan once and treat those bytes as the interview snapshot.
+Load an exact-path plan once and treat those bytes as the frozen plan text.
 Never edit the plan, scheduler claims, code, or any other repository file. Audit
-findings are decision inputs, not permission to patch the snapshot. If the supplied
+findings are decision inputs, not permission to patch that text. If the supplied
 revision differs from the audited revision, the audit did not complete, or the
 plan is not Tier 3, stop and return the needed correction to the manager.
 
 ## Workflow
 
-1. Read the complete snapshot, audit result, finding dispositions, execution
-   record, applicable instructions, and every cited repository region needed to
+1. Read the complete frozen plan text, audit result, finding decisions, execution
+   card, applicable instructions, and every cited repository region needed to
    test its assumptions.
 2. For a bug fix, rank three to five falsifiable causal hypotheses internally.
    Verify their predictions from code, logs, or supplied diagnostics. Ask only
@@ -118,8 +118,8 @@ logic inseparable from internal engine types.
 
 1. State the capability in one sentence and inspect `ThirdParty/` and
    `ThirdParty/Prebuilts/` for an existing dependency.
-2. Identify at most three plausible commercial-friendly candidates. Treat every
-   external fact as a separate stable-ID claim packet for a delegated `locator`
+2. Identify at most three plausible commercial-friendly options. Treat every
+   external fact as a separate stable-ID external-claim request for a delegated `locator`
    running `/verify-external-claims`:
 
    ```text
@@ -136,7 +136,7 @@ logic inseparable from internal engine types.
    only `VERIFIED` facts as established, and expose relevant `UNRESOLVED` facts.
 3. Compare verified license, maturity, compatibility, and integration cost with
    the custom scope. Present two or three choices using the normal interaction
-   contract: use a candidate, wrap it behind a thin adapter, or hand-roll for a
+   contract: use an option, wrap it behind a thin adapter, or hand-roll for a
    specific evidenced reason.
 4. If the user chooses a library, stop grilling the superseded custom design and
    return an integration-plan refinement covering vendoring and license notices,
@@ -147,7 +147,7 @@ logic inseparable from internal engine types.
    rationale and continue with applicable checklist decisions.
 
 A library or design pivot always returns to the manager for incorporation and a
-fresh `/plan-audit`; it never mutates the supplied snapshot in place.
+fresh `/plan-audit`; it never mutates the supplied plan text in place.
 
 ## Plan Context
 
@@ -159,7 +159,7 @@ scheduler inventory.
 Use the provisioned read-only command:
 
 ```text
-Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe plan validate --repo <absolute-git-common-dir> --worktree <checkout> --baseline <commit>
+Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe plan validate --repo <absolute-git-common-dir> --worktree <checkout>
 ```
 
 Require exit `0`, JSON `status: valid`, and `code: ok`; otherwise stop with the
@@ -188,7 +188,7 @@ it through the same two-or-three-choice interaction contract.
 
 Return the complete result inline. `Exact refinements` must preserve one entry
 per decision, including the selected choice and precise plan text/section
-change. `Plan delta` is relative to the immutable snapshot; any behavior, scope,
+change. `Plan delta` is relative to the frozen plan text; any behavior, scope,
 architecture, acceptance, or verification change is material.
 
 ```text
@@ -199,7 +199,7 @@ Decisions and exact refinements:
 - <decision ID> — <selected choice> — <section and exact refinement>
 External claim verdicts:
 - <stable claim ID> — VERIFIED | REFUTED | UNRESOLVED — <direct implication>
-Execution-control decisions:
+Execution-card decisions:
 - <Tier-3 trigger/role/criterion -> decisive check -> expected result; independent signal when duplicated>
 Required next step: none | incorporate refinements | incorporate library integration pivot and run fresh /plan-audit | run /external-design-interface, incorporate its design pivot, and run fresh /plan-audit
 Files changed: none

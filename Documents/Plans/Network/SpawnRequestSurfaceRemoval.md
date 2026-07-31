@@ -52,7 +52,7 @@ Straight deletion. No new `GamePacketType` enumerator, no game-side pending-spaw
 
 The listed scope is both target and ceiling. Make the smallest complete change that satisfies the acceptance criteria and invariants. Add no abstractions, configuration, extension points, replacement packet, or refactors; do not "clean up" adjacent code encountered in these files. Naming a file below grants permission only to touch the named functions/members/regions plus the mechanical necessities (includes, forward declarations, enum/case entries, vcxproj membership) the named deletion requires.
 
-### In scope
+## In scope
 
 **Engine deletions**
 
@@ -73,7 +73,7 @@ The listed scope is both target and ceiling. Make the smallest complete change t
 - `Engine/Source/Network/NetworkProtocol.h` — `kuiProtocolVersion` (`:71`) bumped past 7; see Coordination for the shared-bump rule.
 - `Documents/Architecture/Network.md` — remove the `kClientSpawnRequest` contract row (`:65`) and update the "current wire-protocol version is 7" note (`:78`) to the new version.
 
-### Out of scope
+## Out of scope
 
 - Any replacement packet. No `GamePacketType` enumerator is added, and no `GetGamePacketContract` row is added. The relocation option is rejected in Context; do not reintroduce it.
 - Spawn/respawn *policy*. `QueueSpawnForClient`, `mClientsWaitingForSpawn`, `mDeadClientIds`, `mProcessedClientIds`, `NewClients`, and `FinalizeNewClients` keep their current behavior — the only change is that the always-empty second entry point disappears.

@@ -1,6 +1,6 @@
 # SmokeTrails - Owner-Driven Smoke Ribbons
 
-Client-only smoke trails are owner-synced base-plane ribbons deposited into the screen-space smoke simulation. Explosions and missiles own their types and lifetimes.
+Client-only smoke trails are owner-driven base-plane ribbons deposited into the screen-space smoke simulation. Explosions and missiles own their types and lifetimes.
 
 ## Invariants
 

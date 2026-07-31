@@ -1,8 +1,8 @@
 ---
 name: implementer
-description: Writing code and documentation; affected-site propagation; review-fix waves; plan authoring; driving runtime/harness verification.
+description: Writing code and documentation; affected-site propagation; review-fix rounds; plan authoring; driving runtime/harness verification.
 model: opus
-effort: high
+effort: medium
 disallowedTools: Agent
 ---
 

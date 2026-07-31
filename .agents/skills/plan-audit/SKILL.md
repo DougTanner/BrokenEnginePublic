@@ -17,18 +17,18 @@ repository, and return only concrete findings and improvement suggestions for
 the manager to resolve when user input is actually needed — through
 `/external-grill-plan` for Tier 3, or directly with the user for Tier 2. The
 audit is findings-only work and never creates an approval gate; a `/next-plan`
-invocation additionally follows the canonical execution-gate contract
-(`../next-plan/references/execution-gates.md`).
+invocation additionally follows the canonical implementation-approval contract
+(`../next-plan/SKILL.md`, "Implementation approval").
 
 ## Inputs and Snapshot
 
 - Immutable complete plan supplied inline, by exact file path, or as the exact
   claimed-plan revision. Inline plans require a stable snapshot identifier and
   stable heading IDs so findings can cite `<snapshot>#<heading-id>`.
-- Draft execution-control record for every Tier-2 and Tier-3 plan: proposed
+- Draft execution card for every Tier-2 and Tier-3 plan: proposed
   tier and triggers, roles, and each acceptance criterion with its decisive
   check, expected result, and independent signal when a check is duplicated.
-- Execution card and fixed session baseline only when root `AGENTS.md` triggers
+- Execution card and session baseline only when root `AGENTS.md` triggers
   them (Tier 3, queue, reconciliation, or landing work).
 - User intent and applicable repository instructions
 - Relevant repository paths and every cited code region
@@ -57,7 +57,7 @@ calling context.
    region. Anchor every search to a plan claim: callers, mirrors, cited-type
    headers, or affected-site hunts. Do not explore unrelated plans/subsystems.
 2. Verify structural assumptions, call sites, mirrored client/server paths, ownership, data layout, frame phase, threading, determinism, serialization, build wiring, and runtime verification where relevant.
-3. Hunt unresolved options, hidden behavior changes, contradictions, magic defaults, undeclared invariant exposure, missing affected locations, ungrounded requirements or checks, scope that duplicates an existing mechanism, and any file the plan's own `## Coordination` section obliges the implementer to edit yet its scope contract omits.
+3. Hunt unresolved options, hidden behavior changes, contradictions, magic defaults, undeclared invariant exposure, missing affected locations, ungrounded requirements or checks, scope that duplicates an existing mechanism, and any file the plan's own `## Coordination` section obliges the implementer to edit yet its scope contract omits. Require `## In scope` and `## Out of scope` headings that are each concrete enough to test a diff region against; scope naming a file without its regions is a finding.
 4. Ground corrections in user intent, repository contract, or necessary
    integration. Prefer reuse, narrower scope, missing propagation/verification,
    or replacement of an invalid step; otherwise report the user decision.
@@ -68,13 +68,13 @@ calling context.
    invariant. Report missing links, orphan work, and checks that cannot observe
    their claimed outcome.
 7. For a `/next-plan` invocation, compare the complete current plan to the
-   execution card and fixed session baseline. Verify that its goal, out-of-scope
+   execution card and session baseline. Verify that its goal, out-of-scope
    boundary, Tier-3 trigger, interfaces and invariants, acceptance checks with
-   expected observations, role dispositions, and unresolved decisions agree
+   expected observations, role assignments, and unresolved decisions agree
    with current repository evidence. Report any mismatch as a finding for the
    manager; do not manufacture authority artifacts or another approval
    gate.
-8. Audit the execution-control proposal against the risk-tier definitions in
+8. Audit the proposed execution card against the risk-tier definitions in
    root `AGENTS.md`, classifying at the highest applicable tier. Verify that every
    concrete trigger is named, required and conditional roles fit the actual file
    types and risks, and each acceptance criterion has an initially decisive check
@@ -100,7 +100,7 @@ Dependent finding: <PA-F-### and why the verdict matters>
 Candidate official source: <URL or exact upstream identifier, if known>
 ```
 
-The reviewer returns each packet to the manager, which dispatches a separate
+The reviewer returns each request to the manager, which dispatches a separate
 `locator` through `/verify-external-claims` and then adjudicates the dependent
 finding. Pending requests make the audit `NEEDS_ACTION`, not a confirmed
 finding.
@@ -121,7 +121,7 @@ If clean, state `PASS — no material plan flaws found.` Return:
 ```text
 Plan snapshot: <immutable identifier>
 Findings: <entries or none>
-API Verification Requests: <atomic packets or none>
+API Verification Requests: <atomic requests or none>
 Traceability checked: <requirements/invariants <-> implementation sites/checks>
 Required next step: Tier 3 -> manager adjudication, then /external-grill-plan | Tier 2 -> manager adjudication
 Status: PASS | NEEDS_ACTION | BLOCKED

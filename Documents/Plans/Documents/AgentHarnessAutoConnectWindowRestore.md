@@ -9,7 +9,7 @@ This contradiction was exposed during the out-of-scope harness setup retry for a
 
 ## Design
 
-1. In the `## Launch` recipe of `Projects/BrokenEngineSandbox/Documents/AgentHarness.md`, replace the unconditional Debug/Profile auto-connect statement with an ordered agent-mode instruction: after the bounded server and client ping loops succeed, send the client command `{"cmd":"window_state","params":{"minimized":false}}` on port `27101`, require a successful result with `minimized:false`, and keep the client visible before relying on Debug/Profile UI-driven auto-connect.
+1. In the `## Launch` recipe of `Projects/BrokenEngineSandbox/Documents/AgentHarness.md`, replace the unconditional Debug/Profile auto-connect statement with an ordered agent-mode instruction: after the deadline-limited server and client ping loops succeed, send the client command `{"cmd":"window_state","params":{"minimized":false}}` on port `27101`, require a successful result with `minimized:false`, and keep the client visible before relying on Debug/Profile UI-driven auto-connect.
 2. Include the concrete request using the recipe's existing `$AgentHarness` and `$Owner` values so the restore step is directly executable: pipe the JSON request to `& $AgentHarness --owner $Owner --port 27101 -`.
 3. Preserve the Release instruction to click `LOCAL SERVER`, the exit-autosave/reset caveat, and the existing canonical requirement that server `status.clientCount` increase. Do not change generic harness lifecycle policy or runtime behavior.
 
@@ -20,6 +20,12 @@ This contradiction was exposed during the out-of-scope harness setup retry for a
 - `Engine/Source/GameBase.cpp` — minimized render early return at `:568-625`; read-only.
 - `Projects/BrokenEngineSandbox/Source/Ui/Screens/MainMenuScreen.cpp` — UI-rendered auto-connect at `:94-102`; read-only.
 - `Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsClient.cpp` — settled no-activate restore behavior in `CommandWindowState` at `:781-845`; read-only.
+
+## In scope
+
+- `Projects/BrokenEngineSandbox/Documents/AgentHarness.md` — the `## Launch` connection recipe immediately after the launch/ping sequence: replace the unconditional Debug/Profile auto-connect statement with an ordered agent-mode instruction that, after the deadline-limited server and client ping loops succeed, sends the client command `{"cmd":"window_state","params":{"minimized":false}}` on port `27101`, requires a successful result with `minimized:false`, and keeps the client visible before relying on Debug/Profile UI-driven auto-connect.
+- `Projects/BrokenEngineSandbox/Documents/AgentHarness.md` — the same recipe text: include the concrete executable request built from the recipe's existing `$AgentHarness` and `$Owner` values, piping the JSON request to `& $AgentHarness --owner $Owner --port 27101 -`.
+- `Projects/BrokenEngineSandbox/Documents/AgentHarness.md` — the same recipe text: preserve the Release instruction to click `LOCAL SERVER`, the exit-autosave/reset caveat, and the existing requirement that server `status.clientCount` increase.
 
 ## Out of scope
 

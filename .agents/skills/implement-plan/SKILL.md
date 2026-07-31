@@ -5,7 +5,7 @@ description: >-
   followed by a same-context audit of the implementation assumptions. Use for
   Change Workflow implementation work, including disjoint slices, and when the
   worker that made existing changes is asked to audit its assumptions. Requires
-  a fixed baseline and pre-existing ownership snapshot, stops on
+  a session baseline and pre-existing ownership snapshot, stops on
   plan/repository contradictions, and reports affected-site, build, review,
   and residual handoffs to the manager.
 allowed-tools: [Read, Write, Edit, Glob, Grep, "Bash(git diff *)", "Bash(git status *)", PowerShell]
@@ -24,23 +24,23 @@ separate-role work to the manager. The host mapping is restated in
 
 ## Required Brief
 
-Require the canonical bounded brief fields
+Require the canonical task-brief fields
 (`../../references/subagent-reporting.md`) plus these skill-specific fields, in
 both implementation and audit-only modes:
 
 - mode: `implementation` or `audit-only`;
 - final approved plan and explicit approved deltas (`none` is valid), plus the
   assigned items and allowed file scope;
-- fixed session-start commit used for all attribution;
+- session baseline used for all attribution;
 - pre-existing ownership snapshot naming every already changed or untracked
-  path and its owner/disposition (`none` is valid);
+  path and its owner/outcome (`none` is valid);
 - risk triggers and reviewer focus;
-- execution-control record when one exists.
+- execution card when one exists.
 
-Do not infer a missing baseline or ownership snapshot from a moving merge base
+Do not infer a missing session baseline or ownership snapshot from a moving merge base
 or the current status. Return the missing input to the manager. In audit-only
 mode, continue only in the context that made the named changes; derive its
-touched regions from edit history and the fixed-baseline diff while excluding
+touched regions from edit history and the session-baseline diff while excluding
 the ownership snapshot.
 
 ## Phase 1: Implement
@@ -73,7 +73,7 @@ Skip this phase in audit-only mode.
    instead of invoking it.
 6. Run only focused reads, searches, traces, and static checks needed for
 	internal coherence. Return compilation, runtime checks, harness work, and
-	independent reviews to the manager for dispatch to their bounded roles.
+	independent reviews to the manager for dispatch to their assigned roles.
 7. Record each changed file and exact function/type/section. For code, emit an
    affected-site trigger for each signature, identity, semantics, layout,
    guard-affinity, sweep, or mirror concern, including symbol/pattern and search
@@ -100,7 +100,7 @@ Cover relevant dimensions without manufacturing doubts:
   determinism, layout, and ownership;
 - unread callers/callees/producers/consumers and memory-sourced symbols;
 - current-file reread after edits;
-- plan/scope attribution against the fixed baseline and ownership snapshot;
+- plan/scope attribution against the session baseline and ownership snapshot;
 - partial sweeps and mirrored client/server or collection wiring;
 - smallest plausible crash, corruption, or desync path;
 - substantial new logic duplicated from an existing helper.
@@ -130,4 +130,4 @@ Residuals: <contradiction, incomplete item, or blocker with evidence, or none>
 executable without rediscovery: each changed `.cpp` names its exact target,
 configuration/platform, and selected project-member path; each changed header
 names every consuming target and configuration/platform. The manager dispatches
-the bounded build/runtime role and routes its concise result or later fix work.
+the assigned build/runtime role and routes its concise result or later fix work.

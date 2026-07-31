@@ -6,7 +6,7 @@ Client-only RAII wrappers for Vulkan buffers, textures, shaders, pipelines, and 
 
 - Object `Destroy` methods do not wait for GPU work. Destroy potentially in-flight resources only after device/fence synchronization, through an owning manager's deferred-retirement path, or inside the renderer's post-fence descriptor-patch window.
 - Pipeline descriptor registrations contain raw pipeline back-references. Individual `Pipeline::Destroy` calls unregister them; whole-`PipelineManager` clear remains defensive.
-- Texture image creation or adoption increments its generation. Descriptors snapshot that generation, while destruction is detected through the null live image; both signals protect cached bindings from recycled handles.
+- Texture image creation or adoption increments its generation (the reuse counter — see `../../AGENTS.md`). Descriptors snapshot that generation, while destruction is detected through the null live image; both signals protect cached bindings from recycled handles.
 - Lazy textures borrow the placeholder view while their image is null. Destruction must not free that borrowed view. Eviction and descriptor fallback policy belong to Managers (`../Managers/AGENTS.md`).
 
 ## Resource Contracts

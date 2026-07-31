@@ -4,7 +4,7 @@ description: >-
   Resolve an explicitly accepted review finding, compile failure, or runtime
   failure within the Broken Engine Change Workflow. Use for delegated fix work
   after the manager supplies fixed evidence, intent classification, scope, and
-  baseline. Confirms root cause before editing, applies only a non-structural
+  session baseline. Confirms root cause before editing, applies only a non-structural
   conformance fix, checks affected sites, and returns exact regions, build
   requirements, external-claim requests, and residuals.
 allowed-tools: [Read, Grep, Glob, Edit, "Bash(git diff *)", "Bash(git status *)", PowerShell]
@@ -15,17 +15,17 @@ allowed-tools: [Read, Grep, Glob, Edit, "Bash(git diff *)", "Bash(git status *)"
 Run inside one delegated `implementer`. Fix only the accepted failures assigned
 by the manager and do not delegate. The manager owns adjudication and scope
 changes, and dispatches builds, independent verification, and all fresh-context
-review to their bounded roles.
+review to their assigned roles.
 
 ## Required Assignment
 
-Require a self-contained assignment carrying the canonical bounded brief fields
+Require a self-contained assignment carrying the canonical task-brief fields
 (`../../references/subagent-reporting.md`) plus these skill-specific fields:
 
 - accepted finding or failure evidence and its prescribed check;
 - classification: intent `conformance` or `plan_delta`, and scope
   `non_structural` or `structural`;
-- assigned files/functions, fixed baseline, and pre-existing ownership
+- assigned files/functions, session baseline, and pre-existing ownership
   snapshot;
 - known build target/configuration when relevant.
 
@@ -56,13 +56,13 @@ For each assigned item:
 4. Re-read every fixed region and directly affected path. Demonstrate why the
    original scenario no longer follows. Run focused static checks available in
    this context; return builds, runtime checks, harness work, and independent
-   verification to the manager for bounded-role dispatch.
+   verification to the manager for assigned-role dispatch.
 5. For a one-function code fix with no signature or contract change, scan its
    callers, mirrored client/server or collection patterns, shared headers, and
    stale comments. Fix only candidates inside scope and report every outside
    candidate. Otherwise emit affected-site triggers for the manager to dispatch
    through `/update-affected-code`, including symbol/pattern and search scope.
-6. Audit the completed edit against the assignment, baseline, ownership
+6. Audit the completed edit against the assignment, session baseline, ownership
    snapshot, and smallest plausible regression. Fix confirmed in-scope defects
    and repeat their checks. Do not claim compilation or runtime success.
 

@@ -53,6 +53,12 @@ Decide during implementation whether the removal belongs in `BuildFrameInputs` b
 - `Projects/BrokenEngineSandbox/Source/Network/Server/ServerClientManager.h` / `.cpp` — `ClientSpawnInfo`, `mClientsWaitingForSpawn`, and the order-sensitive pairing in `RefreshPreSpawnSnapshot` / `FinalizeNewClients`.
 - `Projects/BrokenEngineSandbox/Source/Network/Server/ServerFleetManager.h` / `.cpp` — `FleetLookupResult` and `LookupFleetWantedCoord`, which must report resolution failure explicitly.
 
+## In scope
+
+- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerBroadcaster.cpp` — the advancing-update `mClientsWaitingForSpawn` consumption loop in `BuildFrameInputs`: for a queue entry whose valid `fleetGuid` no longer resolves, drop the entry instead of emitting the unconditional `kSpawnPlayer` `StatusChange`, and log the drop at `kWarning`. An entry with an invalid `fleetGuid` still emits unchanged.
+- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerClientManager.h` / `.cpp` — `ClientSpawnInfo` and `mClientsWaitingForSpawn`: order-preserving removal of the dropped entry (in `BuildFrameInputs` before the emit loop or as a small pre-pass on the owning side), keeping the request-order pairing that `RefreshPreSpawnSnapshot` / `FinalizeNewClients` consume aligned and introducing no untracked heap work under the existing allocation suppression.
+- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerFleetManager.h` / `.cpp` — `FleetLookupResult` and `LookupFleetWantedCoord`: report resolution failure explicitly, so not-found is distinguishable from found-with-default payload fields.
+
 ## Out of scope
 
 - The fleet request decode path and the four request packets. `ProcessSpawnIntoFleetRequests` already drops an unresolvable guid correctly; the request leg is done.

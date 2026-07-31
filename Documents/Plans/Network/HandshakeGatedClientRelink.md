@@ -28,6 +28,11 @@ Read-only contract evidence:
 - `Engine/Source/Network/Server/ServerReceive.cpp` — accepted `ClientHello` establishes GUID and completion state.
 - `Engine/Source/Network/Server/ServerSessionRuntime.cpp` and `Projects/BrokenEngineSandbox/Source/Network/Server/ServerSession.cpp` — engine poll precedes `AfterNetworkPoll`/`NewClients`.
 
+## In scope
+
+- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerClientManager.cpp` — `ServerClientManager::NewClients`: add one early `!rClient.bHandshakeComplete` continue, placed before any ownership lookup, diagnostic, relink attempt, queue/processed-state decision, or other client-manager mutation.
+- `Projects/BrokenEngineSandbox/Source/Network/Server/AGENTS.md` — document that relink/new-client processing begins only after the engine accepts ClientHello.
+
 ## Out of scope
 
 - Any ClientHello, wire packet, protocol-version, save/replay, CRC, `.pack`, or `Frame::kiVersion` change.

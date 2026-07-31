@@ -9,7 +9,9 @@ The review graded every first-party shader for NaN/Inf hazards, undefined behavi
 
 ## Scope contract
 
-In scope (target and ceiling — smallest complete change per item, nothing else):
+## In scope
+
+Target and ceiling — smallest complete change per item, nothing else:
 
 1. `Engine/Data/Shaders/Lighting/AreaLight.frag` — in `main()`, only the texture-index conversion expression at line 51: `int32_t(f4InParams.x + 0.4f)`. Replace the `+ 0.4f` rounding bias with `+ 0.5f` round-to-nearest, or pass the index as a `flat` integer varying (which also touches only the matching varying declaration in this file and its producing vertex stage's matching declaration).
 2. `Engine/Data/Shaders/Lighting/PointLight.frag` — in `main()`, only the identical conversion expression at line 52: `int32_t(f4InParams.x + 0.4f)`. Same fix as item 1.

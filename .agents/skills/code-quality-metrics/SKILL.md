@@ -51,8 +51,8 @@ investigate it and rerun; do not treat it as a sanitizer instruction. Neither ta
 success JSON or an output file. A Compare result cannot support PASS until every authorized target
 has complete parsing and signature extraction; corpus-only `upstream-omitted` rows stay advisory.
 
-Compare authenticates the provisioned analyzer internally, archives it into a fresh ignored stage,
-and imports that staged source. Its gitlink pin is only an archive selector, not a metric, cache, or
+Compare authenticates the provisioned analyzer internally, archives it into a fresh ignored scratch directory,
+and imports that copied source. Its gitlink pin is only an archive selector, not a metric, cache, or
 report identity. The report schema is
 `broken-engine-code-quality-metrics/v2`; its `tool` object is
 `{adapterVersion,lockSha256,python,disableSg}` with `adapterVersion` set to `"4"`.
@@ -60,5 +60,5 @@ report identity. The report schema is
 ## Interpretation
 
 Report the result as advisory evidence. Name the profile, scope, coverage omissions, suppression
-reasons, and comparison cohort before interpreting a delta. Do not turn a metric into a merge gate,
+reasons, and comparison cohort before interpreting a delta. Do not turn a metric into a landing gate,
 person score, or automatic refactor instruction.

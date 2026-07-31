@@ -176,6 +176,91 @@ function Test-FinalizeAllWorktreesClear([string] $RepositoryWorktree) {
 	return [pscustomobject]@{ Clear = $problems.Count -eq 0; Inspected = $inspected.ToArray(); Problems = $problems.ToArray() }
 }
 
+function New-FinalizeLandingSanityResult([bool] $Ok, [string] $Code, [string] $Message, $Session, $Primary, [string] $WorktreeCliExecutable) {
+	return [pscustomobject]@{
+		Ok = $Ok
+		Code = $Code
+		Message = $Message
+		SessionWorktree = $(if ($null -ne $Session) { $Session.Worktree } else { $null })
+		PrimaryWorktree = $(if ($null -ne $Primary) { $Primary.Worktree } else { $null })
+		GitCommonDirectory = $(if ($null -ne $Session) { $Session.CommonDirectory } else { $null })
+		SessionTip = $(if ($null -ne $Session) { $Session.Head } else { $null })
+		PrimaryTip = $(if ($null -ne $Primary) { $Primary.Head } else { $null })
+		WorktreeCliExecutable = $WorktreeCliExecutable
+	}
+}
+
+# Structural sanity shared by approval preparation and landing: two Git top-levels of one
+# repository on the expected branches and tips, no Git operation in progress, clean trees,
+# and the canonical WorktreeCli the session reaches through its primary Output link.
+function Test-FinalizeLandingSanity {
+	[CmdletBinding()] param(
+		[Parameter(Mandatory)][string] $SessionWorktree,
+		[Parameter(Mandatory)][string] $PrimaryWorktree,
+		[Parameter(Mandatory)][string] $SessionBranch,
+		[Parameter(Mandatory)][string] $PrimaryBranch,
+		[string] $ExpectedSessionTip,
+		[string] $ExpectedPrimaryTip
+	)
+	$session = $null
+	$primary = $null
+	try {
+		$session = Get-FinalizeGitIdentity $SessionWorktree 'Session worktree'
+		$primary = Get-FinalizeGitIdentity $PrimaryWorktree 'Primary worktree'
+	}
+	catch { return New-FinalizeLandingSanityResult $false 'identity.unreadable' $_.Exception.Message $session $primary $null }
+	if (-not $session.CommonDirectory.Equals($primary.CommonDirectory, [StringComparison]::OrdinalIgnoreCase)) {
+		return New-FinalizeLandingSanityResult $false 'identity.repository-mismatch' 'Session and primary worktrees do not share one Git common directory.' $session $primary $null
+	}
+	if ($session.Worktree.Equals($primary.Worktree, [StringComparison]::OrdinalIgnoreCase)) {
+		return New-FinalizeLandingSanityResult $false 'identity.session-is-primary' 'Session landing requires distinct session and primary worktrees.' $session $primary $null
+	}
+	if ($session.Branch -cne $SessionBranch -or $primary.Branch -cne $PrimaryBranch) {
+		return New-FinalizeLandingSanityResult $false 'git.branch-mismatch' 'A checked-out branch differs from its supplied identity.' $session $primary $null
+	}
+	if (-not [string]::IsNullOrWhiteSpace($ExpectedSessionTip) -and $session.Head -cne $ExpectedSessionTip) {
+		return New-FinalizeLandingSanityResult $false 'git.session-tip-changed' 'Session tip differs from the recorded expectation.' $session $primary $null
+	}
+	if (-not [string]::IsNullOrWhiteSpace($ExpectedPrimaryTip) -and $primary.Head -cne $ExpectedPrimaryTip) {
+		return New-FinalizeLandingSanityResult $false 'git.primary-tip-changed' 'Primary tip differs from the recorded expectation.' $session $primary $null
+	}
+	$executable = $null
+	try {
+		foreach ($worktree in @($session.Worktree, $primary.Worktree)) {
+			foreach ($marker in @('MERGE_HEAD', 'rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'BISECT_LOG', 'sequencer')) {
+				$markerPath = (Invoke-FinalizeGit $worktree @('rev-parse', '--path-format=absolute', '--git-path', $marker)).Trim()
+				if (Test-Path -LiteralPath $markerPath) {
+					return New-FinalizeLandingSanityResult $false 'git.operation-active' "Git operation marker '$marker' is active in '$worktree'." $session $primary $null
+				}
+			}
+		}
+		if ((Invoke-FinalizeGit $primary.Worktree @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) {
+			return New-FinalizeLandingSanityResult $false 'git.primary-dirty' 'Primary worktree is not clean.' $session $primary $null
+		}
+		if ((Invoke-FinalizeGit $session.Worktree @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) {
+			return New-FinalizeLandingSanityResult $false 'git.session-dirty' 'Session worktree has remaining staged, unstaged, or untracked status.' $session $primary $null
+		}
+		$relativeOutput = 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
+		$primaryOutput = Get-Item -LiteralPath (Join-Path $primary.Worktree $relativeOutput) -Force -ErrorAction Stop
+		if (-not $primaryOutput.PSIsContainer -or ($primaryOutput.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+			return New-FinalizeLandingSanityResult $false 'worktreecli.primary-output-invalid' 'Primary WorktreeCli Output must be an ordinary directory.' $session $primary $null
+		}
+		$executable = Get-Item -LiteralPath (Join-Path $primaryOutput.FullName 'WorktreeCli.exe') -Force -ErrorAction Stop
+		if ($executable.PSIsContainer -or ($executable.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or $executable.Length -eq 0) {
+			return New-FinalizeLandingSanityResult $false 'worktreecli.executable-invalid' 'Canonical WorktreeCli.exe must be a nonempty ordinary file.' $session $primary $null
+		}
+		$sessionOutput = Get-Item -LiteralPath (Join-Path $session.Worktree $relativeOutput) -Force -ErrorAction Stop
+		if (-not $sessionOutput.PSIsContainer -or ($sessionOutput.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) {
+			return New-FinalizeLandingSanityResult $false 'worktreecli.session-output-not-link' 'Session WorktreeCli Output must be a directory link.' $session $primary $null
+		}
+		if (-not (Test-FinalizeExistingIdentityEqual $sessionOutput.FullName (Get-FinalizeExistingWindowsIdentity $primaryOutput.FullName 'Primary WorktreeCli Output'))) {
+			return New-FinalizeLandingSanityResult $false 'worktreecli.session-output-wrong-target' 'Session WorktreeCli Output does not target primary WorktreeCli Output.' $session $primary $null
+		}
+	}
+	catch { return New-FinalizeLandingSanityResult $false 'state.unreadable' $_.Exception.Message $session $primary $null }
+	return New-FinalizeLandingSanityResult $true 'ok' 'Landing sanity checks passed.' $session $primary (Get-FinalizeRootPreservingFullPath $executable.FullName)
+}
+
 function New-FinalizeLandingLockClaimResult([bool] $Claimed, [string] $Code, [string] $Message, [string] $Disposition, [bool] $RequiresUserAuthority, [int] $RetryAfterMilliseconds, [string] $Owner, $Lock, [int] $Attempts) {
 	return [pscustomobject]@{
 		Claimed = $Claimed
@@ -241,7 +326,7 @@ function Get-FinalizeLandingLockState([string] $WorktreeCliExecutable, [string] 
 	return [pscustomobject]@{ Kind = [string]$status.leaseState; Status = $status; Response = $response; ExpiresAt = $expiresAt.ToUniversalTime() }
 }
 
-# WorktreeCli deliberately keeps its lock primitives one-shot. This bounded policy
+# WorktreeCli deliberately keeps its lock primitives one-shot. This deadline-limited policy
 # is shared by reconciliation and post-confirmation landing so neither path can
 # steal a live lease or reinterpret malformed metadata as a retryable conflict.
 function Invoke-FinalizeLandingLockClaim {
@@ -315,7 +400,7 @@ function Invoke-FinalizeLandingLockClaim {
 		$now = [DateTimeOffset]::UtcNow
 		$remaining = [int][Math]::Floor(($deadline - $now).TotalMilliseconds)
 		if ($remaining -le 0) {
-			return New-FinalizeLandingLockClaimResult $false 'landing-lock.retryable-wait' 'A foreign landing lease remains live; retry this bounded claim after its reported expiry.' 'retryable-wait' $false $PollMilliseconds $Owner $lastLock $attempts
+			return New-FinalizeLandingLockClaimResult $false 'landing-lock.retryable-wait' 'A foreign landing lease remains live; retry this claim after its reported expiry.' 'retryable-wait' $false $PollMilliseconds $Owner $lastLock $attempts
 		}
 		$delay = [Math]::Min($PollMilliseconds, $remaining)
 		if ($state.Kind -ceq 'live' -and $null -ne $state.ExpiresAt) {
@@ -326,4 +411,22 @@ function Invoke-FinalizeLandingLockClaim {
 	}
 }
 
-Export-ModuleMember -Function Get-FinalizeRootPreservingFullPath, Get-FinalizeExistingWindowsIdentity, Test-FinalizeExistingIdentityEqual, Invoke-FinalizeNativeText, Invoke-FinalizeGit, Test-FinalizeGitSuccess, Get-FinalizeGitIdentity, Assert-FinalizeGitPath, Get-FinalizeWorktreeRecords, Test-FinalizeWorktreeRegistration, Test-FinalizeAllWorktreesClear, Invoke-FinalizeLandingLockClaim
+# Scratch-fixture helpers shared by the finalize-changes suites. Assert-SafeScratchRoot gates every
+# recursive scratch delete: a root only passes when it is the expected GUID leaf directly under the
+# expected fixture parent.
+function Assert-SafeScratchRoot([string] $Parent, [string] $Root, [string] $ExpectedLeaf) {
+	$parentPath = [IO.Path]::GetFullPath($Parent).TrimEnd('\', '/')
+	$rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+	if ((Split-Path -Parent $rootPath) -cne $parentPath -or (Split-Path -Leaf $rootPath) -cne $ExpectedLeaf -or $ExpectedLeaf -cnotmatch '^[0-9a-f]{32}$') {
+		throw "Fixture scratch root failed containment validation: '$rootPath'."
+	}
+	return $rootPath
+}
+
+function Invoke-ScratchGit([string] $Root, [string[]] $Arguments) {
+	$output = @(& git -C $Root -c user.name=fixture -c user.email=fixture@example.com @Arguments 2>&1)
+	if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join '; ')" }
+	return $output
+}
+
+Export-ModuleMember -Function Assert-SafeScratchRoot, Invoke-ScratchGit, Get-FinalizeRootPreservingFullPath, Get-FinalizeExistingWindowsIdentity, Test-FinalizeExistingIdentityEqual, Invoke-FinalizeNativeText, Invoke-FinalizeGit, Test-FinalizeGitSuccess, Get-FinalizeGitIdentity, Assert-FinalizeGitPath, Get-FinalizeWorktreeRecords, Test-FinalizeWorktreeRegistration, Test-FinalizeAllWorktreesClear, Test-FinalizeLandingSanity, Invoke-FinalizeLandingLockClaim

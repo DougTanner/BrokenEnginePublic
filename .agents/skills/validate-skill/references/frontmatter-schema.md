@@ -51,9 +51,9 @@ Folded text uses `>-`; consecutive nonblank lines fold with spaces and blank lin
 
 ## Bundled links
 
-Markdown links whose relative destination begins with `references/`, `scripts/`, or `assets/` must resolve beneath the skill directory. URL fragments and query strings do not participate in the filesystem check. Absolute paths, URI destinations, and links outside those bundled directories are not sidecar links under this rule.
+Markdown links whose relative destination begins with `references/`, `scripts/`, or `assets/` must resolve beneath the skill directory. URL fragments and query strings do not participate in the filesystem check. Absolute paths, URI destinations, and links outside those bundled directories are not bundled links under this rule.
 
-## Codex sidecar
+## Codex companion file
 
 `interface`, `policy`, and `dependencies` are independently optional top-level objects in `agents/openai.yaml`; at least one must exist. Quote every string, indent with spaces, and omit comments. A present object requires:
 
@@ -61,7 +61,7 @@ Markdown links whose relative destination begins with `references/`, `scripts/`,
 - `policy`: exact boolean `allow_implicit_invocation`. `false` disables Codex implicit discovery but preserves explicit invocation.
 - `dependencies`: nonempty `tools`; each item has quoted `type: "mcp"`, `value`, and `description`, with optional quoted `transport` and HTTPS `url`.
 
-This sidecar supplies Codex UI, discovery policy, and dependency wiring. Body tool and delegation bounds remain authoritative. Never infer that Claude `disable-model-invocation: true` requires a Codex sidecar.
+This companion file supplies Codex UI, discovery policy, and dependency wiring. Body tool and delegation bounds remain authoritative. Never infer that Claude `disable-model-invocation: true` requires a Codex companion file.
 
 ## Result contract
 

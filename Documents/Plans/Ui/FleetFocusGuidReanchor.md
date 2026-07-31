@@ -50,6 +50,11 @@ The implementer chooses whether to factor the guid-match loop into a small priva
 - `Projects/BrokenEngineSandbox/Source/Fleet.h` — read-only: `FleetGuid` (`:8-15`), `Fleet::guid` (`:34`), `FleetMember::globalPlayerId`.
 - `Projects/BrokenEngineSandbox/Source/Game.h` — read-only: `mRememberedFleetGuid` (`:143`) and the focus accessors that forward to `FleetSelection`.
 
+## In scope
+
+- `Projects/BrokenEngineSandbox/Source/FleetSelection.cpp` — `SyncFleets` (`:110-180+`) only: capture the focused fleet's `FleetGuid` before the `mClientFleets` replacement at `:123` (alongside the existing `iPrevFocusedFleetMemberCount` capture at `:117-122`), then after the swap resolve that guid against the new vector by `Fleet::guid` and set `miFocusedFleetIndex`, reusing the reconnect path's match at `:130-137`. The reconnect restore (`iPrevFleetCount == 0`, `:128`) keeps priority, the newly-created-fleet auto-focus (`:173-179`) still wins when the count grew, and the clamp (`:168-171`) remains the resolve-then-clamp fallback.
+- `Projects/BrokenEngineSandbox/Source/FleetSelection.h` — `miFocusedFleetIndex` (`:33`) and, if the implementer factors the guid-match loop out, the one private helper declaration that change adds.
+
 ## Out of scope
 
 - The server-side fleet vector, its mid-vector `erase`, and the in-order fleet-sync wire layout — the ordering is legitimate; the client must tolerate it, not constrain it.

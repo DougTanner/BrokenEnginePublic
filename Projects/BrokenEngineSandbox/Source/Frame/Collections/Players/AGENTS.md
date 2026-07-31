@@ -15,4 +15,4 @@ Players represent a flagship and AI-driven wingmen through one collection. Stabl
 ## State Boundaries
 
 - Game identity uses stable global IDs rather than local collection indices.
-- Shared CRC excludes client animation time, local pusher bookkeeping, and server-minted global identity. Some excluded state still participates in save or transfer.
+- Shared CRC excludes client animation time, local pusher bookkeeping, and server-assigned global identity. Some excluded state still participates in save or transfer.

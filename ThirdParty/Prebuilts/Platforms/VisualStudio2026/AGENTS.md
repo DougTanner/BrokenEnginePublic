@@ -14,7 +14,7 @@ Solution and project that compile all compiled third-party library source into a
 
 ## Consumer Provisioning
 
-Supported launchers link stable primary submodule trees and primary `Output/` into linked worktrees. Consumer PreBuildEvents provision and require `Output/ThirdParty.$(Configuration).lib`; they never build ThirdParty. Primary Debug, Profile, and Release libraries must remain nonempty while worktrees are active. Wrapper session start (`.agents/scripts/Bootstrap-AgentTools.ps1`) incremental-rebuilds all three primary configurations so they track primary HEAD; beyond that, rebuild only as explicit primary maintenance.
+Supported wrapper scripts link stable primary submodule trees and primary `Output/` into linked worktrees. Consumer PreBuildEvents provision and require `Output/ThirdParty.$(Configuration).lib`; they never build ThirdParty. Primary Debug, Profile, and Release libraries must remain nonempty while worktrees are active. Wrapper session start (`.agents/scripts/Bootstrap-AgentTools.ps1`) incremental-rebuilds all three primary configurations so they track primary HEAD; beyond that, rebuild only as explicit primary maintenance.
 
 ## Source Organization
 

@@ -543,7 +543,7 @@ function Read-OpenAiSidecar
 	}
 	catch
 	{
-		Write-SetupError 'READ' "cannot read Codex sidecar: $($_.Exception.Message)"
+		Write-SetupError 'READ' "cannot read Codex companion file: $($_.Exception.Message)"
 	}
 	try
 	{

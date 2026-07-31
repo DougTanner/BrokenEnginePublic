@@ -17,17 +17,17 @@ separate-role requirement to the manager.
 
 Use one of these modes:
 
-- Sync (default): inspect documentation governed by a caller-supplied changed-file list and fixed session baseline. Edit only when affected guidance is stale or a durable invariant is missing.
+- Sync (default): inspect documentation governed by a caller-supplied changed-file list and session baseline. Edit only when affected guidance is stale or a durable invariant is missing.
 - Audit: grade the requested AGENTS.md scope and report findings without edits.
 - Audit and fix: grade first, then improve only the scope whose edits were explicitly authorized in the request. Do not add another approval pause.
 
-Exclude `CLAUDE.local.md` and other local overrides unless the user explicitly includes them. Ask for direction only when missing scope, a missing fixed baseline, or a documentation conflict would materially change the result; choose the simplest resolution for minor wording and organization choices.
+Exclude `CLAUDE.local.md` and other local overrides unless the user explicitly includes them. Ask for direction only when missing scope, a missing session baseline, or a documentation conflict would materially change the result; choose the simplest resolution for minor wording and organization choices.
 
 ## Sync Inputs and Boundary
 
-Require the caller's complete changed-file list and fixed session-start commit. Treat the list as authoritative scope and the commit as the attribution baseline. Never infer session scope from `git status`, a dirty-tree diff, a moving merge base, or unrelated working-tree changes. If either required input is absent, request only the missing input.
+Require the caller's complete changed-file list and session baseline. Treat the list as authoritative scope and that commit as the attribution point. Never infer session scope from `git status`, a dirty-tree diff, a moving merge base, or unrelated working-tree changes. If either required input is absent, request only the missing input.
 
-For an explicit documentation-only request, use the named AGENTS.md or directory paths as the changed-file list while retaining the fixed baseline requirement. Do not trim, rewrite, or normalize unrelated sections discovered during inspection.
+For an explicit documentation-only request, use the named AGENTS.md or directory paths as the changed-file list while retaining the session-baseline requirement. Do not trim, rewrite, or normalize unrelated sections discovered during inspection.
 
 ## Sync Workflow
 
@@ -38,7 +38,7 @@ For an explicit documentation-only request, use the named AGENTS.md or directory
 5. Update only affected sections. Create a directory `AGENTS.md` only for a distinct subsystem, and create its sibling `CLAUDE.md` stub in the same edit. Never create directory memory for a single-file utility.
 6. Check the in-scope stub pairs in both directions: every directory `AGENTS.md` has a sibling `CLAUDE.md`, and every sibling `CLAUDE.md` has a same-directory `AGENTS.md`. Each stub contains exactly `@AGENTS.md` plus its line ending. Linked `*.AGENTS.md` references have no stub.
 7. Measure every edited AGENTS.md with `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`. Target at most 2,000 `bt-token-v1` for a leaf and 4,000 for a cross-cutting hub; target an effective root-to-leaf chain below 15,000 and warn above 20,000. These are deterministic normalized-byte estimates, not exact model tokens. Reduce only affected prose; report pre-existing unrelated excess without trimming it.
-8. Re-read edited files, verify links and stub bytes, and inspect the fixed-baseline diff limited to the authorized paths. If a directory is no longer a distinct subsystem, report its `AGENTS.md` and stub as a deletion candidate rather than deleting them without authority.
+8. Re-read edited files, verify links and stub bytes, and inspect the session-baseline diff limited to the authorized paths. If a directory is no longer a distinct subsystem, report its `AGENTS.md` and stub as a proposed deletion rather than deleting them without authority.
 
 Treat a new or materially changed algorithm as a candidate only when correctness or performance depends on a non-obvious mathematical, numerical, coordinate/grid, ordering, or hardware assumption. Source comments own local rationale; AGENTS.md owns the subsystem constraint needed for future design decisions.
 
@@ -54,6 +54,7 @@ Audit mode emits the quality report and completion report without editing. Audit
 
 - State how the code works now. Do not narrate sessions, plans, commits, migrations, removals, former names, dates, or before/after history; git owns that record.
 - Use vocabulary established by root and governing documents, including *Collection*, *Frame*, phase names, *workbuffer*, `gp*` singleton, SOA, EWNS, and deterministic CRC. Search the tree before inventing a near-synonym.
+- A *hub* is a subsystem's main AGENTS.md that links to the detail docs below it. Existing wording also calls those detail docs *leaves*; *detail doc* is the term to use in new prose.
 - Do not silently override a parent or sibling invariant. Pause on a material contradiction and identify both sources; report a non-material inconsistency as a residual.
 - Use direct, normal emphasis. Avoid all-caps directives and repeated rules.
 

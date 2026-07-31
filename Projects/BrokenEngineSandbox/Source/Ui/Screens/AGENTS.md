@@ -24,4 +24,4 @@ ImGui menus, HUD, modal surfaces, and the game extension of engine TweaksScreen.
 
 - `ImGuiManager` owns screen invocation and submission; this directory owns game-state gating and interaction semantics.
 - Engine TweaksScreen owns the section registry, persistence, tables, and slider mapping. Game Tweaks files register their own whole sections through it and implement extension hooks for sub-tabs of engine sections.
-- Agent UI snapshot publication belongs to `../../../../../Engine/Source/Agent/AGENTS.md`; visual inspection and input command semantics are outside this directory.
+- Making the agent UI snapshot visible to readers belongs to `../../../../../Engine/Source/Agent/AGENTS.md`; visual inspection and input command semantics are outside this directory.

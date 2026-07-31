@@ -3,9 +3,9 @@
 # --files invalidation, missing target, missing MSBuild, launch failure, lock
 # timeout, and retained-log failure. Each case asserts exactly one schema-valid
 # JSON object on stdout, the documented exit code, and the retained combined log.
-# Run whenever BuildCommand.cpp's result contract changes, against a candidate
-# WorktreeCli.exe from New-AgentToolsCandidate.ps1 — never against a build that
-# would write through a canonical Output link.
+# Run whenever BuildCommand.cpp's result contract changes, against a freshly
+# built WorktreeCli.exe — never against a build that would write through a
+# canonical Output link.
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory = $true)]

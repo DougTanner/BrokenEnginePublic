@@ -21,7 +21,7 @@ try {
  $context=Get-NextPlanContext
  $status=Invoke-NextPlanProcess 'git.exe' @('-C',$context.Worktree,'status','--porcelain=v1','--untracked-files=all') $context.Worktree
  if($status.ExitCode -ne 0 -or -not [string]::IsNullOrWhiteSpace($status.Stdout)){throw (New-NextPlanStateBlocker 'Session worktree must be clean before a plan claim.')}
- $validate=Invoke-NextPlanProcess $context.WorktreeCli @('plan','validate','--repo',$context.CommonDirectory,'--worktree',$context.Worktree,'--baseline',$context.Baseline) $context.Worktree
+ $validate=Invoke-NextPlanProcess $context.WorktreeCli @('plan','validate','--repo',$context.CommonDirectory,'--worktree',$context.Worktree) $context.Worktree
  $validation=ConvertFrom-NextPlanProcessJson $validate 'plan validate'; $projection=[ordered]@{}; foreach($name in @('status','code','message','diagnostics','notices','healedClaims')){if($validation.PSObject.Properties.Name -ccontains $name){$projection[$name]=$validation.$name}}; $result.validation=$projection
  if($validate.ExitCode -ne 0){$exit=if($validate.ExitCode -eq 2){2}else{1};Complete-Claim $exit $(if($exit -eq 2){'blocked'}else{'error'}) 'plan.validation-failed' 'Plan validation failed.'}
  if($null -ne $filename){
@@ -37,30 +37,13 @@ try {
   if($candidates.Count -gt 1){$result.candidates=@($candidates);Complete-Claim 2 'blocked' 'plan-name-ambiguous' "Filename '$filename' matches multiple validated executable Plans; use a canonical Documents/Plans path."}
   $Plan=$candidates[0]
  }
-	$receipt=Get-NextPlanClaimReceipt $context.Worktree
-	if($null -ne $receipt){
-		$status=Invoke-NextPlanProcess $context.WorktreeCli @('plan','claim-status','--worktree',$context.Worktree,'--claim-receipt',$receipt.Path,'--claim-receipt-sha256',$receipt.Sha256) $context.Worktree
-		$claimStatus=ConvertFrom-NextPlanProcessJson $status 'plan claim-status'
-		if($status.ExitCode -eq 0 -and $claimStatus.ownedByReceipt){ try { Assert-NextPlanClaimReceiptPlanBytes $receipt $context.Worktree } catch { Complete-Claim 2 'blocked' 'claim.plan-digest-mismatch' 'Claimed Plan bytes differ from the validated claim receipt.' }; $result.claim=[ordered]@{claimed=$true;plan=$receipt.Json.plan;state=$claimStatus.claimState}; Complete-Claim 0 'pass' 'reused' 'Existing Plan claim remains valid.' }
-		if($status.ExitCode -eq 0){ Complete-Claim 2 'blocked' 'claim.receipt-not-owned' 'Deterministic Plan receipt is not the live claim owner.' }
-		if($status.ExitCode -eq 2 -and $claimStatus.code -ceq 'receipt-invalid'){
-			$unclaim=Invoke-NextPlanProcess $context.WorktreeCli @('plan','unclaim','--worktree',$context.Worktree,'--claim-receipt',$receipt.Path,'--claim-receipt-sha256',$receipt.Sha256) $context.Worktree
-			$unclaimResult=ConvertFrom-NextPlanProcessJson $unclaim 'plan unclaim'
-			if($unclaim.ExitCode -ne 0 -or $unclaimResult.code -cne 'already-absent'){ Complete-Claim $(if($unclaim.ExitCode -eq 2){2}else{1}) $(if($unclaim.ExitCode -eq 2){'blocked'}else{'error'}) 'claim.receipt-retirement-failed' 'Existing Plan receipt could not be authoritatively retired.' }
-		} else { Complete-Claim $(if($status.ExitCode -eq 2){2}else{1}) $(if($status.ExitCode -eq 2){'blocked'}else{'error'}) 'claim.receipt-status-failed' 'Existing Plan receipt could not be validated.' }
-		Remove-NextPlanClaimReceipt $receipt
-	}
-	$receiptPath=Get-NextPlanClaimReceiptPath $context.Worktree
- $args=@('plan','claim-next','--repo',$context.CommonDirectory,'--primary-worktree',$context.Primary,'--worktree',$context.Worktree,'--branch',$context.SessionBranch,'--owner',$context.Owner,'--session',$context.Session,'--write-claim-receipt',$receiptPath);if($Plan){$args+=@('--plan',$Plan)}
- $response=Invoke-NextPlanProcess $context.WorktreeCli $args $context.Worktree;$claim=ConvertFrom-NextPlanProcessJson $response 'plan claim-next'
+ $claimArguments=@('plan','claim-next','--repo',$context.CommonDirectory,'--primary-worktree',$context.Primary,'--worktree',$context.Worktree,'--branch',$context.SessionBranch,'--owner',$context.Owner,'--session',$context.Session);if($Plan){$claimArguments+=@('--plan',$Plan)}
+ $response=Invoke-NextPlanProcess $context.WorktreeCli $claimArguments $context.Worktree;$claim=ConvertFrom-NextPlanProcessJson $response 'plan claim-next'
  if($response.ExitCode -ne 0){$exit=if($response.ExitCode -eq 2){2}else{1};Complete-Claim $exit $(if($exit -eq 2){'blocked'}else{'error'}) 'claim.rejected' 'WorktreeCli rejected the plan claim.'}
- if(-not $claim.claimed){Complete-Claim 0 'pass' 'none-available' 'No eligible Plans plan is available.'}
-	$receipt=Get-NextPlanClaimReceipt $context.Worktree
-	if($null -eq $receipt){throw 'WorktreeCli claimed a Plan without the deterministic receipt.'}
-	$status=Invoke-NextPlanProcess $context.WorktreeCli @('plan','claim-status','--worktree',$context.Worktree,'--claim-receipt',$receipt.Path,'--claim-receipt-sha256',$receipt.Sha256) $context.Worktree
-	$claimStatus=ConvertFrom-NextPlanProcessJson $status 'plan claim-status'
-	if($status.ExitCode -ne 0 -or -not $claimStatus.ownedByReceipt){throw 'WorktreeCli did not validate the newly claimed receipt.'}
-	try { Assert-NextPlanClaimReceiptPlanBytes $receipt $context.Worktree } catch { Complete-Claim 2 'blocked' 'claim.plan-digest-mismatch' 'Claimed Plan bytes differ from the validated claim receipt.' }
-	$result.claim=[ordered]@{claimed=$true;plan=$receipt.Json.plan;state=$claimStatus.claimState}
- Complete-Claim 0 'pass' 'ok' 'Plan claimed from wrapper-derived state.'
+ $code=[string]$claim.code
+ if($code -ceq 'none'){Complete-Claim 0 'pass' 'none-available' 'No eligible Plans plan is available.'}
+ if($code -cne 'claimed' -and $code -cne 'existing'){throw "plan claim-next returned an unknown result code '$code'."}
+ $result.claim=[ordered]@{claimed=$true;plan=[string]$claim.plan;state=$code}
+ if($code -ceq 'existing'){Complete-Claim 0 'pass' 'reused' 'Existing Plan claim remains live for this session.'}
+ Complete-Claim 0 'pass' 'ok' 'Plan claimed for this session.'
 } catch {if(Get-Command Test-NextPlanStateBlocker -ErrorAction SilentlyContinue){if(Test-NextPlanStateBlocker $_){Complete-Claim 2 'blocked' 'claim.context-conflict' $_.Exception.Message}};Complete-Claim 1 'error' 'claim.failed' $_.Exception.Message}

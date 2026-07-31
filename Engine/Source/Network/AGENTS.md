@@ -5,7 +5,7 @@ Shared ENet transport, slot subscriptions, ACK state, discovery, wire cursors, a
 ## Transport Contracts
 
 - Use `NetworkManager` channel helpers for control and per-coordinate reliable/unreliable channels. All sends go through `SendPacket`; opaque game payloads use `SendSimplePacket`, while engine packets use `NetworkMessages` layouts.
-- Each coordinate slot has independent ACK floor, bitfield, and epoch state. Epoch mismatch drops stale traffic after slot reuse; unsubscribe carries the observed epoch, so a stale request cannot free a reused slot while the server still ACKs the no-op.
+- Each coordinate slot has independent ACK floor, bitfield, and epoch state (epoch is the reuse counter — see `../AGENTS.md`). Epoch mismatch drops stale traffic after slot reuse; unsubscribe carries the observed epoch, so a stale request cannot free a reused slot while the server still ACKs the no-op.
 - Engine packet types remain below `kGamePacketStart`; game packets are forwarded opaquely.
 - The handshake verifies protocol version, deterministic Frame version, and ordered island-manifest identity before accepting a peer.
 - Every incompatible game `StatusChange` or `TransferData` wire-layout change requires its game codec owner to increment `engine::kuiProtocolVersion`; Engine Network owns the shared version and Hello rejection gate.

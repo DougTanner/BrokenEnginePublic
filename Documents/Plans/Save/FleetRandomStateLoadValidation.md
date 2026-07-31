@@ -55,6 +55,10 @@ Do not infer the failure mode from other fields in `ReadFleetData`: its existing
 - `Common/Math/Random.h` / `.cpp` — read-only: the zero-state fixed point and the two existing seeding guards that establish the invariant.
 - `Projects/BrokenEngineSandbox/Source/Network/Server/ServerFleetManager.cpp` — read-only: fleet identifier minting, the consumer that makes a degenerate state harmful.
 
+## In scope
+
+- `Projects/BrokenEngineSandbox/Source/Network/Server/ServerFleetSerialization.cpp` — `ReadFleetData` (`:152-185`) only: read the serialized value at `:184` into a local instead of straight into `rRandom.uiState`, and throw `common::CorruptStreamException` when that local is zero, matching the `iNextGlobalId <= 0` precedent at `GameSaveLoad.cpp:570-573`. The function's other field handling is unchanged.
+
 ## Out of scope
 
 - `Common::RandomEngine` itself. The invariant is already correct at both seeding entry points; the defect is a load path that bypasses them. Do not add a guard inside `RandomNext` — that would cost a branch in a deterministic hot path to compensate for an unvalidated file read.

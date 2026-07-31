@@ -1,4 +1,4 @@
 interface:
   display_name: "Verify Changes"
-  short_description: "Verify final-evidence-gate changes before finalization"
+  short_description: "Verify landing-gate changes before finalization"
   default_prompt: "Use $verify-changes to verify the current session change set and return its acceptance table."

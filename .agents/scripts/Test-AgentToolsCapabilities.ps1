@@ -27,12 +27,19 @@ Assert-Contains $worktreeHelp @(
 	'WorktreeCli.exe plan ',
 	'WorktreeCli.exe build ',
 	'WorktreeCli.exe --help',
-	'WorktreeCli.exe plan validate --repo COMMON-DIR --worktree CHECKOUT --baseline COMMIT',
-	'WorktreeCli.exe plan claim-next --repo COMMON-DIR --primary-worktree PRIMARY --worktree SESSION --branch TARGET --owner TOKEN --session TOKEN --write-claim-receipt Temp/RECEIPT [--plan Documents/Plans/...md]',
-	'WorktreeCli.exe plan claim-status|unclaim --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256',
-	'WorktreeCli.exe plan prepare-completion|prepare-rejection --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256',
-	'WorktreeCli.exe plan release-after-landing --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256 --landed-commit COMMIT'
+	'WorktreeCli.exe plan validate ',
+	'WorktreeCli.exe plan claim-next ',
+	'--primary-worktree',
+	'claim-status',
+	'unclaim',
+	'complete',
+	'reject',
+	'--user-authorized-rejection'
 ) 'WorktreeCli'
+# Retired commands and options are usage errors and must never be advertised again.
+foreach ($retired in @('release-after-landing', 'reparent-claims', 'prepare-completion', 'prepare-rejection', '--write-claim-receipt', '--claim-receipt', '--terminal-receipt', '--landed-commit', '--baseline')) {
+	if ($worktreeHelp.Contains($retired, [StringComparison]::Ordinal)) { throw "WorktreeCli help still advertises the retired '$retired' surface." }
+}
 if ($worktreeHelp.Contains('AgentHarness.exe', [StringComparison]::Ordinal) -or $worktreeHelp.Contains('--domain', [StringComparison]::Ordinal) -or $worktreeHelp.Contains('--port', [StringComparison]::Ordinal) -or $worktreeHelp.Contains('--timeout-ms', [StringComparison]::Ordinal) -or $worktreeHelp.Contains('--key', [StringComparison]::Ordinal)) { throw 'WorktreeCli help exposes a harness-only or obsolete option.' }
 
 $harnessHelp = Get-Help $AgentHarnessExecutable 'AgentHarness'

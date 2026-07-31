@@ -27,6 +27,8 @@ Both use `$(ProjectName)` in `IntDir`, so client and server builds can run simul
 
 ## vcxproj File Inclusion Rules
 
+Affinity is which executable's build — client, server, or both — a file or code region belongs to.
+
 Each `.cpp` belongs in the client vcxproj, server vcxproj, or both, matching its preprocessor-guard scope (root rule). Shared files (no guards or partial guards) go in both; entirely one-sided files must be removed from the opposite vcxproj — guards alone leave empty translation units compiling there.
 
 Entirely one-sided source files also carry a whole-file `#if defined(BT_CLIENT)` / `BT_SERVER` wrap; headers keep `#pragma once` outside that guard. `Engine.h` guard spans group includes but do not establish affinity. A file force-included by both builds but consumed on only one side stays unwrapped and documents that deliberate exception in its leaf `AGENTS.md`.

@@ -46,10 +46,10 @@ thresholds are routing observations, not proof of a defect.
 
 After triage, file counts above about 15 or aggregate size above about 80,000
 bt-token-v1 indicate a useful review split, but do not alone require one. The
-main invoking context may dispatch bounded waves of `reviewer` roles according
+main invoking context may dispatch scoped rounds of `reviewer` roles according
 to available capacity. Give each worker an explicit file manifest, authority
 map, inspection rubric, and evidence/report contract. A worker never delegates
-or starts another wave. Each file belongs to one worker; the main context
+or starts another round. Each file belongs to one worker; the main context
 deduplicates results. Smaller targets may be inspected inline.
 
 ## Inspect Local Mechanics

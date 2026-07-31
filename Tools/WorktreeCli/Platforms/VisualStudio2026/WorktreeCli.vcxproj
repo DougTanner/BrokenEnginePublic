@@ -9,7 +9,6 @@
     <ClCompile Include="..\..\BuildCommand.cpp" />
     <ClCompile Include="..\..\LandingLockCommands.cpp" />
     <ClCompile Include="..\..\LandingLockLifecycle.cpp" />
-    <ClCompile Include="..\..\PlanCommands.cpp" />
     <ClCompile Include="..\..\PlanMetadata.cpp" />
     <ClCompile Include="..\..\PlanScheduler.cpp" />
     <ClCompile Include="..\..\..\ToolCommon\CoordinationStore.cpp" />
@@ -19,7 +18,6 @@
     <ClInclude Include="..\..\BuildCommand.h" />
     <ClInclude Include="..\..\LandingLockCommands.h" />
     <ClInclude Include="..\..\LandingLockLifecycle.h" />
-    <ClInclude Include="..\..\PlanCommands.h" />
     <ClInclude Include="..\..\PlanMetadata.h" />
     <ClInclude Include="..\..\PlanScheduler.h" />
     <ClInclude Include="..\..\..\ToolCommon\CoordinationStore.h" />

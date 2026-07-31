@@ -24,6 +24,13 @@ The correction keeps the fixed `templateIndex * kiMaxPlacementsPerTemplate` addr
 - `Engine/Source/Graphics/Islands.h` — set the 1712 fixed slab capacity and document its proven bound and resident-memory cost.
 - `Engine/Source/Graphics/Islands.cpp` — assert the Graphics slab remains at least the product of the game session slot count and placement-generator maximum.
 
+## In scope
+
+- `Engine/Source/Frame/IslandChainPlacement.h` — add the named header-level compile-time per-cell placement maximum (`kiMaxIslandPlacementsPerCell`), derived from the existing Huge/Large/Medium, surround, and tail constants.
+- `Engine/Source/Frame/IslandChainPlacement.cpp` — consume that constant for the existing placement-storage reserve/assert path; generation counts and placement order stay unchanged.
+- `Engine/Source/Graphics/Islands.h` — raise `kiMaxPlacementsPerTemplate` from 1024 to 1712 and update its comment to name the 16-slot subscription contract, the 107-placement-per-cell bound, and the resident-memory cost.
+- `Engine/Source/Graphics/Islands.cpp` — add the compile-time assertion that `kiMaxPlacementsPerTemplate >= game::NetworkSessionContract::kiCoordSlots * kiMaxIslandPlacementsPerCell`, next to the existing `EmitPlacement` capacity path.
+
 ## Out of scope
 
 - Changing `kiDesiredCoordSlots`, sticky duration, confirmation/adoption, `mActiveCoords`, or any client/server wire or subscription behavior.

@@ -56,6 +56,11 @@ Recording the answer in this file is its own lifecycle edit under either outcome
 - Outcome A: this record closes with the answer recorded, and no tracked file other than this record changes.
 - Outcome B: the outcome is made decision-complete first (exact wording, tier, checks), then root `AGENTS.md` carries one statement shorter than the removed bullet, with no tracked file other than root `AGENTS.md` and this record changed.
 
+## In scope
+
+- `Documents/Plans/Documents/ManagerBoundaryRootStatement.md` — this record: the user's verbatim answer to the Design question, recorded before any edit elsewhere. This is the record's own lifecycle edit under either outcome, and under Outcome A it is the only change.
+- `AGENTS.md` — under Outcome B only, the "IMPORTANT: Context management and agent selection" > "Subagents" bullet list, gaining one manager-boundary statement materially shorter than the removed bullet, after the outcome is made decision-complete (exact authorized wording, tier, checks).
+
 ## Out of scope
 
 - Re-adding the removed prose in any form or paraphrase.

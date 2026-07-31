@@ -40,6 +40,20 @@ Determinism note: the clamp changes deserialized bytes only for out-of-range inp
 - `Engine/Source/Frame/Collections/Collection.h` — `Collection::Read` (lines 323-338) and `SharedCollectionRead`, the boundary the clamp attaches to
 - Read-only reference: `Engine/Source/File/DifferenceStream.h` (`ValidateChecksum`, lines 315-317 and 360-386), `Engine/Source/Network/Client/Client.cpp` receive catch, `Projects/BrokenEngineSandbox/Source/Save/GameSaveLoad.cpp` `ReadGrid` catch
 
+## In scope
+
+- The `ExplosionsInterpolate` read path — clamp each row's `piTrailCounts`
+  (`Engine/Source/Frame/Collections/Explosions/Explosions.h:149`) value into
+  `[0, kiMaxExplosionTrails]` (`Explosions.h:23`) after rows are read and before
+  any consumer can observe them, on both the build-local `Read` and the
+  cross-build `ServerRead` populating that member.
+- A `kWarning` log at that clamp site naming the row and the offending value.
+- `Engine/Source/Frame/Collections/Collection.h` — `Collection::Read`
+  (`:323-338`) and `SharedCollectionRead`, the boundary the clamp attaches to.
+- Read-only reference, deliberately not edited: the four consuming loops
+  (`Explosions.cpp:257-259`, `:283-286`, `:324`, `ExplosionsUpdate.cpp:76`) and
+  the copy-forward at `ExplosionsUpdate.cpp:35` and `:46`.
+
 ## Out of scope
 
 - Any change to CRC composition, `SharedMembers()`/`Members()` tuples, collection layout, `kiVersion`, `.pack` layout, wire protocol, or serialization order. The clamp must not alter the format or the bytes of valid input.

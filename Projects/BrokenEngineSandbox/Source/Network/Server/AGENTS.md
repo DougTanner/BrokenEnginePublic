@@ -1,13 +1,13 @@
 # Network Server - Game Session and Managers
 
-Server-only game networking. `ServerSession` is the game-policy façade over `engine::ServerSessionRuntime`, coordinating client, fleet, transfer, and publication managers. The runtime owns host/discovery/pacing and fixed poll/tick/paused phase order; game hooks mutate game state around the deterministic Frame tick.
+Server-only game networking. `ServerSession` is the game-policy façade over `engine::ServerSessionRuntime`, coordinating client, fleet, transfer, and broadcast managers. The runtime owns host/discovery/pacing and fixed poll/tick/paused phase order; game hooks mutate game state around the deterministic Frame tick.
 
 ## State Ownership
 
 - `ServerSession` owns per-client player records containing global ID and coordinate. Registry mutations mirror `authorizedCoords` while the connection exists; game code uses the records, not `authorizedCoords`, for owned-player lookup.
 - `authorizedCoords` remains the engine authority for subscription adjacency and server display.
-- Fleets are keyed by persistent `ClientGuid`. Fleet RNG is seeded once, serialized with fleet state, and consumes exactly two 64-bit draws when minting a fleet identifier.
-- A fleet's position within its client's list shifts on delete, so requests and queued server work that outlive a poll carry the minted fleet identifier and re-resolve it at consumption.
+- Fleets are keyed by persistent `ClientGuid`. Fleet RNG is seeded once, serialized with fleet state, and consumes exactly two 64-bit draws when generating a fleet identifier.
+- A fleet's position within its client's list shifts on delete, so requests and queued server work that outlive a poll carry the generated fleet identifier and re-resolve it at consumption.
 - Relink matches are sorted by global ID before rebuilding client ownership so reconnect and save-load preserve creation order.
 - Normal update prepares tick inputs; replay supplies its recorded `FrameInput`.
 
@@ -22,7 +22,7 @@ Server-only game networking. `ServerSession` is the game-policy façade over `en
 - Spawn assignment diffs origin player IDs across the tick and pairs new IDs with waiting clients in request order. The client GUID written into Frame state is the persistent relink key.
 - Fleet navigation defers flagship updates through `StatusChange`s. Within `BuildFrameInputs`, waiting-client spawn construction, queued player updates, fleet timers and pending flagship updates, plus broadcast and pre-spawn snapshot capture run only on advancing updates; this work remains deferred through paused and other zero-tick updates.
 - Agent-injected `StatusChange`s remain queued until a normal, advancing, frame-ready tick can consume them. Consumed changes use the same deterministic type grouping as broadcast serialization.
-- Transfer destinations must be adjacent. Non-player transfers require a live destination; player transfer establishes that liveness itself. Recompute the destination Frame CRC after landing transfers.
+- Transfer destinations must be adjacent. Non-player transfers require a live destination; player transfer establishes that liveness itself. Recompute the destination Frame CRC after applying arrived transfers.
 - `ServerSessionRuntime::CompleteTick` invokes `ServerBroadcaster::BuildTickPublication`, which passes each tick to `ServerSessionRuntime::PublishTick` to maintain the delta resend ring. The publication includes complete per-coordinate Frames for the separate diagnostic ring only when `kbDesyncDebugFrames` is enabled. This manual flag is disabled by default and must match the client build.
 
 ## Trust and Lifecycle Boundaries

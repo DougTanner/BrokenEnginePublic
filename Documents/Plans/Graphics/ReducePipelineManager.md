@@ -20,14 +20,16 @@ This is a Tier 3 Change Workflow refactor. The component is private and client-o
 
 The listed scope is both target and ceiling: make the smallest complete change satisfying the acceptance criteria and add no abstractions, configuration, refactors, or fixes to adjacent code encountered along the way. Naming a file grants permission to touch only the named regions plus the mechanical necessities (includes, declarations) the named change requires — nothing else in that file.
 
-**In scope** — only these regions:
+## In scope
+
+Only these regions:
 
 - `Engine/Source/Graphics/Managers/PipelineManager.cpp`: the four member-function definitions `CreateLightingPipelines` (180-264), `CreatePipelineShadows` (266-361), `CreateLightingBlurPipelines` (363-391), and `CreateLightingShadowDependentPipelines` (393-503) — each body moves to the new component and the definition becomes a one-line delegation — plus any include the delegation requires. The constructor (including its lines 88-91 call sequence), destructor, shader-loading code, and every other pipeline family stay untouched.
 - `Engine/Source/Graphics/Managers/PipelineManager.h`: add the component `#include`, and append an explicit `private:` region after the existing public `mDynamicPipelines` member containing only `WorldLightingShadowPipelines mWorldLightingShadowPipelines;`. The `Pipelines` enum, all public function declarations, and all public members keep their current spelling, order, and public visibility.
 - `Engine/Source/Graphics/Managers/WorldLightingShadowPipelines.h` and `.cpp`: new files owning the moved creation code, per Design.
 - `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj` and `.filters`: membership entries for the two new files only, via `/update-vcxproj`.
 
-**Out of scope:**
+## Out of scope
 
 - Any behavior change to shadow dispatch, blur, temporal/history, lighting clear/spread/combine/temporal, shaders, render-target layouts, descriptor flags, or command-buffer recording. This plan moves the landed registrations intact; `WindowedLightingDispatch.md` remains the prerequisite behavioral owner.
 - Pipeline descriptor registration ownership, descriptor-array sizing, bindless-slot lifecycle, pipeline enum values, `mpPipelines` array layout, and any caller API migration — `CommandBufferRecordGlobal.cpp`, `CommandBufferRecordMain.cpp`, `GlobalUniforms.cpp`, `LightingUniforms.cpp`, `IslandTerrainResidency.cpp`, and `TextureDescriptors.h` are read-only verification sites, never edit targets.

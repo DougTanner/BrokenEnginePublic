@@ -25,7 +25,7 @@ Read the footgun reference (`references/shader-footguns.md`) when a changed regi
 
 ## Workflow
 
-1. Derive the exact changed shader files and regions from the implementation handoff, conversation, or fixed-baseline diff. Include transitive shader headers and any dual-language header under `Engine/Data/Shaders/` or `Projects/*/Data/Shaders/`.
+1. Derive the exact changed shader files and regions from the implementation handoff, conversation, or session-baseline diff. Include transitive shader headers and any dual-language header under `Engine/Data/Shaders/` or `Projects/*/Data/Shaders/`.
 2. Read the applicable shader `AGENTS.md`, each changed file, its nearby producers/consumers, and the relevant whole function. Search `ShaderFunctions.h` and family `*Common.h` files before recommending new helper logic.
 3. Trace every changed shader-facing header in both directions:
    - shader entry points that transitively `#include` it;
@@ -33,7 +33,7 @@ Read the footgun reference (`references/shader-footguns.md`) when a changed regi
    - DataPacker dependency capture from preprocessing (`-MD`/`-MF`) through dependency fingerprinting.
 4. Review changed dual-language declarations against the actual block qualifier and CPU representation. Compare field order, scalar widths, array strides, offsets, descriptor constants, writes, and binding roles. Do not infer layout from a generic `vec3` rule when `layout(scalar)` applies.
 5. Apply the checks below. Report only reachable failures supported by the changed code and repository evidence. Do not turn a generic checklist item into a finding.
-6. Emit an atomic external-claim packet for every finding that depends on a non-obvious GLSL, Vulkan, extension, device, or compiler claim. Do not browse directly. Keep locally provable repository-contract findings separate.
+6. Emit an atomic external-claim request for every finding that depends on a non-obvious GLSL, Vulkan, extension, device, or compiler claim. Do not browse directly. Keep locally provable repository-contract findings separate.
 7. Return the report. A shader-facing shared header has both C++ and GLSL surfaces, so explicitly require `/repo-code-review` as the sibling domain review when such a header changed; this review does not replace it.
 8. Report a changed shader over ~5,000 `bt-token-v1` (measure with `pwsh -NoProfile -File .agents/scripts/Measure-Tokens.ps1 -Path <path>`) as a size observation in `Residuals`; splitting it via `ShaderFunctions.h`/`*Common.h` is follow-up work, not part of this findings-only review.
 
@@ -85,9 +85,9 @@ Read the footgun reference (`references/shader-footguns.md`) when a changed regi
 - Verify push-constant size/stage ranges, storage image formats, atomics, descriptor indexing, stage-specific built-ins, and optional shader extensions against the repository's Vulkan 1.2 target and enabled device features.
 - Treat debug-only extensions and printf paths according to their actual compile guards and shipping configuration.
 
-## External Claim Packets
+## External Claim Requests
 
-Emit one proposition per packet so `/verify-external-claims` can return one verdict without adjudicating the code finding:
+Emit one proposition per request so `/verify-external-claims` can return one verdict without adjudicating the code finding:
 
 ```markdown
 ### External Claim Verification Request
@@ -111,7 +111,7 @@ Order findings by severity and omit empty sections:
 - P1 `path:line` — failure, reachable evidence, and smallest correction
 
 ### External Claim Verification Requests
-<atomic packets>
+<atomic requests>
 
 ### Files Reviewed
 - `path`
@@ -122,7 +122,7 @@ PASS | NEEDS FIXES
 Status: PASS | NEEDS_ACTION | BLOCKED
 Files changed: none
 Functions/regions touched: none
-Decisive checks: <reads, searches, traces, and external-claim dispositions>
+Decisive checks: <reads, searches, traces, and external-claim outcomes>
 Build required: none
 Residuals:
 - <pending verification, pre-existing issue, incomplete review item, or none>

@@ -2,7 +2,7 @@
 name: researcher
 description: Research requiring judgment — weighing options, designs, or trade-offs rather than only locating them.
 model: opus
-effort: high
+effort: medium
 disallowedTools: Agent
 ---
 

@@ -18,7 +18,7 @@ Create or improve a skill from the user's intent, repository conventions, and ev
 5. Re-read the result with fresh eyes. Remove duplicated guidance, speculative options, and examples that do not clarify a non-trivial requirement.
 6. Run the repository `validate-skill` workflow on the finished skill. Fix every mechanical or Critical finding and rerun until it passes; treat `BLOCKED` as a stop condition.
 
-Research inline when the answer is local and bounded. Use available documentation or delegated research only when the skill depends on behavior that needs external or multi-source evidence.
+Research inline when the answer is local and small. Use available documentation or delegated research only when the skill depends on behavior that needs external or multi-source evidence.
 
 ## Repository Conventions
 

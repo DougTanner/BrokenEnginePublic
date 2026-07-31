@@ -5,7 +5,7 @@ description: >-
   caller, producer, consumer, mirror, serialization identity, and CPU/GPU
   contract the implementation did not update. Use during the Implement and
   propagate stage after any C++ or GLSL change, and for candidates outside a
-  scoped review-fix wave. Search-and-update only; no refactoring, style work,
+  scoped review-fix round. Search-and-update only; no refactoring, style work,
   or scope expansion.
 allowed-tools: [Read, Edit, Grep, Glob, Bash, PowerShell]
 ---
@@ -20,7 +20,7 @@ AGENTS.md, or edit project XML.
 
 Require:
 
-- fixed session-start baseline and the exact owned changed files/regions,
+- session baseline and the exact owned changed files/regions,
   separated from pre-existing and concurrent work;
 - approved plan or concise intent, applicable repository instructions, and
   implementation handoff;
@@ -76,10 +76,10 @@ handoff.
 
 ## Handoff
 
-Return one disposition per trigger, followed by the standard handoff:
+Return one outcome per trigger, followed by the standard handoff:
 
 ```text
-Trigger dispositions: <trigger — RESOLVED with updated sites or verified no-op;
+Trigger outcomes: <trigger — RESOLVED with updated sites or verified no-op;
   REFUTED with evidence; or UNRESOLVED with owner/action>
 Status: PASS | NEEDS_ACTION | BLOCKED
 Changed files: <path — exact functions/types/regions, or none>

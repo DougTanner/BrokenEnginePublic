@@ -16,7 +16,7 @@ Use this reference to reason about changed shader code. It records review distin
 
 ## Official source set
 
-Use only these candidate sources in external-claim packets. Give the exact applicable section or anchor in the packet when known.
+Use only these official sources in external-claim requests. Give the exact applicable section or anchor in the request when known.
 
 - GLSL 4.60 specification: `https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.60.html`
 - Vulkan 1.2 data races: `https://registry.khronos.org/vulkan/specs/1.2-khr-extensions/html/vkspec.html#memory-model-data-races`
@@ -58,7 +58,7 @@ Derivative reasoning is stage-qualified:
 
 - In fragment shaders, implicit-LOD texture sampling and derivative functions interact with non-uniform control flow.
 - Do not transplant that rule to vertex, compute, or another stage without checking the GLSL rule or an enabled extension for that stage.
-- Emit a GLSL 4.60 verification packet when a finding depends on derivative availability or definedness.
+- Emit a GLSL 4.60 verification request when a finding depends on derivative availability or definedness.
 
 `texelFetch` uses integer texel coordinates and, when required by its overload, an explicit LOD or sample parameter. It does not filter and does not compute implicit derivatives. It still operates through a sampler-typed GLSL object; do not describe sampler objects as ignored.
 
@@ -87,7 +87,7 @@ For Vulkan 1.2, first inspect `VkPhysicalDeviceSubgroupProperties` for the subgr
 
 Inspect `VK_EXT_subgroup_size_control` only when the implementation requests, specializes for, or otherwise depends on a controllable subgroup size or full-subgroup behavior. Then verify extension/feature enablement, required-subgroup-size stages, and relevant limits. Avoid assuming a fixed width from a vendor name.
 
-Emit two packets when both baseline operation support and size-control behavior matter; they are independent propositions with different official sources.
+Emit two requests when both baseline operation support and size-control behavior matter; they are independent propositions with different official sources.
 
 ## CPU/GLSL layout and dependency propagation
 
@@ -112,7 +112,7 @@ A shader-facing `.h` change requires both `/glsl-review` and `/repo-code-review`
 
 ## Performance evidence
 
-Report performance defects only with a concrete signal: profiler capture, target-device property/limit, measured scene behavior, compiler diagnostics, generated SPIR-V/disassembly, or a documented repository production constraint. Without one, request evidence or frame an external claim packet; do not prescribe a universal threshold.
+Report performance defects only with a concrete signal: profiler capture, target-device property/limit, measured scene behavior, compiler diagnostics, generated SPIR-V/disassembly, or a documented repository production constraint. Without one, request evidence or frame an external-claim request; do not prescribe a universal threshold.
 
 Apply this discipline to:
 
@@ -143,4 +143,4 @@ CPU-precomputable expressions are the general form of that rule and need no exte
 
 ## Optional stages and features
 
-For geometry, tessellation, mesh/task, and ray-tracing shaders, trace the matching C++ pipeline topology, enabled extension/features, limits, stage interfaces, shader binding table, and payload/attribute types. Do not assume an extension is enabled because the compiler accepts syntax. Emit one verification packet per exact feature, limit, or stage-rule proposition.
+For geometry, tessellation, mesh/task, and ray-tracing shaders, trace the matching C++ pipeline topology, enabled extension/features, limits, stage interfaces, shader binding table, and payload/attribute types. Do not assume an extension is enabled because the compiler accepts syntax. Emit one verification request per exact feature, limit, or stage-rule proposition.

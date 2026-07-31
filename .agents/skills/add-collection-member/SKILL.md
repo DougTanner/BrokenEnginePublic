@@ -40,7 +40,7 @@ There is no separate server-write path to update. Frame broadcast uses the same 
 Decide CRC and diagnostic membership independently.
 
 - A shared member normally reaches `SharedCollectionCrc()` through existing `SharedMembers()` or `Members()`.
-- If the collection has `SharedCrcMembers()`, explicitly include or exclude the member and preserve the subset relation. This is a determinism contract; if intended membership is unresolved, classify the decision Tier 3 and stop for user direction.
+- If the collection has `SharedCrcMembers()`, explicitly include or exclude the member and preserve the subset relation. This is a determinism contract; if intended membership is unresolved, classify the decision Tier 3 (see root AGENTS.md, Risk tiers) and stop for user direction.
 - Decide separately whether `LogDifferences()` should compare the member. Its coverage may intentionally differ from CRC membership. Follow the collection's live diagnostic intent; use `common::LogDifference<"name">` for scalar-like values and `common::LogDifference_Vec` for vectors. Client-only collections may have no difference logger.
 
 ## Persistence and producers

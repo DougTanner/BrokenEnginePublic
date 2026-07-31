@@ -5,54 +5,60 @@ A client/server game engine using data-oriented design, with data pre-packer (of
 ## Environment
 
 - Visual Studio 2026, C++23, Vulkan 1.2, Windows 10+
-- Agent shells: Claude Code runs in Git Bash; Codex CLI runs in PowerShell 7. Claude calls `pwsh` explicitly for PowerShell 7 scripts.
+- Agent shells: Claude Code - Git Bash; Codex CLI - PowerShell 7. Call `pwsh` explicitly for PowerShell 7 scripts.
 
 ## IMPORTANT: Context management and agent selection
 
 ### Subagents
 
 - Main session is manager; subagents execute work to keep main context clean
-- Change Workflow dispatches are user-requested by standing repository policy: a harness default withholding subagent dispatch until the user asks does not gate them — dispatch without a per-session request
+- Change Workflow dispatches are user-requested by standing repository policy: a host default withholding subagent dispatch until the user asks does not gate them — dispatch without a per-session request
 - Subagents must not spawn subagents — enforced by `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` and by `disallowedTools: Agent` in each role definition. Only main-session skills request delegation; a subagent needing delegated work returns the requirement to its caller instead of dispatching it
-- Give subagents only the instructions and context their task needs; they return a concise, clearly defined response. Delegation inherits no conversation context by default — `fork_turns: "none"` on Codex, a fresh self-contained prompt on Claude — and every core delegation prompt carries the delegation-basis and context records. Exact record form and the bounded brief fields: `.agents/references/subagent-reporting.md`
+- Give subagents only the instructions and context their task needs; they return a concise, clearly defined response. Delegation inherits no conversation context by default — `fork_turns: "none"` on Codex, a fresh self-contained prompt on Claude — and every delegation carries the single task brief in `.agents/references/subagent-reporting.md`.
 - Judge worker liveness only from host status and explicit progress or partial handoffs. Review scope, interruption, and recovery: `.agents/references/subagent-reporting.md`
-- Workers return concise inline handoffs to the manager, who routes them; return large evidence as an existing artifact or log path plus the selector needed to recover it, and create a `Temp/` artifact only when the owning workflow requires one
-- Return one inline acceptance table only when a final-evidence gate applies. Liveness, interruption, and table format: `.agents/references/subagent-reporting.md`
+- Workers return concise inline handoffs to the manager, who routes them; return large evidence as an existing file or log path plus the selector needed to recover it, and create a file under `Temp/` only when the owning workflow requires one
+- Return one inline acceptance table only when a landing gate applies (defined in the Change Workflow definitions below). Liveness, interruption, and table format: `.agents/references/subagent-reporting.md`
 - Isolated worktrees are required only for executable Plan selection or claim mutation, shared build/bootstrap coordination, or landing. Ordinary work uses the user-supplied checkout and preserves unrelated changes.
 - Retained worktrees are removed only by the manual `/cleanup-worktrees` skill (removes wrapper worktrees 48+ hours old) or explicit user direction — never recreate its effect with raw Git or filesystem commands.
 
 ### Delegation roles
 
-Skills name a role and describe the work. Definitions: `.claude/agents/<role>.md`. Codex resolves a role through the Model column — `.codex/agents/` is model-named.
+This table is the canonical spawned-agent routing policy; role definitions, Codex TOMLs, and the headless script enforce it. Skills name a role and describe the work. Definitions: `.claude/agents/<role>.md`. Codex resolves a role through the Model column — `.codex/agents/` is model-named.
 
 | `subagent_type` | Model | Effort | Work |
 | --- | --- | --- | --- |
-| `planner` | Opus | high | Plans, designs, approach options |
-| `reviewer` | Sol (see below) with Opus fallback | high | Every review and audit; adversarial falsification |
-| `implementer` | Opus | high | Preparation, implementation, propagation, docs, plans, harness, finalization |
-| `researcher` | Opus | high | Research requiring judgment |
-| `locator` | Sonnet | xhigh | Search, log filtering, spec fetch, claim verification — returns file:line, quotes, or links, never summaries |
+| `planner` | Fable | medium | Plans, design, approach options |
+| `reviewer` | Sol (see below); Opus fallback only with explicit user authorization | medium | Every review and audit; adversarial falsification |
+| `implementer` | Opus | medium | Preparation, implementation, propagation, docs, plans, harness, finalization |
+| `researcher` | Opus | medium | Research requiring judgment |
+| `locator` | Sonnet | xhigh | Exploration, search, log filtering, spec fetch, claim verification — returns file:line, quotes, or links, never summaries |
 | `builder` | Sonnet | xhigh | `/compile`; returns status plus decisive errors and warnings verbatim |
 | `mechanic` | Sonnet | xhigh | Checklist edits — `/code-style-review`, `/update-vcxproj` |
 
 - Delegate by `subagent_type`; an ad-hoc `model:` cannot pin effort. A documented host-unavailability fallback to `general-purpose` may pass `model:` and runs unpinned
+- Host built-in agent types (`Explore`, `Plan`, `general-purpose`) never substitute for a role, including inside plan mode — route the work through the table above. The documented host-unavailability fallback is the only exception
+- Host plan mode never substitutes for Change Workflow steps: a plan produced there still gets Step 2's `/plan-audit` (and the Tier-3 additions) before implementation
 - Every delegated review or audit is the `reviewer` role. In Claude Code it dispatches through `/codex-review` (Codex/Sol) — that invocation IS the delegated-reviewer execution context, and that skill owns routing and fallbacks. Manually triggered parent/manager orchestrators such as `/next-plan-review` remain in the invoking parent and dispatch their own reviewer. `codex-review` is the sole skill that may name a model. Manager adjudicates Sol findings for concrete reachable failure and materiality; rejecting speculative or gold-plating findings is the default, with no added review rounds.
 
-ChatGPT Codex: Sol -> gpt-5.6-sol, Opus -> gpt-5.6-terra, Sonnet -> gpt-5.6-luna
+ChatGPT Codex: Fable -> gpt-5.6-sol max; Sol -> gpt-5.6-sol medium; Opus and Sonnet -> gpt-5.6-luna max.
 
 ## IMPORTANT: Change Workflow (YOU MUST follow this when changing anything tracked in this repository)
 
 This workflow governs every tracked artifact — C++, shaders, PowerShell and other scripts, skills, plans, and documentation. An artifact type a step does not name is an unrouted case: resolve it with the user, never by treating the step as inapplicable.
 
-The user's request is implementation authority for Tier 1 and Tier 2 changes; agents classify the work, make the smallest complete change, run proportionate checks, and report changed files, decisive checks, and residuals. Do not require a user approval round-trip, wrapper session, report artifact, candidate-bound final evidence, or landing workflow unless a final-evidence gate applies.
+The user's request is implementation authority for Tier 1 and Tier 2 changes; agents classify the work, make the smallest complete change, run proportionate checks, and report changed files, decisive checks, and residuals. Do not require a user approval round-trip, wrapper session, or report file unless a landing gate applies.
 
 Definitions:
 
 - Execution card — pre-implementation record of goal, out-of-scope boundary, tier trigger, affected interfaces/invariants, acceptance checks, and roles.
-- Final-evidence gate — the `/verify-changes` acceptance table plus `/finalize-changes` path. Required for executable Plan claim mutation or completion, rebase, requested primary commit or landing, a wrapper session completing its work, shared build/bootstrap work, or Tier-3 integration; any `/next-plan` claim uses it regardless of tier.
-- Rebase — `/finalize-changes` rebasing the verified candidate onto the current primary tip; retention of evidence requires an identical conflict-free Git-native delta and empty dependency overlap. Mechanics, conflicts, and the non-blocking `missing-plan-file` notice: `/finalize-changes` and `.agents/skills/next-plan/references/execution-gates.md`.
+- Landing gate — the `/verify-changes` acceptance review plus the `/finalize-changes` landing flow with one explicit user confirmation; applies whenever primary will be mutated: landing a session's work, a separately requested primary commit, or executable Plan completion or rejection. Shared AgentTools promotion and Tier-3 integration always land through it.
 - Executable Plan — tracked `Documents/Plans/**/*.md` with byte-zero `broken-engine-plan/v1` metadata; selection and marker rules: `Documents/Plans/AGENTS.md`. `Documents/Features` is manual.
-- Wrapper session — session started through `.claude/claude-worktree.sh` or `.codex/codex-worktree.ps1`, owning an isolated worktree identified by its private-Git receipt; receipt and reattach rules: `.agents/references/wrapper-sessions.md`.
+- Wrapper session — session started through `.claude/claude-worktree.sh` or `.codex/codex-worktree.ps1`, owning an isolated worktree. A retained wrapper session reattaches only through the same wrapper with its explicit reattach worktree input — `--reattach-worktree <path>` for Claude, `-ReattachWorktree <path>` for Codex; never adopt an arbitrary worktree.
+- Primary — the shared main checkout and its main branch that finished session work lands into.
+- Tracked artifact — any file Git tracks in this repository: code, shaders, scripts, skills, plans, and documentation.
+- Step and stage — a step is one of the eight numbered Change Workflow steps below; a stage is one approved unit of session work that can complete or land independently.
+- Handoff — the short structured result a subagent returns to its manager.
+- Residual — a known leftover problem reported at the end of a task instead of fixed inside it.
 
 ### Risk tiers
 
@@ -66,14 +72,16 @@ A reviewer may escalate the tier when the changed bytes expose a higher-risk sur
 
 ### Steps
 
-1. Approve and classify. From user intent — plus an `implementer`'s repository preparation whenever the work is Tier 2+ or needs repository evidence to classify — main pins the objective, approved stage dispositions, tier and triggers, roles, acceptance checks, and execution card. Tier 1 and Tier 2 authorize implementation; Tier 3, Plan claim, rebase, and landing also require an execution card.
-2. Plan review. Tier 2+ starts from an `implementer`-prepared plan; Tier 1 skips this. Main dispatches a `reviewer` for `/plan-audit` and reports a blocker if that role is unavailable. For Tier 3, an `implementer` owns `/external-grill-plan` repository evidence and iterative decision briefs; a `locator` resolves external claim packets; main only adjudicates and interviews from those handoffs, then presents the resolved plan for approval. Brief and iteration contract: `.agents/skills/next-plan/references/tier3-workflow.md`. Plans may include optional `/agent-harness` verification.
+1. Approve and classify. From user intent — plus an `implementer`'s repository preparation whenever the work is Tier 2+ or needs repository evidence to classify — main pins the objective, approved stage decisions, tier and triggers, roles, acceptance checks, and execution card. Tier 1 and Tier 2 authorize implementation; Tier 3, Plan claim, and landing also require an execution card.
+2. Plan review. Tier 2+ starts from an `implementer`-prepared plan; Tier 1 skips this. Main dispatches a `reviewer` for `/plan-audit` and reports a blocker if that role is unavailable. For Tier 3, an `implementer` owns `/external-grill-plan` repository evidence and iterative decision briefs; a `locator` resolves external-claim requests; main only adjudicates and interviews from those handoffs, then presents the resolved plan for approval. Brief and iteration contract: `.agents/skills/next-plan/references/tier3-workflow.md`. Plans may include optional `/agent-harness` verification.
 3. Implement and propagate. Main splits the work into disjoint slices where possible and dispatches one `implementer` each in parallel, each making the smallest complete assigned change and returning affected-site triggers; then an `implementer` runs `/update-affected-code` after any C++ or GLSL change. Review-fix exceptions belong to `/resolve-findings`.
-4. Run targeted pre-review checks. `Implementer`s run applicable static checks. Main routes every `Build required` handoff to a `builder` before covered work advances; full builds and runtime or harness scenarios remain acceptance-matrix work.
-5. Review and resolve correctness. Main dispatches exactly one fresh `reviewer` per changed artifact type, scoped to changed bytes and reached contracts: C++ → `/repo-code-review`; shaders → `/glsl-review`; Tier-1 non-C++ → direct coherence; other Tier-2+ artifacts → fresh-eyes coherence, whose reviewer also fixes and self-verifies sub-semantic issues (meaning-preserving wording, formatting) in that pass when its dispatch route permits edits; whatever it cannot fix routes with the semantic findings. Each dispatch carries the authorization check: for every changed region the reviewer names the plan clause or user instruction authorizing it and reports an unauthorized region as a finding. Main adjudicates once and routes accepted fixes to a separate `implementer`; only affected regions are re-reviewed and retested, and a second wave requires a reproducible blocker. Tier 3 adds `/adversarial-review`; any tier may use it for one concrete unresolved reachable hypothesis.
+4. Run targeted pre-review checks. `Implementer`s run applicable static checks. Main routes every `Build required` handoff to a `builder` before covered work advances; full builds and runtime or harness scenarios remain acceptance-table work.
+5. Review and resolve correctness. Main dispatches exactly one fresh `reviewer` per changed artifact type, scoped to changed bytes and reached contracts: C++ → `/repo-code-review`; shaders → `/glsl-review`; Tier-1 non-C++ → direct coherence; other Tier-2+ artifacts → fresh-eyes coherence, whose reviewer also fixes and self-verifies sub-semantic issues (meaning-preserving wording, formatting) in that pass when its dispatch route permits edits; whatever it cannot fix routes with the semantic findings. For Tier 2+, main also dispatches one fresh `reviewer` for `/scope-review` over the whole change diff — once per review round, never per artifact type — in parallel with those correctness reviews, which carry no scope-authorization or gold-plating remit. Main adjudicates once and routes accepted fixes to a separate `implementer`; only affected regions are re-reviewed and retested, and a second round requires a reproducible blocker. Tier 3 adds `/adversarial-review`; any tier may use it for one concrete unresolved reachable hypothesis.
 6. Apply triggered hygiene: a `mechanic` runs `/code-style-review` for changed C++ and `/update-vcxproj` for file membership or whole-file affinity changes; a fresh `reviewer` runs `/validate-skill` for changed `.agents/skills/*/SKILL.md`; an `implementer` runs `/update-claude-docs` after C++ or GLSL changes. Documentation inspects affected AGENTS.md scope but may need no edit.
-7. Verify the acceptance matrix. Main dispatches a fresh read-only `reviewer` to map every approved criterion and invariant to decisive evidence, including each duplicate check's independent signal. Tier 1 uses static, schema, link, validator, and changed-C++ compilation checks; Tier 2 adds the smallest observable scenario; Tier 3 adds exposed invariant or integration checks. Passing completes only the current stage. An `implementer` routes proven out-of-scope leftovers through `/create-follow-up-plans`.
-8. Final evidence, audit when triggered, and finalize. At a final-evidence gate, an `implementer` performs terminal Plan preparation, creates the owned candidate, and reconciles it to one exact single-parent candidate commit/tree before main dispatches `/verify-changes` to a fresh read-only `reviewer`. The verifier binds its acceptance table to that candidate and the fixed baseline. The finalization `implementer` then assembles the complete `broken-engine-session-audit-input/v2` evidence from the Git-native pre/post-reconciliation candidate deltas and evaluates it with `.agents/skills/finalize-changes/scripts/Test-SessionAuditRequirement.ps1`. Skip `/session-audit` automatically only when its typed decision is well-formed and reports `required:false`; missing, malformed, or unproven evidence requires the audit, and an explicit user request always requires it. An `implementer` running `/finalize-changes` owns terminal preparation, candidate creation, reconciliation, primary mutation, and claim release; WorktreeCli alone parses or mutates scheduler state — validate before Plan selection or mutation, after a landing that changes Plan files, and after primary completion. Required order: terminal preparation -> candidate creation -> reconciliation/single-parent squash -> exact candidate verification -> finalization summary and explicit confirmation -> primary mutation. Missing, non-commit, wrong-parent, wrong-tree, or changed-tip candidate evidence blocks; it never waives verification. After all stage checks pass, wrapper sessions proceed continuously to finalization, stopping only for safety blockers and the required confirmation before any primary mutation. Scheduler and landing mechanics: `.agents/skills/next-plan/references/execution-gates.md`. Landing completes only a repository stage; the session ends only when every stage is complete or explicitly deferred, with a tracked follow-up Plan where required.
+7. Verify the acceptance table. Main dispatches a fresh read-only `reviewer` to map every approved criterion and invariant to decisive evidence, including each duplicate check's independent signal. Tier 1 uses static, schema, link, validator, and changed-C++ compilation checks; Tier 2 adds the smallest observable scenario; Tier 3 adds exposed invariant or integration checks. Passing completes only the current stage. An `implementer` routes proven out-of-scope leftovers through `/create-follow-up-plans`.
+8. Verify and land. At a landing gate, `/finalize-changes` prepares terminal Plan state when a claimed Plan completes, squashes the session work into one commit, and rebases it onto the current primary tip; main then dispatches one fresh read-only `/verify-changes` reviewer to map every approved criterion, invariant, and required check to decisive evidence in that reviewed diff, and presents the landing summary. Exactly one explicit user confirmation authorizes primary mutation. After confirmation the finalizer takes the landing lock lease, advances primary by compare-and-swap with rollback on failure, releases the lock, and deletes the machine-local claim. A material diff change after review or confirmation — a conflict resolution, changed session bytes, or changed semantics — re-runs review of the affected regions and re-asks the confirmation; a clean identical rebase does not. `/session-audit` runs only on explicit user request. WorktreeCli alone parses or mutates scheduler state. The confirmation contract lives in `/finalize-changes`; acceptance review belongs to `/verify-changes`. Landing completes only a repository stage; the session ends only when every stage is complete or explicitly deferred, with a tracked follow-up Plan where required.
+
+For a claimed executable Plan, preparation that proves the work Tier 1, decision-complete, and current may continue straight into implementation without an approval pause; everything else presents for approval first. The landing confirmation always applies. `/next-plan` owns selection and claim lifecycle.
 
 ### Convergence
 
@@ -91,8 +99,8 @@ Once a stage's required checks pass, stop changing it: advance to the next stage
 
 ### User Interaction
 
-- IMPORTANT: Every question or decision request must be answerable from the current message without hidden reasoning or remembered scrollback. Identify the concrete issue and referents, provide the full context needed to decide, and explain what the answer changes or blocks. When relevant, give options, trade-offs, and a recommendation.
-- AVOID jargon, the user is NOT an expert in this field, use plain language.
+- IMPORTANT: Every question or decision request aimed at the user must be answerable from the current message without hidden reasoning or remembered scrollback. In the same turn as the question provide the FULL context needed to understand, and explain what the answer changes or blocks. When relevant, give options, trade-offs, and a recommendation. The user has NOT read the source code or plan file.
+- AVOID jargon, the user is NOT a domain expert, use plain language (dumb it down).
 - Explain fully when asked; use headings and bullet points so a longer explanation stays skimmable.
 
 ### Resolving Ambiguity

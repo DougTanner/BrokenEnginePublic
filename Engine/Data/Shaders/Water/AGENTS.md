@@ -18,5 +18,5 @@ Water renders a visible-area ocean grid. A compute prepass bakes Gerstner displa
 
 - Analytic specular antialiasing is selected by `WATER_SPEC_AA_MODE`. Its mip-variance handoff is selected by `WATER_SPEC_AA_MIP_HANDOFF` and consumes DataPacker's BC5 per-mip variance tables. Changes to either switch require shader repacking; keep analytic LOD and water-normal sampler bias aligned.
 - Lighting and smoke sample at a base-height projection derived from the undisplaced world position, keeping them stable under wave animation.
-- Sun-driven energy and skybox sun/moon specular use full effective shadow. Sky ambient uses the separately controlled ambient-shadow mix; EWNS and ambient emitter deposits remain unshadowed.
+- Sun-driven energy and skybox sun/moon specular use full effective shadow. Sky ambient uses the separately controlled ambient-shadow mix; EWNS (defined in the shader hub, `../AGENTS.md`) and ambient emitter deposits remain unshadowed.
 - Terrain ray-march shadow attenuates the sun component but not moon light. Object shadow and smoke attenuation apply to both.

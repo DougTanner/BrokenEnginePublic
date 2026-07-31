@@ -1,7 +1,7 @@
 ---
 name: adversarial-review
 description: >-
-  Bounded fresh-eyes falsification review for every artifact type changed by a
+  Scoped fresh-eyes falsification review for every artifact type changed by a
   Tier-3 change. Use automatically only for Tier-3 changes or when the root
   Change Workflow leaves one concrete reachable unresolved failure hypothesis
   after correctness review. Also use when the user asks to "attack this
@@ -19,13 +19,13 @@ to the artifact's domain review.
 ## Inputs
 
 Require the implementation handoff and complete changed-artifact list; plan or
-intent with declared invariants; approved Tier-3 triggers or the exact unresolved
+intent with declared invariants; approved Tier-3 triggers (see root AGENTS.md, Risk tiers) or the exact unresolved
 reachable hypothesis; and relevant prior findings, residuals, and focus areas.
 
 For a direct user request about a supplied diff, treat the supplied intent,
-declared invariants, and behavioral or contract claims expressed by the diff as
+declared invariants, and behavioral or contract statements expressed by the diff as
 the authorized hypotheses. If no briefing exists, reconstruct these inputs from
-conversation history. Do not turn either case into an unbounded repository audit.
+conversation history. Do not turn either case into an open-ended repository audit.
 
 ## Method
 
@@ -64,8 +64,8 @@ validator, or static check directly catches.
 
 For any finding that depends on a non-obvious external API, language,
 specification, or library claim, emit one atomic verification request containing
-the symbol or rule, exact proposition, dependent candidate finding, applicable
-version/configuration, and candidate official source. The caller routes each
+the symbol or rule, exact proposition, dependent proposed finding, applicable
+version/configuration, and proposed official source. The caller routes each
 request through `verify-external-claims`; do not present the claim as confirmed
 until that verdict returns.
 
@@ -79,12 +79,12 @@ until that verdict returns.
 - none
 
 ### API Verification Requests
-- <symbol/rule> — <exact proposition> — <dependent candidate finding> — <applicability> — <official source>
+- <symbol/rule> — <exact proposition> — <dependent proposed finding> — <applicability> — <official source>
 - none
 
 ### Traced Clean
 <Only when there are no findings: hypotheses traced, decisive refutation, and
-`PASS — bounded falsification complete; stop.`>
+`PASS — falsification complete; stop.`>
 
 Status: PASS | NEEDS_ACTION | BLOCKED
 Changed files: none

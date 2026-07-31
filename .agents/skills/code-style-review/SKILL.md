@@ -9,7 +9,7 @@ allowed-tools: [Read, Write, Edit, Grep, PowerShell]
 Run inside one delegated `mechanic`; never delegate. Review C++ only. Fix style
 when the edit is provably meaning-preserving; return anything that could change
 behavior or an interface for caller classification. Style review is not a
-final-evidence gate.
+landing gate (defined in root `AGENTS.md`).
 
 ## Scope
 
@@ -39,7 +39,7 @@ applicable rule, not only grep-friendly examples below.
    template parameter on the right, iterators, structured bindings, and a
    lambda expression assigned directly to the variable. It remains forbidden
    in plain range-based loops.
-3. Do not auto-fix a candidate that requires changing container type or access
+3. Do not auto-fix a proposed finding that requires changing container type or access
    semantics, public API, class/struct access or layout, control flow, overload
    resolution, or numeric behavior. Report it for caller classification and the
    applicable domain review.
@@ -50,7 +50,7 @@ pass-through call when callers can access the underlying state or component
 independently. Prefer direct public access; private state is justified only when
 one complete multi-statement operation preserves an invariant or required
 ordering. Do not classify semantic codecs or serialization adapters as trivial
-forwarding. Route these candidates because changing an interface or access
+forwarding. Route these proposed findings because changing an interface or access
 surface is not a style auto-fix.
 
 ## Renames and References
@@ -99,8 +99,8 @@ Scope: session-changed ranges | caller-supplied cleanup scope
 Build required:
 - exact affected targets, or none
 
-### Routed Candidates
-- file:line — candidate — classification/domain-review route
+### Routed Findings
+- file:line — proposed finding — classification/domain-review route
 
 ### Documentation Residuals
 - identifier — file:line — `/update-claude-docs` or caller

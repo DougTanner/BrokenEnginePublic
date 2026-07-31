@@ -1,40 +1,33 @@
-
-
-
-# Exclusive owner of post-approval landing: baseline provenance, structural preflight, locks, ancestry proofs, ref advance, candidate certification, and crash recovery remain mandatory. Scheduler touchpoint is only receipt-bound terminal release after primary advances.
-# caller reports LANDED; exit 2 may report a post-advance blocker but still
-# carries the authoritative lock-cleanup state.
+# Exclusive owner of post-confirmation landing: structural sanity, the landing lock lease,
+# the guarded primary advance, and best-effort Plan claim deletion. Exit 0 means the caller
+# reports LANDED; exit 2 may report a post-advance blocker but still carries the
+# authoritative lock-cleanup state.
+#
+# The scheduler is touched only when -ReleasePlanClaim says this session holds a claim:
+# without it the landing runs no `plan` command at all.
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory)][string] $CurrentWorktree,
 	[Parameter(Mandatory)][string] $PrimaryWorktree,
 	[Parameter(Mandatory)][string] $CurrentBranch,
 	[Parameter(Mandatory)][string] $PrimaryBranch,
-	[Parameter(Mandatory)][string] $Baseline,
 	[Parameter(Mandatory)][string] $ExpectedCurrentTip,
 	[Parameter(Mandatory)][string] $ExpectedPrimaryTip,
-	[Parameter(Mandatory)][string] $SessionOwner,
 	[Parameter(Mandatory)][string] $SessionLabel,
 	[Parameter(Mandatory)][string] $ApprovedSessionCommit,
 	[Parameter(Mandatory)][string] $ApprovedCandidateTree,
-	[string] $CandidateReceiptPath,
-	[string] $CandidateReceiptSha256,
-	[ValidateSet('none', 'compare-and-swap', 'post-reset')][string] $FixtureFailure = 'none'
+	[switch] $ReleasePlanClaim,
+	[ValidateSet('none', 'compare-and-swap', 'post-reset', 'bounded-diagnostic')][string] $FixtureFailure = 'none'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$candidateReceiptPathBound = $PSBoundParameters.ContainsKey('CandidateReceiptPath')
-$candidateReceiptSha256Bound = $PSBoundParameters.ContainsKey('CandidateReceiptSha256')
 
 $commonModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
 if (-not (Test-Path -LiteralPath $commonModule)) {
 	$commonModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\FinalizeWorkflowCommon.psm1'
 }
 Import-Module $commonModule -Force
-$receiptModule = Join-Path $PSScriptRoot '..\..\..\scripts\PlanClaimReceipt.psm1'
-if (-not (Test-Path -LiteralPath $receiptModule)) { $receiptModule = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts\PlanClaimReceipt.psm1' }
-Import-Module $receiptModule -Force -DisableNameChecking
 
 $exclusionModule = Join-Path $PSScriptRoot '..\..\..\scripts\WorktreeCliSessionExclusion.psm1'
 if (-not (Test-Path -LiteralPath $exclusionModule)) {
@@ -43,7 +36,7 @@ if (-not (Test-Path -LiteralPath $exclusionModule)) {
 Import-Module $exclusionModule -Force
 
 $result = [ordered]@{
-	schemaVersion = 'broken-engine-finalize-landing/v1'
+	schemaVersion = 'broken-engine-finalize-landing/v2'
 	status = 'error'
 	code = 'internal.error'
 	message = 'Landing transaction did not complete.'
@@ -52,9 +45,7 @@ $result = [ordered]@{
 	tips = [ordered]@{ approvedSession = $ApprovedSessionCommit; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip; current = $null; primary = $null }
 	candidate = [ordered]@{ commit = $ApprovedSessionCommit; tree = $ApprovedCandidateTree; treeVerified = $false }
 	locks = [ordered]@{ landingOwner = $null; landingClaimed = $false; landingReleased = $false; claim = $null }
-	planClaim = [ordered]@{ present = $false; state = 'absent'; disposition = 'none'; preparation = $null; release = $null; released = $false }
-	planValidation = $null
-	candidateBootstrap = $null
+	planClaim = [ordered]@{ requested = [bool]$ReleasePlanClaim; released = $false }
 	cleanup = [ordered]@{ worktreesClear = $null; worktreeProblems = @() }
 	disposition = 'terminal'
 	requiresUserAuthority = $false
@@ -67,13 +58,65 @@ $script:LandingOwner = $null
 $script:LandingClaimed = $false
 $script:PrimaryIdentity = $null
 $script:CurrentIdentity = $null
-$script:PlanReceipt = $null
-$script:PlanCompletionTerminalProven = $false
-$script:CertifiedForeignDiagnosticFingerprints = $null
 $script:FailureExitCode = 0
 $script:FailureCode = $null
 $script:FailureMessage = $null
 $script:LandingTransientOwner = $null
+
+function Get-BoundedLandingText([AllowNull()] $Value, [int] $Limit) {
+	if ($null -eq $Value) { return [pscustomobject]@{ Text = $null; Length = 0; Truncated = $false } }
+	$Value = [string]$Value
+	return [pscustomobject]@{ Text = $(if ($Value.Length -gt $Limit) { $Value.Substring(0, $Limit) } else { $Value }); Length = $Value.Length; Truncated = ($Value.Length -gt $Limit) }
+}
+
+function Get-LandingGitObjectId([AllowNull()] $Value) {
+	if ($null -ne $Value -and [string]$Value -cmatch '^[0-9a-f]{40}$') { return [string]$Value }
+	return $null
+}
+
+function New-LandingCollection([object[]] $Values, [scriptblock] $Project, [string] $Requery) {
+	[object[]]$all = @($Values)
+	for ($index = 1; $index -lt $all.Count; $index++) {
+		$value = $all[$index]; $cursor = $index - 1
+		while ($cursor -ge 0 -and [StringComparer]::Ordinal.Compare([string]$all[$cursor], [string]$value) -gt 0) { $all[$cursor + 1] = $all[$cursor]; $cursor-- }
+		$all[$cursor + 1] = $value
+	}
+	$items = @($all | Select-Object -First 16 | ForEach-Object { & $Project $_ })
+	$truncated = $all.Count -gt 16
+	return [ordered]@{ totalCount = $all.Count; items = $items; truncated = $truncated; selector = $null; requery = $(if ($truncated) { $Requery } else { $null }) }
+}
+
+function New-LandingProjection {
+	$message = Get-BoundedLandingText ([string]$result.message) 512
+	$code = Get-BoundedLandingText ([string]$result.code) 128
+	$diagnosticValues = [Collections.Generic.List[object]]::new()
+	if ($result.status -cne 'landed') { $diagnosticValues.Add([pscustomobject]@{ source = 'Invoke-FinalizeLanding'; code = $result.code; message = $result.message }) }
+	$diagnostics = New-LandingCollection $diagnosticValues.ToArray() {
+		param($entry)
+		$sourceValue = if ($entry.PSObject.Properties.Name -ccontains 'source') { [string]$entry.source } else { 'WorktreeCli' }
+		$codeValue = if ($entry.PSObject.Properties.Name -ccontains 'code') { [string]$entry.code } else { 'diagnostic' }
+		$pathValue = if ($entry.PSObject.Properties.Name -ccontains 'path') { [string]$entry.path } elseif ($entry.PSObject.Properties.Name -ccontains 'plan') { [string]$entry.plan } else { $null }
+		$messageValue = if ($entry.PSObject.Properties.Name -ccontains 'message') { [string]$entry.message } else { [string]$entry }
+		$codeText = Get-BoundedLandingText $codeValue 128; $pathText = Get-BoundedLandingText $pathValue 1024; $messageText = Get-BoundedLandingText $messageValue 512
+		[ordered]@{ source = $sourceValue; code = $codeText.Text; codeLength = $codeText.Length; codeTruncated = $codeText.Truncated; path = $pathText.Text; pathLength = $pathText.Length; pathTruncated = $pathText.Truncated; message = $messageText.Text; messageLength = $messageText.Length; messageTruncated = $messageText.Truncated }
+	} 'Invoke-FinalizeLanding'
+	$problems = New-LandingCollection @($result.cleanup.worktreeProblems) {
+		param($problem)
+		$pathValue = if ($problem.PSObject.Properties.Name -ccontains 'path') { [string]$problem.path } else { $null }
+		$messageValue = if ($problem.PSObject.Properties.Name -ccontains 'message') { [string]$problem.message } else { [string]$problem }
+		$pathText = Get-BoundedLandingText $pathValue 1024; $messageText = Get-BoundedLandingText $messageValue 512
+		[ordered]@{ path = $pathText.Text; pathLength = $pathText.Length; pathTruncated = $pathText.Truncated; message = $messageText.Text; messageLength = $messageText.Length; messageTruncated = $messageText.Truncated }
+	} 'Invoke-FinalizeLanding'
+	$residuals = New-LandingCollection @($result.residuals) { param($residual); $text = Get-BoundedLandingText ([string]$residual) 512; [ordered]@{ message = $text.Text; messageLength = $text.Length; messageTruncated = $text.Truncated } } 'Invoke-FinalizeLanding'
+	return [ordered]@{
+		schemaVersion = 'broken-engine-finalize-landing/v2'; status = $result.status; code = $code.Text; message = $message.Text; messageLength = $message.Length; messageTruncated = $message.Truncated
+		primaryAdvanced = [bool]$result.primaryAdvanced; candidate = [ordered]@{ commit = Get-LandingGitObjectId $result.candidate.commit; tree = Get-LandingGitObjectId $result.candidate.tree; treeVerified = [bool]$result.candidate.treeVerified }
+		planClaim = [ordered]@{ requested = [bool]$result.planClaim.requested; released = [bool]$result.planClaim.released }
+		lock = [ordered]@{ claimed = [bool]$result.locks.landingClaimed; released = [bool]$result.locks.landingReleased; claimCode = $(if ($null -ne $result.locks.claim) { [string]$result.locks.claim.code } else { $null }); disposition = $result.disposition; requiresUserAuthority = [bool]$result.requiresUserAuthority; retryAfterMilliseconds = [int]$result.retryAfterMilliseconds; attempts = $(if ($null -ne $result.locks.claim) { [int]$result.locks.claim.attempts } else { 0 }) }
+		cleanup = [ordered]@{ worktreesClear = $result.cleanup.worktreesClear; problems = $problems }
+		disposition = $result.disposition; requiresUserAuthority = [bool]$result.requiresUserAuthority; retryAfterMilliseconds = [int]$result.retryAfterMilliseconds; diagnostics = $diagnostics; residuals = $residuals
+	}
+}
 
 function Throw-Landing([int] $ExitCode, [string] $Code, [string] $Message, [string] $Disposition = 'terminal', [bool] $RequiresUserAuthority = $false, [int] $RetryAfterMilliseconds = 0) {
 	$exception = [InvalidOperationException]::new($Message)
@@ -101,53 +144,12 @@ function Invoke-WorktreeCli([string[]] $Arguments) {
 	return Invoke-FinalizeNativeText $script:WorktreeCliPath $Arguments $script:CurrentIdentity.Worktree
 }
 
-function Invoke-Preflight([string] $Checkpoint, [string] $CurrentTip, [string] $PrimaryTip) {
-	$preflight = Join-Path $PSScriptRoot 'Test-FinalizePreflight.ps1'
-	$arguments = [Collections.Generic.List[string]]::new()
-	foreach ($argument in @(
-		'-NoProfile', '-File', $preflight,
-		'-Mode', 'session-landing',
-		'-Checkpoint', $Checkpoint,
-		'-CurrentWorktree', $CurrentWorktree,
-		'-PrimaryWorktree', $PrimaryWorktree,
-		'-CurrentBranch', $CurrentBranch,
-		'-PrimaryBranch', $PrimaryBranch,
-		'-Baseline', $Baseline,
-		'-ExpectedCurrentTip', $CurrentTip,
-		'-ExpectedPrimaryTip', $PrimaryTip
-	)) { $arguments.Add($argument) }
-	foreach ($argument in @('-SessionOwner', $SessionOwner, '-WaitSeconds', '60')) { $arguments.Add($argument) }
-	if ($candidateReceiptPathBound) {
-		$arguments.Add('-CandidateReceiptPath')
-		$arguments.Add($CandidateReceiptPath)
-		$arguments.Add('-CandidateReceiptSha256')
-		$arguments.Add($CandidateReceiptSha256)
-	}
-	$response = Invoke-FinalizeNativeText 'pwsh.exe' $arguments.ToArray() $script:CurrentIdentity.Worktree
-	$preflightResult = Get-JsonResponse $response "finalization preflight $Checkpoint"
-	if ($response.ExitCode -ne 0 -or $preflightResult.status -cne 'pass' -or $preflightResult.code -cne 'ok') {
-		$exitCode = if ($response.ExitCode -eq 2) { 2 } else { 1 }
-		Throw-Landing $exitCode "preflight.$($preflightResult.code)" "$Checkpoint preflight failed: $($preflightResult.message)"
-	}
-	$result.candidateBootstrap = $preflightResult.worktreeCli.candidate
-	return $preflightResult
-}
-
-function Assert-ReconciledPlanMetadata {
-	$arguments = @('plan', 'validate', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:CurrentIdentity.Worktree, '--baseline', $Baseline)
-	if ($null -ne $script:PlanReceipt) { $arguments += @('--terminal-receipt', $script:PlanReceipt.Path, '--terminal-receipt-sha256', $script:PlanReceipt.Sha256) }
-	$response = Invoke-WorktreeCli $arguments
-	$validation = Get-JsonResponse $response 'reconciled Plan metadata validation'
-	# Record decision-relevant fields only: `plans` carries one entry per repository Plan and never informs the landing.
-	$projectedValidation = [ordered]@{}
-	foreach ($name in @('status', 'code', 'message', 'diagnostics', 'notices', 'healedClaims')) {
-		if ($validation.PSObject.Properties.Name -ccontains $name) { $projectedValidation[$name] = $validation.$name }
-	}
-	$result.planValidation = $projectedValidation
-	if ($response.ExitCode -ne 0 -or $validation.status -cne 'valid' -or $validation.code -cne 'ok') {
-		$details = if ($validation.PSObject.Properties.Name -ccontains 'diagnostics') { @($validation.diagnostics | ConvertTo-Json -Depth 8 -Compress) -join '' } else { [string]$validation.message }
-		Throw-Landing $(if ($response.ExitCode -eq 2) { 2 } else { 1 }) 'plan.validation-failed' "Reconciled Plan metadata is invalid; primary was not mutated. $details"
-	}
+function Assert-LandingSanity([string] $ExpectedSessionTip, [string] $ExpectedPrimaryTipValue) {
+	$sanity = Test-FinalizeLandingSanity -SessionWorktree $CurrentWorktree -PrimaryWorktree $PrimaryWorktree `
+		-SessionBranch $CurrentBranch -PrimaryBranch $PrimaryBranch -ExpectedSessionTip $ExpectedSessionTip -ExpectedPrimaryTip $ExpectedPrimaryTipValue
+	if (-not $sanity.Ok) { Throw-Landing 2 "sanity.$($sanity.Code)" "Landing sanity failed: $($sanity.Message)" }
+	$script:WorktreeCliPath = $sanity.WorktreeCliExecutable
+	return $sanity
 }
 
 function Assert-LandingOwner {
@@ -242,34 +244,40 @@ function Advance-PrimaryExactCandidate {
 	}
 }
 
+# The claim is machine-local bookkeeping, not landed state: a failed delete leaves a stale
+# lease that expires on its own, so it is reported as a residual and never blocks a landing.
 function Complete-LandedState {
-	if ($null -ne $script:PlanReceipt) {
-		$release = Invoke-WorktreeCli @('plan','release-after-landing','--worktree',$script:CurrentIdentity.Worktree,'--claim-receipt',$script:PlanReceipt.Path,'--claim-receipt-sha256',$script:PlanReceipt.Sha256,'--landed-commit',$ApprovedSessionCommit)
-		$releaseJson = Get-JsonResponse $release 'post-landing plan release'
-		$result.planClaim.release = $releaseJson
-		$hasReleased = $releaseJson.PSObject.Properties.Name -ccontains 'released' -and $releaseJson.released -is [bool] -and $releaseJson.released
-		$hasAlreadyReleased = $releaseJson.PSObject.Properties.Name -ccontains 'alreadyReleased' -and $releaseJson.alreadyReleased -is [bool] -and $releaseJson.alreadyReleased
-		$terminalStateVerified = $releaseJson.PSObject.Properties.Name -ccontains 'terminalStateVerified' -and $releaseJson.terminalStateVerified -is [bool] -and $releaseJson.terminalStateVerified
-		$expectedCode = if ($hasReleased) { 'released' } elseif ($hasAlreadyReleased) { 'already-released' } else { '' }
-		if ($release.ExitCode -ne 0 -or -not $terminalStateVerified -or $hasReleased -eq $hasAlreadyReleased -or $releaseJson.code -cne $expectedCode) { Throw-Landing $(if ($release.ExitCode -eq 2) { 2 } else { 1 }) 'plan.release-failed' 'Receipt-bound Plan release failed after primary advance.' }
-		$result.planClaim.released = $true
-		Remove-PlanClaimReceipt $script:PlanReceipt
+	if ($ReleasePlanClaim) {
+		try {
+			$sessionModule = Join-Path $script:CurrentIdentity.Worktree '.agents\scripts\AgentWorktreeSession.psm1'
+			if (-not (Test-Path -LiteralPath $sessionModule -PathType Leaf)) { $sessionModule = Join-Path $PSScriptRoot '..\..\..\scripts\AgentWorktreeSession.psm1' }
+			Import-Module $sessionModule -Force -DisableNameChecking
+			$context = Get-AgentWorktreeSessionContext -Worktree $script:CurrentIdentity.Worktree
+			if ([string]::IsNullOrWhiteSpace($context.SessionId)) { throw "Branch '$($context.Branch)' carries no session identity to release a claim for." }
+			$unclaim = Invoke-WorktreeCli @('plan', 'unclaim', '--repo', $result.identities.gitCommonDirectory, '--worktree', $script:CurrentIdentity.Worktree, '--owner', $context.SessionId, '--session', $context.SessionId)
+			$unclaimJson = $unclaim.Stdout.Trim() | ConvertFrom-Json -Depth 32 -ErrorAction Stop
+			if ($unclaim.ExitCode -ne 0 -or [string]$unclaimJson.code -cnotin @('released', 'already-absent', 'none')) {
+				throw "WorktreeCli reported '$($unclaimJson.code)': $($unclaimJson.message)"
+			}
+			$result.planClaim.released = $true
+		}
+		catch {
+			$result.residuals.Add("Plan claim delete failed after landing; the machine-local claim expires on its own: $($_.Exception.Message)")
+		}
 	}
 	$registration = Test-FinalizeWorktreeRegistration $script:PrimaryIdentity.Worktree $script:CurrentIdentity.Worktree $CurrentBranch $ApprovedSessionCommit
 	if (-not $registration.Registered) { Throw-Landing 2 'session.registration-invalid' $registration.Message }
-	if ((Invoke-FinalizeGit $script:CurrentIdentity.Worktree @('status','--porcelain','-z','--untracked-files=all')).Length -ne 0) { Throw-Landing 2 'session.dirty' 'Session worktree is dirty after landing.' }
-	$result.status='landed';$result.code='ok';$result.message='Primary advanced and post-landing finalization completed.'
+	if ((Invoke-FinalizeGit $script:CurrentIdentity.Worktree @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) { Throw-Landing 2 'session.dirty' 'Session worktree is dirty after landing.' }
+	$result.status = 'landed'; $result.code = 'ok'; $result.message = 'Primary advanced and post-landing finalization completed.'
 }
 
 try {
 	if ($FixtureFailure -cne 'none' -and $env:BROKEN_ENGINE_FINALIZE_WORKFLOW_FIXTURE -cne '1') { Throw-Landing 1 'input.fixture-forbidden' 'Fixture-only inputs require the finalization workflow fixture environment.' }
+	if ($FixtureFailure -ceq 'bounded-diagnostic') { Throw-Landing 1 (('c' * 140)) (('m' * 600)) }
 	if ($ApprovedSessionCommit -cnotmatch '^[0-9a-f]{40}$' -or $ExpectedCurrentTip -cnotmatch '^[0-9a-f]{40}$' -or $ExpectedPrimaryTip -cnotmatch '^[0-9a-f]{40}$') {
 		Throw-Landing 1 'input.commit-invalid' 'Approved and expected commits must be lowercase 40-character object IDs.'
 	}
 	if ($ApprovedCandidateTree -cnotmatch '^[0-9a-f]{40}$') { Throw-Landing 1 'input.candidate-tree-invalid' 'ApprovedCandidateTree must be a lowercase 40-character object ID.' }
-	if ($candidateReceiptPathBound -ne $candidateReceiptSha256Bound -or ($candidateReceiptPathBound -and ([string]::IsNullOrWhiteSpace($CandidateReceiptPath) -or $CandidateReceiptSha256 -cnotmatch '^[0-9a-f]{64}$'))) {
-		Throw-Landing 1 'input.candidate-invalid' 'Candidate receipt path and lowercase SHA-256 must be supplied together.'
-	}
 
 	$script:CurrentIdentity = Get-FinalizeGitIdentity $CurrentWorktree 'Session worktree'
 	$script:PrimaryIdentity = Get-FinalizeGitIdentity $PrimaryWorktree 'Primary worktree'
@@ -283,41 +291,24 @@ try {
 	$result.identities.primaryBranch = $script:PrimaryIdentity.Branch
 	$result.tips.current = $script:CurrentIdentity.Head
 	$result.tips.primary = $script:PrimaryIdentity.Head
-	# A transient operation claim with a fresh per-landing owner (never the durable receipt session
-	# owner, whose reuse as a promotion cooperating exemption would hide a second attachment's
-	# in-flight landing) excludes AgentTools promotion from swapping WorktreeCli.exe across this
-	# multi-invocation landing transaction. Registered before the first WorktreeCli.exe use;
-	# released in cleanup alongside the landing lock.
+	# A transient operation claim with a fresh per-landing owner excludes AgentTools promotion
+	# from swapping WorktreeCli.exe across this multi-invocation landing transaction. Registered
+	# before the first WorktreeCli.exe use; released in cleanup alongside the landing lock.
 	$landingOwner = [guid]::NewGuid().ToString()
 	Register-WorktreeCliSession -RepositoryRoot $script:CurrentIdentity.Worktree -Owner $landingOwner -Label 'session landing' -Worktree $script:CurrentIdentity.Worktree | Out-Null
 	$script:LandingTransientOwner = $landingOwner
 	if ($script:CurrentIdentity.Head -ceq $ApprovedSessionCommit -and
 		(Test-FinalizeGitSuccess $script:PrimaryIdentity.Worktree @('merge-base', '--is-ancestor', $ApprovedSessionCommit, $script:PrimaryIdentity.Head))) {
 		if ((Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "$ApprovedSessionCommit^{tree}")).Trim() -cne $ApprovedCandidateTree) { Throw-Landing 2 'candidate.tree-changed' 'Recovery candidate tree does not equal the exact verified tree.' }
-		$preflight = Invoke-Preflight 'post-advance-recovery' $ApprovedSessionCommit $script:PrimaryIdentity.Head
-		$script:WorktreeCliPath = [string]$preflight.worktreeCli.path
-		$script:PlanReceipt = Get-PlanClaimReceipt $script:CurrentIdentity.Worktree
-		$result.planClaim = $preflight.planClaim
-		foreach ($name in @('preparation','release','released')) { if ($result.planClaim.PSObject.Properties.Name -cnotcontains $name) { Add-Member -InputObject $result.planClaim -NotePropertyName $name -NotePropertyValue $(if ($name -eq 'released') { $false } else { $null }) } }
+		[void] (Assert-LandingSanity $ApprovedSessionCommit $script:PrimaryIdentity.Head)
 		$result.primaryAdvanced = $true
 		Complete-LandedState
-		[Console]::Out.Write(($result | ConvertTo-Json -Depth 12 -Compress))
+		[Console]::Out.Write(((New-LandingProjection) | ConvertTo-Json -Depth 10 -Compress))
 		exit 0
 	}
 
-	$preflight = Invoke-Preflight 'pre-mutation' $ExpectedCurrentTip $ExpectedPrimaryTip
-	if ($preflight.tips.current -cne $ApprovedSessionCommit) { Throw-Landing 2 'approval.session-tip-changed' 'Session tip is not the explicit user-approved commit.' }
-	$script:WorktreeCliPath = [string] $preflight.worktreeCli.path
-	$script:PlanReceipt = Get-PlanClaimReceipt $script:CurrentIdentity.Worktree
-	$result.planClaim = $preflight.planClaim
-	foreach ($name in @('preparation','release','released')) { if ($result.planClaim.PSObject.Properties.Name -cnotcontains $name) { Add-Member -InputObject $result.planClaim -NotePropertyName $name -NotePropertyValue $(if ($name -eq 'released') { $false } else { $null }) } }
-	$result.identities.currentWorktree = [string] $preflight.identities.currentWorktree
-	$result.identities.primaryWorktree = [string] $preflight.identities.primaryWorktree
-	$result.identities.gitCommonDirectory = [string] $preflight.identities.gitCommonDirectory
-	if ($null -ne $script:PlanReceipt) {
-		if ($preflight.planClaim.state -cne 'awaiting-landing' -or $preflight.planClaim.disposition -notin @('completed','rejected')) { Throw-Landing 2 'plan.not-terminal' 'Plan claim is not in a prepared terminal state.' }
-	}
-	Assert-ReconciledPlanMetadata
+	[void] (Assert-LandingSanity $ExpectedCurrentTip $ExpectedPrimaryTip)
+	if ($ExpectedCurrentTip -cne $ApprovedSessionCommit) { Throw-Landing 2 'approval.session-tip-changed' 'Session tip is not the explicit user-approved commit.' }
 
 	$tokenResponse = Invoke-WorktreeCli @('lock', 'token')
 	if ($tokenResponse.ExitCode -ne 0 -or $tokenResponse.Stdout.Trim() -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
@@ -383,5 +374,5 @@ if ($script:LandingClaimed) {
 	}
 	if ($result.status -eq 'error') { $result.code = 'cleanup.' + $result.code }
 }
-[Console]::Out.Write(($result | ConvertTo-Json -Depth 12 -Compress))
+[Console]::Out.Write(((New-LandingProjection) | ConvertTo-Json -Depth 10 -Compress))
 exit $(if ($result.status -eq 'landed') { 0 } elseif ($result.status -eq 'blocked') { 2 } else { 1 })

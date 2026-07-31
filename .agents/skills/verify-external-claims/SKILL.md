@@ -17,7 +17,7 @@ Resolve requested external facts for caller adjudication. This is a read-only
 evidence workflow: never edit, recommend a fix, review surrounding code, or
 decide whether a dependent finding or plan choice is accepted.
 
-## Claim Packets
+## External Claim Requests
 
 Require each request to contain:
 
@@ -25,17 +25,17 @@ Require each request to contain:
 - the dependent finding, item, or decision and why the verdict matters;
 - applicable project target, version, platform, extensions/features, flags, or
   constraints, plus the smallest relevant repository paths or symbols;
-- a candidate official URL or exact upstream identifier when known.
+- a proposed official URL or exact upstream identifier when known.
 
 Preserve supplied IDs. Before delegation, assign missing IDs as `VEC-EXT-###`
 in input order and split compound propositions into separately suffixed IDs
-without changing their meaning. Candidate URLs are discovery hints, not
+without changing their meaning. Proposed URLs are discovery hints, not
 evidence.
 
 ## Delegation
 
 The main session dispatches exactly one self-contained `locator` containing all
-claim packets, applicable repository instructions, the checkout path, and the
+external-claim requests, applicable repository instructions, the checkout path, and the
 minimum local read/search scope. Do not dispatch one agent per claim or ask the
 locator to inspect unrelated code.
 

@@ -26,6 +26,12 @@ This combination detects the interrupted deletion publish: the first entry after
 - `DataPacker/Source/ExportJobs/ExportJob.cpp` — read-only confirmation that packed chunk headers receive the same path-derived CRC and that fingerprint metadata covers same-path content changes.
 - `Engine/Source/File/PackChunks.cpp` — read-only model for bounded manifest count/table parsing at the runtime trust boundary.
 
+## In scope
+
+- `DataPacker/Source/Main.cpp` — `RunExportJobs<T>`, the existing manifest-header read: extend it to load the manifest `common::ChunkLocation` table safely, measuring manifest size, computing the aligned table offset as `RoundUp(sizeof(common::DataHeader), common::kiAlignmentBytes)`, requiring `0 <= iChunkCount <= iMaxChunks` before sizing a local vector or multiplying a byte count, and reading exactly the declared entries; missing, malformed, out-of-range, or truncated input sets the aggregate dirty.
+- `DataPacker/Source/Main.cpp` — `RunExportJobs<T>`, after the published pack is known to exist: add the manifest-to-pack consistency check that walks the locations from expected offset zero, requires each location to start at the expected 16-byte-aligned offset, to contain at least one complete `common::ChunkHeader`, and to stay inside the actual pack size using overflow-safe range arithmetic; reads the `ChunkHeader` at every location and requires stream success, `ChunkHeader::kiMagic`, and `chunkHeader.crc == chunkLocation.crc`; advances the expected offset by the location size plus writer-equivalent alignment; and requires the final expected extent to equal the pack file size.
+- `DataPacker/Source/Main.cpp` — `RunExportJobs<T>`, existing aggregate dirty checks: preserve the manifest-count versus live-job-count comparison and the fingerprint-newer-than-pack check unchanged alongside the new check.
+
 ## Out of scope
 
 - Changing manifest-before-pack publication order, adding a journal/marker file, or making the two renames atomic.

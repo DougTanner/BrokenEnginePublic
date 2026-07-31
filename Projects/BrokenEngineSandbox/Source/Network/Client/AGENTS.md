@@ -1,6 +1,6 @@
 # Network Client - Session and Reconciliation
 
-Client-only game networking. `ClientSession` is the game-policy façade over `engine::ClientSessionRuntime`; it owns receive adoption, reconciliation, and desync/gameplay policy.
+Client-only game networking. `ClientSession` is the game-policy façade over `engine::ClientSessionRuntime`; it owns receive-side hydration (filling collection slots from received data — see `../../Frame/Collections/AGENTS.md`), reconciliation, and desync/gameplay policy.
 
 ## Ownership
 
@@ -12,7 +12,7 @@ Client-only game networking. `ClientSession` is the game-policy façade over `en
 
 - Persist the client GUID in the versioned app-data `ClientGuid.bin`: load it before connecting, then let the transport's accept callback write it atomically so an interrupted write cannot orphan persistent server state.
 - Disconnect clears transport and discovery objects, every coordinate's client state, subscription intent, the latest-server pacing baseline, active correction error/target, correction-log cadence, reconciliation, and desync recovery.
-- Preserve subscription orchestration order: remove stale coordinates, recover timed-out transitional slots, rebuild the desired queue, then fill available slots. Adopt each poll's static data before full states and full states before delta updates; stale deltas are skipped and duplicate ticks keep the first arrival.
+- Preserve subscription orchestration order: remove stale coordinates, recover timed-out transitional slots, rebuild the desired queue, then fill available slots. Apply each poll's static data before full states and full states before delta updates; stale deltas are skipped and duplicate ticks keep the first arrival.
 - LAN discovery stops after recording a found address. A scan timeout records the timeout, replaces the scanner, and immediately starts a fresh scan.
 
 ## Reconciliation Invariants
@@ -21,7 +21,7 @@ Client-only game networking. `ClientSession` is the game-policy façade over `en
 - Preserve render-behind history when advancing confirmed state. Replay and catch-up must remain within the coordinate ring budget.
 - Apply transfer `StatusChange`s after each tick, matching server Destroy/Spawn order, and recompute the Frame CRC when transfers modify the result.
 - Server-load notification clears coord, clock, identity, fleet, subscription, and reconciler state before the client accepts post-load data.
-- Player-event, timespeed, and fleet-sync handlers have independent log-and-continue exception boundaries. Static-data, full-state, and tick-update adoption remain outside those catches.
+- Player-event, timespeed, and fleet-sync handlers have independent log-and-continue exception boundaries. Static-data application, full-state hydration, and tick-update application remain outside those catches.
 - Sticky desired subscriptions reduce visible churn; the engine slot queue owns transport throttling. During a real debug-frame wait or the synthetic full-state fixture stall, transport polling and receive-buffer drains continue while subscription updates, simulation, and reconciliation remain stalled.
 
 Speculative and provisional CRC mismatches log at `kDebug`. Only a mismatch that survives full rollback/replay is a confirmed desync, logs at `kError`, and triggers recovery policy. A confirmed mismatch always reports the differing CRCs. With `kbDesyncDebugFrames` enabled, the client requests the server snapshot, stalls until the response or `kDesyncDebugTimeout`, compares any response, then recovers or disconnects. With it disabled, the client never requests or stalls for a real desync and immediately follows `kbDesyncRecovery`; repeated recoveries within the configured window escalate to disconnect.

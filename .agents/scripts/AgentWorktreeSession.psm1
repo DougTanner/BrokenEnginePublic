@@ -1,25 +1,6 @@
 Set-StrictMode -Version Latest
 
 Import-Module (Join-Path $PSScriptRoot 'AgentScriptCommon.psm1')
-Import-Module (Join-Path $PSScriptRoot 'WorktreeCliSessionExclusion.psm1') -DisableNameChecking
-
-$script:ReceiptSchemaVersion = 'broken-engine-agent-worktree-receipt/v1'
-$script:ReceiptFileName = 'AgentWorktreeSessionReceipt.json'
-$script:ReceiptIntegrityFileName = 'AgentWorktreeSessionReceipt.sha256'
-
-function Test-AgentWorktreeStrictUtc([object] $Value) {
-	if ($Value -isnot [string]) { return $false }
-	$parsed = [DateTime]::MinValue
-	if (-not [DateTime]::TryParseExact($Value, 'O', [Globalization.CultureInfo]::InvariantCulture,
-		[Globalization.DateTimeStyles]::RoundtripKind, [ref]$parsed)) { return $false }
-	return $parsed.Kind -eq [DateTimeKind]::Utc -and $parsed.ToString('O', [Globalization.CultureInfo]::InvariantCulture) -ceq $Value
-}
-
-function Test-AgentWorktreeGuid([object] $Value) {
-	if ($Value -isnot [string]) { return $false }
-	$guid = [guid]::Empty
-	return [guid]::TryParseExact($Value, 'D', [ref]$guid) -and $guid.ToString() -ceq $Value
-}
 
 function Get-AgentWorktreeGitValue([string] $Worktree, [string[]] $Arguments, [string] $Description) {
 	$value = @(Invoke-AgentGit (@('-C', $Worktree) + $Arguments))
@@ -27,212 +8,6 @@ function Get-AgentWorktreeGitValue([string] $Worktree, [string[]] $Arguments, [s
 		throw "Git returned no unique $Description for '$Worktree'."
 	}
 	return $value[0].Trim()
-}
-
-function Get-AgentWorktreePrivateGitDirectory([string] $Worktree) {
-	$directory = Get-AgentWorktreeGitValue $Worktree @('rev-parse', '--path-format=absolute', '--git-dir') 'private Git directory'
-	$directory = Get-AgentCanonicalPath $directory
-	$item = Get-Item -LiteralPath $directory -Force -ErrorAction Stop
-	if (-not $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-		throw "Linked worktree private Git directory is not an ordinary directory: '$directory'."
-	}
-	return $directory
-}
-
-function Get-AgentWorktreeReceiptPath([string] $Worktree) {
-	return Join-Path (Get-AgentWorktreePrivateGitDirectory $Worktree) $script:ReceiptFileName
-}
-
-function Get-AgentWorktreeReceiptIntegrityPath([string] $Worktree) {
-	return Join-Path (Get-AgentWorktreePrivateGitDirectory $Worktree) $script:ReceiptIntegrityFileName
-}
-
-function Get-AgentWorktreeReceiptSha256([byte[]] $Bytes) {
-	return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($Bytes)).ToLowerInvariant()
-}
-
-# Exclusive receipt write lease: FileShare None serializes repairers against each other and against
-# any concurrent reattach read lease. A reattach proof that loses the race fails closed and the
-# wrapper invocation exits (no retry) rather than observing a half-rewritten receipt.
-function Open-AgentWorktreeReceiptWriteLease([string] $Worktree) {
-	$path = Get-AgentWorktreeReceiptPath $Worktree
-	$integrityPath = Get-AgentWorktreeReceiptIntegrityPath $Worktree
-	foreach ($candidate in @($path, $integrityPath)) {
-		$item = Get-Item -LiteralPath $candidate -Force -ErrorAction Stop
-		if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-			throw "Worktree receipt authority artifact is not an ordinary file: '$candidate'."
-		}
-	}
-	$integrityStream = $null
-	try {
-		$integrityStream = [IO.File]::Open($integrityPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
-		$receiptStream = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
-		return [pscustomobject]@{ Path = $path; IntegrityPath = $integrityPath; ReceiptStream = $receiptStream; IntegrityStream = $integrityStream }
-	}
-	catch {
-		if ($null -ne $integrityStream) { $integrityStream.Dispose() }
-		throw
-	}
-}
-
-function Read-AgentWorktreeReceiptLeaseBytes([IO.FileStream] $Stream, [string] $Path) {
-	if ($Stream.Length -gt [int]::MaxValue) { throw "Worktree receipt authority artifact is too large: '$Path'." }
-	$Stream.Position = 0
-	$bytes = [byte[]]::new([int]$Stream.Length)
-	$offset = 0
-	while ($offset -lt $bytes.Length) {
-		$count = $Stream.Read($bytes, $offset, $bytes.Length - $offset)
-		if ($count -eq 0) { throw "Worktree receipt authority artifact changed while read: '$Path'." }
-		$offset += $count
-	}
-	return $bytes
-}
-
-function Write-AgentWorktreeOrdinaryFileAtomic([string] $Path, [byte[]] $Bytes) {
-	$temp = Join-Path (Split-Path -Parent $Path) ('.' + [guid]::NewGuid().ToString() + '.tmp')
-	try {
-		$stream = [IO.File]::Open($temp, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
-		try { $stream.Write($Bytes, 0, $Bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
-		[IO.File]::Move($temp, $Path)
-	}
-	finally {
-		if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
-	}
-}
-
-function New-AgentWorktreeSessionReceipt {
-	[CmdletBinding()] param(
-		[Parameter(Mandatory)][ValidateSet('claude', 'codex')][string] $Client,
-		[Parameter(Mandatory)][string] $PrimaryCheckout,
-		[Parameter(Mandatory)][string] $GitCommonDirectory,
-		[Parameter(Mandatory)][string] $Worktree,
-		[Parameter(Mandatory)][string] $WorktreeId,
-		[Parameter(Mandatory)][string] $Branch,
-		[Parameter(Mandatory)][string] $TargetBranch,
-		[Parameter(Mandatory)][string] $Baseline,
-		[Parameter(Mandatory)][string] $SessionOwner
-	)
-	if (-not (Test-AgentWorktreeGuid $WorktreeId) -or -not (Test-AgentWorktreeGuid $SessionOwner)) { throw 'Receipt worktree and session identities must be canonical lowercase GUIDs.' }
-	if ($Branch -cne "$Client/$WorktreeId") { throw "Receipt branch '$Branch' does not match client and worktree identity." }
-	if ($Baseline -cnotmatch '^[0-9a-f]{40}$') { throw "Receipt baseline is not a full lowercase commit hash: '$Baseline'." }
-	if ([string]::IsNullOrWhiteSpace($TargetBranch) -or $TargetBranch.Contains("`0")) { throw 'Receipt target branch is invalid.' }
-	return [ordered]@{
-		schemaVersion = $script:ReceiptSchemaVersion
-		client = $Client
-		primaryCheckout = Get-AgentCanonicalPath $PrimaryCheckout
-		gitCommonDirectory = Get-AgentCanonicalPath $GitCommonDirectory
-		worktree = Get-AgentCanonicalPath $Worktree
-		worktreeId = $WorktreeId
-		branch = $Branch
-		targetBranch = $TargetBranch
-		baseline = $Baseline
-		sessionOwner = $SessionOwner
-		createdUtc = [DateTime]::UtcNow.ToString('O', [Globalization.CultureInfo]::InvariantCulture)
-	}
-}
-
-function Write-AgentWorktreeSessionReceipt([string] $Worktree, [System.Collections.IDictionary] $Receipt) {
-	$path = Get-AgentWorktreeReceiptPath $Worktree
-	$integrityPath = Get-AgentWorktreeReceiptIntegrityPath $Worktree
-	if ((Test-Path -LiteralPath $path) -or (Test-Path -LiteralPath $integrityPath)) { throw "Worktree receipt or integrity reference already exists: '$path'." }
-	$bytes = [Text.UTF8Encoding]::new($false).GetBytes(($Receipt | ConvertTo-Json -Depth 8 -Compress))
-	try {
-		Write-AgentWorktreeOrdinaryFileAtomic $path $bytes
-		Write-AgentWorktreeOrdinaryFileAtomic $integrityPath ([Text.UTF8Encoding]::new($false).GetBytes((Get-AgentWorktreeReceiptSha256 $bytes)))
-	}
-	catch {
-		Remove-Item -LiteralPath @($path, $integrityPath) -Force -ErrorAction SilentlyContinue
-		throw
-	}
-	return $path
-}
-
-# The single legitimate wrapper-owned receipt rewrite: re-parenting the immutable baseline onto a
-# squashed primary tip. Only 'baseline' changes; schema/version, field order, createdUtc, and
-# sessionOwner are preserved so Read-AgentWorktreeSessionReceipt validation is untouched. ExpectedBytes
-# are the receipt bytes already read through the exclusive write lease, so the parse/re-serialize is
-# byte-identical to the original save for the baseline value.
-function Update-AgentWorktreeSessionReceiptBaseline {
-	[CmdletBinding()] param(
-		[Parameter(Mandatory)][string] $Worktree,
-		[Parameter(Mandatory)][object] $WriteLease,
-		[Parameter(Mandatory)][byte[]] $ExpectedBytes,
-		[Parameter(Mandatory)][string] $NewBaseline
-	)
-	if ($NewBaseline -cnotmatch '^[0-9a-f]{40}$') { throw "Receipt baseline is not a full lowercase commit hash: '$NewBaseline'." }
-	$path = Get-AgentWorktreeReceiptPath $Worktree
-	$integrityPath = Get-AgentWorktreeReceiptIntegrityPath $Worktree
-	if ($WriteLease.Path -cne $path -or $WriteLease.IntegrityPath -cne $integrityPath) { throw 'Worktree receipt write lease does not match requested worktree.' }
-	$convertArguments = if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { @{ DateKind = 'String' } } else { @{} }
-	$receipt = ([Text.UTF8Encoding]::new($false, $true).GetString($ExpectedBytes) | ConvertFrom-Json @convertArguments -ErrorAction Stop)
-	$receipt.baseline = $NewBaseline
-	$bytes = [Text.UTF8Encoding]::new($false).GetBytes(($receipt | ConvertTo-Json -Depth 8 -Compress))
-	$integrityBytes = [Text.UTF8Encoding]::new($false).GetBytes((Get-AgentWorktreeReceiptSha256 $bytes))
-	# Receipt then hash, each truncate-write-flushed through the exclusive lease. A crash between the
-	# two writes leaves a hash mismatch, which the next Read-AgentWorktreeSessionReceipt rejects — the
-	# correct fail-closed posture, not a torn read to recover from.
-	$WriteLease.ReceiptStream.SetLength(0)
-	$WriteLease.ReceiptStream.Position = 0
-	$WriteLease.ReceiptStream.Write($bytes, 0, $bytes.Length)
-	$WriteLease.ReceiptStream.Flush($true)
-	$WriteLease.IntegrityStream.SetLength(0)
-	$WriteLease.IntegrityStream.Position = 0
-	$WriteLease.IntegrityStream.Write($integrityBytes, 0, $integrityBytes.Length)
-	$WriteLease.IntegrityStream.Flush($true)
-}
-
-function Read-AgentWorktreeSessionReceipt {
-	[CmdletBinding()] param(
-		[Parameter(Mandatory)][string] $Worktree,
-		[object] $ReadLease
-	)
-	$path = Get-AgentWorktreeReceiptPath $Worktree
-	$integrityPath = Get-AgentWorktreeReceiptIntegrityPath $Worktree
-	if ($null -ne $ReadLease) {
-		if ($ReadLease.Path -cne $path -or $ReadLease.IntegrityPath -cne $integrityPath) { throw 'Worktree receipt read lease does not match requested worktree.' }
-		$integrityBytes = Read-AgentWorktreeReceiptLeaseBytes $ReadLease.IntegrityStream $integrityPath
-		$bytes = Read-AgentWorktreeReceiptLeaseBytes $ReadLease.ReceiptStream $path
-	}
-	else {
-		$item = Get-Item -LiteralPath $path -Force -ErrorAction Stop
-		if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Worktree receipt is not an ordinary file: '$path'." }
-		$integrityItem = Get-Item -LiteralPath $integrityPath -Force -ErrorAction Stop
-		if ($integrityItem.PSIsContainer -or ($integrityItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Worktree receipt integrity reference is not an ordinary file: '$integrityPath'." }
-		$integrityBytes = [IO.File]::ReadAllBytes($integrityPath)
-		$bytes = [IO.File]::ReadAllBytes($path)
-	}
-	try { $integrity = [Text.UTF8Encoding]::new($false, $true).GetString($integrityBytes) }
-	catch { throw "Worktree receipt integrity reference is unreadable or malformed: '$integrityPath': $($_.Exception.Message)" }
-	if ($integrity -cnotmatch '^[0-9a-f]{64}$') { throw "Worktree receipt integrity reference failed strict validation: '$integrityPath'." }
-	if ((Get-AgentWorktreeReceiptSha256 $bytes) -cne $integrity) { throw "Worktree receipt integrity reference does not match receipt bytes: '$integrityPath'." }
-	try {
-		$convertArguments = if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { @{ DateKind = 'String' } } else { @{} }
-		$receipt = ([Text.UTF8Encoding]::new($false, $true).GetString($bytes) | ConvertFrom-Json @convertArguments -ErrorAction Stop)
-	}
-	catch { throw "Worktree receipt is unreadable or malformed: '$path': $($_.Exception.Message)" }
-	$names = if ($receipt -is [pscustomobject]) { @($receipt.PSObject.Properties.Name) } else { @() }
-	$required = @('schemaVersion', 'client', 'primaryCheckout', 'gitCommonDirectory', 'worktree', 'worktreeId', 'branch', 'targetBranch', 'baseline', 'sessionOwner', 'createdUtc')
-	if ($names.Count -ne $required.Count -or @($required | Where-Object { $_ -notin $names }).Count -ne 0 -or
-		@($required | Where-Object { $receipt.$_ -isnot [string] }).Count -ne 0 -or
-		$receipt.schemaVersion -cne $script:ReceiptSchemaVersion -or
-		$receipt.client -cne 'claude' -and $receipt.client -cne 'codex' -or
-		-not (Test-AgentWorktreeGuid $receipt.worktreeId) -or -not (Test-AgentWorktreeGuid $receipt.sessionOwner) -or
-		$receipt.branch -cne "$($receipt.client)/$($receipt.worktreeId)" -or
-		$receipt.baseline -isnot [string] -or $receipt.baseline -cnotmatch '^[0-9a-f]{40}$' -or
-		-not (Test-AgentWorktreeStrictUtc $receipt.createdUtc)) {
-		throw "Worktree receipt failed strict schema validation: '$path'."
-	}
-	foreach ($name in @('primaryCheckout', 'gitCommonDirectory', 'worktree', 'targetBranch')) {
-		if ($receipt.$name -isnot [string] -or [string]::IsNullOrWhiteSpace($receipt.$name) -or $receipt.$name.Contains("`0")) {
-			throw "Worktree receipt has an invalid '$name' value: '$path'."
-		}
-	}
-	foreach ($name in @('primaryCheckout', 'gitCommonDirectory', 'worktree')) {
-		if ((Get-AgentCanonicalPath $receipt.$name) -cne $receipt.$name) {
-			throw "Worktree receipt '$name' is not canonical: '$path'."
-		}
-	}
-	return [pscustomobject]@{ Path = $path; Bytes = $bytes; IntegrityPath = $integrityPath; IntegrityBytes = $integrityBytes; Value = $receipt }
 }
 
 function Get-AgentWorktreeRecords([string] $RepositoryRoot) {
@@ -262,7 +37,7 @@ function Test-AgentWorktreeNoGitOperation([string] $Worktree) {
 
 function Test-AgentWorktreeAncestor([string] $RepositoryRoot, [string] $Ancestor, [string] $Descendant, [string] $Description) {
 	& git -C $RepositoryRoot merge-base --is-ancestor $Ancestor $Descendant
-	if ($LASTEXITCODE -ne 0) { throw "Receipt baseline '$Ancestor' is not an ancestor of $Description '$Descendant'." }
+	if ($LASTEXITCODE -ne 0) { throw "Commit '$Ancestor' is not an ancestor of $Description '$Descendant'." }
 }
 
 function Get-AgentWorktreePrimaryIdentity([string] $RepositoryRoot) {
@@ -282,71 +57,32 @@ function Get-AgentWorktreePrimaryIdentity([string] $RepositoryRoot) {
 	return [pscustomobject]@{ Root = $root; CommonDirectory = $common; Branch = $branch; Head = $head }
 }
 
-function Get-AgentWorktreeReattachProof {
-	[CmdletBinding()] param(
-		[Parameter(Mandatory)][ValidateSet('claude', 'codex')][string] $Client,
-		[Parameter(Mandatory)][string] $RepositoryRoot,
-		[Parameter(Mandatory)][string] $Worktree
-	)
-	if ($Client -cne 'claude' -and $Client -cne 'codex') { throw "Client must be lowercase 'claude' or 'codex'." }
-	$primary = Get-AgentWorktreePrimaryIdentity $RepositoryRoot
-	$worktree = Get-AgentCanonicalPath $Worktree
-	$receipt = Read-AgentWorktreeSessionReceipt -Worktree $worktree
-	$value = $receipt.Value
-	if ($value.client -cne $Client -or -not $value.primaryCheckout.Equals($primary.Root, [StringComparison]::OrdinalIgnoreCase) -or
-		-not $value.gitCommonDirectory.Equals($primary.CommonDirectory, [StringComparison]::OrdinalIgnoreCase) -or
-		-not $value.worktree.Equals($worktree, [StringComparison]::OrdinalIgnoreCase)) {
-		throw 'Worktree receipt client or repository identity does not match the requested reattach.'
+# Session identity is entirely Git-derived: the branch names the session, the Git common directory
+# names the primary checkout, and the baseline is the attribution point the session diverged from.
+# A checkout on any other branch shape (a primary-commit route) resolves with SessionId $null rather
+# than failing, because primary mutation there needs no session identity.
+function Get-AgentWorktreeSessionContext {
+	[CmdletBinding()] param([string] $Worktree)
+	if ([string]::IsNullOrWhiteSpace($Worktree)) { $Worktree = (Get-Location).Path }
+	try { $top = Get-AgentCanonicalPath (Get-AgentWorktreeGitValue $Worktree @('rev-parse', '--show-toplevel') 'repository top-level') }
+	catch { throw "'$Worktree' is not inside a Git worktree: $($_.Exception.Message)" }
+	$branch = Get-AgentWorktreeGitValue $top @('branch', '--show-current') 'current branch'
+	$sessionId = if ($branch -cmatch '^(?:claude|codex)/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$') { $Matches[1] } else { $null }
+	$common = Get-AgentCanonicalPath (Get-AgentWorktreeGitValue $top @('rev-parse', '--path-format=absolute', '--git-common-dir') 'Git common directory')
+	$primaryRoot = Get-AgentCanonicalPath (Split-Path -Parent $common)
+	$primaryBranch = Get-AgentWorktreeGitValue $primaryRoot @('branch', '--show-current') 'primary branch'
+	$primaryTip = Get-AgentWorktreeGitValue $primaryRoot @('rev-parse', "refs/heads/$primaryBranch") 'primary tip commit'
+	$baseline = $null
+	$configured = [Environment]::GetEnvironmentVariable('BROKEN_ENGINE_BASELINE', 'Process')
+	if (-not [string]::IsNullOrWhiteSpace($configured)) {
+		$resolved = @(& git -C $top rev-parse --quiet --verify "$configured^{commit}" 2>$null)
+		if ($LASTEXITCODE -eq 0 -and $resolved.Count -eq 1) { $baseline = $resolved[0].Trim() }
 	}
-	# A re-parent rebase stopped on conflict leaves HEAD detached, so the worktree reports no attached
-	# branch and carries a rebase marker. Accept exactly that state — and only it — by proving branch
-	# identity through the rebase's own recorded head-name and its onto against the receipt baseline
-	# (which the repair has already rewritten to the squashed tip). Any other in-progress git operation,
-	# or a rebase whose onto/head-name disagree, leaves this false and still fails closed below.
-	$reparentInProgress = $false
-	foreach ($marker in @('rebase-merge', 'rebase-apply')) {
-		$rebaseState = Get-AgentWorktreeGitValue $worktree @('rev-parse', '--path-format=absolute', '--git-path', $marker) "Git operation marker '$marker'"
-		if (-not (Test-Path -LiteralPath $rebaseState)) { continue }
-		$ontoPath = Join-Path $rebaseState 'onto'
-		$headNamePath = Join-Path $rebaseState 'head-name'
-		if ((Test-Path -LiteralPath $ontoPath) -and (Test-Path -LiteralPath $headNamePath)) {
-			$reparentInProgress = ((Get-Content -LiteralPath $ontoPath -Raw).Trim() -ceq $value.baseline) -and
-				((Get-Content -LiteralPath $headNamePath -Raw).Trim() -ceq "refs/heads/$($value.branch)")
-		}
-		break
-	}
-	$records = @(Get-AgentWorktreeRecords $primary.Root | Where-Object { -not $_.Bare -and $_.Path.Equals($worktree, [StringComparison]::OrdinalIgnoreCase) })
-	if ($records.Count -ne 1 -or $records[0].Prunable -or (-not $reparentInProgress -and $records[0].Branch -cne $value.branch)) {
-		throw 'Recorded worktree is not uniquely registered, is prunable, or has a different branch.'
-	}
-	$worktreeTop = Get-AgentCanonicalPath (Get-AgentWorktreeGitValue $worktree @('rev-parse', '--show-toplevel') 'worktree top-level')
-	if (-not $worktreeTop.Equals($worktree, [StringComparison]::OrdinalIgnoreCase)) { throw "Recorded worktree is not its Git top-level: '$worktree'." }
-	$worktreeCommon = Get-AgentCanonicalPath (Get-AgentWorktreeGitValue $worktree @('rev-parse', '--path-format=absolute', '--git-common-dir') 'worktree Git common directory')
-	if (-not $worktreeCommon.Equals($primary.CommonDirectory, [StringComparison]::OrdinalIgnoreCase)) { throw 'Recorded worktree does not share the recorded Git common directory.' }
-	$worktreeHead = Get-AgentWorktreeGitValue $worktree @('rev-parse', 'HEAD') 'worktree HEAD'
-	if ($worktreeHead -cnotmatch '^[0-9a-f]{40}$') { throw "Recorded worktree HEAD is malformed: '$worktreeHead'." }
-	if ($primary.Branch -cne $value.targetBranch) { throw "Recorded primary checkout is not on receipt target branch '$($value.targetBranch)'." }
-	if (-not $reparentInProgress) { Test-AgentWorktreeNoGitOperation $worktree }
-	Test-AgentWorktreeAncestor $primary.Root $value.baseline $primary.Head 'primary HEAD'
-	Test-AgentWorktreeAncestor $primary.Root $value.baseline $worktreeHead 'worktree HEAD'
-	return [pscustomobject]@{ Receipt = $receipt; Primary = $primary; Worktree = $worktree; WorktreeHead = $worktreeHead }
-}
-
-# Resolves the durable session identity from the strictly validated in-worktree receipt, the sole
-# trust anchor. The receipt is written at session start and persists across a client restart, so a
-# restarted session that lost its wrapper environment still resolves from disk. There is no
-# environment fast path: reading identity from the six BROKEN_ENGINE_* variables ahead of the
-# receipt would let intact environment mask a tampered, removed, or replaced receipt, diverging from
-# the finalize preflight's receipt authority. A receipt read or validation failure throws, which
-# callers surface through their own state-blocker path.
-function Get-AgentWorktreeSessionProvenance {
-	[CmdletBinding()] param([Parameter(Mandatory)][string] $Worktree)
-	$worktree = Get-AgentCanonicalPath $Worktree
-	$receipt = (Read-AgentWorktreeSessionReceipt -Worktree $worktree).Value
+	if ([string]::IsNullOrWhiteSpace($baseline)) { $baseline = Get-AgentWorktreeGitValue $top @('merge-base', 'HEAD', $primaryTip) 'merge base with the primary tip' }
 	return [pscustomobject]@{
-		Worktree = $receipt.worktree; Branch = $receipt.branch; Primary = $receipt.primaryCheckout; TargetBranch = $receipt.targetBranch
-		Baseline = $receipt.baseline; SessionOwner = $receipt.sessionOwner; Source = 'receipt'
+		Worktree = $top; Branch = $branch; SessionId = $sessionId
+		PrimaryRoot = $primaryRoot; PrimaryBranch = $primaryBranch; PrimaryTip = $primaryTip; Baseline = $baseline
 	}
 }
 
-Export-ModuleMember -Function Get-AgentWorktreePrimaryIdentity, Get-AgentWorktreePrivateGitDirectory, Get-AgentWorktreeReceiptPath, Get-AgentWorktreeReceiptIntegrityPath, Open-AgentWorktreeReceiptWriteLease, New-AgentWorktreeSessionReceipt, Write-AgentWorktreeSessionReceipt, Update-AgentWorktreeSessionReceiptBaseline, Read-AgentWorktreeSessionReceipt, Get-AgentWorktreeReattachProof, Get-AgentWorktreeSessionProvenance
+Export-ModuleMember -Function Get-AgentWorktreePrimaryIdentity, Get-AgentWorktreeRecords, Test-AgentWorktreeNoGitOperation, Test-AgentWorktreeAncestor, Get-AgentWorktreeSessionContext

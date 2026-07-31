@@ -13,7 +13,7 @@ Shared runtime settings, network-pending controls, and client-only curve/editor 
 
 ## Shared Types
 
-- Height-dependent wrapper groups resolve camera-height-conditioned render values; Render (`../Graphics/Render/AGENTS.md`) owns publication behavior.
+- Height-dependent wrapper groups resolve camera-height-conditioned render values; Render (`../Graphics/Render/AGENTS.md`) owns how those resolved values reach the per-frame GPU buffers.
 - Client-only curves use bounded monotone cubic interpolation and an ImPlot editor. Endpoints remain X-locked and interior control points ordered.
 - `NetworkUiControl` disables a control while authoritative state has not resolved its request; call `Update` every frame with that authoritative state.
 

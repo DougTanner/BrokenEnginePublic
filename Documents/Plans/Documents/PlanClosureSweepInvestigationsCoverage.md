@@ -11,7 +11,7 @@ Investigations documents cite Plans exactly the way Plan bodies do. `Documents/I
 
 The drift is already realized, not hypothetical: the series table `:54` lists `IslandMeshArenaResidency.md` with status **Open**, and finding 1 at `:44` routes the GPU-mesh residency decision to it. No such file exists at the current tip — commit `78a367c8` removed it — while every other absent entry in that table is explicitly marked *removed — landed*. The next occurrence is already queued: `:55` cites `IslandHeightmapRouteDedup.md`, which is live, so its completion produces the same silent dangling citation.
 
-Originating gap: the change that created the Investigations tree was scoped to the marker-less-plan-document rule, its two reporting sites, the guidance exemption, the document dispositions, and the planning documentation. Sweep coverage of the new tree was outside that boundary and is not an acceptance failure of it.
+Originating gap: the change that created the Investigations tree was scoped to the marker-less-plan-document rule, its two reporting sites, the guidance exemption, the decision made about each document, and the planning documentation. Sweep coverage of the new tree was outside that boundary and is not an acceptance failure of it.
 
 ## Design
 
@@ -26,6 +26,12 @@ Originating gap: the change that created the Investigations tree was scoped to t
 - `Documents/Investigations/Graphics/IslandResidentMemoryScaling_Overview.md` — only the citing sentences the sweep flags (`:44` and `:54` today; re-derive, line numbers move).
 - The completed stale Plan/Feature cross-reference sweep's former one-sentence three-tree wording update — historical; no active file remains.
 - `Documents/Investigations/AGENTS.md`, `Documents/AGENTS.md` — read-only tree definitions.
+
+## In scope
+
+- `.agents/scripts/Find-PlanClosureReferences.ps1` — the scan root list at `:38` only: add `'Documents/Investigations'` to `@('Documents/Plans', 'Documents/Features')`. The `-CompletedPlan` guard at `:19-21`, the term derivation at `:22-35`, and the `broken-engine-plan-closure-references/v1` emission at `:56` stay unchanged.
+- `Documents/Investigations/Graphics/IslandResidentMemoryScaling_Overview.md` — only the citing sentences the widened sweep flags (`:44` finding 1 and the `:54` series row today; re-derive, line numbers move), edited per the recorded determination of done / still real and unowned / historical, including the `IslandMeshArenaResidency.md` case decided from commit `78a367c8`.
+- Any other dangling plan-path citation the widened sweep reports under `Documents/Investigations/` — the citing sentence only, with its determination recorded.
 
 ## Out of scope
 

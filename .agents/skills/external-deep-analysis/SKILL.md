@@ -27,14 +27,13 @@ remains exact-file scope.
 Run from the main invoking context. If repository policy prevents the current
 context from dispatching, return a main-context dispatch requirement instead of
 approximating either analysis inline. The main context invokes skills and
-dispatches every role. Give each role a bounded manifest or report slice and
-forbid child delegation; schedule waves within the host's available concurrency.
+dispatches every role. Give each role a scoped manifest or report slice and
+forbid child delegation; schedule rounds within the host's available concurrency.
 
 Read root and target-applicable `AGENTS.md` files before dispatch. Plan authoring
-needs the checkout and a baseline commit for `create-follow-up-plans`; outside a
-wrapper session that baseline is `HEAD`.
+needs the checkout for `create-follow-up-plans`.
 
-## Phase 0: Bounded Metric Evidence
+## Phase 0: Scoped Metric Evidence
 
 Before architecture analysis, invoke `code-quality-metrics` Snapshot once with
 the resolved relative-POSIX target, the same `Exact`, `Directory`, or
@@ -61,7 +60,7 @@ forward only these investigation hints to both native analysis phases:
 - at most 10 target `current.skips`, ordered by path.
 
 Every hint category states its total and truncated counts, including zeroes.
-The forwarded hints are bounded evidence to inspect, never findings: they do
+The forwarded hints are scoped evidence to inspect, never findings: they do
 not expand the original target, create Plans, alter the Debt Score, or replace
 source inspection. Retain corpus coverage and all parse-omission residuals for
 the final summary even when only target omissions are forwarded.
@@ -69,29 +68,29 @@ the final summary even when only target omissions are forwarded.
 ## Phase 1: Architecture Shape
 
 Invoke `external-architecture-review` natively through the normal skill surface
-with the resolved target and scope mode. Include the Phase-0 bounded hints as
+with the resolved target and scope mode. Include the Phase-0 scoped hints as
 investigation evidence without expanding the target. Do not open a client-specific
 skill installation or reproduce its workflow here.
 
 Retain its scoped manifest, authorities, verified findings, external-claim
 residuals, and handoff note for Phase 2. Do not choose plan locations, filenames,
-groups, collisions, dependencies, or duplicate dispositions at this stage.
+groups, collisions, dependencies, or duplicate decisions at this stage.
 
 ## Phase 2: In-Function Mechanics
 
 Invoke `external-refactor-clean` natively through the normal skill surface with
-the same target and scope mode. Include the Phase-0 bounded hints and Phase-1
+the same target and scope mode. Include the Phase-0 scoped hints and Phase-1
 investigation paths as evidence to inspect, without expanding the original
 finding boundary.
 
 Keep its file-size triage separate from ordinary findings. Every oversized file
-retains the explicit disposition `run /reduce-file <path>`; do not analyze it
+retains the explicit instruction `run /reduce-file <path>`; do not analyze it
 inline or silently convert it into a generic refactor item.
 
 ## Phase 3: Findings Verification
 
 After both reports complete, have the main context dispatch fresh `reviewer`
-roles in bounded slices. Reviewers are findings-only: they may read the scoped
+roles in scoped slices. Reviewers are findings-only: they may read the scoped
 source, authorities, and reports supplied by the main context, but must not
 write, rewrite, delete, score, or relocate a plan and must not delegate.
 
@@ -123,9 +122,9 @@ That skill exclusively owns plan classification, area placement, naming,
 grouping, collision handling, duplicate mapping, live-plan updates, dependency
 decisions, tier triggers, and Plan metadata. Do not pre-create plan files, copy
 the metadata schema, or read or mutate machine-local scheduler data. Pass
-oversized candidates with their required `/reduce-file <path>` disposition intact.
+oversized files with their required `/reduce-file <path>` instruction intact.
 
-Account for every accepted candidate using the authoring skill's Created,
+Account for every accepted item using the authoring skill's Created,
 Updated existing, Duplicate mappings, or Residuals result. Invalid metadata,
 validation failure, conflict, or ungrounded item is a visible blocker or
 residual, not grounds for an alternate scheduling path.
@@ -144,21 +143,21 @@ machine-local scheduler state as a publication step.
 
 ## Summary
 
-After successful verification and the applicable finalization disposition,
+After successful verification and the applicable finalization outcome,
 report:
 
 - exact target, scope mode, file count, and applicable authorities;
-- metric profile, target and corpus coverage, bounded-hint total/truncated
+- metric profile, target and corpus coverage, scoped-hint total/truncated
   counts, and every metric residual;
 - architecture and refactor-clean finding counts;
 - created, updated, duplicate-mapped, rejected, and residual items, with every
   oversized file still shown as `run /reduce-file <path>`;
 - each authored plan's final tier trigger, acceptance boundary, and dependency
-  disposition from `create-follow-up-plans`;
+  outcome from `create-follow-up-plans`;
 - one area Debt Score: LOW for nearly all Quick Win/Small, MODERATE for
   mostly Small/Medium, HIGH for multiple Large or any Architectural, and
   CRITICAL for several Architectural items or a core-invariant threat;
-- verification result, finalization disposition, and tracked Plan validation state.
+- verification result, finalization outcome, and tracked Plan validation state.
 
 The Debt Score is a run retrospective only; never put it in a Plan. Do not call
 a written Plan claimed or scheduler-visible until finalization confirms its

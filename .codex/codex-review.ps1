@@ -51,7 +51,7 @@ try
 		--sandbox read-only `
 		-C $Worktree `
 		-m gpt-5.6-sol `
-		-c 'model_reasoning_effort="high"' `
+		-c 'model_reasoning_effort="medium"' `
 		--ephemeral `
 		-o $temporaryOutput `
 		-

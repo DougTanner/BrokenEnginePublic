@@ -93,6 +93,33 @@ clearance.
 - `Engine/Source/Main.cpp` — the nav elevation threshold (`:252`, `:307`), which fixes the contour the
   inflation starts from.
 
+## In scope
+
+- `Engine/Source/Frame/NavBuild.cpp` — `kfInflateDelta` (`:368`) and the
+  `Clipper2Lib::InflatePaths` call (`:396`) inside `BuildNavContour` (`:342`):
+  the no-navigation margin becomes a world-space quantity derived in code from
+  `game::kfPlayerRadius + game::kfPushMargin`, with no bare inflation literal
+  left, and the site carries a comment stating that the nav polygon is
+  deliberately the terrain-push contour plus ship clearance.
+- Whichever of shape A or B the required evaluation selects, and only that one:
+  - A — `Engine/Source/Frame/NavBuild.h` `BuildNavContour`'s signature (`:64`)
+    widened to receive the template footprint, with the per-template bake call
+    site in `Engine/Source/Frame/IslandTerrain.cpp` (`:227-243`) and the
+    footprint members (`IslandTerrain.h:62-63`, assigned at
+    `IslandTerrain.cpp:44-45`) plumbed in, plus the stated resolution of
+    Clipper2's single-scalar delta on a non-square footprint.
+  - B — the inflation moved into `BuildCellNavData`
+    (`Engine/Source/Frame/NavCellData.cpp`) after the UV -> world transform
+    (`:333-334`, `:342-343`), including the int64 quantization question, which
+    may change `kiClipperPrecision` (`NavBuild.cpp:374`) only with the reasoning
+    recorded.
+- `Engine/Source/Frame/NavBuild.h` — this Plan's own `kiNavDataVersion` (`:15`,
+  currently 13) increment. No backward compatibility is added.
+- Read-only reference for the clearance value and the contour the inflation
+  starts from: `Projects/BrokenEngineSandbox/Source/Frame/Collections/Players/Players.h`
+  (`kfPlayerRadius` `:24`, `kfPushMargin` `:27`) and `Engine/Source/Main.cpp`
+  (`:252`, `:307`).
+
 ## Out of scope
 
 - `kfSimplifyEpsilon` (`NavBuild.cpp:370`), `kiClipperPrecision` (`:374`), and `kfMiterLimit` (`:369`) except

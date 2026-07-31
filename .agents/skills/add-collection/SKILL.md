@@ -60,7 +60,7 @@ subset of `Members()` and any `SharedCrcMembers()` a subset of
 
 Create Interpolate/PostRender structs and their implementation files beside the
 chosen exemplar. `Update` is mandatory and must use its generic dispatch
-signature. Optional folded hooks need no no-op boilerplate: absent or
+signature. Optional hooks merged into the surrounding phase need no no-op boilerplate: absent or
 non-invocable hooks skip silently, while `Update` and direct/manual calls remain
 compile-checked. Declare `extern template struct Collection<...>` for both
 structs and explicitly instantiate both in one implementation file.
@@ -76,7 +76,8 @@ structs and explicitly instantiate both in one implementation file.
   state consumed later in the same phase must precede that consumer.
 
 Tuple registration supplies normal phase dispatch, allocation/copy walks,
-build-local Write/Read, shared ServerRead/CRC, and LogDifferences folding.
+build-local Write/Read, shared ServerRead/CRC, and output merging in
+`LogDifferences`.
 Reserve explicit per-collection Frame.cpp dispatch for a concrete special
 contract such as Players; `CollectionFlags::kIdToIndex` alone is not one.
 `Targets` proves that an indexable collection can use the normal tuples.
@@ -124,9 +125,10 @@ lifecycle, such as Sounds' client-only UUID stream, not on the flag itself.
 - [ ] Construction/initialization: paired growth keeps counts aligned and
   every new row/owned handle is initialized before CRC or use.
 - [ ] Phases: `AllocateAndCopy`, `LogDifferences`, and `Update` are present with
-  their required signatures. Optional folded Register, GraphicsResources,
-  render, collision, AreaDamage, Transfer, Destroy, and Spawn hooks are declared
-  only when needed and must match their exact dispatch signatures; an absent or
+  their required signatures. Optional `Register`, GraphicsResources,
+  render, collision, AreaDamage, Transfer, Destroy, and Spawn hooks merged into
+  the surrounding phase are declared only when needed and must match their
+  exact dispatch signatures; an absent or
   non-invocable hook skips silently. Direct/manual calls remain compile-checked.
 - [ ] Serialization/CRC: `Members`, `SharedMembers`, and optional
   `SharedCrcMembers` have correct subset and wire order; tuple registration

@@ -3,7 +3,7 @@
 #include "ToolCliCommon.h"
 #include "BuildCommand.h"
 #include "LandingLockCommands.h"
-#include "PlanCommands.h"
+#include "PlanScheduler.h"
 
 #include <iostream>
 #include <string_view>
@@ -15,12 +15,11 @@ namespace toolcli
 		void PrintUsage(std::ostream& rOutput)
 		{
 			rOutput << "Usage: WorktreeCli.exe lock <token|claim|status|refresh|recover|release|steal> ...\n";
-			rOutput << "       WorktreeCli.exe plan validate --repo COMMON-DIR --worktree CHECKOUT --baseline COMMIT\n";
-			rOutput << "       WorktreeCli.exe plan claim-next --repo COMMON-DIR --primary-worktree PRIMARY --worktree SESSION --branch TARGET --owner TOKEN --session TOKEN --write-claim-receipt Temp/RECEIPT [--plan Documents/Plans/...md]\n";
-			rOutput << "       WorktreeCli.exe plan claim-status|unclaim --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256\n";
-			rOutput << "       WorktreeCli.exe plan prepare-completion|prepare-rejection --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256\n";
-			rOutput << "       WorktreeCli.exe plan release-after-landing --worktree SESSION --claim-receipt Temp/RECEIPT --claim-receipt-sha256 SHA256 --landed-commit COMMIT\n";
-			rOutput << "       WorktreeCli.exe plan reparent-claims --repo COMMON-DIR --worktree SESSION --new-baseline COMMIT\n";
+			rOutput << "       WorktreeCli.exe plan validate --repo COMMON-DIR --worktree CHECKOUT [--plan Documents/Plans/...md]\n";
+			rOutput << "       WorktreeCli.exe plan claim-next --repo COMMON-DIR --primary-worktree PRIMARY --worktree SESSION --branch TARGET --owner TOKEN --session TOKEN [--plan Documents/Plans/...md]\n";
+			rOutput << "       WorktreeCli.exe plan claim-status|unclaim --repo COMMON-DIR --worktree SESSION --owner TOKEN --session TOKEN\n";
+			rOutput << "       WorktreeCli.exe plan complete --repo COMMON-DIR --worktree SESSION --owner TOKEN --session TOKEN\n";
+			rOutput << "       WorktreeCli.exe plan reject --repo COMMON-DIR --worktree SESSION --owner TOKEN --session TOKEN --user-authorized-rejection\n";
 			rOutput << "       WorktreeCli.exe build [--files <cpp...> --] <project-or-solution> <MSBuild args...>\n";
 			rOutput << "       WorktreeCli.exe --help\n";
 		}
@@ -57,7 +56,7 @@ int wmain(int iArgumentCount, wchar_t* pArgumentValues[])
 	}
 	if (mode == L"plan")
 	{
-		return toolcli::RunPlanCommand(iArgumentCount, pArgumentValues);
+		return toolcli::RunPlanSchedulerCommand(iArgumentCount, pArgumentValues);
 	}
 	if (mode == L"build")
 	{

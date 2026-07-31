@@ -1,28 +1,33 @@
 # Sole SmartGit review-tool boundary for a session landing.
 #
-# Invoked last in workflow step 5 — after approval preparation returned the
+# Invoked last in workflow step 4 — after approval preparation returned the
 # approved tip — as the final tool invocation before the landing summary renders.
 # Opening the log window here means the user returns from their review to a
 # finished confirmation question rather than a working agent. Callers never
 # reconstruct its SmartGit command inline.
 #
-# Opens SmartGit against the registered primary checkout with
-# --anchor-commit=<approved-tip>. Never runs Git, mutates a ref, or claims a lock.
+# The landing route always passes -LaunchSmartGit, so a session landing always
+# attempts the launch and the window opens whenever SmartGit is available.
+# Without the switch it only previews the canonical command.
+# It never runs Git, mutates a ref, or claims a lock.
 #
 # Contract: schema broken-engine-finalize-approval-review/v1. Unlike the mutating
-# sidecars, every launch outcome exits 0 and none report status pass — the review
-# window is non-blocking and never gates a landing. status opened is the success
-# path; unavailable/failed are non-blocking, and the caller copies message and the
-# exact manualCommand into the approval response while keeping the landing gate in
+# scripts, every preview/launch outcome exits 0 and none report status pass — the
+# review tool is non-blocking and never gates a landing. preview is the default;
+# opened is the launch success path; unavailable/failed are non-blocking,
+# and the caller copies message and the exact manualCommand into the approval response while keeping the landing gate in
 # force. Only invalid input exits 1, with status error and a code naming the cause
 # (input.invalid for a malformed tip or fixture gate; internal.error for a primary
-# worktree that will not resolve). A post-confirmation re-rebase must not reopen
-# the review tool the user already saw: that path does not invoke this script at
-# all.
+# worktree that will not resolve). A clean identical post-confirmation rebase that
+# preserves the existing confirmation must not reopen the review tool the user
+# already saw: that path does not invoke this script at all. A material change
+# requiring a refreshed confirmation does invoke it again, against the newly
+# reviewed candidate, before that refreshed confirmation.
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory)][string] $PrimaryWorktree,
 	[Parameter(Mandatory)][string] $ApprovedTip,
+	[switch] $LaunchSmartGit,
 	[AllowEmptyString()][string] $FixtureSmartGitExecutable,
 	[ValidateSet('none', 'smartgit-launch')][string] $FixtureFailure = 'none'
 )
@@ -91,6 +96,13 @@ function ConvertTo-ProcessArgument([string] $Value)
 function Invoke-SmartGit
 {
 	$standardExecutable = 'C:\Program Files\SmartGit\bin\smartgit.exe'
+	$arguments = @('--log', $script:PrimaryIdentity, "--anchor-commit=$ApprovedTip")
+	$result.arguments = $arguments
+	$result.manualCommand = ((@('&', (ConvertTo-PowerShellLiteral $standardExecutable)) + @($arguments | ForEach-Object { ConvertTo-PowerShellLiteral $_ })) -join ' ')
+	if (-not $LaunchSmartGit)
+	{
+		Complete-Review 0 'preview' 'review.preview' 'SmartGit was not launched; run manualCommand to open the candidate.'
+	}
 	$resolvedExecutable = $null
 	if ($script:HasFixtureSmartGitExecutable)
 	{
@@ -108,11 +120,6 @@ function Invoke-SmartGit
 			$resolvedExecutable = $command.Source
 		}
 	}
-
-	$arguments = @('--log', $script:PrimaryIdentity, "--anchor-commit=$ApprovedTip")
-	$manualExecutable = if ([string]::IsNullOrWhiteSpace($resolvedExecutable)) { $standardExecutable } else { $resolvedExecutable }
-	$result.arguments = $arguments
-	$result.manualCommand = ((@('&', (ConvertTo-PowerShellLiteral $manualExecutable)) + @($arguments | ForEach-Object { ConvertTo-PowerShellLiteral $_ })) -join ' ')
 	if ([string]::IsNullOrWhiteSpace($resolvedExecutable) -or -not (Test-Path -LiteralPath $resolvedExecutable -PathType Leaf))
 	{
 		Complete-Review 0 'unavailable' 'review.unavailable' 'SmartGit executable was not found.'

@@ -1,10 +1,7 @@
-# Promotes a validated AgentTools candidate pair (WorktreeCli.exe + AgentHarness.exe)
-# to canonical primary Output during an approved session landing. Requires the
-# v2 candidate receipt written by New-AgentToolsCandidate.ps1 with its SHA-256,
-# and a landed commit already contained in the primary branch. The read-only
-# certification sidecar binds the receipt, executable hashes, stable source
-# manifest, current source bytes, and every expected-commit clean-filter blob
-# inside coordination immediately before canonical replacement. Promotion runs
+# Promotes a freshly built AgentTools candidate pair (WorktreeCli.exe +
+# AgentHarness.exe) to canonical primary Output after a landing. The candidate
+# executables are supplied by the caller that built them, and the landed commit
+# must already be contained in the primary branch. Promotion runs
 # inside the WorktreeCli exclusion ledger's
 # exclusive-operation window (any other in-flight transient operation claim
 # blocks; the invoking landing passes its own session owner as
@@ -29,9 +26,9 @@ param(
 	[Parameter(Mandatory = $true)]
 	[string] $PrimaryRoot,
 	[Parameter(Mandatory = $true)]
-	[string] $CandidateReceiptPath,
+	[string] $WorktreeCliCandidate,
 	[Parameter(Mandatory = $true)]
-	[string] $CandidateReceiptSha256,
+	[string] $AgentHarnessCandidate,
 	[Parameter(Mandatory = $true)]
 	[string] $LandedCommit,
 	[string] $CooperatingSessionOwner,
@@ -105,7 +102,14 @@ try {
 	if ($LASTEXITCODE -ne 0) {
 		Complete-Promotion 2 'blocked' 'promotion.not-landed' "Landed commit '$LandedCommit' is not contained in the primary branch; promotion is impossible from an unlanded tree."
 	}
-	$certificationScript = Join-Path $PSScriptRoot 'Test-AgentToolsCandidateCertification.ps1'
+	$candidates = [ordered]@{}
+	foreach ($entry in @(@('WorktreeCli', $WorktreeCliCandidate), @('AgentHarness', $AgentHarnessCandidate))) {
+		$candidateItem = Get-Item -LiteralPath $entry[1] -Force -ErrorAction SilentlyContinue
+		if ($null -eq $candidateItem -or $candidateItem.PSIsContainer -or ($candidateItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $candidateItem.Length -eq 0) {
+			throw "Candidate '$($entry[0])' must be a nonempty ordinary file: '$($entry[1])'."
+		}
+		$candidates[$entry[0]] = [ordered]@{ path = $candidateItem.FullName; sha256 = (Get-FileHash -LiteralPath $candidateItem.FullName -Algorithm SHA256).Hash.ToLowerInvariant(); bytes = $candidateItem.Length }
+	}
 
 	$worktreeCliOutput = Join-Path $primaryRoot 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output'
 	$agentHarnessOutput = Join-Path $primaryRoot 'Tools\AgentHarness\Platforms\VisualStudio2026\Output'
@@ -124,23 +128,6 @@ try {
 	if (-not (Test-Path -LiteralPath $capabilityScript -PathType Leaf)) { throw "AgentTools capability checker is missing: '$capabilityScript'." }
 
 	$promotionAction = {
-		$certificationOutput = @(& "$PSHOME\pwsh.exe" -NoProfile -File $certificationScript `
-			-RepositoryRoot $primaryRoot -WorktreeRoot $primaryRoot `
-			-CandidateReceiptPath $CandidateReceiptPath -CandidateReceiptSha256 $CandidateReceiptSha256 `
-			-ExpectedCommit $LandedCommit 2>$null)
-		$certificationExit = $LASTEXITCODE
-		try { $certification = ($certificationOutput -join "`n") | ConvertFrom-Json -Depth 100 -ErrorAction Stop }
-		catch { throw "AgentTools certification returned invalid JSON: $($certificationOutput -join ' ')" }
-		if ($certificationExit -ne 0 -or $certification.status -cne 'pass' -or $certification.code -cne 'ok') {
-			$exit = if ($certificationExit -eq 2) { 2 } else { 1 }
-			Complete-Promotion $exit $(if ($exit -eq 2) { 'blocked' } else { 'error' }) "promotion.$($certification.code)" "Candidate certification failed: $($certification.message)"
-		}
-		$candidates = [ordered]@{ WorktreeCli = $certification.executables.WorktreeCli; AgentHarness = $certification.executables.AgentHarness }
-		$certifiedTrees = @(
-			[string]$certification.source.commitIdentities.worktreeCli,
-			[string]$certification.source.commitIdentities.agentHarness,
-			[string]$certification.source.commitIdentities.toolCommon
-		)
 		$previous = [ordered]@{
 			WorktreeCli = Get-ExecutableIdentity $canonical.WorktreeCli
 			AgentHarness = Get-ExecutableIdentity $canonical.AgentHarness
@@ -173,14 +160,14 @@ try {
 			& $capabilityScript -WorktreeCliExecutable $canonical.WorktreeCli -AgentHarnessExecutable $canonical.AgentHarness | Out-Null
 			foreach ($name in @('WorktreeCli', 'AgentHarness')) {
 				$promotedIdentity = Get-ExecutableIdentity $canonical[$name]
-				if (-not $promotedIdentity.present -or $promotedIdentity.sha256 -cne $candidates[$name].sha256.ToLowerInvariant()) {
+				if (-not $promotedIdentity.present -or $promotedIdentity.sha256 -cne $candidates[$name].sha256) {
 					throw "Promoted '$name' does not match the candidate hash."
 				}
 			}
 			# The stamp is part of the promoted state (a built-source provenance record, no longer
 			# read by bootstrap); a stamp failure rolls the pair back rather than leaving an
 			# inconsistent provenance record.
-			[IO.File]::WriteAllText($stampPath, ($certifiedTrees -join "`n") + "`n")
+			[IO.File]::WriteAllText($stampPath, $LandedCommit + "`n")
 		}
 		catch {
 			$failure = $_.Exception.Message
@@ -231,17 +218,10 @@ try {
 			promotedAt = [DateTime]::UtcNow.ToString('O')
 			primaryRoot = $primaryRoot
 			landedCommit = $LandedCommit
-			certifiedSource = [ordered]@{
-				digest = $certification.source.digest
-				manifestCount = $certification.source.manifestCount
-				commitIdentities = $certification.source.commitIdentities
-				primaryResolvedJson = $certification.source.primaryResolvedJson
-			}
-			candidateReceipt = [ordered]@{ path = $CandidateReceiptPath; sha256 = $CandidateReceiptSha256 }
 			previous = $previous
 			candidate = [ordered]@{
-				WorktreeCli = [ordered]@{ path = $candidates.WorktreeCli.path; sha256 = $candidates.WorktreeCli.sha256.ToLowerInvariant() }
-				AgentHarness = [ordered]@{ path = $candidates.AgentHarness.path; sha256 = $candidates.AgentHarness.sha256.ToLowerInvariant() }
+				WorktreeCli = [ordered]@{ path = $candidates.WorktreeCli.path; sha256 = $candidates.WorktreeCli.sha256 }
+				AgentHarness = [ordered]@{ path = $candidates.AgentHarness.path; sha256 = $candidates.AgentHarness.sha256 }
 			}
 			promoted = [ordered]@{
 				WorktreeCli = Get-ExecutableIdentity $canonical.WorktreeCli

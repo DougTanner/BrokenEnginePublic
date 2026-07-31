@@ -104,6 +104,29 @@ reintroducing the throttle-overshoot the landed change fixed. The A\*-miss `kWar
 - `Projects/BrokenEngineSandbox/Source/Profile/ProfileManager.h` — `kCpuTimerPostRenderUpdateNavQuery`
   (`:31`), the measurement instrument.
 
+## In scope
+
+- This Plan file itself — the like-for-like baseline's sample definition, unit
+  count, tick window, and absolute per-tick budget are recorded here before any
+  optimization edit is made.
+- Cost attribution instrumentation splitting query **count** from query **cost**:
+  the missing query counter alongside `kCpuTimerPostRenderUpdateNavQuery`
+  (`Projects/BrokenEngineSandbox/Source/Profile/ProfileManager.h:31`), which
+  already wraps the three `NavQueryDirection` call sites in
+  `Projects/BrokenEngineSandbox/Source/Frame/Collections/Players/PlayersNavigation.cpp`
+  (`:316`, `:372`, `:430`).
+- Exactly one chosen and validated direction, drawn from the regions this Plan
+  names and selected only after step 2's attribution:
+  - trigger frequency — the off-cadence containment recompute in
+    `PlayersNavigation.cpp` (`:266-285`, `kfNavLookahead` `:32`);
+  - cadence — `kiNavRecomputeInterval` (`PlayersNavigation.cpp:27`, applied at
+    `:262-264`);
+  - per-query work — `AStarPath`'s eager start-visibility loop
+    (`Engine/Source/Frame/NavQuery.cpp:431-434`) and its inner predicate
+    `SegmentBlockedByObstacle` (`NavQuery.cpp:20`).
+- `Engine/Source/Frame/NavBuild.h` — `kiNavDataVersion` (`:15`, currently 13) is
+  bumped only if the chosen direction changes computed bearings.
+
 ## Out of scope
 
 - Re-raising `kiNavZonesX`/`kiNavZonesY`. Measured saturated (32 -> 64 bought 1.8%); do not re-run it as a

@@ -1,4 +1,4 @@
-# Input - Hardware Snapshot Publication
+# Input - Hardware Snapshot Sharing
 
 `RawInputManager` is client-only, while the state-only `RawInput` types remain shared so game code can embed snapshots in both builds. Key bindings, edge detection, and deterministic `FrameInput` construction are game-owned.
 

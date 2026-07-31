@@ -21,7 +21,7 @@ documentation.
 
 Require a self-contained brief containing:
 
-- the fixed baseline as a full Git SHA, complete immutable authorized C++ diff,
+- the session baseline as a full Git SHA, complete immutable authorized C++ diff,
   and exact changed files/regions, separated from pre-existing and concurrently
   owned changes;
 - an identity-bound
@@ -38,17 +38,17 @@ Require a self-contained brief containing:
   prior findings relevant to a focused re-review;
 - checkout path and applicable repository instructions.
 
-Return `BLOCKED` when the fixed baseline, diff boundary, target manifest, intent,
+Return `BLOCKED` when the session baseline, diff boundary, target manifest, intent,
 or invariants are missing or moving. Do not reconstruct them from a mutable merge
 base, derive a broader target manifest from checkout changes, or expand a supplied
-review into an unbounded repository audit. After an accepted fix, review only the
+review into an open-ended repository audit. After an accepted fix, review only the
 fixed region and directly affected paths unless a reproducible failure justifies
-another wave.
+another round.
 
 ## Workflow
 
 1. Run `code-quality-metrics` Compare early with the supplied target manifest,
-   fixed baseline, absolute checkout root, and one profile for both captures.
+   session baseline, absolute checkout root, and one profile for both captures.
    Use the public `Invoke-CodeQualityMetrics.ps1` entry point with `-Mode Compare
    -TargetManifest <supplied-manifest> -Baseline <fixed-full-sha>
    -RepositoryRoot <absolute-checkout-root>`, and record its `profile`,
@@ -93,7 +93,7 @@ review. A `target-signature-extraction-failure` is also incomplete;
 investigate it and rerun, without treating it as a sanitizer instruction. Do
 not return PASS until every authorized target has complete parsing and signature
 extraction. A corpus-only `upstream-omitted` row is an advisory residual and
-preserves PASS. Report coverage and the disposition from `comparison`.
+preserves PASS. Report coverage and the outcome from `comparison`.
 
 ## Correctness Checks
 
@@ -246,23 +246,22 @@ ordering. Do not apply this check to semantic codecs or serialization adapters.
   `.h`/`.cpp`; it belongs in `Common/ExternalHeaders.h`, not the individual
   source file (root `AGENTS.md` Key Pattern).
 
-### Minimality and duplication
+### Completeness and duplication
 
-Flag incomplete integration and reachable edge failures. Flag overbuilt code
-only when the change adds an unused option, one-use indirection with no required
-contract, or speculative path with no current consumer. Flag substantial new
+Flag incomplete integration and reachable edge failures. Flag substantial new
 near-copies or repeated multi-condition logic only after independent source
 inspection proves an existing helper fits. Compare clone evidence is an
 investigation lead, not a finding by itself. Deliberate client/server and
 collection mirrors remain parallel.
 
 Exclude micro-simplifications, style preferences, naming, header placement
-other than the required `Common/ExternalHeaders.h` rule above, formatting, and
-general documentation checks.
+other than the required `Common/ExternalHeaders.h` rule above, formatting,
+general documentation checks, and scope authorization and gold-plating, which
+`/scope-review` owns.
 
-## External Claim Packet
+## External Claim Requests
 
-Emit one proposition per packet; the caller routes it through
+Emit one proposition per request; the caller routes it through
 `/verify-external-claims`:
 
 ```markdown
@@ -290,15 +289,15 @@ finding is `Required`. Omit empty optional sections.
 - `path:line` — **Critical | Required:** <reachable failure, evidence, smallest correction>
 
 ### API Verification Requests
-<atomic packets>
+<atomic requests>
 
 ### Size Observations
 - `path` (`N bt-token-v1`) — <cohesive split and why it is a manager follow-up candidate>
 
 ### Metric Evidence
 - profile and target-manifest status — <Compare result>
-- target/corpus/common-parsed-cohort and coverage — <bounded `comparison` evidence>
-- context changes and metric residual disposition — <count/status; no scope expansion>
+- target/corpus/common-parsed-cohort and coverage — <short `comparison` evidence>
+- context changes and metric residual outcome — <count/status; no scope expansion>
 
 ### Files Reviewed
 - `path` — <regions and affected paths traced>
@@ -309,7 +308,7 @@ PASS | NEEDS ACTION | BLOCKED
 Status: PASS | NEEDS_ACTION | BLOCKED
 Changed files: none
 Functions/regions touched: none
-Decisive checks: <Compare result and bounded metric evidence; reads, searches, traces, and measurements>
+Decisive checks: <Compare result and short metric evidence; reads, searches, traces, and measurements>
 Project membership trigger: /update-vcxproj — <paths/reason> | none
 Build required: none
 Residuals: <pre-existing defect, incomplete trace, pending external verdict, or none>

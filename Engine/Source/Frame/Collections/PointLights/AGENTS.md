@@ -1,6 +1,6 @@
 # PointLights - Circular Point Lights
 
-Client-only point lights support owner-synced and fire-and-forget controlled lifecycles. Each visible light emits a projected lighting deposit and a visible sprite from lockstep buffers.
+Client-only point lights support owner-driven and fire-and-forget controlled lifecycles. Each visible light emits a projected lighting deposit and a visible sprite from lockstep buffers.
 
 ## Invariants
 

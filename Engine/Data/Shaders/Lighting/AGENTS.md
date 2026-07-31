@@ -1,6 +1,6 @@
 # Lighting Shaders - Dynamic Light Deposit and Spread
 
-Dynamic lights follow `deposit -> spread -> combine -> temporal`. Deposit shaders write three EWNS targets; visible-light billboards instead render directly into the main framebuffer. Hex shields provide an additional surface-normal depositor from Objects (`../Objects/AGENTS.md`).
+Dynamic lights follow `deposit -> spread -> combine -> temporal`. Deposit shaders write three EWNS targets (EWNS is defined in the shader hub, `../AGENTS.md`); visible-light billboards instead render directly into the main framebuffer. Hex shields provide an additional surface-normal depositor from Objects (`../Objects/AGENTS.md`).
 
 ## Pipeline Contracts
 

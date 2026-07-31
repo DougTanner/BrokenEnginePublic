@@ -1,5 +1,5 @@
-# Read-only bounded wait for the shared AgentTools promotion gate. The caller
-# owns any retry loop and reconciliation; this sidecar never asks for authority.
+# Read-only deadline-limited wait for the shared AgentTools promotion gate. The caller
+# owns any retry loop and reconciliation; this script never asks for authority.
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory = $true)]

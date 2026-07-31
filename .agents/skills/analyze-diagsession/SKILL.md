@@ -47,10 +47,10 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .agents/skills/analyze-diagsession
 ```
 
 Use `-SymbolCacheRoot <short-path>` only when `%TEMP%` is unsuitable. The
-sidecar scopes `_NT_SYMBOL_PATH` and `_NT_SYMCACHE_PATH` to xperf.
+script scopes `_NT_SYMBOL_PATH` and `_NT_SYMCACHE_PATH` to xperf.
 
 - xperf is expected at the Windows Performance Toolkit path encoded by the
-  sidecar. Allow up to 600000 ms on a first symbol-server run.
+  script. Allow up to 600000 ms on a first symbol-server run.
 - Keep the symbol cache path short; deep paths can fail partially with
   `0x80070003`.
 - If a first-party module remains `Unknown`, compare the trace PDB GUID/age
@@ -147,5 +147,6 @@ Do not author Plan files directly. Route proven optimization residuals through
 `/create-follow-up-plans`, which owns duplicate checks, Plan shape, tracked
 metadata, and dependencies; no Plan claim is required.
 
-When a final-evidence gate applies, complete `/verify-changes` and
-`/finalize-changes`; no post-landing row publication exists.
+When a landing gate applies (defined in root `AGENTS.md`), complete
+`/verify-changes` and `/finalize-changes`; no post-landing row publication
+exists.

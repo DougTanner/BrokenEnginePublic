@@ -1,8 +1,8 @@
 ---
 name: planner
 description: Producing plans and designs — implementation plans, interface/API design proposals, and approach options weighed against repository constraints.
-model: opus
-effort: high
+model: fable
+effort: medium
 disallowedTools: Agent
 ---
 

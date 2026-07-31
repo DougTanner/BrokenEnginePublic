@@ -1,6 +1,6 @@
 # Network Server - Host, Slots, and Resends
 
-Server-only engine transport. `Server` (`gpServer`) owns the ENet host, client transport records, subscription slots, update rings, and resend state. `ServerSessionRuntime` owns host lifetime, fixed-tick pacing, discovery, poll/tick/paused sequencing, persistent queue servicing, publication consumption, resend, flush, and transport reset. The concrete game server session (`../../../../Projects/BrokenEngineSandbox/Source/Network/Server/AGENTS.md`) supplies authorization, publication construction, transfers, and gameplay hooks.
+Server-only engine transport. `Server` (`gpServer`) owns the ENet host, client transport records, subscription slots, update rings, and resend state. `ServerSessionRuntime` owns host lifetime, fixed-tick pacing, discovery, poll/tick/paused sequencing, persistent queue servicing, broadcast consumption, resend, flush, and transport reset. The concrete game server session (`../../../../Projects/BrokenEngineSandbox/Source/Network/Server/AGENTS.md`) supplies authorization, broadcast construction, transfers, and gameplay hooks.
 
 ## Affinity and Lifetime
 
@@ -14,7 +14,7 @@ Server-only engine transport. `Server` (`gpServer`) owns the ENet host, client t
 - Run the parent client-to-server contract gate before dispatch. Variable payload handlers parse into bounded local state before mutation, and contract violations use the central accounting/disconnect path.
 - Each client independently admits one desync report and one debug-frame request per two seconds of `steady_clock` time after contract validation. Immediate repeats within the per-poll cap are silent; over-cap traffic retains the contract-violation policy. A disabled-build debug-frame request remains contract-valid, starts its cooldown, then returns without parsing, logging, lookup, compression, or sending.
 - Poll-scoped requests drain each poll. New-subscription and resync requests persist until serviced by post-tick broadcast or the paused/zero-tick service path; deduplicate them while pending.
-- A subscription must be origin or adjacent to an authorized coordinate. Subscription, ACK, and resend-log bookkeeping stay together per slot; allocation stays within the client-supported count, and reuse increments rather than resets the epoch.
+- A subscription must be origin or adjacent to an authorized coordinate. Subscription, ACK, and resend-log bookkeeping stay together per slot; allocation stays within the client-supported count, and reuse increments rather than resets the epoch (the reuse counter — see `../../AGENTS.md`).
 - After existing-client lookup, unsubscribe ACKs every syntactically valid request and frees only an in-range active slot whose epoch matches the request.
 - Clamp ACK floors to buffered history. Treat an all-zero ACK field as latency, not a resend gap, and cap resends per slot per tick.
 

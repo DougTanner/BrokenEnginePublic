@@ -16,7 +16,7 @@ Run a findings-only, multi-perspective review from the main invoking context. Th
 
 ## Scope and Authorities
 
-Require a target path. If absent, ask for it. Resolve scope before dispatch:
+Require a review scope path. If absent, ask for it. Resolve the scope before dispatch:
 
 - Exact file: review only that file. Follow dependencies and callers as evidence, but report a finding only when the defect is rooted in the target file or its contract.
 - Directory, non-recursive (default): enumerate only files directly in that directory. Do not silently include descendants.
@@ -26,11 +26,11 @@ Record the exact scoped-file manifest and pass it to every reviewer. Evidence ma
 
 Before dispatch, read root `AGENTS.md` and every nested `AGENTS.md` applicable to the scoped files. Preload every reviewer with those authority paths and the scoped-file manifest; require them to read the authorities before source. Findings cite the controlling `AGENTS.md` path and section or line when a repository rule supplies the judgment. Checklists are heuristics, never authority.
 
-## Main-Context Reviewer Waves
+## Main-Context Reviewer Rounds
 
 The main invoking context owns dispatch and synthesis. If this workflow is entered from a delegated context that repository policy forbids from delegating, return a main-context dispatch requirement; do not replace the five independent lenses with an inline approximation.
 
-Inspect available depth and concurrency. Dispatch one `reviewer` role per lens below, in waves no larger than the currently free slots. Never ask a reviewer to delegate. Refill slots only as prior reviewers finish, and do not merge lenses merely to fit a host limit. Every prompt includes the target, exact scope mode and manifest, authority paths, lens checklist, finding schema, external-claim routing, and findings-only boundary.
+Inspect available depth and concurrency. Dispatch one `reviewer` role per lens below, in rounds no larger than the currently free slots. Never ask a reviewer to delegate. Refill slots only as prior reviewers finish, and do not merge lenses merely to fit a host limit. Every prompt includes the review scope, exact scope mode and manifest, authority paths, lens checklist, finding schema, external-claim routing, and findings-only boundary.
 
 ### Lens A — Dependencies and Layering
 
@@ -84,7 +84,7 @@ Use precise symbols and evidence, not thematic summaries. Unused includes and de
 
 Reviewers do not establish non-obvious external API, specification, license, maintenance, or ThirdParty behavior from memory. They return an External Claim Verification Request containing the exact proposition, dependent finding, applicable repository version/configuration, why it matters, and an official candidate source when known.
 
-After reviewer waves complete, route every such request through `verify-external-claims` before consolidation. Apply its verdict: retain `VERIFIED` evidence, remove or correct a `REFUTED` dependent finding, and move `UNRESOLVED` claims to residuals rather than presenting them as confirmed recommendations.
+After reviewer rounds complete, route every such request through `verify-external-claims` before consolidation. Apply its verdict: retain `VERIFIED` evidence, remove or correct a `REFUTED` dependent finding, and move `UNRESOLVED` claims to residuals rather than presenting them as confirmed recommendations.
 
 ## Consolidate and Report
 

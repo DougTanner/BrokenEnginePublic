@@ -9,7 +9,6 @@
     <ClCompile Include="..\..\BuildCommand.cpp"><Filter>WorktreeCli</Filter></ClCompile>
     <ClCompile Include="..\..\LandingLockCommands.cpp"><Filter>WorktreeCli</Filter></ClCompile>
     <ClCompile Include="..\..\LandingLockLifecycle.cpp"><Filter>WorktreeCli</Filter></ClCompile>
-    <ClCompile Include="..\..\PlanCommands.cpp"><Filter>WorktreeCli</Filter></ClCompile>
     <ClCompile Include="..\..\PlanMetadata.cpp"><Filter>WorktreeCli</Filter></ClCompile>
     <ClCompile Include="..\..\PlanScheduler.cpp"><Filter>WorktreeCli</Filter></ClCompile>
     <ClCompile Include="..\..\..\ToolCommon\CoordinationStore.cpp"><Filter>ToolCommon</Filter></ClCompile>
@@ -19,7 +18,6 @@
     <ClInclude Include="..\..\BuildCommand.h"><Filter>WorktreeCli</Filter></ClInclude>
     <ClInclude Include="..\..\LandingLockCommands.h"><Filter>WorktreeCli</Filter></ClInclude>
     <ClInclude Include="..\..\LandingLockLifecycle.h"><Filter>WorktreeCli</Filter></ClInclude>
-    <ClInclude Include="..\..\PlanCommands.h"><Filter>WorktreeCli</Filter></ClInclude>
     <ClInclude Include="..\..\PlanMetadata.h"><Filter>WorktreeCli</Filter></ClInclude>
     <ClInclude Include="..\..\PlanScheduler.h"><Filter>WorktreeCli</Filter></ClInclude>
     <ClInclude Include="..\..\..\ToolCommon\CoordinationStore.h"><Filter>ToolCommon</Filter></ClInclude>

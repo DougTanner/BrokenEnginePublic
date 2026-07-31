@@ -1,12 +1,12 @@
 # Island Export Pipeline
 
-Gaea route baking, archetype patching, region splitting, and island intermediate generation. The parent ExportJobs hub (`../AGENTS.md`) owns generic cache and chunk rules.
+Gaea route baking, archetype patching, region splitting, and island intermediate generation. An archetype is a reusable Gaea terrain template that an island export starts from. The parent ExportJobs hub (`../AGENTS.md`) owns generic cache and chunk rules.
 
 ## Cache Lifecycle
 
 Route-level raw Gaea output and leaf geometry live under `%LOCALAPPDATA%/BrokenEngine/DataPackerCache/<project>/Gaea/Islands/`. `BakeVersion.meta` fingerprints the island configuration, resolved terrain, route identity, and bake contract. `SplitVersion.meta` separately fingerprints region splitting, so a split-only change reuses the expensive raw bake.
 
-`BakedDimensions.json` is written last in each accepted leaf and is the completion sentinel consumed by `ExportIsland::Handles()`. Rejected or incomplete leaves must not retain it. When route subdivision or pruning changes, remove stale higher-index leaf directories so their old sentinels cannot produce chunks.
+`BakedDimensions.json` is written last in each accepted leaf and is the completion marker consumed by `ExportIsland::Handles()`. Rejected or incomplete leaves must not retain it. When route subdivision or pruning changes, remove stale higher-index leaf directories so their old markers cannot produce chunks.
 
 With `BT_DATAPACKER_FORBID_EXPENSIVE_EXPORT=1`, a dirty route fails before launching Gaea. Clean route caches remain usable.
 

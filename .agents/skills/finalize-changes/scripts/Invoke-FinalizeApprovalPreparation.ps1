@@ -1,21 +1,22 @@
 
 # Single pre-approval mutation boundary for a session landing.
 # Invoked once per landing after reconciliation has produced the final clean
-# session tree, with the same identities, branches, baseline, expected tips,
-# capability switches, and wrapper owner required by the structural preflight.
+# session tree, with the same identities, branches, and expected tips required by
+# the shared structural sanity check.
 #
 # The command validates the original candidate, collapses a linear multi-commit
 # session range to one deterministic tree-identical commit with the current primary
 # tip as its sole parent, atomically replaces only the expected session ref, rolls
-# back a replacement whose postconditions fail, and reruns the structural
-# preflight against the final tip. Callers never reconstruct its Git commands
+# back a replacement whose postconditions fail, and reruns the structural sanity
+# check against the final tip. Callers never reconstruct its Git commands
 # inline. The review window opens later: Show-FinalizeApprovalReview.ps1 owns the
-# SmartGit launch and workflow step 5 calls it last, once the returned tip is bound
+# SmartGit launch and workflow step 4 calls it last, once the returned tip is bound
 # into a fully staged landing.
 #
-# Success contract: exit 0, schema broken-engine-finalize-approval-preparation/v1,
-# status pass, code ok, final preflight PASS, and one returned approvedSession
-# tip — the approval and landing candidate. The tree identity checks preserve
+# Success contract: exit 0, schema broken-engine-finalize-approval-preparation/v2,
+# status pass, code ok, final sanity PASS, and `session.currentTip` and
+# `candidate.commit` naming the exact same validated approval and landing
+# candidate. The tree identity checks preserve
 # content across a squash; the returned tip replaces the pre-squash session tip in
 # every approval-bound field. A later primary advance does not rerun this script —
 # rebase the approved candidate directly. A preparation blocker leaves primary
@@ -27,22 +28,15 @@ param(
 	[Parameter(Mandatory)][string] $PrimaryWorktree,
 	[Parameter(Mandatory)][string] $CurrentBranch,
 	[Parameter(Mandatory)][string] $PrimaryBranch,
-	[Parameter(Mandatory)][string] $Baseline,
 	[Parameter(Mandatory)][string] $ExpectedCurrentTip,
 	[Parameter(Mandatory)][string] $ExpectedPrimaryTip,
-	[Parameter(Mandatory)][string] $SessionOwner,
-	[string] $WaitSeconds = '60',
-	[string] $CandidateReceiptPath,
-	[string] $CandidateReceiptSha256,
 	[string] $VerifiedCandidateCommit,
 	[string] $VerifiedCandidateTree,
-	[ValidateSet('none', 'compare-and-swap', 'postcondition', 'final-dirty')][string] $FixtureFailure = 'none'
+	[ValidateSet('none', 'compare-and-swap', 'postcondition', 'final-dirty', 'bounded-diagnostic')][string] $FixtureFailure = 'none'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$candidateReceiptPathBound = $PSBoundParameters.ContainsKey('CandidateReceiptPath')
-$candidateReceiptSha256Bound = $PSBoundParameters.ContainsKey('CandidateReceiptSha256')
 $verifiedCandidateCommitBound = $PSBoundParameters.ContainsKey('VerifiedCandidateCommit')
 $verifiedCandidateTreeBound = $PSBoundParameters.ContainsKey('VerifiedCandidateTree')
 $workflowModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
@@ -52,7 +46,7 @@ if (-not (Test-Path -LiteralPath $workflowModule)) {
 Import-Module $workflowModule -Force
 
 $result = [ordered]@{
-	schemaVersion = 'broken-engine-finalize-approval-preparation/v1'
+	schemaVersion = 'broken-engine-finalize-approval-preparation/v2'
 	status = 'error'
 	code = 'internal.error'
 	message = 'Approval preparation did not complete.'
@@ -67,16 +61,15 @@ $result = [ordered]@{
 		originalTree = $null
 		approvedTree = $null
 		replacementCommit = $null
+		approvedParent = $null
 		refUpdated = $false
 		rollback = 'not-required'
 	}
-	candidateBootstrap = $null
 	verifiedCandidate = [ordered]@{ commit = $VerifiedCandidateCommit; tree = $VerifiedCandidateTree; matched = $false }
-	preflight = [ordered]@{
+	sanity = [ordered]@{
 		initial = $null
 		final = $null
 	}
-	planClaim = [ordered]@{ present = $false; state = 'absent'; disposition = 'none' }
 }
 
 $script:CurrentIdentity = $null
@@ -91,8 +84,46 @@ function Complete-Preparation([int] $ExitCode, [string] $Status, [string] $Code,
 	$result.status = $Status
 	$result.code = $Code
 	$result.message = $Message
-	[Console]::Out.Write(($result | ConvertTo-Json -Depth 12 -Compress))
+	[Console]::Out.Write(((New-ApprovalPreparationProjection) | ConvertTo-Json -Depth 8 -Compress))
 	exit $ExitCode
+}
+
+function Get-BoundedApprovalText([AllowNull()] $Value, [int] $Limit)
+{
+	if ($null -eq $Value) { return [pscustomobject]@{ Text = $null; Length = 0; Truncated = $false } }
+	$Value = [string]$Value
+	return [pscustomobject]@{ Text = $(if ($Value.Length -gt $Limit) { $Value.Substring(0, $Limit) } else { $Value }); Length = $Value.Length; Truncated = ($Value.Length -gt $Limit) }
+}
+
+function Get-ApprovalGitObjectId([AllowNull()] $Value)
+{
+	if ($null -ne $Value -and [string]$Value -cmatch '^[0-9a-f]{40}$') { return [string]$Value }
+	return $null
+}
+
+function New-ApprovalPreparationProjection
+{
+	$message = Get-BoundedApprovalText ([string]$result.message) 512
+	$code = Get-BoundedApprovalText ([string]$result.code) 128
+	$diagnostics = @()
+	if ($result.status -cne 'pass')
+	{
+		$diagnosticMessage = Get-BoundedApprovalText ([string]$result.message) 512
+		$diagnosticCode = Get-BoundedApprovalText ([string]$result.code) 128
+		$diagnostics = @([ordered]@{ source = 'Invoke-FinalizeApprovalPreparation'; code = $diagnosticCode.Text; codeLength = $diagnosticCode.Length; codeTruncated = $diagnosticCode.Truncated; path = $null; pathLength = 0; pathTruncated = $false; message = $diagnosticMessage.Text; messageLength = $diagnosticMessage.Length; messageTruncated = $diagnosticMessage.Truncated })
+	}
+	$initialState = if ($null -ne $result.sanity.initial -and $result.sanity.initial.Ok) { 'pass' } else { 'not-run' }
+	$finalState = if ($null -ne $result.sanity.final -and $result.sanity.final.Ok) { 'pass' } else { 'not-run' }
+	return [ordered]@{
+		schemaVersion = 'broken-engine-finalize-approval-preparation/v2'; status = $result.status; code = $code.Text
+		message = $message.Text; messageLength = $message.Length; messageTruncated = $message.Truncated
+		session = [ordered]@{ originalTip = Get-ApprovalGitObjectId $result.tips.originalSession; currentTip = Get-ApprovalGitObjectId $result.tips.approvedSession; primaryTip = Get-ApprovalGitObjectId $result.tips.primary }
+		candidate = [ordered]@{ commit = Get-ApprovalGitObjectId $result.tips.approvedSession; tree = Get-ApprovalGitObjectId $result.squash.approvedTree; parent = Get-ApprovalGitObjectId $result.squash.approvedParent }
+		squash = [ordered]@{ disposition = $result.squash.disposition; commitCount = $result.squash.commitCount; refUpdated = $result.squash.refUpdated; rollback = $result.squash.rollback }
+		sanity = [ordered]@{ initial = $initialState; final = $finalState }
+		verifiedCandidate = [ordered]@{ supplied = $verifiedCandidateCommitBound; matched = [bool]$result.verifiedCandidate.matched }
+		diagnostics = [ordered]@{ totalCount = $diagnostics.Count; items = $diagnostics; truncated = $false; selector = $null; requery = $(if ($diagnostics.Count -gt 0) { 'Invoke-FinalizeApprovalPreparation' } else { $null }) }
+	}
 }
 
 function Throw-Preparation([int] $ExitCode, [string] $Code, [string] $Message)
@@ -111,68 +142,15 @@ function Assert-Input([bool] $Condition, [string] $Message)
 	}
 }
 
-function Get-JsonResponse($Response, [string] $Operation)
+function Invoke-LandingSanity([string] $CurrentTip)
 {
-	try
+	$sanity = Test-FinalizeLandingSanity -SessionWorktree $CurrentWorktree -PrimaryWorktree $PrimaryWorktree `
+		-SessionBranch $CurrentBranch -PrimaryBranch $PrimaryBranch -ExpectedSessionTip $CurrentTip -ExpectedPrimaryTip $ExpectedPrimaryTip
+	if (-not $sanity.Ok)
 	{
-		return $Response.Stdout | ConvertFrom-Json
+		Throw-Preparation 2 "sanity.$($sanity.Code)" "Landing sanity failed: $($sanity.Message)"
 	}
-	catch
-	{
-		Throw-Preparation 1 'process.invalid-json' "$Operation returned invalid JSON: $($Response.Stdout.Trim())"
-	}
-}
-
-function Invoke-Preflight([string] $CurrentTip)
-{
-	$preflight = Join-Path $PSScriptRoot 'Test-FinalizePreflight.ps1'
-	$arguments = [Collections.Generic.List[string]]::new()
-	foreach ($argument in @(
-		'-NoProfile', '-File', $preflight,
-		'-Mode', 'session-landing',
-		'-Checkpoint', 'after-reconciliation',
-		'-CurrentWorktree', $CurrentWorktree,
-		'-PrimaryWorktree', $PrimaryWorktree,
-		'-CurrentBranch', $CurrentBranch,
-		'-PrimaryBranch', $PrimaryBranch,
-		'-Baseline', $Baseline,
-		'-ExpectedCurrentTip', $CurrentTip,
-		'-ExpectedPrimaryTip', $ExpectedPrimaryTip
-	))
-	{
-		$arguments.Add($argument)
-	}
-	foreach ($argument in @('-SessionOwner', $SessionOwner, '-WaitSeconds', $WaitSeconds))
-	{
-		$arguments.Add($argument)
-	}
-	if ($candidateReceiptPathBound)
-	{
-		foreach ($argument in @('-CandidateReceiptPath', $CandidateReceiptPath, '-CandidateReceiptSha256', $CandidateReceiptSha256)) { $arguments.Add($argument) }
-	}
-	$response = Invoke-FinalizeNativeText 'pwsh.exe' $arguments.ToArray() $CurrentWorktree
-	$preflightResult = Get-JsonResponse $response 'Finalization preflight'
-	if ($response.ExitCode -ne 0 -or $preflightResult.status -cne 'pass' -or $preflightResult.code -cne 'ok')
-	{
-		$exitCode = if ($response.ExitCode -eq 2) { 2 } else { 1 }
-		Throw-Preparation $exitCode "preflight.$($preflightResult.code)" "Finalization preflight failed: $($preflightResult.message)"
-	}
-	return $preflightResult
-}
-
-function Get-CandidateBootstrapCertification([string] $ExpectedCommit)
-{
-	if (-not $candidateReceiptPathBound) { return $null }
-	$certificationScript = Join-Path $PSScriptRoot 'Test-AgentToolsCandidateCertification.ps1'
-	if (-not (Test-Path -LiteralPath $certificationScript -PathType Leaf)) { Throw-Preparation 1 'candidate.certification-missing' "Candidate certification script is missing: '$certificationScript'." }
-	$response = Invoke-FinalizeNativeText 'pwsh.exe' @('-NoProfile', '-File', $certificationScript, '-RepositoryRoot', $script:PrimaryIdentity,
-		'-WorktreeRoot', $script:CurrentIdentity, '-CandidateReceiptPath', $CandidateReceiptPath, '-CandidateReceiptSha256', $CandidateReceiptSha256, '-ExpectedCommit', $ExpectedCommit) $script:CurrentIdentity
-	$certification = Get-JsonResponse $response 'AgentTools candidate certification'
-	if ($response.ExitCode -eq 2 -and $certification.status -ceq 'blocked') { Throw-Preparation 2 'candidate.certification-failed' $certification.message }
-	if ($response.ExitCode -ne 0 -or $certification.status -cne 'pass' -or $certification.code -cne 'ok' -or $null -eq $certification.executables.WorktreeCli) {
-		Throw-Preparation 1 'candidate.certification-invalid' 'AgentTools candidate certification returned an invalid success result.'
-	}
-	return [ordered]@{ receiptPath = $CandidateReceiptPath; receiptSha256 = $CandidateReceiptSha256; worktreeCli = $certification.executables.WorktreeCli }
+	return $sanity
 }
 
 function Get-GitText([string[]] $Arguments)
@@ -277,31 +255,26 @@ function Restore-OriginalRef
 	$result.squash.refUpdated = $false
 	$result.squash.rollback = 'restored-original'
 	$result.tips.approvedSession = $script:OriginalTip
+	$result.squash.approvedParent = $null
 }
 
 try
 {
-	foreach ($hash in @($Baseline, $ExpectedCurrentTip, $ExpectedPrimaryTip))
+	foreach ($hash in @($ExpectedCurrentTip, $ExpectedPrimaryTip))
 	{
 		Assert-Input ($hash -cmatch '^[0-9a-f]{40}$') 'Commit inputs must be exactly 40 lowercase hexadecimal characters.'
 	}
-	Assert-Input ($SessionOwner -cmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') 'SessionOwner must be a canonical lowercase GUID.'
-	Assert-Input ($candidateReceiptPathBound -eq $candidateReceiptSha256Bound) 'Candidate receipt path and SHA-256 must be supplied together.'
 	Assert-Input ($verifiedCandidateCommitBound -eq $verifiedCandidateTreeBound) 'Verified candidate commit and tree must be supplied together.'
 	if ($verifiedCandidateCommitBound) {
 		Assert-Input ($VerifiedCandidateCommit -cmatch '^[0-9a-f]{40}$' -and $VerifiedCandidateTree -cmatch '^[0-9a-f]{40}$') 'Verified candidate identities must be lowercase 40-character object IDs.'
 		Assert-Input (Test-FinalizeGitSuccess $CurrentWorktree @('rev-parse', '--verify', "$VerifiedCandidateCommit^{commit}")) 'Verified candidate commit does not exist.'
 		Assert-Input ((Invoke-FinalizeGit $CurrentWorktree @('rev-parse', "$VerifiedCandidateCommit^{tree}")).Trim() -ceq $VerifiedCandidateTree) 'Verified candidate tree does not match its commit.'
 	}
-	if ($candidateReceiptPathBound)
-	{
-		Assert-Input (-not [string]::IsNullOrWhiteSpace($CandidateReceiptPath)) 'CandidateReceiptPath must not be blank.'
-		Assert-Input ($CandidateReceiptSha256 -cmatch '^[0-9a-f]{64}$') 'CandidateReceiptSha256 must be 64 lowercase hexadecimal characters.'
-	}
 	if ($FixtureFailure -cne 'none')
 	{
 		Assert-Input ($env:BROKEN_ENGINE_FINALIZE_APPROVAL_PREPARATION_FIXTURE -ceq '1') 'Fixture-only inputs require the finalization preparation fixture environment.'
 	}
+	if ($FixtureFailure -ceq 'bounded-diagnostic') { Throw-Preparation 1 (('c' * 140)) (('m' * 600)) }
 
 	$script:CurrentIdentity = Get-FinalizeExistingWindowsIdentity $CurrentWorktree 'Current worktree'
 	$script:PrimaryIdentity = Get-FinalizeExistingWindowsIdentity $PrimaryWorktree 'Primary worktree'
@@ -313,13 +286,13 @@ try
 	{
 		Throw-Preparation 2 'git.session-dirty' 'Session worktree or index is not clean.'
 	}
-	$result.preflight.initial = Invoke-Preflight $ExpectedCurrentTip
+	$result.sanity.initial = Invoke-LandingSanity $ExpectedCurrentTip
 
 	$actualBranch = Get-GitText @('branch', '--show-current')
 	$actualTip = Get-GitText @('rev-parse', 'HEAD')
 	if ($actualBranch -cne $CurrentBranch -or $actualTip -cne $ExpectedCurrentTip)
 	{
-		Throw-Preparation 2 'git.session-identity-changed' 'Session branch or tip changed after initial preflight.'
+		Throw-Preparation 2 'git.session-identity-changed' 'Session branch or tip changed after the initial sanity check.'
 	}
 	$script:OriginalTip = $actualTip
 	$result.tips.originalSession = $actualTip
@@ -336,6 +309,17 @@ try
 	{
 		Throw-Preparation 2 'git.session-range-has-merge' 'Session range contains a merge commit.'
 	}
+	# The squash grafts the session tree onto the primary tip, so a primary tip the session
+	# does not already contain would silently drop the intervening primary commits.
+	$ancestry = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:CurrentIdentity, 'merge-base', '--is-ancestor', $ExpectedPrimaryTip, $actualTip) $script:CurrentIdentity
+	if ($ancestry.ExitCode -eq 1)
+	{
+		Throw-Preparation 2 'git.primary-not-ancestor' 'Session tip does not contain the current primary tip; rebase the session onto primary before approval preparation.'
+	}
+	if ($ancestry.ExitCode -ne 0)
+	{
+		throw "git merge-base --is-ancestor failed: $($ancestry.Stderr.Trim())."
+	}
 	$originalTree = Get-GitText @('rev-parse', "$actualTip^{tree}")
 	if ($verifiedCandidateCommitBound -and $originalTree -cne $VerifiedCandidateTree) { Throw-Preparation 2 'candidate.tree-changed' 'Reconciled session tree no longer equals the reviewed candidate tree.' }
 	if ($verifiedCandidateCommitBound) { $result.verifiedCandidate.matched = $true }
@@ -345,6 +329,7 @@ try
 	{
 		$result.squash.disposition = 'one-commit-no-op'
 		$result.squash.approvedTree = $originalTree
+		$result.squash.approvedParent = Get-GitText @('rev-parse', "$actualTip^")
 		$result.tips.approvedSession = $actualTip
 	}
 	else
@@ -371,6 +356,7 @@ try
 		$approvedTree = Get-GitText @('rev-parse', "$replacementTip^{tree}")
 		$result.squash.approvedTree = $approvedTree
 		$parents = @((Get-GitText @('rev-list', '--parents', '-n', '1', $replacementTip)) -split ' ')
+		$result.squash.approvedParent = $parents[1]
 		$approvedRangeCount = [int](Get-GitText @('rev-list', '--count', "$ExpectedPrimaryTip..$replacementTip"))
 		if ($resolvedTip -cne $replacementTip -or $parents.Count -ne 2 -or $parents[1] -cne $ExpectedPrimaryTip -or $approvedRangeCount -ne 1 -or $approvedTree -cne $originalTree -or -not (Test-CleanSession))
 		{
@@ -378,23 +364,21 @@ try
 		}
 	}
 
-	$result.preflight.final = Invoke-Preflight $result.tips.approvedSession
-	if ($result.preflight.final.tips.current -cne $result.tips.approvedSession -or $result.preflight.final.tips.primary -cne $ExpectedPrimaryTip)
+	$result.sanity.final = Invoke-LandingSanity $result.tips.approvedSession
+	if ($result.sanity.final.SessionTip -cne $result.tips.approvedSession -or $result.sanity.final.PrimaryTip -cne $ExpectedPrimaryTip)
 	{
-		Throw-Preparation 2 'preflight.final-identity-mismatch' 'Final preflight did not bind the approved session tip and primary tip.'
+		Throw-Preparation 2 'sanity.final-identity-mismatch' 'The final sanity check did not bind the approved session tip and primary tip.'
 	}
-	$result.candidateBootstrap = Get-CandidateBootstrapCertification $result.tips.approvedSession
-	$result.planClaim = $result.preflight.final.planClaim
 	if ($FixtureFailure -ceq 'final-dirty')
 	{
 		[IO.File]::WriteAllText((Join-Path $script:CurrentIdentity 'fixture-final-dirty.tmp'), 'fixture', [Text.UTF8Encoding]::new($false))
 	}
 	if (-not (Test-CleanSession))
 	{
-		Throw-Preparation 2 'git.session-dirty-after-preflight' 'Session worktree or index changed during final approval preparation.'
+		Throw-Preparation 2 'git.session-dirty-after-sanity' 'Session worktree or index changed during final approval preparation.'
 	}
 
-	Complete-Preparation 0 'pass' 'ok' 'Approval candidate is prepared and bound to final preflight.'
+	Complete-Preparation 0 'pass' 'ok' 'Approval candidate is prepared and bound to the final sanity check.'
 }
 catch
 {

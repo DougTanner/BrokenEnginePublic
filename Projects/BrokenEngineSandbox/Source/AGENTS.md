@@ -6,14 +6,14 @@ Game implementation built on Engine and Common. `Game` owns the per-side session
 
 ## Ownership
 
-- `Fleet` is the shared data model and uses server-minted persistent identifiers. `FleetSelection` is client-only focus and navigation UI state.
+- `Fleet` is the shared data model and uses persistent identifiers assigned by the server. `FleetSelection` is client-only focus and navigation UI state.
 - `ClientSession` and `ServerSession` are game-policy façades that compose engine-owned session runtimes. See `Network/AGENTS.md`.
 - `GameSaveLoad` is server-only and owns save/load/replay. Its persistence and replay contracts live in `Save/AGENTS.md`.
 - Agent commands are game-dispatched, but the build-agnostic shared handlers, transport, synthetic input, and UI snapshots are engine-owned; the dispatcher tries the engine shared handlers before its side-specific ones. See `Agent/AGENTS.md`.
 
 ## Architecture
 
-- Client subscriptions cover the current cell plus visible neighbors within the authorized 3x3 ring. Change the client coord through `Game::SetClientGridCoord()` so the visible-neighbor cache is invalidated.
+- Client subscriptions cover the current cell plus visible neighbors within the authorized 3x3 ring. Change the client's cell through `Game::SetClientGridCoord()` so the visible-neighbor cache is invalidated.
 - Cross-cell transfers are serialized `StatusChange`s carrying spawn state. They are removed from `FrameInput` before normal Spawn processing.
 - Player/enemy alignments are copied into each new `FramePostRender`; frame code reads the snapshot, not `gpGame`.
 - Persisted client settings are versioned POD written through the engine versioned-file helpers. Bump the owning version on layout change.
