@@ -469,8 +469,7 @@ FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rR
 		return PathLess(std::filesystem::relative(files.at(uiLeftIndex), rRoot.mSource), std::filesystem::relative(files.at(uiRightIndex), rRoot.mSource));
 	});
 	ULARGE_INTEGER available {};
-	ULARGE_INTEGER total {};
-	if (!GetDiskFreeSpaceExW(rRoot.mDestination.root_path().native().c_str(), &available, &total, nullptr))
+	if (!GetDiskFreeSpaceExW(rRoot.mDestination.root_path().native().c_str(), &available, nullptr, nullptr))
 	{
 		const DWORD uiError = GetLastError();
 		diagnostic::Record record
@@ -484,7 +483,7 @@ FileManager::EnsureLocalResult FileManager::MaterializeOutput(OutputRootInfo& rR
 		diagnostic::Report(record);
 		throw diagnostic::AlreadyReportedError(record.message);
 	}
-	diagnostic::DiskSpaceDecision eDiskSpaceDecision = diagnostic::ReportMaterializationDiskSpace(uiAllocation, available.QuadPart, total.QuadPart, rRoot.mSource, rRoot.mDestination);
+	diagnostic::DiskSpaceDecision eDiskSpaceDecision = diagnostic::ReportMaterializationDiskSpace(uiAllocation, available.QuadPart, rRoot.mSource, rRoot.mDestination);
 	if (eDiskSpaceDecision == diagnostic::DiskSpaceDecision::kFailed)
 	{
 		throw diagnostic::AlreadyReportedError("Insufficient disk space to materialize worktree output");

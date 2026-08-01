@@ -185,7 +185,7 @@ try {
 	Remove-FixturePath $outputData
 	New-DirectoryLink $outputData $primaryData
 	$drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($primaryData))
-	$warningBytes = [Math]::Max(10L * 1024 * 1024 * 1024, [long][Math]::Ceiling($drive.TotalSize * 0.10))
+	$warningBytes = 10L * 1024 * 1024 * 1024
 	$sparseLength = [Math]::Max(1L * 1024 * 1024, $drive.AvailableFreeSpace - $warningBytes + 1024 * 1024)
 	$conservativeAllocation = $sparseLength + 1024 * 1024
 	$reserveBytes = [Math]::Max(1L * 1024 * 1024 * 1024, [long][Math]::Ceiling($conservativeAllocation * 0.05))

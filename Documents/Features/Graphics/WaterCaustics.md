@@ -26,7 +26,7 @@ if (fCausticStrength > 0.0f)
 
 - Adding into `f3DepthColor` (pre-mix) means caustics fade out with wave height/depth exactly like the rest of the floor color, and inherit directional lighting, height darken, and the shadow split downstream — physically sensible (light hits floor, travels back up).
 - Ordering note: `f3SunOrMoon` is currently computed after the depth-LUT block — hoist it (pure reorder, no logic change) so the caustics tint can use the sun/moon `max`-combine (moonlit caustics at night).
-- UV: caustics live on the sea floor, so sample at the *un-displaced* position (`f2InInitialPosition`-based), NOT the wave-displaced one. MUST follow the precision-safe sampling pact (`fract()`-wrapped UV + `textureGrad`, CPU-reduced origin/time per layer supplied like the color-noise path in `WaterUniforms.cpp`).
+- UV: caustics live on the sea floor, so sample at the *un-displaced* position (`f2InInitialPosition`-based), NOT the wave-displaced one. MUST follow the precision-safe sampling contract (`fract()`-wrapped UV + `textureGrad`, CPU-reduced origin/time per layer supplied like the color-noise path in `WaterUniforms.cpp`).
 - Branch is warp-coherent in deep water regions (`fCausticStrength` varies smoothly with terrain), acceptable.
 
 ### New uniforms / sliders

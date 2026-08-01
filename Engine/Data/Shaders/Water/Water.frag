@@ -87,7 +87,7 @@ void main()
 
 	WaterNormalSamplingResult normalResult = SampleWaterNormals();
 
-	// Color (noise with precision-safe UV — same pact as SAMPLE_NORMAL_PRECISE above).
+	// Color (noise with precision-safe UV — same contract as SAMPLE_NORMAL_PRECISE above).
 	// CPU stores fmod(freq*camera, 10.0) so mult * 10 must be integer for fract() to absorb the wrap.
 	// gWaterColorNoiseMultiplierOne/Two sliders (WaterWrappersBase.cpp) snap to a 0.1 grid so the
 	// product stays integer for any tuning (0.0, 0.1, 0.2, ...). Derivatives taken from the un-scaled

@@ -115,7 +115,7 @@ ButtonResult Report(const Record& rRecord)
 	return rRecord.eButtons == ButtonContract::kOk || iResult == IDOK ? ButtonResult::kAcknowledged : ButtonResult::kCancelled;
 }
 
-DiskSpaceDecision ReportMaterializationDiskSpace(uint64_t uiAllocation, uint64_t uiAvailable, uint64_t uiTotal, const std::filesystem::path& rSource, const std::filesystem::path& rDestination)
+DiskSpaceDecision ReportMaterializationDiskSpace(uint64_t uiAllocation, uint64_t uiAvailable, const std::filesystem::path& rSource, const std::filesystem::path& rDestination)
 {
 	const uint64_t uiReserve = (std::max)(1ull << 30, (uiAllocation * 5 + 99) / 100);
 	const uint64_t uiRequired = uiAllocation + uiReserve;
@@ -134,7 +134,7 @@ DiskSpaceDecision ReportMaterializationDiskSpace(uint64_t uiAllocation, uint64_t
 	}
 
 	const uint64_t uiProjected = uiAvailable - uiAllocation;
-	const uint64_t uiWarning = (std::max)(10ull << 30, (uiTotal * 10 + 99) / 100);
+	const uint64_t uiWarning = 10ull << 30;
 	if (uiProjected < uiWarning)
 	{
 		Record record

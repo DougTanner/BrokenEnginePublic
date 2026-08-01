@@ -59,6 +59,6 @@ enum class DiskSpaceDecision
 
 void MarkValidatedLinkedWorktree();
 ButtonResult Report(const Record& rRecord);
-DiskSpaceDecision ReportMaterializationDiskSpace(uint64_t uiAllocation, uint64_t uiAvailable, uint64_t uiTotal, const std::filesystem::path& rSource, const std::filesystem::path& rDestination);
+DiskSpaceDecision ReportMaterializationDiskSpace(uint64_t uiAllocation, uint64_t uiAvailable, const std::filesystem::path& rSource, const std::filesystem::path& rDestination);
 
 } // namespace diagnostic
