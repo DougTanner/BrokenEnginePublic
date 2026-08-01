@@ -43,7 +43,9 @@ manager updates the authoritative plan.
 Confirm a checkable root cause before editing; leave an item unchanged when the
 cause is uncertain or out of scope. Apply the smallest change restoring approved
 behavior, check affected sites, and return out-of-scope candidates and build or
-runtime verification to the manager.
+runtime verification to the manager. Before handing off, audit the completed
+edit against the assignment, session baseline, and smallest plausible
+regression, and report the result under `Self-audit resolved`.
 
 Resolve conflicting sources by the authority order in root `AGENTS.md`
 `### Diagnosis Discipline`, naming the contradiction and the controlling source.

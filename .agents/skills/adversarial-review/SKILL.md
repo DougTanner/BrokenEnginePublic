@@ -46,6 +46,9 @@ conversation history. Do not turn either case into an open-ended repository audi
 
 ## Method
 
+Read the callers, consumers, schemas, instructions, generated outputs, or
+sibling paths each hypothesis needs; diff-only reading is insufficient.
+
 Test the contract appropriate to the artifact. For code and shaders, trace
 logic, integration, lifetime, threading, determinism, edge states, and build
 reachability. For scripts, project metadata, schemas, and data, trace inputs,
