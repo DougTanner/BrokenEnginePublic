@@ -29,14 +29,10 @@ worktree or inspect machine-local claims directly.
 - A filename selects only one exact case-sensitive executable leaf match;
   zero/duplicates block. Reject every other path shape.
 
-Run `scripts/Invoke-NextPlanClaim.ps1`; do not reconstruct its transitions. It
-requires a clean tree, validates before selection, and emits one fixed-shape JSON
-result. Public results expose schema version, status/code/message, next-stage
-state, and short counts/paths only; never a nested complete tool response or
-file/XML/log body. `none-available` is normal. Invalid metadata, dependency
-blockers, cycles, stale sessions, and claim conflicts stop without repair or
-reordering. Missing dependency paths are satisfied stale-edge notices. A claim
-this session already holds is returned idempotently.
+Run `scripts/Invoke-NextPlanClaim.ps1`; do not reconstruct its transitions. On
+`status: pass`, act on the code: `ok` and `reused` both mean this session holds
+the named claim, and `none-available` is a normal stop with nothing to claim.
+Any other status stops the skill without repair, reordering, or retry.
 
 ## Preparation and execution card
 
@@ -69,15 +65,10 @@ one direct question. An affirmative response approves only the latest unchanged
 presentation. A meaningful Plan, card, scope, invariant, acceptance, or decision
 change requires a new complete presentation.
 
-Skip only this pause when preparation proves the Plan is Tier 1,
-decision-complete, current, and free of meaningful scope/acceptance delta and
-unresolved decisions; main records those facts and continues. Tier 2/3,
-ambiguity, a meaningful delta, or an unresolved decision presents for approval
-first.
-
-After approval, or after recording that skip, continue through the root Change
-Workflow without another discretionary pause. A safety blocker may pause;
-clearing it resumes the approved route. The landing confirmation in
+Per the claimed-executable-Plan paragraph after the Change Workflow steps in
+root [AGENTS.md](../../../AGENTS.md), preparation that proves the Plan Tier 1,
+decision-complete, and current continues straight into implementation without
+this pause; main records those facts. The landing confirmation in
 `/finalize-changes` always applies.
 
 ## Claim lifecycle

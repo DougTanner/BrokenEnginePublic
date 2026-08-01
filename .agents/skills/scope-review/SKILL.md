@@ -2,13 +2,9 @@
 name: scope-review
 description: >-
   Review one Tier-2+ change's whole session diff for scope authorization and
-  diff-observable minimality: every changed region must trace to a named plan
-  `## In scope` clause or user instruction, and overbuilt additions — unused
-  options, speculative paths, one-use indirection, unrequested backward
-  compatibility — are findings. Use once per review round during Change Workflow
-  Step 5, dispatched through /codex-review in parallel with the per-artifact
-  correctness reviews; never per artifact type and never for Tier-1 work.
-  Findings only; never edits.
+  diff-observable minimality. Use once per review round during Change Workflow
+  Step 5; never per artifact type and never for Tier-1 work. Findings only;
+  never edits.
 allowed-tools: [Read, Grep, Glob, PowerShell]
 ---
 
@@ -32,11 +28,11 @@ naming the missing input.
 
 ## Execution Context
 
-Run solely inside one delegated `reviewer` via `/codex-review`; inline review
-is prohibited. Read-only: never edit a file. Tool restrictions are prose
-boundaries because frontmatter must not alter the calling context. Dispatch is
-once per review round over the whole diff; after the manager accepts findings
-and fixes land, only the affected regions receive a focused scope re-review.
+Run in the delegated execution context of
+`../../references/subagent-reporting.md`, dispatched via `/codex-review`;
+inline review is prohibited. Dispatch is once per review round over the whole
+diff; after the manager accepts findings and fixes land, only the affected
+regions receive a focused scope re-review.
 
 ## Review
 

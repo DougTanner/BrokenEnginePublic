@@ -2,11 +2,9 @@
 name: repo-code-review
 description: >-
   Review session-changed C++ for reachable correctness defects and Broken
-  Engine contract violations, including trust boundaries, allocation tracking,
-  ASSERT use, SOA collections, determinism, XMVECTOR W roles, frame phases,
-  client/server affinity, and integration. Use after C++ changes or when the
-  user asks to review, check, or audit C++ code. Excludes shader-only and
-  non-C++ changes; style and formatting belong to code-style-review.
+  Engine contract violations. Use after C++ changes or when the user asks to
+  review, check, or audit C++ code. Excludes shader-only and non-C++ changes;
+  style and formatting belong to code-style-review.
 allowed-tools: [Read, Grep, Glob, Bash, PowerShell]
 ---
 
@@ -65,20 +63,10 @@ another round.
    Call the digest wrapper `pwsh -NoProfile -File
    .agents/skills/code-quality-metrics/scripts/Get-CodeQualityEvidence.ps1 -Mode
    Compare -TargetManifest <supplied-manifest> -Baseline <fixed-full-sha>
-   -RepositoryRoot <absolute-checkout-root>`, omitting `-EvidenceDirectory` so
-   this review retains no file, and record the digest's `profile`,
-   `targetSelection`, `coverage`, and `comparison` evidence. Never reconstruct
-   the wrapper's field selection or summarization inline. This findings-only
-   review permits no changes except the entry point's validated ignored
-   `Temp/CodeQualityMetrics` cache and capture writes; do not write a manifest,
-   output file, source, or repository metadata. Every failure emits one error
-   envelope with null digest fields: exit `1` carries `evidence.contract-mismatch`
-   naming the exact field path for a contract violation, or `internal.error` for
-   any other unexpected operational error; exit `2` forwards the entry point's own
-   error verbatim in `underlying`. An
-   operational failure, including either exit, leaves the review incomplete with
-   `NEEDS_ACTION`, not a correctness finding. Record
-   `comparison.contextChanges` without widening the review scope.
+   -RepositoryRoot <absolute-checkout-root>` exactly as
+   [metrics-protocol.md](references/metrics-protocol.md) requires. Metrics are
+   advisory and never become a finding; an operational failure leaves the review
+   incomplete with `NEEDS_ACTION` rather than producing one.
 2. Read the changed regions in full-function context, their applicable
    `AGENTS.md`, and the producers, consumers, callers, and mirrored paths needed
    to trace the declared contracts. Diff-only inspection is insufficient.
@@ -102,20 +90,6 @@ another round.
    file or prescribe an inline reduction during review.
 8. Return the report and the conditional `/update-vcxproj` trigger. Never read
    or grep project XML in this review.
-
-Metrics remain advisory. A regression or classification never becomes a finding
-or changes a clean review to non-PASS. Only independent source inspection may
-promote a substantial new near-copy under the duplication rule below, or another
-reachable correctness violation. Changes that quietly weaken the code's
-structure are advisory follow-up evidence. A `target-parse-failure` makes the
-review incomplete with `NEEDS_ACTION`, not a finding: request a separate
-authorized implementer to apply the listed narrow sanitizer spot-fix, then rerun
-Compare in focused review. A `target-signature-extraction-failure` is also
-incomplete; investigate it and rerun, without treating it as a sanitizer
-instruction. Do not return PASS until every authorized target has complete
-parsing and signature extraction. A corpus-only `upstream-omitted` row — a
-corpus file the analyzer's parser left out — is an advisory residual and
-preserves PASS. Report coverage and the outcome from `comparison`.
 
 ## Correctness Checks
 
@@ -283,19 +257,9 @@ work, which `/scope-review` owns.
 
 ## External Claim Requests
 
-Emit one proposition per request; the caller routes it through
-`/verify-external-claims`:
-
-```markdown
-### API Verification Request
-- API/symbol/rule: <one external rule>
-- Proposition: <exact statement that must be true or false>
-- Applicability: <version, target, feature/extension, compile mode, and local evidence>
-- Candidate official source: <direct official URL/section, or exact source needed>
-- Dependent candidate finding: <path:line, failure, and why the verdict matters>
-```
-
-Pending verification makes the review `NEEDS_ACTION`; it is not a confirmed
+Emit one single-claim request per `/verify-external-claims`
+(`../verify-external-claims/SKILL.md`, `## External Claim Requests`). A pending
+verdict makes the review `NEEDS_ACTION`; the candidate is not a confirmed
 finding until the caller receives `VERIFIED` evidence.
 
 ## Output
@@ -328,14 +292,15 @@ finding is `Required`. Omit empty optional sections.
 ### Recommendation
 PASS | NEEDS ACTION | BLOCKED
 
-Status: PASS | NEEDS_ACTION | BLOCKED
-Changed files: none
 Functions/regions touched: none
-Decisive checks: <Compare result and short metric evidence; reads, searches, traces, and measurements>
 Project membership trigger: /update-vcxproj — <paths/reason> | none
-Build required: none
-Residuals: <pre-existing defect, incomplete trace, pending external verdict, or none>
 ```
+
+Follow those extension fields with the shared handoff lines
+(`../../references/subagent-reporting.md`, `## Handoffs`); this findings-only
+review never changes a file and never requires a build, its `Decisive checks`
+include the Compare result and short metric evidence, and a pre-existing defect,
+incomplete trace, or pending external verdict belongs in `Residuals`.
 
 For a clean review, state `PASS — no issues found`, list the evidence and files,
 and keep the unchanged footer. Never return `LGTM` without decisive trace

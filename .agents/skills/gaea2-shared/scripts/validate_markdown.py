@@ -26,8 +26,8 @@ MAXIMUM_MESSAGE_LENGTH = 256
 MAXIMUM_ENVELOPE_CHARACTERS = 7168
 
 # The three type lists below are owned by
-# .agents/skills/gaea2-modify/SKILL.md ("Gaea 2 conventions when adding new
-# nodes"); update them there first, then mirror the change here.
+# .agents/skills/gaea2-shared/references/node-conventions.md; update them
+# there first, then mirror the change here.
 VERSION_2_TYPES = ("Mixer", "TextureBase", "Trees", "Cellular3D", "ThermalShaper")
 DYNAMIC_PORT_TYPES = ("Combine", "Mixer")
 REQUIRED_INPUT_TYPES = (

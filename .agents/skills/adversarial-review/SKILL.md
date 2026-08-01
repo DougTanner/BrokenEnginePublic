@@ -1,12 +1,11 @@
 ---
 name: adversarial-review
 description: >-
-  Scoped fresh-eyes review that tries to disprove every artifact type changed
-  by a Tier-3 change. Use automatically only for Tier-3 changes or when the root
-  Change Workflow leaves one concrete reachable unresolved failure hypothesis
-  after correctness review. Also use when the user asks to "attack this
-  change", "assume it's broken", "find reasons this fails", or requests an
-  adversarial second opinion on a supplied diff. Findings only; never edits.
+  Scoped fresh-eyes review that tries to disprove a Tier-3 change across every
+  changed artifact type. Use automatically only for Tier-3 changes, when
+  correctness review leaves one concrete reachable unresolved failure
+  hypothesis, or when the user requests an adversarial second opinion on a
+  supplied diff. Findings only; never edits.
 allowed-tools: [Read, Grep, Glob, PowerShell]
 ---
 
@@ -47,45 +46,31 @@ conversation history. Do not turn either case into an open-ended repository audi
 
 ## Method
 
-1. For Tier 3, enumerate authorized hypotheses for every changed artifact type,
-   grounded in the recorded Tier-3 triggers. Otherwise use the one unresolved
-   hypothesis supplied by the caller. Define the smallest concrete trace that
-   could prove or refute each.
-2. Read the changed region and the callers, consumers, schemas, instructions,
-   generated outputs, or sibling paths necessary for that trace. Diff-only
-   reading is insufficient. Stop when the hypothesis dies or becomes proven.
-3. Test the contract appropriate to the artifact. For code and shaders, trace
-   logic, integration, lifetime, threading, determinism, edge states, and build
-   reachability. For scripts, project metadata, schemas, and data, trace inputs,
-   state changes, failure handling, compatibility, and consumers. For skills, plans,
-   workflow, and documentation, trace discovery and invocation policy,
-   executable instructions, authority boundaries, acceptance semantics, links,
-   and contradictions with governing instructions.
-4. Scale depth to the authorized risk. Do not replace a disproven hypothesis
-   with unrelated edge cases merely to produce a finding. When all authorized
-   hypotheses die, return PASS and stop.
+Test the contract appropriate to the artifact. For code and shaders, trace
+logic, integration, lifetime, threading, determinism, edge states, and build
+reachability. For scripts, project metadata, schemas, and data, trace inputs,
+state changes, failure handling, compatibility, and consumers. For skills, plans,
+workflow, and documentation, trace discovery and invocation policy,
+executable instructions, authority boundaries, acceptance semantics, links,
+and contradictions with governing instructions.
 
 ## Evidence Rules
 
-Every finding must cite a `file:line` actually read in this review and give a
-reachable, in-scope, meaningful scenario: specific input or state leads to a
-wrong outcome, violated governing contract, or failed approved acceptance
-criterion. Drop suspicions that cannot establish reachability, scope, and
-impact; do not soften them into optional advice.
-
-Before reporting, try to refute the finding by checking alternate explanations,
-guards, established preconditions, and governing invariants. Report only defects
-introduced or newly exposed by the supplied change. Put proven pre-existing or
-out-of-scope defects in `Residuals`; keep in-scope structural acceptance failures
-as findings. Exclude style issues and diagnostics a prescribed compiler,
-validator, or static check directly catches.
+Every finding cites a `file:line` read in this review, names a reachable in-scope
+failure the change introduced or newly exposed (input or state leads to a wrong
+outcome, a violated governing contract, or a failed approved acceptance
+criterion), and survives an attempt to refute it against guards, established
+preconditions, and governing invariants. Report proven pre-existing or
+out-of-scope defects in `Residuals` instead of fixing or expanding into them,
+while in-scope structural acceptance failures stay findings. Exclude style issues
+and diagnostics a prescribed compiler, validator, or static check directly
+catches.
 
 For any finding that depends on a non-obvious external API, language,
-specification, or library claim, emit one verification request for that single
-checkable statement, containing the symbol or rule, exact proposition, dependent proposed finding, applicable
-version/configuration, and proposed official source. The caller routes each
-request through `verify-external-claims`; do not present the claim as confirmed
-until that verdict returns.
+specification, or library claim, emit one single-claim request per
+`/verify-external-claims` (`../verify-external-claims/SKILL.md`,
+`## External Claim Requests`); a pending verdict makes the review
+`NEEDS_ACTION`, and the claim is not confirmed until that verdict returns.
 
 ## Output
 
@@ -103,13 +88,10 @@ until that verdict returns.
 ### Traced Clean
 <Only when there are no findings: hypotheses traced, decisive refutation, and
 `PASS — disproof attempt complete; stop.`>
-
-Status: PASS | NEEDS_ACTION | BLOCKED
-Changed files: none
-Decisive checks: <trace/read and result for each authorized hypothesis>
-Build required: none
-Residuals: <pre-existing defect, incomplete trace, pending external verdict, or none>
 ```
+
+Close with the shared handoff lines (`../../references/subagent-reporting.md`,
+`## Handoffs`).
 
 Use `NEEDS_ACTION` for findings or pending external verification and `BLOCKED`
 only when required evidence could not be obtained. Critical means data loss,

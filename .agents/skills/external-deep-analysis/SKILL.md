@@ -113,36 +113,14 @@ retain verified caveats, and preserve each accepted finding's originating phase,
 symbols, evidence, invariant exposure, and unmet acceptance criterion. Keep
 oversized-file items labeled as `/reduce-file` follow-ups.
 
-## Phase 4: Author and Stage Follow-Ups
+## Phase 4: Route, Verify, and Land
 
-Invoke `create-follow-up-plans` natively with all accepted candidates, reviewer
-verdicts, user decisions, source reports, session changed-file list, and the
-deep-analysis intent that established each unmet acceptance criterion. Treat
-analysis findings as pre-existing or out-of-scope debt, never as permission to
-fix code.
-
-That skill exclusively owns plan classification, area placement, naming,
-grouping, collision handling, duplicate mapping, live-plan updates, dependency
-decisions, tier triggers, and Plan metadata. Do not pre-create plan files, copy
-the metadata schema, or read or change machine-local scheduler data. Pass
-oversized files with their required `/reduce-file <path>` instruction intact.
-
-Account for every accepted item using the authoring skill's Created,
-Updated existing, Duplicate mappings, or Residuals result. Invalid metadata,
-validation failure, conflict, or ungrounded item is a visible blocker or
-residual, not grounds for an alternate scheduling path.
-
-## Phase 5: Verify and Finalize
-
-Run `verify-changes` against the final tracked plan tree and the complete
-`create-follow-up-plans` report. Map scope, finding decisions, candidate
-accounting, plan validation, and summary data to decisive checks. Verification
-reviewers remain findings-only; route any accepted semantic correction back
-through the owning workflow before re-verification.
-
-Then invoke `finalize-changes` for the tracked Plan files and follow its user
-sign-off contract. The scheduler discovers landed Plans from Git; never change
-machine-local scheduler state as a publication step.
+Analysis findings are pre-existing or out-of-scope debt, never permission to fix
+code in this workflow. Route every accepted candidate through
+`create-follow-up-plans`, passing oversized files with their required
+`/reduce-file <path>` instruction intact. Acceptance and landing then follow root
+`AGENTS.md` Change Workflow Steps 7 and 8 through `verify-changes` and
+`finalize-changes`.
 
 ## Summary
 

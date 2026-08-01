@@ -46,10 +46,9 @@ the standard format immediately; never return silence.
 
 ## Execution Context
 
-Run solely inside one fresh delegated `reviewer`; inline review is prohibited.
-If the mandatory reviewer is unavailable, the manager reports a blocker. Tool
-restrictions are prose boundaries because frontmatter must not alter the
-calling context.
+Run in the delegated execution context of
+`../../references/subagent-reporting.md`; inline review is prohibited. If the
+mandatory reviewer is unavailable, the manager reports a blocker.
 
 ## Audit
 
@@ -109,21 +108,11 @@ calling context.
    may not silently lower the tier.
 
 When a proposed finding depends on a non-obvious external API, language,
-specification, or library fact, do not treat it as established. Emit one
-single-claim request per proposition with a stable ID:
-
-```text
-Claim ID: PA-EXT-###
-Proposition: <one fact that can be VERIFIED, REFUTED, or UNRESOLVED>
-Applicability: <version, target, flags, extensions, or constraints>
-Dependent finding: <PA-F-### and why the verdict matters>
-Candidate official source: <URL or exact upstream identifier, if known>
-```
-
-The reviewer returns each request to the manager, which dispatches a separate
-`locator` through `/verify-external-claims` and then decides the dependent
-finding. Pending requests make the audit `NEEDS_ACTION`, not a confirmed
-finding.
+specification, or library fact, do not treat it as established: emit one
+single-claim request per `/verify-external-claims`
+(`../verify-external-claims/SKILL.md`, `## External Claim Requests`) naming the
+dependent `PA-F-###`. A pending verdict makes the audit `NEEDS_ACTION`, not a
+confirmed finding.
 
 Do not edit any repository file, run `/agent-harness`, interview the user, or
 spawn another agent. The manager owns all judgment. After it
@@ -144,12 +133,11 @@ Findings: <entries or none>
 API Verification Requests: <single checkable requests or none>
 Traceability checked: <requirements/invariants <-> implementation sites/checks>
 Required next step: Tier 3 -> manager decision, then /external-grill-plan | Tier 2 -> manager decision
-Status: PASS | NEEDS_ACTION | BLOCKED
-Changed files: none
-Decisive checks: <read/search/trace and result>
-Build required: none
-Residuals: <incomplete audit item, pending external verdict, or none>
 ```
+
+Follow those extension fields with the shared handoff lines
+(`../../references/subagent-reporting.md`, `## Handoffs`); this findings-only
+audit never changes a file and never requires a build.
 
 Use `NEEDS_ACTION` for findings or pending external verdicts and `BLOCKED` only
 when required input or evidence is unavailable.

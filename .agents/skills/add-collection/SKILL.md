@@ -109,45 +109,17 @@ handle. Prefer `AddIndexableElement`, `AddIndexableElementWithId`, and
 Manual identity wiring is conditional on a real alternate ID source or
 lifecycle, such as Sounds' client-only UUID stream, not on the flag itself.
 
-## Failure-Sensitive Checklist
+## Decisions the Auditor Cannot Make
 
-- [ ] Ownership/location: engine versus game and shared versus client-only
-  ownership are explicit; Interpolate/PostRender files and guards match it.
-- [ ] Members: every SOA column ran `add-collection-member`; tuple order,
-  extern declarations, and explicit instantiations match the chosen exemplar.
-  Tuple membership itself is checked by the collection-layout auditor (see
-  Verification), never by a hand sweep.
-- [ ] Registration: both halves of the frame — Interpolate and PostRender — are
-  stored and registered; engine counts and server tuples or game pointers,
-  constructors, includes, and tuples are complete; producer precedes consumer.
-- [ ] Version sum: decide that this collection needs version terms at all —
-  game and server-visible engine state does, pure client-only engine state does
-  not. The auditor checks the sum once the terms exist.
-- [ ] Construction/initialization: paired growth keeps counts aligned and
-  every new row/owned handle is initialized before CRC or use.
-- [ ] Phases: `AllocateAndCopy`, `LogDifferences`, and `Update` are present with
-  their required signatures. Optional `Register`, GraphicsResources,
-  render, collision, AreaDamage, Transfer, Destroy, and Spawn hooks merged into
-  the surrounding phase are declared only when needed and must match their
-  exact dispatch signatures; absent
-  hooks or hooks that cannot be called skip silently. Direct/manual calls remain compile-checked.
-- [ ] Serialization/CRC: tuple entries sit in the intended wire order, and
-  tuple registration reaches Write/Read and, for server-visible state,
-  ServerRead, CRC, and LogDifferences. Order is yours to judge; the subset and
-  guard relations belong to the auditor.
-- [ ] Copy: `AllocateAndCopy` allocates the full tuple and preserves each
-  field whose Update path does not unconditionally rewrite it.
-- [ ] Identity: ID maps are added only when needed and maintained through
-  the appropriate add/remove helpers or a justified custom path.
-- [ ] Transfer: transferable state has matching send and receive wiring;
-  source-owned client objects are removed and destination objects recreated.
-- [ ] Hydration: shared collections with client-owned objects initialize
-  them at local spawn and after server state arrives (`ClientInit`/
-  `ClientInitAll` pattern).
-- [ ] Project membership: invoke
-  `update-vcxproj` (`../update-vcxproj/SKILL.md`) for every added file. Shared
-  files belong to client and server projects; whole-file client-only files only
-  to the client; filters mirror disk paths.
+The collection-layout auditor (see Verification) checks tuple membership, subset
+and guard relations, and the version sum. It cannot reach these two decisions,
+so settle them before finishing:
+
+- [ ] Transfer and hydration: transferable state has matching send and receive
+  wiring; source-owned client objects are removed and destination objects
+  recreated. Shared collections with client-owned objects initialize them at
+  local spawn and after server state arrives (`ClientInit`/`ClientInitAll`
+  pattern).
 - [ ] Harness query decision: inspect
   `Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsServerQueries.cpp` for
   server-visible state. If scenarios need it, add the include, `Extract*`,
@@ -166,44 +138,14 @@ lifecycle, such as Sounds' client-only UUID stream, not on the flag itself.
 
 ### Collection-layout auditor
 
-`.agents/scripts/Test-CollectionLayout.ps1` owns the mechanical sweeps: every
-declared SOA column appears exactly once in the effective `Members()` tuple,
-`SharedMembers()`/`ClientMembers()` partition it, `SharedCrcMembers()` and
-`PersistentMembers()` stay subsets, no `BT_CLIENT`-guarded column sits in
-`SharedMembers()`, declaration and accessor guards match, and every collection
-`kiVersion` declaration and `Frame::kiVersion` term resolve to each other. Never
-reconstruct these operations inline. It audits only and never writes, generates,
-or repairs header text.
-
-In Codex's PowerShell 7 terminal:
+Run from the repository root:
 
 ```powershell
-$RepositoryRoot = (git rev-parse --show-toplevel).Trim()
-$Script = Join-Path $RepositoryRoot '.agents/scripts/Test-CollectionLayout.ps1'
-pwsh -NoProfile -ExecutionPolicy Bypass -File $Script
+pwsh -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/Test-CollectionLayout.ps1
 ```
 
-In Claude Code's Git Bash terminal, convert the script path first:
-
-```bash
-repository_root="$(git rev-parse --show-toplevel)"
-script="$(cygpath -w "$repository_root/.agents/scripts/Test-CollectionLayout.ps1")"
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$script"
-```
-
-It prints one JSON object. `status` `pass` (exit 0) means no violations;
-`failed` (exit 1) reports violations with path, line, collection, member, and
-rule; `blocked` (exit 2) means an accessor shape, tuple entry, guard form, or
-`Frame::kiVersion` sum the parser could not resolve, which is never a pass;
-`error` (exit 1) means the run itself failed, such as a missing or empty
-`-Path`. The report is capped at 32 items and 8192 bytes, so `truncated` and
-`omittedCount` can hide violations: rerun until `totalCount` is 0, or account
-for `totalCount` and `omittedCount` before recording the violations as
-addressed. Any violation, blocked, or error outcome blocks completion until it
-is fixed or explicitly recorded. Pass `-Path` to narrow the sweep to specific
-headers or directories, `;`-separated for more than one. Judgment stays here:
-tuple position and wire order, CRC membership, diagnostic membership, and
-intentional client-only exclusion.
+Sweeps, shell-specific invocation, exit codes, truncation, JSON shape, and the
+blocking rule: `../../references/collection-layout-auditor.md`.
 
 ## References
 

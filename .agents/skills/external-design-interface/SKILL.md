@@ -4,13 +4,9 @@ description: >-
   Generate three radically different C++ interface designs, compare them, and
   synthesize the user's choice into a reviewed implementation plan. Use when
   the user explicitly asks to design an API, explore interface options, or
-  design a system multiple ways. When implicitly detecting interface design
-  for a new Collection, manager, or subsystem API, first ask "Would you like me
-  to run /external-design-interface to explore different API shapes?" and
-  continue only if accepted. Do not suggest or use for bug fixes,
-  single-function additions, implementation of an already approved interface,
-  or adding a member to an existing Collection; the last case routes to
-  /add-collection-member.
+  design a system multiple ways, or when interface design for a new Collection,
+  manager, or subsystem API is implicitly detected (ask before running); adding
+  a member to an existing Collection routes to /add-collection-member instead.
 allowed-tools: [Read, Grep, Glob, Agent, AskUserQuestion]
 ---
 
@@ -22,6 +18,13 @@ main-context dispatch requirement instead of approximating the independent
 designs inline.
 
 ## Establish the Design Brief
+
+When interface design is only implicitly detected — a new Collection, manager,
+or subsystem API — first ask "Would you like me to run
+/external-design-interface to explore different API shapes?" and continue only
+if accepted. Do not suggest or use this skill for bug fixes, single-function
+additions, implementation of an already approved interface, or adding a member
+to an existing Collection; that last case routes to `/add-collection-member`.
 
 Use the supplied system description, or ask for one when absent. Inspect the
 repository before asking about gaps. Record:
@@ -79,14 +82,8 @@ choose a public interface when multiple meaningfully different shapes remain.
 After the user decides, create a complete implementation plan containing the
 final header-style interface, key call-site examples, incorporated elements,
 affected integration sites and invariants, exclusions, and decisive acceptance
-checks. Classify it under the root Change Workflow.
-
-- Tier 1 needs no plan audit.
-- Tier 2 dispatches one `reviewer` to run `/plan-audit`; main resolves accepted
-  findings before approval or implementation.
-- Tier 3 dispatches one `reviewer` to run `/plan-audit`, then main passes
-  accepted findings into `/external-grill-plan`. Never substitute either gate
-  or run them out of order.
+checks. Classify it under root `AGENTS.md` Change Workflow Steps 1 and 2, which
+own the tier and the plan-review gates that tier requires.
 
 Do not begin implementation from this skill. When the plan adds a Collection,
 record that `/add-collection` owns its mechanical wiring and invokes

@@ -41,7 +41,7 @@ function Complete-FinalizeLockClaim([int] $ExitCode, [string] $Status, [string] 
 	$result.status = $Status
 	$result.code = $Code
 	$result.message = $Message
-	[Console]::Out.Write(($result | ConvertTo-Json -Depth 32 -Compress))
+	Write-Output ($result | ConvertTo-Json -Depth 32 -Compress)
 	exit $ExitCode
 }
 

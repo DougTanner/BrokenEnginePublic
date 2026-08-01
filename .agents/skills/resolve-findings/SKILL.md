@@ -4,9 +4,7 @@ description: >-
   Resolve an explicitly accepted review finding, compile failure, or runtime
   failure within the Broken Engine Change Workflow. Use for delegated fix work
   after the manager supplies fixed evidence, intent classification, scope, and
-  session baseline. Confirms root cause before editing, applies only a non-structural
-  conformance fix, checks affected sites, and returns exact regions, build
-  requirements, external-claim requests, and residuals.
+  session baseline.
 allowed-tools: [Read, Grep, Glob, Edit, "Bash(git diff *)", "Bash(git status *)", PowerShell]
 ---
 
@@ -42,40 +40,19 @@ manager updates the authoritative plan.
 
 ## Fix Workflow
 
-For each assigned item:
+Confirm a checkable root cause before editing; leave an item unchanged when the
+cause is uncertain or out of scope. Apply the smallest change restoring approved
+behavior, check affected sites, and return out-of-scope candidates and build or
+runtime verification to the manager.
 
-1. State a checkable suspected root cause. Read the failing region and enough
-   callers, callees, logs, or sibling paths to distinguish cause from symptom.
-   A failing expression alone does not establish the originating cause.
-2. Confirm the cause from direct repository inspection or supplied failure
-   evidence before editing. If evidence proves a different in-scope cause,
-   record the correction. If it remains uncertain, conflicts with controlling
-   intent, requires user judgment, or lies outside scope, leave it unchanged.
-3. Apply the smallest change restoring approved behavior. Do not refactor,
-   clean adjacent code, or fix unassigned failures.
-4. Re-read every fixed region and directly affected path. Demonstrate why the
-   original scenario no longer follows. Run focused static checks available in
-   this context; return builds, runtime checks, harness work, and independent
-   verification to the manager for assigned-role dispatch.
-5. For a one-function code fix with no signature or contract change, scan its
-   callers, mirrored client/server or collection patterns, shared headers, and
-   stale comments. Fix only candidates inside scope and report every outside
-   candidate. Otherwise emit notes on which other code sites may be affected for
-   the manager to dispatch through `/update-affected-code`, including
-   symbol/pattern and search scope.
-6. Audit the completed edit against the assignment, session baseline, ownership
-   snapshot, and smallest plausible regression. Fix confirmed in-scope defects
-   and repeat their checks. Do not claim compilation or runtime success.
-
-Use this authority order when sources conflict: explicit user statement, final
-approved plan and deltas, repository instructions/docs/comments, then current
-behavior. Name the contradiction and controlling source.
+Resolve conflicting sources by the authority order in root `AGENTS.md`
+`### Diagnosis Discipline`, naming the contradiction and the controlling source.
 
 Do not establish disputed external API, language, specification, or library
-behavior from memory. Emit one stable single-claim request per proposition:
-name the symbol/rule, exact proposition, dependent item, applicable version and local
-configuration, and candidate official source. The manager routes it to
-`/verify-external-claims`; keep the item unresolved pending that verdict.
+behavior from memory: emit one single-claim request per
+`/verify-external-claims` (`../verify-external-claims/SKILL.md`,
+`## External Claim Requests`). A pending verdict keeps the item unresolved and
+the handoff `NEEDS_ACTION`.
 
 ## Handoff
 

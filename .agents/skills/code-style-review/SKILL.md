@@ -62,14 +62,8 @@ applicable rule, not only grep-friendly examples below.
    resolution, or numeric behavior. Report it for caller classification and the
    applicable domain review.
 
-For Rule 49, flag a getter, setter, drain, take, `Is*`, `Can*`, or equivalent
-function whose entire implementation is one state access, assignment, or
-pass-through call when callers can access the underlying state or component
-independently. Prefer direct public access; private state is justified only when
-one complete multi-statement operation preserves an invariant or required
-ordering. Do not classify semantic codecs or serialization adapters as trivial
-forwarding. Route these proposed findings because changing an interface or access
-surface is not a style auto-fix.
+Rule 49 forwarding findings are routed, not auto-fixed — see `/repo-code-review`
+(`../repo-code-review/SKILL.md`).
 
 ## Renames and References
 

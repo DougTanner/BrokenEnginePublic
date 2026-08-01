@@ -62,25 +62,12 @@ handoff.
 5. If a `Collection<T>` member or layout is added, removed, reordered, or
    retyped, read `add-collection-member` (`../add-collection-member/SKILL.md`)
    completely and treat its live-variant checklist as authoritative, and run
-   `.agents/scripts/Test-CollectionLayout.ps1` as
-   `pwsh -NoProfile -ExecutionPolicy Bypass -File <absolute script path>` (in
-   Git Bash, convert that path with `cygpath -w` first). It owns the mechanical
-   sweeps — effective `Members()` membership, the `SharedMembers()`/
-   `ClientMembers()` partition, `SharedCrcMembers()`/`PersistentMembers()`
-   subsets, client-guard placement, accessor guard parity, and
-   `Frame::kiVersion` sum completeness in both directions — and never writes,
-   generates, or repairs header text. Never reconstruct these operations
-   inline. `status` `pass` (exit 0) clears the sweep; `failed` (exit 1) reports
-   violations with path, line, collection, member, and rule; `blocked`
-   (exit 2) means an unresolvable accessor shape, tuple entry, guard form, or
-   `Frame::kiVersion` sum and is never a pass; `error` (exit 1) means the run
-   itself failed, such as a missing or empty `-Path`. The report is capped at
-   32 items and 8192 bytes, so `truncated` and `omittedCount` can hide
-   violations: rerun until `totalCount` is 0, or account for `totalCount` and
-   `omittedCount` before recording the violations as addressed. Any violation,
-   blocked, or error outcome blocks completion until it is fixed or explicitly
-   recorded. Report an unresolved CRC, persistence, transfer, hydration,
-   version, or identity choice instead of inventing intent.
+   the collection-layout auditor from the repository root as
+   `pwsh -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/Test-CollectionLayout.ps1`.
+   Its sweeps, shell-specific invocation, exit codes, truncation, JSON shape,
+   and blocking rule are in `../../references/collection-layout-auditor.md`.
+   Report an unresolved CRC, persistence, transfer, hydration, version, or
+   identity choice instead of inventing intent.
 6. Edit only sites whose correctness clearly depends on the new contract.
    Leave sibling features and design-dependent counterparts as residuals. Do
    not perform style fixes, documentation updates, project membership edits,
@@ -94,14 +81,12 @@ handoff.
 
 ## Handoff
 
-Return one outcome per trigger, followed by the standard handoff:
+Return the shared handoff form in `../../references/subagent-reporting.md`,
+extended with one outcome per trigger:
 
 ```text
 Trigger outcomes: <trigger — RESOLVED with updated sites or verified no-op;
   REFUTED with evidence; or UNRESOLVED with owner/action>
-Status: PASS | NEEDS_ACTION | BLOCKED
-Changed files: <path — exact functions/types/regions, or none>
-Decisive checks: <old/new tracked searches, traces, rereads, and static checks>
 Project membership trigger: /update-vcxproj — <paths/reason> | none
 Build required: <exact targets/configuration/platform and project-member paths,
   or none>
@@ -110,6 +95,6 @@ Residuals: <affected site not updated, incomplete search, ownership conflict,
   or unclassified hit, or none>
 ```
 
-Keep `Residuals` last. Name each changed file once. `PASS` requires every
-trigger resolved or refuted and every planned search complete; requested builds
-remain `builder` work dispatched by the manager rather than passed checks.
+Name each changed file once. `PASS` requires every trigger resolved or refuted
+and every planned search complete; requested builds remain `builder` work
+dispatched by the manager rather than passed checks.

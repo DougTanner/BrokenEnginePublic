@@ -48,8 +48,8 @@ plan is not Tier 3, stop and return the needed correction to the manager.
    Verify their predictions from code, logs, or supplied diagnostics. Ask only
    when multiple live causes would meaningfully change implementation or
    verification.
-3. Run the Existing-Library Gate before other questions when the plan adds or
-   rewrites a non-trivial subsystem, algorithm, or data structure.
+3. Run the gate in `references/library-gate.md` before other questions when the
+   plan adds or rewrites a non-trivial subsystem, algorithm, or data structure.
 4. Search the repository until local evidence either resolves a candidate
    decision or proves that user judgment is required. Do not ask the user to
    rediscover code facts.
@@ -113,62 +113,20 @@ Return a design pivot naming the exact questions for
 `/external-design-interface`. Its result must be incorporated into a new plan
 revision and pass a fresh `/plan-audit` before re-entry.
 
-## Existing-Library Gate
-
-Run this gate when a mature external library could plausibly replace substantial
-custom work. Skip it for bug fixes, refactors, tuning, content, narrow glue, or
-logic inseparable from internal engine types.
-
-1. State the capability in one sentence and inspect `ThirdParty/` and
-   `ThirdParty/Prebuilts/` for an existing dependency.
-2. Identify at most three plausible commercial-friendly options. Treat every
-   external fact as a separate stable-ID external-claim request for a delegated `locator`
-   running `/verify-external-claims`:
-
-   ```text
-   Claim ID: EGP-EXT-###
-   Proposition: <one fact that can be VERIFIED, REFUTED, or UNRESOLVED>
-   Applicability: <project version, Windows/MSVC target, flags, or constraints>
-   Dependent decision: <why this single fact changes the candidate choice>
-   Candidate official source: <URL or exact upstream identifier, if known>
-   ```
-
-   License, current release/activity, Windows/MSVC support, C++ compatibility,
-   determinism, and required feature support are distinct propositions. Never
-   combine them into one verdict. Preserve stable IDs and exact verdicts; use
-   only `VERIFIED` facts as established, and expose relevant `UNRESOLVED` facts.
-3. Compare verified license, maturity, compatibility, and integration cost with
-   the custom scope. Present two or three choices using the normal interaction
-   contract: use an option, wrap it behind a thin adapter, or hand-roll for a
-   specific evidenced reason.
-4. If the user chooses a library, stop grilling the superseded custom design and
-   return an integration-plan refinement covering vendoring and license notices,
-   build/project/filter wiring, namespace/header isolation, adapter boundary,
-   swapped call sites, exposed invariants, and acceptance checks. A library
-   choice normally changes the work; never report it as "nothing to implement."
-5. If the user chooses custom work, return the exact considered-library rejection
-   rationale and continue with applicable checklist decisions.
-
-A library or design pivot always returns to the manager for incorporation and a
-fresh `/plan-audit`; it never changes the supplied plan text in place.
-
 ## Plan Context
 
-Consult tracked Plans only when the plan declares a dependency, shares files or
-symbols with another Plan, or the closing checks reveal likely overlap. Never
-read machine-local scheduler claims. `Documents/Features` is manual and outside
-scheduler inventory.
+The preparation `implementer` validates the scheduler once and supplies the
+result in its brief. Require that brief to carry the passing envelope — exit
+`0`, `status: valid`, `code: ok` — the tracked inventory it returned, any
+validation notices, and the text of every referenced Plan. Missing or
+non-passing evidence blocks this skill: stop and return the exact diagnostic to
+the manager. Never run the validation yourself, and never run a command that
+changes scheduler state.
 
-Use the provisioned read-only command:
-
-```text
-Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe plan validate --repo <absolute-git-common-dir> --worktree <checkout>
-```
-
-Require exit `0`, JSON `status: valid`, and `code: ok`; otherwise stop with the
-exact diagnostic. Treat `plans` entries (`path`, `createdUtc`, `dependsOn`) as
-the tracked inventory. Read only relevant referenced Plan files to compare scope.
-Record non-blocking `notices`; do not run a command that changes scheduler state.
+Consult those tracked Plans only when the plan declares a dependency, shares
+files or symbols with another Plan, or the closing checks reveal likely overlap.
+Never read machine-local scheduler claims. `Documents/Features` is manual and
+outside scheduler inventory.
 
 ## Closing Checks
 

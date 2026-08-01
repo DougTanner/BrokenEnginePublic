@@ -2,13 +2,9 @@
 name: glsl-review
 description: >-
   Review changed Vulkan GLSL shaders and shader-facing shared headers for
-  correctness, performance, Broken Engine layout and binding contracts, and
-  missing rationale. Use after changing .vert, .frag, .comp, other GLSL stages,
-  .glsl includes, or dual-language headers under Engine/Data/Shaders or
-  Projects/*/Data/Shaders, and when the user asks to review, audit, or verify
-  shader code. Covers NaN/Inf hazards, synchronization, derivatives, scalar
-  layout, CPU/GLSL dependency propagation, descriptor indexing, and the
-  repository inverse() ban.
+  correctness, performance, and Broken Engine layout and binding contracts. Use
+  after changing GLSL shader sources, includes, or dual-language headers under
+  Data/Shaders, and when the user asks to review, audit, or verify shader code.
 allowed-tools: [Read, Grep, Glob, Bash, PowerShell]
 paths: ["**/*.vert", "**/*.frag", "**/*.comp", "**/*.geom", "**/*.tesc", "**/*.tese", "**/*.mesh", "**/*.task", "**/*.rgen", "**/*.rmiss", "**/*.rchit", "**/*.rahit", "**/*.rint", "**/*.rcall", "**/*.glsl", "**/Data/Shaders/**/*.h"]
 ---
@@ -21,7 +17,7 @@ as required only when a non-obvious mathematical, numerical, coordinate,
 ordering, layout, or hardware assumption carries correctness or measured
 performance.
 
-Read the footgun reference (`references/shader-footguns.md`) when a changed region touches synchronization, subgroup operations, implicit derivatives, shared CPU/GLSL layout, clip coordinates, numerically guarded math, or a performance heuristic.
+Read the footgun reference (`references/shader-footguns.md`) on every review. It holds the correctness checks this review applies: numerical domains, coordinates, interpolation and sampling, synchronization and data races, subgroup operations, shared CPU/GLSL layout, performance evidence, algorithm checks, and optional stages.
 
 ## Workflow
 
@@ -32,7 +28,7 @@ Read the footgun reference (`references/shader-footguns.md`) when a changed regi
    - C++ consumers, including the project `ShaderLayouts.h` wrapper and PCH inclusion path;
    - DataPacker dependency capture from preprocessing (`-MD`/`-MF`) through dependency fingerprinting.
 4. Review changed dual-language declarations against the actual block qualifier and CPU representation. Compare field order, scalar widths, array strides, offsets, descriptor constants, writes, and binding roles. Do not infer layout from a generic `vec3` rule when `layout(scalar)` applies.
-5. Apply the checks below. Report only reachable failures supported by the changed code and repository evidence. Do not turn a generic checklist item into a finding.
+5. Apply the correctness checks in the footgun reference. Report only reachable failures supported by the changed code and repository evidence. Do not turn a generic checklist item into a finding.
 6. Emit an external-claim request covering one single checkable statement for every finding that depends on a non-obvious GLSL, Vulkan, extension, device, or compiler claim. Do not browse directly. Keep locally provable repository-contract findings separate.
 7. Return the report. A shader-facing shared header has both C++ and GLSL surfaces, so explicitly require `/repo-code-review` as the sibling domain review when such a header changed; this review does not replace it.
 8. Report a changed shader over ~5,000 `bt-token-v1` (measure every changed shader in one batched run: `pwsh -NoProfile -Command "& '<absolute path to Measure-Tokens.ps1>' -Path 'a','b','c' -Json"` — use `-Command`, not `-File`, because under `-File` the comma-separated list binds as one filename and the run fails; the single-path `-File ... -Path <path>` form still works for one file) as a size observation in `Residuals`; splitting it via `ShaderFunctions.h`/`*Common.h` is follow-up work, not part of this findings-only review.
@@ -44,32 +40,6 @@ Read the footgun reference (`references/shader-footguns.md`) when a changed regi
 - Enforce descriptor roles: set 0 global, set 1 per-pipeline, set 2 per-material. Verify shared binding constants against C++ layout creation and writes.
 - Require `nonuniformEXT(index)` when a descriptor-array index may vary between invocations. Prove compile-time or dynamically uniform indices before exempting them.
 - Treat changes to shader-facing shared headers as both C++ and GLSL changes. Verify that every affected shader entry point reaches the header through the include graph so DataPacker records it in that shader's dependency file.
-
-## Correctness Checks
-
-### Values and math
-
-- Trace possible domains for division, `sqrt`, `normalize`, `pow`, `asin`/`acos`, `log`/`log2`, and `atan(y, x)`. Require a guard only when the bad domain is reachable.
-- Preserve denominator sign when negative values are valid. `max(x, epsilon)` is correct only when `x` is proven nonnegative; otherwise use a sign-preserving clamp such as `x >= 0.0 ? max(x, epsilon) : min(x, -epsilon)`.
-- Check normal reconstruction, color-space and alpha conventions, matrix order, coordinate-space conversions, shadow-bias direction, BRDF weighting, and renormalization after interpolation.
-- Treat Kahan summation as an accuracy technique, not a determinism guarantee. Parallel or reordered sums still require a fixed reduction order or another proven deterministic representation.
-- Require the same expression plus appropriate `invariant` qualification only when separate pipelines must produce invariant outputs; do not claim a qualifier alone guarantees arbitrary cross-program bit identity without verification.
-
-### Stages, interpolation, and sampling
-
-- Require `flat` for integer varyings and matching interface types, locations, and interpolation qualifiers between producer and consumer stages.
-- Qualify derivative findings by stage. `dFdx`, `dFdy`, `fwidth`, and fragment implicit-LOD behavior depend on fragment-stage derivative rules unless an applicable extension establishes otherwise. Do not apply the fragment divergence rule indiscriminately to vertex or compute sampling.
-- Distinguish `texture` from `texelFetch`: `texelFetch` uses integer texel coordinates and, when its overload requires one, an explicit LOD or sample; it performs no filtering and uses no implicit derivatives. Do not say it ignores sampler objects.
-- Treat vertex `gl_Position` as homogeneous clip coordinates. Perspective division by `w` is a fixed-function operation; flag manual division or invalid/non-finite `w` only when the transform and intended convention make it wrong.
-- Verify Vulkan viewport, depth, Y, and framebuffer-origin assumptions against the actual pipeline state before reporting a coordinate mismatch.
-
-### Compute synchronization and storage
-
-- Separate execution convergence, memory visibility/order, access qualification, and race prevention. `barrier()`, `memoryBarrier*`, `coherent`, and atomics are not interchangeable.
-- Require workgroup barriers to be reached in uniform control flow. Account for the shared-memory synchronization defined for `barrier()` itself, and require the applicable additional memory operation for other storage classes rather than generalizing shared-memory behavior to buffers or images.
-- Do not accept `coherent` plus a barrier as prevention for two invocations concurrently writing the same non-atomic location. Require exclusive ownership, a proven partition, or a supported atomic operation.
-- Do not claim an in-shader workgroup barrier synchronizes separate workgroups. Cross-workgroup communication requires a design with an applicable dispatch/pipeline synchronization boundary or another proven mechanism.
-- Check atomic type/format support and distinguish atomicity of one location from ordering or visibility of surrounding non-atomic data.
 
 ## Performance Review
 
@@ -87,18 +57,9 @@ Read the footgun reference (`references/shader-footguns.md`) when a changed regi
 
 ## External Claim Requests
 
-Emit one proposition per request so `/verify-external-claims` can return one verdict without deciding the code finding:
+Emit one single-claim request per `/verify-external-claims` (`../verify-external-claims/SKILL.md`, `## External Claim Requests`); a pending verdict makes the review `NEEDS_ACTION` and keeps the dependent finding unconfirmed.
 
-```markdown
-### External Claim Verification Request
-- API/symbol/rule: <one rule>
-- Proposition: <exact statement that must be true or false>
-- Applicability: Vulkan 1.2, shader stage, enabled extension/feature, format, and relevant local configuration
-- Candidate official source: <direct official URL and section/anchor>
-- Dependent finding: <file:line finding and why its severity depends on this proposition>
-```
-
-Use only the official source set in the reference. If the proposition is not a single checkable statement, split it. Keep the finding pending until the caller obtains `VERIFIED`, `REFUTED`, or `UNRESOLVED` evidence.
+Use only the official source set in the reference.
 
 ## Output
 
@@ -119,13 +80,9 @@ Order findings by severity and omit empty sections:
 ### Recommendation
 PASS | NEEDS FIXES
 
-Status: PASS | NEEDS_ACTION | BLOCKED
-Files changed: none
 Functions/regions touched: none
-Decisive checks: <reads, searches, traces, and external-claim outcomes>
-Build required: none
-Residuals:
-- <pending verification, pre-existing issue, incomplete review item, or none>
 ```
+
+Follow that extension field with the shared handoff lines (`../../references/subagent-reporting.md`, `## Handoffs`); this findings-only review never changes a file and never requires a build, and pending verification, a pre-existing issue, or an incomplete review item belongs in `Residuals`.
 
 If no issue is found, return `PASS — no issues found`, list the files reviewed, and include the unchanged footer.

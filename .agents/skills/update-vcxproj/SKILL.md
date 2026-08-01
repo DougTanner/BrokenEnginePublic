@@ -88,10 +88,12 @@ For each affected project pair:
 
 ## Report
 
+Return the shared handoff form in `../../references/subagent-reporting.md`,
+extended with the per-path membership outcome:
+
 ```text
 <path> — <client|server|both|DataPacker|AgentHarness|WorktreeCli|AgentTools|non-member>
   <project> — filter <path|none> — verified|fixed|NOTE <detail>|FAIL <detail>
-Files changed: <project/filter paths, or none>
 Regions touched: <item groups/filter declarations, or none>
 Build required: <exact target/configuration/platform, or none>
 Reviewer focus: <authority, affinity, or XML risk, or none>

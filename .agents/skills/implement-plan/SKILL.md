@@ -4,10 +4,7 @@ description: >-
   Dispatch and perform one assigned slice of an approved Broken Engine plan,
   followed by a same-context audit of the implementation assumptions. Use for
   Change Workflow implementation work, including disjoint slices, and when the
-  worker that made existing changes is asked to audit its assumptions. Requires
-  a session baseline and pre-existing ownership snapshot, stops on
-  plan/repository contradictions, and reports affected-site, build, review,
-  and residual handoffs to the manager.
+  worker that made existing changes is asked to audit its assumptions.
 allowed-tools: [Read, Write, Edit, Glob, Grep, "Bash(git diff *)", "Bash(git status *)", PowerShell]
 ---
 
@@ -19,8 +16,7 @@ Claude, `fork_turns: "none"` on Codex, per the authoritative default in
 `../../references/subagent-reporting.md`. That worker performs both
 implementation and its same-context assumption audit. If already running as the
 assigned worker, do not dispatch again. Workers never delegate; return any
-separate-role work to the manager. The host mapping is restated in
-`references/client-compatibility.md`.
+separate-role work to the manager.
 
 ## Required Brief
 
@@ -95,16 +91,13 @@ every inline-checkable item, fix confirmed in-scope problems, and repeat its
 check. Hand off anything requiring compilation, runtime behavior, hardware,
 user knowledge, or an independent role.
 
-Cover relevant dimensions without manufacturing doubts:
-
-- calling context, threading, lifetime, ranges, phases, reachability,
-  determinism, layout, and ownership;
-- unread callers/callees/producers/consumers and memory-sourced symbols;
-- current-file reread after edits;
-- plan/scope attribution against the session baseline and ownership snapshot;
-- partial sweeps and mirrored client/server or collection wiring;
-- smallest plausible crash, corruption, or desync path;
-- substantial new logic duplicated from an existing helper.
+Cover relevant dimensions without manufacturing doubts: calling context,
+threading, lifetime, ranges, phases, reachability, determinism, layout, and
+ownership; unread callers, callees, producers, and consumers, and symbols
+recalled rather than read; the current file reread after edits; plan and scope
+attribution against the session baseline and ownership snapshot; partial sweeps
+and mirrored client/server or collection wiring; and the smallest plausible
+crash, corruption, or desync path.
 
 Audit fixes remain inside the assignment. Re-run applicable static checks and
 update affected-site and build handoffs; never claim compilation or runtime

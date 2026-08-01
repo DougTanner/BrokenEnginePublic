@@ -84,7 +84,7 @@ function Complete-Preparation([int] $ExitCode, [string] $Status, [string] $Code,
 	$result.status = $Status
 	$result.code = $Code
 	$result.message = $Message
-	[Console]::Out.Write(((New-ApprovalPreparationProjection) | ConvertTo-Json -Depth 8 -Compress))
+	Write-Output ((New-ApprovalPreparationProjection) | ConvertTo-Json -Depth 8 -Compress)
 	exit $ExitCode
 }
 

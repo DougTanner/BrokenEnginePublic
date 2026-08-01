@@ -100,26 +100,14 @@ Return one recommended design with:
 
 ```markdown
 ## File Reduction: <file>
-**Measured size:** <n> bt-token-v1; threshold <n>
-**Classification:** <concrete class | template | static-method struct | other>
-
+**Measured size:** <n>/<threshold> bt-token-v1 — **Classification:** <concrete class | template | static-method struct | other>
 ### Evidence and boundary
-- <responsibility, symbols, line ranges, coupling, scope>
-
 ### Design
-- <files retained/created and exact declarations, definitions, or data moved>
-- <ownership, interface, shared-symbol, include, and affinity decisions>
-- <ordered implementation steps that keep the tree buildable>
-
+- <files retained/created, exact moves, ownership/interface/shared-symbol/include/affinity decisions, ordered buildable steps>
 ### Expected sizes
 - `<file>`: ~<n> bt-token-v1 (from <n>)
-
 ### Critical files
-- `<path>` — <reason>
-
 ### Out of scope
-- <explicit exclusions>
-
 ### Risks and verification
 - <risk> -> <decisive check>
 ```

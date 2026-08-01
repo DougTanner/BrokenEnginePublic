@@ -15,7 +15,7 @@ Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\WorktreeCliSessionExclu
 
 try {
 	$result = Wait-WorktreeCliSharedQuiescence -RepositoryRoot $RepositoryRoot -CooperatingSessionOwner $CooperatingSessionOwner -WaitSeconds $WaitSeconds
-	[Console]::Out.Write(($result | ConvertTo-Json -Depth 16 -Compress))
+	Write-Output ($result | ConvertTo-Json -Depth 16 -Compress)
 	exit 0
 }
 catch {
@@ -29,6 +29,6 @@ catch {
 		liveBlockers = @()
 		message = $_.Exception.Message
 	}
-	[Console]::Out.Write(($result | ConvertTo-Json -Depth 16 -Compress))
+	Write-Output ($result | ConvertTo-Json -Depth 16 -Compress)
 	exit $(if ($ledgerFailure) { 2 } else { 1 })
 }

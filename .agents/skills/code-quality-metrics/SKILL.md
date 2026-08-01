@@ -48,12 +48,9 @@ pwsh -NoProfile -File .agents/skills/code-quality-metrics/scripts/Invoke-CodeQua
 Do not broaden targets from checkout changes. Context changes remain visible but suppress target
 attribution. The command writes canonical compact JSON to stdout and, when requested, an identical
 `-OutputPath` file. It logs diagnostics to stderr; exit `2` means inputs, capture, bootstrap,
-analyzer, drift, or output persistence failed. A target dispatch-parse failure instead emits one
-compact `target-parse-failure` object: apply the listed narrow parser-only sanitizer spot-fix and
-rerun Compare before interpreting metrics. A target signature-extraction failure is separate:
-investigate it and rerun; do not treat it as a sanitizer instruction. Neither target failure has
-success JSON or an output file. A Compare result cannot support PASS until every authorized target
-has complete parsing and signature extraction; corpus-only `upstream-omitted` rows stay advisory.
+analyzer, drift, or output persistence failed. Read [MetricContract.md](references/MetricContract.md)
+`## Target capture failures` for both target-failure contracts, advisory `upstream-omitted` rows, and
+the complete-parsing requirement for PASS.
 
 Compare authenticates the provisioned analyzer internally, archives it into a fresh ignored scratch directory,
 and imports that copied source. Its recorded submodule commit only chooses which files go into the

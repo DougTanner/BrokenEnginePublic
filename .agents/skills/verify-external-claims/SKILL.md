@@ -2,12 +2,10 @@
 name: verify-external-claims
 description: >-
   Verify reviewer-requested external API, language, specification, or library
-  claims through one evidence-locating delegate without editing the repository.
-  Use when a Broken Engine review, plan audit, grill, or finding-resolution pass
-  needs an authoritative verdict on non-obvious Vulkan, GLSL, DirectXMath,
-  C++23, operating-system, or third-party behavior. Returns one VERIFIED,
-  REFUTED, or UNRESOLVED verdict per single checkable claim with repository applicability
-  and primary-source evidence kept separate.
+  claims without editing the repository. Use when a Broken Engine review, plan
+  audit, grill, or finding-resolution pass needs an authoritative verdict on
+  non-obvious external behavior. Returns one verdict per single checkable
+  claim.
 allowed-tools: [Read, Grep, Glob, Agent]
 ---
 
@@ -84,17 +82,16 @@ locator cannot be dispatched or its result cannot be obtained at all.
 Return the complete evidence inline:
 
 ```text
-Status: PASS | NEEDS_ACTION | BLOCKED
 Sources:
 - <claim ID> — <official source identity and version/revision/tag/commit; exact section/symbol/citation; optional official immutable link | none — exact unavailable evidence>
-Decisive evidence:
+Decisive checks:
 - <claim ID> — applicability: <path:line and target/version/extensions/features/flags | none — exact missing configuration>; rule: <short evidence that settles the question on its own | none — exact missing primary evidence>
 Per-proposition verdicts:
 - <claim ID> — VERIFIED | REFUTED | UNRESOLVED — <exact proposition> — <direct implication for dependent item, without deciding it>
-Changed files: none
-Build required: none
-Residuals: <each unresolved claim and exact missing evidence, or none>
 ```
 
-Keep `Residuals` last. Preserve exact citations; do not replace evidence with a
-summary.
+Complete the report with the remaining shared handoff lines
+(`../../references/subagent-reporting.md`, `## Handoffs`); this read-only
+workflow never changes a file and never requires a build, and each unresolved
+claim with its exact missing evidence belongs in `Residuals`. Preserve exact
+citations; do not replace evidence with a summary.

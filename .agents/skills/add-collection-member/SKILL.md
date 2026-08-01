@@ -25,42 +25,33 @@ Stop and report a stale exemplar if it no longer demonstrates the claimed varian
 
 ## Layout and version
 
-1. Declare the pointer beside related columns, initialized to `nullptr`. Keep client-only columns and their accessor entries under the same narrow `BT_CLIENT` guard.
-2. Insert it once, in semantic wire/layout order, into the accessor the target already uses:
-   - Existing split collection: shared column in `SharedMembers()`; client-only column in `ClientMembers()`; preserve `Members()` composition.
-   - Existing `Members()`-only collection: add it to `Members()`; do not introduce `SharedMembers()` merely because the collection is server-visible.
-   - Preserve C-array-of-pointer placement as one tuple entry; the collection helpers visit its elements.
-3. The tuple drives allocation, growth, swap/remove, build-local read/write, and normally shared CRC/read; omission corrupts layout. The collection-layout auditor (see below) settles the subset and guard relations.
-4. Bump the changed struct's `kiVersion` for every game collection and server-visible engine collection. Each live version-bearing struct contributes its term, so bumping the struct changes the sum. Pure client-only engine collections such as Sounds and Puffs have no version term and do not change persisted shared layout.
+Initialize the pointer to `nullptr` beside related columns, and keep a client-only column and its accessor entry under the same narrow `BT_CLIENT` guard.
+
+Wire/layout order is semantic, so the tuple position is yours to judge. Insert the column once, into the accessor the target already uses: do not introduce `SharedMembers()` merely because the collection is server-visible, and keep a C-array of pointers as one tuple entry, since the collection helpers visit its elements. The tuple drives allocation, growth, swap/remove, build-local read/write, and normally shared CRC/read; omission corrupts layout. The collection-layout auditor (see below) settles the subset and guard relations.
+
+Version bumps apply to every game collection and server-visible engine collection. Each live version-bearing struct contributes its term, so bumping the struct changes the sum. Pure client-only engine collections such as Sounds and Puffs have no version term and do not change persisted shared layout.
 
 There is no separate server-write path to update. Frame broadcast uses the same `CollectionWrite(..., cols.Members())` walk as the save format; on server builds, a split collection's `Members()` must equal `SharedMembers()`. `SharedCollectionRead()` allocates/zeros full client storage and reads the shared tuple.
 
 ## CRC and differences
 
-Decide CRC and diagnostic membership independently.
+A shared member normally reaches `SharedCollectionCrc()` through existing `SharedMembers()` or `Members()`. A collection with `SharedCrcMembers()` needs an explicit include-or-exclude call that preserves the subset relation: this is part of the rules that keep the simulation bit-identical across client and server, so if intended membership is unresolved, classify the decision Tier 3 (see root AGENTS.md, Risk tiers) and stop for user direction.
 
-- A shared member normally reaches `SharedCollectionCrc()` through existing `SharedMembers()` or `Members()`.
-- If the collection has `SharedCrcMembers()`, explicitly include or exclude the member and preserve the subset relation. This is part of the rules that keep the simulation bit-identical across client and server; if intended membership is unresolved, classify the decision Tier 3 (see root AGENTS.md, Risk tiers) and stop for user direction.
-- Decide separately whether `LogDifferences()` should compare the member. Its coverage may intentionally differ from CRC membership. Follow the collection's live diagnostic intent; use `common::LogDifference<"name">` for scalar-like values and `common::LogDifference_Vec` for vectors. Client-only collections may have no difference logger.
+`LogDifferences()` coverage may intentionally differ from CRC membership, so follow the collection's live diagnostic intent; use `common::LogDifference<"name">` for scalar-like values and `common::LogDifference_Vec` for vectors. Client-only collections may have no difference logger.
 
 ## Persistence and producers
 
-Trace how every row receives and retains the value.
+Trace how every row receives and retains the value; allocation itself stays automatic through the tuple.
 
-1. Keep allocation automatic through the tuple. In `AllocateAndCopy()`, copy only state that must carry forward there. Some Update-produced columns are loaded from the previous frame and stored into current storage instead; some transition-only/controller/identity columns are copied. Follow the target's actual pattern.
-2. For an Update-owned column, load previous state and store current state on every iteration. Keep the store unconditional and after branches/early-out decisions unless the collection's documented transition-only copy path owns persistence.
-3. For owner-fed state, add the field to `SyncData`, assign it in `Sync()`, and update every `Sync()` aggregate initializer/caller. Preserve the exemplar's carry-forward mechanism: Targets copies before owner sync, Pushers copies in Update, and Sounds copies in `AllocateAndCopy()`.
+Which mechanism carries the value forward is the judgment call, and it differs per collection: `AllocateAndCopy()` copies only state that must carry forward there, while an Update-owned column is instead loaded from the previous frame and stored into current storage on every iteration, with the store unconditional and after branches and early-out decisions unless a documented transition-only copy path owns persistence. Some transition-only, controller, and identity columns are copied instead. Owner-fed state travels through `SyncData` and `Sync()`, and every `Sync()` aggregate initializer and caller has to agree. Follow the target's live pattern: Targets copies before owner sync, Pushers copies in Update, and Sounds copies in `AllocateAndCopy()`.
 
 ## Creation, transfer, and hydration
 
-1. Initialize every new slot in the collection's real creation API: game `Spawn`, engine `Add`, or controller `AddControlled`. Update `SpawnInfo` and every caller when the value is supplied externally. Initialize both sides of paired storage as applicable; never rely on freshly grown memory.
-2. If the value must survive cross-cell transfer, update the complete path:
-   - `TransferData` declaration and its member tuple when applicable;
-   - source `TransferRequest` construction;
-   - transfer wire serialization/deserialization and payload-size accounting when the field crosses the network;
-   - `/Projects/BrokenEngineSandbox/Source/SpawnTransfer.cpp` receive mapping, destination `SpawnInfo`, and spawn assignment.
-   Use Blasters for the live send/receive shape. Match existing client guards; do not invent a second receive path.
-3. For a client-owned handle/resource, initialize or create it in per-row `ClientInit`, preserve `ClientInitAll` full-state hydration through `/Projects/BrokenEngineSandbox/Source/Network/Client/ClientSessionReceive.cpp`, initialize it on local spawn, copy it only where ownership persists, and update teardown/removal.
+Freshly grown memory holds nothing, so every new slot is initialized in the collection's real creation API — game `Spawn`, engine `Add`, or controller `AddControlled` — on both sides of paired storage, with `SpawnInfo` and its callers extended whenever the value is supplied externally.
+
+Whether the value must survive cross-cell transfer is your decision; if it must, the whole path moves together: the `TransferData` declaration and its member tuple when applicable, source `TransferRequest` construction, wire serialization/deserialization and payload-size accounting when the field crosses the network, and `/Projects/BrokenEngineSandbox/Source/SpawnTransfer.cpp` receive mapping plus destination `SpawnInfo` and spawn assignment. Use Blasters for the live send/receive shape. Match existing client guards; do not invent a second receive path.
+
+A client-owned handle or resource is created in per-row `ClientInit` and must also survive `ClientInitAll` full-state hydration through `/Projects/BrokenEngineSandbox/Source/Network/Client/ClientSessionReceive.cpp`, local spawn, and teardown/removal; copy it only where ownership persists.
 
 ## Identity and agent queries
 
@@ -87,25 +78,13 @@ Trace how every row receives and retains the value.
 
 ## Collection-layout auditor
 
-`.agents/scripts/Test-CollectionLayout.ps1` owns the mechanical sweeps: every declared SOA column appears exactly once in the effective `Members()` tuple, `SharedMembers()`/`ClientMembers()` partition it, `SharedCrcMembers()` and `PersistentMembers()` stay subsets, no `BT_CLIENT`-guarded column sits in `SharedMembers()`, declaration and accessor guards match, and every collection `kiVersion` declaration and `Frame::kiVersion` term resolve to each other. Never reconstruct these operations inline. It audits only and never writes, generates, or repairs header text.
-
-In Codex's PowerShell 7 terminal:
+Run from the repository root:
 
 ```powershell
-$RepositoryRoot = (git rev-parse --show-toplevel).Trim()
-$Script = Join-Path $RepositoryRoot '.agents/scripts/Test-CollectionLayout.ps1'
-pwsh -NoProfile -ExecutionPolicy Bypass -File $Script
+pwsh -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/Test-CollectionLayout.ps1
 ```
 
-In Claude Code's Git Bash terminal, convert the script path first:
-
-```bash
-repository_root="$(git rev-parse --show-toplevel)"
-script="$(cygpath -w "$repository_root/.agents/scripts/Test-CollectionLayout.ps1")"
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$script"
-```
-
-It prints one JSON object. `status` `pass` (exit 0) means no violations; `failed` (exit 1) reports violations with path, line, collection, member, and rule; `blocked` (exit 2) means an accessor shape, tuple entry, guard form, or `Frame::kiVersion` sum the parser could not resolve, which is never a pass; `error` (exit 1) means the run itself failed, such as a missing or empty `-Path`. The report is capped at 32 items and 8192 bytes, so `truncated` and `omittedCount` can hide violations: rerun until `totalCount` is 0, or account for `totalCount` and `omittedCount` before recording the violations as addressed. Any violation, blocked, or error outcome blocks completion until it is fixed or explicitly recorded. Pass `-Path` to narrow the sweep to specific headers or directories, `;`-separated for more than one. Judgment stays here: tuple position and wire order, CRC membership, diagnostic membership, and intentional client-only exclusion.
+Sweeps, shell-specific invocation, exit codes, truncation, JSON shape, and the blocking rule: `../../references/collection-layout-auditor.md`.
 
 ## Framework references
 

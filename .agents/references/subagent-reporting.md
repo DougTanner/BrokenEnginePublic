@@ -5,6 +5,10 @@ Delegation uses a fresh, isolated context by default: Codex uses
 fork is allowed only when exact authoritative conversation text cannot be
 safely summarized, and the prompt states why.
 
+A delegated review or audit runs solely inside one fresh delegated `reviewer`
+that returns findings only, and the tool restrictions a skill body states are
+prose boundaries rather than host enforcement.
+
 ## Task brief
 
 Every delegation supplies one self-contained brief containing:

@@ -26,7 +26,8 @@ still-existing cross-path pairs.
 
 ## Target capture failures
 
-Compare requires complete parsing and signature extraction for every authorized target identity.
+Compare requires complete parsing and signature extraction for every authorized target identity, and
+a Compare result cannot support PASS until every authorized target meets that requirement.
 An authorized target dispatch-parse failure exits `2`, writes no stdout or `-OutputPath` file, and
 writes exactly one stderr line prefixed `CodeQualityMetrics: ` followed by compact JSON:
 
@@ -44,6 +45,7 @@ coverage omission.
 Target signature extraction is distinct. It exits `2` with the same bounded failure-field shape,
 top-level code `target-signature-extraction-failure`, and message `investigate target signature
 extraction and rerun Compare`. Investigate that failure and rerun; it is not a sanitizer instruction.
+Neither target failure has success JSON or an output file.
 Corpus-only parser omissions remain `upstream-omitted` coverage rows and advisory.
 
 ## Output

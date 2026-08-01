@@ -24,18 +24,16 @@ Claude-only prompt features belong in a compatibility reference:
 - `AskUserQuestion` is Claude's structured choice prompt, and `Agent` is its delegation tool. State the human interaction or delegation outcome in shared instructions; name these tools only in Claude-specific guidance.
 - The word `ultrathink` enables Claude Code extended thinking. Do not include it in portable instructions unless that client behavior is intentional.
 
-Use `allowed-tools` only for tools the workflow actually needs. It pre-approves tools; omission is not a portable prohibition.
+Use `allowed-tools` only for tools the workflow actually needs.
 
 ## Codex
 
-Codex reads optional client metadata from `agents/openai.yaml`. Invocation policy lives under `policy`, independently of Claude frontmatter. To prevent automatic matching while retaining explicit `$skill-name` use and documented native chaining, add the minimal file:
+Codex reads optional client metadata from `agents/openai.yaml`. Invocation policy lives under `policy`, independently of Claude frontmatter, and follows the schema linked above. The minimal file is:
 
 ```yaml
 policy:
   allow_implicit_invocation: false
 ```
-
-Set `allow_implicit_invocation: true` only when the skill should be selected automatically from its description. This skill uses `false` because users must name it. Native-chain exceptions such as `external-architecture-review` and `external-refactor-clean` also use no-implicit policy while remaining available to explicit parent workflows.
 
 Codex does not interpret Claude substitutions, shell injection, `AskUserQuestion`, `Agent`, or the Claude extended-thinking keyword as portable skill behavior. Express the intended outcome in the shared workflow and use Codex-native interaction, collaboration, or shell mechanisms at execution time.
 

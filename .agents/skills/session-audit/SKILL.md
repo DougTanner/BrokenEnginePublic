@@ -36,11 +36,19 @@ Require a self-contained, immutable brief containing:
   the implementer's judgment, which the script does not make;
 - the final approved plan and the exact changes the user approved after it,
   declared invariants, and acceptance criteria;
-- one decision for each conditional mode: late semantic fixes,
-  reconciliation edits or invalidated assumptions, Tier-3 cross-file
-  integration, and contract-significant regions unseen by domain review. Mark
-  each `triggered` or `not triggered`; for a triggered mode name its exact
-  regions and hypotheses;
+- one decision per conditional mode below, marked `triggered` or
+  `not triggered`; a triggered mode names its exact regions and hypotheses:
+  - late semantic fixes — check newly introduced determinism/CRC, phase,
+    guard-affinity, doc-symbol, whole-file coherence, debris, and residual
+    regressions only where the late handoff makes them reachable;
+  - reconciliation edits or invalidated assumptions — check manual resolutions
+    and those assumptions for semantic merge damage, half-applied mirrors, stale
+    symbols, duplicated paths, and incorrect version or compatibility integration;
+  - Tier-3 cross-file integration;
+  - contract-significant regions unseen by domain review — trace only their
+    cross-file or contract-significant producer/consumer paths no supplied domain
+    review saw, and spot-check that accepted fixes and resolved residuals exist
+    in the final tree;
 - completed applicable domain-review handoffs for every changed artifact type,
   plus reconciliation, build, external-API-verification, accepted-fix/retest,
   residual, and focus-area handoffs (`none` is valid for each).
@@ -73,23 +81,15 @@ these inputs from conversation history.
 
 1. Confirm the checkout and derive the session diff from the session
    baseline, then inventory it.
-2. For each triggered mode, inspect only its named regions and the minimum
-   callers, consumers, mirrors, contracts, and whole-file context needed to
-   prove or refute its hypotheses. Stop when all authorized hypotheses resolve.
-3. For late fixes, check newly introduced determinism/CRC, phase, guard-affinity,
-   doc-symbol, whole-file coherence, debris, and residual regressions only where
-   the late handoff makes them reachable.
-4. For reconciliation, check manual resolutions and invalidated assumptions for
-   semantic merge damage, half-applied mirrors, stale symbols, duplicated paths,
-   and incorrect version or compatibility integration.
-5. For unseen integration, trace only cross-file or contract-significant
-   producer/consumer paths that no supplied domain review saw. Spot-check that
-   accepted fixes and resolved residuals exist in the final tree.
-6. Report only changed, reachable failures. Refute proposed findings against guards,
+2. For each triggered mode, apply its `## Required Inputs` procedure over only
+   its named regions and the minimum callers, consumers, mirrors, contracts,
+   and whole-file context needed to prove or refute its hypotheses. Stop when
+   all authorized hypotheses resolve.
+3. Report only changed, reachable failures. Refute proposed findings against guards,
    preconditions, handoffs, and current contracts. Put proven pre-existing or
    out-of-scope defects in `Residuals`. Exclude stale citations in a claimed
    plan that is deleted when it completes.
-7. Emit a single-claim API verification request for any candidate depending on
+4. Emit a single-claim API verification request for any candidate depending on
    a non-obvious external rule; do not present it as confirmed. The main session
    reads every finding, deduplicates it, and classifies Intent
    (`conformance | plan_delta`) and Scope (`non_structural | structural`) before

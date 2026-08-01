@@ -86,16 +86,14 @@ role already resolves to Sol.
 
 ## Manager evaluation
 
-Sol over-reports edge cases and tends toward over-engineering. The calling
-manager session decides each finding on concrete reachable failure and whether it is
-meaningful before acting — findings that are speculative, unreachable, or ask for
-unnecessary extra work are rejected, not fixed. Interruption findings — power loss, process kill, crash or timeout
+Sol over-reports edge cases and tends toward over-engineering, so the calling
+manager session decides each finding under the root
+[AGENTS.md](../../../AGENTS.md) decide-once and reject-speculative-findings
+rules. Interruption findings — power loss, process kill, crash or timeout
 mid-operation — are answered by the existing ordered fallback steps (idempotent
 re-run, lease expiry, claim healing, Git state), never by new recovery
 machinery; accept one only when a named interruption point provably defeats
 those steps, and even then present the cost to the user before implementing.
-The existing decide-once rule applies; this route adds no extra review
-rounds.
 
 ## Fallback
 

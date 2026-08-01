@@ -1,6 +1,11 @@
 ---
 name: agent-harness
-description: Drive the Broken Engine client/server for automated verification — launch both executables with an agent command channel and send JSON commands to control the sim, drive the UI, and read back scene/UI/log/screenshot state. Use for runtime-observable acceptance criteria, replay determinism, or whenever the user or a plan's Verification section asks to launch, drive, query, or screenshot the game, or requests GPU frame capture or RenderDoc capture analysis.
+description: >-
+  Drive the Broken Engine client/server for automated verification. Use for
+  runtime-observable acceptance criteria, replay determinism, or whenever the
+  user or a plan's Verification section asks to launch, drive, query, or
+  screenshot the game, or requests GPU frame capture or RenderDoc capture
+  analysis.
 allowed-tools: [PowerShell]
 ---
 

@@ -98,6 +98,7 @@ Once a stage's required checks pass, stop changing it: advance to the next stage
 - Comment the non-obvious, not the mechanism: never explain a language feature or house pattern the declaration already shows. Comment what the code cannot say — an invariant, a required ordering, a consequence. Review: `/code-style-review`.
 - One term per concept: use the established repository term; define a genuinely new term once at its owning doc and reference it elsewhere; prefer plain words over formal ones.
 - Do not add unit tests
+- Bundled scripts as documented: run a repository script exactly as its skill documents it — never wrap, reimplement, or work around one. A script that cannot be run as documented is a bug: stop and report it to the parent session or user.
 
 ### User Interaction
 

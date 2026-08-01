@@ -112,16 +112,8 @@ Apply repository rules only where their authorities cover the file:
 
 ## Evidence and Report
 
-Every finding must include:
-
-- category, `path:line`, function or local symbol, and observed code;
-- reachable behavior or data flow that makes it actionable;
-- controlling repository authority and violated invariant;
-- impact and smallest local correction boundary;
-- coverage needed to verify the correction.
-
-Return this schema, omitting empty finding-category sections but never the
-manifest, coverage, handoff, or summary:
+Fill every field of this schema for each finding, omitting empty
+finding-category sections but never the manifest, coverage, handoff, or summary:
 
 ```markdown
 ## Refactor-Clean Analysis: <target>

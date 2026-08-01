@@ -20,7 +20,7 @@ Classify into `Documents/Plans/` for executable engine debt or `Documents/Featur
 
 ## Executable Plans
 
-Write the plan body to a file, then create the Plan with the repository-owned `.agents/scripts/New-PlanFile.ps1`. Never reconstruct its marker, timestamp, encoding, dependency, filename, overwrite, or validation operations inline.
+Write the plan body to a file, then create the Plan with the repository-owned `.agents/scripts/New-PlanFile.ps1`.
 
 ```powershell
 $RepositoryRoot = (git rev-parse --show-toplevel).Trim()
@@ -28,9 +28,7 @@ $Script = Join-Path $RepositoryRoot '.agents/scripts/New-PlanFile.ps1'
 pwsh -NoProfile -File $Script -Area <existing area> -Name <PascalCase.md> -Body <body file path> -DependsOn <plan paths as one comma-separated token>
 ```
 
-Omit `-DependsOn` entirely when the plan has no dependencies; the script rejects a blank entry and defaults to an empty dependency list only when the parameter is absent.
-
-The script writes the metadata marker at byte zero, mints the immutable `createdUtc`, normalizes `dependsOn`, refuses to overwrite a live path, and folds `WorktreeCli plan validate` into its result. Parse the single `broken-engine-new-plan-file/v1` JSON object on stdout: exit `0` with a passing `status` is the only saved outcome, while `1` (error) and `2` (blocked) block reporting the plan as saved — report the returned `code` and `message` and fix the cause. A validation failure leaves the written file in place, so correct the body instead of rewriting the file by hand.
+Its parameters, the `-DependsOn` single-token rule, its result shape, and its exit handling are in `../../references/new-plan-file.md`; only the created outcome there permits reporting the plan as saved.
 
 Record the folded result's invalid-plan diagnostics and stale-edge notices: existing dependency paths must remain executable to block a child, and missing paths are intentionally stale satisfied edges. Do not read local claims or use validation to choose, claim, or reorder work.
 

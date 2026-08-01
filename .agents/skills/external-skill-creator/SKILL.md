@@ -35,23 +35,13 @@ Research inline when the answer is local and small. Use available documentation 
 
 Lead with the capability, then name concrete user intents and specialized contexts. Do not encode invocation policy only in prose; apply the matching client controls.
 
-Concise example:
-
-- Weak: `Helps with profiling.`
-- Strong: `Analyze Visual Studio profiling captures. Use when the user provides a .diagsession or asks to identify CPU hotspots from a capture.`
-
 ### Progressive Disclosure
 
 Keep selection logic and the end-to-end workflow in `SKILL.md`. Move variant-specific tables, API details, long examples, and client syntax to focused references. Bundle a script when future invocations would otherwise recreate the same deterministic helper.
 
 ### Outputs
 
-Define an exact template only when downstream work consumes it or consistent structure is part of success. Show one short input/output example for a non-trivial format:
-
-```markdown
-Input: Added JWT authentication
-Output: feat(auth): add JWT authentication
-```
+Define an exact template only when downstream work consumes it or consistent structure is part of success. Show one short input/output example for a non-trivial format.
 
 ## Completion
 

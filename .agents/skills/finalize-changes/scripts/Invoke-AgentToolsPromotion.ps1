@@ -68,7 +68,7 @@ function Complete-Promotion([int] $ExitCode, [string] $Status, [string] $Code, [
 			retryAfterMilliseconds = $RetryAfterMilliseconds
 		}
 	}
-	[Console]::Out.Write(($result | ConvertTo-Json -Depth 100 -Compress))
+	Write-Output ($result | ConvertTo-Json -Depth 100 -Compress)
 	exit $ExitCode
 }
 

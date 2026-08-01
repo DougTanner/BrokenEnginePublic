@@ -303,7 +303,7 @@ try {
 		[void] (Assert-LandingSanity $ApprovedSessionCommit $script:PrimaryIdentity.Head)
 		$result.primaryAdvanced = $true
 		Complete-LandedState
-		[Console]::Out.Write(((New-LandingProjection) | ConvertTo-Json -Depth 10 -Compress))
+		Write-Output ((New-LandingProjection) | ConvertTo-Json -Depth 10 -Compress)
 		exit 0
 	}
 
@@ -374,5 +374,5 @@ if ($script:LandingClaimed) {
 	}
 	if ($result.status -eq 'error') { $result.code = 'cleanup.' + $result.code }
 }
-[Console]::Out.Write(((New-LandingProjection) | ConvertTo-Json -Depth 10 -Compress))
+Write-Output ((New-LandingProjection) | ConvertTo-Json -Depth 10 -Compress)
 exit $(if ($result.status -eq 'landed') { 0 } elseif ($result.status -eq 'blocked') { 2 } else { 1 })

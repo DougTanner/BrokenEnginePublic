@@ -33,7 +33,7 @@ Convert a Gaea 2 `.terrain` JSON into:
 
    Gaea's accepted enum values, required fields, and port catalogues can shift between releases, so the wrapper's `versionDrift` object exists to catch that before it bites. It carries `state` and a `notice` (the probe's own output):
    - `unchanged` — proceed silently.
-   - `changed` — surface the `notice` to the user in your final report as a one- or two-line note ("Gaea moved 2.3.0.0 → 2.4.0.0; SatMap.Library gained 'Volcanic'"), and suggest they check that `gaea2-modify/SKILL.md`'s per-type constraints aren't stale.
+   - `changed` — surface the `notice` to the user in your final report as a one- or two-line note ("Gaea moved 2.3.0.0 → 2.4.0.0; SatMap.Library gained 'Volcanic'"), and suggest they check that `../gaea2-shared/references/node-conventions.md`'s per-type constraints aren't stale.
    - `baseline-cached` — no PC-local baseline existed yet; it was cached silently, proceed.
    - `undetected` — no Gaea install or shared cache was reachable. Note it in the report but continue; drift detection is an information probe, not a gate.
 

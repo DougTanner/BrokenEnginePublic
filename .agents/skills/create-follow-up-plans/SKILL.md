@@ -44,7 +44,7 @@ Choose the existing owning area and a concise PascalCase filename; never overwri
 
 Derive the future implementation's Change Workflow Tier 1/2/3 from the highest root `AGENTS.md` risk trigger and record that trigger in the Plan. Put only directional prerequisites in `dependsOn`; put mandatory nondirectional constraints in reciprocal standard `## Coordination` sections in every affected Plan. Do not add score, effort ranking, queue tier, queue row, request file, or claim data.
 
-Create the file with the repository-owned `.agents/scripts/New-PlanFile.ps1`, which writes the immutable v1 metadata marker at byte zero with a canonical `createdUtc` and a unique ordinal-sorted `dependsOn`, refuses to overwrite an existing path, and folds `plan validate` into its result; never reconstruct those operations inline:
+Create the file with the repository-owned `.agents/scripts/New-PlanFile.ps1`:
 
 ```powershell
 $RepositoryRoot = (git rev-parse --show-toplevel).Trim()
@@ -52,9 +52,7 @@ $Script = Join-Path $RepositoryRoot '.agents/scripts/New-PlanFile.ps1'
 pwsh -NoProfile -File $Script -Area <existing area> -Name <PascalCase.md> -Body <body file path> -DependsOn <plan paths as one comma-separated token>
 ```
 
-Omit `-DependsOn` entirely when the Plan has no dependencies; the script rejects a blank entry and defaults to an empty dependency list only when the parameter is absent.
-
-Parse the single `broken-engine-new-plan-file/v1` JSON object on stdout. Exit `0` with a passing `status` is the only created outcome; on `1` (error) or `2` (blocked) report the returned `code` and `message`, and read `written` — a validation failure leaves the written file in place, so correct the body instead of recreating the Plan.
+Its parameters, the `-DependsOn` single-token rule, its result shape, and its exit handling are in `../../references/new-plan-file.md`.
 
 ### 3. Apply exactly one case
 

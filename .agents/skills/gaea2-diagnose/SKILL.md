@@ -119,7 +119,7 @@ If a second error appears, repeat from Step 2 — Gaea fails fast on the first e
 
 ### Step 6: Promote the finding
 
-If the discovered constraint is durable (a stable enum value, a required field, a node-deactivation rule), add a one-liner to `gaea2-modify/SKILL.md` under "Per-type enum constraints" or "Gaea 2 conventions when adding new nodes" — that's where future invocations look first, so a fix that escapes into docs avoids the next round-trip.
+If the discovered constraint is durable (a stable enum value, a required field, a node-deactivation rule), add a one-liner to `../gaea2-shared/references/node-conventions.md` under the matching section — that's where future invocations look first, so a fix that escapes into docs avoids the next round-trip.
 
 ## Common error patterns
 
@@ -130,7 +130,7 @@ UI / compressed-log errors (decoded form):
 | `JsonSerializationException: Error converting value "X" to type 'Enum...'` | Invalid enum value (often UI-label vs JSON-name mismatch) | `--enum Type.Property` then write the JSON name |
 | `JsonSerializationException: ... missing required member 'X'` | Required field absent | `--type <NodeType>` and copy the field from a sample |
 | `JsonReaderException: Unexpected end of content` or "File is corrupt or missing additional data" (no decoded error) | Root-level field missing (e.g., `Macros`) | Compare root keys with a known-good sample |
-| No ERR line at all, but a node loads dashed/deactivated | Id < 100, missing `Version: 2`, required input port not wired, or graph-rejected enum | See `gaea2-modify/SKILL.md` → "Gaea 2 conventions when adding new nodes" |
+| No ERR line at all, but a node loads dashed/deactivated | Id < 100, missing `Version: 2`, required input port not wired, or graph-rejected enum | See `../gaea2-shared/references/node-conventions.md` |
 | ERR mentions `CompositeFailure` / a Swarm log | Build-time evaluation error, not a load error | Re-run with `--latest-swarm` |
 
 Headless / DataPacker-invoked Swarm errors (from the same `*-SWARM.txt` logs; the exit code comes from DataPacker's own bake failure):

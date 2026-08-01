@@ -3,11 +3,8 @@ name: external-diagnose-bug
 description: >-
   Find and prove the root cause of a bug or performance regression before any
   fix exists. Use when the user says "diagnose" or "debug this", or reports
-  something broken, failing, crashing, throwing, hanging, desyncing, mismatched
-  CRC, or slow. Establishes a reproducing signal first, ranks falsifiable
-  hypotheses, instruments one variable at a time, and hands the confirmed root
-  cause plus evidence to Change Workflow Step 1. Diagnosis only — never fixes,
-  commits, or lands.
+  something misbehaving, desyncing, mismatched CRC, or slow. Diagnosis only —
+  never fixes, commits, or lands.
 allowed-tools: [Read, Grep, Glob, Edit, PowerShell]
 ---
 
@@ -127,17 +124,20 @@ fix and routes it to `/resolve-findings` or a plan.
 ## Handoff
 
 ```markdown
-Status: DIAGNOSED | BLOCKED
 Root cause: <one sentence, with file:line>
 Evidence: <inspection, command output, or log lines that prove it>
 Reproducing signal: <exact command or inspection, and its red result>
 Hypotheses ruled out: <hypothesis — the check that killed it>
 Proposed acceptance check: <check matching the signal — harness scenario, replay check, compile result, or profiling baseline>
 Instrumentation removed: yes — <marker searched> | none added
-Files changed: none
-Build required: <exact targets, or none>
-Residuals: <unproven branch, missing environment, or none>
 ```
+
+Follow those extension fields with the shared handoff lines
+(`../../references/subagent-reporting.md`, `## Handoffs`); this diagnosis-only
+workflow reports `Status: DIAGNOSED | BLOCKED` instead of the shared values and
+always reports `Changed files: none`, `Build required` names the exact targets
+the manager must rebuild or `none`, and an unproven branch or missing
+environment belongs in `Residuals`.
 
 Use `DIAGNOSED` only with a confirmed root cause. Use `BLOCKED` when no
 reproducing signal could be built, naming what you need.

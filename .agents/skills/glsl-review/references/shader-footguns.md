@@ -48,6 +48,8 @@ Normal-map Z reconstruction commonly needs `sqrt(max(0.0, 1.0 - dot(xy, xy)))` b
 
 Kahan summation reduces sequential rounding error. It does not make a result independent of term order, thread scheduling, or atomic update order. Deterministic accumulation needs a fixed reduction order, exact/fixed-point representation, or another proven scheme.
 
+Require the same expression plus appropriate `invariant` qualification only when separate pipelines must produce invariant outputs. Do not claim a qualifier alone guarantees arbitrary cross-program bit identity without verification.
+
 ## Coordinates, interpolation, and sampling
 
 `gl_Position` is a homogeneous clip-space value. The fixed-function coordinate transform performs perspective division using `w`; a vertex shader normally must not pre-divide and then leave a non-unit `w`. Review the complete transform, clipping intent, and pipeline viewport state. Use the Vulkan coordinate-transform source for any non-obvious API proposition.

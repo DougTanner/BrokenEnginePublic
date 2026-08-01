@@ -28,19 +28,15 @@ State the requirement once. `## Method` step 1 is the operative statement of the
 
 Do not restate `-Head`, `-UntrackedPath`, `-RiskTier`, or any other script parameter in `## Inputs`; they are already documented where they are used.
 
-Also update the stale ownership pointer in `Documents/Plans/Agents/ReviewSkillInventoryAdoption.md` `## Out of scope`, which names `Documents/Plans/Agents/CodexReviewPromptScript.md` as the owner of `.agents/skills/codex-review/SKILL.md`. That plan is completed and its file is gone, leaving a dangling reference. The exclusion itself is unchanged in effect; only the named owner becomes this plan.
-
 ## Critical files
 
 - `.agents/skills/codex-review/SKILL.md` — `## Inputs`, the worktree-and-baseline bullet only. `## Method`, `## Manager evaluation`, `## Fallback`, and `## Notes` unchanged.
-- `Documents/Plans/Agents/ReviewSkillInventoryAdoption.md` — one `## Out of scope` line; the owning-plan reference only.
 - `.agents/skills/codex-review/scripts/New-CodexReviewPrompt.ps1` — read-only; the consumer of `-Baseline`.
 - `.agents/scripts/Get-SessionChangeInventory.ps1` — read-only; the source of the 40-character rule.
 
 ## In scope
 
 - `.agents/skills/codex-review/SKILL.md` `## Inputs`: the final bullet, rewritten to require a full 40-character commit SHA for the session baseline and to remove the `HEAD` default.
-- `Documents/Plans/Agents/ReviewSkillInventoryAdoption.md` `## Out of scope`: the `.agents/skills/codex-review/SKILL.md` line, repointed from the completed `CodexReviewPromptScript.md` to this plan.
 
 ## Out of scope
 
@@ -48,12 +44,12 @@ Also update the stale ownership pointer in `Documents/Plans/Agents/ReviewSkillIn
 - Relaxing the SHA requirement, adding `HEAD` resolution, or adding any baseline defaulting in either script.
 - Any change to `## Method`, `## Manager evaluation`, `## Fallback`, `## Notes`, the Sol-over-reporting rule, the decide-once rule, or any review-judgment criterion.
 - Any change to the frontmatter, `name`, `description`, or `allowed-tools` of `codex-review`.
-- The remaining scope, invariants, and acceptance criteria of `ReviewSkillInventoryAdoption.md`; only the one owner reference changes.
+- Any Plan document under `Documents/Plans/`, including any stale plan-ownership reference left by a completed plan.
 - Any other skill's inputs or baseline wording.
 
 ## Risk tier and invariants
 
-Tier 1 — mechanical documentation correction in one skill section plus one plan reference, with no public signature or invariant exposure, and no script, engine runtime, determinism/CRC, wire, serialization, save/replay, threading, or build/bootstrap coordination surface.
+Tier 1 — mechanical documentation correction in one skill section, with no public signature or invariant exposure, and no script, engine runtime, determinism/CRC, wire, serialization, save/replay, threading, or build/bootstrap coordination surface.
 
 Invariants: the baseline contract has exactly one operative statement, in `## Method` step 1; `## Inputs` agrees with it and adds no second specification; the reviewer sandbox and manager-side split are unchanged.
 
@@ -61,6 +57,5 @@ Invariants: the baseline contract has exactly one operative statement, in `## Me
 
 - `.agents/skills/codex-review/SKILL.md` `## Inputs` no longer contains `HEAD` as a baseline default, and its baseline wording agrees with the `-Baseline <full 40-character baseline SHA>` form in `## Method` step 1.
 - The worktree half of the bullet still permits the current repository root, so the `git rev-parse --show-toplevel` form in `## Method` step 1 remains correct.
-- `Documents/Plans/Agents/ReviewSkillInventoryAdoption.md` `## Out of scope` names a plan file that exists, and still excludes `.agents/skills/codex-review/SKILL.md` from that plan.
 - `/validate-skill` passes on the edited `SKILL.md`.
 - WorktreeCli `plan validate` reports `status: valid` with no new diagnostics.

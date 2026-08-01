@@ -90,44 +90,14 @@ After reviewer rounds complete, route every such request through `verify-externa
 
 Deduplicate by root cause, preserve the strongest evidence, and cross-reference systemic findings without inflating their count. Any prioritized Lens-D recommendation preserves its interface, deletion, seam, and locality/leverage evidence and payoff. Choose one most impactful architectural improvement and name its modules, correction, and reason. Do not invent findings to populate a section.
 
-Return:
+Return `## Architecture Review: <target>` followed by these `###` sections, with
+these exact names, in this order:
 
-```markdown
-## Architecture Review: <target>
-
-### Scope and Authorities
-<exact-file | non-recursive directory | recursive directory; file count; AGENTS.md paths>
-
-### Overview
-<architectural health, strengths, primary concern>
-
-### Dependencies and Layering
-<standard findings or explicit no findings>
-
-### Simulation and Threading
-<standard findings or explicit no findings>
-
-### Client/Server and Data Shape
-<standard findings or explicit no findings>
-
-### Cohesion and Generation Residue
-<standard findings or explicit no findings>
-
-### ThirdParty Replacement Opportunities
-<verified standard findings, including removable size and license evidence, or none>
-
-### Cross-Cutting Concerns
-<deduplicated systemic effects>
-
-### Handoff to external-refactor-clean
-<one concise scope note; do not enumerate line-level findings>
-
-### Prioritized Recommendations
-1. <highest-impact correction, rationale, rough effort>
-
-### Architecture Health: <HEALTHY | MINOR CONCERNS | NEEDS ATTENTION | CRITICAL>
-<brief justification>
-
-### External-Claim Residuals
-<unresolved propositions or none>
-```
+Scope and Authorities (scope mode, file count, `AGENTS.md` paths); Overview;
+Dependencies and Layering; Simulation and Threading; Client/Server and Data
+Shape; Cohesion and Generation Residue; ThirdParty Replacement Opportunities
+(with removable size and license evidence); Cross-Cutting Concerns; Handoff to
+external-refactor-clean (one concise scope note, never line-level findings);
+Prioritized Recommendations (ranked, each with rationale and rough effort);
+`### Architecture Health: <HEALTHY | MINOR CONCERNS | NEEDS ATTENTION |
+CRITICAL>` plus a brief justification; External-Claim Residuals.

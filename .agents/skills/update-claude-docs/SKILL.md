@@ -2,11 +2,9 @@
 name: update-claude-docs
 description: >-
   Synchronize AGENTS.md documentation and sibling CLAUDE.md import stubs after
-  every C++ or GLSL change, and for explicit requests to update AGENTS.md,
-  sync project memory, refresh repository guidance, or verify affected
-  documentation. Also use for explicit AGENTS.md audit, grade, quality-report,
-  repo-wide improvement, or audit-and-fix requests; audits report only unless
-  improvement edits were already authorized.
+  every C++ or GLSL change, and for an explicit request to update AGENTS.md.
+  Also use for an explicit AGENTS.md audit or audit-and-fix request; audits
+  report only unless improvement edits were already authorized.
 allowed-tools: [Read, Edit, Write, Grep, Glob, Bash, PowerShell]
 ---
 
@@ -64,9 +62,7 @@ Audit mode emits the quality report and completion report without editing. Audit
 - A *hub* is a subsystem's main AGENTS.md that links to the detail docs below it. Existing wording also calls those detail docs *leaves*; *detail doc* is the term to use in new prose.
 - Do not silently override a parent or sibling invariant. Pause on a meaningful contradiction and identify both sources; report an inconsistency that is not meaningful as a residual.
 - Use direct, normal emphasis. Avoid all-caps directives and repeated rules.
-- Use the one established term for each concept everywhere; never introduce a synonym for a concept that already has a name. Reintroducing a second name — including one the repository previously retired in favor of the established term — is a finding, not a style choice.
-- Define a genuinely new coined term in one plain sentence at the doc that owns the concept, on first use; every other doc references the owning doc instead of redefining it.
-- Prefer the plain word over the formal one when the meaning is identical: decide, not adjudicate; change, not mutate; final, not terminal; count, not cardinality.
+- Apply the one-term-per-concept and plain-words rules in root `AGENTS.md` `## Directives`. Reintroducing a second name — including one the repository previously retired in favor of the established term — is a finding, not a style choice.
 - Write concrete actions, not abstract noun-stacks: say who does what ("the loop that keeps processing until the queue is empty"), not a compressed label ("drain loop") — unless the label is an established defined term or a code identifier.
 
 ### Architecture, Not Inventories

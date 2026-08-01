@@ -59,7 +59,7 @@ function Complete-Review([int] $ExitCode, [string] $Status, [string] $Code, [str
 	$result.status = $Status
 	$result.code = $Code
 	$result.message = $Message
-	[Console]::Out.Write(($result | ConvertTo-Json -Depth 12 -Compress))
+	Write-Output ($result | ConvertTo-Json -Depth 12 -Compress)
 	exit $ExitCode
 }
 
