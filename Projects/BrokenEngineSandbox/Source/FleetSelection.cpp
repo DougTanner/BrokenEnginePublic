@@ -116,26 +116,41 @@ void FleetSelection::SyncFleets(std::vector<Fleet>&& fleets)
 
 	int64_t iPrevFleetCount = std::ssize(mClientFleets);
 	int64_t iPrevFocusedFleetMemberCount = 0;
+	FleetGuid prevFocusedFleetGuid {};
 	if (miFocusedFleetIndex >= 0 && miFocusedFleetIndex < iPrevFleetCount)
 	{
-		iPrevFocusedFleetMemberCount = std::ssize(mClientFleets.at(static_cast<size_t>(miFocusedFleetIndex)).members);
+		const Fleet& rPrevFocusedFleet = mClientFleets.at(static_cast<size_t>(miFocusedFleetIndex));
+		iPrevFocusedFleetMemberCount = std::ssize(rPrevFocusedFleet.members);
+		prevFocusedFleetGuid = rPrevFocusedFleet.guid;
 	}
 	mClientFleets = std::move(fleets);
+
+	auto FindFleetIndexByGuid = [this](const FleetGuid& rGuid) -> int64_t
+	{
+		if (!rGuid.IsValid())
+		{
+			return -1;
+		}
+		for (int64_t i = 0; i < std::ssize(mClientFleets); ++i)
+		{
+			if (mClientFleets.at(static_cast<size_t>(i)).guid == rGuid)
+			{
+				return i;
+			}
+		}
+		return -1;
+	};
 
 	// Restore from disk-persisted client state on the first sync after a reconnect-style clear.
 	// The remembered FleetGuid identifies which fleet to focus; a missing or destroyed ship falls back to the fleet's current flagship.
 	bool bRestoredRemembered = false;
-	if (iPrevFleetCount == 0 && gpGame->mRememberedFleetGuid.IsValid())
+	if (iPrevFleetCount == 0)
 	{
-		for (int64_t i = 0; i < std::ssize(mClientFleets); ++i)
+		int64_t iRememberedFleetIndex = FindFleetIndexByGuid(gpGame->mRememberedFleetGuid);
+		if (iRememberedFleetIndex >= 0)
 		{
-			const Fleet& rFleet = mClientFleets.at(static_cast<size_t>(i));
-			if (rFleet.guid != gpGame->mRememberedFleetGuid)
-			{
-				continue;
-			}
-
-			miFocusedFleetIndex = i;
+			const Fleet& rFleet = mClientFleets.at(static_cast<size_t>(iRememberedFleetIndex));
+			miFocusedFleetIndex = iRememberedFleetIndex;
 			miFocusedPlayerInFleetIndex = -1;
 			if (gpGame->mRememberedFocusedShipId.IsValid())
 			{
@@ -158,12 +173,19 @@ void FleetSelection::SyncFleets(std::vector<Fleet>&& fleets)
 			// Suppress the auto-newest-fleet / auto-newest-member branches below.
 			iPrevFocusedFleetMemberCount = std::ssize(rFleet.members);
 			bRestoredRemembered = true;
-			break;
 		}
 	}
 
 	if (!bRestoredRemembered)
 	{
+		// Re-anchor by identity before clamping: the server can erase a fleet from the middle of the vector,
+		// so an index still in range would otherwise silently address a different fleet.
+		int64_t iReanchoredFleetIndex = FindFleetIndexByGuid(prevFocusedFleetGuid);
+		if (iReanchoredFleetIndex >= 0)
+		{
+			miFocusedFleetIndex = iReanchoredFleetIndex;
+		}
+
 		// Clamp fleet index
 		if (miFocusedFleetIndex >= std::ssize(mClientFleets))
 		{
