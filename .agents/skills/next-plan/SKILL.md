@@ -29,10 +29,19 @@ worktree or inspect machine-local claims directly.
 - A filename selects only one exact case-sensitive executable leaf match;
   zero/duplicates block. Reject every other path shape.
 
-Run `scripts/Invoke-NextPlanClaim.ps1`; do not reconstruct its transitions. On
-`status: pass`, act on the code: `ok` and `reused` both mean this session holds
-the named claim, and `none-available` is a normal stop with nothing to claim.
-Any other status stops the skill without repair, reordering, or retry.
+Keep the process current directory at the session worktree root for every
+bundled script invocation; never change into `.agents/skills/next-plan` or
+treat its `scripts/...` path as a working-directory instruction. For bare
+selection, run this command with no `-Plan` argument:
+`pwsh -NoProfile -File .agents/skills/next-plan/scripts/Invoke-NextPlanClaim.ps1`
+For a requested normalized path or filename, append `-Plan` and quote that
+value, for example:
+`pwsh -NoProfile -File .agents/skills/next-plan/scripts/Invoke-NextPlanClaim.ps1 -Plan 'Documents/Plans/example.md'`
+(`-Plan 'example.md'` forwards a filename.) Do not reconstruct the script's
+transitions. On `status: pass`, act on the code: `ok` and `reused` both mean
+this session holds the named claim, and `none-available` is a normal stop with
+nothing to claim. Any other status stops the skill without repair, reordering,
+or retry.
 
 ## Preparation and execution card
 
@@ -74,16 +83,21 @@ this pause; main records those facts. The landing confirmation in
 ## Claim lifecycle
 
 Before landing-commit creation, an `implementer` runs
-`scripts/Complete-NextPlan.ps1` with no arguments for completion or `-Reject`
-only after explicit user-authorized rejection. Success removes only direct-child
-dependency edges, deletes the selected Plan in the worktree, reports the
-`changedPaths` the landing commit must contain, and returns
-`nextAction: finalize-changes`. The claim stays held until landing succeeds.
+`pwsh -NoProfile -File .agents/skills/next-plan/scripts/Complete-NextPlan.ps1`
+with no arguments for completion or appends `-Reject` only after explicit
+user-authorized rejection. Success removes only direct-child dependency edges,
+deletes the selected Plan in the worktree, reports the `changedPaths` the
+landing commit must contain, and returns `nextAction: finalize-changes`. The
+claim stays held until landing succeeds.
 
-Deferral uses `scripts/Defer-NextPlan.ps1` and only an ordinary live claim;
-never defer after final preparation has run. `/finalize-changes` deletes the
-claim after primary advances. Run `scripts/Test-NextPlanWorkflowScripts.ps1`
-only when one of those scripts changes.
+Deferral uses
+`pwsh -NoProfile -File .agents/skills/next-plan/scripts/Defer-NextPlan.ps1`
+and only an ordinary live claim; never defer after final preparation has run.
+`/finalize-changes` deletes the claim after primary advances. Run
+`pwsh -NoProfile -File .agents/skills/next-plan/scripts/Test-NextPlanWorkflowScripts.ps1 -Executable '<worktree-cli-path>'`
+only when one of those scripts changes; substitute the provisioned `WorktreeCli`
+path resolved by `Get-NextPlanContext` during Preconditions and selection for
+`<worktree-cli-path>` and never pass the placeholder literally.
 
 ## Preparation handoff
 
