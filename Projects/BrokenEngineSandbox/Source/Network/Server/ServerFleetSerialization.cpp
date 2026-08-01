@@ -132,7 +132,7 @@ void WriteFleetData(std::fstream& rFileStream, const std::unordered_map<engine::
 		}
 	}
 
-	common::Write(rFileStream, rRandom.uiState);
+	common::Write(rFileStream, rRandom.State());
 }
 
 void ReadFleetData(std::fstream& rFileStream, std::unordered_map<engine::ClientGuid, std::vector<Fleet>, engine::ClientGuidHash>& rFleets, std::unordered_map<engine::ClientGuid, int64_t, engine::ClientGuidHash>& rGuidToClientId, common::RandomEngine& rRandom)
@@ -167,7 +167,9 @@ void ReadFleetData(std::fstream& rFileStream, std::unordered_map<engine::ClientG
 		rGuidToClientId.insert_or_assign(guid, static_cast<int64_t>(0));
 	}
 
-	common::Read(rFileStream, rRandom.uiState);
+	uint64_t uiRandomState = 0;
+	common::Read(rFileStream, uiRandomState);
+	rRandom.SetSerializedState(uiRandomState);
 }
 
 #endif // BT_SERVER

@@ -31,6 +31,18 @@ void RandomEngine::TimeSeed()
 	}
 }
 
+void RandomEngine::SetSerializedState(uint64_t uiValue)
+{
+	// Trust boundary (save / replay file, network payload): zero is an absorbing state for the xorshift
+	// step, so a zero here would make every later draw zero — fleet identifiers included — for the rest of
+	// the run. Refuse the stream instead of silently repairing it, which would diverge from the recording.
+	if (uiValue == 0)
+	{
+		throw CorruptStreamException("RandomEngine::SetSerializedState");
+	}
+	uiState = uiValue;
+}
+
 bool RandomEngine::operator==(const RandomEngine& rOther) const
 {
 	return uiState == rOther.uiState;

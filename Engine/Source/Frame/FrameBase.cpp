@@ -126,7 +126,9 @@ void FramePostRenderBase::Write(std::ostream& rStream) const
 
 void FramePostRenderBase::Read(std::istream& rStream)
 {
-	common::Read(rStream, randomEngine);
+	uint64_t uiRandomState = 0;
+	common::Read(rStream, uiRandomState);
+	randomEngine.SetSerializedState(uiRandomState);
 	common::Read(rStream, uiNextUuid);
 #if defined(BT_CLIENT)
 	common::Read(rStream, uiNextSoundUuid);
@@ -143,7 +145,9 @@ void FramePostRenderBase::Read(std::istream& rStream)
 
 void FramePostRenderBase::ServerRead(std::istream& rStream)
 {
-	common::Read(rStream, randomEngine);
+	uint64_t uiRandomState = 0;
+	common::Read(rStream, uiRandomState);
+	randomEngine.SetSerializedState(uiRandomState);
 	common::Read(rStream, uiNextUuid);
 	// Server does not write uiNextSoundUuid or uiNextVisualUuid
 	common::Read(rStream, uiFrameId);

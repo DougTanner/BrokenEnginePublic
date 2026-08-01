@@ -271,7 +271,7 @@ struct std::formatter<common::RandomEngine> : std::formatter<uint64_t>
 	template<typename CONTEXT>
 	auto format(const common::RandomEngine& rEngine, CONTEXT& rContext) const
 	{
-		return std::formatter<uint64_t>::format(rEngine.uiState, rContext);
+		return std::formatter<uint64_t>::format(rEngine.State(), rContext);
 	}
 };
 
