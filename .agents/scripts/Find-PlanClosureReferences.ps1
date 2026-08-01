@@ -35,7 +35,7 @@ foreach ($line in $renameOutput -split "`r?`n") {
 }
 
 $hits = [Collections.Generic.List[object]]::new()
-foreach ($root in @('Documents/Plans', 'Documents/Features')) {
+foreach ($root in @('Documents/Plans', 'Documents/Features', 'Documents/Investigations')) {
 	$absoluteRoot = Join-Path $identity.Worktree $root
 	if (-not (Test-Path -LiteralPath $absoluteRoot -PathType Container)) { continue }
 	foreach ($file in Get-ChildItem -LiteralPath $absoluteRoot -Recurse -File -Filter '*.md') {
