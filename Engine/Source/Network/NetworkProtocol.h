@@ -17,7 +17,6 @@ enum class PacketType : uint8_t
 	kServerCoordStaticData,     // Per-coord static data sent once per subscription (reliable, slot channel)
 	kServerCoordUpdate,         // Per-coord delta update (unreliable, slot channel)
 	kServerCoordResend,         // Per-coord re-sent frame (unreliable, slot channel)
-	kClientSpawnRequest,
 	kServerDebugFrame,
 	kClientDesyncReport,
 	kClientAckStream,
@@ -33,14 +32,6 @@ enum class PacketType : uint8_t
 	kGamePacketStart,           // All values >= this are game-layer packets forwarded as raw bytes
 };
 
-// Client request flags for spawn/respawn
-enum class ClientRequestFlags : uint8_t
-{
-	kSpawnRequested   = 0x01,
-	kRespawnRequested = 0x02,
-};
-using ClientRequestFlags_t = common::Flags<ClientRequestFlags>;
-
 inline constexpr const char* PacketTypeName(PacketType eType)
 {
 	switch (eType)
@@ -49,7 +40,6 @@ inline constexpr const char* PacketTypeName(PacketType eType)
 		case PacketType::kServerCoordStaticData:        return "kServerCoordStaticData";
 		case PacketType::kServerCoordUpdate:            return "kServerCoordUpdate";
 		case PacketType::kServerCoordResend:            return "kServerCoordResend";
-		case PacketType::kClientSpawnRequest:           return "kClientSpawnRequest";
 		case PacketType::kServerDebugFrame:             return "kServerDebugFrame";
 		case PacketType::kClientDesyncReport:           return "kClientDesyncReport";
 		case PacketType::kClientAckStream:              return "kClientAckStream";
@@ -68,7 +58,7 @@ inline constexpr const char* PacketTypeName(PacketType eType)
 }
 
 // Protocol constants
-inline constexpr uint32_t kuiProtocolVersion = 9;
+inline constexpr uint32_t kuiProtocolVersion = 10;
 inline constexpr uint8_t kuiSubscribeRejectSlot = 0xFF; // Sentinel slot in kServerSubscribeAccept: server rejected the subscribe (not adjacent / no free slot)
 inline constexpr uint16_t kuiDefaultPort = 27015;
 inline constexpr int64_t kiMaxResendFrames = 8;
@@ -162,7 +152,6 @@ inline constexpr ClientPacketContract GetClientPacketContract(PacketType eType)
 	switch (eType)
 	{
 		case PacketType::kClientAckStream:         return {NetworkMessages::ClientAckStreamMessage::kiFixedSize, kiMaxAckStreamPacketSize, 128, true, false}; // over-cap is a silent multi-tick-poll burst safety drop
-		case PacketType::kClientSpawnRequest:      return {NetworkMessages::ClientSpawnRequestMessage::kiFixedSize, NetworkMessages::ClientSpawnRequestMessage::kiFixedSize, 8};
 		case PacketType::kClientDesyncReport:      return {NetworkMessages::ClientDesyncReportMessage::kiFixedSize, NetworkMessages::ClientDesyncReportMessage::kiFixedSize, 8};
 		case PacketType::kClientDebugFrameRequest: return {NetworkMessages::ClientDebugFrameRequestMessage::kiFixedSize, NetworkMessages::ClientDebugFrameRequestMessage::kiFixedSize, 8};
 		case PacketType::kClientHello:             return {.iMinSize = NetworkMessages::ClientHelloMessage::kiMinSize, .iMaxSize = NetworkMessages::ClientHelloMessage::kiMaxSize, .iMaxPerTick = 4, .bRequiresHandshake = false}; // pre-handshake by definition

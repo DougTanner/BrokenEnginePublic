@@ -118,7 +118,6 @@ void ServerSessionRuntime::CompleteUpdate(int64_t iFullTicks, int64_t iTick)
 void ServerSessionRuntime::ResetTransportForLoad()
 {
 	mpServer->ClearBufferedFrames();
-	mpServer->mPendingSpawnRequests.clear();
 	mpServer->mPendingNewSubscriptions.clear();
 	mpServer->mPendingResyncClientIds.clear();
 	mpServer->Flush();

@@ -356,21 +356,6 @@ struct ClientAckStreamMessage
 	}
 };
 
-struct ClientSpawnRequestMessage
-{
-	static constexpr PacketType keType = PacketType::kClientSpawnRequest;
-	static constexpr int64_t kiFixedSize = kiPacketTypeSize + sizeof(uint8_t);
-
-	uint8_t uiFlags = 0;
-
-	template <typename TVisitor>
-	static void Visit(TVisitor& rVisitor, ClientSpawnRequestMessage& rMessage)
-	{
-		rVisitor.Type(keType);
-		rVisitor.Field(rMessage.uiFlags);
-	}
-};
-
 struct ClientDesyncReportMessage
 {
 	static constexpr PacketType keType = PacketType::kClientDesyncReport;

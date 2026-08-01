@@ -21,7 +21,6 @@ class ServerClientManager
 public:
 
 	void QueueSpawnForClient(int64_t iClientId, const engine::ClientGuid& rClientGuid, const FleetGuid& rFleetGuid = {}, int64_t iMemberIndex = -1);
-	void ProcessSpawnRequests();
 	void NewClients();
 	void FinalizeNewClients();
 	void Disconnects();

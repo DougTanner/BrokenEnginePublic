@@ -61,25 +61,6 @@ bool Client::SendAck()
 	return true;
 }
 
-void Client::SendSpawnRequest(ClientRequestFlags_t flags)
-{
-	if (!(mStateFlags & ClientStateFlags::kConnected) || mpServerPeer == nullptr)
-	{
-		return;
-	}
-
-	uint8_t uiFlags = 0;
-	std::memcpy(&uiFlags, &flags, sizeof(uint8_t));
-
-	LOG(kNetwork, kDebug, "Client::SendSpawnRequest Spawn: {} Respawn: {}", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
-
-	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-	common::ScopedWorkbufferArena scopedWorkbufferArena = rWorkbuffer.Push();
-	NetworkMessages::ClientSpawnRequestMessage message {.uiFlags = uiFlags};
-	NetworkMessages::Write(rWorkbuffer, message);
-	NetworkManager::SendPacket(mpServerPeer, NetworkManager::kuiChannelReliable, rWorkbuffer, ENET_PACKET_FLAG_RELIABLE);
-}
-
 void Client::SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual)
 {
 	if (!(mStateFlags & ClientStateFlags::kConnected) || mpServerPeer == nullptr)

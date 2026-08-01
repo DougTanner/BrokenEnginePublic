@@ -113,32 +113,6 @@ void Server::ClientAckStream(std::span<const uint8_t> packetData, int64_t iClien
 	}
 }
 
-void Server::ClientSpawnRequest(std::span<const uint8_t> packetData, int64_t iClientId)
-{
-	NetworkMessages::ClientSpawnRequestMessage message {};
-	if (!NetworkMessages::Read(packetData, message))
-	{
-		return;
-	}
-
-	ClientConnection* pClient = FindHandshakenClient(iClientId);
-	if (pClient == nullptr)
-	{
-		return;
-	}
-
-	uint8_t uiFlags = message.uiFlags;
-
-	ClientRequestFlags_t flags;
-	std::memcpy(&flags, &uiFlags, sizeof(uint8_t));
-
-	LOG(kNetwork, kDebug, "Server::ClientSpawnRequest Client: {} Spawn: {} Respawn: {}", iClientId, static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
-
-	ScopedSuppressAllocationTracking suppress;
-	// Heap: spawn request vector grows on request
-	mPendingSpawnRequests.push_back({iClientId, flags});
-}
-
 void Server::ClientDesyncReport(std::span<const uint8_t> packetData, int64_t iClientId)
 {
 	ClientConnection* pClient = FindHandshakenClient(iClientId);

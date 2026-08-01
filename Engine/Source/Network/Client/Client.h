@@ -87,7 +87,6 @@ public:
 		NetworkManager::SendSimplePacket(mpServerPeer, eType, uiChannel, uiPacketFlags, args...);
 	}
 
-	void SendSpawnRequest(ClientRequestFlags_t flags);
 	void SendDesyncReport(int64_t iTick, GridCoord coord, common::crc_t expected, common::crc_t actual);
 	void SendDebugFrameRequest(int64_t iTick, GridCoord coord);
 	void SendResyncRequest();

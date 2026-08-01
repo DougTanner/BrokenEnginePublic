@@ -77,7 +77,6 @@ void Server::Poll(const NetworkTimeState& rTimeState)
 		return;
 	}
 
-	mPendingSpawnRequests.clear();
 	mPendingDisconnects.clear();
 	// mPendingNewSubscriptions / mPendingResyncClientIds are intentionally NOT cleared here. Their consumers
 	// (game ServerSession::SendNewSubscriptionFullStates / game ServerSession::HandleResyncRequests) run post-tick,
@@ -273,9 +272,6 @@ void Server::Receive(std::span<const uint8_t> packetData, ENetPeer* pPeer)
 		{
 			case PacketType::kClientAckStream:
 				ClientAckStream(packetData, iClientId);
-				break;
-			case PacketType::kClientSpawnRequest:
-				ClientSpawnRequest(packetData, iClientId);
 				break;
 			case PacketType::kClientDesyncReport:
 				ClientDesyncReport(packetData, iClientId);

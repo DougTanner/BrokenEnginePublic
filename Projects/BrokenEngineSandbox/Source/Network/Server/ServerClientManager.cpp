@@ -16,7 +16,7 @@ namespace game
 
 void ServerClientManager::QueueSpawnForClient(int64_t iClientId, const engine::ClientGuid& rClientGuid, const FleetGuid& rFleetGuid, int64_t iMemberIndex)
 {
-	// A queued spawn revives the client: clear its dead/processed state unconditionally, matching ProcessSpawnRequests.
+	// A queued spawn revives the client: clear its dead/processed state unconditionally.
 	mDeadClientIds.erase(iClientId);
 	mProcessedClientIds.erase(iClientId);
 
@@ -29,32 +29,6 @@ void ServerClientManager::QueueSpawnForClient(int64_t iClientId, const engine::C
 	if (!bAlreadyQueued)
 	{
 		mClientsWaitingForSpawn.push_back({iClientId, rClientGuid, rFleetGuid, iMemberIndex});
-	}
-}
-
-void ServerClientManager::ProcessSpawnRequests()
-{
-	// Heap: vector push_back for spawn StatusChanges
-	ScopedSuppressAllocationTracking suppress;
-
-	for (const engine::PendingSpawnRequest& rRequest : gpServerSession->mpRuntime->mpServer->mPendingSpawnRequests)
-	{
-		const engine::ClientConnection* pClient = engine::gpServer->FindClient(rRequest.iClientId);
-		if (pClient == nullptr)
-		{
-			continue;
-		}
-
-		if (rRequest.flags & engine::ClientRequestFlags::kRespawnRequested ||
-		    rRequest.flags & engine::ClientRequestFlags::kSpawnRequested)
-		{
-			mDeadClientIds.erase(rRequest.iClientId);
-			mProcessedClientIds.erase(rRequest.iClientId);
-			if (!std::ranges::contains(mClientsWaitingForSpawn, rRequest.iClientId, &ClientSpawnInfo::iClientId))
-			{
-				mClientsWaitingForSpawn.push_back({rRequest.iClientId, pClient->clientGuid});
-			}
-		}
 	}
 }
 

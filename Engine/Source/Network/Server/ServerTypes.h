@@ -26,12 +26,6 @@ struct ClientCoordSubscription
 	common::Flags<SubscriptionFlags> flags;
 };
 
-struct PendingSpawnRequest
-{
-	int64_t iClientId = 0;
-	ClientRequestFlags_t flags {};
-};
-
 struct PendingDisconnect
 {
 	int64_t iClientId = 0;

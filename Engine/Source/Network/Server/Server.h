@@ -173,7 +173,6 @@ public:
 	void BroadcastLoadNotification();
 
 	std::vector<ClientConnection> mClients;
-	std::vector<PendingSpawnRequest> mPendingSpawnRequests;
 	std::vector<PendingDisconnect> mPendingDisconnects;
 	std::vector<PendingNewSubscription> mPendingNewSubscriptions;
 	std::vector<int64_t> mPendingResyncClientIds;
@@ -202,7 +201,6 @@ private:
 	ClientConnection* FindHandshakenClient(int64_t iClientId);
 
 	void ClientAckStream(std::span<const uint8_t> packetData, int64_t iClientId);
-	void ClientSpawnRequest(std::span<const uint8_t> packetData, int64_t iClientId);
 	void ClientDesyncReport(std::span<const uint8_t> packetData, int64_t iClientId);
 	void ClientDebugFrameRequest(std::span<const uint8_t> packetData, ENetPeer* pPeer, int64_t iClientId);
 	void ClientHello(std::span<const uint8_t> packetData, ENetPeer* pPeer, int64_t iClientId);

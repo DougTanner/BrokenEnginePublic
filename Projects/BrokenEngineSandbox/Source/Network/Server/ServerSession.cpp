@@ -299,7 +299,6 @@ void ServerSession::AfterNetworkPoll()
 	mpFleetManager->ProcessDeleteFleetRequests();
 	mpFleetManager->ProcessSpawnIntoFleetRequests();
 	mpFleetManager->ProcessRespawnInFleetRequests();
-	mpClientManager->ProcessSpawnRequests();
 }
 
 void ServerSession::FinalizeTickClients()
