@@ -28,7 +28,20 @@ $ServerPid = $ServerProcess.Id
 $ClientPid = $ClientProcess.Id
 ```
 
-Debug/Profile clients auto-connect; Release requires `click "LOCAL SERVER"`. The server loads its exit autosave, so use `reset` when the scenario needs fresh state.
+After both generic deadline-limited `Wait-HarnessPing.ps1` readiness checks succeed (server port `27100`, then client port `27101`), restore the minimized agent-mode client and require a successful response confirming `result.minimized:false` before relying on Debug/Profile UI auto-connect:
+
+```powershell
+$WindowStateResponse = '{"cmd":"window_state","params":{"minimized":false}}' |
+	& $AgentHarness --owner $Owner --port 27101 -
+if ($LASTEXITCODE -ne 0) { throw 'window_state restore failed.' }
+$WindowStateResponse = $WindowStateResponse | ConvertFrom-Json
+if ($WindowStateResponse.ok -ne $true -or $WindowStateResponse.result.minimized -isnot [bool] -or
+	$WindowStateResponse.result.minimized) {
+	throw 'window_state did not confirm result.minimized:false.'
+}
+```
+
+Keep the client visible for the scenario. Release requires `click "LOCAL SERVER"`. The server loads its exit autosave, so use `reset` when the scenario needs fresh state.
 
 For an approved island-footprint or island-render criterion only, run the readiness helper after both processes launch, preserving the `$ServerPid` and `$ClientPid` variables above:
 
