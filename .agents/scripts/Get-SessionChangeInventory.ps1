@@ -386,7 +386,9 @@ function Get-RegionTable([string] $BaselineSha, [string] $HeadSha, [object[]] $U
 			symbol = if ([string]::IsNullOrEmpty($symbol)) { $null } else { $symbol }
 		})
 	}
-	return $regions
+	# Wrap so a zero- or one-element table stays a collection instead of unrolling (see
+	# Find-SessionDebugResidue.ps1 Get-NewSideLine for the same pattern).
+	return , $regions
 }
 
 function Get-LandingState([string] $BaselineSha, [string] $HeadSha, [ref] $Truncation) {

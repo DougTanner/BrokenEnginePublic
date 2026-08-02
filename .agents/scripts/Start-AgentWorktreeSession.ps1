@@ -116,6 +116,13 @@ try {
 
 	# Both paths reach here with a validated identity and its durable session owner.
 	Set-AgentWorktreeEnvironment $identity $owner
+	# Record the branch this session lands onto; Get-AgentWorktreeSessionContext refuses to resolve a
+	# session worktree without it. Rewritten on every create and reattach, so it reflects the primary
+	# branch observed at the most recent wrapper start.
+	$sidecarDirectory = Join-Path $identity.Worktree 'Temp'
+	New-Item -ItemType Directory -Path $sidecarDirectory -Force | Out-Null
+	$sidecar = [ordered]@{ schemaVersion = 'broken-engine-session-sidecar/v1'; targetBranch = $identity.TargetBranch } | ConvertTo-Json
+	[IO.File]::WriteAllText((Join-Path $sidecarDirectory 'session-sidecar.json'), $sidecar, [Text.UTF8Encoding]::new($false))
 	& (Join-Path $root '.agents\scripts\Bootstrap-AgentTools.ps1') -RepositoryRoot $root -WaitSeconds $WaitSeconds
 	& (Join-Path $root '.agents\scripts\Provision-WorktreeThirdParty.ps1') -RepositoryRoot $identity.Worktree -WaitSeconds $WaitSeconds
 	Assert-AgentWorktreeSkillsLink $identity.Worktree

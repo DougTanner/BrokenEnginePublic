@@ -173,10 +173,7 @@ try {
 	}
 	$inventory = Get-InventoryDocument
 	$script:HeadSha = if ([string]::IsNullOrWhiteSpace($inventory.headSha)) { '' } else { $inventory.headSha }
-	# A passing inventory always carries truncation.regions, so both counts are read directly. Known
-	# caveat: for a single-region diff the inventory's full count misreports the number of regions
-	# (defect owned by Documents/Plans/Agents/SessionInventoryRegionUnroll.md), so this signal can fire
-	# spuriously there — it only over-reports incompleteness, and stops firing once that plan lands.
+	# A passing inventory always carries truncation.regions, so both counts are read directly.
 	$emittedRegionCount = @($inventory.regions).Count
 	$regionsCapped = $emittedRegionCount -ge $script:InventoryRegionCap -or [int] $inventory.truncation.regions.full -gt $emittedRegionCount
 

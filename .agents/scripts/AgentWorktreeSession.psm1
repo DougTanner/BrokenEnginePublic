@@ -61,6 +61,8 @@ function Get-AgentWorktreePrimaryIdentity([string] $RepositoryRoot) {
 # names the primary checkout, and the baseline is the attribution point the session diverged from.
 # A checkout on any other branch shape (a primary-commit route) resolves with SessionId $null rather
 # than failing, because primary mutation there needs no session identity.
+# A session worktree's primary branch is the one its wrapper recorded in the session sidecar, not the
+# branch the primary checkout currently has checked out.
 function Get-AgentWorktreeSessionContext {
 	[CmdletBinding()] param([string] $Worktree)
 	if ([string]::IsNullOrWhiteSpace($Worktree)) { $Worktree = (Get-Location).Path }
@@ -70,7 +72,34 @@ function Get-AgentWorktreeSessionContext {
 	$sessionId = if ($branch -cmatch '^(?:claude|codex)/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$') { $Matches[1] } else { $null }
 	$common = Get-AgentCanonicalPath (Get-AgentWorktreeGitValue $top @('rev-parse', '--path-format=absolute', '--git-common-dir') 'Git common directory')
 	$primaryRoot = Get-AgentCanonicalPath (Split-Path -Parent $common)
-	$primaryBranch = Get-AgentWorktreeGitValue $primaryRoot @('branch', '--show-current') 'primary branch'
+	$primaryBranch = if ($null -ne $sessionId) {
+		# The sidecar is the session's recorded landing target; the file is opaque to this code unit, so
+		# validate it strictly. Live primary-branch lookup is deliberately not a fallback: the session
+		# lands onto its recorded parent, not whatever the primary checkout has checked out right now.
+		$sidecarPath = Join-Path $top 'Temp\session-sidecar.json'
+		if (-not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
+			throw "Session sidecar '$sidecarPath' is missing. Start or reattach this worktree through '.claude/claude-worktree.sh' or '.codex/codex-worktree.ps1', which write it."
+		}
+		$sidecar = $null
+		try { $sidecar = [IO.File]::ReadAllText($sidecarPath) | ConvertFrom-Json -Depth 4 -ErrorAction Stop }
+		catch { throw "Session sidecar '$sidecarPath' is invalid: $($_.Exception.Message). Recreate it by reattaching through '.claude/claude-worktree.sh' or '.codex/codex-worktree.ps1'." }
+		# Every post-parse failure funnels into one diagnostic: reject a null or non-object parse result
+		# before touching properties, and compare property names case-sensitively so a wrong-case field
+		# never passes. The name check runs before any property access, so StrictMode cannot throw a raw
+		# property error on unrelated fields.
+		$valid = $sidecar -is [Management.Automation.PSCustomObject]
+		if ($valid) {
+			$names = @($sidecar.PSObject.Properties.Name)
+			$valid = $names.Count -eq 2 -and $names -ccontains 'schemaVersion' -and $names -ccontains 'targetBranch' -and
+				$sidecar.schemaVersion -ceq 'broken-engine-session-sidecar/v1' -and
+				$sidecar.targetBranch -is [string] -and -not [string]::IsNullOrWhiteSpace($sidecar.targetBranch)
+		}
+		if (-not $valid) {
+			throw "Session sidecar '$sidecarPath' is invalid: it must contain one JSON object with exactly schemaVersion 'broken-engine-session-sidecar/v1' and a non-empty string targetBranch. Recreate it by reattaching through '.claude/claude-worktree.sh' or '.codex/codex-worktree.ps1'."
+		}
+		$sidecar.targetBranch
+	}
+	else { Get-AgentWorktreeGitValue $primaryRoot @('branch', '--show-current') 'primary branch' }
 	$primaryTip = Get-AgentWorktreeGitValue $primaryRoot @('rev-parse', "refs/heads/$primaryBranch") 'primary tip commit'
 	$baseline = $null
 	$configured = [Environment]::GetEnvironmentVariable('BROKEN_ENGINE_BASELINE', 'Process')

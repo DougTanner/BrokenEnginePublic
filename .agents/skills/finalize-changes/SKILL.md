@@ -66,8 +66,13 @@ and worktree match the current landing identity; every other lease is foreign.
    primary tip. Reconciliation never advances primary. Inspect dependency
    overlap and any place the rebase merged cleanly but changed the code's
    meaning.
-3. Main dispatches `/verify-changes` on the resulting diff. A meaningful change
-   to that diff re-runs review of the changed regions only.
+3. Main dispatches `/verify-changes` on the resulting diff, only once every
+   hygiene handoff the session-change inventory's `triggers` object reports
+   true already exists — `/code-style-review` for changed C++,
+   `/update-vcxproj`, `/validate-skill`, `/update-claude-docs` — and passes
+   every typed receipt verbatim, each `broken-engine-build-result/v1` envelope
+   included, never summarized. A meaningful change to that diff re-runs review
+   of the changed regions only.
 4. Invoke `scripts/Show-FinalizeApprovalReview.ps1 -LaunchSmartGit` only after
    the step-3 `/verify-changes` pass on the final diff has returned PASS, and
    immediately before the landing summary — never alongside step-2 preparation —
@@ -106,7 +111,8 @@ and worktree match the current landing identity; every other lease is foreign.
 ## Landing confirmation
 
 Main presents the self-contained summary immediately before the question:
-one-sentence change, changed-file count and kind, session and primary branches,
+one-sentence change, changed-file count and kind, session branch and the
+primary branch resolved as `<primary-branch>` below,
 all objective-stage decisions, and the exact remaining operation, plus four lines
 main answers itself from the whole session record (worker handoffs, rejected
 review findings, residuals) — the finalizer worker does not produce them:
@@ -127,6 +133,11 @@ disclose. Then ask exactly:
 
 - session: `Confirm landing this change from <session-branch> onto primary branch <primary-branch>?`
 - separately requested primary commit: `Confirm commit of this change on primary branch <primary-branch>?`
+
+`<primary-branch>` is always the `PrimaryBranch` that
+`Get-AgentWorktreeSessionContext` reports: sidecar-backed on the session route,
+and the context's live primary-checkout branch on the separately requested
+primary-commit route — never a host-reported default or an assumed `main`.
 
 Main delivers that whole summary per the root AGENTS.md User Interaction rule:
 rendered message text, with the question as the last line of that same message
