@@ -1,7 +1,7 @@
 # Exclusive owner of post-confirmation landing: structural sanity, the landing lock lease,
-# the guarded primary advance, and best-effort Plan claim deletion. Exit 0 means the caller
-# reports LANDED; exit 2 may report a post-advance blocker but still carries the
-# authoritative lock-cleanup state.
+# at most one internal rebase of the session branch onto a newly advanced primary, the guarded
+# primary advance, and best-effort Plan claim deletion. Exit 0 means the caller reports LANDED;
+# exit 2 may report a post-advance blocker but still carries the authoritative lock-cleanup state.
 #
 # The scheduler is touched only when -ReleasePlanClaim says this session holds a claim:
 # without it the landing runs no `plan` command at all.
@@ -16,8 +16,11 @@ param(
 	[Parameter(Mandatory)][string] $SessionLabel,
 	[Parameter(Mandatory)][string] $ApprovedSessionCommit,
 	[Parameter(Mandatory)][string] $ApprovedCandidateTree,
+	# The caller's post-confirmation lease token. Supplied, the landing continues under that same
+	# lease instead of minting one; omitted, the mint-fresh path is unchanged.
+	[string] $OwnerToken,
 	[switch] $ReleasePlanClaim,
-	[ValidateSet('none', 'compare-and-swap', 'post-reset', 'bounded-diagnostic')][string] $FixtureFailure = 'none'
+	[ValidateSet('none', 'compare-and-swap', 'post-reset', 'bounded-diagnostic', 'retry-patch-mismatch')][string] $FixtureFailure = 'none'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,7 +39,7 @@ if (-not (Test-Path -LiteralPath $exclusionModule)) {
 Import-Module $exclusionModule -Force
 
 $result = [ordered]@{
-	schemaVersion = 'broken-engine-finalize-landing/v2'
+	schemaVersion = 'broken-engine-finalize-landing/v3'
 	status = 'error'
 	code = 'internal.error'
 	message = 'Landing transaction did not complete.'
@@ -44,6 +47,7 @@ $result = [ordered]@{
 	identities = [ordered]@{ currentWorktree = $null; primaryWorktree = $null; gitCommonDirectory = $null; currentBranch = $null; primaryBranch = $null }
 	tips = [ordered]@{ approvedSession = $ApprovedSessionCommit; expectedCurrent = $ExpectedCurrentTip; expectedPrimary = $ExpectedPrimaryTip; current = $null; primary = $null }
 	candidate = [ordered]@{ commit = $ApprovedSessionCommit; tree = $ApprovedCandidateTree; treeVerified = $false }
+	landed = [ordered]@{ commit = $null; tree = $null; rebaseAttempts = 0 }
 	locks = [ordered]@{ landingOwner = $null; landingClaimed = $false; landingReleased = $false; claim = $null }
 	planClaim = [ordered]@{ requested = [bool]$ReleasePlanClaim; released = $false }
 	cleanup = [ordered]@{ worktreesClear = $null; worktreeProblems = @() }
@@ -54,8 +58,22 @@ $result = [ordered]@{
 	residuals = [Collections.Generic.List[string]]::new()
 }
 $script:WorktreeCliPath = $null
+# What this invocation is actually landing right now. It starts as the user-confirmed candidate on
+# the approved primary tip and is replaced, in Invoke-LandingRebaseOntoPrimary alone, by the
+# rebased commit and its new base, so every later ancestry, tree, advance, and rollback check reads
+# the state the retry produced instead of the stale anchors the caller passed in.
+$script:LandingPrimaryTip = $ExpectedPrimaryTip
+$script:LandingCommit = $ApprovedSessionCommit
+$script:LandingTree = $ApprovedCandidateTree
 $script:LandingOwner = $null
 $script:LandingClaimed = $false
+# The lease duration this landing needs to hold through the whole advance. WorktreeCli's refresh
+# re-expires a lease with its own recorded duration and can never lengthen it, so a continued caller
+# lease minted shorter than this could expire mid-advance and is refused instead.
+$script:LandingLeaseSeconds = 3600
+# Set only where the session branch could not be proven restored to the confirmed commit: while it is
+# set the lease is retained unconditionally, because releasing it would expose an unproven worktree.
+$script:LandingRestorationUnproven = $false
 $script:PrimaryIdentity = $null
 $script:CurrentIdentity = $null
 $script:FailureExitCode = 0
@@ -109,8 +127,9 @@ function New-LandingProjection {
 	} 'Invoke-FinalizeLanding'
 	$residuals = New-LandingCollection @($result.residuals) { param($residual); $text = Get-BoundedLandingText ([string]$residual) 512; [ordered]@{ message = $text.Text; messageLength = $text.Length; messageTruncated = $text.Truncated } } 'Invoke-FinalizeLanding'
 	return [ordered]@{
-		schemaVersion = 'broken-engine-finalize-landing/v2'; status = $result.status; code = $code.Text; message = $message.Text; messageLength = $message.Length; messageTruncated = $message.Truncated
+		schemaVersion = 'broken-engine-finalize-landing/v3'; status = $result.status; code = $code.Text; message = $message.Text; messageLength = $message.Length; messageTruncated = $message.Truncated
 		primaryAdvanced = [bool]$result.primaryAdvanced; candidate = [ordered]@{ commit = Get-LandingGitObjectId $result.candidate.commit; tree = Get-LandingGitObjectId $result.candidate.tree; treeVerified = [bool]$result.candidate.treeVerified }
+		landed = [ordered]@{ commit = $(if ($result.status -ceq 'landed') { Get-LandingGitObjectId $result.landed.commit } else { $null }); tree = $(if ($result.status -ceq 'landed') { Get-LandingGitObjectId $result.landed.tree } else { $null }); rebaseAttempts = [int]$result.landed.rebaseAttempts }
 		planClaim = [ordered]@{ requested = [bool]$result.planClaim.requested; released = [bool]$result.planClaim.released }
 		lock = [ordered]@{ claimed = [bool]$result.locks.landingClaimed; released = [bool]$result.locks.landingReleased; claimCode = $(if ($null -ne $result.locks.claim) { [string]$result.locks.claim.code } else { $null }); disposition = $result.disposition; requiresUserAuthority = [bool]$result.requiresUserAuthority; retryAfterMilliseconds = [int]$result.retryAfterMilliseconds; attempts = $(if ($null -ne $result.locks.claim) { [int]$result.locks.claim.attempts } else { 0 }) }
 		cleanup = [ordered]@{ worktreesClear = $result.cleanup.worktreesClear; problems = $problems }
@@ -170,6 +189,10 @@ function Refresh-LandingOwner {
 
 function Release-LandingLockIfSafe {
 	if (-not $script:LandingClaimed) { return }
+	if ($script:LandingRestorationUnproven) {
+		$result.residuals.Add('Landing lock retained: the confirmed session commit could not be proven restored.')
+		return
+	}
 	$clear = Test-FinalizeAllWorktreesClear $script:PrimaryIdentity.Worktree
 	$result.cleanup.worktreesClear = $clear.Clear
 	$result.cleanup.worktreeProblems = @($clear.Problems)
@@ -192,56 +215,232 @@ function Release-LandingLockIfSafe {
 	}
 }
 
+# The approved inputs bind this landing whether or not primary moved: the commit the user confirmed
+# must still carry the tree the user confirmed before any advance, retry, or recovery path runs.
+function Assert-ApprovedCandidateTree {
+	if ((Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "$ApprovedSessionCommit^{tree}")).Trim() -cne $ApprovedCandidateTree) {
+		Throw-Landing 2 'candidate.tree-changed' 'Approved session commit no longer has the reviewed candidate tree.'
+	}
+	$result.candidate.treeVerified = $true
+}
+
 function Assert-PrimaryAdvanceState {
 	$primary = Get-FinalizeGitIdentity $PrimaryWorktree 'Primary worktree'
 	$current = Get-FinalizeGitIdentity $CurrentWorktree 'Session worktree'
 	if ($primary.Worktree -cne $script:PrimaryIdentity.Worktree -or $current.Worktree -cne $script:CurrentIdentity.Worktree -or
 		$primary.Branch -cne $PrimaryBranch -or $current.Branch -cne $CurrentBranch -or
-		$primary.Head -cne $ExpectedPrimaryTip -or $current.Head -cne $ApprovedSessionCommit) {
+		$primary.Head -cne $script:LandingPrimaryTip -or $current.Head -cne $script:LandingCommit) {
 		Throw-Landing 2 'git.identity-changed' 'Primary or session identity changed after approval.'
 	}
 	if ((Invoke-FinalizeGit $primary.Worktree @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) {
 		Throw-Landing 2 'git.primary-dirty' 'Primary worktree is not clean immediately before landing.'
 	}
-	if ((Invoke-FinalizeGit $primary.Worktree @('rev-parse', "$ApprovedSessionCommit^{tree}")).Trim() -cne $ApprovedCandidateTree) {
+	if ((Invoke-FinalizeGit $primary.Worktree @('rev-parse', "$script:LandingCommit^{tree}")).Trim() -cne $script:LandingTree) {
 		Throw-Landing 2 'candidate.tree-changed' 'Approved session commit no longer has the reviewed candidate tree.'
 	}
-	$result.candidate.treeVerified = $true
-	if (-not (Test-FinalizeGitSuccess $primary.Worktree @('merge-base', '--is-ancestor', $ExpectedPrimaryTip, $ApprovedSessionCommit))) {
+	if (-not (Test-FinalizeGitSuccess $primary.Worktree @('merge-base', '--is-ancestor', $script:LandingPrimaryTip, $script:LandingCommit))) {
 		Throw-Landing 2 'git.primary-not-ancestor' 'Approved session commit does not descend from the approved primary tip.'
 	}
-	if ((Invoke-FinalizeGit $primary.Worktree @('rev-list', "${ApprovedSessionCommit}..${ExpectedPrimaryTip}")).Trim().Length -ne 0 -or
-		(Invoke-FinalizeGit $primary.Worktree @('rev-list', '--min-parents=2', "${ExpectedPrimaryTip}..${ApprovedSessionCommit}")).Trim().Length -ne 0) {
+	if ((Invoke-FinalizeGit $primary.Worktree @('rev-list', "$($script:LandingCommit)..$($script:LandingPrimaryTip)")).Trim().Length -ne 0 -or
+		(Invoke-FinalizeGit $primary.Worktree @('rev-list', '--min-parents=2', "$($script:LandingPrimaryTip)..$($script:LandingCommit)")).Trim().Length -ne 0) {
 		Throw-Landing 2 'git.landing-history-invalid' 'Landing would replay primary commits or introduce a merge commit.'
 	}
 }
 
+# Returns $false only for a lost compare-and-swap, which means primary moved under the held lease
+# and the caller may rebase once; every other failure is terminal for this landing.
 function Advance-PrimaryExactCandidate {
 	$expectedCheckout = (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', 'HEAD')).Trim()
 	$expectedStatus = Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('status', '--porcelain=v1', '-z', '--untracked-files=all')
-	$expectedForCas = if ($FixtureFailure -ceq 'compare-and-swap') { '0000000000000000000000000000000000000000' } else { $ExpectedPrimaryTip }
-	$advance = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'update-ref', "refs/heads/$PrimaryBranch", $ApprovedSessionCommit, $expectedForCas) $script:PrimaryIdentity.Worktree
-	if ($advance.ExitCode -ne 0) { Throw-Landing 2 'git.compare-and-swap-failed' 'Primary branch changed before exact candidate advance.' }
+	$expectedForCas = if ($FixtureFailure -ceq 'compare-and-swap') { '0000000000000000000000000000000000000000' } else { $script:LandingPrimaryTip }
+	$advance = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'update-ref', "refs/heads/$PrimaryBranch", $script:LandingCommit, $expectedForCas) $script:PrimaryIdentity.Worktree
+	if ($advance.ExitCode -ne 0) { return $false }
 	$result.primaryAdvanced = $true
-	$result.tips.current = $ApprovedSessionCommit
-	$result.tips.primary = $ApprovedSessionCommit
+	$result.tips.current = $script:LandingCommit
+	$result.tips.primary = $script:LandingCommit
 	try {
-		$reset = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'reset', '--hard', $ApprovedSessionCommit) $script:PrimaryIdentity.Worktree
+		$reset = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'reset', '--hard', $script:LandingCommit) $script:PrimaryIdentity.Worktree
 		if ($reset.ExitCode -ne 0) { throw "Primary checkout did not update to the exact candidate: $($reset.Stderr.Trim())" }
 		if ($FixtureFailure -ceq 'post-reset') { throw 'Fixture forced post-reset failure.' }
 		$actual = (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "refs/heads/$PrimaryBranch")).Trim()
 		$actualTree = (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "$actual^{tree}")).Trim()
-		if ($actual -cne $ApprovedSessionCommit -or $actualTree -cne $ApprovedCandidateTree) { throw 'Primary ref does not equal the exact verified candidate and tree.' }
+		if ($actual -cne $script:LandingCommit -or $actualTree -cne $script:LandingTree) { throw 'Primary ref does not equal the exact verified candidate and tree.' }
 	}
 	catch {
 		$reason = $_.Exception.Message
-		$rollback = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'update-ref', "refs/heads/$PrimaryBranch", $ExpectedPrimaryTip, $ApprovedSessionCommit) $script:PrimaryIdentity.Worktree
+		$rollback = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'update-ref', "refs/heads/$PrimaryBranch", $script:LandingPrimaryTip, $script:LandingCommit) $script:PrimaryIdentity.Worktree
 		if ($rollback.ExitCode -ne 0) { Throw-Landing 1 'git.rollback-failed' "Exact candidate advance postcondition failed and guarded rollback failed: $reason" }
 		$restore = Invoke-FinalizeNativeText 'git.exe' @('-C', $script:PrimaryIdentity.Worktree, 'reset', '--hard', $expectedCheckout) $script:PrimaryIdentity.Worktree
-		if ($restore.ExitCode -ne 0 -or (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "refs/heads/$PrimaryBranch")).Trim() -cne $ExpectedPrimaryTip -or (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', 'HEAD')).Trim() -cne $expectedCheckout -or (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('status', '--porcelain=v1', '-z', '--untracked-files=all')) -cne $expectedStatus) { Throw-Landing 1 'git.rollback-failed' "Exact candidate advance rollback did not restore the expected primary checkout: $reason" }
+		if ($restore.ExitCode -ne 0 -or (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "refs/heads/$PrimaryBranch")).Trim() -cne $script:LandingPrimaryTip -or (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', 'HEAD')).Trim() -cne $expectedCheckout -or (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('status', '--porcelain=v1', '-z', '--untracked-files=all')) -cne $expectedStatus) { Throw-Landing 1 'git.rollback-failed' "Exact candidate advance rollback did not restore the expected primary checkout: $reason" }
 		$result.primaryAdvanced = $false
 		Throw-Landing 2 'candidate.postcondition-failed' $reason
 	}
+	$result.landed.commit = $script:LandingCommit
+	$result.landed.tree = $script:LandingTree
+	return $true
+}
+
+function Start-LandingGitProcess([string[]] $Arguments, [bool] $RedirectInput) {
+	$start = [Diagnostics.ProcessStartInfo]::new()
+	$start.FileName = 'git.exe'
+	$start.WorkingDirectory = $script:CurrentIdentity.Worktree
+	$start.UseShellExecute = $false
+	$start.CreateNoWindow = $true
+	$start.RedirectStandardOutput = $true
+	$start.RedirectStandardError = $true
+	$start.RedirectStandardInput = $RedirectInput
+	foreach ($argument in $Arguments) { [void] $start.ArgumentList.Add($argument) }
+	$process = [Diagnostics.Process]::new()
+	$process.StartInfo = $start
+	if (-not $process.Start()) { throw "Could not start 'git.exe'." }
+	return $process
+}
+
+# Patch text reaches git patch-id as the exact bytes git produced: the identity is compared across
+# the rebase to decide whether the landing bytes are still the confirmed ones, so no text decoding
+# may sit between the two commands. --verbatim keeps whitespace significant, so a commit differing
+# from the confirmed one only in whitespace cannot pass as byte-identical; it implies --stable, so
+# only hunk line numbers stay ignored and a rebase over another hunk still compares equal.
+function Get-LandingPatchId([string] $Base, [string] $Tip) {
+	$worktree = $script:CurrentIdentity.Worktree
+	$patch = [IO.MemoryStream]::new()
+	try {
+		$diff = Start-LandingGitProcess @('-C', $worktree, 'diff-tree', '-p', '--no-color', '--no-ext-diff', '--full-index', '--binary', '--no-renames', '-r', $Base, $Tip) $false
+		$diffErrorTask = $diff.StandardError.ReadToEndAsync()
+		$diff.StandardOutput.BaseStream.CopyTo($patch)
+		$diffError = $diffErrorTask.GetAwaiter().GetResult()
+		$diff.WaitForExit()
+		$diffExit = $diff.ExitCode
+		$diff.Dispose()
+		if ($diffExit -ne 0) { throw "git diff-tree failed for the landing patch: $($diffError.Trim())" }
+		$identify = Start-LandingGitProcess @('patch-id', '--verbatim') $true
+		$identifyOutTask = $identify.StandardOutput.ReadToEndAsync()
+		$identifyErrorTask = $identify.StandardError.ReadToEndAsync()
+		$patch.Position = 0
+		$patch.CopyTo($identify.StandardInput.BaseStream)
+		$identify.StandardInput.BaseStream.Flush()
+		$identify.StandardInput.Close()
+		$identifyOut = $identifyOutTask.GetAwaiter().GetResult()
+		$identifyError = $identifyErrorTask.GetAwaiter().GetResult()
+		$identify.WaitForExit()
+		$identifyExit = $identify.ExitCode
+		$identify.Dispose()
+		if ($identifyExit -ne 0) { throw "git patch-id failed for the landing patch: $($identifyError.Trim())" }
+		$identityValue = $identifyOut.Trim().Split(' ')[0]
+		if ([string]::IsNullOrWhiteSpace($identityValue)) { throw 'git patch-id produced no identity for the landing patch.' }
+		return $identityValue
+	}
+	finally { $patch.Dispose() }
+}
+
+# Path, mode, and status of every changed file, with the blob object IDs deliberately dropped: an
+# upstream commit touching another hunk of the same file changes the pre-image ID without changing
+# what this patch does, and content — including binary blobs — is already covered by patch-id.
+function Get-LandingChangeGuard([string] $Base, [string] $Tip) {
+	$fields = (Invoke-FinalizeGit $script:CurrentIdentity.Worktree @('diff', '--raw', '--no-renames', '-z', $Base, $Tip)).Split([char]0, [StringSplitOptions]::RemoveEmptyEntries)
+	if ($fields.Count % 2 -ne 0) { throw 'git diff --raw produced an incomplete record for the landing patch.' }
+	$records = [Collections.Generic.List[string]]::new()
+	for ($index = 0; $index -lt $fields.Count; $index += 2) {
+		$parts = $fields[$index].Split(' ')
+		if ($parts.Count -ne 5) { throw "git diff --raw produced an unrecognized record: '$($fields[$index])'." }
+		$records.Add("$($parts[0]) $($parts[1]) $($parts[4])`t$($fields[$index + 1])")
+	}
+	return $records -join "`n"
+}
+
+# Two independent signals: patch-id proves the applied content, and the change guard proves the
+# patch still touches the same paths with the same modes and statuses.
+function Get-LandingPatchIdentity([string] $Base, [string] $Tip) {
+	return [pscustomobject]@{
+		PatchId = Get-LandingPatchId $Base $Tip
+		Changes = Get-LandingChangeGuard $Base $Tip
+	}
+}
+
+# Restoration is proven, never assumed, so an unproven session worktree also keeps the lease: only
+# this transaction knows the branch state it left behind.
+function Throw-LandingRestorationUnproven([string] $Message) {
+	$script:LandingRestorationUnproven = $true
+	Throw-Landing 2 'rebase.abort-failed' $Message
+}
+
+# A blocked retry must leave the session branch exactly as the user confirmed it, which is the
+# approved commit itself even after the rebase moved the branch to its replacement.
+function Restore-LandingSessionBranch([string] $Code, [string] $Reason, [string] $Disposition = 'terminal', [int] $RetryAfterMilliseconds = 0) {
+	$worktree = $script:CurrentIdentity.Worktree
+	foreach ($marker in @('rebase-merge', 'rebase-apply')) {
+		# `git rebase --abort` exits 128 when no rebase is in progress, so only a started one is aborted.
+		if (Test-Path -LiteralPath (Invoke-FinalizeGit $worktree @('rev-parse', '--path-format=absolute', '--git-path', $marker)).Trim()) {
+			$abort = Invoke-FinalizeNativeText 'git.exe' @('-C', $worktree, 'rebase', '--abort') $worktree
+			if ($abort.ExitCode -ne 0) { Throw-LandingRestorationUnproven "$Reason Aborting the rebase failed: $($abort.Stderr.Trim())" }
+			break
+		}
+	}
+	if ((Invoke-FinalizeGit $worktree @('rev-parse', "refs/heads/$CurrentBranch")).Trim() -cne $ApprovedSessionCommit) {
+		$restore = Invoke-FinalizeNativeText 'git.exe' @('-C', $worktree, 'reset', '--hard', $ApprovedSessionCommit) $worktree
+		if ($restore.ExitCode -ne 0) { Throw-LandingRestorationUnproven "$Reason Restoring the confirmed session commit failed: $($restore.Stderr.Trim())" }
+	}
+	if ((Invoke-FinalizeGit $worktree @('rev-parse', 'HEAD')).Trim() -cne $ApprovedSessionCommit -or
+		(Invoke-FinalizeGit $worktree @('rev-parse', "refs/heads/$CurrentBranch")).Trim() -cne $ApprovedSessionCommit -or
+		(Invoke-FinalizeGit $worktree @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) {
+		Throw-LandingRestorationUnproven "$Reason The session worktree could not be proven restored to the confirmed commit."
+	}
+	Throw-Landing 2 $Code $Reason $Disposition $false $RetryAfterMilliseconds
+}
+
+# The single place the landing state moves off the caller's approved anchors: only a clean rebase
+# whose patch is provably identical to the confirmed one becomes the new landing candidate, so a
+# retry can never advance primary with bytes the user did not confirm.
+function Invoke-LandingRebaseOntoPrimary {
+	$worktree = $script:CurrentIdentity.Worktree
+	$approvedIdentity = Get-LandingPatchIdentity $script:LandingPrimaryTip $script:LandingCommit
+	$newPrimaryTip = (Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "refs/heads/$PrimaryBranch")).Trim()
+	$result.landed.rebaseAttempts = [int]$result.landed.rebaseAttempts + 1
+	$rebase = Invoke-FinalizeNativeText 'git.exe' @('-C', $worktree, 'rebase', '--onto', $newPrimaryTip, $script:LandingPrimaryTip, $CurrentBranch) $worktree
+	if ($rebase.ExitCode -ne 0) {
+		Restore-LandingSessionBranch 'rebase.conflicted' "Rebasing the confirmed candidate onto the current primary tip did not apply cleanly: $($rebase.Stderr.Trim())"
+	}
+	$rebasedCommit = (Invoke-FinalizeGit $worktree @('rev-parse', "refs/heads/$CurrentBranch")).Trim()
+	$rebasedIdentity = Get-LandingPatchIdentity $newPrimaryTip $rebasedCommit
+	if ($FixtureFailure -ceq 'retry-patch-mismatch' -or $rebasedIdentity.PatchId -cne $approvedIdentity.PatchId -or $rebasedIdentity.Changes -cne $approvedIdentity.Changes) {
+		Restore-LandingSessionBranch 'rebase.patch-not-identical' 'Rebasing onto the current primary tip did not reproduce the confirmed patch.'
+	}
+	$script:LandingPrimaryTip = $newPrimaryTip
+	$script:LandingCommit = $rebasedCommit
+	$script:LandingTree = (Invoke-FinalizeGit $worktree @('rev-parse', "$rebasedCommit^{tree}")).Trim()
+}
+
+# A crash after an internally rebased advance leaves primary, and the session branch the rebase
+# moved, on the rebased commit instead of the confirmed one. That is this landing's own completed
+# work only when the rebased commit's patch is provably the confirmed patch, so recovery rests on
+# that proof alone and then continues from the rebased anchors.
+function Test-LandingRebasedRecovery {
+	$primaryHead = $script:PrimaryIdentity.Head
+	if ($script:CurrentIdentity.Head -cne $primaryHead -or $primaryHead -ceq $ApprovedSessionCommit) { return $false }
+	$worktree = $script:CurrentIdentity.Worktree
+	foreach ($commit in @($ApprovedSessionCommit, $ExpectedPrimaryTip, $primaryHead)) {
+		if (-not (Test-FinalizeGitSuccess $worktree @('rev-parse', '--verify', '--quiet', "$commit^{commit}"))) { return $false }
+	}
+	$parents = (Invoke-FinalizeGit $worktree @('rev-list', '--no-walk', '--parents', '--max-count=1', $primaryHead)).Trim().Split(' ')
+	if ($parents.Count -ne 2) { return $false }
+	$landedIdentity = Get-LandingPatchIdentity $parents[1] $primaryHead
+	$approvedIdentity = Get-LandingPatchIdentity $ExpectedPrimaryTip $ApprovedSessionCommit
+	if ($landedIdentity.PatchId -cne $approvedIdentity.PatchId -or $landedIdentity.Changes -cne $approvedIdentity.Changes) { return $false }
+	Assert-ApprovedCandidateTree
+	$script:LandingPrimaryTip = $parents[1]
+	$script:LandingCommit = $primaryHead
+	$script:LandingTree = (Invoke-FinalizeGit $worktree @('rev-parse', "$primaryHead^{tree}")).Trim()
+	$result.landed.rebaseAttempts = 1
+	return $true
+}
+
+# Returns $false when primary moved under the held lease, either before the attempt or between the
+# checks and the compare-and-swap.
+function Invoke-LandingAdvanceAttempt {
+	if ((Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "refs/heads/$PrimaryBranch")).Trim() -cne $script:LandingPrimaryTip) { return $false }
+	Assert-PrimaryAdvanceState
+	Refresh-LandingOwner
+	return (Advance-PrimaryExactCandidate)
 }
 
 # The claim is machine-local bookkeeping, not landed state: a failed delete leaves a stale
@@ -265,7 +464,7 @@ function Complete-LandedState {
 			$result.residuals.Add("Plan claim delete failed after landing; the machine-local claim expires on its own: $($_.Exception.Message)")
 		}
 	}
-	$registration = Test-FinalizeWorktreeRegistration $script:PrimaryIdentity.Worktree $script:CurrentIdentity.Worktree $CurrentBranch $ApprovedSessionCommit
+	$registration = Test-FinalizeWorktreeRegistration $script:PrimaryIdentity.Worktree $script:CurrentIdentity.Worktree $CurrentBranch $script:LandingCommit
 	if (-not $registration.Registered) { Throw-Landing 2 'session.registration-invalid' $registration.Message }
 	if ((Invoke-FinalizeGit $script:CurrentIdentity.Worktree @('status', '--porcelain', '-z', '--untracked-files=all')).Length -ne 0) { Throw-Landing 2 'session.dirty' 'Session worktree is dirty after landing.' }
 	$result.status = 'landed'; $result.code = 'ok'; $result.message = 'Primary advanced and post-landing finalization completed.'
@@ -278,6 +477,9 @@ try {
 		Throw-Landing 1 'input.commit-invalid' 'Approved and expected commits must be lowercase 40-character object IDs.'
 	}
 	if ($ApprovedCandidateTree -cnotmatch '^[0-9a-f]{40}$') { Throw-Landing 1 'input.candidate-tree-invalid' 'ApprovedCandidateTree must be a lowercase 40-character object ID.' }
+	if (-not [string]::IsNullOrWhiteSpace($OwnerToken) -and $OwnerToken -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+		Throw-Landing 1 'input.owner-token-invalid' 'OwnerToken must be a canonical WorktreeCli lock owner token.'
+	}
 
 	$script:CurrentIdentity = Get-FinalizeGitIdentity $CurrentWorktree 'Session worktree'
 	$script:PrimaryIdentity = Get-FinalizeGitIdentity $PrimaryWorktree 'Primary worktree'
@@ -297,26 +499,72 @@ try {
 	$landingOwner = [guid]::NewGuid().ToString()
 	Register-WorktreeCliSession -RepositoryRoot $script:CurrentIdentity.Worktree -Owner $landingOwner -Label 'session landing' -Worktree $script:CurrentIdentity.Worktree | Out-Null
 	$script:LandingTransientOwner = $landingOwner
-	if ($script:CurrentIdentity.Head -ceq $ApprovedSessionCommit -and
-		(Test-FinalizeGitSuccess $script:PrimaryIdentity.Worktree @('merge-base', '--is-ancestor', $ApprovedSessionCommit, $script:PrimaryIdentity.Head))) {
-		if ((Invoke-FinalizeGit $script:PrimaryIdentity.Worktree @('rev-parse', "$ApprovedSessionCommit^{tree}")).Trim() -cne $ApprovedCandidateTree) { Throw-Landing 2 'candidate.tree-changed' 'Recovery candidate tree does not equal the exact verified tree.' }
-		[void] (Assert-LandingSanity $ApprovedSessionCommit $script:PrimaryIdentity.Head)
+	# Post-advance recovery, idempotent for a crash at any point after the advance: the confirmed
+	# candidate is already on primary either as itself, or as the commit this landing's own internal
+	# rebase produced.
+	$recovered = $false
+	if ($script:CurrentIdentity.Head -ceq $script:LandingCommit -and
+		(Test-FinalizeGitSuccess $script:PrimaryIdentity.Worktree @('merge-base', '--is-ancestor', $script:LandingCommit, $script:PrimaryIdentity.Head))) {
+		Assert-ApprovedCandidateTree
+		$recovered = $true
+	}
+	elseif (Test-LandingRebasedRecovery) { $recovered = $true }
+	if ($recovered) {
+		[void] (Assert-LandingSanity $script:LandingCommit $script:PrimaryIdentity.Head)
 		$result.primaryAdvanced = $true
+		$result.landed.commit = $script:LandingCommit
+		$result.landed.tree = $script:LandingTree
+		# The crashed invocation's lease outlives its process, so this recovery adopts and releases it
+		# under the same ownership rule the continuity branch uses. Anything else is foreign and is
+		# left alone to expire on its own.
+		if (-not [string]::IsNullOrWhiteSpace($OwnerToken)) {
+			$recoveredLock = Get-FinalizeLandingLockState $script:WorktreeCliPath $result.identities.gitCommonDirectory $script:CurrentIdentity.Worktree
+			if (($recoveredLock.Kind -ceq 'live') -and (Test-FinalizeLandingLockClaimIdentity $recoveredLock.Status $OwnerToken $SessionLabel $script:CurrentIdentity.Worktree)) {
+				$script:LandingOwner = $OwnerToken
+				$result.locks.landingOwner = $script:LandingOwner
+				$script:LandingClaimed = $true
+				$result.locks.landingClaimed = $true
+				Release-LandingLockIfSafe
+			}
+		}
 		Complete-LandedState
 		Write-Output ((New-LandingProjection) | ConvertTo-Json -Depth 10 -Compress)
 		exit 0
 	}
 
-	[void] (Assert-LandingSanity $ExpectedCurrentTip $ExpectedPrimaryTip)
-	if ($ExpectedCurrentTip -cne $ApprovedSessionCommit) { Throw-Landing 2 'approval.session-tip-changed' 'Session tip is not the explicit user-approved commit.' }
+	# The primary tip is deliberately not asserted here: an advance racing this landing is answered
+	# by the post-claim check and the internal rebase, not by refusing before the lock is held.
+	[void] (Assert-LandingSanity $ExpectedCurrentTip '')
+	if ($ExpectedCurrentTip -cne $script:LandingCommit) { Throw-Landing 2 'approval.session-tip-changed' 'Session tip is not the explicit user-approved commit.' }
 
-	$tokenResponse = Invoke-WorktreeCli @('lock', 'token')
-	if ($tokenResponse.ExitCode -ne 0 -or $tokenResponse.Stdout.Trim() -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
-		Throw-Landing 1 'landing-lock.token-failed' 'WorktreeCli could not generate a canonical landing owner token.'
+	if ([string]::IsNullOrWhiteSpace($OwnerToken)) {
+		$tokenResponse = Invoke-WorktreeCli @('lock', 'token')
+		if ($tokenResponse.ExitCode -ne 0 -or $tokenResponse.Stdout.Trim() -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+			Throw-Landing 1 'landing-lock.token-failed' 'WorktreeCli could not generate a canonical landing owner token.'
+		}
+		$script:LandingOwner = $tokenResponse.Stdout.Trim()
+		$result.locks.landingOwner = $script:LandingOwner
+		$claimOutcome = Invoke-FinalizeLandingLockClaim -WorktreeCliExecutable $script:WorktreeCliPath -GitCommonDirectory $result.identities.gitCommonDirectory -Owner $script:LandingOwner -Session $SessionLabel -Worktree $script:CurrentIdentity.Worktree -LeaseSeconds $script:LandingLeaseSeconds -WaitSeconds 300
 	}
-	$script:LandingOwner = $tokenResponse.Stdout.Trim()
-	$result.locks.landingOwner = $script:LandingOwner
-	$claimOutcome = Invoke-FinalizeLandingLockClaim -WorktreeCliExecutable $script:WorktreeCliPath -GitCommonDirectory $result.identities.gitCommonDirectory -Owner $script:LandingOwner -Session $SessionLabel -Worktree $script:CurrentIdentity.Worktree -LeaseSeconds 3600 -WaitSeconds 55
+	else {
+		# Lease continuity: a live lease under the supplied token whose recorded session and worktree
+		# match this landing identity, and which was minted for at least the landing lease duration,
+		# is the same actor continuing, so it is used as is. Anything else — another session or
+		# worktree, a shorter lease, expired, or absent — stays foreign contention, and no fresh
+		# token is ever minted behind the caller's back.
+		$script:LandingOwner = $OwnerToken
+		$result.locks.landingOwner = $script:LandingOwner
+		$lockState = Get-FinalizeLandingLockState $script:WorktreeCliPath $result.identities.gitCommonDirectory $script:CurrentIdentity.Worktree
+		$sameActor = ($lockState.Kind -ceq 'live') -and (Test-FinalizeLandingLockClaimIdentity $lockState.Status $script:LandingOwner $SessionLabel $script:CurrentIdentity.Worktree)
+		$leaseSeconds = if ($sameActor -and @($lockState.Status.PSObject.Properties.Name) -ccontains 'leaseDurationSeconds') { $lockState.Status.leaseDurationSeconds -as [int] } else { $null }
+		$claimOutcome = if ($sameActor -and $null -ne $leaseSeconds -and $leaseSeconds -ge $script:LandingLeaseSeconds) {
+			[pscustomobject]@{ Claimed = $true; Code = 'ok'; Message = 'Landing continues under the caller lease already live for this session and worktree.'; Disposition = 'terminal'; RequiresUserAuthority = $false; RetryAfterMilliseconds = 0; Owner = $script:LandingOwner; Lock = $lockState.Status; Attempts = 1 }
+		}
+		else {
+			$refusal = if ($sameActor) { "The supplied owner token's lease is shorter than the $($script:LandingLeaseSeconds)-second landing lease and cannot be extended." } else { 'The supplied owner token is not a live landing lease for this session and worktree.' }
+			[pscustomobject]@{ Claimed = $false; Code = 'landing-lock.retryable-wait'; Message = $refusal; Disposition = 'retryable-wait'; RequiresUserAuthority = $false; RetryAfterMilliseconds = 500; Owner = $script:LandingOwner; Lock = $lockState.Status; Attempts = 1 }
+		}
+	}
 	$result.locks.claim = [ordered]@{
 		code = $claimOutcome.Code
 		disposition = $claimOutcome.Disposition
@@ -332,10 +580,17 @@ try {
 	$script:LandingClaimed = $true
 	$result.locks.landingClaimed = $true
 	Assert-LandingOwner
+	Assert-ApprovedCandidateTree
 
-	Assert-PrimaryAdvanceState
-	Refresh-LandingOwner
-	Advance-PrimaryExactCandidate
+	# At most one rebase-and-retry per invocation, entirely under the held lease: a second stale
+	# result means contention this landing should not keep fighting. The retry left the branch on the
+	# rebased commit, so exhaustion restores the confirmed one the documented rerun expects.
+	if (-not (Invoke-LandingAdvanceAttempt)) {
+		Invoke-LandingRebaseOntoPrimary
+		if (-not (Invoke-LandingAdvanceAttempt)) {
+			Restore-LandingSessionBranch 'landing.retry-exhausted' 'Primary advanced again after the rebased candidate was prepared; this landing made its one retry.' 'retryable-wait' 500
+		}
+	}
 	Release-LandingLockIfSafe
 	if ($script:LandingClaimed) { Throw-Landing 2 'landing-lock.release-failed' 'Landing lock could not be released after the primary advance.' }
 	Complete-LandedState

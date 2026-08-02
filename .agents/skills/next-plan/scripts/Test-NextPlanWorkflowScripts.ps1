@@ -90,6 +90,15 @@ try {
 	$noClaimCompletion = Invoke-WorkflowScript 'Complete-NextPlan.ps1' @() 0
 	Assert-True ($noClaimCompletion.status -ceq 'pass' -and $noClaimCompletion.code -ceq 'no-claim' -and (Test-Path -LiteralPath (Join-Path $script:session $plan))) 'Completion without a claim was not a clean no-claim pass.'
 
+	# Listing reports every executable Plan as eligible and changes no tree or claim state.
+	$listing = Invoke-WorkflowScript 'Get-NextPlanList.ps1' @() 0
+	$listedPaths = @($listing.plans | ForEach-Object { $_.path })
+	Assert-True ($listedPaths -ccontains $plan -and $listedPaths -ccontains $uniqueFilenamePlan) 'Listing did not report every executable Plan.'
+	Assert-True (@($listing.plans | Where-Object { $_.state -cne 'eligible' }).Count -eq 0) 'Listing did not report the unclaimed Plans as eligible.'
+	Assert-True ([string]::IsNullOrWhiteSpace((Invoke-Git $script:session @('status','--porcelain=v1','--untracked-files=all')))) 'Listing changed the session worktree.'
+	$listingNoClaim = Invoke-WorkflowScript 'Defer-NextPlan.ps1' @() 0
+	Assert-True ($listingNoClaim.code -ceq 'no-claim') 'Listing created a Plan claim.'
+
 	# A dirty session worktree is a deterministic claim blocker before any scheduler access.
 	Set-Utf8File (Join-Path $script:session 'Dirty.txt') "uncommitted claim blocker`n"
 	$dirtyClaim = Invoke-WorkflowScript 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 2
@@ -102,18 +111,31 @@ try {
 	$deferral = Invoke-WorkflowScript 'Defer-NextPlan.ps1' @() 0
 	Assert-True ($deferral.status -ceq 'pass' -and $deferral.code -ceq 'released' -and $deferral.claim.released) 'Deferral did not release the live claim.'
 
-	# Filename-only inputs resolve against the validated executable Plans.
+	# Partial inputs resolve against the validated executable Plans.
 	$uniqueFilenameClaim = Invoke-WorkflowScript 'Invoke-NextPlanClaim.ps1' @('-Plan','UniqueFilename.md') 0
 	Assert-True ($uniqueFilenameClaim.status -ceq 'pass' -and $uniqueFilenameClaim.claim.plan -ceq $uniqueFilenamePlan) 'A unique filename-only input did not claim its canonical Plan path.'
 	Invoke-WorkflowScript 'Defer-NextPlan.ps1' @() 0 | Out-Null
+	$interiorPartialClaim = Invoke-WorkflowScript 'Invoke-NextPlanClaim.ps1' @('-Plan','nique/UniqueFile') 0
+	Assert-True ($interiorPartialClaim.status -ceq 'pass' -and $interiorPartialClaim.claim.plan -ceq $uniqueFilenamePlan) 'An interior-substring partial input did not claim its canonical Plan path.'
+	Invoke-WorkflowScript 'Defer-NextPlan.ps1' @() 0 | Out-Null
 	$missingFilename = Invoke-WorkflowScript 'Invoke-NextPlanClaim.ps1' @('-Plan','MissingFilename.md') 2
 	Assert-True ($missingFilename.status -ceq 'blocked' -and $missingFilename.code -ceq 'plan-name-not-found') 'A nonexistent filename-only input was not a deterministic blocker.'
+	$ambiguousPartial = Invoke-WorkflowScript 'Invoke-NextPlanClaim.ps1' @('-Plan','.md') 2
+	Assert-True ($ambiguousPartial.status -ceq 'blocked' -and $ambiguousPartial.code -ceq 'plan-name-ambiguous') 'An ambiguous partial input was not a deterministic blocker.'
+	Assert-True ((@($ambiguousPartial.candidates) -join '|') -ceq (@($plan,$uniqueFilenamePlan) -join '|')) 'An ambiguous partial input did not report its sorted candidate list.'
 
 	# Claiming an already-claimed Plan from the same session is idempotent.
 	$claim = Invoke-WorkflowScript 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 0
 	Assert-True ($claim.status -ceq 'pass' -and $claim.code -ceq 'ok' -and $claim.claim.plan -ceq $plan) 'Claim result did not bind the selected plan.'
 	$reusedClaim = Invoke-WorkflowScript 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 0
 	Assert-True ($reusedClaim.status -ceq 'pass' -and $reusedClaim.code -ceq 'reused' -and $reusedClaim.claim.plan -ceq $plan) 'A live claim was not reused idempotently.'
+
+	# A live claim is visible in the listing, which still leaves that claim untouched.
+	$claimedListing = Invoke-WorkflowScript 'Get-NextPlanList.ps1' @() 0
+	$claimedRow = @($claimedListing.plans | Where-Object { $_.path -ceq $plan })[0]
+	Assert-True ($claimedRow.state -ceq 'claimed') 'Listing did not report the live claim.'
+	$listedClaim = Invoke-WorkflowScript 'Invoke-NextPlanClaim.ps1' @('-Plan',$plan) 0
+	Assert-True ($listedClaim.code -ceq 'reused' -and $listedClaim.claim.plan -ceq $plan) 'Listing changed the live claim.'
 
 	# Terminal preparation deletes the Plan file, reports its changed paths, and keeps the claim.
 	Set-Utf8File (Join-Path $script:session 'Source/Implemented.txt') "implemented`n"
@@ -128,7 +150,7 @@ try {
 	[pscustomobject]@{
 		schemaVersion = 'broken-engine-next-plan-workflow-fixtures/v1'
 		status = 'pass'
-		cases = @('no-claim deferral','no-claim completion','dirty-tree claim rejection','bare oldest eligible selection','claim deferral release','unique filename-only claim','missing filename-only blocker','explicit plan claim','idempotent claim reuse','terminal preparation changed paths','retained claim after terminal preparation')
+		cases = @('no-claim deferral','no-claim completion','read-only eligible listing','dirty-tree claim rejection','bare oldest eligible selection','claim deferral release','unique filename-only claim','interior-substring partial claim','missing filename-only blocker','ambiguous partial blocker','explicit plan claim','idempotent claim reuse','claimed-state listing','terminal preparation changed paths','retained claim after terminal preparation')
 	} | ConvertTo-Json -Depth 5
 }
 finally {

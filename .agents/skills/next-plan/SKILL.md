@@ -2,7 +2,7 @@
 name: next-plan
 description: Validates and deterministically claims one Git-backed Documents/Plans Plan through WorktreeCli, resolves it against current code, and presents the resolved Plan and execution card for implementation approval; preparation-proven Tier-1 work continues without that pause. Use only when the latest user request explicitly invokes `/next-plan` or `$next-plan`.
 disable-model-invocation: true
-argument-hint: "[Documents/Plans/... | filename.md]"
+argument-hint: "[Documents/Plans/... | partial pattern]"
 allowed-tools: [Read, Write, Grep, Glob, Agent, Edit, PowerShell, AskUserQuestion]
 ---
 
@@ -26,22 +26,35 @@ worktree or inspect machine-local claims directly.
 - Bare invocation selects the oldest eligible Plan by immutable `createdUtc`,
   then normalized UTF-8 path.
 - A normalized `Documents/Plans/...` argument selects that Plan.
-- A filename selects only one exact case-sensitive executable leaf match;
-  zero/duplicates block. Reject every other path shape.
+- Any other argument is a case-sensitive partial match against executable Plan
+  paths relative to `Documents/Plans/`; exactly one match selects that Plan,
+  and zero or multiple matches block.
+
+See the queue before selecting, whether the invocation is bare or names a Plan:
+`pwsh -NoProfile -File .agents/skills/next-plan/scripts/Get-NextPlanList.ps1`
+takes no arguments, changes nothing, and reports every executable Plan with its
+state and creation order. For a tier-constrained request, read the `Risk tier`
+prose of the top eligible candidates in that order until one matches, then claim
+that path.
 
 Keep the process current directory at the session worktree root for every
 bundled script invocation; never change into `.agents/skills/next-plan` or
 treat its `scripts/...` path as a working-directory instruction. For bare
 selection, run this command with no `-Plan` argument:
 `pwsh -NoProfile -File .agents/skills/next-plan/scripts/Invoke-NextPlanClaim.ps1`
-For a requested normalized path or filename, append `-Plan` and quote that
-value, for example:
+For a requested normalized path or partial pattern, append `-Plan` and quote
+that value, for example:
 `pwsh -NoProfile -File .agents/skills/next-plan/scripts/Invoke-NextPlanClaim.ps1 -Plan 'Documents/Plans/example.md'`
-(`-Plan 'example.md'` forwards a filename.) Do not reconstruct the script's
-transitions. On `status: pass`, act on the code: `ok` and `reused` both mean
-this session holds the named claim, and `none-available` is a normal stop with
-nothing to claim. Any other status stops the skill without repair, reordering,
-or retry.
+(`-Plan 'example.md'` forwards a partial pattern.) Run the bundled script as its
+own shell call, never combined with other commands, so its single JSON object
+stays parseable and the mutation-capable script is never re-run just to
+disambiguate its output. Do not reconstruct the script's transitions. On
+`status: pass`, act on the code: `ok` and `reused` both mean this session holds
+the named claim. For a bare selection, `none-available` is a normal whole-skill
+stop with nothing to claim, and selection is not re-run to look again. For a
+`-Plan`-targeted invocation it means only that the requested Plan is ineligible,
+so the manager may select or claim a different candidate in the same turn. Any
+other status stops the skill without repair, reordering, or retry.
 
 ## Preparation and execution card
 
@@ -68,11 +81,25 @@ hypotheses: return contradictions to main.
 
 Preparation and claim do not require approval. Present the complete resolved
 Plan and execution card before implementation: scope, invariants, role
-assignments, acceptance criteria, and unresolved decisions. Codex Plan Mode
-returns one complete `proposed_plan`; another host uses its approval UI, or asks
-one direct question. An affirmative response approves only the latest unchanged
-presentation. A meaningful Plan, card, scope, invariant, acceptance, or decision
-change requires a new complete presentation.
+assignments, acceptance criteria, and unresolved decisions.
+
+On Codex, present that complete spec as exactly one `<proposed_plan>` markdown
+block — opening and closing tags each on their own line, at most one block per
+turn, and only when the spec is complete — then end the turn without asking an
+approval question, because the Codex client's own "Implement this plan?" prompt
+collects the decision. Any revision is a new complete replacement block.
+
+On Claude Code and every other host, deliver the full presentation as ordinary
+rendered markdown in the final message of a completed turn, with the approval
+question as the last line of that same message and no tool call after that text
+— question tools included, because text emitted before a question-tool call may
+never be displayed. The user's next message is the decision. A question UI is
+allowed only in a later turn, after the presentation is already visible, and
+only for short follow-up choices.
+
+An affirmative response approves only the latest unchanged presentation. A
+meaningful Plan, card, scope, invariant, acceptance, or decision change requires
+a new complete presentation.
 
 Per the claimed-executable-Plan paragraph after the Change Workflow steps in
 root [AGENTS.md](../../../AGENTS.md), preparation that proves the Plan Tier 1,
@@ -92,7 +119,9 @@ claim stays held until landing succeeds.
 
 Deferral uses
 `pwsh -NoProfile -File .agents/skills/next-plan/scripts/Defer-NextPlan.ps1`
-and only an ordinary live claim; never defer after final preparation has run.
+and only an ordinary live claim. After final preparation has run, deferral
+requires an explicit user instruction given in the current session, recorded in
+the handoff; nothing else unlocks it.
 `/finalize-changes` deletes the claim after primary advances. Run
 `pwsh -NoProfile -File .agents/skills/next-plan/scripts/Test-NextPlanWorkflowScripts.ps1 -Executable '<worktree-cli-path>'`
 only when one of those scripts changes; substitute the provisioned `WorktreeCli`

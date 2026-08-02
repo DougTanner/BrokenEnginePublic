@@ -60,6 +60,13 @@ try {
 	function Invoke-ClaimOperation([int] $Exit, [string] $Command, [string] $Worktree, [string] $Owner, [string] $Session, [string[]] $Extra = @()) {
 		return Invoke-Cli $Exit (@('plan', $Command, '--repo', $repo, '--worktree', $Worktree, '--owner', $Owner, '--session', $Session) + $Extra)
 	}
+	# Every path and byte under the isolated scheduler state root, so a read-only verb is proved to add, delete, or
+	# rewrite nothing rather than only leaving the claim records it happened to read alone.
+	function Get-SchedulerState() {
+		return (@(Get-ChildItem -LiteralPath $localAppData -Force -Recurse | Sort-Object FullName | ForEach-Object {
+			if ($_.PSIsContainer) { $_.FullName } else { $_.FullName + '=' + [Convert]::ToBase64String([IO.File]::ReadAllBytes($_.FullName)) }
+		}) -join "`n")
+	}
 	function Get-ClaimRecords() {
 		$claims = Get-ChildItem -LiteralPath $localAppData -Directory -Recurse | Where-Object { $_.Name -ceq 'claims' } | Select-Object -First 1 -ExpandProperty FullName
 		Assert-True (-not [string]::IsNullOrWhiteSpace($claims)) 'Scheduler did not create isolated claim storage.'
@@ -93,6 +100,23 @@ try {
 	Assert-True (@($validate.plans | Where-Object { $_.path -clike '*AGENTS.md' }).Count -eq 0) 'Directory guidance became an executable Plan.'
 	Assert-True ($validate.plans[0].path -ceq 'Documents/Plans/Test/Older.md') 'Validation did not retain deterministic inventory order.'
 	Remove-Item -LiteralPath (Join-Path $primary $markerless) -Force; & git.exe -C $primary reset -- $markerless | Out-Null
+
+	# `plan list` reads committed trees, so the marker-less document is committed for one listing pass and removed
+	# again: the listing keeps the validated inventory order, reports that document as a diagnostic instead of a row,
+	# and shows the dependency child as blocked by the prerequisite that is still present.
+	[IO.File]::WriteAllText((Join-Path $primary $markerless), '# Marker-less plan document', $utf8)
+	Commit $primary 'commit the marker-less document'
+	$listing = Invoke-Cli 0 @('plan', 'list', '--repo', $repo, '--worktree', $primary)
+	Assert-Code $listing 'ok' 'ok'; Assert-True ($listing.operation -ceq 'list') 'Listing did not report the list operation.'
+	# Validation drops a quarantined plan from its inventory while the listing keeps it as a row, so the shared order is
+	# compared over the rows validation also reports.
+	Assert-True ((@($listing.plans | Where-Object { $_.state -cne 'quarantined' } | ForEach-Object { $_.path }) -join '|') -ceq (@($validate.plans | ForEach-Object { $_.path }) -join '|')) 'Listing did not reuse the validated inventory order.'
+	Assert-True ((@($listing.plans | Where-Object { $_.state -ceq 'eligible' } | ForEach-Object { $_.path }) -join '|') -ceq 'Documents/Plans/Test/Older.md|Documents/Plans/Test/Alpha.md|Documents/Plans/Test/Zulu.md|Documents/Plans/Test/Transient.md|Documents/Plans/Test/LateBlocked.md') 'Listing did not report the eligible Plans in selection order.'
+	Assert-True (@($listing.plans | Where-Object { $_.path -ceq $markerless }).Count -eq 0 -and @($listing.diagnostics | Where-Object { $_.plan -ceq $markerless -and $_.code -ceq 'invalid-metadata' }).Count -eq 1) 'Listing did not report the committed marker-less document as a diagnostic instead of a row.'
+	$dependentRow = @($listing.plans | Where-Object { $_.path -ceq 'Documents/Plans/Test/Dependent.md' })[0]
+	Assert-True ($dependentRow.state -ceq 'blocked' -and ($dependentRow.blockedBy -ccontains 'Documents/Plans/Test/Older.md')) 'Listing did not name the unmet prerequisite of the blocked Plan.'
+	Remove-Item -LiteralPath (Join-Path $primary $markerless) -Force; Commit $primary 'remove the marker-less document'
+
 	# The cutover transition shim is gone: a retired option is an unknown option again and fails as a usage error.
 	$retiredOption = Invoke-Cli 1 @('plan', 'validate', '--repo', $repo, '--worktree', $primary, '--baseline', $baseline)
 	Assert-Code $retiredOption 'error' 'usage'
@@ -158,6 +182,13 @@ try {
 	# tip no longer carries is healed, and the owning session is free to claim again.
 	$transient = Invoke-ClaimNext 0 $session 'fixture-session' 'owner-transient' 'session-transient' 'Documents/Plans/Test/Transient.md'
 	Assert-Code $transient 'ok' 'claimed'
+	# A foreign live claim is visible on its own row, and the listing that reads it leaves every scheduler byte alone.
+	$stateBeforeListing = Get-SchedulerState
+	$claimedListing = Invoke-Cli 0 @('plan', 'list', '--repo', $repo, '--worktree', $primary)
+	$claimedRow = @($claimedListing.plans | Where-Object { $_.path -ceq 'Documents/Plans/Test/Transient.md' })[0]
+	Assert-True ($claimedRow.state -ceq 'claimed' -and ($claimedRow.PSObject.Properties.Name -ccontains 'claim')) 'Listing did not report the live claim on its plan row.'
+	Assert-True ($claimedRow.claim.session -ceq 'session-transient' -and -not [string]::IsNullOrWhiteSpace($claimedRow.claim.expiresAt)) 'Listing did not report the live claim identity and expiry.'
+	Assert-True ((Get-SchedulerState) -ceq $stateBeforeListing) 'Listing changed machine-local scheduler state.'
 	Remove-Item -LiteralPath (Join-Path $primary 'Documents/Plans/Test/Transient.md') -Force
 	Commit $primary 'peer landing removes the transient plan'
 	# Healing runs in `plan validate` and `plan claim-next`; `claim-status` is a pure read that never heals.
@@ -222,6 +253,8 @@ try {
 	[pscustomobject]@{ schemaVersion = 'broken-engine-plan-scheduler-fixtures/v1'; status = 'pass'; code = 'ok'; cases = @(
 		'lint envelope, cycle quarantine, marker-less loudness, and directory-guidance exemption',
 		'retired-option usage error and targeted validation',
+		'listing inventory order, eligible selection order, blocked prerequisites, and marker-less diagnostic',
+		'listing reports a live claim and leaves every scheduler byte unchanged',
 		'claim lease envelope, 48-hour expiry window, and deterministic (createdUtc, path) selection',
 		'idempotent re-claim and one claim per session',
 		'foreign live-claim refusal and unclaim released/already-absent',

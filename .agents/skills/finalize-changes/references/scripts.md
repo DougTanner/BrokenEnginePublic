@@ -7,34 +7,55 @@ outcome when applicable. Never return a nested tool response or
 file/XML/log body. Exit/result/schema mismatches block.
 
 - `../scripts/Invoke-FinalizeCandidateCommit.ps1` stages only the authorized caller
-  paths, preserves disjoint state, and blocks mixed owned paths.
+  paths, preserves disjoint state, and blocks mixed owned paths. `pwsh -File`
+  hands every argument over as one literal string, so several owned paths can
+  only travel as one comma-separated `-OwnedPaths` token.
 - `../scripts/Invoke-FinalizeApprovalPreparation.ps1` squashes the session work to
   one commit on the current primary tip, and blocks with
   `git.primary-not-ancestor` when the session tip does not already contain that
   primary tip; the caller rebases and re-invokes. It returns the only
   landing commit sent to verification.
-- `../scripts/Invoke-FinalizeLockClaim.ps1` owns lease claim/status/expiry
-  recovery, and standalone release through `-Release` with the held lease's
-  owner token. Invoke it successfully before approval preparation begins
+- `../scripts/Invoke-FinalizeLockClaim.ps1` makes one blocking lease claim —
+  WorktreeCli owns the bounded wait and the guarded expiry recovery — and
+  separately performs standalone release through `-Release` with the held
+  lease's owner token.
+  Invoke it successfully before approval preparation begins
   reconciliation, retain or refresh the lease throughout agent-driven
   reconciliation, and release it with `-Release` before any user wait; a
-  release of an already-absent lease passes. Live contention is
+  release of an already-absent lease passes. Claim once more after the
+  affirmative landing confirmation with the landing lease duration —
+  `-LeaseSeconds 3600`, its default, so omitting the parameter is correct — and
+  pass that owner token to the landing script; a refresh keeps a lease's original
+  duration, so landing refuses to continue a shorter one. Live contention is
   retryable; only validated expiry recovers through WorktreeCli's
   compare-and-swap against the recorded owner, run only when no registered
   worktree has a Git operation in progress; unverifiable state requires user
   authority and is never overridden.
 - `../scripts/Invoke-FinalizeLanding.ps1` exclusively advances primary by
   compare-and-swap under the landing lock, rolls back on postcondition failure,
-  and releases the lock. It claims that lock under a fresh owner token it mints
-  itself through WorktreeCli `lock token`, so the caller must already have
-  released its reconciliation lease as `SKILL.md` `## Bundled scripts` requires.
+  and releases the lock. Pass the post-confirmation claim's owner token as
+  `-OwnerToken` so landing continues under that same lease, which it accepts only
+  as a same-actor continuation under the `SKILL.md` `## Bundled scripts` ownership
+  rule; without `-OwnerToken` it mints its own token through WorktreeCli
+  `lock token`. When primary advanced first it makes at most one internal rebase
+  and lands only a provably byte-identical patch, so report the commit from the
+  result's `landed` block rather than `candidate`. Blocked
+  `rebase.patch-not-identical` means the clean rebase changed the patch, which
+  returns for re-review and a refreshed confirmation; `rebase.conflicted` leaves
+  the session branch restored; `rebase.abort-failed` leaves restoration unproven
+  and always retains the lease; `landing.retry-exhausted` is retryable and leaves
+  the confirmed session commit restored. Re-invoking it with the original approved
+  arguments after a crash is idempotent, including against a tip its own internal
+  rebase produced.
   Pass `-ReleasePlanClaim` when a claimed Plan reached final preparation; the
   script then deletes the claim best-effort. Without the switch it invokes no
   `plan` command at all.
 
 Release every caller-owned lease with `../scripts/Invoke-FinalizeLockClaim.ps1 -Release`
-before an open-ended user wait. On failure, release a caller-owned lease the
-same way only after all registered worktrees are inspectable and free of Git
-operation markers; otherwise retain and report it. The landing script's own
-lock uses an owner token it never returns; a retained landing claim is cleaned
-up only when that lease expires on its own.
+before an open-ended user wait. After a failed landing the lock is released once
+every registered worktree is inspectable and provably free of Git operation
+markers, on both the caller-token and the minted-token route. When that cannot be
+proven the claim is retained and reported: a caller token's retained claim stays
+the caller's lease, released the same way once the worktrees are provably clear; a
+minted token's retained claim is held under a token the landing never returns, so
+it clears only when that lease expires on its own.

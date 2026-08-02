@@ -1,11 +1,13 @@
-# Provision the checkout, resolve AgentHarness, mint an owner token, and claim the harness lock.
+# Require the project executables, provision the checkout, resolve AgentHarness, mint an owner
+# token, and claim the harness lock.
 # The script never steals, never waits for a lock, and never touches a foreign owner's processes:
 # a blocked claim returns immediately with the holder record the claim itself printed.
 [CmdletBinding()]
 param(
 	[Parameter(Mandatory)][string] $RepositoryRoot,
 	[Parameter(Mandatory)][string] $Session,
-	[string] $Key = 'default'
+	[string] $Key = 'default',
+	[string] $Configuration = 'Debug'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -74,6 +76,7 @@ function Get-LockField($Record, [string] $Name) {
 try {
 	if ([string]::IsNullOrWhiteSpace($Session)) { throw 'Session must not be empty.' }
 	if ([string]::IsNullOrWhiteSpace($Key)) { throw 'Key must not be empty.' }
+	if ([string]::IsNullOrWhiteSpace($Configuration)) { throw 'Configuration must not be empty.' }
 	if (-not [IO.Path]::IsPathRooted($RepositoryRoot)) { throw "RepositoryRoot must be absolute: '$RepositoryRoot'." }
 
 	Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\AgentScriptCommon.psm1') -Force
@@ -86,6 +89,37 @@ try {
 	$provisioner = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\scripts\Provision-WorktreeThirdParty.ps1'))
 	if (-not (Test-Path -LiteralPath $provisioner -PathType Leaf)) {
 		Complete-HarnessClaim 1 'error' 'claim.provisioner-missing' "Provisioning script is missing: '$provisioner'."
+	}
+
+	# The project harness doc owns the executable names and their Output directory, so the launch
+	# block stays the single source of truth: only those three assignments are read, and the doc's
+	# hardcoded Debug suffix becomes the requested configuration. Missing executables block here,
+	# before provisioning and before the lock, so a build routes through /compile and re-enters.
+	$harnessDocument = Join-Path $root 'Projects\BrokenEngineSandbox\Documents\AgentHarness.md'
+	$launchText = ''
+	if (Test-Path -LiteralPath $harnessDocument -PathType Leaf) {
+		# A read failure leaves the text empty so it reports the same unreadable-doc code as a parse failure.
+		$launchText = [string](Get-Content -LiteralPath $harnessDocument -Raw -ErrorAction SilentlyContinue)
+	}
+	$outputMatch = [regex]::Match($launchText, '(?m)^\s*\$Output\s*=\s*Join-Path \$ROOT ''([^'']+)''\s*$')
+	$serverMatch = [regex]::Match($launchText, '(?m)^\s*\$ServerExe\s*=\s*Join-Path \$Output ''([^'']+)''\s*$')
+	$clientMatch = [regex]::Match($launchText, '(?m)^\s*\$ClientExe\s*=\s*Join-Path \$Output ''([^'']+)''\s*$')
+	if (-not $outputMatch.Success -or -not $serverMatch.Success -or -not $clientMatch.Success) {
+		Complete-HarnessClaim 1 'error' 'claim.launch-doc-unreadable' `
+			"Output, ServerExe, and ClientExe could not be read from '$harnessDocument'."
+	}
+	$outputRelative = $outputMatch.Groups[1].Value
+	$outputDirectory = Join-Path $root $outputRelative
+	$missingExecutables = @()
+	foreach ($executable in @($serverMatch.Groups[1].Value, $clientMatch.Groups[1].Value)) {
+		$configured = [regex]::Replace($executable, '\.Debug\.exe$', ".$Configuration.exe")
+		if (-not (Test-Path -LiteralPath (Join-Path $outputDirectory $configured) -PathType Leaf)) {
+			$missingExecutables += $configured
+		}
+	}
+	if ($missingExecutables.Count -gt 0) {
+		Complete-HarnessClaim 2 'blocked' 'claim.executable-missing' `
+			"Missing executables in '$outputRelative': $($missingExecutables -join ', ')."
 	}
 
 	# The provisioner throws instead of exiting, so it runs as a child process whose exit code

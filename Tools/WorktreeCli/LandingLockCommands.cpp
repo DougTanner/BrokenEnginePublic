@@ -4,9 +4,12 @@
 #include "CoordinationStore.h"
 #include "LandingLockLifecycle.h"
 
+#include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <optional>
+#include <thread>
 
 namespace toolcli
 {
@@ -22,6 +25,11 @@ namespace toolcli
 		using coordination::PrintMetadata;
 		using coordination::ReadMetadata;
 		using coordination::WriteMetadataAtomic;
+
+		constexpr int64_t kiMaximumWaitSeconds = 3'600;
+		constexpr int64_t kiMinimumPollMilliseconds = 50;
+		constexpr int64_t kiMaximumPollMilliseconds = 5'000;
+		constexpr int64_t kiDefaultPollMilliseconds = 500;
 
 		std::optional<Locator> MakeLandingLocator(const std::wstring& rRepository)
 		{
@@ -47,13 +55,14 @@ namespace toolcli
 			return locator;
 		}
 
-		std::optional<Locator> ParseLocator(int iArgumentCount, wchar_t* pArgumentValues[], int iStartIndex, std::wstring& rOwner, std::wstring& rExpectedOwner, std::wstring& rSession, std::wstring& rWorktree, int64_t& riLeaseSeconds)
+		std::optional<Locator> ParseLocator(int iArgumentCount, wchar_t* pArgumentValues[], int iStartIndex, std::wstring& rOwner, std::wstring& rExpectedOwner, std::wstring& rSession, std::wstring& rWorktree, int64_t& riLeaseSeconds, int64_t& riWaitSeconds, int64_t& riPollMilliseconds)
 		{
 			std::wstring repository;
 			for (int i = iStartIndex; i < iArgumentCount; ++i)
 			{
 				std::wstring_view argument = pArgumentValues[i];
 				std::wstring* pDestination = nullptr;
+				int64_t* piNumericDestination = nullptr;
 				if (argument == L"--repo")
 				{
 					pDestination = &repository;
@@ -76,19 +85,15 @@ namespace toolcli
 				}
 				else if (argument == L"--lease-seconds")
 				{
-					if (++i >= iArgumentCount)
-					{
-						Fail("lock option requires a value");
-						return std::nullopt;
-					}
-					wchar_t* pEnd = nullptr;
-					riLeaseSeconds = std::wcstoll(pArgumentValues[i], &pEnd, 10);
-					if (pEnd == pArgumentValues[i] || *pEnd != L'\0')
-					{
-						Fail("--lease-seconds must be an integer");
-						return std::nullopt;
-					}
-					continue;
+					piNumericDestination = &riLeaseSeconds;
+				}
+				else if (argument == L"--wait-seconds")
+				{
+					piNumericDestination = &riWaitSeconds;
+				}
+				else if (argument == L"--poll-milliseconds")
+				{
+					piNumericDestination = &riPollMilliseconds;
 				}
 				else
 				{
@@ -99,6 +104,17 @@ namespace toolcli
 				{
 					Fail("lock option requires a value");
 					return std::nullopt;
+				}
+				if (piNumericDestination != nullptr)
+				{
+					wchar_t* pEnd = nullptr;
+					*piNumericDestination = std::wcstoll(pArgumentValues[i], &pEnd, 10);
+					if (pEnd == pArgumentValues[i] || *pEnd != L'\0')
+					{
+						Fail(WideToUtf8(argument) + " must be an integer");
+						return std::nullopt;
+					}
+					continue;
 				}
 				*pDestination = pArgumentValues[i];
 			}
@@ -225,6 +241,86 @@ namespace toolcli
 			// steal: a lease-based landing lock is never stolen; recover is the expired-lease takeover.
 			return EmitLandingConflict(rLocator, rMetadata, LandingRecordState::kReadable);
 		}
+
+		// Bounded blocking claim. Every attempt reads, classifies, and writes under its own guard scope; the guard is
+		// released before each sleep so a holder releasing its lease can always make progress. Only the final outcome
+		// prints, so the invocation still emits exactly one JSON object.
+		int WaitForLandingClaim(const Locator& rLocator, const std::wstring& rOwner, const std::wstring& rSession, const std::wstring& rWorktree, int64_t iLeaseSeconds, int64_t iWaitSeconds, int64_t iPollMilliseconds)
+		{
+			const std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::now() + std::chrono::seconds(iWaitSeconds);
+			for (;;)
+			{
+				nlohmann::json metadata;
+				int64_t iSleepMilliseconds = iPollMilliseconds;
+				{
+					Guard guard(rLocator.path.wstring() + L".guard");
+					if (!guard.IsValid())
+					{
+						Fail("could not acquire lock transition guard (" + guard.FailureReason() + ")");
+						return kiExitFailure;
+					}
+
+					std::error_code error;
+					const bool bExists = std::filesystem::exists(rLocator.path, error);
+					if (error)
+					{
+						Fail("could not inspect lock");
+						return kiExitFailure;
+					}
+					if (!bExists)
+					{
+						return HandleClaim(rLocator, metadata, false, rOwner, rSession, rWorktree, iLeaseSeconds);
+					}
+					if (!ReadMetadata(rLocator.path, metadata))
+					{
+						return EmitLandingConflict(rLocator, metadata, LandingRecordState::kUnverifiable);
+					}
+
+					const uint64_t uiNow = CurrentUtcTicks();
+					std::optional<landing::LandingLease> lease = landing::ValidateLandingLease(metadata, rLocator, uiNow);
+					if (!lease)
+					{
+						// Unverifiable metadata is never repaired by a waiter; taking it over needs user authority.
+						return EmitLandingConflict(rLocator, metadata, LandingRecordState::kReadable);
+					}
+					if (uiNow >= lease->uiExpiresTicks)
+					{
+						// A refused recovery (a registered worktree is mid Git operation) is not final: keep waiting.
+						if (landing::AllRegisteredWorktreesClear(rLocator))
+						{
+							// The standalone recover verb re-reads to revalidate metadata it was handed; here the metadata was
+							// read inside this same guard scope, which serializes every lock transition, so it cannot have moved.
+							metadata = landing::NewLandingMetadata(rLocator, rOwner, rSession, rWorktree, iLeaseSeconds);
+							if (!WriteMetadataAtomic(rLocator.path, metadata))
+							{
+								FailWindows("recover lock metadata");
+								return kiExitFailure;
+							}
+							PrintMetadata(landing::LandingStatus(metadata, rLocator));
+							return kiExitOk;
+						}
+					}
+					else if (lease->owner == WideToUtf8(rOwner) && metadata["session"].get<std::string>() == WideToUtf8(rSession) && metadata["worktree"].get<std::string>() == WideToUtf8(rWorktree))
+					{
+						// A live lease this requester already holds is reported at once, never waited on or refreshed.
+						return EmitLandingConflict(rLocator, metadata, LandingRecordState::kReadable);
+					}
+					else
+					{
+						// Wake just after the foreign lease expires when that comes first.
+						iSleepMilliseconds = std::min<int64_t>(iSleepMilliseconds, static_cast<int64_t>((lease->uiExpiresTicks - uiNow) / 10'000ull) + 1);
+					}
+				}
+
+				const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+				if (now >= deadline)
+				{
+					return EmitLandingConflict(rLocator, metadata, LandingRecordState::kReadable);
+				}
+				const int64_t iRemainingMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+				std::this_thread::sleep_for(std::chrono::milliseconds(std::max<int64_t>(1, std::min<int64_t>(iSleepMilliseconds, iRemainingMilliseconds))));
+			}
+		}
 	}
 
 	int RunLandingLockCommand(int iArgumentCount, wchar_t* pArgumentValues[])
@@ -246,7 +342,9 @@ namespace toolcli
 		std::wstring session;
 		std::wstring worktree;
 		int64_t iLeaseSeconds = 0;
-		std::optional<Locator> locator = ParseLocator(iArgumentCount, pArgumentValues, 3, owner, expectedOwner, session, worktree, iLeaseSeconds);
+		int64_t iWaitSeconds = 0;
+		int64_t iPollMilliseconds = kiDefaultPollMilliseconds;
+		std::optional<Locator> locator = ParseLocator(iArgumentCount, pArgumentValues, 3, owner, expectedOwner, session, worktree, iLeaseSeconds, iWaitSeconds, iPollMilliseconds);
 		if (!locator)
 		{
 			return kiExitFailure;
@@ -271,12 +369,27 @@ namespace toolcli
 			Fail("landing claim and recover require --lease-seconds in the range 60..86400");
 			return kiExitFailure;
 		}
+		if (iWaitSeconds < 0 || iWaitSeconds > kiMaximumWaitSeconds)
+		{
+			Fail("--wait-seconds must be in the range 0..3600");
+			return kiExitFailure;
+		}
+		if (iPollMilliseconds < kiMinimumPollMilliseconds || iPollMilliseconds > kiMaximumPollMilliseconds)
+		{
+			Fail("--poll-milliseconds must be in the range 50..5000");
+			return kiExitFailure;
+		}
 
 		std::error_code error;
 		if (!coordination::EnsureParentDirectory(locator->path))
 		{
 			Fail("could not create lock directory");
 			return kiExitFailure;
+		}
+		// A positive wait owns its own per-attempt guard scopes; every other invocation keeps the single-guard shape.
+		if (verb == L"claim" && iWaitSeconds > 0)
+		{
+			return WaitForLandingClaim(*locator, owner, session, worktree, iLeaseSeconds, iWaitSeconds, iPollMilliseconds);
 		}
 		Guard guard(locator->path.wstring() + L".guard");
 		if (!guard.IsValid())

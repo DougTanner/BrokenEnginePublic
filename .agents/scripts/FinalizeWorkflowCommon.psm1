@@ -326,9 +326,10 @@ function Get-FinalizeLandingLockState([string] $WorktreeCliExecutable, [string] 
 	return [pscustomobject]@{ Kind = [string]$status.leaseState; Status = $status; Response = $response; ExpiresAt = $expiresAt.ToUniversalTime() }
 }
 
-# WorktreeCli deliberately keeps its lock primitives one-shot. This deadline-limited policy
-# is shared by reconciliation and post-confirmation landing so neither path can
-# steal a live lease or reinterpret malformed metadata as a retryable conflict.
+# WorktreeCli owns the bounded wait and the guarded expired-lease recovery, so this helper
+# makes one blocking claim and interprets its single outcome. It is shared by reconciliation
+# and post-confirmation landing so neither path can steal a live foreign lease or reinterpret
+# malformed metadata as a retryable conflict: unverifiable state still requires user authority.
 function Invoke-FinalizeLandingLockClaim {
 	[CmdletBinding()] param(
 		[Parameter(Mandatory)][string] $WorktreeCliExecutable,
@@ -337,7 +338,7 @@ function Invoke-FinalizeLandingLockClaim {
 		[Parameter(Mandatory)][string] $Session,
 		[Parameter(Mandatory)][string] $Worktree,
 		[ValidateRange(60, 86400)][int] $LeaseSeconds = 3600,
-		[ValidateRange(1, 55)][int] $WaitSeconds = 55,
+		[ValidateRange(1, 3600)][int] $WaitSeconds = 300,
 		[ValidateRange(50, 5000)][int] $PollMilliseconds = 500
 	)
 	$item = Get-Item -LiteralPath $WorktreeCliExecutable -Force -ErrorAction Stop
@@ -348,67 +349,32 @@ function Invoke-FinalizeLandingLockClaim {
 		throw 'Landing lock claim requires nonblank repository, owner, session, and worktree identities.'
 	}
 	$worktreeIdentity = Get-FinalizeExistingWindowsIdentity $Worktree 'Landing worktree'
-	$deadline = [DateTimeOffset]::UtcNow.AddSeconds($WaitSeconds)
-	$attempts = 0
-	$lastLock = $null
-	while ($true) {
-		++$attempts
-		$claim = Invoke-FinalizeNativeText $item.FullName @('lock', 'claim', '--repo', $GitCommonDirectory, '--owner', $Owner, '--session', $Session, '--worktree', $worktreeIdentity, '--lease-seconds', [string]$LeaseSeconds) $worktreeIdentity
-		if ($claim.ExitCode -eq 0) {
-			$status = ConvertFrom-FinalizeLandingLockJson $claim 'landing lock claim'
-			$properties = @($status.PSObject.Properties.Name)
-			if (($properties -ccontains 'held') -and $status.held -is [bool] -and $status.held -and
-				($properties -ccontains 'leaseState') -and $status.leaseState -ceq 'live' -and
-				(Test-FinalizeLandingLockClaimIdentity $status $Owner $Session $worktreeIdentity)) {
-				return New-FinalizeLandingLockClaimResult $true 'ok' 'Landing lock is live and owned by this transaction.' 'terminal' $false 0 $Owner $status $attempts
-			}
-			return New-FinalizeLandingLockClaimResult $false 'landing-lock.claim-invalid' 'Landing lock claim returned an invalid ownership record.' 'terminal' $false 0 $Owner $status $attempts
+	$claim = Invoke-FinalizeNativeText $item.FullName @('lock', 'claim', '--repo', $GitCommonDirectory, '--owner', $Owner, '--session', $Session, '--worktree', $worktreeIdentity, '--lease-seconds', [string]$LeaseSeconds, '--wait-seconds', [string]$WaitSeconds, '--poll-milliseconds', [string]$PollMilliseconds) $worktreeIdentity
+	if ($claim.ExitCode -eq 0) {
+		$status = ConvertFrom-FinalizeLandingLockJson $claim 'landing lock claim'
+		$properties = @($status.PSObject.Properties.Name)
+		if (($properties -ccontains 'held') -and $status.held -is [bool] -and $status.held -and
+			($properties -ccontains 'leaseState') -and $status.leaseState -ceq 'live' -and
+			(Test-FinalizeLandingLockClaimIdentity $status $Owner $Session $worktreeIdentity)) {
+			return New-FinalizeLandingLockClaimResult $true 'ok' 'Landing lock is live and owned by this transaction.' 'terminal' $false 0 $Owner $status 1
 		}
-		if ($claim.ExitCode -ne 2) {
-			return New-FinalizeLandingLockClaimResult $false 'landing-lock.claim-failed' "Landing lock claim failed: $($claim.Stdout.Trim())$($claim.Stderr.Trim())" 'terminal' $false 0 $Owner $null $attempts
-		}
-
-		$state = Get-FinalizeLandingLockState $item.FullName $GitCommonDirectory $worktreeIdentity
-		$lastLock = $state.Status
-		if ($state.Kind -ceq 'terminal') {
-			return New-FinalizeLandingLockClaimResult $false 'landing-lock.status-failed' "Landing lock status is not a recognized absence or lease state: $($state.Response.Stdout.Trim())$($state.Response.Stderr.Trim())" 'terminal' $false 0 $Owner $state.Status $attempts
-		}
-		if ($state.Kind -ceq 'authority-required') {
-			return New-FinalizeLandingLockClaimResult $false 'landing-lock.unverifiable' 'Landing lock metadata cannot be verified; external repair authority is required.' 'authority-required' $true 0 $Owner $state.Status $attempts
-		}
-		if (($state.Kind -ceq 'live') -and (Test-FinalizeLandingLockClaimIdentity $state.Status $Owner $Session $worktreeIdentity)) {
-			return New-FinalizeLandingLockClaimResult $true 'ok' 'Landing lock was already live and owned by this transaction.' 'terminal' $false 0 $Owner $state.Status $attempts
-		}
-
-		if ($state.Kind -ceq 'expired') {
-			$recover = Invoke-FinalizeNativeText $item.FullName @('lock', 'recover', '--repo', $GitCommonDirectory, '--expect', [string]$state.Status.owner, '--owner', $Owner, '--session', $Session, '--worktree', $worktreeIdentity, '--lease-seconds', [string]$LeaseSeconds) $worktreeIdentity
-			if ($recover.ExitCode -eq 0) {
-				$status = ConvertFrom-FinalizeLandingLockJson $recover 'landing lock recover'
-				$properties = @($status.PSObject.Properties.Name)
-				if (($properties -ccontains 'held') -and $status.held -is [bool] -and $status.held -and
-					($properties -ccontains 'leaseState') -and $status.leaseState -ceq 'live' -and
-					(Test-FinalizeLandingLockClaimIdentity $status $Owner $Session $worktreeIdentity)) {
-					return New-FinalizeLandingLockClaimResult $true 'ok' 'Expired landing lock recovered after WorktreeCli compare-and-swap validation.' 'terminal' $false 0 $Owner $status $attempts
-				}
-				return New-FinalizeLandingLockClaimResult $false 'landing-lock.recover-invalid' 'Landing lock recovery returned an invalid ownership record.' 'terminal' $false 0 $Owner $status $attempts
-			}
-			if ($recover.ExitCode -ne 2) {
-				return New-FinalizeLandingLockClaimResult $false 'landing-lock.recover-failed' "Landing lock recovery failed: $($recover.Stdout.Trim())$($recover.Stderr.Trim())" 'terminal' $false 0 $Owner $state.Status $attempts
-			}
-		}
-
-		$now = [DateTimeOffset]::UtcNow
-		$remaining = [int][Math]::Floor(($deadline - $now).TotalMilliseconds)
-		if ($remaining -le 0) {
-			return New-FinalizeLandingLockClaimResult $false 'landing-lock.retryable-wait' 'A foreign landing lease remains live; retry this claim after its reported expiry.' 'retryable-wait' $false $PollMilliseconds $Owner $lastLock $attempts
-		}
-		$delay = [Math]::Min($PollMilliseconds, $remaining)
-		if ($state.Kind -ceq 'live' -and $null -ne $state.ExpiresAt) {
-			$untilExpiry = [int][Math]::Ceiling(($state.ExpiresAt - $now).TotalMilliseconds)
-			if ($untilExpiry -gt 0) { $delay = [Math]::Min($delay, $untilExpiry) }
-		}
-		if ($delay -gt 0) { Start-Sleep -Milliseconds $delay }
+		return New-FinalizeLandingLockClaimResult $false 'landing-lock.claim-invalid' 'Landing lock claim returned an invalid ownership record.' 'terminal' $false 0 $Owner $status 1
 	}
+	if ($claim.ExitCode -ne 2) {
+		return New-FinalizeLandingLockClaimResult $false 'landing-lock.claim-failed' "Landing lock claim failed: $($claim.Stdout.Trim())$($claim.Stderr.Trim())" 'terminal' $false 0 $Owner $null 1
+	}
+
+	$state = Get-FinalizeLandingLockState $item.FullName $GitCommonDirectory $worktreeIdentity
+	if ($state.Kind -ceq 'terminal') {
+		return New-FinalizeLandingLockClaimResult $false 'landing-lock.status-failed' "Landing lock status is not a recognized absence or lease state: $($state.Response.Stdout.Trim())$($state.Response.Stderr.Trim())" 'terminal' $false 0 $Owner $state.Status 1
+	}
+	if ($state.Kind -ceq 'authority-required') {
+		return New-FinalizeLandingLockClaimResult $false 'landing-lock.unverifiable' 'Landing lock metadata cannot be verified; external repair authority is required.' 'authority-required' $true 0 $Owner $state.Status 1
+	}
+	if (($state.Kind -ceq 'live') -and (Test-FinalizeLandingLockClaimIdentity $state.Status $Owner $Session $worktreeIdentity)) {
+		return New-FinalizeLandingLockClaimResult $true 'ok' 'Landing lock was already live and owned by this transaction.' 'terminal' $false 0 $Owner $state.Status 1
+	}
+	return New-FinalizeLandingLockClaimResult $false 'landing-lock.retryable-wait' 'A foreign landing lease remains live; retry this claim after its reported expiry.' 'retryable-wait' $false $PollMilliseconds $Owner $state.Status 1
 }
 
 # Scratch-fixture helpers shared by the finalize-changes suites. Assert-SafeScratchRoot gates every
@@ -429,4 +395,4 @@ function Invoke-ScratchGit([string] $Root, [string[]] $Arguments) {
 	return $output
 }
 
-Export-ModuleMember -Function Assert-SafeScratchRoot, Invoke-ScratchGit, Get-FinalizeRootPreservingFullPath, Get-FinalizeExistingWindowsIdentity, Test-FinalizeExistingIdentityEqual, Invoke-FinalizeNativeText, Invoke-FinalizeGit, Test-FinalizeGitSuccess, Get-FinalizeGitIdentity, Assert-FinalizeGitPath, Get-FinalizeWorktreeRecords, Test-FinalizeWorktreeRegistration, Test-FinalizeAllWorktreesClear, Test-FinalizeLandingSanity, Invoke-FinalizeLandingLockClaim
+Export-ModuleMember -Function Assert-SafeScratchRoot, Invoke-ScratchGit, Get-FinalizeRootPreservingFullPath, Get-FinalizeExistingWindowsIdentity, Test-FinalizeExistingIdentityEqual, Invoke-FinalizeNativeText, Invoke-FinalizeGit, Test-FinalizeGitSuccess, Get-FinalizeGitIdentity, Assert-FinalizeGitPath, Get-FinalizeWorktreeRecords, Test-FinalizeWorktreeRegistration, Test-FinalizeAllWorktreesClear, Test-FinalizeLandingSanity, Test-FinalizeLandingLockClaimIdentity, Get-FinalizeLandingLockState, Invoke-FinalizeLandingLockClaim

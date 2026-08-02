@@ -102,17 +102,37 @@ finding.
 
 ## Executable Plan check
 
-When the reviewed diff touches `Documents/Plans/**`, run WorktreeCli
-`plan validate` against the session worktree and require a valid result. Record
-notices and healing. Otherwise record `not triggered — no executable-Plan
-change`. Primary post-commit validation belongs to finalization.
+When the reviewed diff touches `Documents/Plans/**`, require a valid WorktreeCli
+`plan validate` result for the session worktree. Record notices and healing.
+Otherwise record `not triggered — no executable-Plan change`. Primary
+post-commit validation belongs to finalization.
+
+Under `/codex-review` the read-only sandbox cannot create the scheduler guard
+file, so `plan validate` run there always reports `busy`: the dispatching
+session runs it host-side before dispatch and supplies the verbatim result in
+the scope file, together with the worktree path it ran against and the baseline
+and head SHAs current at that run. Validate that host-supplied evidence instead
+of running the tool — match its worktree and SHAs to the reviewed checkout and
+diff, and leave the row `BLOCKED` when that identity is missing or mismatched.
+When this verification does run `plan validate` itself, `code: busy` is
+deterministic tool contention: re-run it up to twice more within this
+verification, and record a third `busy` as `BLOCKED`.
 
 ## Output
 
 Return `Verification: PASS` only when ownership, authorization, and every row
 pass. Otherwise return `Verification: BLOCKED` once with all decisive items; do
-not retry. A PASS binds the reviewed diff; if that diff later changes
+not retry any judgment check, the bounded `plan validate` re-runs above being
+the only exception. A PASS binds the reviewed diff; if that diff later changes
 meaningfully, re-review only the changed regions.
+
+A later pass may resume a `BLOCKED` result only when its sole blocking rows are
+missing typed artifacts and the baseline and head SHAs are unchanged. That pass
+reads the prior report and every citation it would carry forward, re-establishes
+the session-change inventory and every row whose evidence is not bound to the
+immutable committed diff, and carries forward only rows that evidence binds to
+that diff; any identity or state mismatch requires a fresh full verification.
+Restate the full table and the baseline and head SHAs it binds.
 
 Follow `../../references/subagent-reporting.md`: route, checkout, the reviewed
 diff, Git-derived inventory, acceptance/review/API tables, Plan check,

@@ -23,7 +23,7 @@ Require a self-contained brief containing:
   and exact changed files/regions, separated from pre-existing and concurrently
   owned changes;
 - an identity-bound
-  `broken-engine-code-quality-target-manifest/v1` produced by
+  `broken-engine-code-quality-target-manifest/v1` file produced by
   `.agents/scripts/Get-SessionChangeInventory.ps1 -EmitTargetManifest` from that
   authorized diff (or focused re-review), with baseline/current identities for
   additions, deletions, and renames; it excludes pre-existing and concurrently
@@ -38,7 +38,11 @@ Require a self-contained brief containing:
   the change may affect, and any prior findings relevant to a focused re-review;
 - checkout path and applicable repository instructions.
 
-The manifest comes from one read-only run that writes no file:
+The manifest file is the authoritative supplied input. A
+`/codex-review` prompt supplies it as the `Target manifest: <path>` entry in its
+evidence section (the receipt's `manifestPath`, written next to the prompt file),
+and inlines the same bytes there as a copy of that file. Otherwise the dispatching manager saves one
+read-only run to a file:
 `pwsh -NoProfile -File .agents/scripts/Get-SessionChangeInventory.ps1
 -RepositoryRoot <absolute repository toplevel> -Baseline <full 40-character SHA>
 -EmitTargetManifest`, adding `-IncludeUntracked <comma-separated paths>` for

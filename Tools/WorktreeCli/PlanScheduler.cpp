@@ -554,6 +554,103 @@ namespace toolcli
 			return kiExitOk;
 		}
 
+		// A read-only preview of what claim-next would decide at this tree state.  It heals nothing, takes no guard, and
+		// creates no scheduler storage, so a claim record it cannot use is ignored here rather than deleted.
+		int RunList(const Arguments& rArguments)
+		{
+			std::wstring repo; std::filesystem::path worktree;
+			if (!ResolveContext(rArguments, repo, worktree))
+			{
+				return Failure("invalid-context");
+			}
+			const std::optional<std::string> primaryReference = ResolvePrimaryReference(repo);
+			const std::optional<std::string> primaryCommit = primaryReference ? ResolveRepositoryCommit(repo, Utf8ToWide(*primaryReference)) : std::nullopt;
+			if (!primaryCommit)
+			{
+				return Failure("primary-revision-failed");
+			}
+			const std::optional<std::string> sessionCommit = ResolveCommit(worktree, L"HEAD");
+			if (!sessionCommit || !RunGit({ L"--git-dir", repo, L"merge-base", L"--is-ancestor", Utf8ToWide(*sessionCommit), Utf8ToWide(*primaryCommit) }))
+			{
+				return Failure("git-identity-mismatch");
+			}
+			// Same two Plan maps claim-next evaluates: the primary tip decides eligibility, the session tree supplies the
+			// rows and their marker bytes.  Metadata that never parsed cannot fill a row, so it stays in the diagnostics.
+			std::map<std::wstring, Plan> primaryPlans; nlohmann::json primaryDiagnostics = nlohmann::json::array();
+			std::map<std::wstring, Plan> sessionPlans; nlohmann::json diagnostics = nlohmann::json::array();
+			if (!BuildPlansAtCommit(worktree, Utf8ToWide(*primaryCommit), primaryPlans, primaryDiagnostics) || !BuildPlansAtCommit(worktree, Utf8ToWide(*sessionCommit), sessionPlans, diagnostics))
+			{
+				return Failure("scan-failed");
+			}
+			MarkCycles(primaryPlans, diagnostics);
+			std::vector<const Plan*> rows;
+			for (const auto& [path, plan] : sessionPlans)
+			{
+				if (plan.bValid)
+				{
+					rows.push_back(&plan);
+				}
+			}
+			std::sort(rows.begin(), rows.end(), [](const Plan* pLeft, const Plan* pRight) { return pLeft->createdUtc != pRight->createdUtc ? pLeft->createdUtc < pRight->createdUtc : Utf8PathLess(pLeft->path, pRight->path); });
+			const std::filesystem::path root = SchedulerRoot(repo);
+			nlohmann::json output = { { "operation", "list" }, { "status", "ok" }, { "code", "ok" }, { "diagnostics", diagnostics }, { "plans", nlohmann::json::array() } };
+			for (const Plan* pPlan : rows)
+			{
+				nlohmann::json dependencies = nlohmann::json::array();
+				for (const std::wstring& dependency : pPlan->dependencies)
+				{
+					dependencies.push_back(WideToUtf8(dependency));
+				}
+				nlohmann::json row = { { "path", WideToUtf8(pPlan->path) }, { "createdUtc", pPlan->createdUtc }, { "dependsOn", dependencies } };
+				Claim claim;
+				const bool bClaimed = ReadClaim(ClaimPath(root, pPlan->path), claim) && ValidateClaim(claim.json, repo, pPlan->path) && ClaimIsLive(claim) && coordination::CanonicalizeDirectoryPath(Utf8ToWide(claim.json["worktree"].get<std::string>())).has_value();
+				if (bClaimed)
+				{
+					row["claim"] = { { "session", claim.json["session"] }, { "worktree", claim.json["worktree"] }, { "expiresAt", claim.json["expiresAt"] } };
+				}
+				const auto primary = primaryPlans.find(pPlan->path);
+				if (primary == primaryPlans.end() || !primary->second.bValid)
+				{
+					// Excluded from selection for a reason that is not a dependency edge: a peer landing already removed
+					// the plan, or the primary tip quarantines it.
+					row["state"] = "quarantined";
+					row["diagnostic"] = primary == primaryPlans.end() ? "absent at the primary tip" : primary->second.diagnostic;
+				}
+				else if (IsBlockedByDependencies(*pPlan, sessionPlans) || IsBlockedByDependencies(primary->second, primaryPlans))
+				{
+					std::vector<std::wstring> blocking;
+					for (const std::wstring& dependency : pPlan->dependencies)
+					{
+						if (sessionPlans.find(dependency) != sessionPlans.end())
+						{
+							blocking.push_back(dependency);
+						}
+					}
+					for (const std::wstring& dependency : primary->second.dependencies)
+					{
+						if (primaryPlans.find(dependency) != primaryPlans.end() && std::find(blocking.begin(), blocking.end(), dependency) == blocking.end())
+						{
+							blocking.push_back(dependency);
+						}
+					}
+					std::sort(blocking.begin(), blocking.end(), Utf8PathLess);
+					row["state"] = "blocked";
+					row["blockedBy"] = nlohmann::json::array();
+					for (const std::wstring& dependency : blocking)
+					{
+						row["blockedBy"].push_back(WideToUtf8(dependency));
+					}
+				}
+				else
+				{
+					row["state"] = bClaimed ? "claimed" : "eligible";
+				}
+				output["plans"].push_back(std::move(row));
+			}
+			PrintResult(std::move(output), 1);
+			return kiExitOk;
+		}
+
 		int RunClaimNext(const Arguments& rArguments)
 		{
 			std::wstring repo; std::filesystem::path worktree;
@@ -868,6 +965,10 @@ namespace toolcli
 		if (operation == L"validate")
 		{
 			return RunValidate(arguments);
+		}
+		if (operation == L"list")
+		{
+			return RunList(arguments);
 		}
 		if (operation == L"claim-next")
 		{

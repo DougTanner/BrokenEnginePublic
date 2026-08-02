@@ -23,7 +23,9 @@ function Assert-True([bool] $Condition, [string] $Name) {
 	if (-not $Condition) { $script:Failures.Add($Name); Write-Host "FAIL $Name" } else { Write-Host "pass $Name" }
 }
 
-function Invoke-Lock([string[]] $Arguments, [string] $WorkingDirectory) {
+# Start-Lock returns before the process exits so a blocking claim can be observed while it waits;
+# the stream reads must already be running by then or a chatty child could fill a pipe and hang.
+function Start-Lock([string[]] $Arguments, [string] $WorkingDirectory) {
 	$start = [Diagnostics.ProcessStartInfo]::new()
 	$start.FileName = $WorktreeCliExecutable
 	$start.WorkingDirectory = $WorkingDirectory
@@ -39,15 +41,23 @@ function Invoke-Lock([string[]] $Arguments, [string] $WorkingDirectory) {
 	if (-not $process.Start()) { throw "Could not start '$WorktreeCliExecutable'." }
 	$processId = $process.Id
 	$script:ProcessIds.Add($processId)
-	$stdoutTask = $process.StandardOutput.ReadToEndAsync()
-	$stderrTask = $process.StandardError.ReadToEndAsync()
+	return [pscustomobject] [ordered]@{
+		Process = $process
+		ProcessId = $processId
+		StdoutTask = $process.StandardOutput.ReadToEndAsync()
+		StderrTask = $process.StandardError.ReadToEndAsync()
+	}
+}
+
+function Wait-Lock($Started) {
+	$process = $Started.Process
 	$process.WaitForExit()
 	$result = [ordered]@{
-		ProcessId = $processId
+		ProcessId = $Started.ProcessId
 		HasExited = $process.HasExited
 		ExitCode = $process.ExitCode
-		Stdout = $stdoutTask.GetAwaiter().GetResult()
-		Stderr = $stderrTask.GetAwaiter().GetResult()
+		Stdout = $Started.StdoutTask.GetAwaiter().GetResult()
+		Stderr = $Started.StderrTask.GetAwaiter().GetResult()
 		Json = $null
 	}
 	$process.Dispose()
@@ -56,6 +66,10 @@ function Invoke-Lock([string[]] $Arguments, [string] $WorkingDirectory) {
 		try { $result.Json = $result.Stdout.Trim() | ConvertFrom-Json -Depth 32 -ErrorAction Stop @convertArguments } catch { }
 	}
 	return [pscustomobject] $result
+}
+
+function Invoke-Lock([string[]] $Arguments, [string] $WorkingDirectory) {
+	return Wait-Lock (Start-Lock $Arguments $WorkingDirectory)
 }
 
 function Assert-Run($Run, [string] $Case, [int] $ExpectedExit) {
@@ -202,6 +216,111 @@ try {
 		Assert-True ($absent.Json.held -eq $false) 'status absent held=false'
 		Assert-True ('claimantPid' -notin @($absent.Json.PSObject.Properties.Name)) 'status absent omits claimantPid'
 	}
+
+	# Bounded blocking claims. WorktreeCli owns the wait and the guarded expired-lease recovery, so
+	# every case below makes one claim invocation and never a separate recover invocation.
+	$blockingSeed = Invoke-Lock (@('lock', 'claim') + $baseA + @('--lease-seconds', '3600')) $fixtureRoot
+	$activeOwner = $ownerA
+	Assert-Run $blockingSeed 'blocking grant seed claim' 0
+	$blockingStarted = Start-Lock (@('lock', 'claim') + $baseB + @('--lease-seconds', '600', '--wait-seconds', '15', '--poll-milliseconds', '50')) $fixtureRoot
+	# Only Wait-Lock reaps the waiter, so any throw before it must kill and reap it here or the
+	# still-running claim would outlive the fixture and block scratch-directory cleanup.
+	try {
+		Start-Sleep -Seconds 2
+		Assert-True (-not $blockingStarted.Process.HasExited) 'blocking claim still waiting on the live foreign lease'
+		$blockingSeedRelease = Invoke-Lock @('lock', 'release', '--repo', $commonDirectory, '--owner', $ownerA) $fixtureRoot
+		Assert-Run $blockingSeedRelease 'blocking grant seed release' 0
+		$blockingGrant = Wait-Lock $blockingStarted
+	}
+	catch {
+		try { $blockingStarted.Process.Kill() } catch { }
+		try { $blockingStarted.Process.WaitForExit(); $blockingStarted.Process.Dispose() } catch { }
+		throw
+	}
+	$activeOwner = $ownerB
+	Assert-Run $blockingGrant 'blocking grant' 0
+	Assert-PublicLease $blockingGrant 'blocking grant' $ownerB
+	$blockingGrantRelease = Invoke-Lock @('lock', 'release', '--repo', $commonDirectory, '--owner', $ownerB) $fixtureRoot
+	$activeOwner = $null
+	Assert-Run $blockingGrantRelease 'blocking grant release' 0
+
+	function New-ExpiredLease([string] $Case, [string[]] $BaseArguments, [string] $Owner) {
+		$seedClaim = Invoke-Lock (@('lock', 'claim') + $BaseArguments + @('--lease-seconds', '60')) $fixtureRoot
+		Assert-Run $seedClaim "$Case seed claim" 0
+		$seedMetadata = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json -Depth 32
+		$seedRelease = Invoke-Lock @('lock', 'release', '--repo', $commonDirectory, '--owner', $Owner) $fixtureRoot
+		Assert-Run $seedRelease "$Case seed release" 0
+		$seedHeartbeat = [DateTime]::UtcNow.AddMinutes(-2)
+		$seedMetadata.claimedAt = $seedHeartbeat.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", [Globalization.CultureInfo]::InvariantCulture)
+		$seedMetadata.heartbeatAt = $seedMetadata.claimedAt
+		$seedMetadata.expiresAt = $seedHeartbeat.AddSeconds(60).ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", [Globalization.CultureInfo]::InvariantCulture)
+		[IO.File]::WriteAllText($lockPath, (($seedMetadata | ConvertTo-Json -Depth 32) + "`n"), [Text.UTF8Encoding]::new($false))
+	}
+
+	New-ExpiredLease 'internal recovery' $baseA $ownerA
+	$internalRecovery = Invoke-Lock (@('lock', 'claim') + $baseB + @('--lease-seconds', '600', '--wait-seconds', '5', '--poll-milliseconds', '50')) $fixtureRoot
+	$activeOwner = $ownerB
+	Assert-Run $internalRecovery 'internal recovery claim' 0
+	Assert-PublicLease $internalRecovery 'internal recovery claim' $ownerB
+	$internalRecoveryRelease = Invoke-Lock @('lock', 'release', '--repo', $commonDirectory, '--owner', $ownerB) $fixtureRoot
+	$activeOwner = $null
+	Assert-Run $internalRecoveryRelease 'internal recovery release' 0
+
+	# The internal recovery keeps the registered-worktree gate: a Git-operation marker in the only
+	# registered worktree must keep an expired lease's owner in place until the marker is gone.
+	$markerPath = (@(& git -C $fixtureRoot rev-parse --path-format=absolute --git-path MERGE_HEAD 2>&1))[0].Trim()
+	if ($LASTEXITCODE -ne 0) { throw 'git marker-path discovery failed.' }
+	New-ExpiredLease 'recovery gate' $baseA $ownerA
+	[IO.File]::WriteAllText($markerPath, ('0' * 40) + "`n", [Text.UTF8Encoding]::new($false))
+	try {
+		$gatedClaim = Invoke-Lock (@('lock', 'claim') + $baseB + @('--lease-seconds', '600', '--wait-seconds', '1', '--poll-milliseconds', '50')) $fixtureRoot
+		Assert-Run $gatedClaim 'recovery gate blocked claim' 2
+		$gatedStatus = Invoke-Lock @('lock', 'status', '--repo', $commonDirectory) $fixtureRoot
+		Assert-Run $gatedStatus 'recovery gate status' 0
+		Assert-PublicLease $gatedStatus 'recovery gate status' $ownerA 'expired'
+	}
+	finally { Remove-Item -LiteralPath $markerPath -Force }
+	$gateClearedClaim = Invoke-Lock (@('lock', 'claim') + $baseB + @('--lease-seconds', '600', '--wait-seconds', '5', '--poll-milliseconds', '50')) $fixtureRoot
+	$activeOwner = $ownerB
+	Assert-Run $gateClearedClaim 'recovery gate cleared claim' 0
+	Assert-PublicLease $gateClearedClaim 'recovery gate cleared claim' $ownerB
+
+	$selfOwnedTimer = [Diagnostics.Stopwatch]::StartNew()
+	$selfOwnedClaim = Invoke-Lock (@('lock', 'claim') + $baseB + @('--lease-seconds', '600', '--wait-seconds', '15', '--poll-milliseconds', '50')) $fixtureRoot
+	$selfOwnedTimer.Stop()
+	Assert-Run $selfOwnedClaim 'self-owned claim' 2
+	Assert-PublicLease $selfOwnedClaim 'self-owned claim' $ownerB
+	Assert-True ($selfOwnedTimer.Elapsed.TotalSeconds -lt 3) "self-owned claim refuses without waiting (was $([Math]::Round($selfOwnedTimer.Elapsed.TotalSeconds, 2))s)"
+
+	$timeoutTimer = [Diagnostics.Stopwatch]::StartNew()
+	$timeoutClaim = Invoke-Lock (@('lock', 'claim') + $baseA + @('--lease-seconds', '600', '--wait-seconds', '1', '--poll-milliseconds', '50')) $fixtureRoot
+	$timeoutTimer.Stop()
+	Assert-Run $timeoutClaim 'bounded timeout claim' 2
+	Assert-PublicLease $timeoutClaim 'bounded timeout claim' $ownerB
+	Assert-True ($timeoutTimer.Elapsed.TotalSeconds -ge 0.9 -and $timeoutTimer.Elapsed.TotalSeconds -lt 10) "bounded timeout claim returns at its deadline (was $([Math]::Round($timeoutTimer.Elapsed.TotalSeconds, 2))s)"
+
+	$zeroWaitClaim = Invoke-Lock (@('lock', 'claim') + $baseA + @('--lease-seconds', '600', '--wait-seconds', '0', '--poll-milliseconds', '50')) $fixtureRoot
+	$oneShotClaim = Invoke-Lock (@('lock', 'claim') + $baseA + @('--lease-seconds', '600')) $fixtureRoot
+	Assert-Run $zeroWaitClaim 'zero-wait claim' 2
+	Assert-Run $oneShotClaim 'one-shot claim' 2
+	Assert-PublicLease $oneShotClaim 'one-shot claim' $ownerB
+	Assert-True ($zeroWaitClaim.ExitCode -eq $oneShotClaim.ExitCode -and $zeroWaitClaim.Stdout -ceq $oneShotClaim.Stdout) 'zero wait matches the one-shot claim exactly'
+	$zeroWaitRelease = Invoke-Lock @('lock', 'release', '--repo', $commonDirectory, '--owner', $ownerB) $fixtureRoot
+	$activeOwner = $null
+	Assert-Run $zeroWaitRelease 'bounded wait cleanup release' 0
+
+	# Unverifiable metadata is never waited on and never repaired; only user authority resolves it.
+	[IO.File]::WriteAllText($lockPath, "not a landing lease`n", [Text.UTF8Encoding]::new($false))
+	try {
+		$unverifiableTimer = [Diagnostics.Stopwatch]::StartNew()
+		$unverifiableClaim = Invoke-Lock (@('lock', 'claim') + $baseA + @('--lease-seconds', '600', '--wait-seconds', '15', '--poll-milliseconds', '50')) $fixtureRoot
+		$unverifiableTimer.Stop()
+		Assert-Run $unverifiableClaim 'unverifiable claim' 2
+		Assert-True ($unverifiableClaim.Stdout.Contains('"leaseState":"unverifiable"')) 'unverifiable claim reports the unverifiable lease state'
+		Assert-True ($null -ne $unverifiableClaim.Json -and $unverifiableClaim.Json.held -eq $true) 'unverifiable claim held=true'
+		Assert-True ($unverifiableTimer.Elapsed.TotalSeconds -lt 3) "unverifiable claim short-circuits the wait (was $([Math]::Round($unverifiableTimer.Elapsed.TotalSeconds, 2))s)"
+	}
+	finally { Remove-Item -LiteralPath $lockPath -Force }
 
 	Assert-True ($script:ProcessIds.Count -eq @($script:ProcessIds | Sort-Object -Unique).Count) 'each command used a distinct process'
 	$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))

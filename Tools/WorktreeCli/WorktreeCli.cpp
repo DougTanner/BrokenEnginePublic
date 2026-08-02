@@ -16,6 +16,7 @@ namespace toolcli
 		{
 			rOutput << "Usage: WorktreeCli.exe lock <token|claim|status|refresh|recover|release|steal> ...\n";
 			rOutput << "       WorktreeCli.exe plan validate --repo COMMON-DIR --worktree CHECKOUT [--plan Documents/Plans/...md]\n";
+			rOutput << "       WorktreeCli.exe plan list --repo COMMON-DIR --worktree CHECKOUT\n";
 			rOutput << "       WorktreeCli.exe plan claim-next --repo COMMON-DIR --primary-worktree PRIMARY --worktree SESSION --branch TARGET --owner TOKEN --session TOKEN [--plan Documents/Plans/...md]\n";
 			rOutput << "       WorktreeCli.exe plan claim-status|unclaim --repo COMMON-DIR --worktree SESSION --owner TOKEN --session TOKEN\n";
 			rOutput << "       WorktreeCli.exe plan complete --repo COMMON-DIR --worktree SESSION --owner TOKEN --session TOKEN\n";

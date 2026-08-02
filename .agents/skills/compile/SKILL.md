@@ -89,16 +89,15 @@ Before any DataPacker, client, or server build, invoke `$ROOT\.agents\scripts\Pr
 
 For routine work, build the checkout supplied by the caller. An isolated session worktree remains appropriate for queue operations, concurrent work, or a landing gate, but is not a prerequisite for a targeted build. Keep existing build serialization and the gated AgentTools promotion path; do not share mutable build output between checkouts (the session-start DataPacker seed is a one-time verified copy the worktree then owns and may rebuild over, not shared output).
 
-For a delegated call, return the complete build result inline. A `builder`
-executing this skill runs the build itself and never dispatches another agent.
-A build does not create an evidence artifact; a later landing gate
-records its decisive exit status and relevant diagnostics once.
+For a delegated call, return the complete build result inline as Report results
+below requires. A `builder` executing this skill runs the build itself and never
+dispatches another agent.
 
 DataPacker's mutex coordinates across worktrees and its shared chunks live under `%LOCALAPPDATA%\BrokenEngine\DataPackerCache\<Project>`; do not add another PC-global DataPacker lock or a checkout-local cache copy (the session-start seed copies the built `DataPacker.exe` once into the worktree's own Output — a verified artifact seed, not a shared chunk cache). Gaea raw and split intermediates use the single mutable `%LOCALAPPDATA%\BrokenEngine\DataPackerCache\<Project>\Gaea\Islands` cache; source-tree island leaves retain only tracked BC outputs.
 
 ### Execution and result discipline
 
-Run each `WorktreeCli build` synchronously in the foreground and remain in-turn until its process exit code and single JSON result are captured. Give the call the maximum available execution timeout so the 660-second target-lock wait is not preempted. Never use `Start-Job`, a trailing `&`, a fire-and-forget watcher, or end a delegated turn while a build is running. If the host call times out while the build continues, re-invoke the identical command; target serialization and incremental tlogs carry it to completion. When a blocking call is unavailable, poll the same invocation to completion in-turn.
+Run each `WorktreeCli build` synchronously in the foreground and remain in-turn until its process exit code and single JSON result are captured. In Claude Code's Git Bash, invoke it through `pwsh`: MSYS argument conversion rewrites the `/p:` switches into paths, and MSBuild then fails with MSB1008 ("Only one project can be specified"). Give the call the maximum available execution timeout so the 660-second target-lock wait is not preempted. Never use `Start-Job`, a trailing `&`, a fire-and-forget watcher, or end a delegated turn while a build is running. If the host call times out while the build continues, re-invoke the identical command; target serialization and incremental tlogs carry it to completion. When a blocking call is unavailable, poll the same invocation to completion in-turn.
 
 Parse and report only the structured result described above after every requested target has returned. Ordinary builds do not run DataPacker, Gaea, or texture export; the authorized Local-generation path is the sole exception. Keep `/p:EnableClangTidyCodeAnalysis=false /p:RunCodeAnalysis=false`; explicit PREfast verification is the sole exception to `RunCodeAnalysis=false`. VS2026 clang-tidy crashes on this codebase.
 
@@ -142,7 +141,7 @@ Only `.cpp` inputs already present in the target project are valid. After a head
 ## Report results
 
 - For a delegated call, return the complete results inline after applying the execution/result discipline above. Keep overall/per-project status, data mode/path, and decisive blockers visible.
-- Read every reported field from the captured `broken-engine-build-result/v1` JSON, never from scraped terminal text.
+- Include every build's captured `broken-engine-build-result/v1` envelope verbatim in the handoff, and read every reported field from it, never from scraped terminal text.
 - Final status per project: `status` plus `exitCode` and `failureKind`.
 - Every `severity: error` diagnostic's `raw` line verbatim, plus all `messages` entries; note `diagnosticsTruncated: true` and point at the retained log for the remainder.
 - `severity: warning` diagnostics' `raw` lines verbatim only for files involved in the change.

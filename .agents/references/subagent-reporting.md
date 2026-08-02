@@ -24,7 +24,10 @@ Every delegation supplies one self-contained brief containing:
 - required return format.
 
 The session baseline is the commit a session's work is diffed against, fixed
-when the session starts.
+when the session starts. The baseline and every other machine-derivable
+identity value in a brief are copied from `Get-AgentWorktreeSessionContext`
+output in `.agents/scripts/AgentWorktreeSession.psm1`, never retyped from
+memory or scrollback.
 
 Use `none` when a field has no value. Add only fields required by the invoked
 skill. Cite repository paths; do not paste root instructions, skill bodies, the
@@ -54,6 +57,11 @@ large. Create a file under `Temp/` only when the owning workflow requires it.
 Independent review and verification use a context that did not produce the
 work. A focused correction/retest also uses an independent context.
 
+A worker ends its turn with the handoff as its final answer and never enters an
+open-ended wait after delivering it; continuation goes through the host's resume
+path. Any wait a worker issues mid-task carries a bounded timeout well under the
+host tool cap.
+
 ## Whether a worker is still running, and interruption
 
 Judge whether a worker is still running only from host status and explicit
@@ -61,9 +69,14 @@ progress or partial handoffs.
 A running host status, elapsed time, or wait boundary does not require a
 progress ping or repeated manager status command. Forward progress is a newly
 reported distinct action, narrowed search, new evidence, or synthesis; a loop
-is explicit repetition without narrowing or new evidence.
+is explicit repetition without narrowing or new evidence. A worker messages its
+manager mid-task only to ask a blocking question or hand off a partial result,
+never to narrate status; manager-to-user narration is unaffected.
 
-When terminal failure or documented no-progress/loop evidence exists:
+Documented no-progress means no recorded worker tool call or message within a
+no-activity window the manager states in advance, measured from the worker's
+last recorded action; elapsed turn time alone does not establish it. When
+terminal failure or documented no-progress/loop evidence exists:
 
 1. inspect host status and available partial evidence;
 2. request the handoff immediately;

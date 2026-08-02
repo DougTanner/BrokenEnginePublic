@@ -141,6 +141,10 @@ New-Item -ItemType Directory -Force $primary | Out-Null
 New-Item -ItemType Directory -Force $localAppData | Out-Null
 Invoke-ScratchGit $primary @('init', '-b', 'main') | Out-Null
 Invoke-ScratchGit $primary @('config', 'core.autocrlf', 'false') | Out-Null
+# The landing script runs its internal rebase through plain git.exe, so the committer identity has to
+# live in the scratch repository instead of the -c arguments Invoke-ScratchGit injects.
+Invoke-ScratchGit $primary @('config', 'user.name', 'fixture') | Out-Null
+Invoke-ScratchGit $primary @('config', 'user.email', 'fixture@example.com') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $primary '.agents\scripts') | Out-Null
 foreach ($module in @('AgentScriptCommon.psm1', 'WorktreeCliSessionExclusion.psm1', 'AgentWorktreeSession.psm1')) {
 	Copy-Item -LiteralPath (Join-Path $moduleSource $module) -Destination (Join-Path $primary ".agents\scripts\$module") -Force
@@ -232,7 +236,7 @@ $rollbackStagedIndex = (@(Invoke-ScratchGit $session @('ls-files','--stage','--'
 $rollbackActiveWorktree = [IO.File]::ReadAllText((Join-Path $session 'rollback-active-owned.txt'), [Text.UTF8Encoding]::new($false,$true))
 $rollbackStagedWorktree = [IO.File]::ReadAllText((Join-Path $session 'rollback-staged-owned.txt'), [Text.UTF8Encoding]::new($false,$true))
 $rollbackUnrelatedWorktree = [IO.File]::ReadAllText((Join-Path $session 'rollback-unrelated.txt'), [Text.UTF8Encoding]::new($false,$true))
-$run = Invoke-JsonScript $candidateScript @('-Route','session-landing','-CurrentWorktree',$session,'-PrimaryWorktree',$primary,'-CurrentBranch',$sessionBranch,'-PrimaryBranch','main','-Baseline',$baseline,'-ExpectedCurrentTip',$baseline,'-ExpectedPrimaryTip',$baseline,'-OwnedPaths','rollback-active-owned.txt','rollback-staged-owned.txt','-CommitMessageFile',$candidateMessage,'-FixtureFailure','post-index-mutation')
+$run = Invoke-JsonScript $candidateScript @('-Route','session-landing','-CurrentWorktree',$session,'-PrimaryWorktree',$primary,'-CurrentBranch',$sessionBranch,'-PrimaryBranch','main','-Baseline',$baseline,'-ExpectedCurrentTip',$baseline,'-ExpectedPrimaryTip',$baseline,'-OwnedPaths','rollback-active-owned.txt,rollback-staged-owned.txt','-CommitMessageFile',$candidateMessage,'-FixtureFailure','post-index-mutation')
 Assert-Outcome $run 'session-candidate-post-index-rollback' 2 'blocked' 'candidate.postcondition-failed'
 Assert-True ($rollbackSessionHead -ceq ((@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim())) 'session post-index rollback restores the guarded ref'
 Assert-True ($rollbackSessionIndex -ceq (@(Invoke-ScratchGit $session @('ls-files','-s')) -join "`n")) 'session post-index rollback restores owned and unrelated index entries'
@@ -457,15 +461,21 @@ if ($null -ne $run.Json) {
 	$landingParameters.FixtureFailure = 'bounded-diagnostic'
 	$landingBoundedFailure = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
 	Assert-True ($landingBoundedFailure.ExitCode -eq 1 -and $landingBoundedFailure.Json.status -ceq 'error') 'landing bounded failure emits error'
-	Assert-ExactProperties $landingBoundedFailure.Json @('schemaVersion','status','code','message','messageLength','messageTruncated','primaryAdvanced','candidate','planClaim','lock','cleanup','disposition','requiresUserAuthority','retryAfterMilliseconds','diagnostics','residuals') 'landing failure'
+	Assert-ExactProperties $landingBoundedFailure.Json @('schemaVersion','status','code','message','messageLength','messageTruncated','primaryAdvanced','candidate','landed','planClaim','lock','cleanup','disposition','requiresUserAuthority','retryAfterMilliseconds','diagnostics','residuals') 'landing failure'
 	Assert-ExactProperties $landingBoundedFailure.Json.diagnostics @('totalCount','items','truncated','selector','requery') 'landing failure diagnostics'
 	Assert-ExactProperties $landingBoundedFailure.Json.diagnostics.items[0] @('source','code','codeLength','codeTruncated','path','pathLength','pathTruncated','message','messageLength','messageTruncated') 'landing failure diagnostic item'
 	Assert-True ($landingBoundedFailure.Json.code.Length -eq 128 -and $landingBoundedFailure.Json.message.Length -eq 512 -and $landingBoundedFailure.Json.messageLength -eq 600 -and $landingBoundedFailure.Json.messageTruncated) 'landing failure top-level text is bounded'
+	# A forced compare-and-swap failure is the one stale-primary signal this scenario can raise: primary
+	# never moved, so the internal rebase is a no-op and the second forced failure exhausts the single
+	# retry instead of reporting the lost swap.
 	$landingParameters.FixtureFailure = 'compare-and-swap'
 	$landingCasMismatch = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
-	Assert-Outcome $landingCasMismatch 'landing-compare-and-swap-mismatch' 2 'blocked' 'git.compare-and-swap-failed'
-	Assert-True ($baseline -ceq ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim())) 'landing compare-and-swap mismatch leaves primary ref unchanged'
-	Assert-True ([string]::IsNullOrWhiteSpace((@(Invoke-ScratchGit $primary @('status','--porcelain=v1','-z','--untracked-files=all')) -join ''))) 'landing compare-and-swap mismatch preserves primary checkout'
+	Assert-Outcome $landingCasMismatch 'landing-retry-exhausted' 2 'blocked' 'landing.retry-exhausted'
+	Assert-True ($landingCasMismatch.Json.disposition -ceq 'retryable-wait' -and $landingCasMismatch.Json.retryAfterMilliseconds -eq 500 -and -not $landingCasMismatch.Json.primaryAdvanced) 'landing retry exhaustion is retryable and advanced nothing'
+	Assert-True ($landingCasMismatch.Json.landed.rebaseAttempts -eq 1 -and $null -eq $landingCasMismatch.Json.landed.commit) 'landing retry exhaustion reports its one rebase and lands nothing'
+	Assert-True ($baseline -ceq ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim())) 'landing retry exhaustion leaves primary ref unchanged'
+	Assert-True ($run.Json.candidate.commit -ceq ((@(Invoke-ScratchGit $session @('rev-parse',"refs/heads/$sessionBranch")))[0].Trim())) 'landing retry exhaustion leaves the confirmed session commit in place'
+	Assert-True ([string]::IsNullOrWhiteSpace((@(Invoke-ScratchGit $primary @('status','--porcelain=v1','-z','--untracked-files=all')) -join ''))) 'landing retry exhaustion preserves primary checkout'
 	$landingParameters.FixtureFailure = 'post-reset'
 	$landingRollback = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
 	Assert-Outcome $landingRollback 'landing-post-reset-rollback' 2 'blocked' 'candidate.postcondition-failed'
@@ -474,14 +484,16 @@ if ($null -ne $run.Json) {
 	$landingParameters.FixtureFailure = 'none'
 	$landing = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
 	Assert-Outcome $landing 'exact-candidate-landing-success' 0 'landed' 'ok'
-	Assert-ExactProperties $landing.Json @('schemaVersion','status','code','message','messageLength','messageTruncated','primaryAdvanced','candidate','planClaim','lock','cleanup','disposition','requiresUserAuthority','retryAfterMilliseconds','diagnostics','residuals') 'landing success'
+	Assert-ExactProperties $landing.Json @('schemaVersion','status','code','message','messageLength','messageTruncated','primaryAdvanced','candidate','landed','planClaim','lock','cleanup','disposition','requiresUserAuthority','retryAfterMilliseconds','diagnostics','residuals') 'landing success'
 	Assert-ExactProperties $landing.Json.candidate @('commit','tree','treeVerified') 'landing candidate'
+	Assert-ExactProperties $landing.Json.landed @('commit','tree','rebaseAttempts') 'landing landed'
 	Assert-ExactProperties $landing.Json.planClaim @('requested','released') 'landing Plan claim'
 	Assert-ExactProperties $landing.Json.lock @('claimed','released','claimCode','disposition','requiresUserAuthority','retryAfterMilliseconds','attempts') 'landing lock'
 	Assert-ExactProperties $landing.Json.cleanup @('worktreesClear','problems') 'landing cleanup'
 	Assert-ExactProperties $landing.Json.cleanup.problems @('totalCount','items','truncated','selector','requery') 'landing cleanup problems'
 	Assert-ExactProperties $landing.Json.residuals @('totalCount','items','truncated','selector','requery') 'landing residuals'
-	Assert-True ($landing.Json.schemaVersion -ceq 'broken-engine-finalize-landing/v2' -and $landing.Json.candidate.commit -ceq $run.Json.candidate.commit -and $landing.Json.candidate.tree -ceq $run.Json.candidate.tree -and $landing.Json.candidate.treeVerified -and $landing.Json.lock.claimed -and $landing.Json.lock.released -and $landing.Json.cleanup.worktreesClear) 'landing success projects exact candidate, lock, and cleanup proof'
+	Assert-True ($landing.Json.schemaVersion -ceq 'broken-engine-finalize-landing/v3' -and $landing.Json.candidate.commit -ceq $run.Json.candidate.commit -and $landing.Json.candidate.tree -ceq $run.Json.candidate.tree -and $landing.Json.candidate.treeVerified -and $landing.Json.lock.claimed -and $landing.Json.lock.released -and $landing.Json.cleanup.worktreesClear) 'landing success projects exact candidate, lock, and cleanup proof'
+	Assert-True ($landing.Json.landed.commit -ceq $run.Json.candidate.commit -and $landing.Json.landed.tree -ceq $run.Json.candidate.tree -and $landing.Json.landed.rebaseAttempts -eq 0) 'a mint-fresh landing lands the confirmed candidate with no rebase'
 	Assert-True (-not $landing.Json.planClaim.requested -and -not $landing.Json.planClaim.released) 'a claim-free landing touches no Plan claim'
 	Assert-True ($landing.Json.PSObject.Properties.Name -cnotcontains 'identities' -and $landing.Json.PSObject.Properties.Name -cnotcontains 'tips' -and $landing.Json.PSObject.Properties.Name -cnotcontains 'locks' -and $landing.Json.PSObject.Properties.Name -cnotcontains 'blocker') 'landing hides checkout, lock-owner, and raw blocker objects'
 	Assert-True ($landing.Json.primaryAdvanced -and ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()) -ceq $run.Json.candidate.commit) 'landing primary ref equals the reviewed candidate commit exactly'
@@ -489,6 +501,181 @@ if ($null -ne $run.Json) {
 	$recovery = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
 	Assert-Outcome $recovery 'exact-candidate-post-advance-recovery' 0 'landed' 'ok'
 }
+
+# Lease continuity and the single internal rebase-and-retry. Every scenario below changes the last
+# line of one twenty-line tracked file, so an upstream commit can touch a distant line of the same
+# file and produce a clean rebase, or the same line and produce a conflict.
+function New-RetryFileText([string] $First, [string] $Last) {
+	return ((@($First) + @(2..19 | ForEach-Object { "line $_" }) + @($Last)) -join "`n") + "`n"
+}
+function New-RetryCandidate([string] $Text, [string] $Case) {
+	$tip = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+	Invoke-ScratchGit $session @('reset','--hard',$tip) | Out-Null
+	Invoke-ScratchGit $session @('clean','-fd') | Out-Null
+	[IO.File]::WriteAllText((Join-Path $session 'retry-file.txt'), $Text, [Text.UTF8Encoding]::new($false))
+	$candidate = Invoke-JsonScript $candidateScript @('-Route','session-landing','-CurrentWorktree',$session,'-PrimaryWorktree',$primary,'-CurrentBranch',$sessionBranch,'-PrimaryBranch','main','-Baseline',$tip,'-ExpectedCurrentTip',$tip,'-ExpectedPrimaryTip',$tip,'-OwnedPaths','retry-file.txt','-CommitMessageFile',$candidateMessage)
+	Assert-Outcome $candidate "$Case-candidate" 0 'pass' 'candidate.created'
+	return [pscustomobject]@{ PrimaryTip = $tip; Commit = $candidate.Json.candidate.commit; Tree = $candidate.Json.candidate.tree }
+}
+function New-RetryLandingParameters($Candidate) {
+	return [ordered]@{ CurrentWorktree=$session; PrimaryWorktree=$primary; CurrentBranch=$sessionBranch; PrimaryBranch='main'; ExpectedCurrentTip=$Candidate.Commit; ExpectedPrimaryTip=$Candidate.PrimaryTip; SessionLabel='finalize-fixture'; ApprovedSessionCommit=$Candidate.Commit; ApprovedCandidateTree=$Candidate.Tree }
+}
+function Add-UpstreamPrimaryCommit([string] $Text) {
+	[IO.File]::WriteAllText((Join-Path $primary 'retry-file.txt'), $Text, [Text.UTF8Encoding]::new($false))
+	Invoke-ScratchGit $primary @('add','retry-file.txt') | Out-Null
+	Invoke-ScratchGit $primary @('commit','-m','upstream change') | Out-Null
+	return (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+}
+function Test-SessionRebaseMarkersAbsent {
+	foreach ($marker in @('rebase-merge','rebase-apply')) {
+		if (Test-Path -LiteralPath (@(Invoke-ScratchGit $session @('rev-parse','--path-format=absolute','--git-path',$marker)))[0].Trim()) { return $false }
+	}
+	return $true
+}
+
+$retryHead = 'line 1'
+$retryTail = 'line 20'
+[IO.File]::WriteAllText((Join-Path $primary 'retry-file.txt'), (New-RetryFileText $retryHead $retryTail), [Text.UTF8Encoding]::new($false))
+Invoke-ScratchGit $primary @('add','retry-file.txt') | Out-Null
+Invoke-ScratchGit $primary @('commit','-m','retry fixture base') | Out-Null
+
+$retryTail = 'continuity tail'
+$continuityCandidate = New-RetryCandidate (New-RetryFileText $retryHead $retryTail) 'lease-continuity'
+$continuityOwner = [guid]::NewGuid().ToString()
+$continuityClaim = Invoke-JsonScript $lockClaimScript (@('-WorktreeCliExecutable', (Join-Path $primaryOutput 'WorktreeCli.exe'), '-GitCommonDirectory', $commonDirectory, '-SessionLabel', 'finalize-fixture', '-Worktree', $session, '-LandingOwner', $continuityOwner, '-LeaseSeconds', '3600'))
+Assert-Outcome $continuityClaim 'lease-continuity-claim' 0 'pass' 'ok'
+$continuityParameters = New-RetryLandingParameters $continuityCandidate
+$continuityParameters.OwnerToken = $continuityOwner
+$continuity = Invoke-JsonScriptWithSplat $landingScript $continuityParameters $scratchBase
+Assert-Outcome $continuity 'landing-continues-caller-lease' 0 'landed' 'ok'
+if ($null -ne $continuity.Json) {
+	Assert-True ($continuity.Json.lock.claimed -and $continuity.Json.lock.claimCode -ceq 'ok' -and $continuity.Json.lock.attempts -eq 1 -and $continuity.Json.lock.released) 'landing continues under the caller lease without a fresh claim round'
+	Assert-True ($continuity.Json.landed.commit -ceq $continuityCandidate.Commit -and $continuity.Json.landed.rebaseAttempts -eq 0) 'a continued lease lands the confirmed candidate with no rebase'
+	Assert-True ($continuity.Json.primaryAdvanced -and ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()) -ceq $continuityCandidate.Commit) 'a continued lease advances primary to the confirmed candidate'
+}
+
+# A continued lease must be able to outlast the advance, and WorktreeCli's refresh keeps a lease's
+# own duration, so a token minted with a shorter lease is refused instead of continued.
+$shortLeaseCandidate = New-RetryCandidate (New-RetryFileText $retryHead 'short lease tail') 'short-lease'
+$shortLeaseOwner = [guid]::NewGuid().ToString()
+$shortLeaseClaim = Invoke-JsonScript $lockClaimScript (@('-WorktreeCliExecutable', (Join-Path $primaryOutput 'WorktreeCli.exe'), '-GitCommonDirectory', $commonDirectory, '-SessionLabel', 'finalize-fixture', '-Worktree', $session, '-LandingOwner', $shortLeaseOwner, '-LeaseSeconds', '60'))
+Assert-Outcome $shortLeaseClaim 'short-lease-continuity-claim' 0 'pass' 'ok'
+$shortLeasePrimaryBefore = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+$shortLeaseParameters = New-RetryLandingParameters $shortLeaseCandidate
+$shortLeaseParameters.OwnerToken = $shortLeaseOwner
+$shortLease = Invoke-JsonScriptWithSplat $landingScript $shortLeaseParameters $scratchBase
+Assert-Outcome $shortLease 'landing-refuses-short-caller-lease' 2 'blocked' 'landing-lock.claim-failed'
+if ($null -ne $shortLease.Json) {
+	Assert-True (-not $shortLease.Json.lock.claimed -and $shortLease.Json.lock.claimCode -ceq 'landing-lock.retryable-wait' -and $shortLease.Json.disposition -ceq 'retryable-wait') 'a caller lease shorter than the landing lease is refused as retryable contention'
+	Assert-True (-not $shortLease.Json.primaryAdvanced -and ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()) -ceq $shortLeasePrimaryBefore) 'a refused short lease leaves primary unchanged'
+}
+Invoke-WorktreeCli @('lock', 'release', '--repo', $commonDirectory, '--owner', $shortLeaseOwner) | Out-Null
+
+# Independent signal: the same supplied token, live, but recorded against another worktree stays
+# foreign contention, so the landing refuses instead of continuing or minting behind the caller.
+$foreignCandidate = New-RetryCandidate (New-RetryFileText $retryHead 'foreign lease tail') 'foreign-lease'
+$foreignOwner = [guid]::NewGuid().ToString()
+Invoke-WorktreeCli @('lock', 'claim', '--repo', $commonDirectory, '--owner', $foreignOwner, '--session', 'finalize-fixture', '--worktree', $primary, '--lease-seconds', '600') | Out-Null
+$foreignPrimaryBefore = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+$foreignParameters = New-RetryLandingParameters $foreignCandidate
+$foreignParameters.OwnerToken = $foreignOwner
+$foreign = Invoke-JsonScriptWithSplat $landingScript $foreignParameters $scratchBase
+Assert-Outcome $foreign 'landing-refuses-foreign-lease' 2 'blocked' 'landing-lock.claim-failed'
+if ($null -ne $foreign.Json) {
+	Assert-True (-not $foreign.Json.lock.claimed -and $foreign.Json.lock.claimCode -ceq 'landing-lock.retryable-wait' -and $foreign.Json.disposition -ceq 'retryable-wait') 'a lease recorded for another worktree is refused as retryable contention'
+	Assert-True (-not $foreign.Json.primaryAdvanced -and ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()) -ceq $foreignPrimaryBefore) 'a refused foreign lease leaves primary unchanged'
+}
+Invoke-WorktreeCli @('lock', 'release', '--repo', $commonDirectory, '--owner', $foreignOwner) | Out-Null
+
+$identicalTail = 'identical retry tail'
+$identicalCandidate = New-RetryCandidate (New-RetryFileText $retryHead $identicalTail) 'identical-retry'
+$retryHead = 'upstream identical head'
+$identicalUpstream = Add-UpstreamPrimaryCommit (New-RetryFileText $retryHead $retryTail)
+$identicalRetry = Invoke-JsonScriptWithSplat $landingScript (New-RetryLandingParameters $identicalCandidate) $scratchBase
+Assert-Outcome $identicalRetry 'landing-retries-identical-patch' 0 'landed' 'ok'
+$retryTail = $identicalTail
+if ($null -ne $identicalRetry.Json) {
+	$rebasedTip = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+	Assert-True ($identicalRetry.Json.landed.rebaseAttempts -eq 1 -and $identicalRetry.Json.landed.commit -cne $identicalCandidate.Commit -and $identicalRetry.Json.landed.commit -ceq $rebasedTip) 'one internal rebase lands the rebased commit instead of the stale candidate'
+	Assert-True ($identicalRetry.Json.landed.tree -ceq ((@(Invoke-ScratchGit $primary @('rev-parse',"$rebasedTip^{tree}")))[0].Trim())) 'the landed tree is the rebased commit tree'
+	Assert-True (((@(Invoke-ScratchGit $primary @('rev-parse',"$rebasedTip^")))[0].Trim()) -ceq $identicalUpstream) 'the rebased tip descends from the upstream commit that advanced primary'
+	Assert-True (([IO.File]::ReadAllText((Join-Path $primary 'retry-file.txt'), [Text.UTF8Encoding]::new($false,$true))) -ceq (New-RetryFileText $retryHead $retryTail)) 'the landed primary content carries both the upstream and the confirmed change'
+	Assert-True ([string]::IsNullOrWhiteSpace((@(Invoke-ScratchGit $session @('status','--porcelain=v1','-z','--untracked-files=all')) -join '')) -and (Test-SessionRebaseMarkersAbsent)) 'the internal rebase leaves the session worktree clean with no rebase markers'
+}
+
+# A crash after an internally rebased advance is rerun with the same original approved inputs: the
+# landing must recognize its own rebased commit on primary and report the landed outcome again.
+$rebasedRecoveryTip = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+$rebasedRecovery = Invoke-JsonScriptWithSplat $landingScript (New-RetryLandingParameters $identicalCandidate) $scratchBase
+Assert-Outcome $rebasedRecovery 'landing-recovers-internally-rebased-advance' 0 'landed' 'ok'
+if ($null -ne $rebasedRecovery.Json) {
+	Assert-True ($rebasedRecovery.Json.landed.commit -ceq $rebasedRecoveryTip -and $rebasedRecovery.Json.landed.rebaseAttempts -eq 1 -and $rebasedRecovery.Json.candidate.treeVerified) 'rebased-advance recovery reports the rebased primary tip as landed with its one rebase'
+	Assert-True ($rebasedRecovery.Json.primaryAdvanced -and ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()) -ceq $rebasedRecoveryTip) 'rebased-advance recovery leaves primary unchanged'
+}
+
+# The crashed invocation's own landing lease is still live when the recovery rerun succeeds, so that
+# rerun must release it instead of leaving every other session waiting out the full lease.
+$recoveryLeaseOwner = [guid]::NewGuid().ToString()
+$recoveryLeaseClaim = Invoke-JsonScript $lockClaimScript (@('-WorktreeCliExecutable', (Join-Path $primaryOutput 'WorktreeCli.exe'), '-GitCommonDirectory', $commonDirectory, '-SessionLabel', 'finalize-fixture', '-Worktree', $session, '-LandingOwner', $recoveryLeaseOwner, '-LeaseSeconds', '3600'))
+Assert-Outcome $recoveryLeaseClaim 'recovery-lease-claim' 0 'pass' 'ok'
+$recoveryLeaseParameters = New-RetryLandingParameters $identicalCandidate
+$recoveryLeaseParameters.OwnerToken = $recoveryLeaseOwner
+$recoveryLease = Invoke-JsonScriptWithSplat $landingScript $recoveryLeaseParameters $scratchBase
+Assert-Outcome $recoveryLease 'landing-recovery-releases-caller-lease' 0 'landed' 'ok'
+if ($null -ne $recoveryLease.Json) {
+	Assert-True ($recoveryLease.Json.landed.commit -ceq $rebasedRecoveryTip -and $recoveryLease.Json.primaryAdvanced) 'recovery under the caller lease reports the already-landed tip'
+	Assert-True ($recoveryLease.Json.lock.claimed -and $recoveryLease.Json.lock.released) 'recovery under the caller lease releases that same-actor lease'
+}
+$recoveryReclaimOwner = [guid]::NewGuid().ToString()
+$recoveryReclaim = Invoke-JsonScript $lockClaimScript (@('-WorktreeCliExecutable', (Join-Path $primaryOutput 'WorktreeCli.exe'), '-GitCommonDirectory', $commonDirectory, '-SessionLabel', 'finalize-fixture', '-Worktree', $session, '-LandingOwner', $recoveryReclaimOwner, '-LeaseSeconds', '60', '-WaitSeconds', '1', '-PollMilliseconds', '50'))
+Assert-Outcome $recoveryReclaim 'landing-lock-free-after-recovery' 0 'pass' 'ok'
+Invoke-WorktreeCli @('lock', 'release', '--repo', $commonDirectory, '--owner', $recoveryReclaimOwner) | Out-Null
+
+$mismatchCandidate = New-RetryCandidate (New-RetryFileText $retryHead 'mismatch tail') 'patch-mismatch'
+$retryHead = 'upstream mismatch head'
+[void] (Add-UpstreamPrimaryCommit (New-RetryFileText $retryHead $retryTail))
+$mismatchPrimaryBefore = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+$mismatchParameters = New-RetryLandingParameters $mismatchCandidate
+$mismatchParameters.FixtureFailure = 'retry-patch-mismatch'
+$mismatch = Invoke-JsonScriptWithSplat $landingScript $mismatchParameters $scratchBase
+Assert-Outcome $mismatch 'landing-aborts-non-identical-rebase' 2 'blocked' 'rebase.patch-not-identical'
+if ($null -ne $mismatch.Json) {
+	Assert-True (-not $mismatch.Json.primaryAdvanced -and ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()) -ceq $mismatchPrimaryBefore) 'a non-identical rebase leaves the primary ref byte-identical'
+	Assert-True ($mismatch.Json.landed.rebaseAttempts -eq 1 -and $null -eq $mismatch.Json.landed.commit) 'a non-identical rebase reports its attempt and lands nothing'
+	Assert-True (((@(Invoke-ScratchGit $session @('rev-parse',"refs/heads/$sessionBranch")))[0].Trim()) -ceq $mismatchCandidate.Commit -and ((@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()) -ceq $mismatchCandidate.Commit) 'a non-identical rebase restores the confirmed session commit'
+}
+
+# A real rebase followed by a lost compare-and-swap exhausts the single retry with the session branch
+# already moved, so the rerun the retryable result documents needs the confirmed commit restored.
+$exhaustedCandidate = New-RetryCandidate (New-RetryFileText $retryHead 'retry exhausted tail') 'retry-exhausted'
+$retryHead = 'upstream exhausted head'
+[void] (Add-UpstreamPrimaryCommit (New-RetryFileText $retryHead $retryTail))
+$exhaustedPrimaryBefore = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+$exhaustedParameters = New-RetryLandingParameters $exhaustedCandidate
+$exhaustedParameters.FixtureFailure = 'compare-and-swap'
+$exhausted = Invoke-JsonScriptWithSplat $landingScript $exhaustedParameters $scratchBase
+Assert-Outcome $exhausted 'landing-restores-branch-on-retry-exhaustion' 2 'blocked' 'landing.retry-exhausted'
+if ($null -ne $exhausted.Json) {
+	Assert-True ($exhausted.Json.disposition -ceq 'retryable-wait' -and $exhausted.Json.landed.rebaseAttempts -eq 1 -and -not $exhausted.Json.primaryAdvanced) 'a real rebase that then loses the advance stays retryable after its one attempt'
+	Assert-True (((@(Invoke-ScratchGit $session @('rev-parse',"refs/heads/$sessionBranch")))[0].Trim()) -ceq $exhaustedCandidate.Commit -and ((@(Invoke-ScratchGit $session @('rev-parse','HEAD')))[0].Trim()) -ceq $exhaustedCandidate.Commit) 'retry exhaustion after a real rebase restores the confirmed session commit'
+	Assert-True (((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()) -ceq $exhaustedPrimaryBefore -and (Test-SessionRebaseMarkersAbsent)) 'retry exhaustion after a real rebase leaves primary unchanged with no rebase markers'
+}
+
+$conflictCandidate = New-RetryCandidate (New-RetryFileText $retryHead 'conflict session tail') 'rebase-conflict'
+$retryTail = 'conflict upstream tail'
+[void] (Add-UpstreamPrimaryCommit (New-RetryFileText $retryHead $retryTail))
+$conflictPrimaryBefore = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+$conflict = Invoke-JsonScriptWithSplat $landingScript (New-RetryLandingParameters $conflictCandidate) $scratchBase
+Assert-Outcome $conflict 'landing-aborts-conflicting-rebase' 2 'blocked' 'rebase.conflicted'
+if ($null -ne $conflict.Json) {
+	Assert-True ($conflict.Json.cleanup.worktreesClear -eq $true -and (Test-SessionRebaseMarkersAbsent)) 'a conflicting rebase is aborted and leaves no active Git markers'
+	Assert-True ($conflict.Json.lock.released -and -not $conflict.Json.primaryAdvanced -and ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()) -ceq $conflictPrimaryBefore) 'a conflicting rebase releases the lease and leaves primary unchanged'
+	Assert-True (((@(Invoke-ScratchGit $session @('rev-parse',"refs/heads/$sessionBranch")))[0].Trim()) -ceq $conflictCandidate.Commit) 'a conflicting rebase restores the confirmed session commit'
+}
+$reclaimOwner = [guid]::NewGuid().ToString()
+$reclaim = Invoke-JsonScript $lockClaimScript (@('-WorktreeCliExecutable', (Join-Path $primaryOutput 'WorktreeCli.exe'), '-GitCommonDirectory', $commonDirectory, '-SessionLabel', 'finalize-fixture', '-Worktree', $session, '-LandingOwner', $reclaimOwner, '-LeaseSeconds', '60', '-WaitSeconds', '1', '-PollMilliseconds', '50'))
+Assert-Outcome $reclaim 'landing-lock-free-after-conflict-abort' 0 'pass' 'ok'
+Invoke-WorktreeCli @('lock', 'release', '--repo', $commonDirectory, '--owner', $reclaimOwner) | Out-Null
 
 Write-Host ''
 if ($script:Failures.Count -gt 0) {

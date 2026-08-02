@@ -11,7 +11,7 @@ param(
 	[string] $LandingOwner,
 	[switch] $Release,
 	[ValidateRange(60, 86400)][int] $LeaseSeconds = 3600,
-	[ValidateRange(1, 55)][int] $WaitSeconds = 55,
+	[ValidateRange(1, 3600)][int] $WaitSeconds = 300,
 	[ValidateRange(50, 5000)][int] $PollMilliseconds = 500
 )
 

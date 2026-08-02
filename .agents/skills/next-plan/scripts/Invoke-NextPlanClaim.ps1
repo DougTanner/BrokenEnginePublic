@@ -5,16 +5,14 @@ $result=[ordered]@{schemaVersion='broken-engine-next-plan-claim-result/v3';statu
 function Complete-Claim([int]$ExitCode,[string]$Status,[string]$Code,[string]$Message){$result.status=$Status;$result.code=$Code;$result.message=$Message;[Console]::Out.Write(($result|ConvertTo-Json -Depth 100 -Compress));exit $ExitCode}
 try {
  Import-Module (Join-Path $PSScriptRoot 'NextPlanWorkflowCommon.psm1') -Force -DisableNameChecking
- $filename=$null
+ $pattern=$null
  if ($Plan) {
   $Plan=$Plan.Replace('\','/')
   Assert-NextPlanGitPath $Plan
   if ($Plan.StartsWith('Documents/Plans/',[StringComparison]::Ordinal)) {
    # WorktreeCli owns canonical path validation; preserve its exact-path contract.
-  } elseif ($Plan.Contains('/',[StringComparison]::Ordinal)) {
-   throw 'Only Documents/Plans paths or filename-only inputs are scheduler inputs.'
   } else {
-   $filename=$Plan
+   $pattern=$Plan
    $Plan=$null
   }
  }
@@ -24,17 +22,19 @@ try {
  $validate=Invoke-NextPlanProcess $context.WorktreeCli @('plan','validate','--repo',$context.CommonDirectory,'--worktree',$context.Worktree) $context.Worktree
  $validation=ConvertFrom-NextPlanProcessJson $validate 'plan validate'; $projection=[ordered]@{}; foreach($name in @('status','code','message','diagnostics','notices','healedClaims')){if($validation.PSObject.Properties.Name -ccontains $name){$projection[$name]=$validation.$name}}; $result.validation=$projection
  if($validate.ExitCode -ne 0){$exit=if($validate.ExitCode -eq 2){2}else{1};Complete-Claim $exit $(if($exit -eq 2){'blocked'}else{'error'}) 'plan.validation-failed' 'Plan validation failed.'}
- if($null -ne $filename){
+ if($null -ne $pattern){
   $candidates=[Collections.Generic.List[string]]::new()
   foreach($executablePlan in @($validation.plans)){
    if($executablePlan.PSObject.Properties.Name -ccontains 'path'){
     $candidate=[string]$executablePlan.path
-    if([IO.Path]::GetFileName($candidate).Equals($filename,[StringComparison]::Ordinal)){$candidates.Add($candidate)}
+    # Match below Documents/Plans/ so a pattern naming that prefix cannot match every Plan.
+    $relative=if($candidate.StartsWith('Documents/Plans/',[StringComparison]::Ordinal)){$candidate.Substring('Documents/Plans/'.Length)}else{$candidate}
+    if($relative.Contains($pattern,[StringComparison]::Ordinal)){$candidates.Add($candidate)}
    }
   }
   $candidates.Sort([StringComparer]::Ordinal)
-  if($candidates.Count -eq 0){Complete-Claim 2 'blocked' 'plan-name-not-found' "No validated executable Plan has filename '$filename'."}
-  if($candidates.Count -gt 1){$result.candidates=@($candidates);Complete-Claim 2 'blocked' 'plan-name-ambiguous' "Filename '$filename' matches multiple validated executable Plans; use a canonical Documents/Plans path."}
+  if($candidates.Count -eq 0){Complete-Claim 2 'blocked' 'plan-name-not-found' "Pattern '$pattern' matched no validated executable Plan."}
+  if($candidates.Count -gt 1){$result.candidates=@($candidates);Complete-Claim 2 'blocked' 'plan-name-ambiguous' "Pattern '$pattern' matched multiple validated executable Plans; use a canonical Documents/Plans path."}
   $Plan=$candidates[0]
  }
  $claimArguments=@('plan','claim-next','--repo',$context.CommonDirectory,'--primary-worktree',$context.Primary,'--worktree',$context.Worktree,'--branch',$context.SessionBranch,'--owner',$context.Owner,'--session',$context.Session);if($Plan){$claimArguments+=@('--plan',$Plan)}

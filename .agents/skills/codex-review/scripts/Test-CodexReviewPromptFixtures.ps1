@@ -81,6 +81,20 @@ function Set-FixtureBytes([string] $Root, [string] $RelativePath, [byte[]] $Byte
 	[IO.File]::WriteAllBytes($full, $Bytes)
 }
 
+function Add-FixtureSkill([string] $Root, [string[]] $Name) {
+	# -AssignedSkill resolves against the repository under review, so every fixture skill file lives in
+	# the fixture repository and is committed with the baseline.
+	foreach ($skill in $Name) { Set-FixtureText $Root ".agents/skills/$skill/SKILL.md" "# $skill`n" }
+}
+
+function Get-FixtureSha256([string] $Text) {
+	return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($script:Utf8.GetBytes($Text))).ToLowerInvariant()
+}
+
+function Get-ManifestPath([string] $PromptPath) {
+	return ([IO.Path]::GetFullPath($PromptPath) + '.target-manifest.json')
+}
+
 function New-ScratchFile([string] $Name, [string] $Text) {
 	$path = Join-Path $script:Scratch ("$Name-" + [Guid]::NewGuid().ToString('n').Substring(0, 8) + '.md')
 	[IO.File]::WriteAllBytes($path, $script:Utf8.GetBytes($Text))
@@ -126,6 +140,7 @@ $script:ScopeText = "Files and regions: Engine/Source/Keep.cpp lines 1-5.`nFocus
 
 function New-RepositoryA() {
 	$root = New-FixtureRoot 'prompt'
+	Add-FixtureSkill $root @('repo-code-review', 'scope-review')
 	Set-FixtureText $root 'Engine/Source/Keep.cpp' "1`n2`n3`n4`n5`n"
 	Set-FixtureText $root 'Engine/Source/Old.cpp' "int Old() { return 1; }`n"
 	Invoke-FixtureGit $root @('add', '--all')
@@ -157,6 +172,9 @@ function Test-AssembledPrompt($Fixture) {
 	Assert-Equal 'ok' $run.Json.code 'assembled code'
 	Assert-True (-not [string]::IsNullOrWhiteSpace($run.Json.message)) 'assembled message is non-empty'
 	Assert-Equal ([IO.Path]::GetFullPath($promptPath)) $run.Json.promptPath 'assembled promptPath'
+	$manifestPath = Get-ManifestPath $promptPath
+	Assert-Equal $manifestPath $run.Json.manifestPath 'assembled manifestPath names the prompt sibling'
+	Assert-True (Test-Path -LiteralPath $manifestPath) 'assembled wrote the target manifest file'
 	Assert-Equal 5 $run.Json.fileCount 'assembled fileCount'
 	Assert-Equal 2 $run.Json.binaryExcluded 'assembled binaryExcluded'
 	Assert-Equal 4 $run.Json.sectionsWritten 'assembled sectionsWritten'
@@ -165,6 +183,16 @@ function Test-AssembledPrompt($Fixture) {
 	$bytes = [IO.File]::ReadAllBytes($promptPath)
 	Assert-Equal $bytes.Length $run.Json.promptBytes 'assembled promptBytes matches the file length'
 	$prompt = $script:Utf8.GetString($bytes)
+
+	if (Test-Path -LiteralPath $manifestPath) {
+		$manifestText = $script:Utf8.GetString([IO.File]::ReadAllBytes($manifestPath))
+		Assert-True ($prompt.Contains("Target manifest: $manifestPath`n`n$manifestText")) 'assembled embeds the manifest path and bytes in the evidence'
+		$manifest = $manifestText | ConvertFrom-Json -Depth 32
+		Assert-Equal 'broken-engine-code-quality-target-manifest/v1' $manifest.schemaVersion 'assembled manifest schemaVersion'
+		Assert-Equal 2 (@($manifest.pairs).Count) 'assembled manifest holds one pair per changed C++ path'
+		Assert-Equal 'Engine/Source/Keep.cpp,Engine/Source/Old.cpp' ((@($manifest.pairs) | ForEach-Object { $_.baseline.path }) -join ',') 'assembled manifest names both baseline sides'
+		Assert-Equal 'Engine/Source/Keep.cpp,Engine/Source/New.cpp' ((@($manifest.pairs) | ForEach-Object { $_.current.path }) -join ',') 'assembled manifest names both current sides'
+	}
 
 	$headings = @('# (a) Role', '# (b) Scope', '# (c) Evidence', '# (d) Output contract')
 	$previous = -1
@@ -273,10 +301,72 @@ function Test-UnlistedUntracked($Fixture) {
 	Assert-True (-not (Test-Path -LiteralPath $promptPath)) 'unlisted untracked creates no prompt file'
 }
 
+function Test-ManifestSiblingExists($Fixture) {
+	$scopeFile = New-ScratchFile 'scope' $script:ScopeText
+	$promptPath = New-ScratchPath 'manifestsibling'
+	$manifestPath = Get-ManifestPath $promptPath
+	$existing = "{`"pairs`":[]}`n"
+	[IO.File]::WriteAllBytes($manifestPath, $script:Utf8.GetBytes($existing))
+	$run = Invoke-PromptScript @(
+		'-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-AssignedSkill', 'repo-code-review',
+		'-ScopeFile', $scopeFile, '-PromptPath', $promptPath,
+		'-UntrackedPath', 'Notes.md,Tools/Blob.bin,Docs/Capture.md')
+	Assert-Equal 2 $run.ExitCode 'existing manifest sibling exit code'
+	if ($null -ne $run.Json) {
+		Assert-Equal 'blocked' $run.Json.status 'existing manifest sibling status'
+		Assert-Equal 'prompt.path-exists' $run.Json.code 'existing manifest sibling code'
+		Assert-True ($null -eq $run.Json.manifestPath) 'existing manifest sibling reports no written manifest'
+	}
+	else { Assert-True $false 'existing manifest sibling emitted JSON' }
+	Assert-True ($script:Utf8.GetString([IO.File]::ReadAllBytes($manifestPath)) -ceq $existing) 'existing manifest sibling leaves the file byte-unchanged'
+	Assert-True (-not (Test-Path -LiteralPath $promptPath)) 'existing manifest sibling creates no prompt file'
+}
+
+function Test-AssignedSkillUnknown($Fixture) {
+	$scopeFile = New-ScratchFile 'scope' $script:ScopeText
+	$promptPath = New-ScratchPath 'unknownskill'
+	$run = Invoke-PromptScript @(
+		'-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-AssignedSkill', 'acceptance-table-review',
+		'-ScopeFile', $scopeFile, '-PromptPath', $promptPath,
+		'-UntrackedPath', 'Notes.md,Tools/Blob.bin,Docs/Capture.md')
+	Assert-Equal 2 $run.ExitCode 'unknown assigned skill exit code'
+	if ($null -ne $run.Json) {
+		Assert-Equal 'blocked' $run.Json.status 'unknown assigned skill status'
+		Assert-Equal 'prompt.assigned-skill-unknown' $run.Json.code 'unknown assigned skill code'
+	}
+	else { Assert-True $false 'unknown assigned skill emitted JSON' }
+	Assert-True (-not (Test-Path -LiteralPath $promptPath)) 'unknown assigned skill creates no prompt file'
+
+	$adHocPath = New-ScratchPath 'adhocrole'
+	$adHoc = Invoke-PromptScript @(
+		'-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-AssignedSkill', 'acceptance-table-review',
+		'-ScopeFile', $scopeFile, '-PromptPath', $adHocPath,
+		'-UntrackedPath', 'Notes.md,Tools/Blob.bin,Docs/Capture.md', '-AdHocRole')
+	Assert-Equal 0 $adHoc.ExitCode 'ad-hoc role exit code'
+	Assert-True (Test-Path -LiteralPath $adHocPath) 'ad-hoc role writes the prompt for a skill-less reviewer role'
+}
+
+function Test-MixedCaseAssignedSkill($Fixture) {
+	# The skill file resolves case-insensitively on Windows, so a mixed-case name passes validation and
+	# must still reach the special-skill contract.
+	$scopeFile = New-ScratchFile 'scope' $script:ScopeText
+	$promptPath = New-ScratchPath 'mixedcase'
+	$run = Invoke-PromptScript @(
+		'-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-AssignedSkill', 'Repo-Code-Review',
+		'-ScopeFile', $scopeFile, '-PromptPath', $promptPath,
+		'-UntrackedPath', 'Notes.md,Tools/Blob.bin,Docs/Capture.md')
+	Assert-Equal 0 $run.ExitCode 'mixed-case repo-code-review exit code'
+	$manifestPath = Get-ManifestPath $promptPath
+	if ($null -ne $run.Json) { Assert-Equal $manifestPath $run.Json.manifestPath 'mixed-case repo-code-review reports the manifest sibling' }
+	else { Assert-True $false 'mixed-case repo-code-review emitted JSON' }
+	Assert-True (Test-Path -LiteralPath $manifestPath) 'mixed-case repo-code-review writes the target manifest file'
+}
+
 # --- Repository B: a committed head over a dirty working tree ------------------------------------
 
 function Test-HeadHonoured() {
 	$root = New-FixtureRoot 'head'
+	Add-FixtureSkill $root @('repo-code-review')
 	Set-FixtureText $root 'Engine/Source/Head.cpp' "baseline content`n"
 	Invoke-FixtureGit $root @('add', '--all')
 	Invoke-FixtureGit $root @('commit', '--quiet', '-m', 'baseline')
@@ -299,6 +389,18 @@ function Test-HeadHonoured() {
 	Assert-True ($prompt.Contains('committed head content')) 'head-side diffs the committed head'
 	Assert-True (-not $prompt.Contains('dirty working tree content')) 'head-side ignores dirty working-tree bytes'
 
+	$manifestPath = Get-ManifestPath $promptPath
+	Assert-True (Test-Path -LiteralPath $manifestPath) 'head-side wrote the target manifest file'
+	if (Test-Path -LiteralPath $manifestPath) {
+		$manifest = ($script:Utf8.GetString([IO.File]::ReadAllBytes($manifestPath))) | ConvertFrom-Json -Depth 32
+		$pairs = @($manifest.pairs)
+		Assert-Equal 1 $pairs.Count 'head-side manifest holds the one changed C++ pair'
+		if ($pairs.Count -eq 1) {
+			Assert-Equal (Get-FixtureSha256 "baseline content`n") $pairs[0].baseline.sha256 'head-side manifest carries the baseline identity'
+			Assert-Equal (Get-FixtureSha256 "committed head content`n") $pairs[0].current.sha256 'head-side manifest carries the committed head identity, not the dirty tree'
+		}
+	}
+
 	$conflictPrompt = New-ScratchPath 'conflict'
 	$conflict = Invoke-PromptScript @(
 		'-RepositoryRoot', $root, '-Baseline', $baseline, '-AssignedSkill', 'repo-code-review',
@@ -312,10 +414,134 @@ function Test-HeadHonoured() {
 	Assert-True (-not (Test-Path -LiteralPath $conflictPrompt)) 'head with untracked creates no prompt file'
 }
 
-# --- Repository C: the 4 MB prompt budget --------------------------------------------------------
+# --- Repositories C and D: no eligible C++ pair, and a blocked manifest run ----------------------
+
+function Test-ZeroPairManifest() {
+	$root = New-FixtureRoot 'zeropair'
+	Add-FixtureSkill $root @('repo-code-review')
+	Set-FixtureText $root 'Documents/Notes.txt' "one`n"
+	Invoke-FixtureGit $root @('add', '--all')
+	Invoke-FixtureGit $root @('commit', '--quiet', '-m', 'baseline')
+	$baseline = (Get-FixtureGitText $root @('rev-parse', 'HEAD')).Trim()
+	Set-FixtureText $root 'Documents/Notes.txt' "two`n"
+
+	$scopeFile = New-ScratchFile 'scope' $script:ScopeText
+	$promptPath = New-ScratchPath 'zeropair'
+	$run = Invoke-PromptScript @(
+		'-RepositoryRoot', $root, '-Baseline', $baseline, '-AssignedSkill', 'repo-code-review',
+		'-ScopeFile', $scopeFile, '-PromptPath', $promptPath)
+	Assert-Equal 0 $run.ExitCode 'zero-pair manifest exit code'
+	$manifestPath = Get-ManifestPath $promptPath
+	Assert-True (Test-Path -LiteralPath $manifestPath) 'zero-pair manifest is written, not treated as an error'
+	if (-not (Test-Path -LiteralPath $manifestPath)) { return }
+	$manifest = ($script:Utf8.GetString([IO.File]::ReadAllBytes($manifestPath))) | ConvertFrom-Json -Depth 32
+	Assert-Equal 'broken-engine-code-quality-target-manifest/v1' $manifest.schemaVersion 'zero-pair manifest schemaVersion'
+	Assert-Equal 0 (@($manifest.pairs).Count) 'zero-pair manifest holds no pair'
+}
+
+function Test-ManifestRunBlocked() {
+	$root = New-FixtureRoot 'manifestblocked'
+	Add-FixtureSkill $root @('repo-code-review')
+	Set-FixtureText $root 'Engine/Source/Gone.cpp' "shared content`n"
+	Invoke-FixtureGit $root @('add', '--all')
+	Invoke-FixtureGit $root @('commit', '--quiet', '-m', 'baseline')
+	$baseline = (Get-FixtureGitText $root @('rev-parse', 'HEAD')).Trim()
+	# An untracked addition holding a removed blob's bytes is a rename Git never reported, which the
+	# manifest run blocks.
+	Invoke-FixtureGit $root @('rm', '--quiet', 'Engine/Source/Gone.cpp')
+	Set-FixtureText $root 'Engine/Source/Copy.cpp' "shared content`n"
+
+	$scopeFile = New-ScratchFile 'scope' $script:ScopeText
+	$promptPath = New-ScratchPath 'manifestblocked'
+	$run = Invoke-PromptScript @(
+		'-RepositoryRoot', $root, '-Baseline', $baseline, '-AssignedSkill', 'repo-code-review',
+		'-ScopeFile', $scopeFile, '-PromptPath', $promptPath, '-UntrackedPath', 'Engine/Source/Copy.cpp')
+	Assert-Equal 2 $run.ExitCode 'blocked manifest run exit code'
+	if ($null -ne $run.Json) {
+		Assert-Equal 'blocked' $run.Json.status 'blocked manifest run status'
+		Assert-Equal 'prompt.inventory-blocked' $run.Json.code 'blocked manifest run code'
+		Assert-True ($run.Json.message.Contains('inventory.manifest-unreported-rename')) 'blocked manifest run reports the inventory code'
+	}
+	else { Assert-True $false 'blocked manifest run emitted JSON' }
+	Assert-True (-not (Test-Path -LiteralPath $promptPath)) 'blocked manifest run creates no prompt file'
+	Assert-True (-not (Test-Path -LiteralPath (Get-ManifestPath $promptPath))) 'blocked manifest run creates no manifest file'
+}
+
+# --- Repository E: the /verify-changes head and clean-tree contract ------------------------------
+
+function Test-VerifyChangesHead() {
+	$root = New-FixtureRoot 'verify'
+	Add-FixtureSkill $root @('verify-changes')
+	Set-FixtureText $root 'Engine/Source/Verify.cpp' "baseline`n"
+	Set-FixtureText $root 'Engine/Source/Other.cpp' "other baseline`n"
+	Invoke-FixtureGit $root @('add', '--all')
+	Invoke-FixtureGit $root @('commit', '--quiet', '-m', 'baseline')
+	$baseline = (Get-FixtureGitText $root @('rev-parse', 'HEAD')).Trim()
+	Set-FixtureText $root 'Engine/Source/Verify.cpp' "landed`n"
+	Invoke-FixtureGit $root @('add', '--all')
+	Invoke-FixtureGit $root @('commit', '--quiet', '-m', 'landed')
+	$head = (Get-FixtureGitText $root @('rev-parse', 'HEAD')).Trim()
+	$scopeFile = New-ScratchFile 'scope' $script:ScopeText
+
+	$noHeadPath = New-ScratchPath 'nohead'
+	$noHead = Invoke-PromptScript @(
+		'-RepositoryRoot', $root, '-Baseline', $baseline, '-AssignedSkill', 'verify-changes',
+		'-ScopeFile', $scopeFile, '-PromptPath', $noHeadPath)
+	Assert-Equal 2 $noHead.ExitCode 'verify-changes without head exit code'
+	if ($null -ne $noHead.Json) {
+		Assert-Equal 'blocked' $noHead.Json.status 'verify-changes without head status'
+		Assert-Equal 'prompt.head-required' $noHead.Json.code 'verify-changes without head code'
+	}
+	else { Assert-True $false 'verify-changes without head emitted JSON' }
+	Assert-True (-not (Test-Path -LiteralPath $noHeadPath)) 'verify-changes without head creates no prompt file'
+
+	$mixedCasePath = New-ScratchPath 'mixedcasenohead'
+	$mixedCase = Invoke-PromptScript @(
+		'-RepositoryRoot', $root, '-Baseline', $baseline, '-AssignedSkill', 'Verify-Changes',
+		'-ScopeFile', $scopeFile, '-PromptPath', $mixedCasePath)
+	Assert-Equal 2 $mixedCase.ExitCode 'mixed-case verify-changes without head exit code'
+	if ($null -ne $mixedCase.Json) {
+		Assert-Equal 'blocked' $mixedCase.Json.status 'mixed-case verify-changes without head status'
+		Assert-Equal 'prompt.head-required' $mixedCase.Json.code 'mixed-case verify-changes without head code'
+	}
+	else { Assert-True $false 'mixed-case verify-changes without head emitted JSON' }
+	Assert-True (-not (Test-Path -LiteralPath $mixedCasePath)) 'mixed-case verify-changes without head creates no prompt file'
+
+	$cleanPath = New-ScratchPath 'verifyclean'
+	$clean = Invoke-PromptScript @(
+		'-RepositoryRoot', $root, '-Baseline', $baseline, '-AssignedSkill', 'verify-changes',
+		'-ScopeFile', $scopeFile, '-PromptPath', $cleanPath, '-Head', $head)
+	Assert-Equal 0 $clean.ExitCode 'verify-changes clean reviewed path exit code'
+	Assert-True (Test-Path -LiteralPath $cleanPath) 'verify-changes clean reviewed path writes the prompt'
+
+	Set-FixtureText $root 'Engine/Source/Other.cpp' "other dirty`n"
+	$unrelatedPath = New-ScratchPath 'verifyunrelated'
+	$unrelated = Invoke-PromptScript @(
+		'-RepositoryRoot', $root, '-Baseline', $baseline, '-AssignedSkill', 'verify-changes',
+		'-ScopeFile', $scopeFile, '-PromptPath', $unrelatedPath, '-Head', $head)
+	Assert-Equal 0 $unrelated.ExitCode 'verify-changes ignores dirt outside the reviewed set'
+	Assert-True (Test-Path -LiteralPath $unrelatedPath) 'verify-changes with unrelated dirt writes the prompt'
+
+	Set-FixtureText $root 'Engine/Source/Verify.cpp' "dirty`n"
+	$dirtyPath = New-ScratchPath 'verifydirty'
+	$dirty = Invoke-PromptScript @(
+		'-RepositoryRoot', $root, '-Baseline', $baseline, '-AssignedSkill', 'verify-changes',
+		'-ScopeFile', $scopeFile, '-PromptPath', $dirtyPath, '-Head', $head)
+	Assert-Equal 2 $dirty.ExitCode 'verify-changes dirty reviewed path exit code'
+	if ($null -ne $dirty.Json) {
+		Assert-Equal 'blocked' $dirty.Json.status 'verify-changes dirty reviewed path status'
+		Assert-Equal 'prompt.head-required' $dirty.Json.code 'verify-changes dirty reviewed path code'
+		Assert-True ($dirty.Json.message.Contains('Engine/Source/Verify.cpp')) 'verify-changes names the dirty reviewed path'
+	}
+	else { Assert-True $false 'verify-changes dirty reviewed path emitted JSON' }
+	Assert-True (-not (Test-Path -LiteralPath $dirtyPath)) 'verify-changes dirty reviewed path creates no prompt file'
+}
+
+# --- Repository F: the 4 MB prompt budget --------------------------------------------------------
 
 function Test-DiffTooLarge() {
 	$root = New-FixtureRoot 'oversize'
+	Add-FixtureSkill $root @('repo-code-review')
 	Set-FixtureText $root 'Engine/Source/Small.cpp' "small`n"
 	Invoke-FixtureGit $root @('add', '--all')
 	Invoke-FixtureGit $root @('commit', '--quiet', '-m', 'baseline')
@@ -337,9 +563,11 @@ function Test-DiffTooLarge() {
 		Assert-Equal 'prompt.diff-too-large' $run.Json.code 'oversize code'
 		Assert-True ($run.Json.message.Contains('Huge.txt')) 'oversize message names the largest contributing path'
 		Assert-Equal 0 $run.Json.promptBytes 'oversize reports no prompt bytes'
+		Assert-True ($null -eq $run.Json.manifestPath) 'oversize reports no manifest path'
 	}
 	else { Assert-True $false 'oversize emitted JSON' }
 	Assert-True (-not (Test-Path -LiteralPath $promptPath)) 'oversize leaves no partial prompt file'
+	Assert-True (-not (Test-Path -LiteralPath (Get-ManifestPath $promptPath))) 'oversize deletes the manifest it created before the prompt'
 	Assert-True (-not $run.Stdout.Contains('oversized evidence line')) 'oversize keeps evidence off stdout'
 }
 
@@ -351,7 +579,13 @@ try {
 	Test-PromptPathExists $repositoryA
 	Test-ScopeFileMissing $repositoryA
 	Test-UnlistedUntracked $repositoryA
+	Test-ManifestSiblingExists $repositoryA
+	Test-AssignedSkillUnknown $repositoryA
+	Test-MixedCaseAssignedSkill $repositoryA
 	Test-HeadHonoured
+	Test-ZeroPairManifest
+	Test-ManifestRunBlocked
+	Test-VerifyChangesHead
 	Test-DiffTooLarge
 }
 finally {
