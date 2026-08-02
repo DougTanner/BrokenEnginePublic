@@ -107,13 +107,12 @@ When the reviewed diff touches `Documents/Plans/**`, require a valid WorktreeCli
 Otherwise record `not triggered — no executable-Plan change`. Primary
 post-commit validation belongs to finalization.
 
-Under `/codex-review` the read-only sandbox cannot create the scheduler guard
-file, so `plan validate` run there always reports `busy`: the dispatching
-session runs it host-side before dispatch and supplies the verbatim result in
-the scope file, together with the worktree path it ran against and the baseline
-and head SHAs current at that run. Validate that host-supplied evidence instead
-of running the tool — match its worktree and SHAs to the reviewed checkout and
-diff, and leave the row `BLOCKED` when that identity is missing or mismatched.
+Under `/codex-review` the read-only sandbox cannot run `plan validate` — it
+always reports `busy` there — so `/codex-review` supplies a host-side verbatim
+result in the scope file with the worktree path and the baseline and head SHAs
+it ran against. Validate that supplied evidence instead of running the tool —
+match its worktree and SHAs to the reviewed checkout and diff, and leave the row
+`BLOCKED` when that identity is missing or mismatched.
 When this verification does run `plan validate` itself, `code: busy` is
 deterministic tool contention: re-run it up to twice more within this
 verification, and record a third `busy` as `BLOCKED`.

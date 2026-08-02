@@ -32,7 +32,7 @@ worktree or inspect machine-local claims directly.
 
 See the queue before selecting, whether the invocation is bare or names a Plan:
 `pwsh -NoProfile -File .agents/skills/next-plan/scripts/Get-NextPlanList.ps1`
-takes no arguments, changes nothing, and reports every executable Plan with its
+is read-only, takes no arguments, and reports every executable Plan with its
 state and creation order. For a tier-constrained request, read the `Risk tier`
 prose of the top eligible candidates in that order until one matches, then claim
 that path.
@@ -89,11 +89,10 @@ turn, and only when the spec is complete — then end the turn without asking an
 approval question, because the Codex client's own "Implement this plan?" prompt
 collects the decision. Any revision is a new complete replacement block.
 
-On Claude Code and every other host, deliver the full presentation as ordinary
-rendered markdown in the final message of a completed turn, with the approval
-question as the last line of that same message and no tool call after that text
-— question tools included, because text emitted before a question-tool call may
-never be displayed. The user's next message is the decision. A question UI is
+On Claude Code and every other host, deliver the full presentation per the root
+AGENTS.md User Interaction rule: rendered message text, with the approval
+question as the last line of that same message and no tool call — question tools
+included — after it. The user's next message is the decision. A question UI is
 allowed only in a later turn, after the presentation is already visible, and
 only for short follow-up choices.
 

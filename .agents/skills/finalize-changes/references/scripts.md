@@ -21,12 +21,12 @@ file/XML/log body. Exit/result/schema mismatches block.
   lease's owner token.
   Invoke it successfully before approval preparation begins
   reconciliation, retain or refresh the lease throughout agent-driven
-  reconciliation, and release it with `-Release` before any user wait; a
-  release of an already-absent lease passes. Claim once more after the
-  affirmative landing confirmation with the landing lease duration —
-  `-LeaseSeconds 3600`, its default, so omitting the parameter is correct — and
-  pass that owner token to the landing script; a refresh keeps a lease's original
-  duration, so landing refuses to continue a shorter one. Live contention is
+  reconciliation, and release it with `-Release` before any user wait, in the
+  order `SKILL.md` `## Bundled scripts` states; a release of an already-absent
+  lease passes. The post-confirmation landing claim uses the landing lease
+  duration — `-LeaseSeconds 3600`, its default, so omitting the parameter is
+  correct; a refresh keeps a lease's original duration, so landing refuses to
+  continue a shorter one. Live contention is
   retryable; only validated expiry recovers through WorktreeCli's
   compare-and-swap against the recorded owner, run only when no registered
   worktree has a Git operation in progress; unverifiable state requires user
@@ -39,7 +39,15 @@ file/XML/log body. Exit/result/schema mismatches block.
   rule; without `-OwnerToken` it mints its own token through WorktreeCli
   `lock token`. When primary advanced first it makes at most one internal rebase
   and lands only a provably byte-identical patch, so report the commit from the
-  result's `landed` block rather than `candidate`. Blocked
+  result's `landed` block rather than `candidate`. A blocked result reports its
+  `disposition` and a `lock` projection; act on those, never a memorized code
+  list. A `retryable-wait` result may be re-invoked with the approval-bound
+  arguments after its reported `retryAfterMilliseconds`. When it acquired no lock
+  (`lock.claimed` false), simply re-invoke — on the caller-token route claim the
+  landing lock anew through `Invoke-FinalizeLockClaim.ps1` first and pass the new
+  owner token. When it acquired but did not release the lock (`lock.claimed`
+  true, `lock.released` false), the claim is retained: handle it per the release
+  paragraph below before claiming anew. Blocked
   `rebase.patch-not-identical` means the clean rebase changed the patch, which
   returns for re-review and a refreshed confirmation; `rebase.conflicted` leaves
   the session branch restored; `rebase.abort-failed` leaves restoration unproven

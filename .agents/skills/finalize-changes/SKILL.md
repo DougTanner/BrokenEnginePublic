@@ -87,26 +87,17 @@ and worktree match the current landing identity; every other lease is foreign.
    terminal return: the worker ends its turn with it as its final answer.
 5. Only that affirmative response permits the same worker to claim the landing
    lock and invoke landing with that owner token, in the order
-   `## Bundled scripts` states. Landing continues under that lease, advances primary by
+   `## Bundled scripts` states. Landing advances primary by
    compare-and-swap with rollback on failure, and releases the lock. For a claimed Plan pass
    `-ReleasePlanClaim` so the machine-local claim is deleted best-effort; a
    failed claim delete is a reported residual, never a landing blocker.
 6. If primary advanced before the advance succeeds, landing does its own bounded
    rebase and retry and lands only a byte-identical patch. Never rebase or
    resolve by hand. Act on the blocked result's reported `disposition` and `lock`
-   projection, never a memorized list of codes: a `retryable-wait` result may
-   re-invoke the landing script with the approval-bound arguments after its
-   reported `retryAfterMilliseconds`. When the result acquired no lock
-   (`lock.claimed` false), simply re-invoke — on the caller-token route claim the
-   landing lock anew through `scripts/Invoke-FinalizeLockClaim.ps1` first and
-   pass the new owner token. When it acquired but did not release the lock
-   (`lock.claimed` true, `lock.released` false), a caller-supplied token remains
-   the caller's retained lease: complete the retained caller-token release
-   `references/scripts.md` states before claiming anew, while a minted token's
-   retained claim is instead left to expire as that reference specifies. A
-   `terminal` result stops this caller; one reporting a changed patch returns to
-   `## Landing confirmation` for re-review of the affected regions and a
-   refreshed confirmation.
+   projection exactly as `references/scripts.md` specifies, never a memorized
+   list of codes. A `terminal` result stops this caller; one reporting a changed
+   patch returns to `## Landing confirmation` for re-review of the affected
+   regions and a refreshed confirmation.
 7. Retain the session branch and worktree; only `/cleanup-worktrees` or explicit
    user direction removes them.
 
@@ -132,22 +123,19 @@ review findings, residuals) — the finalizer worker does not produce them:
 All four lines need a real answer in plain words the user can act on, with no
 repository jargon. The first two allow `none` only with a stated reason; the last
 two always appear and state `none` when the session record holds nothing to
-disclose, so a missing line is never ambiguous. Then ask exactly:
+disclose. Then ask exactly:
 
 - session: `Confirm landing this change from <session-branch> onto primary branch <primary-branch>?`
 - separately requested primary commit: `Confirm commit of this change on primary branch <primary-branch>?`
 
-On every host, main delivers that whole summary — the self-contained change
-description, the four lines, and the question — as ordinary rendered markdown in
-the final message of a completed turn, with the question as the last line of that
-same message and no tool call after that text, question tools included, because
-text emitted before a question-tool call may never be displayed. The user's next
-message is the decision.
+Main delivers that whole summary per the root AGENTS.md User Interaction rule:
+rendered message text, with the question as the last line of that same message
+and no tool call — question tools included — after it. The user's next message
+is the decision.
 
 Only a current explicit affirmative response to the latest unchanged summary
-authorizes primary change. Plan
-or implementation approval, a request to finish or land, or reconciliation
-consent is not a substitute. Main resumes the same finalizer after
+authorizes primary change. Plan or implementation approval, a request to finish
+or land, or reconciliation consent is not a substitute. Main resumes the same finalizer after
 confirmation. A decline or non-answer leaves primary unchanged. `/save-plan` is
 the sole standing exception, and only when the change contains exactly the
 saved Plan file.
