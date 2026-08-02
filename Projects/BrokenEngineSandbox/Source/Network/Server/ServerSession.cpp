@@ -295,6 +295,9 @@ void ServerSession::AfterNetworkPoll()
 	ParseReceivedGamePackets();
 	mpClientManager->Disconnects();
 	mpClientManager->NewClients();
+	// Ordering contract: Create runs first so requests naming a fleet created in the same poll can
+	// resolve its guid. SpawnInto before Respawn also matters: both append to the client manager's
+	// spawn queue, and spawn assignment pairs new player IDs with waiting clients in request order.
 	mpFleetManager->ProcessCreateFleetRequests();
 	mpFleetManager->ProcessDeleteFleetRequests();
 	mpFleetManager->ProcessSpawnIntoFleetRequests();
