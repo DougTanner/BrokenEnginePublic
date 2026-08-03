@@ -112,6 +112,21 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	// Allocate and copy
 	static void AllocateAndCopy(ExplosionsInterpolate& rCurrent, const ExplosionsInterpolate& rPrevious);
 
+	// Normalize fixed trail-slot counts after a complete deserialization.
+	static void PostRead(ExplosionsInterpolate& rCurrent)
+	{
+		for (int64_t i = 0; i < rCurrent.iCount; ++i)
+		{
+			const int32_t iOriginalCount = rCurrent.piTrailCounts[i];
+			const int32_t iClampedCount = std::clamp(iOriginalCount, static_cast<int32_t>(0), static_cast<int32_t>(kiMaxExplosionTrails));
+			if (iOriginalCount != iClampedCount)
+			{
+				rCurrent.piTrailCounts[i] = iClampedCount;
+				LOG(kDefault, kWarning, "ExplosionsInterpolate piTrailCounts row {} clamped from {} to {}", i, iOriginalCount, iClampedCount);
+			}
+		}
+	}
+
 #if defined(BT_CLIENT)
 	// Get registered controller type indices
 	static uint8_t GetPrimaryLightControllerTypeIndex();

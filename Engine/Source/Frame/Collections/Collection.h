@@ -71,6 +71,19 @@ void MultiRead(std::istream& rStream, int64_t iCount, TTuple&& members)
 	}, std::forward<TTuple>(members));
 }
 
+template <typename TStruct>
+void NormalizeAfterRead(std::istream& rStream, TStruct& rStruct)
+{
+	if constexpr (requires { TStruct::PostRead(rStruct); })
+	{
+		// A failed MultiRead leaves member storage partial; only normalize a complete read.
+		if (rStream.good())
+		{
+			TStruct::PostRead(rStruct);
+		}
+	}
+}
+
 // Allocates collection storage and reads data from stream. Used internally by CollectionRead().
 template <typename TStruct, typename TTuple>
 void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TTuple&& members)
@@ -85,6 +98,7 @@ void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TTuple&& members)
 	}
 
 	MultiRead(rStream, rStruct.iCount, std::forward<TTuple>(members));
+	NormalizeAfterRead(rStream, rStruct);
 }
 
 // ============================================================================
@@ -436,6 +450,8 @@ inline std::istream& SharedCollectionRead(std::istream& rStream, TStruct& rCurre
 	{
 		MultiRead(rStream, rCurrent.iCount, rCurrent.Members());
 	}
+
+	NormalizeAfterRead(rStream, rCurrent);
 
 	return rStream;
 }
