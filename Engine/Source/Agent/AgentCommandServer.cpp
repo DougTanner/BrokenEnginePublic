@@ -9,6 +9,9 @@ namespace engine
 
 // Bounds dormant agent-command connection latency to 20 wakes per second; dtor notification does not depend on this cadence.
 static constexpr std::chrono::milliseconds kListenerRetryInterval = 50ms;
+// A response that has been moved out of the shared slot is flushed as one frame during shutdown, but never longer
+// than this deadline. The same 50 ms readiness cadence keeps stop/join bounded while a peer is not reading.
+static constexpr std::chrono::seconds kResponseFlushTimeout = 3s;
 
 AgentCommandServer::AgentCommandServer(int64_t iPort)
 {
@@ -91,9 +94,8 @@ AgentCommandServer::AgentCommandServer(int64_t iPort)
 
 AgentCommandServer::~AgentCommandServer()
 {
-	// Request stop, then close both sockets under the lock and wake a pending response wait. Listener close is
-	// serialized with accept instead of interrupting it; active-socket close still unblocks recv. The jthread joins
-	// after this body. INVALID guards prevent a double close race with listener end-of-connection teardown.
+	// Request stop, close only the listener under the lock, and wake a pending response wait. The listener owns the
+	// active connection until ServeConnection exits, then performs its one final close before the jthread joins.
 	{
 		std::unique_lock lock(mMutex);
 		mListenerThread.request_stop();
@@ -101,11 +103,6 @@ AgentCommandServer::~AgentCommandServer()
 		{
 			closesocket(mListenSocket);
 			mListenSocket = INVALID_SOCKET;
-		}
-		if (mActiveSocket != INVALID_SOCKET)
-		{
-			closesocket(mActiveSocket);
-			mActiveSocket = INVALID_SOCKET;
 		}
 	}
 	mResponseReady.notify_all();
@@ -153,10 +150,10 @@ void AgentCommandServer::ListenerLoop(std::stop_token stopToken)
 			}
 		}
 
-		u_long uiBlocking = 0;
-		if (ioctlsocket(clientSocket, FIONBIO, &uiBlocking) == SOCKET_ERROR)
+		u_long uiNonBlocking = 1;
+		if (ioctlsocket(clientSocket, FIONBIO, &uiNonBlocking) == SOCKET_ERROR)
 		{
-			LOG(kNetwork, kError, "AgentCommandServer accepted socket blocking configuration failed: {}", WSAGetLastError());
+			LOG(kNetwork, kError, "AgentCommandServer accepted socket non-blocking configuration failed: {}", WSAGetLastError());
 			closesocket(clientSocket);
 			continue;
 		}
@@ -173,7 +170,8 @@ void AgentCommandServer::ListenerLoop(std::stop_token stopToken)
 
 		ServeConnection(clientSocket, stopToken);
 
-		// Connection teardown. Bump the generation so any response still deferred from this connection is discarded
+		// ServeConnection has returned, so the listener exclusively owns the final active-socket close. Bump the
+		// generation so any response still deferred from this connection is discarded
 		// by Drain instead of landing in the next connection's stream (id desync / wedged deferred branch), and drop
 		// any response the main thread published after the peer stopped waiting so it can't satisfy the next
 		// connection's first request. mDeferredPoll itself is main-thread-only — never bare-written here.
@@ -196,7 +194,7 @@ void AgentCommandServer::ServeConnection(SOCKET clientSocket, const std::stop_to
 	{
 		// Read the 4-byte little-endian length prefix (x64 host is little-endian — use the bytes directly).
 		uint32_t uiLength = 0;
-		if (!ReadExact(clientSocket, reinterpret_cast<uint8_t*>(&uiLength), sizeof(uiLength)))
+		if (!ReadExact(clientSocket, reinterpret_cast<uint8_t*>(&uiLength), sizeof(uiLength), rStopToken))
 		{
 			return; // peer closed or socket error
 		}
@@ -209,7 +207,7 @@ void AgentCommandServer::ServeConnection(SOCKET clientSocket, const std::stop_to
 
 		std::string payload;
 		payload.resize(uiLength);
-		if (uiLength > 0 && !ReadExact(clientSocket, reinterpret_cast<uint8_t*>(payload.data()), static_cast<int64_t>(uiLength)))
+		if (uiLength > 0 && !ReadExact(clientSocket, reinterpret_cast<uint8_t*>(payload.data()), static_cast<int64_t>(uiLength), rStopToken))
 		{
 			return;
 		}
@@ -227,6 +225,10 @@ void AgentCommandServer::ServeConnection(SOCKET clientSocket, const std::stop_to
 
 		{
 			std::unique_lock lock(mMutex);
+			if (rStopToken.stop_requested())
+			{
+				return; // stop can race the completed read; do not publish a request after shutdown begins
+			}
 			mPendingRequest = std::move(request);
 		}
 
@@ -426,32 +428,99 @@ void AgentCommandServer::PublishResponse(nlohmann::json response)
 	mResponseReady.notify_one();
 }
 
-bool AgentCommandServer::ReadExact(SOCKET clientSocket, uint8_t* pBuffer, int64_t iBytes)
+bool AgentCommandServer::ReadExact(SOCKET clientSocket, uint8_t* pBuffer, int64_t iBytes, const std::stop_token& rStopToken)
 {
 	int64_t iTotal = 0;
 	while (iTotal < iBytes)
 	{
-		int iReceived = recv(clientSocket, reinterpret_cast<char*>(pBuffer + iTotal), static_cast<int>(iBytes - iTotal), 0);
-		if (iReceived <= 0)
+		if (rStopToken.stop_requested())
 		{
-			return false; // 0 = peer closed, <0 = error / socket closed by dtor
+			return false;
 		}
-		iTotal += iReceived;
+
+		fd_set readSet {};
+		FD_ZERO(&readSet);
+		FD_SET(clientSocket, &readSet);
+		timeval timeout {};
+		timeout.tv_sec = static_cast<long>(kListenerRetryInterval.count() / 1000);
+		timeout.tv_usec = static_cast<long>((kListenerRetryInterval.count() % 1000) * 1000);
+		const int iReady = select(0, &readSet, nullptr, nullptr, &timeout);
+		if (iReady == SOCKET_ERROR)
+		{
+			return false;
+		}
+		if (iReady == 0)
+		{
+			continue;
+		}
+		if (rStopToken.stop_requested())
+		{
+			return false;
+		}
+
+		const int iReceived = recv(clientSocket, reinterpret_cast<char*>(pBuffer + iTotal), static_cast<int>(iBytes - iTotal), 0);
+		if (iReceived > 0)
+		{
+			iTotal += iReceived;
+			continue;
+		}
+		if (iReceived == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK)
+		{
+			continue;
+		}
+		return false; // 0 = peer closed; other errors end the connection
 	}
 	return true;
 }
 
-bool AgentCommandServer::SendExact(SOCKET clientSocket, const uint8_t* pBuffer, int64_t iBytes)
+// ServeConnection moved the response out of the shared slot before calling SendFrame, so this frame must flush
+// despite stop. rDeadline bounds the detached flush.
+bool AgentCommandServer::SendExact(SOCKET clientSocket, const uint8_t* pBuffer, int64_t iBytes, const std::chrono::steady_clock::time_point& rDeadline)
 {
 	int64_t iTotal = 0;
 	while (iTotal < iBytes)
 	{
-		int iSent = send(clientSocket, reinterpret_cast<const char*>(pBuffer + iTotal), static_cast<int>(iBytes - iTotal), 0);
-		if (iSent <= 0)
+		const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+		if (now >= rDeadline)
 		{
 			return false;
 		}
-		iTotal += iSent;
+
+		std::chrono::microseconds waitDuration = std::chrono::duration_cast<std::chrono::microseconds>(rDeadline - now);
+		const std::chrono::microseconds wakeDuration = std::chrono::duration_cast<std::chrono::microseconds>(kListenerRetryInterval);
+		if (waitDuration > wakeDuration)
+		{
+			waitDuration = wakeDuration;
+		}
+		waitDuration = (std::max)(waitDuration, 1us);
+
+		fd_set writeSet {};
+		FD_ZERO(&writeSet);
+		FD_SET(clientSocket, &writeSet);
+		timeval timeout {};
+		timeout.tv_sec = static_cast<long>(waitDuration.count() / 1'000'000);
+		timeout.tv_usec = static_cast<long>(waitDuration.count() % 1'000'000);
+		const int iReady = select(0, nullptr, &writeSet, nullptr, &timeout);
+		if (iReady == SOCKET_ERROR)
+		{
+			return false;
+		}
+		if (iReady == 0)
+		{
+			continue;
+		}
+
+		const int iSent = send(clientSocket, reinterpret_cast<const char*>(pBuffer + iTotal), static_cast<int>(iBytes - iTotal), 0);
+		if (iSent > 0)
+		{
+			iTotal += iSent;
+			continue;
+		}
+		if (iSent == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK)
+		{
+			continue;
+		}
+		return false;
 	}
 	return true;
 }
@@ -459,11 +528,12 @@ bool AgentCommandServer::SendExact(SOCKET clientSocket, const uint8_t* pBuffer, 
 bool AgentCommandServer::SendFrame(SOCKET clientSocket, const std::string& rPayload)
 {
 	uint32_t uiLength = static_cast<uint32_t>(rPayload.size());
-	if (!SendExact(clientSocket, reinterpret_cast<const uint8_t*>(&uiLength), sizeof(uiLength)))
+	const std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::now() + kResponseFlushTimeout;
+	if (!SendExact(clientSocket, reinterpret_cast<const uint8_t*>(&uiLength), sizeof(uiLength), deadline))
 	{
 		return false;
 	}
-	return SendExact(clientSocket, reinterpret_cast<const uint8_t*>(rPayload.data()), static_cast<int64_t>(rPayload.size()));
+	return SendExact(clientSocket, reinterpret_cast<const uint8_t*>(rPayload.data()), static_cast<int64_t>(rPayload.size()), deadline);
 }
 
 } // namespace engine

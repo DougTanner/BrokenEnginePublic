@@ -61,15 +61,15 @@ private:
 	// Serialize, cap, and hand a response envelope to the listener thread (stores mPendingResponse + notifies).
 	void PublishResponse(nlohmann::json response);
 
-	static bool ReadExact(SOCKET clientSocket, uint8_t* pBuffer, int64_t iBytes);
-	static bool SendExact(SOCKET clientSocket, const uint8_t* pBuffer, int64_t iBytes);
+	static bool ReadExact(SOCKET clientSocket, uint8_t* pBuffer, int64_t iBytes, const std::stop_token& rStopToken);
+	static bool SendExact(SOCKET clientSocket, const uint8_t* pBuffer, int64_t iBytes, const std::chrono::steady_clock::time_point& rDeadline);
 	static bool SendFrame(SOCKET clientSocket, const std::string& rPayload);
 
 	static constexpr uint32_t kuiMaxRequestBytes = 1u * 1024u * 1024u; // 1 MiB — larger request frames are rejected
 	static constexpr int64_t kiMaxResponseBytes = 16ll * 1024ll * 1024ll; // 16 MiB response cap
 
 	SOCKET mListenSocket = INVALID_SOCKET;
-	SOCKET mActiveSocket = INVALID_SOCKET; // current connection; closed by the dtor to unblock recv
+	SOCKET mActiveSocket = INVALID_SOCKET; // current connection; final close is owned by ListenerLoop after I/O exits
 
 	std::mutex mMutex;
 	std::condition_variable mResponseReady;
