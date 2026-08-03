@@ -224,12 +224,24 @@ void InputFingerprintCache::Save()
 	{
 		return;
 	}
-	nlohmann::json entries = nlohmann::json::array();
-	for (const auto& [rKey, rCached] : mCachedFingerprints)
+	// Sorted output keeps a rewrite of unchanged content byte-identical in the cross-worktree shared cache.
+	std::vector<const std::pair<const std::string, CachedFingerprint>*> sortedEntries;
+	sortedEntries.reserve(mCachedFingerprints.size());
+	for (const std::pair<const std::string, CachedFingerprint>& rEntry : mCachedFingerprints)
 	{
+		sortedEntries.push_back(&rEntry);
+	}
+	std::ranges::sort(sortedEntries, [](const auto* pLeft, const auto* pRight)
+	{
+		return pLeft->first < pRight->first;
+	});
+	nlohmann::json entries = nlohmann::json::array();
+	for (const std::pair<const std::string, CachedFingerprint>* pEntry : sortedEntries)
+	{
+		const CachedFingerprint& rCached = pEntry->second;
 		entries.push_back(nlohmann::json
 		{
-			{"path", rKey},
+			{"path", pEntry->first},
 			{"size", rCached.snapshot.uiSize},
 			{"lastWriteTime", rCached.snapshot.iLastWriteTime},
 			{"creationTime", rCached.snapshot.iCreationTime},
