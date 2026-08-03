@@ -29,6 +29,7 @@ Server-only game networking. `ServerSession` is the game-policy wrapper over `en
 ## Trust and Lifecycle Boundaries
 
 - Engine and game packet contract gates run before manager dispatch. Side-specific bounds validate navigation timing, fleet sizes, and save/replay fleet data without partially applying a request.
+- Connect-time new-client processing, including its ownership relink, begins only after the engine accepts `ClientHello` and marks the connection handshake complete.
 - A client is dead only after all owned players are gone; skip death handling while a player is mid-transfer.
 - Load reset clears client, transfer, and broadcast transient state after restored fleet state is read. Do not erase restored fleet RNG or pending navigation updates.
 - When the last client leaves, clear network-driven pause and timescale on the nonempty-to-empty transition. An agent-paused server that was already empty retains its commanded state.

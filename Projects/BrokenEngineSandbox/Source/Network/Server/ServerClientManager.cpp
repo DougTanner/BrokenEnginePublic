@@ -40,6 +40,11 @@ void ServerClientManager::NewClients()
 	std::vector<engine::ClientConnection>& rClients = engine::gpServer->mClients;
 	for (engine::ClientConnection& rClient : rClients)
 	{
+		if (!rClient.bHandshakeComplete)
+		{
+			continue;
+		}
+
 		if (!gpServerSession->mClientPlayers.Owned(rClient.iClientId).empty())
 		{
 			continue;
