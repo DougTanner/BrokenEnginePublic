@@ -378,12 +378,10 @@ void CommandBufferRecordMain::RecordImageRenderPass(VkCommandBuffer vkCommandBuf
 
 		gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
 		// Per-template terrain draws: one indirect draw per IslandTemplate (count fixed at boot
-		// from gpIslandTerrain->mIslandCrcsSorted). The stable arena is bound once; each indirect
-		// command supplies its resident template's index and vertex offsets.
-		// firstInstance is baked at boot to iTemplate*kiMaxPlacementsPerTemplate so Terrain.vert's
-		// pQuads[gl_InstanceIndex] lookups land in the right per-template SSBO range. Inactive templates have
-		// instanceCount=0 → zero draws issued. Record-once: CB never needs re-record on
-		// subscription changes.
+		// from gpIslandTerrain->mIslandCrcsSorted). The stable arena is bound once; each acquired
+		// framebuffer's indirect record supplies its template's arena offset and mesh-visible count.
+		// Inactive templates have instanceCount=0 → zero draws issued. Subscription changes update
+		// only those per-frame records, so the command buffer remains record-once.
 		pPipelines[kPipelineTerrain].RecordBindPipelineAndDescriptors(iCommandBuffer, vkCommandBuffer);
 		vkCmdBindIndexBuffer(vkCommandBuffer, gpIslands->mIslandMeshArena.mDeviceLocalVkBuffer, 0, VK_INDEX_TYPE_UINT32);
 		VkDeviceSize vkVertexOffset = 0;

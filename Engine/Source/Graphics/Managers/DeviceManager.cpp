@@ -199,9 +199,9 @@ DeviceManager::DeviceManager()
 	VkPhysicalDeviceFeatures vkPhysicalDeviceFeatures
 	{
 		.sampleRateShading = VK_TRUE,
-		// Per-template terrain indirect draws (Islands.cpp) bake firstInstance = iTemplate * kiMaxPlacementsPerTemplate
-		// into each VkDrawIndexedIndirectCommand. Vulkan spec requires this feature whenever firstInstance != 0
-		// in any VkDrawIndexedIndirectCommand (VUID-VkDrawIndexedIndirectCommand-firstInstance-00554).
+		// Terrain indirect records write firstInstance arena offsets and instanceCount values per acquired
+		// framebuffer; Global and Main command buffers remain record-once. Vulkan spec requires this feature
+		// whenever firstInstance != 0 in any VkDrawIndexedIndirectCommand (VUID-VkDrawIndexedIndirectCommand-firstInstance-00554).
 		.drawIndirectFirstInstance = VK_TRUE,
 		.samplerAnisotropy = VK_TRUE,
 		.textureCompressionBC = VK_TRUE,

@@ -2,18 +2,20 @@
 
 #if defined(BT_CLIENT)
 
+#include "Frame/IslandChainPlacement.h"
+
 namespace engine
 {
 
 struct CoordFrames;
 struct GridCoord;
 
-// Fixed per-template SSBO capacity. Islands.cpp throws on placements beyond 1024 before writing into the
-// next template's range. Resident allocation is kiMaxFramebuffers × N_templates × 1024 ×
-// sizeof(AxisAlignedQuadLayout): the captured 70-template set uses 17,203,200 bytes (16.40625 MiB). This
-// accepts the smallest/lowest-priority resident bucket to avoid churn in fixed-slot per-framebuffer and
-// record-once-command-buffer paths.
-inline constexpr int64_t kiMaxPlacementsPerTemplate = 1024;
+// Global SSBO arena capacity: every subscribed coordinate slot plus the local unconfirmed cell can contribute
+// at most kiMaxIslandsPerCell placements. Per-template runs are packed contiguously into this shared arena,
+// with mesh-visible placements first. Resident allocation is kiMaxFramebuffers × kiMaxActivePlacements ×
+// sizeof(AxisAlignedQuadLayout): with kiCoordSlots = 16 and kiMaxIslandsPerCell = 107 this is 436,560 bytes
+// (426.33 KiB), independent of the number of island templates.
+inline constexpr int64_t kiMaxActivePlacements = (game::NetworkSessionContract::kiCoordSlots + 1) * kiMaxIslandsPerCell;
 inline constexpr VkDeviceSize kiIslandMeshArenaBytes = 64ull * 1024ull * 1024ull;
 
 // The SSBO and indirect buffers are triple-buffered (one instance per framebuffer index, sized by
@@ -42,16 +44,17 @@ public:
 	Buffer mIslandMeshArena;
 	uint64_t muiMeshArenaCapacityGeneration = 0;
 
-	// One SSBO per framebuffer index. Each is indexed by [T_array_index * kiMaxPlacementsPerTemplate + n]
-	// where T_array_index is the template's index in gpIslandTerrain->mIslandCrcsSorted (fixed at boot).
-	// Inactive slots stay zero-width so the vertex shader emits degenerate triangles (GPU-culled).
+	// One SSBO per framebuffer index. Placements occupy contiguous per-template runs packed into the shared
+	// arena by UpdateActiveIslands; each run starts at that template's per-frame firstInstance, with its
+	// mesh-visible prefix before the offscreen remainder. Inactive slots stay zero-width so the vertex shader
+	// emits degenerate triangles (GPU-culled).
 	// Triple-buffered (see kiMaxFramebuffers) and bound via kPerCommandBufferStorageBuffers so an
 	// in-flight frame's GPU read never races the host rewrite of the instance the current frame consumes.
 	std::array<Buffer, kiMaxFramebuffers> mIslandsStorageBuffers;
 
 	// One per-template VkDrawIndexedIndirectCommand buffer per framebuffer index. Mesh residency rewrites
-	// indexCount / firstIndex / vertexOffset in every instance; instanceCount is rewritten to the mesh-visible
-	// prefix per frame by UpdateActiveIslands in the acquired framebuffer's instance only.
+	// indexCount / firstIndex / vertexOffset in every instance; firstInstance and instanceCount are rewritten
+	// per frame by UpdateActiveIslands in the acquired framebuffer's instance only.
 	// Allocated manually (Buffer wrapper has no INDIRECT_BUFFER_BIT path); mirrors Pipeline's
 	// mIndirectVkBuffer pattern in SetupIndirectBuffer (Engine/Source/Graphics/Objects/PipelineCreator.cpp).
 	std::array<VkBuffer, kiMaxFramebuffers> mIslandsIndirectVkBuffers {};
@@ -60,14 +63,11 @@ public:
 
 	int64_t miTemplateCount = 0;  // Cached gpIslandTerrain->mIslandCrcsSorted.size() (fixed at boot).
 
-	// Per-framebuffer record of the per-template total placement counts written the last time that framebuffer
-	// index was populated (mesh-visible prefix + offscreen remainder). Slots are written densely from each
-	// template's base (iTemplate * kiMaxPlacementsPerTemplate) via UpdateActiveIslands' running counter, so a
-	// single count per template fully describes the written (and thus possibly-stale) range. UpdateActiveIslands
-	// clears only these ranges before rewriting, instead of memset-ing the whole reserved SSBO slab every frame. Each inner
-	// vector is sized to miTemplateCount once in the ctor (boot, outside allocation tracking) and stays
-	// zero-initialized to match the ctor's baseline full memset.
-	std::array<std::vector<uint32_t>, kiMaxFramebuffers> mLastWrittenCounts;
+	// Per-framebuffer total placement count written the last time that framebuffer index was populated. The
+	// current run always starts at arena slot 0, so UpdateActiveIslands clears only the tail from the current
+	// total through this previous total after rewriting, instead of clearing the whole reserved arena every
+	// frame. Values are zero-initialized to match the ctor's baseline full memset.
+	std::array<uint32_t, kiMaxFramebuffers> mLastWrittenCounts {};
 
 private:
 

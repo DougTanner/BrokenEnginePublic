@@ -55,8 +55,8 @@ IslandTerrain::IslandTerrain()
 	}
 	std::sort(mIslandCrcsSorted.begin(), mIslandCrcsSorted.end());
 
-	// Assign each template its fixed per-frame array index (drives indirect-buffer slot and SSBO
-	// stride range in Islands). Bake here, never changes after boot.
+	// Assign each template its stable template-group index (drives grouping and indirect-buffer slot in
+	// Islands). Bake here, never changes after boot.
 	for (int64_t i = 0; i < static_cast<int64_t>(mIslandCrcsSorted.size()); ++i)
 	{
 		mIslands.at(mIslandCrcsSorted[i]).miTemplateArrayIndex = i;

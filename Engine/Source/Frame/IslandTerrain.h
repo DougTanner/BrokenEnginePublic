@@ -66,8 +66,9 @@ struct IslandTemplate
 
 	int64_t miTextureSlot = -1;
 
-	// Fixed index into IslandTerrain::mIslandCrcsSorted, assigned in ctor right after the sort.
-	// Drives per-template SSBO range and indirect-cmd slot in Islands; never changes after boot.
+	// Stable template-group index matching IslandTerrain::mIslandCrcsSorted, assigned in ctor right after
+	// the sort. Identifies the template's grouping and indirect-command slot in Islands; never changes
+	// after boot.
 	// Decoupled from miTextureSlot (which mints lazily on first visit).
 	int64_t miTemplateArrayIndex = -1;
 

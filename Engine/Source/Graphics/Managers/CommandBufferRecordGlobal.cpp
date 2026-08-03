@@ -75,9 +75,9 @@ void CommandBufferRecordGlobal::RecordShadowPasses(VkCommandBuffer vkCommandBuff
 {
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerShadow);
 	gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.RecordBeginRenderPass(vkCommandBuffer);
-	// Fixed-count prepass consumes both the mesh-visible prefix and offscreen remainder populated by
-	// Islands::UpdateActiveIslands; cleared slots beyond the total remain degenerate.
-	pPipelines[kPipelineShadowElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, gpIslands->miTemplateCount * kiMaxPlacementsPerTemplate, 0, {1.0f, 0.0f, 0.0f, 0.0f});
+	// Fixed-count prepass consumes the shared global placement arena populated by
+	// Islands::UpdateActiveIslands; cleared slots beyond the written total remain degenerate.
+	pPipelines[kPipelineShadowElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, kiMaxActivePlacements, 0, {1.0f, 0.0f, 0.0f, 0.0f});
 	gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.RecordEndRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineShadow].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
 	gpTextureManager->mRenderTargetTextures.mShadowTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadOnly);
@@ -103,14 +103,13 @@ void CommandBufferRecordGlobal::RecordShadowPasses(VkCommandBuffer vkCommandBuff
 
 void CommandBufferRecordGlobal::RecordTerrainPasses(VkCommandBuffer vkCommandBuffer, int64_t iCommandBuffer, Pipeline* pPipelines)
 {
-	// Total SSBO slot count = N_templates × kiMaxPlacementsPerTemplate, fixed at boot. The draw
-	// consumes both the mesh-visible prefix and offscreen remainder populated by UpdateActiveIslands;
-	// cleared slots beyond the total are zero-width quads that QuadsAxisAlignedVisibleArea.vert culls.
-	int64_t iIslandCount = gpIslands->miTemplateCount * kiMaxPlacementsPerTemplate;
+	// The fixed-count prepass consumes the shared global placement arena populated by
+	// UpdateActiveIslands; cleared slots beyond the written total are zero-width quads that
+	// QuadsAxisAlignedVisibleArea.vert culls.
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);
 	gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineTerrainElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, iIslandCount, 0);
+	pPipelines[kPipelineTerrainElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, kiMaxActivePlacements, 0);
 	gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.RecordEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);
 }

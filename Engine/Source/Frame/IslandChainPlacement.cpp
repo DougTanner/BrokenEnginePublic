@@ -38,21 +38,14 @@ inline constexpr float kfChainHeadingTurnJitter = 0.25f;
 inline constexpr float kfTouchDirJitter = 0.7f;
 inline constexpr int64_t kiTouchAttempts = 32;
 
-// Chain links after the Huge anchor (a fixed sequence, truncated by the cell edge).
-inline constexpr int64_t kiChainLargeCount = 2;
-inline constexpr int64_t kiChainMediumCount = 3;
-
 // Surround: ring every big island (Huge/Large/Medium) with smalls that touch ONLY a big island — never
 // another small, so the ring can't grow into unbounded small-to-small chains. Per-island slot count scales
 // with the island's perimeter; a slot that would overlap a neighbour is left empty. No fixed small total —
 // it is however many fit around the big islands.
 inline constexpr float kfSurroundSpacingMeters = 110.0f;
 inline constexpr int64_t kiMinSurroundSlots = 6;
-inline constexpr int64_t kiMaxSurroundSlots = 16;
 inline constexpr float kfSurroundDirJitter = 0.20f;
 
-// A few extra smalls trailing off the end of the curve (attached to the chain tip, biased forward).
-inline constexpr int64_t kiTailSmallCount = 5;
 inline constexpr float kfTailDirJitter = 0.6f;
 
 // A long island (footprint aspect >= this) aligns its long axis to the attach direction with small
@@ -60,11 +53,7 @@ inline constexpr float kfTailDirJitter = 0.6f;
 inline constexpr float kfLongAspectThreshold = 2.0f;
 inline constexpr float kfTangentRotationJitter = 0.15f;
 
-// Reserve sizes: worst-case placements per cell (every big island + a full surround ring on each + the
-// tail). placedHullStorage MUST NOT reallocate — the ConvexHull2D views point into it — so this is the
-// hard cap. Plus a generous hull vertex cap for the per-candidate world-vertex scratch.
-inline constexpr int64_t kiMaxBigIslands = 1 + kiChainLargeCount + kiChainMediumCount;
-inline constexpr int64_t kiMaxIslandsPerCell = kiMaxBigIslands + kiMaxBigIslands * kiMaxSurroundSlots + kiTailSmallCount;
+// Reserve size for the per-candidate world-vertex scratch.
 inline constexpr int64_t kiHullScratchReserve = 256;
 
 enum class Role
