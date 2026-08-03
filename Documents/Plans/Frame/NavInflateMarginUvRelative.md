@@ -130,7 +130,7 @@ clearance.
   changes how far outside that contour navigation is forbidden, not where the contour is.
 - The visibility graph build, `AStarPath`, and the runtime query predicates — they consume whatever polygons
   they are given.
-- NavQuery per-tick cost — owned by `Documents/Plans/Frame/NavQueryPerTickPathfindCost.md`.
+- NavQuery per-tick cost measurement — owned by `Documents/Plans/Frame/NavQueryPerTickCostMeasurement.md`.
 - Per-unit-radius clearance (different margins for different ship sizes). One margin for all units; making it
   per-unit is an architectural change to nav data, not this defect.
 - `game::Frame::kiVersion`'s own base in `Frame.cpp` — this Plan bumps `kiNavDataVersion` only and does not
@@ -191,7 +191,7 @@ the version bump invalidates it and criterion 7 needs one.
 
 ## Coordination
 
-- `Documents/Plans/Frame/NavQueryPerTickPathfindCost.md` measures per-tick `NavQuery` cost against a baseline
+- `Documents/Plans/Frame/NavQueryPerTickCostMeasurement.md` measures per-tick `NavQuery` cost against a baseline
   that this Plan's geometry change moves: it changes obstacle vertex counts (what A\* iterates) and the
   containment area that fires the off-cadence pathfind recompute. Whichever of the two Plans lands second must
   re-establish its baseline against the landed tree before claiming a measurement; do not carry a number
