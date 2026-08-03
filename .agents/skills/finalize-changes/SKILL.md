@@ -113,23 +113,19 @@ and worktree match the current landing identity; every other lease is foreign.
 Main presents the self-contained summary immediately before the question:
 one-sentence change, changed-file count and kind, session branch and the
 primary branch resolved as `<primary-branch>` below,
-all objective-stage decisions, and the exact remaining operation, plus four lines
+all objective-stage decisions, and the exact remaining operation, plus two lines
 main answers itself from the whole session record (worker handoffs, rejected
 review findings, residuals) — the finalizer worker does not produce them:
 
-- **Least confident:** the one part of the change main trusts least, and why.
-- **Likely blind spot:** the consequence or consideration the user has not raised
-  and most likely would want to know.
 - **Superseded decisions:** every number or premise the user was earlier asked to
   decide that later evidence overturned, giving both values and the evidence that
   decided it.
 - **Substituted approaches:** every place a delegated verdict ruled out the
   approach the user stated, giving the verdict and the substitute adopted.
 
-All four lines need a real answer in plain words the user can act on, with no
-repository jargon. The first two allow `none` only with a stated reason; the last
-two always appear and state `none` when the session record holds nothing to
-disclose. Then ask exactly:
+Both lines need a real answer in plain words the user can act on, with no
+repository jargon; each always appears and states `none` when the session record
+holds nothing to disclose. Then ask exactly:
 
 - session: `Confirm landing this change from <session-branch> onto primary branch <primary-branch>?`
 - separately requested primary commit: `Confirm commit of this change on primary branch <primary-branch>?`
