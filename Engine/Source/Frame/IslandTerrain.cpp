@@ -233,11 +233,11 @@ void IslandTerrain::WaitForElevationMaps([[maybe_unused]] float fNavThreshold)
 		if (rTemplate.mpHeightmapHalf != nullptr)
 		{
 			// BuildNavContour consumes full-precision floats; dequantize the R16 heightmap into a transient
-			// boot buffer (one template at a time, freed each iteration) rather than widening the nav API.
+			// boot buffer (one template at a time, freed each iteration).
 			int64_t iHeightmapTexels = static_cast<int64_t>(rTemplate.miHeightmapWidth) * static_cast<int64_t>(rTemplate.miHeightmapHeight);
 			std::vector<float> heightmapFloats(static_cast<size_t>(iHeightmapTexels));
 			DirectX::PackedVector::XMConvertHalfToFloatStream(heightmapFloats.data(), sizeof(float), rTemplate.mpHeightmapHalf, sizeof(uint16_t), static_cast<size_t>(iHeightmapTexels));
-			BuildNavContour(rTemplate.mNavContour, heightmapFloats.data(), rTemplate.miHeightmapWidth, rTemplate.miHeightmapHeight, fNavThreshold);
+			BuildNavContour(rTemplate.mNavContour, heightmapFloats.data(), rTemplate.miHeightmapWidth, rTemplate.miHeightmapHeight, fNavThreshold, rTemplate.mfQuadFootprintX, rTemplate.mfQuadFootprintY);
 		}
 	}
 #endif

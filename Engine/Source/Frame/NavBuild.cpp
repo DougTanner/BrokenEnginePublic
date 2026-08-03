@@ -2,6 +2,8 @@
 
 #include "NavBuildInternal.h"
 
+#include "Frame/Collections/Players/Players.h"
+
 namespace engine
 {
 
@@ -339,7 +341,7 @@ bool PointInPolygon(XMFLOAT2 f2Point, const XMFLOAT2* pVertices, int32_t iVertex
 	return iWinding != 0;
 }
 
-void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fWorldThreshold)
+void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fWorldThreshold, float fFootprintXMeters, float fFootprintYMeters)
 {
 	LOG(kNavData, kDebug, "NavBuild: heightmap {}x{} worldThreshold={}", iHeightmapWidth, iHeightmapHeight, common::Wb(fWorldThreshold, 4));
 
@@ -361,16 +363,16 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 
 	LOG(kNavData, kDebug, "NavBuild: chained into {} polygons", polygons.size());
 
-	// Step 3: Hand raw chained polygons to Clipper2 — Union+Inflate+Simplify in UV space.
+	// Step 3: Hand raw chained polygons to Clipper2 — Union in UV, then transform to centered local
+	// metric coordinates for isotropic inflation and simplification before mapping back to UV.
 	// Clipper2 is Vatti-based with integer-coordinate robustness; miter offsets fall back to
 	// bevel at concave corners that would otherwise self-intersect (the bowtie failure mode
 	// the previous custom miter offset suffered from).
-	static constexpr double kfInflateDelta = 0.015;
+	static constexpr double kfClearanceMeters = game::kfPlayerRadius + game::kfPushMargin;
 	static constexpr double kfMiterLimit = 2.0;
-	static constexpr double kfSimplifyEpsilon = 0.005;
-	// Clipper2 PathsD quantizes doubles to int64 at 10^precision per unit. Default 2 gives a
-	// 0.01-UV grid (~1 world unit per cell) which snaps diagonals into right-angle staircases.
-	// 6 gives sub-micrometer UV granularity — plenty for the marching-squares input.
+	static constexpr double kfSimplifyEpsilonMeters = 1.00;
+	// Clipper2 PathsD quantizes doubles to int64 at 10^precision per unit. Keep precision 6 for both
+	// the UV union and metric offset so marching-squares detail and meter-scale clearance remain stable.
 	static constexpr int kiClipperPrecision = 6;
 
 	Clipper2Lib::PathsD obstacles;
@@ -392,10 +394,21 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 
 	// Union resolves overlaps; positive winding = outer obstacle, negative = enclosed hole.
 	Clipper2Lib::PathsD unioned = Clipper2Lib::Union(obstacles, Clipper2Lib::FillRule::NonZero, kiClipperPrecision);
+	for (Clipper2Lib::PathD& rPath : unioned)
+	{
+		for (Clipper2Lib::PointD& rPoint : rPath)
+		{
+			rPoint.x = (rPoint.x - 0.5) * static_cast<double>(fFootprintXMeters);
+			rPoint.y = (rPoint.y - 0.5) * static_cast<double>(fFootprintYMeters);
+		}
+	}
+
+	// The nav polygon is deliberately the terrain-push contour plus ship clearance. All new or changed
+	// distances and tolerances here are meters; UV is representation only.
 	// Outward miter offset; Clipper2 auto-bevels when miter would exceed limit.
-	Clipper2Lib::PathsD inflated = Clipper2Lib::InflatePaths(unioned, kfInflateDelta, Clipper2Lib::JoinType::Miter, Clipper2Lib::EndType::Polygon, kfMiterLimit, kiClipperPrecision);
+	Clipper2Lib::PathsD inflated = Clipper2Lib::InflatePaths(unioned, kfClearanceMeters, Clipper2Lib::JoinType::Miter, Clipper2Lib::EndType::Polygon, kfMiterLimit, kiClipperPrecision);
 	// Topology-preserving simplification (does not introduce crossings).
-	Clipper2Lib::PathsD simplified = Clipper2Lib::SimplifyPaths(inflated, kfSimplifyEpsilon);
+	Clipper2Lib::PathsD simplified = Clipper2Lib::SimplifyPaths(inflated, kfSimplifyEpsilonMeters);
 
 	// Step 4: Pack outer obstacle loops into flat arrays. Discard holes (Area < 0): they sit
 	// inside obstacles and the visibility graph cannot route through obstacles regardless.
@@ -411,11 +424,16 @@ void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t
 			++iDroppedHoles;
 			continue;
 		}
-
 		rContour.polygonOffsets.push_back(static_cast<int32_t>(rContour.vertices.size()));
-		for (const Clipper2Lib::PointD& rPt : rPath)
+		for (const Clipper2Lib::PointD& rPoint : rPath)
 		{
-			rContour.vertices.push_back({static_cast<float>(rPt.x), static_cast<float>(rPt.y)});
+			float fU = static_cast<float>(rPoint.x / static_cast<double>(fFootprintXMeters) + 0.5);
+			float fV = static_cast<float>(rPoint.y / static_cast<double>(fFootprintYMeters) + 0.5);
+			rContour.vertices.push_back(
+			{
+				fU,
+				fV,
+			});
 		}
 	}
 

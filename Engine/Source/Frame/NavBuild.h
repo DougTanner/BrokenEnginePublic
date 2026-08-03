@@ -12,7 +12,7 @@ struct NavContour
 	std::vector<int32_t> polygonOffsets;
 };
 
-inline constexpr int64_t kiNavDataVersion = 13;
+inline constexpr int64_t kiNavDataVersion = 14;
 
 // Broad-phase edge grid dimensions (tunable). Mirrors the fixed-zone grid in Collision.h; finer here
 // because obstacle edges are denser than collision objects. Only affects derived (non-serialized) data.
@@ -61,7 +61,7 @@ struct NavData
 	void Read(std::istream& rStream);
 };
 
-void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fWorldThreshold);
+void BuildNavContour(NavContour& rContour, const float* pfHeightmapData, int32_t iHeightmapWidth, int32_t iHeightmapHeight, float fWorldThreshold, float fFootprintXMeters, float fFootprintYMeters);
 void BuildCellNavData(NavData& rNavData, const std::vector<IslandPlacement>& rPlacements);
 
 // Rebuild the derived broad-phase acceleration (polygon AABBs, explicit edges, edge grid, per-vertex
