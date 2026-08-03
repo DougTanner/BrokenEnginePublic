@@ -80,6 +80,14 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 		return rSelf.SharedMembers();
 #endif
 	}
+	auto PersistentMembers(this auto&& rSelf)
+	{
+#if defined(BT_CLIENT)
+		return std::tie(rSelf.puiPushers, rSelf.puiTargets, rSelf.puiWindTrails);
+#else
+		return std::tie(rSelf.puiPushers, rSelf.puiTargets);
+#endif
+	}
 
 	// Utility
 	bool LogDifferences(const SpaceshipsInterpolate& rOther) const;
@@ -143,6 +151,10 @@ public:
 	// CRC, instead of silently entering it via a Members()-only walk; the server-build kbServerMembersParity static_assert backstops Members()==SharedMembers().
 	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.pAlignments, rSelf.pfArrivalGracePeriods); }
 	auto Members(this auto&& rSelf) { return rSelf.SharedMembers(); }
+	auto PersistentMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecDamageDirections, rSelf.pAlignments);
+	}
 
 	// Utility
 	bool LogDifferences(const SpaceshipsPostRender& rOther) const;

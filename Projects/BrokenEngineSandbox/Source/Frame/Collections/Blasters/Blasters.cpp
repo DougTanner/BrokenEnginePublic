@@ -31,36 +31,12 @@ void BlastersInterpolate::Register()
 
 void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const BlastersInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
-#if defined(BT_CLIENT)
-		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
-		std::memcpy(rCurrent.puiPointLights, rPrevious.puiPointLights, rCurrent.iCount * sizeof(rCurrent.puiPointLights[0]));
-		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
-		std::memcpy(rCurrent.pfWindTrailIntensities, rPrevious.pfWindTrailIntensities, rCurrent.iCount * sizeof(rCurrent.pfWindTrailIntensities[0]));
-		std::memcpy(rCurrent.pfWindTrailWidths, rPrevious.pfWindTrailWidths, rCurrent.iCount * sizeof(rCurrent.pfWindTrailWidths[0]));
-		std::memcpy(rCurrent.pfWindTrailLengthMultipliers, rPrevious.pfWindTrailLengthMultipliers, rCurrent.iCount * sizeof(rCurrent.pfWindTrailLengthMultipliers[0]));
-#endif
-	}
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const BlastersPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
-		std::memcpy(rCurrent.pVecVelocities, rPrevious.pVecVelocities, rCurrent.iCount * sizeof(rCurrent.pVecVelocities[0]));
-#if defined(BT_CLIENT)
-		std::memcpy(rCurrent.puiSounds, rPrevious.puiSounds, rCurrent.iCount * sizeof(rCurrent.puiSounds[0]));
-#endif
-		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, rCurrent.iCount * sizeof(rCurrent.pfPitches[0]));
-		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
-	}
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 #if defined(BT_CLIENT)

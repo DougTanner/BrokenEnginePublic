@@ -79,6 +79,14 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 		return rSelf.SharedMembers();
 #endif
 	}
+	auto PersistentMembers(this auto&& rSelf)
+	{
+#if defined(BT_CLIENT)
+		return std::tie(rSelf.puiTypeIndices, rSelf.puiAreaLights, rSelf.puiPointLights, rSelf.puiWindTrails, rSelf.pfWindTrailIntensities, rSelf.pfWindTrailWidths, rSelf.pfWindTrailLengthMultipliers);
+#else
+		return std::tie(rSelf.puiTypeIndices);
+#endif
+	}
 
 	// Utility
 	bool LogDifferences(const BlastersInterpolate& rOther) const;

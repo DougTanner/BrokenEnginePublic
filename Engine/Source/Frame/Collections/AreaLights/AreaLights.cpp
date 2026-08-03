@@ -15,7 +15,7 @@ void AreaLightsInterpolate::AllocateAndCopy(AreaLightsInterpolate& rCurrent, con
 
 void AreaLightsPostRender::AllocateAndCopy(AreaLightsPostRender& rCurrent, const AreaLightsPostRender& rPrevious)
 {
-	AllocateAndCopyIds(rCurrent, rPrevious);
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 } // namespace engine

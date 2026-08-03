@@ -82,6 +82,14 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 		return rSelf.SharedMembers();
 #endif
 	}
+	auto PersistentMembers([[maybe_unused]] this auto&& rSelf)
+	{
+#if defined(BT_CLIENT)
+		return std::tie(rSelf.puiAreaLights, rSelf.puiSmokeTrails);
+#else
+		return std::tie();
+#endif
+	}
 
 	// Utility
 	bool LogDifferences(const MissilesInterpolate& rOther) const;
@@ -140,6 +148,14 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
 #else
 		return rSelf.SharedMembers();
+#endif
+	}
+	auto PersistentMembers(this auto&& rSelf)
+	{
+#if defined(BT_CLIENT)
+		return std::tie(rSelf.pFlags, rSelf.pVecExplosionDirections, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.puiSounds, rSelf.pAlignments);
+#else
+		return std::tie(rSelf.pFlags, rSelf.pVecExplosionDirections, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pAlignments);
 #endif
 	}
 

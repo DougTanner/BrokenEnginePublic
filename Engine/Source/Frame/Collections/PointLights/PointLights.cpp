@@ -15,7 +15,7 @@ void PointLightsInterpolate::AllocateAndCopy(PointLightsInterpolate& rCurrent, c
 
 void PointLightsPostRender::AllocateAndCopy(PointLightsPostRender& rCurrent, const PointLightsPostRender& rPrevious)
 {
-	AllocateAndCopyIds(rCurrent, rPrevious);
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

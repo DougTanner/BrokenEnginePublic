@@ -116,6 +116,14 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 		return rSelf.SharedMembers();
 #endif
 	}
+	auto PersistentMembers(this auto&& rSelf)
+	{
+#if defined(BT_CLIENT)
+		return std::tie(rSelf.puiPushers, rSelf.pWindTrails, rSelf.pHexShields);
+#else
+		return std::tie(rSelf.puiPushers);
+#endif
+	}
 
 	// CRC-only subset: excludes pfAnimationTimes (client-only update) and puiPushers (local collection index)
 	auto SharedCrcMembers(this auto&& rSelf)
@@ -289,6 +297,10 @@ public:
 #else
 		return rSelf.SharedMembers();
 #endif
+	}
+	auto PersistentMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.puiIds, rSelf.pAlignments, rSelf.pClientGuids, rSelf.pGlobalPlayerIds);
 	}
 
 	// CRC-only subset: excludes pClientGuids and pGlobalPlayerIds which are server-side bookkeeping

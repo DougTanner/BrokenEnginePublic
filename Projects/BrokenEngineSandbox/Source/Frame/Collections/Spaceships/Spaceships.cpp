@@ -351,30 +351,12 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerInterpolateAllocateAndCopySpaceships);
-
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	// Copy child IDs
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
-		std::memcpy(rCurrent.puiTargets, rPrevious.puiTargets, rCurrent.iCount * sizeof(rCurrent.puiTargets[0]));
-#if defined(BT_CLIENT)
-		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
-#endif
-	}
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void SpaceshipsPostRender::AllocateAndCopy(SpaceshipsPostRender& rCurrent, const SpaceshipsPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	// Static fields - memcpy (never modified in Update)
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.pVecDamageDirections, rPrevious.pVecDamageDirections, rCurrent.iCount * sizeof(rCurrent.pVecDamageDirections[0]));
-		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
-	}
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 static void RemoveOwnedObjects(Frame& rFrame, SpaceshipsInterpolate& rCurrentInterpolate, int64_t i, bool bRemoveTarget)

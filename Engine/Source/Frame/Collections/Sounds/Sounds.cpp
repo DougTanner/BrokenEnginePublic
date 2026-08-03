@@ -15,7 +15,7 @@ void SoundsInterpolate::AllocateAndCopy(SoundsInterpolate& rCurrent, const Sound
 
 void SoundsPostRender::AllocateAndCopy(SoundsPostRender& rCurrent, const SoundsPostRender& rPrevious)
 {
-	AllocateAndCopyIds(rCurrent, rPrevious);
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 } // namespace engine

@@ -192,16 +192,7 @@ void MissilesInterpolate::ClientInitAll(Frame& rFrame)
 
 void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const MissilesInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	// Copy child IDs
-#if defined(BT_CLIENT)
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
-		std::memcpy(rCurrent.puiSmokeTrails, rPrevious.puiSmokeTrails, rCurrent.iCount * sizeof(rCurrent.puiSmokeTrails[0]));
-	}
-#endif
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void MissilesInterpolate::Register()
@@ -314,21 +305,7 @@ static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVE
 
 void MissilesPostRender::AllocateAndCopy(MissilesPostRender& rCurrent, const MissilesPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	// Copy fields carried forward from previous frame
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
-		std::memcpy(rCurrent.pVecExplosionDirections, rPrevious.pVecExplosionDirections, rCurrent.iCount * sizeof(rCurrent.pVecExplosionDirections[0]));
-		std::memcpy(rCurrent.pfDeltaRotationMax, rPrevious.pfDeltaRotationMax, rCurrent.iCount * sizeof(rCurrent.pfDeltaRotationMax[0]));
-		std::memcpy(rCurrent.pfAccelerations, rPrevious.pfAccelerations, rCurrent.iCount * sizeof(rCurrent.pfAccelerations[0]));
-		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, rCurrent.iCount * sizeof(rCurrent.pfPitches[0]));
-#if defined(BT_CLIENT)
-		std::memcpy(rCurrent.puiSounds, rPrevious.puiSounds, rCurrent.iCount * sizeof(rCurrent.puiSounds[0]));
-#endif
-		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
-	}
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 static void RemoveOwnedObjects([[maybe_unused]] Frame& rFrame, [[maybe_unused]] MissilesInterpolate& rCurrentInterpolate, MissilesPostRender& rCurrentPostRender, int64_t i)

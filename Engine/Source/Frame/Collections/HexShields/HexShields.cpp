@@ -15,7 +15,7 @@ void HexShieldsInterpolate::AllocateAndCopy(HexShieldsInterpolate& rCurrent, con
 
 void HexShieldsPostRender::AllocateAndCopy(HexShieldsPostRender& rCurrent, const HexShieldsPostRender& rPrevious)
 {
-	AllocateAndCopyIds(rCurrent, rPrevious);
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 } // namespace engine

@@ -17,7 +17,7 @@ void PushersInterpolate::AllocateAndCopy(PushersInterpolate& rCurrent, const Pus
 
 void PushersPostRender::AllocateAndCopy(PushersPostRender& rCurrent, const PushersPostRender& rPrevious)
 {
-	AllocateAndCopyIds(rCurrent, rPrevious);
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 bool PushersInterpolate::LogDifferences(const PushersInterpolate& rOther) const

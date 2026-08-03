@@ -15,7 +15,7 @@ void WindTrailsInterpolate::AllocateAndCopy(WindTrailsInterpolate& rCurrent, con
 
 void WindTrailsPostRender::AllocateAndCopy(WindTrailsPostRender& rCurrent, const WindTrailsPostRender& rPrevious)
 {
-	AllocateAndCopyIds(rCurrent, rPrevious);
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 } // namespace engine

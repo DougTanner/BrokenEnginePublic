@@ -15,7 +15,7 @@ void WindRadialsInterpolate::AllocateAndCopy(WindRadialsInterpolate& rCurrent, c
 
 void WindRadialsPostRender::AllocateAndCopy(WindRadialsPostRender& rCurrent, const WindRadialsPostRender& rPrevious)
 {
-	Allocate(rCurrent, rPrevious, rCurrent.Members());
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void WindRadialsPostRender::Destroy(game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

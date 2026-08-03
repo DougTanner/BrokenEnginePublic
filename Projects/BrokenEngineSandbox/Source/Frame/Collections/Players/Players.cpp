@@ -187,31 +187,12 @@ void PlayersInterpolate::Register()
 
 void PlayersInterpolate::AllocateAndCopy(PlayersInterpolate& rCurrent, const PlayersInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	// Static fields - memcpy (never modified in Update)
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
-#if defined(BT_CLIENT)
-		std::memcpy(rCurrent.pWindTrails, rPrevious.pWindTrails, rCurrent.iCount * sizeof(rCurrent.pWindTrails[0]));
-		std::memcpy(rCurrent.pHexShields, rPrevious.pHexShields, rCurrent.iCount * sizeof(rCurrent.pHexShields[0]));
-#endif
-	}
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void PlayersPostRender::AllocateAndCopy(PlayersPostRender& rCurrent, const PlayersPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	// Static fields - memcpy (never modified in Update)
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
-		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
-		std::memcpy(rCurrent.pClientGuids, rPrevious.pClientGuids, rCurrent.iCount * sizeof(rCurrent.pClientGuids[0]));
-		std::memcpy(rCurrent.pGlobalPlayerIds, rPrevious.pGlobalPlayerIds, rCurrent.iCount * sizeof(rCurrent.pGlobalPlayerIds[0]));
-	}
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 #if defined(BT_CLIENT)

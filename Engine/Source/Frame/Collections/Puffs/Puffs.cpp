@@ -15,7 +15,7 @@ void PuffsInterpolate::AllocateAndCopy(PuffsInterpolate& rCurrent, const PuffsIn
 
 void PuffsPostRender::AllocateAndCopy(PuffsPostRender& rCurrent, const PuffsPostRender& rPrevious)
 {
-	Allocate(rCurrent, rPrevious, rCurrent.Members());
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void PuffsPostRender::Destroy(game::Frame& __restrict rFrame, [[maybe_unused]] const FrameStaticData& rStaticData)

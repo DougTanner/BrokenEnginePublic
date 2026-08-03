@@ -15,7 +15,7 @@ void BillboardsInterpolate::AllocateAndCopy(BillboardsInterpolate& rCurrent, con
 
 void BillboardsPostRender::AllocateAndCopy(BillboardsPostRender& rCurrent, const BillboardsPostRender& rPrevious)
 {
-	AllocateAndCopyIds(rCurrent, rPrevious);
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 } // namespace engine

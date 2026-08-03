@@ -71,7 +71,7 @@ void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, con
 
 void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious)
 {
-	Allocate(rCurrent, rPrevious, rCurrent.Members());
+	engine::AllocateAndCopyMembers(rCurrent, rPrevious);
 }
 
 void ExplosionsInterpolate::Register()
