@@ -89,6 +89,7 @@ bool RunExportJobs()
 	bDirty |= !std::filesystem::exists(manifestFile);
 
 	int64_t iManifestChunkCount = -1;
+	std::vector<common::ChunkLocation> manifestChunkLocations;
 	if (!bDirty)
 	{
 		// A lone kiVersion bump must re-export everything — the engine ASSERTs on a stale-version manifest and there is no recovery CLI
@@ -97,6 +98,66 @@ bool RunExportJobs()
 		manifestFileStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
 		bDirty |= !manifestFileStream || dataHeader.iMagic != common::DataHeader::kiMagic || dataHeader.iVersion != common::DataHeader::kiVersion;
 		iManifestChunkCount = dataHeader.iChunkCount;
+
+		if (!bDirty)
+		{
+			static constexpr uint64_t kuiChunkTableOffset = static_cast<uint64_t>(common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::DataHeader))));
+			std::error_code manifestSizeError;
+			const uintmax_t uiManifestFileSizeValue = std::filesystem::file_size(manifestFile, manifestSizeError);
+			if (manifestSizeError
+				|| uiManifestFileSizeValue > std::numeric_limits<uint64_t>::max()
+				|| uiManifestFileSizeValue > static_cast<uintmax_t>(std::numeric_limits<std::streamoff>::max()))
+			{
+				bDirty = true;
+			}
+			else
+			{
+				const uint64_t uiManifestFileSize = static_cast<uint64_t>(uiManifestFileSizeValue);
+				if (uiManifestFileSize < kuiChunkTableOffset)
+				{
+					bDirty = true;
+				}
+				else
+				{
+					const uint64_t uiManifestTableBytes = uiManifestFileSize - kuiChunkTableOffset;
+					const uint64_t uiMaxChunks = uiManifestTableBytes / static_cast<uint64_t>(sizeof(common::ChunkLocation));
+					const bool bChunkCountInRange = dataHeader.iChunkCount >= 0
+						&& static_cast<uint64_t>(dataHeader.iChunkCount) <= uiMaxChunks
+						&& static_cast<uint64_t>(dataHeader.iChunkCount) <= static_cast<uint64_t>(std::numeric_limits<size_t>::max())
+						&& static_cast<uint64_t>(dataHeader.iChunkCount) <= static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max()) / sizeof(common::ChunkLocation);
+					if (!bChunkCountInRange)
+					{
+						bDirty = true;
+					}
+					else
+					{
+						const uint64_t uiChunkTableBytes = static_cast<uint64_t>(dataHeader.iChunkCount) * sizeof(common::ChunkLocation);
+						try
+						{
+							manifestChunkLocations.resize(static_cast<size_t>(dataHeader.iChunkCount));
+						}
+						catch (const std::exception&)
+						{
+							bDirty = true;
+						}
+
+						if (!bDirty)
+						{
+							manifestFileStream.seekg(static_cast<std::streamoff>(kuiChunkTableOffset), std::ios::beg);
+							if (!manifestFileStream)
+							{
+								bDirty = true;
+							}
+							else if (uiChunkTableBytes > 0)
+							{
+								manifestFileStream.read(reinterpret_cast<char*>(manifestChunkLocations.data()), static_cast<std::streamsize>(uiChunkTableBytes));
+								bDirty |= !manifestFileStream || manifestFileStream.gcount() != static_cast<std::streamsize>(uiChunkTableBytes);
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	std::filesystem::path packFile = gpFileManager->mOutputDirectory;
@@ -148,6 +209,75 @@ bool RunExportJobs()
 				LOG(kDefault, kDebug, "Pack file \"{}\" is older than fingerprint \"{}\"", packFile.string(), rpExportJob->mCacheMetadataFile.string());
 				bDirty = true;
 				break;
+			}
+		}
+	}
+
+	if (!bDirty)
+	{
+		std::error_code packSizeError;
+		const uintmax_t uiPackFileSizeValue = std::filesystem::file_size(packFile, packSizeError);
+		if (packSizeError
+			|| uiPackFileSizeValue > std::numeric_limits<uint64_t>::max()
+			|| uiPackFileSizeValue > static_cast<uintmax_t>(std::numeric_limits<std::streamoff>::max()))
+		{
+			bDirty = true;
+		}
+		else
+		{
+			const uint64_t uiPackFileSize = static_cast<uint64_t>(uiPackFileSizeValue);
+			std::fstream packFileStream(packFile, std::ios::in | std::ios::binary);
+			if (!packFileStream)
+			{
+				bDirty = true;
+			}
+			else
+			{
+				static constexpr uint64_t kuiAlignmentBytes = static_cast<uint64_t>(common::kiAlignmentBytes);
+				uint64_t uiExpectedOffset = 0;
+				for (const common::ChunkLocation& rChunkLocation : manifestChunkLocations)
+				{
+					if (rChunkLocation.uiOffset != uiExpectedOffset
+						|| rChunkLocation.uiOffset % kuiAlignmentBytes != 0
+						|| rChunkLocation.uiOffset > uiPackFileSize
+						|| rChunkLocation.uiSize < static_cast<uint64_t>(common::kiChunkDataOffset)
+						|| rChunkLocation.uiSize > uiPackFileSize - rChunkLocation.uiOffset)
+					{
+						bDirty = true;
+						break;
+					}
+
+					common::ChunkHeader chunkHeader {};
+					packFileStream.seekg(static_cast<std::streamoff>(rChunkLocation.uiOffset), std::ios::beg);
+					if (!packFileStream)
+					{
+						bDirty = true;
+						break;
+					}
+					packFileStream.read(reinterpret_cast<char*>(&chunkHeader), sizeof(chunkHeader));
+					if (!packFileStream
+						|| packFileStream.gcount() != static_cast<std::streamsize>(sizeof(chunkHeader))
+						|| chunkHeader.iMagic != common::ChunkHeader::kiMagic
+						|| chunkHeader.crc != rChunkLocation.crc)
+					{
+						bDirty = true;
+						break;
+					}
+
+					const uint64_t uiChunkEnd = rChunkLocation.uiOffset + rChunkLocation.uiSize;
+					const uint64_t uiPadding = (kuiAlignmentBytes - (uiChunkEnd % kuiAlignmentBytes)) % kuiAlignmentBytes;
+					if (uiChunkEnd > std::numeric_limits<uint64_t>::max() - uiPadding)
+					{
+						bDirty = true;
+						break;
+					}
+					uiExpectedOffset = uiChunkEnd + uiPadding;
+				}
+
+				if (!bDirty && uiExpectedOffset != uiPackFileSize)
+				{
+					bDirty = true;
+				}
 			}
 		}
 	}
