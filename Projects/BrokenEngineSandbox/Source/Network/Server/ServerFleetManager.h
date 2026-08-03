@@ -63,9 +63,16 @@ public:
 	void OnClientDisconnected(const engine::ClientGuid& rClientGuid);
 	void OnResetForLoad(int64_t iClientId, const engine::ClientGuid& rClientGuid);
 
+	enum class FleetLookupFlags : uint8_t
+	{
+		kFound      = 1 << 0,
+		kIsFlagship = 1 << 1,
+	};
+	using FleetLookupFlags_t = common::Flags<FleetLookupFlags>;
+
 	struct FleetLookupResult
 	{
-		bool bIsFlagship = false;
+		FleetLookupFlags_t flags {};
 		engine::GridCoord fleetWantedCoord {};
 		uint8_t uiPendingFleetWantedCoordTicks = 0;
 	};

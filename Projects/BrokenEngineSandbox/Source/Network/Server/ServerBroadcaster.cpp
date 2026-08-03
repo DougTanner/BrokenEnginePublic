@@ -31,6 +31,23 @@ void ServerBroadcaster::BuildFrameInputs()
 	const bool bAdvancing = gpGame->mfLastDeltaTime > 0.0f;
 	if (bAdvancing)
 	{
+		std::erase_if(gpServerSession->mpClientManager->mClientsWaitingForSpawn, [&](const ClientSpawnInfo& rClientSpawnInformation)
+		{
+			if (!rClientSpawnInformation.fleetGuid.IsValid())
+			{
+				return false;
+			}
+
+			ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rClientSpawnInformation.clientGuid, rClientSpawnInformation.fleetGuid, rClientSpawnInformation.iMemberIndex);
+			if (result.flags & ServerFleetManager::FleetLookupFlags::kFound)
+			{
+				return false;
+			}
+
+			LOG(kNetwork, kWarning, "ServerBroadcaster::BuildFrameInputs Dropping queued spawn Client: {} FleetGuid: ({},{})", rClientSpawnInformation.iClientId, rClientSpawnInformation.fleetGuid.uiHigh, rClientSpawnInformation.fleetGuid.uiLow);
+			return true;
+		});
+
 		// Add spawn StatusChanges for clients waiting for initial spawn
 		for (const ClientSpawnInfo& rClientSpawnInformation : gpServerSession->mpClientManager->mClientsWaitingForSpawn)
 		{
@@ -42,7 +59,7 @@ void ServerBroadcaster::BuildFrameInputs()
 			if (rClientSpawnInformation.fleetGuid.IsValid())
 			{
 				ServerFleetManager::FleetLookupResult result = gpServerSession->mpFleetManager->LookupFleetWantedCoord(rClientSpawnInformation.clientGuid, rClientSpawnInformation.fleetGuid, rClientSpawnInformation.iMemberIndex);
-				bIsFlagship = result.bIsFlagship;
+				bIsFlagship = result.flags & ServerFleetManager::FleetLookupFlags::kIsFlagship;
 				spawnFleetWantedCoord = result.fleetWantedCoord;
 				uiSpawnPendingFleetTicks = result.uiPendingFleetWantedCoordTicks;
 			}
