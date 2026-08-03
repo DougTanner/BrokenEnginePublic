@@ -28,7 +28,6 @@ enum class MenuInputFlags : uint64_t
 	kMenuTweaks        = 0x00020000,
 	kToggleScreenshots = 0x00040000,
 	kConnectLocal      = 0x00080000,
-	kWeaponModeToggle  = 0x00100000,
 	kMenuDebugTexture  = 0x00200000,
 	kDebugTextureNext  = 0x00400000,
 	kDebugTexturePrev  = 0x00800000,

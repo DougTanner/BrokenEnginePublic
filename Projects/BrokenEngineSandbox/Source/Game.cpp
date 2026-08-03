@@ -649,31 +649,6 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	ProcessDebugInput(rMenuInput);
 
 #if defined(BT_CLIENT)
-	if (rMenuInput.flags & MenuInputFlags::kWeaponModeToggle)
-	{
-		if (gpClientSession != nullptr && !mWeaponModeToggle.IsPending() && ClientPlayerId().IsValid())
-		{
-			auto coordIt = mCoordFrames.find(mClientGridCoord);
-			if (coordIt != mCoordFrames.end() && coordIt->second.iSnapshotCount > 0)
-			{
-				int64_t iTailPhysical = engine::SnapshotIndex(coordIt->second.iSnapshotHead, coordIt->second.iSnapshotCount - 1);
-				const std::unique_ptr<Frame>& pTail = coordIt->second.snapshots[iTailPhysical];
-				if (pTail != nullptr)
-				{
-					std::optional<int64_t> oIdx = ClientPlayerIndex(*pTail->postRender.pPlayers);
-					if (oIdx)
-					{
-						const PlayersPostRender& rPlayers = *pTail->postRender.pPlayers;
-						bool bCurrentMissiles = static_cast<bool>(rPlayers.pFlags[*oIdx] & PlayerFlags::kUseMissiles);
-						float fCurrentNavDelay = rPlayers.pfNavigationDelays[*oIdx];
-						mWeaponModeToggle.SetPending();
-						gpClientSession->SendUpdatePlayerRequest(ClientPlayerId().iValue, !bCurrentMissiles, fCurrentNavDelay);
-					}
-				}
-			}
-		}
-	}
-
 	if constexpr (kbScreenshots)
 	{
 		// F9 toggles continuous dev capture: while on, queue a default one-shot request each frame (preserves the

@@ -36,7 +36,6 @@ void Input::UpdateMenuInput([[maybe_unused]] bool bLostFocus, [[maybe_unused]] M
 	// Menu
 	rMenuInput.flags.Set(kQuit, rRawInput.pKeyboardKeys[VK_MENU] && KeyboardPressed(VK_F4, rRawInput));
 	rMenuInput.flags.Set(kToggleFullscreen, KeyboardPressed(VK_F1, rRawInput));
-	rMenuInput.flags.Set(kWeaponModeToggle, KeyboardPressed('Q', rRawInput));
 	rMenuInput.flags.Set(kMouseIsDown, rRawInput.mouseButtons & engine::MouseButtons::kMouseButtonLeft);
 	rMenuInput.flags.Set(kMouseClick, MousePressed(engine::MouseButtons::kMouseButtonLeft, rRawInput));
 	rMenuInput.flags.Set(kGamepadButton, GamepadPressed(engine::GamepadButtons::kGamepadButtonA, rRawInput));

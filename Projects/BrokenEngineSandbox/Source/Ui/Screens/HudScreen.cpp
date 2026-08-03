@@ -430,7 +430,7 @@ void HudScreen::RenderFocusedPlayerPanel(float fTarget)
 		bool bUseMissiles = static_cast<bool>(rPlayers.pFlags[*oPlayerIndex] & PlayerFlags::kUseMissiles);
 		gpGame->mWeaponModeToggle.Update(bUseMissiles);
 
-		const char* pLabel = bUseMissiles ? "[Q] Missiles" : "[Q] Blasters";
+		const char* pLabel = bUseMissiles ? "Missiles" : "Blasters";
 		const ImGuiStyle& rStyle = ImGui::GetStyle();
 		const ImVec2 vLabelSize = ImGui::CalcTextSize(pLabel);
 		const ImVec2 vButtonSize(vLabelSize.x + 2.0f * rStyle.FramePadding.x, vLabelSize.y + 2.0f * rStyle.FramePadding.y);
