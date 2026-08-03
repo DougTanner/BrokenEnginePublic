@@ -127,6 +127,36 @@ only when one of those scripts changes; substitute the provisioned `WorktreeCli`
 path resolved by `Get-NextPlanContext` during Preconditions and selection for
 `<worktree-cli-path>` and never pass the placeholder literally.
 
+## Tooling friction follow-ups
+
+At the end of the run, whichever way it ends, main reviews the whole run for
+tooling friction: a bundled script errored, returned a malformed or
+contradictory result, or could not be run as documented; a workaround or
+deviation was needed; or work was repeated because a skill's instructions were
+unclear, wrong, or contradicted repository state. Ordinary review findings about
+the change, user-driven iteration, and documented normal stops such as
+`none-available` are not friction, and neither is a failure in a skill or script
+the claimed Plan itself changes — that is a blocker of the active change. The
+review covers friction observed at any point, including a stop before or
+without a claim, and the claim-exit scripts
+above are themselves in scope: review once before running them and again after
+they run, before `/finalize-changes`.
+
+For each distinct issue, an `implementer` routes it through
+`/create-follow-up-plans` as a tooling-friction proposal, supplying the observed
+symptom with its citation plus the provenance block: client (the session-branch
+`claude`/`codex` prefix), session UUID, session branch, and a profile-relative
+worktree locator with the user-profile prefix stripped. Take those values from
+the `Get-NextPlanContext` result already resolved in Preconditions and
+selection, or from `git branch --show-current` and `git rev-parse --show-toplevel`.
+Never record a transcript file path or transcript text; reference the session by
+client and id only.
+
+On completion or rejection, the friction Plan file joins the landing commit
+alongside the `changedPaths` the claim-exit script reported. On deferral, or when
+the run ends without a claim, the friction Plan is itself the landed content and
+the landing gate applies to it.
+
 ## Preparation handoff
 
 ```text
@@ -134,6 +164,7 @@ Claim: <Plan path or none; resolved state when claimed>
 Classification: Tier 1 | Tier 2 | Tier 3 and trigger
 Approval pause: skipped (proven Tier-1) | required
 Residuals: <blocker or none>
+Friction follow-ups: <Plan path(s) or none>
 
 Execution card:
 ### What does this plan do?
