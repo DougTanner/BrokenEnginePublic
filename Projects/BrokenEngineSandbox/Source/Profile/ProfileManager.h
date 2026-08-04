@@ -103,6 +103,10 @@ public:
 
 private:
 
+#if defined(BT_SERVER)
+	void OnRawCpuTimersLatched(int64_t iSampleTick) override;
+#endif // BT_SERVER
+
 	// Names live in the kGameCpu*Names tables above (static_assert-guarded); these arrays carry only per-row runtime state.
 	engine::CpuCounter mGameCpuCounters[static_cast<int64_t>(kGameCpuCounterCount) - static_cast<int64_t>(engine::kEngineCpuCounterCount)];
 

@@ -48,6 +48,40 @@ struct CpuTimer
 	common::Flags<ProfileRowFlags> flags {};
 };
 
+#if defined(BT_SERVER)
+struct RawCpuTimerRecord
+{
+	uint64_t uiSampleSequence = 0;
+	int64_t iSampleUs = 0;
+	int64_t iInvocationCount = 0;
+	int64_t iAuxiliaryCount = 0;
+};
+
+enum class RawCpuTimerEventFlags : uint8_t
+{
+	kAvailable = 1 << 0,
+	kOverrun = 1 << 1,
+};
+
+enum class RawCpuTimerStateFlags : uint8_t
+{
+	kRegistered = 1 << 0,
+	kEventRegistered = 1 << 1,
+	kEventArmed = 1 << 2,
+};
+
+struct RawCpuTimerEventRecord
+{
+	uint64_t uiEventSequence = 0;
+	uint64_t uiSampleSequence = 0;
+	int64_t iSampleTick = 0;
+	int64_t iSampleUs = 0;
+	int64_t iInvocationCount = 0;
+	int64_t iAuxiliaryCount = 0;
+	common::Flags<RawCpuTimerEventFlags> flags {};
+};
+#endif // BT_SERVER
+
 enum EngineCpuCounters : int64_t
 {
 	kCpuCounterBillboards,
@@ -316,6 +350,25 @@ public:
 	void CpuStart(int64_t iCpuTimer, int64_t iThreads = 1);
 	void CpuStop(int64_t iCpuTimer, CpuStopFlags_t flags = {});
 
+#if defined(BT_SERVER)
+	void RegisterRawCpuTimer(int64_t iCpuTimer);
+	void RegisterRawCpuTimerEvent(int64_t iCpuTimer);
+	void AddRawCpuTimerAuxiliaryCount(int64_t iCpuTimer, int64_t iCount);
+	void LatchRawCpuTimer(int64_t iCpuTimer, bool bAccept);
+	void LatchRawCpuTimers(bool bAccept, int64_t iSampleTick);
+	// The caller must hold mCpuTimerMutex.
+	RawCpuTimerRecord GetRawCpuTimer(int64_t iCpuTimer) const;
+	bool ArmRawCpuTimerEvent(int64_t iCpuTimer, int64_t iMinimumSampleTick);
+	// The caller must hold mCpuTimerMutex. Used by the same-thread command transaction and the latch hook.
+	bool ArmRawCpuTimerEventLocked(int64_t iCpuTimer, int64_t iMinimumSampleTick);
+	// The caller must hold mCpuTimerMutex. Publication is performed by the derived latch hook.
+	bool PublishRawCpuTimerEvent(int64_t iCpuTimer, int64_t iSampleTick);
+	// The caller must hold mCpuTimerMutex.
+	RawCpuTimerEventRecord GetRawCpuTimerEvent(int64_t iCpuTimer) const;
+	// The caller must hold mCpuTimerMutex.
+	bool AcknowledgeRawCpuTimerEvent(int64_t iCpuTimer, uint64_t uiEventSequence);
+#endif // BT_SERVER
+
 	void SetCount(int64_t iCounter, int64_t iCount);
 
 #if defined(BT_CLIENT)
@@ -399,6 +452,24 @@ protected:
 	std::unordered_map<std::thread::id, std::vector<CpuTimerThreadState>> mPerThreadTimerStates;
 
 	common::Smoothed<int64_t> mSmoothedAllocations;
+
+#if defined(BT_SERVER)
+	// Called while mCpuTimerMutex is held, after accepted raw records have been copied.
+	virtual void OnRawCpuTimersLatched(int64_t) {}
+
+	struct RawCpuTimerState
+	{
+		int64_t iTotalTimeNs = 0;
+		int64_t iInvocationCount = 0;
+		std::atomic<int64_t> iAuxiliaryCount {};
+		RawCpuTimerRecord record {};
+		common::Flags<RawCpuTimerStateFlags> flags {};
+		RawCpuTimerEventRecord eventRecord {};
+		int64_t iMinimumSampleTick = 0;
+	};
+
+	std::unique_ptr<RawCpuTimerState[]> mpRawCpuTimers;
+#endif // BT_SERVER
 
 #if defined(BT_CLIENT)
 	VkQueryPool mVkQueryPool = VK_NULL_HANDLE;

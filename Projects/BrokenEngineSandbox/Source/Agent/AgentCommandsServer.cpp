@@ -347,11 +347,48 @@ void CommandReplayInjectPersistenceFailure([[maybe_unused]] const nlohmann::json
 	}
 }
 
-void CommandQueryProfile([[maybe_unused]] const nlohmann::json& rParams, nlohmann::json& rResult)
+void CommandQueryProfile(const nlohmann::json& rParams, nlohmann::json& rResult)
 {
+	if (!rParams.is_object())
+	{
+		throw std::runtime_error("query_profile params must be an object");
+	}
+
+	bool bAcknowledgementRequested = false;
+	uint64_t uiAcknowledgementSequence = 0;
+	for (const auto& [rKey, rValue] : rParams.items())
+	{
+		if (rKey != "ackActivationEventSequence")
+		{
+			throw std::runtime_error("query_profile unknown parameter '" + rKey + "'");
+		}
+		if (!rValue.is_number_unsigned() || rValue.get<uint64_t>() == 0)
+		{
+			throw std::runtime_error("'ackActivationEventSequence' must be a nonzero unsigned integer");
+		}
+		bAcknowledgementRequested = true;
+		uiAcknowledgementSequence = rValue.get<uint64_t>();
+	}
+	if constexpr (!kbProfiling)
+	{
+		if (bAcknowledgementRequested)
+		{
+			throw std::runtime_error("ackActivationEventSequence requires a profiling server");
+		}
+	}
+
 	nlohmann::json timers = nlohmann::json::array();
 	{
 		std::lock_guard lock(gpProfileManager->mCpuTimerMutex);
+		bool bActivationEventAcknowledged = false;
+		if constexpr (kbProfiling)
+		{
+			if (bAcknowledgementRequested)
+			{
+				bActivationEventAcknowledged = gpProfileManager->AcknowledgeRawCpuTimerEvent(game::kCpuTimerPostRenderUpdateNavQuery, uiAcknowledgementSequence);
+			}
+		}
+
 		for (int64_t i = 0; i < gpProfileManager->GetCpuTimerCount(); ++i)
 		{
 			engine::CpuTimer& rTimer = gpProfileManager->GetCpuTimer(i);
@@ -363,6 +400,36 @@ void CommandQueryProfile([[maybe_unused]] const nlohmann::json& rParams, nlohman
 			timer["maxUs"] = rTimer.smoothedMicroseconds.Max();
 			timer["allocations"] = rTimer.smoothedAllocations.Current();
 			timer["threads"] = rTimer.iThreads;
+			if constexpr (kbProfiling)
+			{
+				if (i == game::kCpuTimerPostRenderUpdateNavQuery)
+				{
+					engine::RawCpuTimerRecord rawRecord = gpProfileManager->GetRawCpuTimer(i);
+					timer["sampleSequence"] = rawRecord.uiSampleSequence;
+					timer["sampleUs"] = rawRecord.iSampleUs;
+					timer["queryCount"] = rawRecord.iInvocationCount;
+					timer["aStarCount"] = rawRecord.iAuxiliaryCount;
+
+					engine::RawCpuTimerEventRecord eventRecord = gpProfileManager->GetRawCpuTimerEvent(i);
+					const bool bEventAvailable = eventRecord.flags & engine::RawCpuTimerEventFlags::kAvailable;
+					const bool bEventOverrun = eventRecord.flags & engine::RawCpuTimerEventFlags::kOverrun;
+					timer["activationEvent"] = {
+						{"available", bEventAvailable},
+						{"eventSequence", eventRecord.uiEventSequence},
+						{"sampleSequence", eventRecord.uiSampleSequence},
+						{"sampleTick", eventRecord.iSampleTick},
+						{"sampleUs", eventRecord.iSampleUs},
+						{"queryCount", eventRecord.iInvocationCount},
+						{"aStarCount", eventRecord.iAuxiliaryCount},
+						{"qualifying", bEventAvailable && eventRecord.iInvocationCount == 8 && eventRecord.iAuxiliaryCount == 8},
+						{"overrun", bEventOverrun},
+					};
+					if (bAcknowledgementRequested)
+					{
+						timer["activationEventAcknowledged"] = bActivationEventAcknowledged;
+					}
+				}
+			}
 			timers.push_back(std::move(timer));
 		}
 	}
@@ -641,6 +708,44 @@ bool ClientsWaitingForSpawn()
 
 void CommandInjectStatusChanges(const nlohmann::json& rParams, nlohmann::json& rResult)
 {
+	if (!rParams.is_object())
+	{
+		throw std::runtime_error("inject_status_changes params must be an object");
+	}
+	for (const auto& [rKey, rValue] : rParams.items())
+	{
+		if (rKey != "changes" && rKey != "navQueryActivation")
+		{
+			throw std::runtime_error("inject_status_changes unknown parameter '" + rKey + "'");
+		}
+	}
+	if (!rParams.contains("changes") || !rParams.at("changes").is_array())
+	{
+		throw std::runtime_error("inject_status_changes requires array 'changes'");
+	}
+
+	bool bArmNavQuery = false;
+	if (rParams.contains("navQueryActivation"))
+	{
+		const nlohmann::json& rActivation = rParams.at("navQueryActivation");
+		if (!rActivation.is_object())
+		{
+			throw std::runtime_error("'navQueryActivation' must be an object");
+		}
+		for (const auto& [rKey, rValue] : rActivation.items())
+		{
+			if (rKey != "arm")
+			{
+				throw std::runtime_error("navQueryActivation unknown parameter '" + rKey + "'");
+			}
+		}
+		if (!rActivation.contains("arm") || !rActivation.at("arm").is_boolean() || !rActivation.at("arm").get<bool>())
+		{
+			throw std::runtime_error("navQueryActivation requires boolean 'arm': true");
+		}
+		bArmNavQuery = true;
+	}
+
 	// Replay playback resimulates from the recorded stream: SyncReplayTick's LoadDifference overwrites mFrameInputs,
 	// so an injection would be silently lost (or broadcast-but-not-simulated → desync). Reject rather than mislead.
 	if (gpGame->mGameSaveLoad.IsReplaying())
@@ -651,9 +756,26 @@ void CommandInjectStatusChanges(const nlohmann::json& rParams, nlohmann::json& r
 	{
 		throw std::runtime_error("cannot inject while clients are waiting for spawn");
 	}
-	if (!rParams.contains("changes") || !rParams.at("changes").is_array())
+	if (bArmNavQuery)
 	{
-		throw std::runtime_error("inject_status_changes requires array 'changes'");
+		if constexpr (!kbProfiling)
+		{
+			throw std::runtime_error("navQueryActivation requires a profiling server");
+		}
+		else if ((gpGame->mGameFlags & engine::GameFlags::kPaused) ||
+			(gpGame->mGameFlags & engine::GameFlags::kSaveReplay) ||
+			(gpGame->mGameFlags & engine::GameFlags::kLoadReplay))
+		{
+			throw std::runtime_error("navQueryActivation requires an unpaused normal server state");
+		}
+		else if (gpGame->mTimeStep.miTimeMultiply != 1 || gpGame->mTimeStep.miTimeDivide != 1)
+		{
+			throw std::runtime_error("navQueryActivation requires timescale 1/1");
+		}
+		else if (gpGame->mGameSaveLoad.IsRecording() || gpGame->mGameSaveLoad.IsReplaying())
+		{
+			throw std::runtime_error("navQueryActivation requires recording and replay to be inactive");
+		}
 	}
 	const nlohmann::json& rChanges = rParams.at("changes");
 
@@ -665,14 +787,60 @@ void CommandInjectStatusChanges(const nlohmann::json& rParams, nlohmann::json& r
 	{
 		built.push_back(BuildInjectedChange(rChange, globalIds));
 	}
-	for (const auto& [rCoord, rChange] : built)
-	{
-		gpServerSession->mpBroadcaster->QueueAgentStatusChange(rCoord, rChange);
-	}
 
-	rResult["injected"] = std::ssize(built);
-	rResult["globalIds"] = std::move(globalIds);
-	rResult["deferred"] = static_cast<bool>(gpGame->mGameFlags & engine::GameFlags::kPaused);
+	int64_t iQueuedAtTick = 0;
+	int64_t iMinimumSampleTick = 0;
+	if (bArmNavQuery)
+	{
+		if constexpr (kbProfiling)
+		{
+			// Prepare a complete queue copy before touching the profiler state. A failed allocation leaves both the
+			// existing queue and the event arm unchanged.
+			std::unordered_map<engine::GridCoord, std::vector<StatusChange>> preparedPendingAgentStatusChanges = gpServerSession->mpBroadcaster->mPendingAgentStatusChanges;
+			for (const auto& [rCoord, rChange] : built)
+			{
+				preparedPendingAgentStatusChanges.try_emplace(rCoord).first->second.push_back(rChange);
+			}
+
+			// Prepare every response field that could allocate before arming. The command failure path must not report an
+			// error after committing the event and queue transaction.
+			rResult["injected"] = std::ssize(built);
+			rResult["globalIds"] = std::move(globalIds);
+			rResult["deferred"] = static_cast<bool>(gpGame->mGameFlags & engine::GameFlags::kPaused);
+
+			// Drain is the main-thread serialization point. Keep the event arm and queue commit in one critical section
+			// so another tick cannot move the floor or observe a partially committed transaction.
+			std::lock_guard lock(gpProfileManager->mCpuTimerMutex);
+			iQueuedAtTick = gpGame->TickCounter();
+			constexpr int64_t kiMinimumSampleTickOffset = engine::kiTickRate + 1;
+			if (iQueuedAtTick > std::numeric_limits<int64_t>::max() - kiMinimumSampleTickOffset)
+			{
+				throw std::runtime_error("navQueryActivation tick range exhausted");
+			}
+			iMinimumSampleTick = iQueuedAtTick + kiMinimumSampleTickOffset;
+			rResult["navQueryActivation"] = {
+				{"armed", true},
+				{"queuedAtTick", iQueuedAtTick},
+				{"minimumSampleTick", iMinimumSampleTick},
+			};
+			if (!gpProfileManager->ArmRawCpuTimerEventLocked(game::kCpuTimerPostRenderUpdateNavQuery, iMinimumSampleTick))
+			{
+				throw std::runtime_error("navQueryActivation event is occupied or overrun");
+			}
+			static_assert(noexcept(preparedPendingAgentStatusChanges.swap(gpServerSession->mpBroadcaster->mPendingAgentStatusChanges)));
+			preparedPendingAgentStatusChanges.swap(gpServerSession->mpBroadcaster->mPendingAgentStatusChanges);
+		}
+	}
+	else
+	{
+		for (const auto& [rCoord, rChange] : built)
+		{
+			gpServerSession->mpBroadcaster->QueueAgentStatusChange(rCoord, rChange);
+		}
+		rResult["injected"] = std::ssize(built);
+		rResult["globalIds"] = std::move(globalIds);
+		rResult["deferred"] = static_cast<bool>(gpGame->mGameFlags & engine::GameFlags::kPaused);
+	}
 }
 
 void CommandSpawnPlayers(const nlohmann::json& rParams, nlohmann::json& rResult)

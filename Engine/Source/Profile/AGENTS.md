@@ -13,6 +13,8 @@ Engine CPU/GPU profiling, boot timing, overlays, and profile dumps. `ProfileMana
 - Per-thread timer state is mutex-protected; worker threads may contribute, and text formatting takes the same lock. Cross-thread scopes require the explicit cross-thread mode.
 - Allocation counts are process-wide samples over a timer's wall-clock window, not thread-local counts.
 - Normal CPU timers latch into smoothing rings once per render frame. Timers that complete outside that cadence request latch-at-stop.
+- Server raw timer samples are diagnostic-only and latch after all active-cell workers join, but only an accepted normal one-tick update at timescale 1/1 advances the sample. Paused, burst, recording/replay, and no-dispatch paths discard pending raw values and cancel an unpublished event arm, so those updates never publish a sample.
+- A raw activation notification is a one-slot retained event: publication never overwrites an available payload, an overrun remains visible, and only an acknowledgement of the exact event sequence clears the slot. Keep this handshake outside deterministic frame state.
 
 ## GPU Timing
 

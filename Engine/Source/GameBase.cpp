@@ -144,6 +144,17 @@ void GameBase::ServerUpdate()
 	game::gpServerSession->mpRuntime->WaitForTick(mTimeStep);
 
 	int64_t iFullTicks = mTimeStep.TickRealtime();
+	bool bAcceptRawCpuTimers = false;
+	if constexpr (kbProfiling)
+	{
+		bAcceptRawCpuTimers = iFullTicks == 1 &&
+			mTimeStep.miTimeMultiply == 1 &&
+			mTimeStep.miTimeDivide == 1 &&
+			!(mGameFlags & GameFlags::kPaused) &&
+			!game::gpGame->mGameSaveLoad.IsRecording() &&
+			!game::gpGame->mGameSaveLoad.IsReplaying() &&
+			!(mGameFlags & GameFlags::kSaveReplay);
+	}
 	game::gpServerSession->BroadcastTimespeedIfChanged();
 	if (mGameFlags & GameFlags::kPaused) [[unlikely]]
 	{
@@ -168,6 +179,7 @@ void GameBase::ServerUpdate()
 
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	int64_t iFinalizedTicks = 0;
+	bool bRawCpuTimersNoDispatchLatched = false;
 	for (int64_t i = 0; i < iFullTicks; ++i)
 	{
 		const int64_t iPreviousTickCounter = miTickCounter;
@@ -183,6 +195,11 @@ void GameBase::ServerUpdate()
 		{
 			if (!game::gpGame->mGameSaveLoad.SyncReplayTick())
 			{
+				if constexpr (kbProfiling)
+				{
+					gpProfileManager->LatchRawCpuTimers(false, miTickCounter);
+					bRawCpuTimersNoDispatchLatched = true;
+				}
 				// The final replay reader retired before dispatch. Reload now so server display/network observers never
 				// see an empty grid between updates, but start simulating the new loop on the next update.
 				game::gpGame->mGameSaveLoad.SaveLoadReplay();
@@ -203,6 +220,12 @@ void GameBase::ServerUpdate()
 		}
 
 		BuildAndDispatchFrameTicks(rActiveCoords);
+#if defined(BT_SERVER)
+		if constexpr (kbProfiling)
+		{
+			gpProfileManager->LatchRawCpuTimers(bAcceptRawCpuTimers, miTickCounter);
+		}
+#endif // BT_SERVER
 		FinalizeFrameTick();
 		++iFinalizedTicks;
 		if (mGameFlags & GameFlags::kPaused) [[unlikely]]
@@ -211,6 +234,13 @@ void GameBase::ServerUpdate()
 			iFullTicks = iFinalizedTicks;
 			mfLastDeltaTime = static_cast<float>(iFinalizedTicks) * game::kfDeltaTime;
 			break;
+		}
+	}
+	if (iFullTicks == 0 && !bRawCpuTimersNoDispatchLatched)
+	{
+		if constexpr (kbProfiling)
+		{
+			gpProfileManager->LatchRawCpuTimers(false, miTickCounter);
 		}
 	}
 	if (iUnusedTicks > 0 && !(mGameFlags & GameFlags::kPaused))

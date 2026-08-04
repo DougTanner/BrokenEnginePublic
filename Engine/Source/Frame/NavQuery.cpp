@@ -613,8 +613,22 @@ XMVECTOR XM_CALLCONV NavQuerySnapToNavigable(FXMVECTOR vecPosition, const NavDat
 	return XMVectorSet(f2BestPoint.x, f2BestPoint.y, fBaseHeight, 1.0f);
 }
 
-XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDestination, const NavData& rNavData, XMVECTOR* pOutNextWaypoint)
+XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDestination, const NavData& rNavData, XMVECTOR* pOutNextWaypoint
+#if defined(BT_SERVER)
+	, bool* pOutEnteredAStar
+#endif // BT_SERVER
+)
 {
+#if defined(BT_SERVER)
+	if constexpr (kbProfiling)
+	{
+		if (pOutEnteredAStar != nullptr)
+		{
+			*pOutEnteredAStar = false;
+		}
+	}
+#endif // BT_SERVER
+
 	float fBaseHeight = gBaseHeight.Get();
 	ASSERT(XMVectorGetZ(vecPosition) == fBaseHeight);
 	ASSERT(XMVectorGetZ(vecDestination) == fBaseHeight);
@@ -694,6 +708,15 @@ XMVECTOR XM_CALLCONV NavQueryDirection(FXMVECTOR vecPosition, FXMVECTOR vecDesti
 	else
 	{
 		// A* pathfinding on visibility graph
+#if defined(BT_SERVER)
+		if constexpr (kbProfiling)
+		{
+			if (pOutEnteredAStar != nullptr)
+			{
+				*pOutEnteredAStar = true;
+			}
+		}
+#endif // BT_SERVER
 		vecResult = AStarPath(f2Position, f2Destination, pVertices, rNavData, aStarMemory, fBaseHeight, pOutNextWaypoint);
 
 		// Fallback: if A* found no path, slide along the nearest obstacle boundary. The visibility graph

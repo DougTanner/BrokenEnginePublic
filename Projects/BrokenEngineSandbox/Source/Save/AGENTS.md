@@ -10,6 +10,7 @@
 - Deserialization is a trust boundary. Validate version headers, counts, capacities, IDs, and stream completion before applying the loaded state.
 - A failed or truncated read clears partial frame/fleet state so callers can rebuild a fresh game. Apply counters and clocks only after full validation.
 - Successful loads preserve the saved simulation clock and resynchronize clients to that state. Fresh-game paths reset server fleet management explicitly.
+- Server load/reset and replay-load entry cancel pending raw profile samples and unpublished event arms before mutating or restoring frame state; this diagnostic cleanup does not alter the persisted payload or replay stream.
 
 ## Replay
 

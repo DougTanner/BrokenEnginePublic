@@ -435,6 +435,7 @@ bool GameSaveLoad::ServerLoad()
 bool GameSaveLoad::ServerLoad(const std::filesystem::path& rFilename)
 {
 	ScopedSuppressAllocationTracking suppress;
+	gpProfileManager->LatchRawCpuTimers(false, mrGameBase.TickCounter());
 
 	engine::GridCoord loadedClientGridCoord {};
 	if (!ReadGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, rFilename, loadedClientGridCoord))
@@ -458,6 +459,7 @@ bool GameSaveLoad::ServerLoad(const std::filesystem::path& rFilename)
 void GameSaveLoad::ServerReset()
 {
 	ScopedSuppressAllocationTracking suppress;
+	gpProfileManager->LatchRawCpuTimers(false, mrGameBase.TickCounter());
 
 	game::gpGame->CreateNewFrame(game::GameFlags::kGame);
 	mrGameBase.SetNextGlobalId(1);
@@ -512,6 +514,7 @@ void GameSaveLoad::SaveLoadReplay()
 		{
 			// Heap: DifferenceStream reader + Frame deserialization + ReplayMeta file I/O
 			ScopedSuppressAllocationTracking suppress;
+			gpProfileManager->LatchRawCpuTimers(false, mrGameBase.TickCounter());
 
 			mrGameBase.mGameFlags.Clear(engine::GameFlags::kLoadReplay);
 			game::gpServerSession->mpTransferManager->mReplayTransferFixtures.clear();

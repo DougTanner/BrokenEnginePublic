@@ -315,10 +315,23 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 		{
 			XMVECTOR vecDebugWaypoint = XMVectorZero();
 			XMVECTOR vecNavDirection = XMVectorZero();
+#if defined(BT_SERVER)
+			bool bEnteredAStar = false;
+#endif // BT_SERVER
 			{
 				engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdateNavQuery);
+#if defined(BT_SERVER)
+				vecNavDirection = engine::NavQueryDirection(vecPosition, rVecIslandDestination, rStaticData.navData, &vecDebugWaypoint, &bEnteredAStar);
+#else
 				vecNavDirection = engine::NavQueryDirection(vecPosition, rVecIslandDestination, rStaticData.navData, &vecDebugWaypoint);
+#endif // BT_SERVER
 			}
+#if defined(BT_SERVER)
+			if constexpr (kbProfiling)
+			{
+				gpProfileManager->AddRawCpuTimerAuxiliaryCount(game::kCpuTimerPostRenderUpdateNavQuery, static_cast<int64_t>(bEnteredAStar));
+			}
+#endif // BT_SERVER
 			if (XMVectorGetX(XMVector3LengthSq(vecNavDirection)) > 0.001f)
 			{
 				rVecAiDirection = vecNavDirection;
@@ -371,10 +384,23 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 		{
 			XMVECTOR vecDebugWaypoint = XMVectorZero();
 			XMVECTOR vecNavDirection = XMVectorZero();
+#if defined(BT_SERVER)
+			bool bEnteredAStar = false;
+#endif // BT_SERVER
 			{
 				engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdateNavQuery);
+#if defined(BT_SERVER)
+				vecNavDirection = engine::NavQueryDirection(vecPosition, rVecIslandDestination, rStaticData.navData, &vecDebugWaypoint, &bEnteredAStar);
+#else
 				vecNavDirection = engine::NavQueryDirection(vecPosition, rVecIslandDestination, rStaticData.navData, &vecDebugWaypoint);
+#endif // BT_SERVER
 			}
+#if defined(BT_SERVER)
+			if constexpr (kbProfiling)
+			{
+				gpProfileManager->AddRawCpuTimerAuxiliaryCount(game::kCpuTimerPostRenderUpdateNavQuery, static_cast<int64_t>(bEnteredAStar));
+			}
+#endif // BT_SERVER
 			if (XMVectorGetX(XMVector3LengthSq(vecNavDirection)) > 0.001f)
 			{
 				rVecAiDirection = vecNavDirection;
@@ -429,10 +455,23 @@ void XM_CALLCONV PlayersPostRender::ComputeNavigation([[maybe_unused]] Frame& __
 		{
 			XMVECTOR vecDebugWaypoint = XMVectorZero();
 			XMVECTOR vecNavDirection = XMVectorZero();
+#if defined(BT_SERVER)
+			bool bEnteredAStar = false;
+#endif // BT_SERVER
 			{
 				engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdateNavQuery);
+#if defined(BT_SERVER)
+				vecNavDirection = engine::NavQueryDirection(vecPosition, vecDestination, rStaticData.navData, kbDebugRender ? &vecDebugWaypoint : nullptr, &bEnteredAStar);
+#else
 				vecNavDirection = engine::NavQueryDirection(vecPosition, vecDestination, rStaticData.navData, kbDebugRender ? &vecDebugWaypoint : nullptr);
+#endif // BT_SERVER
 			}
+#if defined(BT_SERVER)
+			if constexpr (kbProfiling)
+			{
+				gpProfileManager->AddRawCpuTimerAuxiliaryCount(game::kCpuTimerPostRenderUpdateNavQuery, static_cast<int64_t>(bEnteredAStar));
+			}
+#endif // BT_SERVER
 			float fNavLengthSquared = XMVectorGetX(XMVector3LengthSq(vecNavDirection));
 			if (fNavLengthSquared > 0.001f)
 			{
