@@ -5,7 +5,7 @@ Water renders a visible-area ocean grid. A compute prepass bakes Gerstner displa
 ## Geometry and Shore Contracts
 
 - Active LOD grid dimensions must match both displacement textures. Water-mesh recreation recreates the grid and textures together.
-- Terrain amplitude fade applies only to the low-frequency Gerstner band. The shore Z taper applies to both low and medium bands; over-land vertices remain flat and fragments discard above the configured terrain threshold.
+- Shoaling and breaking weight the low-frequency Gerstner band by `fBreak` and the medium-frequency band by the normalized transition pulse `4 * fBreak * (1 - fBreak)`: the medium band is zero at deep water and the shoreline, peaking at one halfway through the breaker transition. The shore Z taper applies to both bands; over-land vertices remain flat and fragments discard above the configured terrain threshold.
 - Compute accumulates tangent and bitangent derivatives and uses their cross product for the wave normal. Do not replace that full cross-product form with the simplified first-order normal: as a band's summed steepness x frequency x amplitude approaches 1 — the point where Gerstner waves start folding over on themselves — the simplified normal drifts away from the true one and eventually tilts the wrong way, while the cross product stays correct.
 - The flat-normal dampener is applied once, in the compute prepass, where the baked wave normal is blended toward straight up. Tune it at that source; do not add a second fade in the vertex or fragment stage.
 
@@ -18,6 +18,7 @@ Water renders a visible-area ocean grid. A compute prepass bakes Gerstner displa
 ## Lighting Contracts
 
 - Analytic specular antialiasing is selected by `WATER_SPEC_AA_MODE`. How it passes the per-mip variance from one stage to the next is selected by `WATER_SPEC_AA_MIP_HANDOFF`, which consumes DataPacker's BC5 per-mip variance tables. Changes to either switch require shader repacking; keep analytic LOD and water-normal sampler bias aligned.
+- Shoreline skybox-lobe reductions are applied once before every specular antialiasing branch: zero preserves a lobe, one removes it at the shoreline, and deep water remains unchanged.
 - Lighting and smoke sample at a base-height projection derived from the undisplaced world position, keeping them stable under wave animation.
 - Sun-driven energy and skybox sun/moon specular use full effective shadow. Sky ambient uses the separately controlled ambient-shadow mix; EWNS (defined in the shader hub) and ambient emitter deposits remain unshadowed.
 - Terrain ray-march shadow attenuates the sun component but not moon light. Object shadow and smoke attenuation apply to both.

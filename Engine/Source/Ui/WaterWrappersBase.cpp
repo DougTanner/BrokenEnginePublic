@@ -88,8 +88,6 @@ Wrapper gWaterLowAngleAdjust(0.2f, 0.0f, 0.5f);
 Wrapper gWaterLowWavelengthAdjust(-0.75f, -2.0f, 0.0f);
 Wrapper gWaterLowAmplitudeAdjust(1.0f, 0.0f, 4.0f);
 Wrapper gWaterLowSpeedAdjust(0.288f, 0.0f, 4.0f);
-Wrapper gWaterBeachFadeTop(-0.06f, -0.1f, 0.0f);
-Wrapper gWaterBeachFadeBottom(-0.14f, -0.2f, -0.07f);
 // Camera-height fade for low-frequency wave amplitudes. At camera eye height ≤ Start, multiplier = 1.0 (full waves). At ≥ End, multiplier = 0.0 (no low waves). Linear in between. Defaults preserve the previous hardcoded 1× → 2× default-eye-height ramp.
 Wrapper gWaterLowAmplitudeFadeStart(300.0f, 0.0f, 1000.0f);
 Wrapper gWaterLowAmplitudeFadeEnd(700.0f, 0.0f, 1000.0f);
@@ -97,7 +95,7 @@ Wrapper gWaterLowAmplitudeFadeEnd(700.0f, 0.0f, 1000.0f);
 // Medium frequency waves
 Wrapper gWaterMediumCount(int64_t {255}, std::vector<int64_t> {15, 31, 63, 127, 255});
 Wrapper gWaterMediumWavelength(2.0f, 0.01f, 10.0f);
-Wrapper gWaterMediumAmplitude(0.0f, 0.0f, 0.01f); // 0.002f when active
+Wrapper gWaterMediumAmplitude(0.002f, 0.0f, 0.01f);
 Wrapper gWaterMediumSpeed(0.1f, 0.001f, 0.5f);
 Wrapper gWaterMediumSteepness(2.0f, 0.0f, 10.0f);
 Wrapper gWaterMediumAngleAdjust(5.5f, 0.0f, 20.0f);
@@ -131,5 +129,13 @@ Wrapper gWaterColorNoiseWeightOne(-1.5f, -2.0f, 2.0f);
 Wrapper gWaterColorNoiseMultiplierOne(0.2f, 0.0f, 1.0f, 0.1f);
 Wrapper gWaterColorNoiseWeightTwo(0.5f, -2.0f, 2.0f);
 Wrapper gWaterColorNoiseMultiplierTwo(1.0f, 0.0f, 4.0f, 0.1f);
+
+// Beach
+Wrapper gWaterShoalMax(1.6f, 1.0f, 2.0f);
+Wrapper gWaterShoalDepthRef(4.0f, 0.2f, 10.0f);
+Wrapper gWaterBreakDepth(2.0f, 0.1f, 10.0f);
+Wrapper gLightingWaterSkyboxOneBeachReduction(0.0f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxTwoBeachReduction(0.0f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxThreeBeachReduction(0.0f, 0.0f, 1.0f);
 
 } // namespace engine

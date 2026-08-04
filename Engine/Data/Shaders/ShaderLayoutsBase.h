@@ -472,8 +472,9 @@ struct GlobalLayout
 	float fWaterColorNoiseMultiplierOne INIT;
 	float fWaterColorNoiseMultiplierTwo INIT;
 	float fWaterDirectional INIT;
-	float fBeachFadeTop INIT;
-	float fBeachFadeInvRange INIT;
+	float fWaterShoalMax INIT;
+	float fWaterShoalDepthRefInv INIT; // 1 / gWaterShoalDepthRef, CPU-folded for WaterDisplacement.comp
+	float fWaterBreakDepthInv INIT; // 1 / gWaterBreakDepth, CPU-folded for WaterDisplacement.comp
 	float fWaterLowSteepness INIT;
 	float fWaterMediumSteepness INIT;
 	float fWaterWaveNormalBlend INIT;
@@ -578,6 +579,9 @@ struct MainLayout
 	float fLightingWaterSkyboxTwoPower INIT;
 	float fLightingWaterSkyboxThree INIT;
 	float fLightingWaterSkyboxThreePower INIT;
+	float fLightingWaterSkyboxOneBeachReduction INIT; // 0 = identity, 1 = remove at the shoreline (WaterSpecular.h)
+	float fLightingWaterSkyboxTwoBeachReduction INIT;
+	float fLightingWaterSkyboxThreeBeachReduction INIT;
 	// Per-lobe FilteredPowerLobe (Water.frag WATER_SPEC_AA_MODE 2/3) constants folded from the skybox lobe
 	// powers: xyz = lobes One/Two/Three. The varying (1+p') numerator math stays in-shader.
 	vec4 f4WaterSkyboxLobeAlphaSq INIT;        // 2/(power+2) per lobe (Beckmann-equivalent kernel base)

@@ -73,9 +73,6 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Wavelength Adjust", &gWaterLowWavelengthAdjust},
 	{"Amplitude Adjust", &gWaterLowAmplitudeAdjust},
 	{"Speed Adjust", &gWaterLowSpeedAdjust},
-	// Low - Beach Fade
-	{"Beach Fade Top", &gWaterBeachFadeTop},
-	{"Beach Fade Bottom", &gWaterBeachFadeBottom},
 	// Low - Camera Fade
 	{"Low Camera Fade Start", &gWaterLowAmplitudeFadeStart},
 	{"Low Camera Fade End", &gWaterLowAmplitudeFadeEnd},
@@ -114,6 +111,13 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Water Color Noise Multiplier One", &gWaterColorNoiseMultiplierOne},
 	{"Water Color Noise Weight Two", &gWaterColorNoiseWeightTwo},
 	{"Water Color Noise Multiplier Two", &gWaterColorNoiseMultiplierTwo},
+	// Beach
+	{"Shoal Max", &gWaterShoalMax},
+	{"Shoal Depth Ref", &gWaterShoalDepthRef},
+	{"Break Depth", &gWaterBreakDepth},
+	{"Beach Skybox 1 Reduction", &gLightingWaterSkyboxOneBeachReduction},
+	{"Beach Skybox 2 Reduction", &gLightingWaterSkyboxTwoBeachReduction},
+	{"Beach Skybox 3 Reduction", &gLightingWaterSkyboxThreeBeachReduction},
 };
 }
 
@@ -210,10 +214,6 @@ void TweaksScreenBase::RenderWaterSection()
 			WrapperSlider("Amplitude Adjust", iSection);
 			WrapperSlider("Speed Adjust", iSection);
 
-			WrapperSeparatorText("Beach Fade");
-			WrapperSlider("Beach Fade Top", iSection);
-			WrapperSlider("Beach Fade Bottom", iSection);
-
 			WrapperSeparatorText("Camera Fade");
 			WrapperSlider("Low Camera Fade Start", iSection);
 			WrapperSlider("Low Camera Fade End", iSection);
@@ -274,6 +274,20 @@ void TweaksScreenBase::RenderWaterSection()
 			WrapperSlider("Water Color Noise Multiplier One", iSection);
 			WrapperSlider("Water Color Noise Weight Two", iSection);
 			WrapperSlider("Water Color Noise Multiplier Two", iSection);
+
+			ImGui::EndTabItem();
+		}
+		if (BeginSubtab("Beach", iSection, 4))
+		{
+			WrapperSeparatorText("Shoaling");
+			WrapperSlider("Shoal Max", iSection);
+			WrapperSlider("Shoal Depth Ref", iSection);
+			WrapperSlider("Break Depth", iSection);
+
+			WrapperSeparatorText("Skybox Lobe Reduction");
+			WrapperSlider("Beach Skybox 1 Reduction", iSection);
+			WrapperSlider("Beach Skybox 2 Reduction", iSection);
+			WrapperSlider("Beach Skybox 3 Reduction", iSection);
 
 			ImGui::EndTabItem();
 		}

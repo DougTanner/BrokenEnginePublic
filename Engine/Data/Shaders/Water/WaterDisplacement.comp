@@ -22,8 +22,8 @@ layout (set = 1, binding = 4, rgba16f) uniform writeonly image2D normalImage; //
 // Pre-computes the Gerstner wave displacement (Δx, Δy, Δz from camera-relative un-displaced position)
 // and Jacobian-derived flat-blended normal, so Water.vert can texelFetch a single sample per vertex
 // instead of summing iWaterLowCount + iWaterMediumCount waves itself. Math matches Water.vert's
-// per-vertex Gerstner wave sum byte-for-byte. Shore-fade amplitude is baked into the low-band sum (the only
-// band that fades to shore); the Z-taper-near-shore and over-land early-out stay in Water.vert.
+// per-vertex Gerstner wave sum byte-for-byte. Shoaling/breaking crossfade the low and medium band sums; the
+// Z-taper-near-shore and over-land early-out stay in Water.vert.
 //
 // Texel grid is in 1:1 alignment with the active water-mesh LOD vertex grid: only the top-left
 // (iWaterActiveQuadX + 1) by (iWaterActiveQuadY + 1) rectangle is written per frame. Texels beyond
@@ -44,9 +44,6 @@ void main()
 	vec2 f2LocalPosition = f2WorldPosition - vec2(globalLayout.fWaterOriginX, globalLayout.fWaterOriginY);
 
 	float fTerrainElevation = textureLod(elevationTextureSampler, WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea), 0.0f).x - globalLayout.fWaterHeight;
-	// Shore amp fade: 1 deep, 0 at/above the top. Same formula as Water.vert.
-	float fShoreAmplitude = clamp((fTerrainElevation - globalLayout.fBeachFadeTop) * globalLayout.fBeachFadeInvRange, 0.0f, 1.0f);
-
 	// Over land (terrain at/above water height): Water.vert skips the displacement fetch for these texels,
 	// so skip the medium-band Gerstner loop + Jacobian normal — the stored value is never sampled.
 	if (fTerrainElevation >= 0.0f)
@@ -56,6 +53,14 @@ void main()
 		return;
 	}
 
+	float fDepth = -fTerrainElevation;
+	// Green's law shoaling: amplitude ~ depth^-1/4, capped so shallow water grows waves ~1.2-1.4x.
+	float fShoal = clamp(pow(max(fDepth, 1e-4f) * globalLayout.fWaterShoalDepthRefInv, -0.25f), 1.0f, globalLayout.fWaterShoalMax);
+	// Breaker collapse: 1 at/beyond break depth, 0 at the shoreline.
+	float fBreak = clamp(fDepth * globalLayout.fWaterBreakDepthInv, 0.0f, 1.0f);
+	float fLowWeight = fBreak;
+	float fMediumWeight = 4.0f * fBreak * (1.0f - fBreak);
+
 	vec3 f3Displacement = vec3(0.0f);
 	// Jacobian accumulators (cross-product form — preserves N into high-steepness regime).
 	float fA = 0.0f;
@@ -64,13 +69,13 @@ void main()
 	float fG = 0.0f;
 	float fE = 0.0f;
 
-	if (globalLayout.fWaterLowAmplitude > 0.0f && fShoreAmplitude > 0.0f)
+	if (globalLayout.fWaterLowAmplitude > 0.0f && fLowWeight > 0.0f)
 	{
 		float fLowSteepness = globalLayout.fWaterLowSteepness;
 		for (int i = 0; i < globalLayout.iWaterLowCount; ++i)
 		{
 			float fOmega = mainLayout.pf4LowWavesTwo[i].x;
-			float fAmplitude = mainLayout.pf4LowWavesTwo[i].y * fShoreAmplitude;
+			float fAmplitude = mainLayout.pf4LowWavesTwo[i].y * fShoal;
 			vec2 f2Direction = mainLayout.pf4LowWavesOne[i].xy;
 
 			float fReducedPhiTime = mainLayout.pf4LowWavesTwo[i].w;
@@ -82,17 +87,17 @@ void main()
 			float fQWASin = fLowSteepness * fWA * fSin;
 			float fWACos = fWA * fCos;
 
-			f3Displacement += vec3(fLowSteepness * fAmplitude * f2Direction * fCos, fAmplitude * fSin);
+			f3Displacement += fLowWeight * vec3(fLowSteepness * fAmplitude * f2Direction * fCos, fAmplitude * fSin);
 
-			fA += fQWASin * f2Direction.x * f2Direction.x;
-			fB += fQWASin * f2Direction.x * f2Direction.y;
-			fD += fQWASin * f2Direction.y * f2Direction.y;
-			fG += fWACos * f2Direction.x;
-			fE += fWACos * f2Direction.y;
+			fA += fLowWeight * fQWASin * f2Direction.x * f2Direction.x;
+			fB += fLowWeight * fQWASin * f2Direction.x * f2Direction.y;
+			fD += fLowWeight * fQWASin * f2Direction.y * f2Direction.y;
+			fG += fLowWeight * fWACos * f2Direction.x;
+			fE += fLowWeight * fWACos * f2Direction.y;
 		}
 	}
 
-	if (globalLayout.fWaterMediumAmplitude > 0.0f)
+	if (globalLayout.fWaterMediumAmplitude > 0.0f && fMediumWeight > 0.0f)
 	{
 		float fMediumSteepness = globalLayout.fWaterMediumSteepness;
 		for (int i = 0; i < globalLayout.iWaterMediumCount; ++i)
@@ -110,13 +115,13 @@ void main()
 			float fQWASin = fMediumSteepness * fWA * fSin;
 			float fWACos = fWA * fCos;
 
-			f3Displacement += vec3(fMediumSteepness * fAmplitude * f2Direction * fCos, fAmplitude * fSin);
+			f3Displacement += fMediumWeight * vec3(fMediumSteepness * fAmplitude * f2Direction * fCos, fAmplitude * fSin);
 
-			fA += fQWASin * f2Direction.x * f2Direction.x;
-			fB += fQWASin * f2Direction.x * f2Direction.y;
-			fD += fQWASin * f2Direction.y * f2Direction.y;
-			fG += fWACos * f2Direction.x;
-			fE += fWACos * f2Direction.y;
+			fA += fMediumWeight * fQWASin * f2Direction.x * f2Direction.x;
+			fB += fMediumWeight * fQWASin * f2Direction.x * f2Direction.y;
+			fD += fMediumWeight * fQWASin * f2Direction.y * f2Direction.y;
+			fG += fMediumWeight * fWACos * f2Direction.x;
+			fE += fMediumWeight * fWACos * f2Direction.y;
 		}
 	}
 
@@ -125,7 +130,8 @@ void main()
 	vec3 f3Bitangent = vec3(-fB, 1.0f - fD, fE);
 	vec3 f3WaveNormal = normalize(cross(f3Tangent, f3Bitangent));
 	vec3 f3Normal = normalize(mix(vec3(0.0f, 0.0f, 1.0f), f3WaveNormal, globalLayout.fWaterWaveNormalBlend));
+	float fJacobianDet = (1.0f - fA) * (1.0f - fD) - fB * fB; // → 0 as the surface compresses toward breaking
 
 	imageStore(displacementImage, i2Coord, vec4(f3Displacement, 0.0f));
-	imageStore(normalImage,       i2Coord, vec4(f3Normal,       0.0f));
+	imageStore(normalImage,       i2Coord, vec4(f3Normal, fJacobianDet));
 }

@@ -68,11 +68,12 @@ WaterSpecularResult ComposeWaterSpecular(WaterNormalSamplingResult normalResult,
 	// Specular lobes (One/Two/Three), inlined from Specular() in ShaderFunctions.h. The high-power One lobe
 	// (power ~200) is sub-pixel-narrow and flickers if evaluated pointwise; WATER_SPEC_AA_MODE selects an
 	// analytic filter for the lobes — see the define at the top of this file.
-	float fIntensityOne = globalLayout.fLightingWaterSkyboxOne;
+	float fBeachBlend = 1.0f - clamp(-fTerrainElevation * globalLayout.fWaterBreakDepthInv, 0.0f, 1.0f);
+	float fIntensityOne = globalLayout.fLightingWaterSkyboxOne * (1.0f - fBeachBlend * mainLayout.fLightingWaterSkyboxOneBeachReduction);
 	float fPowerOne = mainLayout.fLightingWaterSkyboxOnePower;
-	float fIntensityTwo = mainLayout.fLightingWaterSkyboxTwo;
+	float fIntensityTwo = mainLayout.fLightingWaterSkyboxTwo * (1.0f - fBeachBlend * mainLayout.fLightingWaterSkyboxTwoBeachReduction);
 	float fPowerTwo = mainLayout.fLightingWaterSkyboxTwoPower;
-	float fIntensityThree = mainLayout.fLightingWaterSkyboxThree;
+	float fIntensityThree = mainLayout.fLightingWaterSkyboxThree * (1.0f - fBeachBlend * mainLayout.fLightingWaterSkyboxThreeBeachReduction);
 	float fPowerThree = mainLayout.fLightingWaterSkyboxThreePower;
 	float fSpecularSum = 0.0f;
 #if WATER_SPEC_AA_MODE != 4

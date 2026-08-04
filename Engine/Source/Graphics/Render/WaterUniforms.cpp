@@ -205,8 +205,9 @@ void PopulateWaterParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAng
 
 	PopulateWaterDirectional(rGlobalLayout, fSunAngle);
 
-	rGlobalLayout.fBeachFadeTop = gWaterBeachFadeTop.Get();
-	rGlobalLayout.fBeachFadeInvRange = 1.0f / (gWaterBeachFadeBottom.Get() - gWaterBeachFadeTop.Get());
+	rGlobalLayout.fWaterShoalMax = gWaterShoalMax.Get();
+	rGlobalLayout.fWaterShoalDepthRefInv = 1.0f / gWaterShoalDepthRef.Get();
+	rGlobalLayout.fWaterBreakDepthInv = 1.0f / gWaterBreakDepth.Get();
 	rGlobalLayout.fWaterLowSteepness = gWaterLowSteepness.Get();
 
 	rGlobalLayout.fWaterMediumSteepness = gWaterMediumSteepness.Get();

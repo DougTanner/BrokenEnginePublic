@@ -71,8 +71,6 @@ extern Wrapper gWaterLowAngleAdjust;
 extern Wrapper gWaterLowWavelengthAdjust;
 extern Wrapper gWaterLowAmplitudeAdjust;
 extern Wrapper gWaterLowSpeedAdjust;
-extern Wrapper gWaterBeachFadeTop;
-extern Wrapper gWaterBeachFadeBottom;
 extern Wrapper gWaterLowAmplitudeFadeStart;
 extern Wrapper gWaterLowAmplitudeFadeEnd;
 
@@ -111,5 +109,13 @@ extern Wrapper gWaterColorNoiseWeightOne;
 extern Wrapper gWaterColorNoiseMultiplierOne;
 extern Wrapper gWaterColorNoiseWeightTwo;
 extern Wrapper gWaterColorNoiseMultiplierTwo;
+
+// Beach
+extern Wrapper gWaterShoalMax;
+extern Wrapper gWaterShoalDepthRef;
+extern Wrapper gWaterBreakDepth;
+extern Wrapper gLightingWaterSkyboxOneBeachReduction;
+extern Wrapper gLightingWaterSkyboxTwoBeachReduction;
+extern Wrapper gLightingWaterSkyboxThreeBeachReduction;
 
 } // namespace engine

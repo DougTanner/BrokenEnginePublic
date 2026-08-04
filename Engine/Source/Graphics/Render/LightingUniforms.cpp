@@ -433,6 +433,9 @@ void RenderLightingMain(int64_t iCommandBuffer)
 	rMainLayout.fLightingWaterSkyboxTwoPower = fSkyboxPowerTwo;
 	rMainLayout.fLightingWaterSkyboxThree = gLightingWaterSkyboxThree.Get();
 	rMainLayout.fLightingWaterSkyboxThreePower = fSkyboxPowerThree;
+	rMainLayout.fLightingWaterSkyboxOneBeachReduction = gLightingWaterSkyboxOneBeachReduction.Get();
+	rMainLayout.fLightingWaterSkyboxTwoBeachReduction = gLightingWaterSkyboxTwoBeachReduction.Get();
+	rMainLayout.fLightingWaterSkyboxThreeBeachReduction = gLightingWaterSkyboxThreeBeachReduction.Get();
 	// Per-lobe FilteredPowerLobe constants (Water.frag WATER_SPEC_AA_MODE 2/3): 2/(power+2) and 1/(1+power), xyz = lobes One/Two/Three.
 	rMainLayout.f4WaterSkyboxLobeAlphaSq = {2.0f / (fSkyboxPowerOne + 2.0f), 2.0f / (fSkyboxPowerTwo + 2.0f), 2.0f / (fSkyboxPowerThree + 2.0f), 0.0f};
 	rMainLayout.f4WaterSkyboxLobeOnePlusPowerInv = {1.0f / (1.0f + fSkyboxPowerOne), 1.0f / (1.0f + fSkyboxPowerTwo), 1.0f / (1.0f + fSkyboxPowerThree), 0.0f};

@@ -1,4 +1,4 @@
-<!-- broken-engine-plan/v1 {"createdUtc":"2026-08-03T16:27:16.589Z","dependsOn":["Documents/Plans/Graphics/WaterShoalingAmplitude.md"]} -->
+<!-- broken-engine-plan/v1 {"createdUtc":"2026-08-03T16:27:16.589Z","dependsOn":[]} -->
 # Depth-driven animated shoreline foam bands in Water.frag
 
 ## Context
