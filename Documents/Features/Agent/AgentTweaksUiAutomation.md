@@ -13,7 +13,7 @@ The effective UI-state reporting defect is the scope of this Feature. The linked
 
 ## Design
 
-1. Give the game agent reporting path one consistent effective UI-state rule: while `Game::mbShowImGui` is true, both `describe_ui` and `describe_scene` report `kTweaks`; otherwise they report the existing `meUiState`. Ground the precedence in `Game::ShouldShowInGameUi` and avoid mutating the production UI state machine merely to satisfy reporting.
+1. Give the game agent reporting path one consistent effective UI-state rule: while `Game::mbShowImGui` is true, both `describe_ui` and `describe_scene` report `kTweaks`; otherwise they report the existing `meUiState`. Ground the precedence in `Game::ShouldShowInGameUi` and avoid changing the production UI state machine merely to satisfy reporting.
 2. Update `.agents/skills/agent-harness/SKILL.md` so the `describe_ui` and `describe_scene` contracts document the effective Tweaks state. Tab-item addressing documentation belongs to the linked executable Plan.
 
 This is a Tier 3 change because it changes agent JSON reporting at the loopback command trust boundary.

@@ -49,11 +49,17 @@ affirmative confirmation the caller claims the landing lock once through
 `scripts/Invoke-FinalizeLockClaim.ps1`, with the landing lease duration
 `references/scripts.md` states, and passes that owner token to
 `scripts/Invoke-FinalizeLanding.ps1` as `-OwnerToken`, which continues under that
-same lease through the advance; without `-OwnerToken` it mints its own token
-through WorktreeCli `lock token`.
+same lease through the advance. This supplied-token route keeps the raw
+`$SessionLabel`; when `-OwnerToken` is omitted, landing uses
+`$SessionLabel/landing`, adopts a live retained claim only when that exact
+session and the same canonical worktree match, and otherwise mints its own
+token through WorktreeCli `lock token` before claiming under the derived
+identity.
 
 Ownership rule: a lease is a same-actor continuation when its recorded session
-and worktree match the current landing identity; every other lease is foreign.
+and worktree match the current landing identity; an omitted-token invocation may
+also adopt the live owner recorded for that exact derived landing identity;
+every other lease is foreign.
 
 ## Normal workflow
 

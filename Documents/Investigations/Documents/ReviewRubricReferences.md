@@ -18,11 +18,11 @@ This repository embeds its taste criteria inside skill bodies. `repo-code-review
 
 - Root `AGENTS.md` `## Directives` KISS/DRY rule: "Extract helpers only for current duplication, never for hypothetical use." A rubric extracted before a second consumer exists violates this directly.
 - `/validate-skill` governs skill package structure and bundled-link rules; adding a `references/rubrics/` convention would need to satisfy it.
-- Every review already routes through `/codex-review` to Sol. Rubrics change what a reviewer is measured against, so a bad rubric silently degrades every review at once — higher blast radius than the file count suggests.
+- Every review already routes through `/codex-review` to Sol. Rubrics change what a reviewer is measured against, so a bad rubric silently degrades every review at once — a wider spread of breakage than the file count suggests.
 
 ## Possible approach
 
-Prove duplication first. Identify the specific criteria that appear in two or more skills with materially the same wording, and extract only those. If the honest count is zero, close this document rather than build the subtree.
+Prove duplication first. Identify the specific criteria that appear in two or more skills with meaningfully the same wording, and extract only those. If the honest count is zero, close this document rather than build the subtree.
 
 ## Out of scope
 

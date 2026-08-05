@@ -36,8 +36,17 @@ file/XML/log body. Exit/result/schema mismatches block.
   and releases the lock. Pass the post-confirmation claim's owner token as
   `-OwnerToken` so landing continues under that same lease, which it accepts only
   as a same-actor continuation under the `SKILL.md` `## Bundled scripts` ownership
-  rule; without `-OwnerToken` it mints its own token through WorktreeCli
-  `lock token`. When primary advanced first it makes at most one internal rebase
+  rule, preserving the raw `$SessionLabel`. Without `-OwnerToken`, it derives
+  `$SessionLabel/landing`, first inspects the lock, and adopts a live owner only
+  when that exact derived session and the same canonical worktree match and the
+  recorded integer lease duration is at least the 3600-second landing duration; it
+  immediately refreshes a matching retained lease before proceeding, preserving
+  ownership across a possible rebase; otherwise
+  it mints its own token through WorktreeCli `lock token` and claims under the
+  derived identity. A recovery invocation applies the identity matching rule
+  without the duration gate to release a live retained claim because it performs
+  no rebase or advance; foreign, mismatched, and unverifiable claims are untouched.
+  When primary advanced first it makes at most one internal rebase
   and lands only a provably byte-identical patch, so report the commit from the
   result's `landed` block rather than `candidate`. A blocked result reports its
   `disposition` and a `lock` projection; act on those, never a memorized code
@@ -62,8 +71,9 @@ file/XML/log body. Exit/result/schema mismatches block.
 Release every caller-owned lease with `../scripts/Invoke-FinalizeLockClaim.ps1 -Release`
 before an open-ended user wait. After a failed landing the lock is released once
 every registered worktree is inspectable and provably free of Git operation
-markers, on both the caller-token and the minted-token route. When that cannot be
-proven the claim is retained and reported: a caller token's retained claim stays
-the caller's lease, released the same way once the worktrees are provably clear; a
-minted token's retained claim is held under a token the landing never returns, so
-it clears only when that lease expires on its own.
+markers, on both the supplied-token and omitted-token routes. When that cannot be
+proven the claim is retained and reported: a supplied token's retained claim
+stays the caller's lease, released the same way once the worktrees are provably
+clear; an omitted-token claim is discoverable by a later invocation only when
+its derived session and canonical worktree match, and every foreign or
+unverifiable claim stays untouched until its normal expiry or external repair.

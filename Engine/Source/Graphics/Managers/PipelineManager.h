@@ -3,6 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "DynamicPipelines.h"
+#include "WorldLightingShadowPipelines.h"
 
 namespace engine
 {
@@ -105,6 +106,10 @@ public:
 	Pipeline mLightingHistoryCopyPipeline;
 
 	DynamicPipelines mDynamicPipelines;
+
+private:
+
+	WorldLightingShadowPipelines mWorldLightingShadowPipelines;
 };
 
 inline PipelineManager* gpPipelineManager = nullptr;

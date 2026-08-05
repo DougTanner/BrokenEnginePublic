@@ -47,7 +47,7 @@ In a new session, run `/next-plan-review <landing commit>` supplying the recorde
 
 ## Risk tier and invariants
 
-Expected Tier 2 (scoped tooling behavior); escalate if the fix reaches build/bootstrap coordination. Plan creation remains BOM-less with the byte-zero metadata marker, validation output remains the documented `broken-engine-new-plan-file/v1` envelope, and no unrelated index/worktree paths are staged or mutated.
+Expected Tier 2 (scoped tooling behavior); escalate if the fix reaches build/bootstrap coordination. Plan creation remains BOM-less with the byte-zero metadata marker, validation output remains the documented `broken-engine-new-plan-file/v1` envelope, and no unrelated index/worktree paths are staged or changed.
 
 ## Acceptance criteria
 

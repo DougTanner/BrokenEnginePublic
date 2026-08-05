@@ -209,7 +209,6 @@ void InputFingerprintCache::Load()
 			};
 			mCachedFingerprints.insert_or_assign(rEntry.at("path").get<std::string>(), CachedFingerprint {.snapshot = snapshot, .fingerprint = std::move(fingerprint)});
 		}
-		LOG(kDefault, kVerbose, "Loaded {} cached input fingerprints", mCachedFingerprints.size());
 	}
 	catch (const std::exception&)
 	{

@@ -651,6 +651,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\WorldLightingShadowPipelines.h">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
@@ -1146,6 +1149,9 @@
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\WorldLightingShadowPipelines.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\ModelPipeline.cpp">

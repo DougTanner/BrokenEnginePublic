@@ -13,7 +13,7 @@ The repository already performs a version of the second practice, but only at Ti
 
 ## Open questions
 
-1. Does this duplicate `/external-grill-plan`? That skill already interviews the user about decisions requiring judgment, and root `AGENTS.md` step 2 routes every Tier-3 change through it after `/plan-audit`. The candidate gap is Tier 2 and pre-plan exploration, where no interview exists — but adding one risks gold-plating the tier the workflow deliberately keeps light.
+1. Does this duplicate `/external-grill-plan`? That skill already interviews the user about decisions requiring judgment, and root `AGENTS.md` step 2 routes every Tier-3 change through it after `/plan-audit`. The candidate gap is Tier 2 and pre-plan exploration, where no interview exists — but adding one risks unnecessary extra work for the tier the workflow deliberately keeps light.
 2. Where would a blind-spot pass attach? It is pre-plan by nature, which is before step 1 pins the process baseline. The workflow currently has no phase for it.
 3. Is it a skill, a directive, or nothing? It may be judgment a capable model already applies when the user's request signals unfamiliarity, in which case documenting it adds tokens for no behavior change — the exact failure mode the trim this document accompanies was meant to correct.
 

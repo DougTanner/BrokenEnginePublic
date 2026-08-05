@@ -95,7 +95,7 @@ Wrapper gWaterLowAmplitudeFadeEnd(600.0f, 0.0f, 1000.0f);
 // Medium frequency waves
 Wrapper gWaterMediumCount(int64_t {255}, std::vector<int64_t> {15, 31, 63, 127, 255});
 Wrapper gWaterMediumWavelength(5.0f, 0.01f, 10.0f);
-Wrapper gWaterMediumAmplitude(0.009f, 0.0f, 0.02f);
+Wrapper gWaterMediumAmplitude(0.012f, 0.0f, 0.02f);
 Wrapper gWaterMediumSpeed(0.2f, 0.001f, 0.3f);
 Wrapper gWaterMediumSteepness(1.0f, 0.0f, 2.0f);
 Wrapper gWaterMediumAngleAdjust(40.0f, 0.0f, 80.0f);
@@ -132,7 +132,7 @@ Wrapper gWaterColorNoiseMultiplierTwo(1.0f, 0.0f, 4.0f, 0.1f);
 
 // Beach
 Wrapper gWaterBreakStartDepth(0.0f, 0.0f, 5.0f);
-Wrapper gWaterBreakEndDepth(3.0f, 0.1f, 50.0f);
+Wrapper gWaterBreakEndDepth(4.0f, 0.1f, 50.0f);
 Wrapper gWaterBreakBlendCurve(0.4f, 0.05f, 1.0f);
 Wrapper gWaterMediumShoreSoftness(0.3f, 0.0f, 1.0f);
 Wrapper gLightingWaterSkyboxOneBeachReduction(0.1f, 0.0f, 1.0f);

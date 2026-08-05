@@ -17,7 +17,7 @@ param(
 	[Parameter(Mandatory)][string] $ApprovedSessionCommit,
 	[Parameter(Mandatory)][string] $ApprovedCandidateTree,
 	# The caller's post-confirmation lease token. Supplied, the landing continues under that same
-	# lease instead of minting one; omitted, the mint-fresh path is unchanged.
+	# lease instead of minting one; omitted, a matching retained landing claim may be adopted.
 	[string] $OwnerToken,
 	[switch] $ReleasePlanClaim,
 	[ValidateSet('none', 'compare-and-swap', 'post-reset', 'bounded-diagnostic', 'retry-patch-mismatch')][string] $FixtureFailure = 'none'
@@ -76,6 +76,8 @@ $script:LandingLeaseSeconds = 3600
 $script:LandingRestorationUnproven = $false
 $script:PrimaryIdentity = $null
 $script:CurrentIdentity = $null
+$script:LandingSession = $null
+$script:LandingOwnerAdopted = $false
 $script:FailureExitCode = 0
 $script:FailureCode = $null
 $script:FailureMessage = $null
@@ -493,6 +495,7 @@ try {
 	$result.identities.primaryBranch = $script:PrimaryIdentity.Branch
 	$result.tips.current = $script:CurrentIdentity.Head
 	$result.tips.primary = $script:PrimaryIdentity.Head
+	$script:LandingSession = if ([string]::IsNullOrWhiteSpace($OwnerToken)) { "$SessionLabel/landing" } else { $SessionLabel }
 	# A transient operation claim with a fresh per-landing owner excludes AgentTools promotion
 	# from swapping WorktreeCli.exe across this multi-invocation landing transaction. Registered
 	# before the first WorktreeCli.exe use; released in cleanup alongside the landing lock.
@@ -514,18 +517,20 @@ try {
 		$result.primaryAdvanced = $true
 		$result.landed.commit = $script:LandingCommit
 		$result.landed.tree = $script:LandingTree
-		# The crashed invocation's lease outlives its process, so this recovery adopts and releases it
-		# under the same ownership rule the continuity branch uses. Anything else is foreign and is
-		# left alone to expire on its own.
-		if (-not [string]::IsNullOrWhiteSpace($OwnerToken)) {
-			$recoveredLock = Get-FinalizeLandingLockState $script:WorktreeCliPath $result.identities.gitCommonDirectory $script:CurrentIdentity.Worktree
-			if (($recoveredLock.Kind -ceq 'live') -and (Test-FinalizeLandingLockClaimIdentity $recoveredLock.Status $OwnerToken $SessionLabel $script:CurrentIdentity.Worktree)) {
-				$script:LandingOwner = $OwnerToken
-				$result.locks.landingOwner = $script:LandingOwner
-				$script:LandingClaimed = $true
-				$result.locks.landingClaimed = $true
-				Release-LandingLockIfSafe
-			}
+		# The crashed invocation's lease outlives its process, so recovery adopts and releases only a
+		# live claim matching the supplied raw or omitted derived identity and canonical worktree.
+		# Anything else is foreign and is left alone to expire on its own.
+		$recoveredLock = Get-FinalizeLandingLockState $script:WorktreeCliPath $result.identities.gitCommonDirectory $script:CurrentIdentity.Worktree
+		$recoveryOwner = $OwnerToken
+		if ([string]::IsNullOrWhiteSpace($OwnerToken) -and $recoveredLock.Kind -ceq 'live' -and @($recoveredLock.Status.PSObject.Properties.Name) -ccontains 'owner') {
+			$recoveryOwner = [string]$recoveredLock.Status.owner
+		}
+		if (($recoveredLock.Kind -ceq 'live') -and -not [string]::IsNullOrWhiteSpace($recoveryOwner) -and (Test-FinalizeLandingLockClaimIdentity $recoveredLock.Status $recoveryOwner $script:LandingSession $script:CurrentIdentity.Worktree)) {
+			$script:LandingOwner = $recoveryOwner
+			$result.locks.landingOwner = $script:LandingOwner
+			$script:LandingClaimed = $true
+			$result.locks.landingClaimed = $true
+			Release-LandingLockIfSafe
 		}
 		Complete-LandedState
 		Write-Output ((New-LandingProjection) | ConvertTo-Json -Depth 10 -Compress)
@@ -538,13 +543,25 @@ try {
 	if ($ExpectedCurrentTip -cne $script:LandingCommit) { Throw-Landing 2 'approval.session-tip-changed' 'Session tip is not the explicit user-approved commit.' }
 
 	if ([string]::IsNullOrWhiteSpace($OwnerToken)) {
-		$tokenResponse = Invoke-WorktreeCli @('lock', 'token')
-		if ($tokenResponse.ExitCode -ne 0 -or $tokenResponse.Stdout.Trim() -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
-			Throw-Landing 1 'landing-lock.token-failed' 'WorktreeCli could not generate a canonical landing owner token.'
+		# Landing claims use a derived identity so the caller's raw reconciliation lease remains distinct.
+		# Refresh preserves a lease's recorded duration, so a matching short lease cannot be adopted for
+		# the full landing transaction.
+		$lockState = Get-FinalizeLandingLockState $script:WorktreeCliPath $result.identities.gitCommonDirectory $script:CurrentIdentity.Worktree
+		$leaseDurationSeconds = if (@($lockState.Status.PSObject.Properties.Name) -ccontains 'leaseDurationSeconds') { $lockState.Status.leaseDurationSeconds } else { $null }
+		$leaseDurationIsInteger = $leaseDurationSeconds -is [int] -or $leaseDurationSeconds -is [long]
+		if (($lockState.Kind -ceq 'live') -and (Test-FinalizeLandingLockClaimIdentity $lockState.Status ([string]$lockState.Status.owner) $script:LandingSession $script:CurrentIdentity.Worktree) -and $leaseDurationIsInteger -and [int64]$leaseDurationSeconds -ge $script:LandingLeaseSeconds) {
+			$script:LandingOwner = [string]$lockState.Status.owner
+			$script:LandingOwnerAdopted = $true
 		}
-		$script:LandingOwner = $tokenResponse.Stdout.Trim()
+		else {
+			$tokenResponse = Invoke-WorktreeCli @('lock', 'token')
+			if ($tokenResponse.ExitCode -ne 0 -or $tokenResponse.Stdout.Trim() -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+				Throw-Landing 1 'landing-lock.token-failed' 'WorktreeCli could not generate a canonical landing owner token.'
+			}
+			$script:LandingOwner = $tokenResponse.Stdout.Trim()
+		}
 		$result.locks.landingOwner = $script:LandingOwner
-		$claimOutcome = Invoke-FinalizeLandingLockClaim -WorktreeCliExecutable $script:WorktreeCliPath -GitCommonDirectory $result.identities.gitCommonDirectory -Owner $script:LandingOwner -Session $SessionLabel -Worktree $script:CurrentIdentity.Worktree -LeaseSeconds $script:LandingLeaseSeconds -WaitSeconds 300
+		$claimOutcome = Invoke-FinalizeLandingLockClaim -WorktreeCliExecutable $script:WorktreeCliPath -GitCommonDirectory $result.identities.gitCommonDirectory -Owner $script:LandingOwner -Session $script:LandingSession -Worktree $script:CurrentIdentity.Worktree -LeaseSeconds $script:LandingLeaseSeconds -WaitSeconds 300
 	}
 	else {
 		# Lease continuity: a live lease under the supplied token whose recorded session and worktree
@@ -579,6 +596,7 @@ try {
 	}
 	$script:LandingClaimed = $true
 	$result.locks.landingClaimed = $true
+	if ($script:LandingOwnerAdopted) { Refresh-LandingOwner }
 	Assert-LandingOwner
 	Assert-ApprovedCandidateTree
 

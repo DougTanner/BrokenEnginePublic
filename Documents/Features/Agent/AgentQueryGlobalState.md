@@ -21,7 +21,7 @@ All read-only, server-only, serialized under the AgentHarness1 `Drain()` guard; 
 
 ## Out of scope
 
-- Any mutation of manager state (injection stays Harness3's StatusChange path).
+- Any change to manager state (injection stays Harness3's StatusChange path).
 - Client-side global state (graphics/audio/UI — Harness5's `describe_ui` territory).
 - Frame-collection queries (landed with Harness3).
 

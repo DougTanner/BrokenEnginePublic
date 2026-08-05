@@ -66,7 +66,7 @@ Invariants the implementation must hold:
 - Bytes on the wire, packet layout, protocol version, and `Frame::kiVersion` are unchanged; no peer-compatibility impact.
 - A well-formed payload behaves exactly as today, so shared CRC and reconciliation are bit-identical for valid input.
 - The rejection path allocates nothing beyond what already runs there; the new logs are allocation-free like their neighbours.
-- No slot, epoch, ACK, or subscription state is mutated by a rejected static-data payload, and no frame from a truncated payload reaches hydration.
+- No slot, epoch, ACK, or subscription state is changed by a rejected static-data payload, and no frame from a truncated payload reaches hydration.
 
 ## Acceptance criteria
 

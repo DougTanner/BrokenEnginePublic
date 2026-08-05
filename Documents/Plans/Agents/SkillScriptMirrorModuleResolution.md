@@ -16,7 +16,7 @@ The specified module '...\.claude\skills\compile\scripts\..\..\..\scripts\AgentS
 
 The same invocation through `.agents/skills/compile/scripts/Test-DataOracleReceipt.ps1` reaches the script body and returns its normal `broken-engine-data-oracle-verifier-result/v1` envelope, proving the only difference is the launch path.
 
-This is not specific to one script. 18 tracked skill scripts contain a `..\..\..\scripts` reference. Five already carry the repository's established mirror fallback — test the canonical path, and when it is absent re-point at `..\..\..\..\.agents\scripts` — for example `.agents/skills/next-plan/scripts/NextPlanWorkflowCommon.psm1`:
+This is not specific to one script. 18 tracked skill scripts contain a `..\..\..\scripts` reference. Five already carry the repository's established mirror fallback — test the authoritative path, and when it is absent re-point at `..\..\..\..\.agents\scripts` — for example `.agents/skills/next-plan/scripts/NextPlanWorkflowCommon.psm1`:
 
 ```powershell
 $sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
@@ -31,7 +31,7 @@ The remaining 13 scripts have no such guard and fail under the mirror path. Refe
 
 Apply the existing guard pattern above — unchanged in shape, resolving the shared directory once per script and reusing it — to every `..\..\..\scripts` reference in the 13 unguarded scripts. Both `Import-Module` targets and sibling-script/directory paths (`Get-SessionChangeInventory.ps1`, `Provision-WorktreeThirdParty.ps1`, `Detect-Python.ps1`, `Test-AgentToolsCapabilities.ps1`, and the module-source directory used by the fixture scripts) resolve through the same fallback.
 
-Under an `.agents` launch the canonical path exists, the fallback never fires, and behavior is byte-identical to today. The fallback only changes the previously failing `.claude` launch.
+Under an `.agents` launch the authoritative path exists, the fallback never fires, and behavior is byte-identical to today. The fallback only changes the previously failing `.claude` launch.
 
 Rejected alternative: adding a tracked `.claude/scripts` symlink. It would need a second Developer-Mode-dependent symlink with the same broken-checkout failure mode `Documents/FreshMachineSetup.md:7-9` already documents, and the repository already has a working in-tree pattern.
 
@@ -70,7 +70,7 @@ Read-only pattern evidence: `.agents/skills/next-plan/scripts/NextPlanWorkflowCo
 
 **Tier 3** — three of the affected scripts (`Invoke-AgentToolsPromotion.ps1`, `Wait-AgentToolsQuiescence.ps1`, `Resolve-CompileContext.ps1`) are shared AgentTools build and bootstrap coordination that can block other sessions.
 
-- An `.agents`-path launch must load exactly the same modules and scripts as before; the fallback branch may only be reachable when the canonical path is absent.
+- An `.agents`-path launch must load exactly the same modules and scripts as before; the fallback branch may only be reachable when the authoritative path is absent.
 - Landing-lock, AgentTools promotion, and quiescence semantics are untouched; only path resolution changes.
 - Every script keeps its existing JSON result schema, exit codes, and parameter contract.
 

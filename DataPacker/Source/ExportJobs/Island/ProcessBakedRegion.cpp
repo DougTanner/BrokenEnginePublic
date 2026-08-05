@@ -16,6 +16,11 @@
 namespace
 {
 
+// Widest edge-taper band, in meters. Matches the band the removed full-bake taper used (8192 / 16
+// pixels at ~0.049 m/px). The quarter-dimension clamp in TaperLeafElevationEdgesToSeaFloor keeps a
+// small leaf (down to ~50 m) from having its entire shoal deepened by a fixed-width band.
+constexpr float kfEdgeTaperMaxMeters = 25.0f;
+
 // Aligned crop rect into the full bake, in full-bake pixel coords. Shared output of the auto-crop
 // stages and input to every later crop / downsample / dimension stage.
 struct CropRect
@@ -128,6 +133,50 @@ std::vector<float> CropAndDownsampleElevation(const std::vector<float>& rFullEle
 		}
 	}
 	return downsampledPixels;
+}
+
+// Force the leaf's border elevation smoothly down to the per-island sea floor. Every leaf ships as
+// an independent island sitting in the engine's constant open-ocean elevation clear, so the taper
+// runs per leaf — including edges produced by interior split cut lines, which the full bake's own
+// border never covers. Water at or below halfway depth must reach exactly -fBeachOffsetMeters
+// (= common::kfSeaBottomMeters) at the edge for it to blend with that clear, but shallows above
+// halfway depth are preserved almost unchanged so the taper cannot amputate a leaf's visible sand
+// apron where the coast nears a cut edge. Only underwater pixels are touched and none is ever
+// raised, so terrain at or above sea level keeps its shape and terrain already deeper than the
+// ceiling keeps its detail.
+void TaperLeafElevationEdgesToSeaFloor(std::vector<float>& rDownsampledPixels, int64_t iWidth, int64_t iHeight, float fMetersPerPixel, float fBeachOffsetMeters)
+{
+	float fBandMeters = std::min(kfEdgeTaperMaxMeters, 0.25f * fMetersPerPixel * static_cast<float>(std::min(iWidth, iHeight)));
+	if (fBandMeters <= 0.0f)
+	{
+		return;
+	}
+
+	float fSeaFloorMeters = -fBeachOffsetMeters;
+	float fHalfwayMeters = 0.5f * fSeaFloorMeters;
+	for (int64_t iY = 0; iY < iHeight; ++iY)
+	{
+		for (int64_t iX = 0; iX < iWidth; ++iX)
+		{
+			float fEdgeDistanceMeters = static_cast<float>(std::min({iX, iY, iWidth - 1 - iX, iHeight - 1 - iY})) * fMetersPerPixel;
+			if (fEdgeDistanceMeters >= fBandMeters)
+			{
+				continue;
+			}
+
+			float fS = fEdgeDistanceMeters / fBandMeters;
+			float fT = fS * fS * (3.0f - 2.0f * fS);
+			float fCeiling = fSeaFloorMeters + fT * (0.0f - fSeaFloorMeters);
+
+			float& rfPixel = rDownsampledPixels[static_cast<size_t>(iY) * static_cast<size_t>(iWidth) + static_cast<size_t>(iX)];
+			if (rfPixel < 0.0f)
+			{
+				float fDepthWeight = std::clamp(rfPixel / fHalfwayMeters, 0.0f, 1.0f);
+				fDepthWeight = fDepthWeight * fDepthWeight * (3.0f - 2.0f * fDepthWeight);
+				rfPixel += fDepthWeight * (std::min(rfPixel, fCeiling) - rfPixel);
+			}
+		}
+	}
 }
 
 // Write the downsampled leaf Elevation.r32.
@@ -300,6 +349,15 @@ bool ProcessBakedRegion(const IslandBakeContext& rContext, const BakeOutput& rBa
 		LOG(kDefault, kDebug, "Rejected island leaf \"{}\": max height {}m below minimum {}m", rSourceLeafDirectory.string(), common::Wb(fMaxHeightMeters, 2), common::Wb(kfMinIslandMaxHeightMeters, 2));
 		return false;
 	}
+
+	// Taper after the rejection check (which judges the untapered peak) — the taper only ever lowers
+	// pixels, so it cannot change that decision — and before the write, so the leaf Elevation.r32 and
+	// everything derived from it (chunk payload, underwater texture masking, valid-area hull) stay in
+	// lockstep.
+	int64_t iElevationWidth = crop.iWidth / kiElevationDivisor;
+	int64_t iElevationHeight = crop.iHeight / kiElevationDivisor;
+	float fMetersPerPixel = rContext.rDimensions.fFootprintMeters / static_cast<float>(rContext.iTexturePixels) * static_cast<float>(kiElevationDivisor);
+	TaperLeafElevationEdgesToSeaFloor(downsampledPixels, iElevationWidth, iElevationHeight, fMetersPerPixel, rBakeOutput.fBeachOffsetMeters);
 
 	std::filesystem::create_directories(rSourceLeafDirectory);
 	std::filesystem::create_directories(rCacheLeafDirectory);

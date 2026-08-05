@@ -10,6 +10,8 @@ Route-level raw Gaea output and leaf geometry live under `%LOCALAPPDATA%/BrokenE
 
 Splitting also densifies the mesh: after the raw Gaea Mesher output is loaded, `SubdivideBeachBand` recursively splits triangles whose height range overlaps the beach band — the narrow depth window straddling engine Z 0, tuned by the `kfBeachSubdivision*` constants in `BakeRoute.cpp` — until their longest horizontal edge falls under the target. Neighbors outside the band take the smallest split that absorbs an inherited midpoint without creating new ones, so the cascade stops one ring outside the band. It runs post-bake on the full mesh and the chunk crops reuse the result, so a change here bumps the split version, not the bake version.
 
+Each accepted leaf's downsampled elevation is edge-tapered before it is written: a band in from every leaf border — interior split cut lines included — ramps water at or below halfway depth down to the per-island sea floor, so every leaf blends with the engine's constant open-ocean elevation clear, while shallower water is preserved almost unchanged so the taper cannot amputate a leaf's visible sand apron. It is a split-stage step in `ProcessBakedRegion`, so a change here bumps the split version.
+
 With `BT_DATAPACKER_FORBID_EXPENSIVE_EXPORT=1`, a dirty route fails before launching Gaea. Clean route caches remain usable.
 
 ## Island Outputs

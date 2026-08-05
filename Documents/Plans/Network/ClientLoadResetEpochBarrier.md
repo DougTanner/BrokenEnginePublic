@@ -148,7 +148,7 @@ preserve these invariants:
 
 1. Structural inspection and targeted static checks prove `ResetForServerLoad` clears transient coord receive
    outputs, retains `mDelayedPackets` for barrier classification, rejects the stored pre-load epoch, and proves
-   every full/static/update classification path cannot mutate the post-load epoch/ring from a pre-load packet.
+   every full/static/update classification path cannot change the post-load epoch/ring from a pre-load packet.
 2. A live Debug client/server run with `keNetworkSimulation == kChina` performs a server load or replay load
    while a coordinate subscription is active and lets delayed channel-0/channel-2 traffic release in both
    observed orders. No stale packet is applied to the new epoch, no confirmed CRC/desync line appears, and

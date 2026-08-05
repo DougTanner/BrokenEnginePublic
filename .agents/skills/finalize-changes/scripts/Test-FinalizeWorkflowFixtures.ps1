@@ -64,6 +64,63 @@ exit $LASTEXITCODE
 	return [pscustomobject]@{ ExitCode = $exitCode; Json = $json; Text = $text; Stderr = $stderr }
 }
 
+# A live foreign landing lease makes production landing wait for its documented 300-second bound.
+# Start the child separately so these fixtures can observe that it did not adopt the lease, then
+# terminate and reap it before releasing the scratch lease; production wait values stay untouched.
+function Start-JsonScriptWithSplat([string] $Script, [Collections.IDictionary] $Parameters, [string] $ScratchRoot) {
+	$invocationRoot = Join-Path $ScratchRoot 'splat-invocation'
+	New-Item -ItemType Directory -Force $invocationRoot | Out-Null
+	$suffix = [guid]::NewGuid().ToString('N')
+	$payloadPath = Join-Path $invocationRoot ($suffix + '.json')
+	$wrapperPath = Join-Path $invocationRoot ($suffix + '.ps1')
+	$wrapper = @'
+param([string] $TargetScript, [string] $PayloadPath)
+$payload = Get-Content -LiteralPath $PayloadPath -Raw | ConvertFrom-Json -Depth 32 -ErrorAction Stop
+$parameters = @{}
+foreach ($property in $payload.PSObject.Properties) { $parameters[$property.Name] = $property.Value }
+& $TargetScript @parameters
+exit $LASTEXITCODE
+'@
+	[IO.File]::WriteAllText($wrapperPath, $wrapper, [Text.UTF8Encoding]::new($false))
+	[IO.File]::WriteAllText($payloadPath, (ConvertTo-Json -InputObject $Parameters -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
+	$start = [Diagnostics.ProcessStartInfo]::new()
+	$start.FileName = "$PSHOME\pwsh.exe"
+	$start.WorkingDirectory = $ScratchRoot
+	$start.UseShellExecute = $false
+	$start.CreateNoWindow = $true
+	$start.RedirectStandardOutput = $true
+	$start.RedirectStandardError = $true
+	[void] $start.ArgumentList.Add('-NoProfile')
+	[void] $start.ArgumentList.Add('-File')
+	[void] $start.ArgumentList.Add($wrapperPath)
+	[void] $start.ArgumentList.Add('-TargetScript')
+	[void] $start.ArgumentList.Add($Script)
+	[void] $start.ArgumentList.Add('-PayloadPath')
+	[void] $start.ArgumentList.Add($payloadPath)
+	$process = [Diagnostics.Process]::new()
+	$process.StartInfo = $start
+	if (-not $process.Start()) { throw "Could not start '$PSHOME\pwsh.exe'." }
+	return [pscustomobject]@{
+		Process = $process
+		StdoutTask = $process.StandardOutput.ReadToEndAsync()
+		StderrTask = $process.StandardError.ReadToEndAsync()
+	}
+}
+
+function Stop-JsonScript($Started) {
+	try {
+		if (-not $Started.Process.WaitForExit(0)) {
+			try { $Started.Process.Kill($true) } catch {
+				if (-not $Started.Process.HasExited) { try { $Started.Process.Kill() } catch { } }
+			}
+			if (-not $Started.Process.WaitForExit(5000)) { throw "Timed out reaping JSON script process $($Started.Process.Id)." }
+		}
+		$Started.StdoutTask.GetAwaiter().GetResult() | Out-Null
+		$Started.StderrTask.GetAwaiter().GetResult() | Out-Null
+	}
+	finally { $Started.Process.Dispose() }
+}
+
 function Invoke-WorktreeCli([string[]] $Arguments, [int] $ExpectedExitCode = 0) {
 	$stdout = @(& $WorktreeCliExecutable @Arguments 2>&1)
 	if ($LASTEXITCODE -ne $ExpectedExitCode) {
@@ -109,6 +166,28 @@ function Set-ExpiredLandingLease([string] $LocalAppData, [string] $Owner) {
 	$metadata.heartbeatAt = $heartbeat
 	$metadata.expiresAt = $expires
 	[IO.File]::WriteAllText($lease[0].FullName, ($metadata | ConvertTo-Json -Depth 16 -Compress), [Text.UTF8Encoding]::new($false))
+}
+
+function Set-NearExpiryLandingLease([string] $LocalAppData, [string] $Owner, [int] $RemainingMilliseconds = 1500) {
+	$lease = @(Get-ChildItem -LiteralPath $LocalAppData -Recurse -Filter '*.lock' -File -Force | Where-Object {
+		try {
+			$metadata = Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json -Depth 16 -ErrorAction Stop
+			return $metadata.domain -ceq 'landing' -and $metadata.owner -ceq $Owner
+		}
+		catch { return $false }
+	})
+	if ($lease.Count -ne 1) { throw "Could not locate one scratch landing lease for '$Owner'." }
+	$metadata = Get-Content -LiteralPath $lease[0].FullName -Raw | ConvertFrom-Json -Depth 16 -ErrorAction Stop
+	$durationSeconds = [int]$metadata.leaseDurationSeconds
+	$now = [DateTime]::UtcNow
+	$heartbeat = $now.AddMilliseconds(-($durationSeconds * 1000 - $RemainingMilliseconds))
+	$expires = $heartbeat.AddSeconds($durationSeconds)
+	[IO.File]::SetAttributes($lease[0].FullName, [IO.FileAttributes]::Normal)
+	$metadata.claimedAt = $heartbeat.ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [Globalization.CultureInfo]::InvariantCulture)
+	$metadata.heartbeatAt = $metadata.claimedAt
+	$metadata.expiresAt = $expires.ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [Globalization.CultureInfo]::InvariantCulture)
+	[IO.File]::WriteAllText($lease[0].FullName, ($metadata | ConvertTo-Json -Depth 16 -Compress), [Text.UTF8Encoding]::new($false))
+	return [pscustomobject]@{ Path = $lease[0].FullName; ExpiresAt = [DateTimeOffset]::Parse($metadata.expiresAt, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal) }
 }
 
 function Set-UnverifiableLandingLease([string] $LocalAppData, [string] $Owner) {
@@ -182,12 +261,47 @@ Invoke-ScratchGit $primary @('merge', '--ff-only', $sessionTip) | Out-Null
 $baseline = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
 $candidateMessage = Join-Path $scratchBase 'candidate-message.txt'
 [IO.File]::WriteAllText($candidateMessage, "fixture candidate`n", [Text.UTF8Encoding]::new($false))
+$literalBracketPath = 'Engine/Data/Textures/Water/[BC4]FoamNoiseAbstract.png'
 
 # Candidate construction is deliberately before verification. This isolated coverage
 # exercises the Git boundary and its guarded rollbacks.
 [IO.File]::WriteAllText((Join-Path $session 'candidate-session.txt'), 'session candidate', [Text.UTF8Encoding]::new($false))
 $run = Invoke-JsonScript $candidateScript @('-Route','session-landing','-CurrentWorktree',$session,'-PrimaryWorktree',$primary,'-CurrentBranch',$sessionBranch,'-PrimaryBranch','main','-Baseline',$baseline,'-ExpectedCurrentTip',$sessionTip,'-ExpectedPrimaryTip',$baseline,'-OwnedPaths','*.txt','-CommitMessageFile',$candidateMessage)
 Assert-Outcome $run 'candidate-rejects-pathspec-owned-path' 1 'error' 'input.path-invalid'
+$traversalSessionRefBefore = (@(Invoke-ScratchGit $session @('rev-parse',"refs/heads/$sessionBranch")))[0].Trim()
+$traversalPrimaryRefBefore = (@(Invoke-ScratchGit $primary @('rev-parse','refs/heads/main')))[0].Trim()
+$traversalSessionIndexBefore = (@(Invoke-ScratchGit $session @('ls-files','-s')) -join "`n")
+$traversalPrimaryIndexBefore = (@(Invoke-ScratchGit $primary @('ls-files','-s')) -join "`n")
+$traversalSessionStatusBefore = (@(Invoke-ScratchGit $session @('status','--porcelain=v1','-z','--untracked-files=all')) -join "`n")
+$traversalPrimaryStatusBefore = (@(Invoke-ScratchGit $primary @('status','--porcelain=v1','-z','--untracked-files=all')) -join "`n")
+$traversalCandidateTextBefore = [IO.File]::ReadAllText((Join-Path $session 'candidate-session.txt'), [Text.UTF8Encoding]::new($false,$true))
+$traversalPrimaryBaseTextBefore = [IO.File]::ReadAllText((Join-Path $primary 'base.txt'), [Text.UTF8Encoding]::new($false,$true))
+$assertInvalidPathState = {
+	param([string] $Case)
+	Assert-True ($traversalSessionRefBefore -ceq ((@(Invoke-ScratchGit $session @('rev-parse',"refs/heads/$sessionBranch")))[0].Trim()) -and $traversalPrimaryRefBefore -ceq ((@(Invoke-ScratchGit $primary @('rev-parse','refs/heads/main')))[0].Trim())) "$Case preserves both refs"
+	Assert-True ($traversalSessionIndexBefore -ceq (@(Invoke-ScratchGit $session @('ls-files','-s')) -join "`n") -and $traversalPrimaryIndexBefore -ceq (@(Invoke-ScratchGit $primary @('ls-files','-s')) -join "`n") -and $traversalSessionStatusBefore -ceq (@(Invoke-ScratchGit $session @('status','--porcelain=v1','-z','--untracked-files=all')) -join "`n") -and $traversalPrimaryStatusBefore -ceq (@(Invoke-ScratchGit $primary @('status','--porcelain=v1','-z','--untracked-files=all')) -join "`n")) "$Case preserves indexes and disjoint status"
+	Assert-True ($traversalCandidateTextBefore -ceq [IO.File]::ReadAllText((Join-Path $session 'candidate-session.txt'), [Text.UTF8Encoding]::new($false,$true)) -and $traversalPrimaryBaseTextBefore -ceq [IO.File]::ReadAllText((Join-Path $primary 'base.txt'), [Text.UTF8Encoding]::new($false,$true))) "$Case preserves worktree bytes"
+}
+$run = Invoke-JsonScript $candidateScript @('-Route','session-landing','-CurrentWorktree',$session,'-PrimaryWorktree',$primary,'-CurrentBranch',$sessionBranch,'-PrimaryBranch','main','-Baseline',$baseline,'-ExpectedCurrentTip',$sessionTip,'-ExpectedPrimaryTip',$baseline,'-OwnedPaths','foo/..','-CommitMessageFile',$candidateMessage)
+Assert-Outcome $run 'candidate-rejects-terminal-traversal-owned-path' 1 'error' 'input.path-invalid'
+& $assertInvalidPathState 'terminal traversal rejection'
+foreach ($dotPath in @('./file.txt', 'dir/./file.txt', 'dir/.')) {
+	$run = Invoke-JsonScript $candidateScript @('-Route','session-landing','-CurrentWorktree',$session,'-PrimaryWorktree',$primary,'-CurrentBranch',$sessionBranch,'-PrimaryBranch','main','-Baseline',$baseline,'-ExpectedCurrentTip',$sessionTip,'-ExpectedPrimaryTip',$baseline,'-OwnedPaths',$dotPath,'-CommitMessageFile',$candidateMessage)
+	Assert-Outcome $run "candidate-rejects-dot-owned-path-$dotPath" 1 'error' 'input.path-invalid'
+	& $assertInvalidPathState "dot path '$dotPath' rejection"
+}
+$literalSessionDiskPath = Join-Path $session ($literalBracketPath.Replace('/','\'))
+New-Item -ItemType Directory -Force (Split-Path -Parent $literalSessionDiskPath) | Out-Null
+[IO.File]::WriteAllText($literalSessionDiskPath, 'literal session candidate', [Text.UTF8Encoding]::new($false))
+$run = Invoke-JsonScript $candidateScript @('-Route','session-landing','-CurrentWorktree',$session,'-PrimaryWorktree',$primary,'-CurrentBranch',$sessionBranch,'-PrimaryBranch','main','-Baseline',$baseline,'-ExpectedCurrentTip',$sessionTip,'-ExpectedPrimaryTip',$baseline,'-OwnedPaths',$literalBracketPath,'-CommitMessageFile',$candidateMessage)
+Assert-Outcome $run 'session-candidate-accepts-bracketed-literal-path' 0 'pass' 'candidate.created'
+if ($null -ne $run.Json) {
+	Assert-True (@($run.Json.ownedPaths).Count -eq 1 -and @($run.Json.ownedPaths)[0] -ceq $literalBracketPath) 'session bracketed candidate owns exactly the literal path'
+	$sessionChangedPaths = @(@(Invoke-ScratchGit $session @('diff-tree','--no-commit-id','--name-only','-r',$sessionTip,$run.Json.candidate.commit)) | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrEmpty($_) })
+	Assert-True ($sessionChangedPaths.Count -eq 1 -and $sessionChangedPaths[0] -ceq $literalBracketPath) 'session bracketed candidate changes exactly the literal path'
+}
+Invoke-ScratchGit $session @('reset','--hard',$sessionTip) | Out-Null
+Remove-Item -LiteralPath (Join-Path $session 'Engine') -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force (Join-Path $session 'owned-directory') | Out-Null
 [IO.File]::WriteAllText((Join-Path $session 'owned-directory\first.txt'), 'first', [Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText((Join-Path $session 'owned-directory\second.txt'), 'second', [Text.UTF8Encoding]::new($false))
@@ -253,6 +367,26 @@ $run = Invoke-JsonScript $candidateScript @('-Route','session-landing','-Current
 Assert-Outcome $run 'session-candidate-blocks-mixed-owned-state' 2 'blocked' 'git.owned-path-mixed-state'
 Invoke-ScratchGit $session @('reset','--hard',$baseline) | Out-Null
 Remove-Item -LiteralPath (Join-Path $session 'mixed-owned.txt') -Force -ErrorAction SilentlyContinue
+$literalPrimaryDiskPath = Join-Path $primary ($literalBracketPath.Replace('/','\'))
+New-Item -ItemType Directory -Force (Split-Path -Parent $literalPrimaryDiskPath) | Out-Null
+[IO.File]::WriteAllText($literalPrimaryDiskPath, 'literal primary candidate', [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $primary 'literal-disjoint-staged.txt'), 'staged disjoint', [Text.UTF8Encoding]::new($false))
+Invoke-ScratchGit $primary @('add','literal-disjoint-staged.txt') | Out-Null
+[IO.File]::WriteAllText((Join-Path $primary 'base.txt'), 'literal disjoint unstaged', [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $primary 'literal-disjoint-untracked.txt'), 'untracked disjoint', [Text.UTF8Encoding]::new($false))
+$literalPrimaryIndexBefore = (@(Invoke-ScratchGit $primary @('ls-files','-s')) -join "`n")
+$literalPrimaryStatusBefore = (@(Invoke-ScratchGit $primary @('status','--porcelain=v1','-z','--untracked-files=all')) -join "`n")
+$literalPrimaryParameters = [ordered]@{ Route='primary-commit'; CurrentWorktree=$primary; PrimaryWorktree=$primary; CurrentBranch='main'; PrimaryBranch='main'; Baseline=$baseline; ExpectedCurrentTip=$baseline; ExpectedPrimaryTip=$baseline; OwnedPaths=@($literalBracketPath); CommitMessageFile=$candidateMessage }
+$run = Invoke-JsonScriptWithSplat $candidateScript $literalPrimaryParameters $scratchBase
+Assert-Outcome $run 'primary-candidate-accepts-bracketed-literal-path' 0 'pass' 'candidate.created'
+if ($null -ne $run.Json) {
+	Assert-True (@($run.Json.ownedPaths).Count -eq 1 -and @($run.Json.ownedPaths)[0] -ceq $literalBracketPath) 'primary bracketed candidate owns exactly the literal path'
+	$primaryChangedPaths = @(@(Invoke-ScratchGit $primary @('diff-tree','--no-commit-id','--name-only','-r',$baseline,$run.Json.candidate.commit)) | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrEmpty($_) })
+	Assert-True ($primaryChangedPaths.Count -eq 1 -and $primaryChangedPaths[0] -ceq $literalBracketPath) 'primary bracketed candidate changes exactly the literal path'
+	Assert-True ($literalPrimaryIndexBefore -ceq (@(Invoke-ScratchGit $primary @('ls-files','-s')) -join "`n") -and $literalPrimaryStatusBefore -ceq (@(Invoke-ScratchGit $primary @('status','--porcelain=v1','-z','--untracked-files=all')) -join "`n")) 'primary bracketed candidate preserves real index and disjoint staged unstaged untracked state'
+}
+Invoke-ScratchGit $primary @('reset','--hard',$baseline) | Out-Null
+Invoke-ScratchGit $primary @('clean','-fd') | Out-Null
 [IO.File]::WriteAllText((Join-Path $primary 'primary-active-owned.txt'), 'primary candidate', [Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText((Join-Path $primary 'primary-staged-owned.txt'), 'primary staged', [Text.UTF8Encoding]::new($false))
 Invoke-ScratchGit $primary @('add','primary-staged-owned.txt') | Out-Null
@@ -498,8 +632,13 @@ if ($null -ne $run.Json) {
 	Assert-True ($landing.Json.PSObject.Properties.Name -cnotcontains 'identities' -and $landing.Json.PSObject.Properties.Name -cnotcontains 'tips' -and $landing.Json.PSObject.Properties.Name -cnotcontains 'locks' -and $landing.Json.PSObject.Properties.Name -cnotcontains 'blocker') 'landing hides checkout, lock-owner, and raw blocker objects'
 	Assert-True ($landing.Json.primaryAdvanced -and ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()) -ceq $run.Json.candidate.commit) 'landing primary ref equals the reviewed candidate commit exactly'
 	$landingParameters.ExpectedPrimaryTip = $run.Json.candidate.commit
+	$recoveryOwner = [guid]::NewGuid().ToString()
+	Invoke-WorktreeCli @('lock', 'claim', '--repo', $commonDirectory, '--owner', $recoveryOwner, '--session', 'finalize-fixture/landing', '--worktree', $session, '--lease-seconds', '3600') | Out-Null
 	$recovery = Invoke-JsonScriptWithSplat $landingScript $landingParameters $scratchBase
 	Assert-Outcome $recovery 'exact-candidate-post-advance-recovery' 0 'landed' 'ok'
+	if ($null -ne $recovery.Json) {
+		Assert-True ($recovery.Json.lock.claimed -and $recovery.Json.lock.released) 'omitted-token recovery adopts and releases the matching retained claim'
+	}
 }
 
 # Lease continuity and the single internal rebase-and-retry. Every scenario below changes the last
@@ -586,6 +725,105 @@ if ($null -ne $foreign.Json) {
 	Assert-True (-not $foreign.Json.primaryAdvanced -and ((@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()) -ceq $foreignPrimaryBefore) 'a refused foreign lease leaves primary unchanged'
 }
 Invoke-WorktreeCli @('lock', 'release', '--repo', $commonDirectory, '--owner', $foreignOwner) | Out-Null
+
+# An omitted-token landing adopts only a retained claim under its derived identity. Foreign live
+# leases are observed in a bounded child process so the production 300-second wait is not shortened;
+# the child is reaped before the fixture releases the foreign owner. Unverifiable metadata must fail
+# immediately with authority required and remain untouched.
+function Assert-OmittedForeignLease([string] $Case, [string] $LeaseSession, [string] $LeaseWorktree, [bool] $Unverifiable = $false, [int] $LeaseSeconds = 600) {
+	$candidate = New-RetryCandidate (New-RetryFileText $retryHead "$Case tail") $Case
+	$owner = [guid]::NewGuid().ToString()
+	Invoke-WorktreeCli @('lock', 'claim', '--repo', $commonDirectory, '--owner', $owner, '--session', $LeaseSession, '--worktree', $LeaseWorktree, '--lease-seconds', [string]$LeaseSeconds) | Out-Null
+	if ($Unverifiable) { Set-UnverifiableLandingLease $localAppData $owner }
+	$primaryBefore = (@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()
+	$parameters = New-RetryLandingParameters $candidate
+	if ($Unverifiable) {
+		$run = Invoke-JsonScriptWithSplat $landingScript $parameters $scratchBase
+		Assert-Outcome $run "$Case-omitted-token" 2 'blocked' 'landing-lock.claim-failed'
+		if ($null -ne $run.Json) {
+			Assert-True ($run.Json.disposition -ceq 'authority-required' -and $run.Json.requiresUserAuthority -and -not $run.Json.primaryAdvanced) "$Case unverifiable lease requires authority and leaves primary unchanged"
+		}
+		$status = ((@(Invoke-WorktreeCli @('lock', 'status', '--repo', $commonDirectory)) -join '') | ConvertFrom-Json -Depth 16)
+		Assert-True ($status.held -eq $true -and $status.leaseState -ceq 'unverifiable') "$Case unverifiable lease remains untouched"
+	}
+	else {
+		$started = Start-JsonScriptWithSplat $landingScript $parameters $scratchBase
+		try {
+			Start-Sleep -Seconds 2
+			Assert-True (-not $started.Process.HasExited) "$Case foreign lease remains a bounded wait"
+			Assert-True (((@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()) -ceq $primaryBefore) "$Case foreign lease leaves primary unchanged"
+			$status = ((@(Invoke-WorktreeCli @('lock', 'status', '--repo', $commonDirectory)) -join '') | ConvertFrom-Json -Depth 16)
+			Assert-True ($status.held -eq $true -and $status.owner -ceq $owner -and $status.leaseDurationSeconds -eq $LeaseSeconds) "$Case foreign lease is not adopted and keeps its recorded duration"
+		}
+		finally { Stop-JsonScript $started }
+	}
+	Invoke-WorktreeCli @('lock', 'release', '--repo', $commonDirectory, '--owner', $owner) | Out-Null
+}
+
+# A matching retained lease with only 60 seconds recorded is not adopted by an omitted-token
+# landing: refresh preserves that duration, so continuing could expire during rebase or advance.
+Assert-OmittedForeignLease 'omitted-short-derived-lease' 'finalize-fixture/landing' $session $false 60
+
+$omittedCandidate = New-RetryCandidate (New-RetryFileText $retryHead 'omitted adoption tail') 'omitted-adoption'
+$omittedOwner = [guid]::NewGuid().ToString()
+Invoke-WorktreeCli @('lock', 'claim', '--repo', $commonDirectory, '--owner', $omittedOwner, '--session', 'finalize-fixture/landing', '--worktree', $session, '--lease-seconds', '3600') | Out-Null
+$omitted = Invoke-JsonScriptWithSplat $landingScript (New-RetryLandingParameters $omittedCandidate) $scratchBase
+Assert-Outcome $omitted 'landing-adopts-omitted-token-retained-claim' 0 'landed' 'ok'
+if ($null -ne $omitted.Json) {
+	Assert-True ($omitted.Json.lock.claimed -and $omitted.Json.lock.claimCode -ceq 'ok' -and $omitted.Json.lock.released) 'omitted-token landing adopts and releases the derived retained claim'
+	Assert-True ($omitted.Json.primaryAdvanced -and ((@(Invoke-ScratchGit $primary @('rev-parse', 'HEAD')))[0].Trim()) -ceq $omittedCandidate.Commit) 'omitted-token adoption lands the confirmed candidate'
+}
+
+# A matching retained lease whose full 3600-second duration is almost spent must be refreshed
+# before a primary race sends landing through its rebase. Poll the scratch metadata while the child
+# is active and require the approved session tip when the extension is observed, so the fixture
+# proves the refresh happened before the rebase rather than only during its later retry.
+$nearExpiryCandidate = New-RetryCandidate (New-RetryFileText $retryHead 'omitted near-expiry tail') 'omitted-near-expiry'
+$nearExpiryUpstream = Add-UpstreamPrimaryCommit (New-RetryFileText 'omitted near-expiry upstream' 'omitted adoption tail')
+$nearExpiryOwner = [guid]::NewGuid().ToString()
+Invoke-WorktreeCli @('lock', 'claim', '--repo', $commonDirectory, '--owner', $nearExpiryOwner, '--session', 'finalize-fixture/landing', '--worktree', $session, '--lease-seconds', '3600') | Out-Null
+$nearExpiryLease = Set-NearExpiryLandingLease $localAppData $nearExpiryOwner 30000
+$nearExpiryStarted = Start-JsonScriptWithSplat $landingScript (New-RetryLandingParameters $nearExpiryCandidate) $scratchBase
+$nearExpiryRefreshed = $false
+$nearExpiryCompleted = $false
+$nearExpiryExitCode = $null
+try {
+	$nearExpiryDeadline = [DateTime]::UtcNow.AddSeconds(10)
+	while ([DateTime]::UtcNow -lt $nearExpiryDeadline) {
+		if (Test-Path -LiteralPath $nearExpiryLease.Path) {
+			try {
+				$metadata = Get-Content -LiteralPath $nearExpiryLease.Path -Raw | ConvertFrom-Json -Depth 16 -ErrorAction Stop
+				$sessionTip = (@(Invoke-ScratchGit $session @('rev-parse', "refs/heads/$sessionBranch")))[0].Trim()
+				if ($metadata.owner -ceq $nearExpiryOwner -and $sessionTip -ceq $nearExpiryCandidate.Commit -and ([DateTimeOffset]::Parse($metadata.expiresAt, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal) -gt $nearExpiryLease.ExpiresAt.AddSeconds(60))) {
+					$nearExpiryRefreshed = $true
+				}
+			}
+			catch { }
+		}
+		if ($nearExpiryStarted.Process.WaitForExit(0)) {
+			$nearExpiryCompleted = $true
+			break
+		}
+		Start-Sleep -Milliseconds 25
+	}
+	if (-not $nearExpiryCompleted -and $nearExpiryStarted.Process.WaitForExit(0)) { $nearExpiryCompleted = $true }
+	if ($nearExpiryCompleted) {
+		$nearExpiryExitCode = $nearExpiryStarted.Process.ExitCode
+	}
+}
+finally { Stop-JsonScript $nearExpiryStarted }
+Assert-True $nearExpiryRefreshed 'omitted-token adoption refreshes a near-expiry matching lease before rebase work'
+$nearExpiryHead = (@(Invoke-ScratchGit $primary @('rev-parse','HEAD')))[0].Trim()
+$nearExpiryParent = (@(Invoke-ScratchGit $primary @('rev-parse', "$nearExpiryHead^")))[0].Trim()
+Assert-True ($nearExpiryCompleted -and $nearExpiryExitCode -eq 0 -and $nearExpiryHead -cne $nearExpiryCandidate.Commit -and $nearExpiryParent -ceq $nearExpiryUpstream) 'near-expiry omitted-token adoption lands after the primary race'
+$retryHead = 'omitted near-expiry upstream'
+$retryTail = 'omitted near-expiry tail'
+try { Invoke-WorktreeCli @('lock', 'release', '--repo', $commonDirectory, '--owner', $nearExpiryOwner) | Out-Null } catch { }
+
+Assert-OmittedForeignLease 'omitted-raw-session' 'finalize-fixture' $session
+Assert-OmittedForeignLease 'omitted-foreign-session' 'foreign-fixture' $session
+Assert-OmittedForeignLease 'omitted-foreign-worktree' 'finalize-fixture/landing' $primary
+Assert-OmittedForeignLease 'omitted-unverifiable' 'finalize-fixture/landing' $session $true
 
 $identicalTail = 'identical retry tail'
 $identicalCandidate = New-RetryCandidate (New-RetryFileText $retryHead $identicalTail) 'identical-retry'

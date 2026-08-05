@@ -162,7 +162,7 @@ gone, and the audit consistently declined to file findings on them.
 ### The standard being audited against
 
 `/update-claude-docs`: state how the code works now; architecture rather than inventories; link to
-the canonical owner instead of duplicating; "remove a sentence unless its absence would plausibly
+the authoritative owner instead of duplicating; "remove a sentence unless its absence would plausibly
 cause a worse future decision" (which cuts both ways); use established repository vocabulary; leaf
 documents target ≤ 2,000 and cross-cutting hubs ≤ 4,000 `bt-token-v1`; size is a target, not a
 licence to delete an invariant; do not silently override a parent or sibling invariant; a source
@@ -1235,7 +1235,7 @@ the X axis: `Lighting/AreaLight.frag:69-72` stores `+dir.x` in the East slot and
 where `f2WorldDir` (`:60`) is the light-center-to-fragment offset; `LightingSpread.frag:127-129`
 uses a third sign convention, `max(vec4(-dir.x, dir.x, -dir.y, dir.y), 0)`, with a comment mixing
 world and pixel axes; `Objects/HexShieldLighting.frag:62` follows the AreaLight packing. Impact: the
-sentence reads as canonical, so an editor writing a new depositor packs by the plain reading and
+sentence reads as authoritative, so an editor writing a new depositor packs by the plain reading and
 gets the Y axis backwards relative to `AreaLight.frag`. **Action:** rewrite line 18 to state the
 mapping in physical terms with `AreaLight.frag` as the reference packing. **Caveat carried forward,
 do not upgrade:** the auditor offered the X/Y sign-convention disagreement between `AreaLight.frag`
@@ -1287,7 +1287,7 @@ compares against `suLastContentHash`, returns `false` when unchanged, and **muta
 `suLastContentHash`/`sbHasLastContentHash` before returning `true`; `Engine/Source/Main.cpp:437-444`
 — the only call site skips repaint when the window is minimized or hidden and otherwise repaints
 only when `ServerDisplayContentChanged() || bHeartbeat`, with a 4-window (1 Hz at 32 Hz tick)
-heartbeat so the free-running tick/timer text proves liveness; `ServerDisplay.cpp:175-186` shows the
+heartbeat so the free-running tick/timer text proves the server is still running; `ServerDisplay.cpp:175-186` shows the
 hash deliberately excludes tick/time. Impact: an editor calling the function a second time (for a
 log line, an agent query, or a second repaint condition) silently consumes the change and kills the
 repaint, producing an apparently frozen server window that looks like a hang; and an editor adding a
@@ -1365,7 +1365,7 @@ explicit `SubscriptionChangeReason`; `HudScreen.cpp:377-388` — the Nav Delay s
 `Documents/UserInterfaceDesign.txt` is explicitly layout-only (lines 4-11, 18-24), so delegating to
 it does not cover this. Impact: these are the only UI controls in the game that mutate network
 subscription state and throttle a per-frame slider into one request. Someone reworking HUD panels —
-a layout task by the canonical document — can rebuild a focus button and silently drop the
+a layout task by the authoritative document — can rebuild a focus button and silently drop the
 subscription refresh (the client then renders a cell it never subscribed to), or convert the slider
 to live-commit and emit 32 fleet requests a second. **Action:** restore condensed under
 `## Shared Contracts`.
@@ -1427,7 +1427,7 @@ expiresAt`, integer fields `schemaVersion, leaseDurationSeconds`, then `leaseSta
 is written into the on-disk record (`Tools/ToolCommon/CoordinationStore.cpp:372`) and read for
 validation (`:352-356`) but deliberately absent from the allowlist. Every landing-lock command emits
 through that one function (`Tools/WorktreeCli/LandingLockCommands.cpp:125,150,175,204,308`). Impact:
-the surviving half explains why liveness is not PID-based but says nothing about what the response
+the surviving half explains why checking whether the lease is still held is not PID-based but says nothing about what the response
 may contain. An editor debugging a stuck lease sees a rich private record and a narrow response and
 reads the allowlist as an oversight; adding `claimantPid` looks like a one-line improvement, and
 publishes cross-session process provenance into a documented JSON schema, inviting callers to gate
@@ -1540,7 +1540,7 @@ examples the auditors checked and deliberately declined to file: the network cha
 (`2 + slot*2`), whose formula and "never hardcode" intent survive as `NetworkManager` helpers plus a
 channel-map comment at `NetworkManager.h:16-28`; the `CoordSubscriptionState` enum listing, whose
 transitions are commented at `Client.h:46-53`; the server `## Build Configs` section, whose rule is
-the canonical property of
+the authoritative property of
 `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/AGENTS.md:32-34`; the `ReconcileReplay`
 four-file split and manager inventories; the entire scored plan-queue contract in
 `Documents/Plans/AGENTS.md`, which describes a system removed by `45558faa`; the `Engine/Data/Shaders/Debug`

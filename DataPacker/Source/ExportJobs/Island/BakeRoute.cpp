@@ -49,11 +49,11 @@ constexpr const char* kpcIntermediateFiles[] =
 // raw bake changes — the archetype patch (dims / seed / Route Choice / Mesher resolution) or the
 // Gaea invocation. IsGaeaRawDirty re-runs Gaea on mismatch.
 //
-// kiSplitVersion (SplitVersion.meta): the post-Gaea split. Bump when ProcessBakedRegion, the edge
-// taper, or the chunk split (incl. kRouteSubdivisions columns/rows) changes. AreLeavesDirty re-splits
-// from the existing raw on mismatch — no Gaea re-export.
+// kiSplitVersion (SplitVersion.meta): the post-Gaea split. Bump when ProcessBakedRegion (including
+// its per-leaf edge taper) or the chunk split (incl. kRouteSubdivisions columns/rows) changes.
+// AreLeavesDirty re-splits from the existing raw on mismatch — no Gaea re-export.
 constexpr int32_t kiBakeVersion = 28;
-constexpr int32_t kiSplitVersion = 6;
+constexpr int32_t kiSplitVersion = 8;
 
 // Beach-band adaptive subdivision constants. After the Gaea Mesher mesh is parsed, every triangle
 // whose Z-range overlaps the beach band gets recursively split (1->4 midpoint) until its longest XY
@@ -68,11 +68,6 @@ constexpr float kfBeachSubdivisionMinMeters = -0.25f;
 constexpr float kfBeachSubdivisionMaxMeters = 0.5f;
 constexpr float kfBeachSubdivisionMaxEdgeMeters = 1.0f;
 constexpr int32_t kiBeachSubdivisionMaxDepth = 12;
-
-// Edge-taper band width: iTexturePixels / kiEdgeTaperBandDivisor pixels in from each bake border ramp
-// underwater elevation down to the per-island sea floor. A fraction of the bake, so it scales with
-// island size.
-constexpr int64_t kiEdgeTaperBandDivisor = 16;
 
 constexpr const char* kpcBakeVersionFile = "BakeVersion.meta";
 constexpr const char* kpcSplitVersionFile = "SplitVersion.meta";
@@ -341,42 +336,6 @@ std::vector<float> LoadElevationMeters(const std::filesystem::path& rIntermediat
 	return fullElevationMeters;
 }
 
-// Force the bake-border elevation smoothly down to the per-island sea floor. Border underwater pixels
-// must reach exactly -fBeachOffsetMeters (= common::kfSeaBottomMeters) so the tapered edge blends
-// seamlessly with the engine's constant open-ocean elevation-RTT clear; only underwater pixels are
-// lowered and none is ever raised, so terrain at or above sea level is never altered.
-void TaperElevationEdgesToSeaFloor(std::vector<float>& rFullElevationMeters, int64_t iTexturePixels, float fBeachOffsetMeters)
-{
-	int64_t iBandPixels = iTexturePixels / kiEdgeTaperBandDivisor;
-	if (iBandPixels <= 0)
-	{
-		return;
-	}
-
-	float fSeaFloorMeters = -fBeachOffsetMeters;
-	for (int64_t iY = 0; iY < iTexturePixels; ++iY)
-	{
-		for (int64_t iX = 0; iX < iTexturePixels; ++iX)
-		{
-			int64_t iEdgeDistance = std::min({iX, iY, iTexturePixels - 1 - iX, iTexturePixels - 1 - iY});
-			if (iEdgeDistance >= iBandPixels)
-			{
-				continue;
-			}
-
-			float fS = static_cast<float>(iEdgeDistance) / static_cast<float>(iBandPixels);
-			float fT = fS * fS * (3.0f - 2.0f * fS);
-			float fCeiling = fSeaFloorMeters + fT * (0.0f - fSeaFloorMeters);
-
-			float& rfPixel = rFullElevationMeters[static_cast<size_t>(iY) * static_cast<size_t>(iTexturePixels) + static_cast<size_t>(iX)];
-			if (rfPixel < 0.0f)
-			{
-				rfPixel = std::min(rfPixel, fCeiling);
-			}
-		}
-	}
-}
-
 // Read raw full-resolution AmbientOcclusion (cropped per chunk in ProcessBakedRegion).
 std::vector<uint16_t> LoadAmbientOcclusion(const std::filesystem::path& rIntermediatesDir, int64_t iTexturePixels)
 {
@@ -607,7 +566,6 @@ void BakeRoute(const IslandBakeContext& rContext, const RouteSubdivision& rRoute
 	ASSERT(std::abs(-fBeachOffsetMeters - common::kfSeaBottomMeters) < 0.01f);
 
 	std::vector<float> fullElevationMeters = LoadElevationMeters(intermediatesDirectory, rContext.iTexturePixels, fSeaLevelNormalized, rContext.rDimensions.fElevationMeters, fBeachOffsetMeters);
-	TaperElevationEdgesToSeaFloor(fullElevationMeters, rContext.iTexturePixels, fBeachOffsetMeters);
 
 	std::vector<uint16_t> fullAmbientOcclusion = LoadAmbientOcclusion(intermediatesDirectory, rContext.iTexturePixels);
 
