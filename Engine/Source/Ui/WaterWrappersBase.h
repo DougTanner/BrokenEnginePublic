@@ -111,9 +111,10 @@ extern Wrapper gWaterColorNoiseWeightTwo;
 extern Wrapper gWaterColorNoiseMultiplierTwo;
 
 // Beach
-extern Wrapper gWaterShoalMax;
-extern Wrapper gWaterShoalDepthRef;
-extern Wrapper gWaterBreakDepth;
+extern Wrapper gWaterBreakStartDepth;
+extern Wrapper gWaterBreakEndDepth;
+extern Wrapper gWaterBreakBlendCurve;
+extern Wrapper gWaterMediumShoreSoftness;
 extern Wrapper gLightingWaterSkyboxOneBeachReduction;
 extern Wrapper gLightingWaterSkyboxTwoBeachReduction;
 extern Wrapper gLightingWaterSkyboxThreeBeachReduction;

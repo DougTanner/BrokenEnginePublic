@@ -112,9 +112,10 @@ const TweaksSliderMapRegistrar gWaterRegistrar
 	{"Water Color Noise Weight Two", &gWaterColorNoiseWeightTwo},
 	{"Water Color Noise Multiplier Two", &gWaterColorNoiseMultiplierTwo},
 	// Beach
-	{"Shoal Max", &gWaterShoalMax},
-	{"Shoal Depth Ref", &gWaterShoalDepthRef},
-	{"Break Depth", &gWaterBreakDepth},
+	{"Break Start Depth", &gWaterBreakStartDepth},
+	{"Break End Depth", &gWaterBreakEndDepth},
+	{"Break Blend Curve", &gWaterBreakBlendCurve},
+	{"Medium Shore Softness", &gWaterMediumShoreSoftness},
 	{"Beach Skybox 1 Reduction", &gLightingWaterSkyboxOneBeachReduction},
 	{"Beach Skybox 2 Reduction", &gLightingWaterSkyboxTwoBeachReduction},
 	{"Beach Skybox 3 Reduction", &gLightingWaterSkyboxThreeBeachReduction},
@@ -279,10 +280,11 @@ void TweaksScreenBase::RenderWaterSection()
 		}
 		if (BeginSubtab("Beach", iSection, 4))
 		{
-			WrapperSeparatorText("Shoaling");
-			WrapperSlider("Shoal Max", iSection);
-			WrapperSlider("Shoal Depth Ref", iSection);
-			WrapperSlider("Break Depth", iSection);
+			WrapperSeparatorText("Breaking");
+			WrapperSlider("Break Start Depth", iSection);
+			WrapperSlider("Break End Depth", iSection);
+			WrapperSlider("Break Blend Curve", iSection);
+			WrapperSlider("Medium Shore Softness", iSection);
 
 			WrapperSeparatorText("Skybox Lobe Reduction");
 			WrapperSlider("Beach Skybox 1 Reduction", iSection);

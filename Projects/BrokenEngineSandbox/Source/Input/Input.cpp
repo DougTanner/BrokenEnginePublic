@@ -132,7 +132,12 @@ void Input::UpdateCameraInput()
 		miPreviousScrollWheelValue = iScrollNow;
 		mStateFlags.Set(InputStateFlags::kScrollWheelInitialized);
 	}
-	bool bUserInterfaceOwnsScroll = gpGame->meUiState != UiState::kNone ||
+	bool bAllowDebugMainMenuZoom = false;
+	if constexpr (kbDebugInput)
+	{
+		bAllowDebugMainMenuZoom = gpGame->InMainMenu() && gpGame->meUiState == UiState::kPause;
+	}
+	bool bUserInterfaceOwnsScroll = (gpGame->meUiState != UiState::kNone && !bAllowDebugMainMenuZoom) ||
 		(ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse);
 	mCameraInput.iScrollDelta = bUserInterfaceOwnsScroll ? 0 : iScrollNow - miPreviousScrollWheelValue;
 	miPreviousScrollWheelValue = iScrollNow;

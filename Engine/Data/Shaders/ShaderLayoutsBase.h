@@ -472,9 +472,11 @@ struct GlobalLayout
 	float fWaterColorNoiseMultiplierOne INIT;
 	float fWaterColorNoiseMultiplierTwo INIT;
 	float fWaterDirectional INIT;
-	float fWaterShoalMax INIT;
-	float fWaterShoalDepthRefInv INIT; // 1 / gWaterShoalDepthRef, CPU-folded for WaterDisplacement.comp
-	float fWaterBreakDepthInv INIT; // 1 / gWaterBreakDepth, CPU-folded for WaterDisplacement.comp
+	float fWaterBreakEndDepthInv INIT; // 1 / gWaterBreakEndDepth, CPU-folded for WaterDisplacement.comp and WaterSpecular.h
+	float fWaterBreakBlendStart INIT; // min(gWaterBreakStartDepth, gWaterBreakEndDepth), CPU-folded for WaterDisplacement.comp
+	float fWaterBreakBlendInvRange INIT; // 1 / (gWaterBreakEndDepth - fWaterBreakBlendStart) when positive, 0 for the hard step, CPU-folded for WaterDisplacement.comp
+	float fWaterBreakBlendCurve INIT; // gWaterBreakBlendCurve exponent for pow(t, exponent), [0.125, 8]; 1 is linear, below 1 introduces low earlier, above 1 retains medium longer
+	float fWaterMediumShoreFadeInvWidth INIT; // 1 / gWaterMediumShoreSoftness when positive (0 disables), CPU-folded for the WaterDisplacement.comp medium-only shore fade
 	float fWaterLowSteepness INIT;
 	float fWaterMediumSteepness INIT;
 	float fWaterWaveNormalBlend INIT;

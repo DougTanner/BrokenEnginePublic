@@ -7,7 +7,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'AgentScriptCommon.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot 'WorktreeCliSessionExclusion.psm1') -Force
 
 function Get-LinkTarget([System.IO.FileSystemInfo] $Item) {
 	$target = $Item.Target
@@ -148,12 +147,20 @@ function Get-GitlinkPin([string] $CheckoutRoot, [string] $RelativePath, [string]
 	return $parts[2]
 }
 
-$root = Get-AgentCanonicalPath $RepositoryRoot
 if (-not [System.IO.Path]::IsPathRooted($RepositoryRoot)) { throw 'RepositoryRoot must be absolute.' }
+$root = Get-AgentCanonicalPath $RepositoryRoot
 $topLevel = Get-AgentCanonicalPath (@(Invoke-AgentGit @('-C', $root, 'rev-parse', '--show-toplevel'))[0].Trim())
 if (-not $topLevel.Equals($root, [StringComparison]::OrdinalIgnoreCase)) { throw "RepositoryRoot is not the repository root: '$root'." }
 
 $commonDir = Get-AgentCanonicalPath (@(Invoke-AgentGit @('-C', $root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))[0].Trim())
+$gitDirectory = Get-Item -LiteralPath (Join-Path $root '.git') -Force -ErrorAction SilentlyContinue
+if ($null -ne $gitDirectory -and $gitDirectory.PSIsContainer -and -not ($gitDirectory.Attributes -band [IO.FileAttributes]::ReparsePoint) -and
+	$commonDir.Equals((Get-AgentCanonicalPath $gitDirectory.FullName), [StringComparison]::OrdinalIgnoreCase)) {
+	return
+}
+
+Import-Module (Join-Path $PSScriptRoot 'WorktreeCliSessionExclusion.psm1') -Force
+
 $records = @(); $record = $null
 foreach ($line in (Invoke-AgentGit @('-C', $root, 'worktree', 'list', '--porcelain'))) {
 	if ($line -match '^worktree (.+)$') { if ($record) { $records += $record }; $record = @{ Path = Get-AgentCanonicalPath $Matches[1] } }

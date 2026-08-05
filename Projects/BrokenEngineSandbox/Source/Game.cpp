@@ -389,7 +389,7 @@ void Game::HarvestTransfers()
 #endif
 }
 
-void Game::CaptureHarvestedTransfers(engine::GridCoord coord, std::span<const StatusChange> transfers, const Frame& rPreTransferFrame)
+void Game::CaptureHarvestedTransfers([[maybe_unused]] engine::GridCoord coord, [[maybe_unused]] std::span<const StatusChange> transfers, [[maybe_unused]] const Frame& rPreTransferFrame)
 {
 #if defined(BT_SERVER)
 	mGameSaveLoad.CaptureHarvestedTransfers(coord, transfers, rPreTransferFrame);

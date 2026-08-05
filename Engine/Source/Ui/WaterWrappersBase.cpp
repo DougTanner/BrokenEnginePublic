@@ -29,7 +29,7 @@ Wrapper gLightingSampledNormalsWeightTwoMin(0.25f, 0.0f, 4.0f);
 Wrapper gLightingSampledNormalsWeightTwoMax(0.75f, 0.0f, 4.0f);
 Wrapper gWaterNormalRotationTwo(0.75f, -XM_PI, XM_PI);
 Wrapper gLightingSampledNormalsSpeedTwoMin(0.0f, 0.0f, 0.2f);
-Wrapper gLightingSampledNormalsSpeedTwoMax(0.1f, 0.0f, 1.0f);
+Wrapper gLightingSampledNormalsSpeedTwoMax(0.075f, 0.0f, 1.0f);
 Wrapper gWaterNormalSpeedDirectionTwo(-1.0f, -XM_PI, XM_PI);
 // 12 SeaWavesB 0.03
 // 2 Foam
@@ -37,7 +37,7 @@ Wrapper gWaterNormalSpeedDirectionTwo(-1.0f, -XM_PI, XM_PI);
 Wrapper gWaterNormalIndexThree(int64_t {4}, std::vector<int64_t> {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
 Wrapper gLightingSampledNormalsThreeSize(0.02f, 0.02f, 0.1f);
 Wrapper gLightingSampledNormalsWeightThreeMin(0.5f, 0.0f, 4.0f);
-Wrapper gLightingSampledNormalsWeightThreeMax(0.0f, 0.0f, 4.0f);
+Wrapper gLightingSampledNormalsWeightThreeMax(0.8f, 0.0f, 4.0f);
 Wrapper gWaterNormalRotationThree(0.17f, -XM_PI, XM_PI);
 Wrapper gLightingSampledNormalsSpeedThreeMin(0.1f, 0.0f, 0.2f);
 Wrapper gLightingSampledNormalsSpeedThreeMax(0.15f, 0.0f, 1.0f);
@@ -90,21 +90,21 @@ Wrapper gWaterLowAmplitudeAdjust(1.0f, 0.0f, 4.0f);
 Wrapper gWaterLowSpeedAdjust(0.288f, 0.0f, 4.0f);
 // Camera-height fade for low-frequency wave amplitudes. At camera eye height ≤ Start, multiplier = 1.0 (full waves). At ≥ End, multiplier = 0.0 (no low waves). Linear in between. Defaults preserve the previous hardcoded 1× → 2× default-eye-height ramp.
 Wrapper gWaterLowAmplitudeFadeStart(300.0f, 0.0f, 1000.0f);
-Wrapper gWaterLowAmplitudeFadeEnd(700.0f, 0.0f, 1000.0f);
+Wrapper gWaterLowAmplitudeFadeEnd(600.0f, 0.0f, 1000.0f);
 
 // Medium frequency waves
 Wrapper gWaterMediumCount(int64_t {255}, std::vector<int64_t> {15, 31, 63, 127, 255});
-Wrapper gWaterMediumWavelength(2.0f, 0.01f, 10.0f);
-Wrapper gWaterMediumAmplitude(0.002f, 0.0f, 0.01f);
-Wrapper gWaterMediumSpeed(0.1f, 0.001f, 0.5f);
-Wrapper gWaterMediumSteepness(2.0f, 0.0f, 10.0f);
-Wrapper gWaterMediumAngleAdjust(5.5f, 0.0f, 20.0f);
+Wrapper gWaterMediumWavelength(5.0f, 0.01f, 10.0f);
+Wrapper gWaterMediumAmplitude(0.009f, 0.0f, 0.02f);
+Wrapper gWaterMediumSpeed(0.2f, 0.001f, 0.3f);
+Wrapper gWaterMediumSteepness(1.0f, 0.0f, 2.0f);
+Wrapper gWaterMediumAngleAdjust(40.0f, 0.0f, 80.0f);
 Wrapper gWaterMediumWavelengthAdjust(0.8f, 0.0f, 1.0f);
-Wrapper gWaterMediumAmplitudeAdjust(0.1f, 0.0f, 5.0f);
-Wrapper gWaterMediumSpeedAdjust(4.0f, 0.0f, 5.0f);
+Wrapper gWaterMediumAmplitudeAdjust(0.9f, 0.0f, 5.0f);
+Wrapper gWaterMediumSpeedAdjust(2.0f, 0.0f, 5.0f);
 // Camera-height fade for medium-frequency wave amplitudes (independent of low). Same start/end convention as low.
-Wrapper gWaterMediumAmplitudeFadeStart(100.0f, 0.0f, 1000.0f);
-Wrapper gWaterMediumAmplitudeFadeEnd(300.0f, 0.0f, 1000.0f);
+Wrapper gWaterMediumAmplitudeFadeStart(300.0f, 0.0f, 1000.0f);
+Wrapper gWaterMediumAmplitudeFadeEnd(600.0f, 0.0f, 1000.0f);
 
 // Depth
 Wrapper gWaterTerrainHeight(3.5f, 1.0f, 8.0f);
@@ -113,13 +113,13 @@ Wrapper gWaterTerrainFade(0.3f, 0.1f, 5.0f);
 Wrapper gWaterTerrainFadeClamp(0.0f, 0.0f, 0.5f);
 Wrapper gWaterHeight(0.0f, -0.1f, 0.03f);
 Wrapper gWaterEarlyOut(0.0f, -0.1f, 0.1f);
-Wrapper gWaterDepthLutFeather(0.09f, 0.01f, 0.2f);
+Wrapper gWaterDepthLutFeather(0.1f, 0.01f, 0.2f);
 Wrapper gWaterDepthLutSunsetFadePower(10.0f, 0.1f, 10.0f);
 Wrapper gWaterDepthLutSunsetFadeIntensity(0.3f, 0.0f, 1.0f);
-Wrapper gWaterDepthColorFeather(0.14f, 0.01f, 0.2f);
+Wrapper gWaterDepthColorFeather(0.3f, 0.01f, 0.4f);
 Wrapper gWaterDepthColorFloor(0.2f, 0.0f, 1.0f);
 Wrapper gWaterUnderseaCompression(0.8f, 0.1f, 1.0f);
-Wrapper gWaterColorBottom(0.134f, -2.0f, 2.0f);
+Wrapper gWaterColorBottom(0.08f, -2.0f, 2.0f);
 Wrapper gWaterColorHeight(1.86f, 0.0f, 4.0f);
 Wrapper gWaterFresnel(0.07f, 0.0f, 0.2f); // DT: TEMP
 Wrapper gWaterColorNoiseFrequency(0.0013f, 0.0f, 0.01f);
@@ -131,11 +131,12 @@ Wrapper gWaterColorNoiseWeightTwo(0.5f, -2.0f, 2.0f);
 Wrapper gWaterColorNoiseMultiplierTwo(1.0f, 0.0f, 4.0f, 0.1f);
 
 // Beach
-Wrapper gWaterShoalMax(1.6f, 1.0f, 2.0f);
-Wrapper gWaterShoalDepthRef(4.0f, 0.2f, 10.0f);
-Wrapper gWaterBreakDepth(2.0f, 0.1f, 10.0f);
-Wrapper gLightingWaterSkyboxOneBeachReduction(0.0f, 0.0f, 1.0f);
-Wrapper gLightingWaterSkyboxTwoBeachReduction(0.0f, 0.0f, 1.0f);
-Wrapper gLightingWaterSkyboxThreeBeachReduction(0.0f, 0.0f, 1.0f);
+Wrapper gWaterBreakStartDepth(0.0f, 0.0f, 5.0f);
+Wrapper gWaterBreakEndDepth(3.0f, 0.1f, 50.0f);
+Wrapper gWaterBreakBlendCurve(0.4f, 0.05f, 1.0f);
+Wrapper gWaterMediumShoreSoftness(0.3f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxOneBeachReduction(0.1f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxTwoBeachReduction(0.1f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxThreeBeachReduction(0.5f, 0.0f, 1.0f);
 
 } // namespace engine

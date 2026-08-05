@@ -22,7 +22,7 @@ layout (set = 1, binding = 4, rgba16f) uniform writeonly image2D normalImage; //
 // Pre-computes the Gerstner wave displacement (Δx, Δy, Δz from camera-relative un-displaced position)
 // and Jacobian-derived flat-blended normal, so Water.vert can texelFetch a single sample per vertex
 // instead of summing iWaterLowCount + iWaterMediumCount waves itself. Math matches Water.vert's
-// per-vertex Gerstner wave sum byte-for-byte. Shoaling/breaking crossfade the low and medium band sums; the
+// per-vertex Gerstner wave sum byte-for-byte. Breaking crossfades the low and medium band sums; the
 // Z-taper-near-shore and over-land early-out stay in Water.vert.
 //
 // Texel grid is in 1:1 alignment with the active water-mesh LOD vertex grid: only the top-left
@@ -54,12 +54,26 @@ void main()
 	}
 
 	float fDepth = -fTerrainElevation;
-	// Green's law shoaling: amplitude ~ depth^-1/4, capped so shallow water grows waves ~1.2-1.4x.
-	float fShoal = clamp(pow(max(fDepth, 1e-4f) * globalLayout.fWaterShoalDepthRefInv, -0.25f), 1.0f, globalLayout.fWaterShoalMax);
-	// Breaker collapse: 1 at/beyond break depth, 0 at the shoreline.
-	float fBreak = clamp(fDepth * globalLayout.fWaterBreakDepthInv, 0.0f, 1.0f);
-	float fLowWeight = fBreak;
-	float fMediumWeight = 4.0f * fBreak * (1.0f - fBreak);
+	// Breaker collapse: low-band boundary weight rises from the configured start depth to the end depth.
+	float fLowBoundaryWeight;
+	if (globalLayout.fWaterBreakBlendInvRange > 0.0f)
+	{
+		float fBreakBlend = clamp((fDepth - globalLayout.fWaterBreakBlendStart) * globalLayout.fWaterBreakBlendInvRange, 0.0f, 1.0f);
+		fLowBoundaryWeight = pow(fBreakBlend, globalLayout.fWaterBreakBlendCurve);
+	}
+	else
+	{
+		fLowBoundaryWeight = step(globalLayout.fWaterBreakBlendStart, fDepth);
+	}
+	float fMediumBoundaryWeight = 1.0f - fLowBoundaryWeight;
+	float fShoreEnvelope = 1.0f;
+	if (globalLayout.fWaterMediumShoreFadeInvWidth > 0.0f)
+	{
+		fShoreEnvelope = smoothstep(0.0f, 1.0f, clamp(fDepth * globalLayout.fWaterMediumShoreFadeInvWidth, 0.0f, 1.0f));
+	}
+	// Shore fade attenuates only the medium band; the low band follows its breaker boundary alone.
+	float fLowWeight = fLowBoundaryWeight;
+	float fMediumWeight = fMediumBoundaryWeight * fShoreEnvelope;
 
 	vec3 f3Displacement = vec3(0.0f);
 	// Jacobian accumulators (cross-product form — preserves N into high-steepness regime).
@@ -75,7 +89,7 @@ void main()
 		for (int i = 0; i < globalLayout.iWaterLowCount; ++i)
 		{
 			float fOmega = mainLayout.pf4LowWavesTwo[i].x;
-			float fAmplitude = mainLayout.pf4LowWavesTwo[i].y * fShoal;
+			float fAmplitude = mainLayout.pf4LowWavesTwo[i].y;
 			vec2 f2Direction = mainLayout.pf4LowWavesOne[i].xy;
 
 			float fReducedPhiTime = mainLayout.pf4LowWavesTwo[i].w;
