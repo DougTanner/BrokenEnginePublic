@@ -16,6 +16,7 @@ Server-only game networking. `ServerSession` is the game-policy wrapper over `en
 
 - Fixed-tick pacing converts the simulation interval to wall time, sleeps the bulk remainder with a high-resolution waitable timer, then spins through the final precision margin. Preserve tick-remainder accounting and the existing overshoot diagnostics when changing this path.
 - Poll transport and LAN discovery before simulation work on every update, including while paused. A paused or other zero-tick update builds navigation data needed by pending subscriptions, services resync and new-subscription full-state queues, and flushes them so a newly connected client can receive initial state without a simulation tick.
+- The runtime calls the after-poll hook at every poll of an update, and an update polls more than once, so each handler must empty the request queue it processes; a request left queued is applied a second time later in the same update. The before-poll hook clears only queues whose requests are meant to expire unprocessed.
 
 ## Deterministic Tick Contracts
 

@@ -72,6 +72,10 @@ void ServerFleetManager::ProcessCreateFleetRequests()
 		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessCreateFleetRequests Client: {} FleetCount: {} FleetGuid: ({},{})", rRequest.iClientId, mFleets.at(guid).size(), rNewFleet.guid.uiHigh, rNewFleet.guid.uiLow);
 		SendFleetSyncToClient(rRequest.iClientId, guid);
 	}
+
+	// Drain on process: AfterNetworkPoll runs twice per update, and a retained request would create a
+	// second fleet on the tick-boundary poll.
+	mPendingCreateFleetRequests.clear();
 }
 
 void ServerFleetManager::ProcessDeleteFleetRequests()
@@ -107,6 +111,8 @@ void ServerFleetManager::ProcessDeleteFleetRequests()
 		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessDeleteFleetRequests Client: {} FleetGuid: ({},{}) FleetCount: {}", rRequest.iClientId, rRequest.fleetGuid.uiHigh, rRequest.fleetGuid.uiLow, it->second.size());
 		SendFleetSyncToClient(rRequest.iClientId, guid);
 	}
+
+	mPendingDeleteFleetRequests.clear();
 }
 
 void ServerFleetManager::ProcessSpawnIntoFleetRequests()
@@ -145,6 +151,8 @@ void ServerFleetManager::ProcessSpawnIntoFleetRequests()
 		gpServerSession->mpClientManager->QueueSpawnForClient(rRequest.iClientId, guid, rRequest.fleetGuid, -1);
 		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessSpawnIntoFleetRequests Client: {} FleetGuid: ({},{})", rRequest.iClientId, rRequest.fleetGuid.uiHigh, rRequest.fleetGuid.uiLow);
 	}
+
+	mPendingSpawnIntoFleetRequests.clear();
 }
 
 void ServerFleetManager::ProcessRespawnInFleetRequests()
@@ -187,6 +195,8 @@ void ServerFleetManager::ProcessRespawnInFleetRequests()
 		gpServerSession->mpClientManager->QueueSpawnForClient(rRequest.iClientId, guid, rRequest.fleetGuid, rRequest.iMemberIndex);
 		LOG(kNetwork, kDebug, "ServerFleetManager::ProcessRespawnInFleetRequests Client: {} FleetGuid: ({},{}) Member: {}", rRequest.iClientId, rRequest.fleetGuid.uiHigh, rRequest.fleetGuid.uiLow, rRequest.iMemberIndex);
 	}
+
+	mPendingRespawnInFleetRequests.clear();
 }
 
 void ServerFleetManager::TickFleetTimers()

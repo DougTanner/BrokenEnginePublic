@@ -64,6 +64,13 @@ void ClientSession::SendGameRequest(GamePacketType ePacketType, const TLogFuncti
 
 	rLogFunction();
 	engine::gpClient->SendSimplePacket(ePacketType, engine::NetworkManager::kuiChannelReliable, ENET_PACKET_FLAG_RELIABLE, rArgs...);
+
+	{
+		// Send the user command now instead of waiting for the tick-cadence ack flush.
+		// Heap: ENet may allocate while flushing outgoing commands
+		ScopedSuppressAllocationTracking suppress;
+		mpRuntime->FlushOutgoing();
+	}
 }
 
 void ClientSession::ProcessReceivedGamePackets()

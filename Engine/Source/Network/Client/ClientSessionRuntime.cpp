@@ -39,6 +39,13 @@ void PersistClientGuidToDisk(const ClientGuid& rGuid)
 	}
 }
 
+// Lowering miCurrentTargetBehind waits out one mSmoothedJitterUs window's worth of sim ticks, so in
+// loss-free arrival the average has mostly turned over before the lower target is adopted. Measured in
+// sim ticks, not EvaluateClock calls: jitter samples arrive one per coord update, so they land at tick
+// cadence while EvaluateClock runs at render cadence. Packet loss yields fewer than one sample per tick,
+// so the window is an approximation, not a guarantee that every higher-jitter sample has aged out.
+constexpr int64_t kiLowerTargetBehindStreakTicks = decltype(Client::mSmoothedJitterUs)::kiCapacity;
+
 bool IsSlotActive(const ClientCoordSlot& rSlot)
 {
 	return rSlot.eState != CoordSubscriptionState::kUnsubscribed && rSlot.eState != CoordSubscriptionState::kUnsubscribing;
@@ -72,6 +79,8 @@ void ClientSessionRuntime::ResetClock()
 	miClockOffset = 0;
 	miClockTargetBehind = 0;
 	miCurrentTargetBehind = 0;
+	miLowerTargetBehindStreakStartTick = -1;
+	miLastEvaluateClockTick = -1;
 	miLastLoggedClockTargetBehind = -1;
 	miLastPeriodicClockLogTick = -1;
 	miLastClockErrorLogTick = -1;
@@ -214,6 +223,11 @@ void ClientSessionRuntime::PollAndDrain(const NetworkTimeState& rTimeState)
 	[[maybe_unused]] const bool bHasNewData = mrSession.ApplyReceivedUpdates();
 
 	SendAckAndFlush();
+}
+
+void ClientSessionRuntime::FlushOutgoing()
+{
+	mpClient->Flush();
 }
 
 void ClientSessionRuntime::SendAckAndFlush()
@@ -368,6 +382,7 @@ std::chrono::nanoseconds ClientSessionRuntime::EvaluateClock(int64_t iPreReconci
 {
 	if (miLatestServerTick < 0 || mpClient == nullptr)
 	{
+		miLowerTargetBehindStreakStartTick = -1;
 		return 0ns;
 	}
 	bool bHasActiveSlot = std::ranges::any_of(mpClient->mCoordSlots, [](const ClientCoordSlot& rSlot)
@@ -377,14 +392,47 @@ std::chrono::nanoseconds ClientSessionRuntime::EvaluateClock(int64_t iPreReconci
 	if (!bHasActiveSlot)
 	{
 		miLatestServerTick = -1;
+		miLowerTargetBehindStreakStartTick = -1;
 		return 0ns;
+	}
+	// A streak only means something across continuously observed ticks, so any discontinuity restarts it:
+	// a clock snap in either direction, and the tick span skipped while an interval had no clock at all.
+	bool bTickDiscontinuity = miLastEvaluateClockTick < 0 || iPreReconcileTick < miLastEvaluateClockTick || iPreReconcileTick - miLastEvaluateClockTick >= kiClockSnapThreshold;
+	miLastEvaluateClockTick = iPreReconcileTick;
+	if (bTickDiscontinuity)
+	{
+		miLowerTargetBehindStreakStartTick = -1;
 	}
 	int64_t iJitterMicroseconds = mpClient->mSmoothedJitterUs.Get();
 	int64_t iTickMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(game::NetworkSessionContract::kTickDuration).count();
-	int64_t iComputedTargetBehind = (iJitterMicroseconds + kiJitterSafetyUs + iTickMicroseconds - 1) / iTickMicroseconds;
-	if (miCurrentTargetBehind == 0 || std::abs(iComputedTargetBehind - miCurrentTargetBehind) >= 2)
+	int64_t iComputedTargetBehind = (3 * iJitterMicroseconds + kiJitterSafetyUs + iTickMicroseconds - 1) / iTickMicroseconds;
+	if (miCurrentTargetBehind == 0)
 	{
 		miCurrentTargetBehind = iComputedTargetBehind;
+		miLowerTargetBehindStreakStartTick = -1;
+	}
+	else if (iComputedTargetBehind > miCurrentTargetBehind)
+	{
+		// One tick per call: raising the target lowers the sim ceiling by the same amount, so a multi-tick
+		// raise can drop the ceiling below the sim and stall it.
+		++miCurrentTargetBehind;
+		miLowerTargetBehindStreakStartTick = -1;
+	}
+	else if (iComputedTargetBehind < miCurrentTargetBehind)
+	{
+		if (miLowerTargetBehindStreakStartTick < 0)
+		{
+			miLowerTargetBehindStreakStartTick = iPreReconcileTick;
+		}
+		else if (iPreReconcileTick - miLowerTargetBehindStreakStartTick >= kiLowerTargetBehindStreakTicks)
+		{
+			miCurrentTargetBehind = iComputedTargetBehind;
+			miLowerTargetBehindStreakStartTick = -1;
+		}
+	}
+	else
+	{
+		miLowerTargetBehindStreakStartTick = -1;
 	}
 	miClockTargetBehind = miCurrentTargetBehind;
 	miClockOffset = iPreReconcileTick - miLatestServerTick;

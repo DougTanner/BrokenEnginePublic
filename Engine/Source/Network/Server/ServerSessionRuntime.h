@@ -25,6 +25,7 @@ public:
 	~ServerSessionRuntime();
 
 	void Poll(const NetworkTimeState& rTimeState);
+	void PollTickBoundary(const NetworkTimeState& rTimeState);
 	void WaitForTick(TimeStep& rTimeStep);
 	void CompleteTick(int64_t iTick);
 	void CompleteUpdate(int64_t iFullTicks, int64_t iTick);

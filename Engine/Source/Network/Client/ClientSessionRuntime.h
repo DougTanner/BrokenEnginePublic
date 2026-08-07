@@ -37,6 +37,9 @@ public:
 	void StartDiscovery();
 	void PollDiscovery();
 	void PollAndDrain(const NetworkTimeState& rTimeState);
+	// Flush is transport-private and runtime-owned; this surfaces it so the game session can make a rare
+	// user command depart immediately instead of waiting for the next tick-cadence ack flush.
+	void FlushOutgoing();
 
 	void SetDesiredCoords(const GridCoord* pDesiredCoords, int64_t iDesiredCount, std::string_view reason, int64_t iTick);
 	void SynchronizeSubscriptions();
@@ -71,6 +74,10 @@ private:
 	int64_t miLastLoggedClockTargetBehind = -1;
 	int64_t miLastPeriodicClockLogTick = -1;
 	int64_t miLastClockErrorLogTick = -1;
+	// Sim tick the current "computed target is lower" streak started on; -1 when no streak is active.
+	int64_t miLowerTargetBehindStreakStartTick = -1;
+	// Sim tick the previous streak evaluation observed; -1 when no tick has been observed yet.
+	int64_t miLastEvaluateClockTick = -1;
 	static constexpr std::chrono::seconds kStickySubscriptionDuration {2};
 };
 

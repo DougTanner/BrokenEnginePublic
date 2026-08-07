@@ -68,7 +68,7 @@ void Server::Flush()
 	enet_host_flush(mpHost);
 }
 
-void Server::Poll(const NetworkTimeState& rTimeState)
+void Server::Poll(const NetworkTimeState& rTimeState, ServerPollMode ePollMode)
 {
 	ASSERT(common::gpMultithreading->IsMainThread());
 
@@ -85,12 +85,16 @@ void Server::Poll(const NetworkTimeState& rTimeState)
 	// services them each update instead, so a client can join a paused server.
 	mReceivedGamePackets.clear();
 
-	// Reset the per-poll (~ per-tick window) contract budgets before draining this poll's packets.
-	for (ClientConnection& rClient : mClients)
+	// Reset the per-update (~ per-tick window) contract budgets before draining this update's packets. The
+	// tick-boundary poll skips the reset so both polls of an update share one admission budget window.
+	if (ePollMode == ServerPollMode::kUpdateStart)
 	{
-		rClient.iTickPacketCount = 0;
-		rClient.iTickByteCount = 0;
-		std::memset(rClient.tickTypeCounts, 0, sizeof(rClient.tickTypeCounts));
+		for (ClientConnection& rClient : mClients)
+		{
+			rClient.iTickPacketCount = 0;
+			rClient.iTickByteCount = 0;
+			std::memset(rClient.tickTypeCounts, 0, sizeof(rClient.tickTypeCounts));
+		}
 	}
 
 	ENetEvent event {};
@@ -200,10 +204,11 @@ void Server::Receive(std::span<const uint8_t> packetData, ENetPeer* pPeer)
 		return;
 	}
 
-	// Gate 2: per-poll (~ per-tick) global packet/byte budget -- applies to every type including game-range.
-	// Record a violation only on the FIRST crossing of each budget within the poll window; all further
-	// over-budget packets that poll drop silently. A sustained hostile flood still escalates (~1 violation per
-	// poll -> disconnect within ~32 polls ~= 1 s at 32 Hz), while a one-off multi-second stall burst (>=288
+	// Gate 2: per-update (~ per-tick) global packet/byte budget -- applies to every type including game-range.
+	// The budget window spans both of an update's polls (Server::Poll resets it only at kUpdateStart).
+	// Record a violation only on the FIRST crossing of each budget within the update window; all further
+	// over-budget packets that update drop silently. A sustained hostile flood still escalates (~1 violation per
+	// update -> disconnect within ~32 updates ~= 1 s at 32 Hz), while a one-off multi-second stall burst (>=288
 	// queued acks after a ~9 s server stall, or a NetworkSimulation fast-forward flush draining the delayed
 	// queue) costs a legitimate client at most 2 lifetime violations (packet + byte). RecordContractViolation may
 	// invalidate pClient, so the first-crossing record is the last touch of the client and returns immediately.

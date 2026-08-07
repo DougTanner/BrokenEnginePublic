@@ -65,14 +65,18 @@ inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiFloorStallLogThreshold = 15;
 inline constexpr int64_t kiMaxBufferedFrames = 256;
 inline constexpr int64_t kiClockSnapThreshold = 28; // |clockError| >= this (ticks) hard-snaps miTickCounter to the servo target; see Network.md
-// Fixed jitter safety buffer added on top of measured jitter when computing miCurrentTargetBehind.
-// 125ms = 4 ticks at 32Hz; preserved in wall-clock terms if the tick rate ever changes.
-inline constexpr int64_t kiJitterSafetyUs = 125'000;
+// Fixed jitter safety buffer added on top of 3x measured jitter when computing miCurrentTargetBehind.
+// 109.375ms = 3.5 ticks at 32Hz: deliberately off the tick boundary so the zero-jitter floor rounds up to
+// a true 4 ticks instead of 5. Measured jitter counts 3x because mSmoothedJitterUs is the mean
+// |interarrival deviation|, which understates the one-way arrival tail the buffer must cover (tail
+// half-width is roughly 1.5x that mean). Preserved in wall-clock terms if the tick rate ever changes.
+inline constexpr int64_t kiJitterSafetyUs = 109'375;
 // Slack between the clock-servo target (latestServerTick - miCurrentTargetBehind) and the hard sim
 // ceiling in GameBase::ClientUpdate. The servo steers toward the bare target so the sim never rests
-// against the ceiling; the slack absorbs per-packet arrival jitter and the 2-tick targetBehind
-// hysteresis step without stalling the sim. Must stay below ComputeClockCorrectionNs's |error| >= 4
-// aggressive-correction threshold so steady state never triggers it.
+// against the ceiling; the slack absorbs per-packet arrival jitter and the single-tick targetBehind
+// raise step in EvaluateClock (which lowers the ceiling by one tick per call) without stalling the sim.
+// Must stay below EvaluateClock's |error| >= 4 aggressive-correction threshold so steady state never
+// triggers it.
 inline constexpr int64_t kiSimCeilingSlackTicks = 3;
 inline constexpr int64_t kiMaxPacketSize = 64 * 1024;
 inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
@@ -120,13 +124,14 @@ namespace engine
 // ceiling lives in Server.cpp because NetworkProtocol.h cannot include NetworkManager.h.
 inline constexpr int64_t kiMaxAckStreamPacketSize = NetworkMessages::ClientAckStreamMessage::GetSize(NetworkMessages::ClientAckStreamMessage::kiMaxSlotCount);
 
-// Global per-client packet budget per poll window (approx one sim tick). With the tick-rate-locked ack
-// throttle a legit client sends ~1 ack + rare requests per tick; 256 tolerates a multi-second server
-// stall delivering many wall-clock seconds of tick-rate acks in one poll (e.g. 4 s ~= 128 acks at 32 Hz)
-// plus request bursts. Overflow counts violations -- only hostile floods reach it.
+// Global per-client packet budget per update window (approx one sim tick; an update polls twice and both
+// polls share the window). With the tick-rate-locked ack throttle a legit client sends ~1 ack + rare
+// requests per tick; 256 tolerates a multi-second server stall delivering many wall-clock seconds of
+// tick-rate acks in one update (e.g. 4 s ~= 128 acks at 32 Hz) plus request bursts. Overflow counts
+// violations -- only hostile floods reach it.
 inline constexpr int64_t kiMaxClientPacketsPerTick = 256;
 
-// Global per-client inbound byte budget per poll window. >10x legitimate steady state; caps hostile
+// Global per-client inbound byte budget per update window. >10x legitimate steady state; caps hostile
 // parse work at ~2 MiB/s/client.
 inline constexpr int64_t kiMaxClientInboundBytesPerTick = 64 * 1024;
 

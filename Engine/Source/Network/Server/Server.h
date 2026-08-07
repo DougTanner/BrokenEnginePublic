@@ -66,9 +66,9 @@ struct ClientConnection
 
 	// Client->server contract enforcement (see NetworkProtocol.h / Server::RecordContractViolation)
 	int64_t iContractViolations = 0;            // lifetime, never reset
-	int64_t iTickPacketCount = 0;               // reset per poll window (Server::Poll)
-	int64_t iTickByteCount = 0;                 // reset per poll window (Server::Poll)
-	uint16_t tickTypeCounts[256] {}; // per-type count this poll window, indexed by raw type byte; reset in Poll
+	int64_t iTickPacketCount = 0;               // reset per update window (Server::Poll, kUpdateStart only)
+	int64_t iTickByteCount = 0;                 // reset per update window (Server::Poll, kUpdateStart only)
+	uint16_t tickTypeCounts[256] {}; // per-type count this update window, indexed by raw type byte; reset in Poll (kUpdateStart only)
 
 	// Helpers
 	int64_t FindSlotForCoord(GridCoord coord) const
@@ -151,6 +151,14 @@ protected:
 	}
 };
 
+// Which of an update's two Server::Poll calls is running. The tick-boundary poll continues the admission
+// budget window the update-start poll opened, so a hostile client gets one budget window per update.
+enum class ServerPollMode : uint8_t
+{
+	kUpdateStart,
+	kTickBoundary,
+};
+
 class Server
 {
 public:
@@ -184,7 +192,7 @@ public:
 
 private:
 	friend class ServerSessionRuntime;
-	void Poll(const NetworkTimeState& rTimeState);
+	void Poll(const NetworkTimeState& rTimeState, ServerPollMode ePollMode);
 	void BufferFrame(int64_t iTick, const std::pair<GridCoord, GridUpdateData>* pGridUpdates, int64_t iGridUpdateCount);
 	void BufferFullFrame(int64_t iTick, const std::pair<GridCoord, const game::Frame*>* pFrames, int64_t iFrameCount);
 	void SendUpdate(ClientConnection& rClient, int64_t iTick);

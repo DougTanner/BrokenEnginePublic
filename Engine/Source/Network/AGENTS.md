@@ -11,14 +11,14 @@ Shared ENet transport, slot subscriptions, ACK state, discovery, wire cursors, a
 - Every incompatible game `StatusChange` or `TransferData` wire-layout change requires its game codec owner to increment `engine::kuiProtocolVersion`; Engine Network owns the shared version and Hello rejection gate.
 - `Frame::kiVersion` is a separate deterministic-Frame/save/replay compatibility gate, not a substitute for the protocol-version bump.
 - Cursor primitives are unchecked. Validate exact fixed layouts or gate every variable-length read with `BoundedCursor` before passing its cursor to a primitive.
-- Client-to-server packet additions require a contract row, size and semantic validation, handshake/debug gating where applicable, per-tick rate limits, and violation reporting through the server contract path. Send commands at tick cadence, not render cadence.
+- Client-to-server packet additions require a contract row, size and semantic validation, handshake/debug gating where applicable, per-tick rate limits, and violation reporting through the server contract path. Send commands at tick cadence, not render cadence; that cadence rule governs per-tick rate-limited command generation, so immediately flushing an already-authorized rare user request is permitted because it changes departure time, not packet count.
 - Client and server both disable the ENet peer throttle and set 1 MB socket send and receive buffers. The two sides are deliberately paired; tuning only one leaves the ends disagreeing about how much burst traffic they will absorb.
 - ENet service, discovery polling, sends, and simulation queues are main-thread-only. Their workbuffer and state have no locking by design.
 
 ## Timing and Polling
 
 - Rendering smoothness takes priority over command round-trip latency. Client simulation and presentation intentionally retain buffered committed ticks; tuning should preserve smooth pacing rather than introduce stalls or bursts.
-- Both peers drain transient poll outputs each update. New-subscription and resync requests persist until broadcast servicing, including the paused/zero-tick path.
+- Both peers drain transient poll outputs each poll, and a server update polls more than once, so a queue left unconsumed across a poll is lost or reapplied rather than carried to the end of the update. New-subscription and resync requests persist until broadcast servicing, including the paused/zero-tick path.
 - Network simulation injects deterministic one-way delay and burst loss above ENet. Reliable packets may be delayed but are never deliberately dropped, and each channel preserves FIFO release order.
 - Wire serialization is little-endian x64. Network buffer capacity is tick-rate-independent; jitter safety is wall-clock time.
 

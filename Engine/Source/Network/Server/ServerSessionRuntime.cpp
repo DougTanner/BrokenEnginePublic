@@ -44,8 +44,21 @@ void ServerSessionRuntime::Poll(const NetworkTimeState& rTimeState)
 	// Heap: ENet/discovery polling and game request queues may grow
 	ScopedSuppressAllocationTracking suppress;
 	mrSession.BeforeNetworkPoll();
-	mpServer->Poll(rTimeState);
+	mpServer->Poll(rTimeState, ServerPollMode::kUpdateStart);
 	mpDiscoveryResponder->Poll();
+	mrSession.AfterNetworkPoll();
+}
+
+// Second poll of the update, run after WaitForTick so commands that arrived during the wait enter the
+// imminent tick instead of the next one. BeforeNetworkPoll is deliberately omitted: it clears the previous
+// update's pending request queues, so running it here would drop requests the update-start poll queued.
+// Discovery is polled once per update by Poll above; the admission budget window opened there continues.
+void ServerSessionRuntime::PollTickBoundary(const NetworkTimeState& rTimeState)
+{
+	ASSERT(common::gpMultithreading->IsMainThread());
+	// Heap: ENet polling and game request queues may grow
+	ScopedSuppressAllocationTracking suppress;
+	mpServer->Poll(rTimeState, ServerPollMode::kTickBoundary);
 	mrSession.AfterNetworkPoll();
 }
 

@@ -61,7 +61,7 @@ void GameBase::ClientUpdate()
 	game::gpClientSession->UpdateSubscriptions();
 	PrepareActiveSet();
 
-	// Hard ceiling: clock-servo target + kiSimCeilingSlackTicks. ComputeClockCorrectionNs steers the
+	// Hard ceiling: clock-servo target + kiSimCeilingSlackTicks. EvaluateClock steers the
 	// sim toward the bare target, so this clamp engages only on genuine arrival stalls (loss bursts),
 	// not per-packet jitter, while StatusChanges still normally arrive before their tick simulates.
 	// Extreme "sim way behind target" is handled by the snap path in Reconcile.
@@ -144,6 +144,11 @@ void GameBase::ServerUpdate()
 	game::gpServerSession->mpRuntime->WaitForTick(mTimeStep);
 
 	int64_t iFullTicks = mTimeStep.TickRealtime();
+	// Second poll of the update: drains commands that arrived during WaitForTick so they enter the imminent
+	// tick rather than the next one. It runs before the pause/timespeed decision below, so a pause request
+	// arriving in the boundary window (Debug builds only, kbDebugInput) prevents the imminent tick. A
+	// save/load-replay request arriving here is serviced next update by design -- SaveLoadReplay already ran.
+	game::gpServerSession->mpRuntime->PollTickBoundary(networkTimeState);
 	bool bAcceptRawCpuTimers = false;
 	if constexpr (kbProfiling)
 	{

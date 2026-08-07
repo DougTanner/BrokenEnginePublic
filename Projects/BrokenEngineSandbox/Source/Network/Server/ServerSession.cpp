@@ -100,8 +100,9 @@ void ServerSession::ParseReceivedGamePackets()
 			engine::gpServer->RecordContractViolation(rPacket.iClientId, "game packet size out of range", rPacket.uiPacketType, iFullSize);
 			continue;
 		}
-		// Per-type per-tick cap. tickTypeCounts is reset per poll by the engine; engine and game types occupy disjoint
-		// type-byte ranges, so sharing one array across both dispatch points is coherent within the poll window.
+		// Per-type per-tick cap. tickTypeCounts is reset once per update by the engine (both of the update's polls
+		// share the window); engine and game types occupy disjoint type-byte ranges, so sharing one array across
+		// both dispatch points is coherent within that window.
 		if (++pGateClient->tickTypeCounts[rPacket.uiPacketType] > contract.iMaxPerTick)
 		{
 			if (contract.bOverCapCountsViolation)
@@ -287,7 +288,7 @@ void ServerSession::BeforeNetworkPoll()
 	{
 		mpBroadcaster->ClearPendingRequests();
 	}
-	mpFleetManager->ClearPendingRequests();
+	// Fleet request queues drain inside their own Process*Requests, so there is nothing left to clear here.
 }
 
 void ServerSession::AfterNetworkPoll()
