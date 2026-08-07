@@ -47,7 +47,7 @@ void MainMenuScreen::Render()
 
 	// Shared text-driven width over every button label (including the SCANNING... discovery state), floored to the
 	// primary-button minimum. Height auto-sizes per button (0.0f).
-	float fButtonWidth = std::max(MenuButtonsWidth({TranslatedString(kStringLocalServer), TranslatedString(kStringRemoteServer), TranslatedString(kStringGraphics), TranslatedString(kStringSound), TranslatedString(kStringQuit), U"SCANNING..."}), kfPrimaryButtonMinWidthPixels * engine::UiScale());
+	float fButtonWidth = std::max(MenuButtonsWidth({TranslatedString(kStringLocalServer), TranslatedString(kStringRemoteServer), TranslatedString(kStringGraphics), TranslatedString(kStringAudio), TranslatedString(kStringGameSettings), TranslatedString(kStringQuit), U"SCANNING..."}), kfPrimaryButtonMinWidthPixels * engine::UiScale());
 	float fHeadingWidth = 0.0f;
 	{
 		ScopedMenuFont headingFont(kfMenuUiScale * kfMainMenuHeadingScale);
@@ -133,63 +133,28 @@ void MainMenuScreen::Render()
 		engine::gSunAngleOverride.Set(gpCamera->RawSunAngle());
 	}
 
-	// Sound button
+	// Audio button
 	CenterMenuItem(fContentStartX, fContentWidth, fButtonWidth);
-	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[3]))
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringAudio)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[3]))
 	{
 		gpGame->meUiState = UiState::kSound;
 	}
 
+	// Game Settings button
+	CenterMenuItem(fContentStartX, fContentWidth, fButtonWidth);
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringGameSettings)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[4]))
+	{
+		gpGame->meUiState = UiState::kGameSettings;
+	}
+
 	// Quit button
 	CenterMenuItem(fContentStartX, fContentWidth, fButtonWidth);
-	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[4]))
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[5]))
 	{
 		gpGame->mGameFlags.Set(engine::GameFlags::kQuit);
 	}
 
 	ImGui::End();
-
-	// Language selection row: auto-sized window pivoted at bottom-center, hugging its buttons
-	ImVec2 vLanguageAnchor(rIo.DisplaySize.x * 0.5f, rIo.DisplaySize.y - kfScreenBottomMarginPixels * engine::UiScale());
-	ImGui::SetNextWindowPos(vLanguageAnchor, ImGuiCond_Always, ImVec2(0.5f, 1.0f));
-
-	const ImGuiStyle& rStyle = ImGui::GetStyle();
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(rStyle.FramePadding.x * kfLanguageMenuGeometryScale, rStyle.FramePadding.y * kfLanguageMenuGeometryScale));
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(rStyle.ItemSpacing.x * kfLanguageMenuGeometryScale, rStyle.ItemSpacing.y * kfLanguageMenuGeometryScale));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(rStyle.WindowPadding.x * kfLanguageMenuGeometryScale, rStyle.WindowPadding.y * kfLanguageMenuGeometryScale));
-
-	ScopedMenuFont languageFont(kfLanguageMenuFontScale);
-	ImGui::Begin("LanguageMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_AlwaysAutoResize);
-
-	static constexpr const char* kpcLanguageNames[] = {"ENGLISH", "中文", "ESPANOL", "PORTUGUES", "FRANCAIS", "DEUTSCH"};
-	static_assert(std::size(kpcLanguageNames) == static_cast<size_t>(kLanguageCount)); // One label per Language enumerator, in order.
-
-	// Uniform text-driven width = max CalcTextSize over the 6 labels under the shared Latin/CJK font,
-	// plus frame padding to match the button chrome. Buttons then sit one-per-row via SameLine (default spacing).
-	float fLangButtonWidth = 0.0f;
-	for (int64_t i = 0; i < kLanguageCount; ++i)
-	{
-		fLangButtonWidth = std::max(fLangButtonWidth, ImGui::CalcTextSize(kpcLanguageNames[i]).x);
-	}
-	fLangButtonWidth += ImGui::GetStyle().FramePadding.x * 4.0f;
-
-	for (int64_t i = 0; i < kLanguageCount; ++i)
-	{
-		if (i > 0)
-		{
-			ImGui::SameLine();
-		}
-
-		bool bSelected = (geLanguage == static_cast<Language>(i));
-
-		if (MenuButton(kpcLanguageNames[i], ImVec2(fLangButtonWidth, 0.0f), mfLanguageHoverAnims[i], bSelected))
-		{
-			geLanguage = static_cast<Language>(i);
-		}
-	}
-
-	ImGui::End();
-	ImGui::PopStyleVar(3);
 
 	ImGui::PopStyleColor(2);
 }

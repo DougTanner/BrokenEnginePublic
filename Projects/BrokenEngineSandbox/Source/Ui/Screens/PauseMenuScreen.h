@@ -11,8 +11,8 @@ public:
 
 private:
 
-	// Resume / Graphics / Sound / Main Menu / Quit
-	static constexpr int64_t kiMenuButtonCount = 5;
+	// Resume / Graphics / Audio / Game Settings / Main Menu / Quit
+	static constexpr int64_t kiMenuButtonCount = 6;
 
 	float mfButtonHoverAnims[kiMenuButtonCount] {};
 };

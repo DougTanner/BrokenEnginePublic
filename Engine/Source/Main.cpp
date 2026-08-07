@@ -242,6 +242,7 @@ void MainThread(HINSTANCE hinstance)
 #if defined(BT_CLIENT)
 	// Load settings
 	game::LoadSoundSettings();
+	game::LoadGameSettings();
 
 	// Create terrain collision data (before Graphics, which creates Islands that reads beach elevation)
 	auto pIslandTerrain = std::make_unique<IslandTerrain>();
@@ -461,6 +462,7 @@ void MainThread(HINSTANCE hinstance)
 	game::SaveTweaksSettings();
 	game::SaveSoundSettings();
 	game::SaveGraphicsSettings();
+	game::SaveGameSettings();
 #endif
 
 	PostQuitMessage(0);

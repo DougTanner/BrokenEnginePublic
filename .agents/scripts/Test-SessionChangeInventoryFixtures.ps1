@@ -53,6 +53,16 @@ function Invoke-FixtureGit([string] $Root, [string[]] $Arguments) {
 	[void] (Get-FixtureGitText $Root $Arguments)
 }
 
+function Set-FixtureIndexEntry([string] $Root, [string] $Blob, [string[]] $Paths) {
+	# Index-only entries, for paths Git refuses to materialize in a working tree. The batches keep each
+	# command line under the Windows limit.
+	for ($start = 0; $start -lt $Paths.Count; $start += 40) {
+		$arguments = @('update-index', '--add')
+		foreach ($path in @($Paths | Select-Object -Skip $start -First 40)) { $arguments += @('--cacheinfo', "100644,$Blob,$path") }
+		Invoke-FixtureGit $Root $arguments
+	}
+}
+
 function Set-FixtureText([string] $Root, [string] $RelativePath, [string] $Text) {
 	$full = Join-Path $Root ($RelativePath -replace '/', [IO.Path]::DirectorySeparatorChar)
 	[void] (New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName($full)) -Force)
@@ -261,34 +271,28 @@ function Test-RegionInventory($Fixture) {
 	Assert-Equal 17 $run.Json.counts.total 'regions keeps the full counts'
 }
 
-function Test-ManifestInventory($Fixture) {
-	$run = Invoke-InventoryReadOnly $Fixture.Root @('-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-IncludeUntracked', 'Engine/Source/Untracked.cpp', '-EmitTargetManifest') 'manifest run'
-	Assert-Equal 0 $run.ExitCode 'manifest exit code'
-	Assert-True ([string]::IsNullOrEmpty($run.Stderr)) 'manifest pass writes nothing to stderr'
-	if ($null -eq $run.Json) { Assert-True $false 'manifest emitted JSON'; return }
-	Assert-Equal 'broken-engine-code-quality-target-manifest/v1' $run.Json.schemaVersion 'manifest schemaVersion'
-	Assert-True (@($run.Json.PSObject.Properties.Name).Count -eq 2) 'manifest has exactly schemaVersion and pairs'
-	$pairs = @($run.Json.pairs)
-	$keys = @($pairs | ForEach-Object { "$(if ($null -eq $_.baseline) { '' } else { $_.baseline.path })|$(if ($null -eq $_.current) { '' } else { $_.current.path })" })
+function Test-TargetsInventory($Fixture) {
+	$run = Invoke-InventoryReadOnly $Fixture.Root @('-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-IncludeUntracked', 'Engine/Source/Untracked.cpp', '-EmitTargets') 'targets run'
+	Assert-Equal 0 $run.ExitCode 'targets exit code'
+	Assert-True ([string]::IsNullOrEmpty($run.Stderr)) 'targets pass writes nothing to stderr'
+	if ($null -eq $run.Json) { Assert-True $false 'targets emitted JSON'; return }
+	Assert-Equal 'broken-engine-code-quality-targets/v1' $run.Json.schemaVersion 'targets schemaVersion'
+	Assert-Equal 'schemaVersion,paths' (@($run.Json.PSObject.Properties.Name) -join ',') 'targets has exactly schemaVersion and paths'
+	$paths = @($run.Json.paths)
 	$expected = @(
-		'|Engine/Source/Untracked.cpp'
-		'Engine/Source/Delete.h|'
-		'Engine/Source/Keep.cpp|Engine/Source/Keep.cpp'
-		'Engine/Source/Old.cpp|Engine/Source/New.cpp'
-		'Engine/Source/ShaderLayouts.h|Engine/Source/ShaderLayouts.h'
-		'Engine/Source/ShaderLayoutsBase.h|Engine/Source/ShaderLayoutsBase.h'
+		'Engine/Source/Delete.h'
+		'Engine/Source/Keep.cpp'
+		'Engine/Source/New.cpp'
+		'Engine/Source/Old.cpp'
+		'Engine/Source/ShaderLayouts.h'
+		'Engine/Source/ShaderLayoutsBase.h'
+		'Engine/Source/Untracked.cpp'
 	)
-	Assert-Equal ($expected -join ' ; ') ($keys -join ' ; ') 'manifest pair set and ordinal ordering'
-	foreach ($pair in $pairs) {
-		foreach ($side in @('baseline', 'current')) {
-			if ($null -eq $pair.$side) { continue }
-			Assert-True (@($pair.$side.PSObject.Properties.Name | Sort-Object) -join ',' -ceq 'mode,path,sha256') 'manifest identity has exactly path, mode, and sha256'
-			Assert-True ($pair.$side.mode -ceq '100644') 'manifest identity uses an ordinary mode'
-			Assert-True ($pair.$side.sha256 -cmatch '^[0-9a-f]{64}$') 'manifest identity hash is lowercase SHA-256'
-		}
-	}
-	Assert-True ($run.Stdout.EndsWith("`n")) 'manifest ends with one LF'
-	Assert-True (-not $run.Stdout.TrimStart().StartsWith('{"schemaVersion":"broken-engine-session-change-inventory')) 'manifest stdout carries no envelope wrapper'
+	Assert-Equal ($expected -join ' ; ') ($paths -join ' ; ') 'targets path set and ordinal ordering'
+	$unique = [Collections.Generic.HashSet[string]]::new([string[]] $paths, [StringComparer]::Ordinal)
+	Assert-Equal $paths.Count $unique.Count 'targets paths are unique'
+	Assert-True ($run.Stdout.EndsWith("`n")) 'targets end with one LF'
+	Assert-True (-not $run.Stdout.TrimStart().StartsWith('{"schemaVersion":"broken-engine-session-change-inventory')) 'targets stdout carries no envelope wrapper'
 }
 
 # --- Repository B: cross-class renames ---------------------------------------------------------
@@ -311,15 +315,14 @@ function Test-CrossClassRename() {
 		Assert-True ($default.Json.triggers.repoCodeReview -eq $true) 'cross-class rename triggers repoCodeReview from the C++ side'
 		Assert-True ($default.Json.triggers.glslReview -eq $true) 'cross-class rename triggers glslReview from the GLSL side'
 	}
-	$manifest = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-EmitTargetManifest')
-	Assert-Equal 0 $manifest.ExitCode 'cross-class manifest exit code'
-	if ($null -ne $manifest.Json) {
-		$keys = @(@($manifest.Json.pairs) | ForEach-Object { "$(if ($null -eq $_.baseline) { '' } else { $_.baseline.path })|$(if ($null -eq $_.current) { '' } else { $_.current.path })" })
-		Assert-Equal ('|Engine/Source/B.h ; Engine/Source/A.cpp|') ($keys -join ' ; ') 'cross-class rename emits one-sided pairs for the C++ side only'
+	$targets = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-EmitTargets')
+	Assert-Equal 0 $targets.ExitCode 'cross-class targets exit code'
+	if ($null -ne $targets.Json) {
+		Assert-Equal ('Engine/Source/A.cpp ; Engine/Source/B.h') (@($targets.Json.paths) -join ' ; ') 'cross-class rename emits the C++ side path only'
 	}
 }
 
-# --- Repository C: type change, gitlink identity, landing, manifest mode block ------------------
+# --- Repository C: type change, gitlink identity, landing, nonordinary-mode target sides ---------
 
 function New-RepositoryC() {
 	$root = New-FixtureRoot 'head'
@@ -334,6 +337,8 @@ function New-RepositoryC() {
 	$blob = (Get-FixtureGitText $root @('hash-object', '-w', '--', $blobSource)).Trim()
 	Remove-Item -LiteralPath $blobSource -Force
 	Invoke-FixtureGit $root @('update-index', '--cacheinfo', "120000,$blob,Engine/Source/Link.h")
+	# A symlink added at a C++ path has no ordinary-mode side at all, so it never reaches the targets.
+	Invoke-FixtureGit $root @('update-index', '--add', '--cacheinfo', "120000,$blob,Engine/Source/AddedLink.h")
 	Invoke-FixtureGit $root @('update-index', '--add', '--cacheinfo', "160000,$script:GitlinkCommit,Third/Sub")
 	Set-FixtureText $root 'Documents/Plans/Area/Thing.md' "plan`nchanged`n"
 	Invoke-FixtureGit $root @('add', 'Documents/Plans/Area/Thing.md')
@@ -377,15 +382,14 @@ function Test-LandingInventory($Fixture) {
 	Assert-True ($null -eq $run.Json.regions) 'landing does not emit regions'
 }
 
-function Test-ManifestModeBlocked($Fixture) {
-	$run = Invoke-Inventory @('-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-Head', $Fixture.Head, '-EmitTargetManifest')
-	Assert-Equal 2 $run.ExitCode 'manifest mode block exit code'
-	Assert-Equal 0 $run.Stdout.Length 'manifest mode block writes zero stdout bytes'
-	Assert-True ($null -ne $run.ErrorJson) 'manifest mode block emits a structured stderr envelope'
-	if ($null -ne $run.ErrorJson) {
-		Assert-Equal 'blocked' $run.ErrorJson.status 'manifest mode block status'
-		Assert-Equal 'inventory.manifest-mode-unsupported' $run.ErrorJson.code 'manifest mode block code'
-	}
+function Test-TargetsModeSkipped($Fixture) {
+	$run = Invoke-Inventory @('-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-Head', $Fixture.Head, '-EmitTargets')
+	Assert-Equal 0 $run.ExitCode 'targets mode skip exit code'
+	Assert-True ([string]::IsNullOrEmpty($run.Stderr)) 'targets mode skip writes nothing to stderr'
+	if ($null -eq $run.Json) { Assert-True $false 'targets mode skip emitted JSON'; return }
+	# Link.h turned into a symlink, so only its ordinary baseline side is a corpus path; AddedLink.h and
+	# the gitlink have no ordinary side on either end and drop out entirely.
+	Assert-Equal 'Engine/Source/Link.h' (@($run.Json.paths) -join ' ; ') 'targets skip the nonordinary side and keep the ordinary one'
 }
 
 # --- Empty results stay arrays ------------------------------------------------------------------
@@ -401,14 +405,14 @@ function Test-EmptyResult() {
 	Assert-True ($unchanged.Stdout.Contains('"entries":[]')) 'unchanged tree emits entries as an empty array'
 	if ($null -ne $unchanged.Json) { Assert-Equal 0 $unchanged.Json.counts.total 'unchanged tree counts.total' }
 	Set-FixtureText $root 'Notes.md' "notes`nchanged`n"
-	$manifest = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-EmitTargetManifest')
-	Assert-Equal 0 $manifest.ExitCode 'manifest without C++ changes exit code'
-	Assert-True ($manifest.Stdout.Contains('"pairs":[]')) 'manifest without C++ changes emits pairs as an empty array'
+	$targets = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-EmitTargets')
+	Assert-Equal 0 $targets.ExitCode 'targets without C++ changes exit code'
+	Assert-True ($targets.Stdout.Contains('"paths":[]')) 'targets without C++ changes emit paths as an empty array'
 }
 
 # --- Repository D: an untracked addition Git cannot report as a rename --------------------------
 
-function Test-UnreportedRenameBlocked() {
+function Test-UnreportedRenameEmitted() {
 	$root = New-FixtureRoot 'rename'
 	$content = "int Moved() { return 7; }`n"
 	Set-FixtureText $root 'Engine/Source/Moved.cpp' $content
@@ -417,11 +421,11 @@ function Test-UnreportedRenameBlocked() {
 	$baseline = (Get-FixtureGitText $root @('rev-parse', 'HEAD')).Trim()
 	Invoke-FixtureGit $root @('rm', '--quiet', 'Engine/Source/Moved.cpp')
 	Set-FixtureText $root 'Engine/Source/MovedNew.cpp' $content
-	$run = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-IncludeUntracked', 'Engine/Source/MovedNew.cpp', '-EmitTargetManifest')
-	Assert-Equal 2 $run.ExitCode 'unreported rename exit code'
-	Assert-Equal 0 $run.Stdout.Length 'unreported rename writes zero stdout bytes'
-	if ($null -ne $run.ErrorJson) { Assert-Equal 'inventory.manifest-unreported-rename' $run.ErrorJson.code 'unreported rename code' }
-	else { Assert-True $false 'unreported rename emits a structured stderr envelope' }
+	# The analyzer derives the rename itself, so both path names are simply listed.
+	$run = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-IncludeUntracked', 'Engine/Source/MovedNew.cpp', '-EmitTargets')
+	Assert-Equal 0 $run.ExitCode 'unreported rename exit code'
+	if ($null -ne $run.Json) { Assert-Equal ('Engine/Source/Moved.cpp ; Engine/Source/MovedNew.cpp') (@($run.Json.paths) -join ' ; ') 'unreported rename emits both path names' }
+	else { Assert-True $false 'unreported rename emitted JSON' }
 }
 
 # --- Repository E: cap behaviour ---------------------------------------------------------------
@@ -453,36 +457,45 @@ function Test-CapBehaviour() {
 		Assert-True ($script:Utf8.GetByteCount($run.Stdout) -le 131072) 'entry cap output stays within the stdout budget'
 	}
 	else { Assert-True $false 'entry cap emitted JSON' }
-	$manifest = Invoke-Inventory ($arguments + @('-EmitTargetManifest'))
-	Assert-Equal 2 $manifest.ExitCode 'manifest cap exit code'
-	Assert-Equal 0 $manifest.Stdout.Length 'manifest cap writes zero stdout bytes'
-	if ($null -ne $manifest.ErrorJson) { Assert-Equal 'inventory.manifest-cap-exceeded' $manifest.ErrorJson.code 'manifest cap code' }
-	else { Assert-True $false 'manifest cap emits a structured stderr envelope' }
+	$targets = Invoke-Inventory ($arguments + @('-EmitTargets'))
+	Assert-Equal 2 $targets.ExitCode 'targets cap exit code'
+	Assert-Equal 0 $targets.Stdout.Length 'targets cap writes zero stdout bytes'
+	if ($null -ne $targets.ErrorJson) {
+		Assert-Equal 'inventory.manifest-cap-exceeded' $targets.ErrorJson.code 'targets cap code'
+		Assert-True ($targets.ErrorJson.message.Contains('501 paths')) 'the targets cap counts emitted paths'
+	}
+	else { Assert-True $false 'targets cap emits a structured stderr envelope' }
 }
 
-# --- Repository F: the manifest stdout byte budget, distinct from the pair cap -------------------
+# --- Repository F: the targets stdout byte budget, distinct from the path cap --------------------
 
-function Test-ManifestByteBudgetBlocked() {
+function Test-TargetsByteBudgetBlocked() {
 	$root = New-FixtureRoot 'bytes'
-	# Exactly the pair cap, so only the byte budget can block: 500 two-sided pairs of these paths
-	# serialize past 131,072 bytes.
-	for ($index = 0; $index -lt 500; $index++) {
-		Set-FixtureText $root ('Engine/Source/Subsystem/LongNamedTranslationUnit{0:D3}.cpp' -f $index) "line $index`n"
-	}
-	Invoke-FixtureGit $root @('add', '--all')
+	# Exactly the path cap, so only the byte budget can block: 500 paths this long serialize past
+	# 131,072 bytes. Git refuses working-tree paths this long on Windows, so both sides live only in
+	# the index and the run compares two commits.
+	$blobSource = Join-Path ([IO.Path]::GetTempPath()) ('inventory-bytes-' + [Guid]::NewGuid().ToString('n').Substring(0, 8))
+	[IO.File]::WriteAllBytes($blobSource, $script:Utf8.GetBytes("line`n"))
+	$baselineBlob = (Get-FixtureGitText $root @('hash-object', '-w', '--', $blobSource)).Trim()
+	[IO.File]::WriteAllBytes($blobSource, $script:Utf8.GetBytes("line`nchanged`n"))
+	$headBlob = (Get-FixtureGitText $root @('hash-object', '-w', '--', $blobSource)).Trim()
+	Remove-Item -LiteralPath $blobSource -Force
+	$filler = 'n' * 270
+	$paths = @(0..499 | ForEach-Object { 'Engine/Source/Subsystem/{0}{1:D3}.cpp' -f $filler, $_ })
+	Set-FixtureIndexEntry $root $baselineBlob $paths
 	Invoke-FixtureGit $root @('commit', '--quiet', '-m', 'baseline')
 	$baseline = (Get-FixtureGitText $root @('rev-parse', 'HEAD')).Trim()
-	for ($index = 0; $index -lt 500; $index++) {
-		Set-FixtureText $root ('Engine/Source/Subsystem/LongNamedTranslationUnit{0:D3}.cpp' -f $index) "line $index`nchanged`n"
-	}
-	$run = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-EmitTargetManifest')
-	Assert-Equal 2 $run.ExitCode 'manifest byte budget exit code'
-	Assert-Equal 0 $run.Stdout.Length 'manifest byte budget writes zero stdout bytes'
+	Set-FixtureIndexEntry $root $headBlob $paths
+	Invoke-FixtureGit $root @('commit', '--quiet', '-m', 'head')
+	$head = (Get-FixtureGitText $root @('rev-parse', 'HEAD')).Trim()
+	$run = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-Head', $head, '-EmitTargets')
+	Assert-Equal 2 $run.ExitCode 'targets byte budget exit code'
+	Assert-Equal 0 $run.Stdout.Length 'targets byte budget writes zero stdout bytes'
 	if ($null -ne $run.ErrorJson) {
-		Assert-Equal 'inventory.manifest-cap-exceeded' $run.ErrorJson.code 'manifest byte budget code'
-		Assert-True ($run.ErrorJson.message.Contains('stdout budget')) 'manifest byte budget blocks on the byte budget, not the pair cap'
+		Assert-Equal 'inventory.manifest-cap-exceeded' $run.ErrorJson.code 'targets byte budget code'
+		Assert-True ($run.ErrorJson.message.Contains('stdout budget')) 'targets byte budget blocks on the byte budget, not the path cap'
 	}
-	else { Assert-True $false 'manifest byte budget emits a structured stderr envelope' }
+	else { Assert-True $false 'targets byte budget emits a structured stderr envelope' }
 }
 
 # --- Repository I: the stdout budget binds on the landing arrays ---------------------------------
@@ -515,7 +528,7 @@ function Test-LandingBudget() {
 
 # --- Repository G: directories outside the analyzer corpus ---------------------------------------
 
-function Test-ManifestCorpusExclusion() {
+function Test-TargetsCorpusExclusion() {
 	$root = New-FixtureRoot 'corpus'
 	$excluded = @('ThirdParty/Prebuilts/Source/Vendor.cpp', '.agents/scripts/Helper.cpp', '.claude/Tool.cpp', 'Temp/Scratch.cpp')
 	foreach ($path in $excluded + @('Engine/Source/Keep.cpp', 'ThirdParty/Prebuilts/Source/Adopted.cpp')) { Set-FixtureText $root $path "int f() { return 1; }`n" }
@@ -534,13 +547,12 @@ function Test-ManifestCorpusExclusion() {
 		Assert-True ($default.Json.triggers.repoCodeReview -eq $true) 'corpus exclusion leaves triggers unchanged'
 	}
 	else { Assert-True $false 'corpus exclusion default emitted JSON' }
-	$manifest = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-EmitTargetManifest')
-	Assert-Equal 0 $manifest.ExitCode 'corpus exclusion manifest exit code'
-	if ($null -ne $manifest.Json) {
-		$keys = @(@($manifest.Json.pairs) | ForEach-Object { "$(if ($null -eq $_.baseline) { '' } else { $_.baseline.path })|$(if ($null -eq $_.current) { '' } else { $_.current.path })" })
-		Assert-Equal ('|Engine/Source/Adopted.cpp ; Engine/Source/Keep.cpp|Engine/Source/Keep.cpp') ($keys -join ' ; ') 'manifest omits excluded directories and emits the eligible rename side one-sided'
+	$targets = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-EmitTargets')
+	Assert-Equal 0 $targets.ExitCode 'corpus exclusion targets exit code'
+	if ($null -ne $targets.Json) {
+		Assert-Equal ('Engine/Source/Adopted.cpp ; Engine/Source/Keep.cpp') (@($targets.Json.paths) -join ' ; ') 'targets omit excluded directories and keep the eligible rename side'
 	}
-	else { Assert-True $false 'corpus exclusion manifest emitted JSON' }
+	else { Assert-True $false 'corpus exclusion targets emitted JSON' }
 }
 
 # --- Repository H: a type change between an ordinary C++ file and a gitlink -----------------------
@@ -571,13 +583,12 @@ function Test-GitlinkTypeChange() {
 		Assert-True ($default.Json.triggers.repoCodeReview -eq $true) 'the baseline C++ side of a type change still triggers repoCodeReview'
 	}
 	else { Assert-True $false 'gitlink type change default emitted JSON' }
-	$manifest = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-Head', $head, '-EmitTargetManifest')
-	Assert-Equal 0 $manifest.ExitCode 'gitlink type change manifest exit code'
-	if ($null -ne $manifest.Json) {
-		$keys = @(@($manifest.Json.pairs) | ForEach-Object { "$(if ($null -eq $_.baseline) { '' } else { $_.baseline.path })|$(if ($null -eq $_.current) { '' } else { $_.current.path })" })
-		Assert-Equal ('|Engine/Source/FromLink.h ; Engine/Source/ToLink.h|') ($keys -join ' ; ') 'a gitlink type change emits only its ordinary side, one-sided'
+	$targets = Invoke-Inventory @('-RepositoryRoot', $root, '-Baseline', $baseline, '-Head', $head, '-EmitTargets')
+	Assert-Equal 0 $targets.ExitCode 'gitlink type change targets exit code'
+	if ($null -ne $targets.Json) {
+		Assert-Equal ('Engine/Source/FromLink.h ; Engine/Source/ToLink.h') (@($targets.Json.paths) -join ' ; ') 'a gitlink type change emits only its ordinary side'
 	}
-	else { Assert-True $false 'gitlink type change manifest emitted JSON' }
+	else { Assert-True $false 'gitlink type change targets emitted JSON' }
 }
 
 # --- Argument-level blocked results -------------------------------------------------------------
@@ -587,10 +598,10 @@ function Test-BlockedArgument($Fixture) {
 	Assert-Equal 2 $conflict.ExitCode 'mode conflict exit code'
 	if ($null -ne $conflict.Json) { Assert-Equal 'inventory.mode-conflict' $conflict.Json.code 'mode conflict code' } else { Assert-True $false 'mode conflict emitted JSON' }
 
-	$conflictManifest = Invoke-Inventory @('-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-Regions', '-EmitTargetManifest')
-	Assert-Equal 2 $conflictManifest.ExitCode 'mode conflict under manifest exit code'
-	Assert-Equal 0 $conflictManifest.Stdout.Length 'mode conflict under manifest writes zero stdout bytes'
-	if ($null -ne $conflictManifest.ErrorJson) { Assert-Equal 'inventory.mode-conflict' $conflictManifest.ErrorJson.code 'mode conflict under manifest code' }
+	$conflictTargets = Invoke-Inventory @('-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-Regions', '-EmitTargets')
+	Assert-Equal 2 $conflictTargets.ExitCode 'mode conflict under targets exit code'
+	Assert-Equal 0 $conflictTargets.Stdout.Length 'mode conflict under targets writes zero stdout bytes'
+	if ($null -ne $conflictTargets.ErrorJson) { Assert-Equal 'inventory.mode-conflict' $conflictTargets.ErrorJson.code 'mode conflict under targets code' }
 
 	$landing = Invoke-Inventory @('-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-Landing')
 	Assert-Equal 2 $landing.ExitCode 'landing without head exit code'
@@ -609,9 +620,9 @@ function Test-BlockedArgument($Fixture) {
 	Assert-Equal 2 $shortBaseline.ExitCode 'non-SHA baseline exit code'
 	if ($null -ne $shortBaseline.Json) { Assert-Equal 'inventory.baseline-unresolved' $shortBaseline.Json.code 'non-SHA baseline code' }
 
-	$unresolvedManifest = Invoke-Inventory @('-RepositoryRoot', $Fixture.Root, '-Baseline', $missing, '-EmitTargetManifest')
-	Assert-Equal 2 $unresolvedManifest.ExitCode 'unresolvable baseline under manifest exit code'
-	Assert-Equal 0 $unresolvedManifest.Stdout.Length 'unresolvable baseline under manifest writes zero stdout bytes'
+	$unresolvedTargets = Invoke-Inventory @('-RepositoryRoot', $Fixture.Root, '-Baseline', $missing, '-EmitTargets')
+	Assert-Equal 2 $unresolvedTargets.ExitCode 'unresolvable baseline under targets exit code'
+	Assert-Equal 0 $unresolvedTargets.Stdout.Length 'unresolvable baseline under targets writes zero stdout bytes'
 
 	$head = Invoke-Inventory @('-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-Head', 'no-such-revision')
 	Assert-Equal 2 $head.ExitCode 'unresolvable head exit code'
@@ -631,19 +642,19 @@ try {
 	$repositoryA = New-RepositoryA
 	Test-DefaultInventory $repositoryA
 	Test-RegionInventory $repositoryA
-	Test-ManifestInventory $repositoryA
+	Test-TargetsInventory $repositoryA
 	Test-BlockedArgument $repositoryA
 	Test-CrossClassRename
 	$repositoryC = New-RepositoryC
 	Test-HeadInventory $repositoryC
 	Test-LandingInventory $repositoryC
-	Test-ManifestModeBlocked $repositoryC
+	Test-TargetsModeSkipped $repositoryC
 	Test-EmptyResult
-	Test-UnreportedRenameBlocked
+	Test-UnreportedRenameEmitted
 	Test-CapBehaviour
-	Test-ManifestByteBudgetBlocked
+	Test-TargetsByteBudgetBlocked
 	Test-LandingBudget
-	Test-ManifestCorpusExclusion
+	Test-TargetsCorpusExclusion
 	Test-GitlinkTypeChange
 }
 finally {

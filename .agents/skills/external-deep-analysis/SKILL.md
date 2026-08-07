@@ -39,19 +39,18 @@ Before architecture analysis, invoke `code-quality-metrics` Snapshot once with
 the resolved relative-POSIX target, the same `Exact`, `Directory`, or
 `Recursive` scope mode, and the absolute checkout root. This single capture
 analyzes the complete corpus and the resolved target together; do not substitute
-separate corpus and target runs. Call the digest wrapper `pwsh -NoProfile -File
-.agents/skills/code-quality-metrics/scripts/Get-CodeQualityEvidence.ps1 -Mode
+separate corpus and target runs. Call `pwsh -NoProfile -File
+.agents/skills/code-quality-metrics/scripts/Invoke-CodeQualityMetrics.ps1 -Mode
 Snapshot -Target <resolved-relative-POSIX-path> -Scope <resolved-mode>
--RepositoryRoot <absolute-checkout-root> -Phase0Hints`, and consume its
-`profile`, `targetSelection`, `coverage`, and `hints` fields. This main context
-may add `-EvidenceDirectory` with an absolute ignored `Temp/` path to retain the
-full report, which the digest names in `evidencePath`.
+-RepositoryRoot <absolute-checkout-root> -Phase0Hints -OutputPath
+<absolute-ignored-Temp-path>`, and consume the digest's `profile`,
+`targetSelection`, `coverage`, and `hints` fields. The digest carries no metric
+values, so also read the retained full report's `current.targetMetrics` and
+`current.corpusMetrics` `structuralErosion` and `verbosity` values and keep all
+four for the final summary.
 
-An operational failure blocks the pipeline and emits one error envelope with null
-digest fields: exit `1` carries `evidence.contract-mismatch` naming the exact
-field path for a contract violation, or `internal.error` for any other unexpected
-operational error, and exit `2` forwards the entry point's own error verbatim in
-`underlying`. Treat
+An operational failure blocks the pipeline: it exits `2` with diagnostics on
+stderr and no digest on stdout. Treat
 every reported parse omission as an explicit metric residual, not a pipeline
 failure.
 
@@ -84,6 +83,15 @@ Invoke `external-refactor-clean` natively through the normal skill surface with
 the same target and scope mode. Include the Phase-0 scoped hints and Phase-1
 investigation paths as evidence to inspect, without expanding the original
 finding boundary.
+
+Treat every forwarded `hints.highComplexityFunctions` item whose `path` lies in
+the resolved target as a required checklist item with one of exactly two
+recorded outcomes: a source-verified finding whose acceptance criterion is that
+no function resulting from the decomposition exceeds cyclomatic complexity ten,
+or a named residual identifying that `owner`, `name`, and `signature` and
+stating why decomposition is not warranted — irreducibility included. Hints
+outside the resolved target stay evidence-only and never become checklist
+items.
 
 Keep its file-size triage separate from ordinary findings. Every oversized file
 retains the explicit instruction `run /reduce-file <path>`; do not analyze it
@@ -128,8 +136,10 @@ After successful verification and the applicable finalization outcome,
 report:
 
 - exact target, scope mode, file count, and applicable authorities;
-- metric profile, target and corpus coverage, scoped-hint total/emitted
-  counts, and every metric residual;
+- metric profile, target and corpus coverage, the target's and corpus's
+  `structuralErosion` and `verbosity` values, scoped-hint total/emitted counts,
+  and every metric residual, so successive runs over the same target show the
+  trend;
 - architecture and refactor-clean finding counts;
 - created, updated, duplicate-mapped, rejected, and residual items, with every
   oversized file still shown as `run /reduce-file <path>`;

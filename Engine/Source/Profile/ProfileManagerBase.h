@@ -265,8 +265,6 @@ struct GpuShadowSample
 {
 	uint64_t uiSequence = 0;
 	int64_t iCurrentMicroseconds = 0;
-	int64_t iActivePixelsWidth = 0;
-	int64_t iActivePixelsHeight = 0;
 };
 #endif // BT_CLIENT
 

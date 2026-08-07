@@ -15,8 +15,9 @@ layout (set = 1, binding = 2, r16) uniform writeonly image2D shadowBlurTexture; 
 
 void main()
 {
-	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iShadowFinalMinX, globalLayout.iShadowFinalMinY);
-	if (any(greaterThanEqual(i2Texel, ivec2(globalLayout.iShadowFinalMaxX, globalLayout.iShadowFinalMaxY))))
+	// The dispatch rounds the texture extent up to whole tiles, so the tail threads guard against it.
+	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(i2Texel, imageSize(shadowBlurTexture))))
 		return;
 	uint uiX = uint(i2Texel.x);
 	uint uiY = uint(i2Texel.y);

@@ -42,7 +42,7 @@ void SoundMenuScreen::Render()
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
-	MenuHeading(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)), kfMainMenuHeadingScale);
+	MenuHeading(AppendUtf8(rWorkbuffer, TranslatedString(kStringAudio)), kfMainMenuHeadingScale);
 
 	const float fSliderWidth = kfSoundSliderWidthPixels * engine::UiScale();
 	ImGui::SetNextItemWidth(fSliderWidth);

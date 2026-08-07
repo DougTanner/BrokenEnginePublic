@@ -30,9 +30,8 @@ public:
 	static constexpr float kfEyeHeightMaxRelease = 600.0f;
 	// Headroom multipliers: the shadow and lighting (deposit/spread/combine) textures are allocated this much larger
 	// than the wanted on-screen pixel size. Because their texel-height references never fall below live eye height,
-	// this margin keeps the raw live-frustum footprints inside their textures throughout zoom transitions. Optional
-	// filter and spread margins can still reach their existing texture-bounds clamps. At settled height, the raw
-	// live-frustum window equals the wanted pixel size regardless of this value.
+	// this margin keeps the raw live-frustum footprints inside their textures throughout zoom transitions. At settled
+	// height, the raw live-frustum window equals the wanted pixel size regardless of this value.
 	static constexpr float kfShadowHeadroomMultiplier = 1.5f;
 	static constexpr float kfLightingHeadroomMultiplier = 1.5f;
 	// Initial zoom-target on construction: a few wheel-clicks above the default for a comfortable opening frame with

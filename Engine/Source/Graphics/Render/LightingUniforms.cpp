@@ -12,55 +12,6 @@
 namespace engine
 {
 
-struct LightingWindowBounds
-{
-	int32_t iMinX = 0;
-	int32_t iMinY = 0;
-	int32_t iMaxX = 0;
-	int32_t iMaxY = 0;
-};
-
-static LightingWindowBounds ExpandLightingWindowBounds(const LightingWindowBounds& rBounds, int32_t iExpandX, int32_t iExpandY, int32_t iWidth, int32_t iHeight)
-{
-	return
-	{
-		.iMinX = std::max(0, rBounds.iMinX - iExpandX),
-		.iMinY = std::max(0, rBounds.iMinY - iExpandY),
-		.iMaxX = std::min(iWidth, rBounds.iMaxX + iExpandX),
-		.iMaxY = std::min(iHeight, rBounds.iMaxY + iExpandY),
-	};
-}
-
-static LightingWindowBounds ScaleLightingWindowBounds(const LightingWindowBounds& rBounds, int32_t iSourceWidth, int32_t iSourceHeight, int32_t iDestinationWidth, int32_t iDestinationHeight)
-{
-	return
-	{
-		.iMinX = static_cast<int32_t>((static_cast<int64_t>(rBounds.iMinX) * iDestinationWidth) / iSourceWidth),
-		.iMinY = static_cast<int32_t>((static_cast<int64_t>(rBounds.iMinY) * iDestinationHeight) / iSourceHeight),
-		.iMaxX = static_cast<int32_t>((static_cast<int64_t>(rBounds.iMaxX) * iDestinationWidth + iSourceWidth - 1) / iSourceWidth),
-		.iMaxY = static_cast<int32_t>((static_cast<int64_t>(rBounds.iMaxY) * iDestinationHeight + iSourceHeight - 1) / iSourceHeight),
-	};
-}
-
-static LightingWindowBounds UnionLightingWindowBounds(const LightingWindowBounds& rOne, const LightingWindowBounds& rTwo)
-{
-	return
-	{
-		.iMinX = std::min(rOne.iMinX, rTwo.iMinX),
-		.iMinY = std::min(rOne.iMinY, rTwo.iMinY),
-		.iMaxX = std::max(rOne.iMaxX, rTwo.iMaxX),
-		.iMaxY = std::max(rOne.iMaxY, rTwo.iMaxY),
-	};
-}
-
-static void SetLightingWindowBounds(int32_t& riMinX, int32_t& riMinY, int32_t& riMaxX, int32_t& riMaxY, const LightingWindowBounds& rBounds)
-{
-	riMinX = rBounds.iMinX;
-	riMinY = rBounds.iMinY;
-	riMaxX = rBounds.iMaxX;
-	riMaxY = rBounds.iMaxY;
-}
-
 static bool IsVisibleAreaInsideHeldCombineCrop(const XMFLOAT4& rf4VisibleArea, const XMFLOAT4& rf4HeldVisibleArea, const XMFLOAT4& rf4HeldLightingArea, float fCombineTextureWidth, float fCombineTextureHeight)
 {
 	float fHeldCombineTexelX = (rf4HeldLightingArea.z - rf4HeldLightingArea.x) / fCombineTextureWidth;
@@ -76,11 +27,9 @@ struct LightingTemporalAreaLatch
 	bool bInitialized = false;
 	XMFLOAT4 f4CurrentArea {};
 	XMFLOAT4 f4PreviousArea {};
-	LightingWindowBounds currentValidBounds {};
-	LightingWindowBounds previousValidBounds {};
 	float fBlend = 1.0f;
 
-	float Update(const XMFLOAT4& rf4CurrentArea, const LightingWindowBounds& rCurrentValidBounds, bool& rbReset, float fRequestedBlend, XMFLOAT4& rf4PreviousArea, LightingWindowBounds& rPreviousValidBounds)
+	float Update(const XMFLOAT4& rf4CurrentArea, bool& rbReset, float fRequestedBlend, XMFLOAT4& rf4PreviousArea)
 	{
 		if (rbReset)
 		{
@@ -93,32 +42,24 @@ struct LightingTemporalAreaLatch
 		{
 			f4CurrentArea = rf4CurrentArea;
 			f4PreviousArea = rf4CurrentArea;
-			currentValidBounds = rCurrentValidBounds;
-			previousValidBounds = rCurrentValidBounds;
 			bInitialized = true;
 			fResolvedBlend = 1.0f;
 		}
 		else
 		{
 			f4PreviousArea = f4CurrentArea;
-			previousValidBounds = currentValidBounds;
 			f4CurrentArea = rf4CurrentArea;
-			currentValidBounds = rCurrentValidBounds;
 		}
 
 		rf4PreviousArea = f4PreviousArea;
-		rPreviousValidBounds = previousValidBounds;
 		fBlend = fResolvedBlend;
 		return fBlend;
 	}
 };
 
 static bool sbLightingRefreshFrame = true; // Cached before global lighting publication so the spread, combine, and temporal chain share one refresh epoch
-static LightingWindowBounds sLightingDepositBounds {};
-static LightingWindowBounds sLightingValidBounds {};
-static LightingWindowBounds spLightingSpreadBounds[shaders::kiMaxSpreadPasses] {};
 
-static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, float fSpreadDistanceStart, float fSpreadDistanceEnd, bool bScheduledRefresh)
+static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, bool bScheduledRefresh)
 {
 	// Lighting area: world-sized texels from a raw-frustum-safe camera-height reference (mirror of the shadow-area path in
 	// PopulateShadowParameters). The deposit/spread/combine textures are pre-sized (RenderTargetTextures, via
@@ -127,8 +68,8 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, flo
 	// mfLightingTexelEyeHeight. That reference expands immediately outward and contracts at its existing rate inward,
 	// so it never falls below live height; the grid stays fixed at a settled height and snapped cleanly under XY pan.
 	// Reading the actual (clamped) extent keeps raw-frustum coverage
-	// device-clamp-invariant and snaps deposit quads onto integer texels; the headroom multiplier cancels out of the
-	// window count. f4LightingArea is the full camera-centered footprint snapped to the deposit texel grid. Snapping to
+	// device-clamp-invariant and snaps deposit quads onto integer texels.
+	// f4LightingArea is the full camera-centered footprint snapped to the deposit texel grid. Snapping to
 	// the deposit grid (not combine) is load-bearing: deposit is where lights rasterize, so its grid must move in
 	// integer-texel steps under pan. Spread/combine/temporal resample the same world rectangle at their own resolutions.
 	float fLightingTextureWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mpLightingTextures[0].mInfo.extent.width);
@@ -139,40 +80,15 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, flo
 
 	WorldSizedTexelArea area = ComputeWorldSizedTexelArea(game::Camera::kfLightingHeadroomMultiplier, game::gpCamera->mfLightingTexelEyeHeight, fLightingTextureWidth, fLightingTextureHeight, gpSwapchainManager->mfAspectRatio, gFov.Get(), game::gpCamera->mVecPosition);
 
-	const int32_t iDepositWidth = static_cast<int32_t>(fLightingTextureWidth);
-	const int32_t iDepositHeight = static_cast<int32_t>(fLightingTextureHeight);
-	const int32_t iCombineWidth = static_cast<int32_t>(fCombineTextureWidth);
-	const int32_t iCombineHeight = static_cast<int32_t>(fCombineTextureHeight);
-	const int32_t iSpreadPassCount = static_cast<int32_t>(gSpreadPassCount.Get<int64_t>());
-	auto visibleBounds = [](const XMFLOAT4& rf4Area, const XMFLOAT4& rf4VisibleArea, int32_t iWidth, int32_t iHeight)
-	{
-		float fTexelWidth = (rf4Area.z - rf4Area.x) / static_cast<float>(iWidth);
-		float fTexelHeight = (rf4Area.y - rf4Area.w) / static_cast<float>(iHeight);
-		return LightingWindowBounds
-		{
-			.iMinX = std::clamp(static_cast<int32_t>(std::floor((rf4VisibleArea.x - rf4Area.x) / fTexelWidth)), 0, iWidth),
-			.iMinY = std::clamp(static_cast<int32_t>(std::floor((rf4Area.y - rf4VisibleArea.y) / fTexelHeight)), 0, iHeight),
-			.iMaxX = std::clamp(static_cast<int32_t>(std::ceil((rf4VisibleArea.z - rf4Area.x) / fTexelWidth)), 0, iWidth),
-			.iMaxY = std::clamp(static_cast<int32_t>(std::ceil((rf4Area.y - rf4VisibleArea.w) / fTexelHeight)), 0, iHeight),
-		};
-	};
-
-	// Temporal accumulation publishes the world area and its matching valid texel rectangle from one refresh epoch.
-	// A skip retains both mappings; only the per-frame deposit clear is permitted to advance independently.
+	// Temporal accumulation publishes the current and previous world areas from one refresh epoch; a skip retains both.
 	static LightingTemporalAreaLatch sTemporalAreaLatch {};
 	static XMFLOAT4 sf4HeldVisibleArea {};
 	static bool sbHeldVisibleArea = false;
 	sbLightingRefreshFrame = bScheduledRefresh || !sTemporalAreaLatch.bInitialized || !sbHeldVisibleArea
 		|| !IsVisibleAreaInsideHeldCombineCrop(rVisibleArea, sf4HeldVisibleArea, sTemporalAreaLatch.f4CurrentArea, fCombineTextureWidth, fCombineTextureHeight);
-	LightingWindowBounds currentValidBounds {};
-	LightingWindowBounds previousValidBounds {};
 	if (sbLightingRefreshFrame)
 	{
-		// One texel on each side is the complete bilinear footprint that final terrain/water/model consumers may
-		// sample, and a second retains that footprint through the permitted one-texel held-area drift. Combine,
-		// temporal, and history copy all publish exactly this rectangle.
-		currentValidBounds = ExpandLightingWindowBounds(visibleBounds(area.f4Area, rVisibleArea, iCombineWidth, iCombineHeight), 2, 2, iCombineWidth, iCombineHeight);
-		rGlobalLayout.fLightingTemporalBlend = sTemporalAreaLatch.Update(area.f4Area, currentValidBounds, gbLightingTemporalReset, gLightingTemporalBlend.Get(), rGlobalLayout.f4LightingAreaPrevious, previousValidBounds);
+		rGlobalLayout.fLightingTemporalBlend = sTemporalAreaLatch.Update(area.f4Area, gbLightingTemporalReset, gLightingTemporalBlend.Get(), rGlobalLayout.f4LightingAreaPrevious);
 		rGlobalLayout.f4LightingArea = sTemporalAreaLatch.f4CurrentArea;
 		sf4HeldVisibleArea = rVisibleArea;
 		sbHeldVisibleArea = true;
@@ -182,11 +98,7 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, flo
 		rGlobalLayout.f4LightingArea = sTemporalAreaLatch.f4CurrentArea;
 		rGlobalLayout.f4LightingAreaPrevious = sTemporalAreaLatch.f4PreviousArea;
 		rGlobalLayout.fLightingTemporalBlend = sTemporalAreaLatch.fBlend;
-		currentValidBounds = sTemporalAreaLatch.currentValidBounds;
-		previousValidBounds = sTemporalAreaLatch.previousValidBounds;
 	}
-	SetLightingWindowBounds(rGlobalLayout.iLightingValidMinX, rGlobalLayout.iLightingValidMinY, rGlobalLayout.iLightingValidMaxX, rGlobalLayout.iLightingValidMaxY, currentValidBounds);
-	SetLightingWindowBounds(rGlobalLayout.iLightingHistoryValidMinX, rGlobalLayout.iLightingHistoryValidMinY, rGlobalLayout.iLightingHistoryValidMaxX, rGlobalLayout.iLightingHistoryValidMaxY, previousValidBounds);
 
 	// Lighting-area extent reciprocal (LightingSpread.frag world->texcoord multiply).
 	const XMFLOAT4& rLightingArea = sTemporalAreaLatch.f4CurrentArea;
@@ -195,54 +107,6 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, flo
 	rGlobalLayout.f2LightingAreaExtentInv.x = 1.0f / fLightingAreaWidth;
 	rGlobalLayout.f2LightingAreaExtentInv.y = 1.0f / fLightingAreaHeight;
 
-	if (sbLightingRefreshFrame)
-	{
-		// Backward-close every mixed-resolution spread pass. Combine samples every pass directly, while a later pass
-		// also gathers its predecessor; therefore each pass starts with the final rectangle mapped to its own extent and
-		// unions the successor's required source. The gather reach includes the interpolated distance, sample jitter, and
-		// both linear-filter neighbours. Bounds stay half-open and clamped at each texture's real extent.
-		LightingWindowBounds requiredForPrevious {};
-		bool bHasRequiredForPrevious = false;
-		for (int32_t iPass = iSpreadPassCount - 1; iPass >= 0; --iPass)
-		{
-			VkExtent3D vkOutputExtent = gpTextureManager->mRenderTargetTextures.mpSpreadTextures[iPass][0].mInfo.extent;
-			int32_t iOutputWidth = static_cast<int32_t>(vkOutputExtent.width);
-			int32_t iOutputHeight = static_cast<int32_t>(vkOutputExtent.height);
-			LightingWindowBounds passBounds = ExpandLightingWindowBounds(ScaleLightingWindowBounds(currentValidBounds, iCombineWidth, iCombineHeight, iOutputWidth, iOutputHeight), 1, 1, iOutputWidth, iOutputHeight);
-			if (bHasRequiredForPrevious)
-			{
-				passBounds = UnionLightingWindowBounds(passBounds, requiredForPrevious);
-			}
-			spLightingSpreadBounds[iPass] = passBounds;
-			SetLightingWindowBounds(rGlobalLayout.piLightingSpreadMinX[iPass], rGlobalLayout.piLightingSpreadMinY[iPass], rGlobalLayout.piLightingSpreadMaxX[iPass], rGlobalLayout.piLightingSpreadMaxY[iPass], passBounds);
-
-			int32_t iSourceWidth = iPass == 0 ? iDepositWidth : static_cast<int32_t>(gpTextureManager->mRenderTargetTextures.mpSpreadTextures[iPass - 1][0].mInfo.extent.width);
-			int32_t iSourceHeight = iPass == 0 ? iDepositHeight : static_cast<int32_t>(gpTextureManager->mRenderTargetTextures.mpSpreadTextures[iPass - 1][0].mInfo.extent.height);
-			float fT = iSpreadPassCount > 1 ? static_cast<float>(iPass) / static_cast<float>(iSpreadPassCount - 1) : 0.0f;
-			float fReach = std::lerp(fSpreadDistanceStart, fSpreadDistanceEnd, fT) + std::lerp(gSpreadSampleJitterRangeStart.Get(), gSpreadSampleJitterRangeEnd.Get(), fT);
-			int32_t iReachX = static_cast<int32_t>(std::ceil(fReach * static_cast<float>(iSourceWidth) / fLightingAreaWidth)) + 1;
-			int32_t iReachY = static_cast<int32_t>(std::ceil(fReach * static_cast<float>(iSourceHeight) / fLightingAreaHeight)) + 1;
-			requiredForPrevious = ExpandLightingWindowBounds(ScaleLightingWindowBounds(passBounds, iOutputWidth, iOutputHeight, iSourceWidth, iSourceHeight), iReachX, iReachY, iSourceWidth, iSourceHeight);
-			bHasRequiredForPrevious = true;
-		}
-		for (int32_t iPass = iSpreadPassCount; iPass < shaders::kiMaxSpreadPasses; ++iPass)
-		{
-			spLightingSpreadBounds[iPass] = {};
-			SetLightingWindowBounds(rGlobalLayout.piLightingSpreadMinX[iPass], rGlobalLayout.piLightingSpreadMinY[iPass], rGlobalLayout.piLightingSpreadMaxX[iPass], rGlobalLayout.piLightingSpreadMaxY[iPass], {});
-		}
-		SetLightingWindowBounds(rGlobalLayout.iLightingDepositMinX, rGlobalLayout.iLightingDepositMinY, rGlobalLayout.iLightingDepositMaxX, rGlobalLayout.iLightingDepositMaxY, requiredForPrevious);
-		sLightingDepositBounds = requiredForPrevious;
-	}
-	else
-	{
-		for (int32_t iPass = 0; iPass < shaders::kiMaxSpreadPasses; ++iPass)
-		{
-			SetLightingWindowBounds(rGlobalLayout.piLightingSpreadMinX[iPass], rGlobalLayout.piLightingSpreadMinY[iPass], rGlobalLayout.piLightingSpreadMaxX[iPass], rGlobalLayout.piLightingSpreadMaxY[iPass], spLightingSpreadBounds[iPass]);
-		}
-		SetLightingWindowBounds(rGlobalLayout.iLightingDepositMinX, rGlobalLayout.iLightingDepositMinY, rGlobalLayout.iLightingDepositMaxX, rGlobalLayout.iLightingDepositMaxY, sLightingDepositBounds);
-	}
-	sLightingValidBounds = currentValidBounds;
-
 	// Edge-fade denominator reciprocal (LightingDepositEdgeFade), deliberately floored unlike smoke/wind's ceil-based
 	// full-coverage dispatch grids. The minimum of one keeps the tile count nonzero if a device clamp produces a
 	// sub-tile texture extent.
@@ -250,14 +114,6 @@ static void PopulateLightingParameters(shaders::GlobalLayout& rGlobalLayout, flo
 	uint32_t uiLightTilesY = std::max(1u, static_cast<uint32_t>(fLightingTextureHeight) / shaders::kiComputeTileSize);
 	rGlobalLayout.f2LightingDepositSizeInv.x = 1.0f / static_cast<float>(uiLightTilesX * shaders::kiComputeTileSize);
 	rGlobalLayout.f2LightingDepositSizeInv.y = 1.0f / static_cast<float>(uiLightTilesY * shaders::kiComputeTileSize);
-
-	giLightingDepositPixelsX = sLightingDepositBounds.iMaxX - sLightingDepositBounds.iMinX;
-	giLightingDepositPixelsY = sLightingDepositBounds.iMaxY - sLightingDepositBounds.iMinY;
-	giLightingSpreadStartActivePixelsX = rGlobalLayout.piLightingSpreadMaxX[0] - rGlobalLayout.piLightingSpreadMinX[0];
-	giLightingSpreadStartActivePixelsY = rGlobalLayout.piLightingSpreadMaxY[0] - rGlobalLayout.piLightingSpreadMinY[0];
-	int32_t iLastSpreadPass = iSpreadPassCount - 1;
-	giLightingSpreadEndActivePixelsX = rGlobalLayout.piLightingSpreadMaxX[iLastSpreadPass] - rGlobalLayout.piLightingSpreadMinX[iLastSpreadPass];
-	giLightingSpreadEndActivePixelsY = rGlobalLayout.piLightingSpreadMaxY[iLastSpreadPass] - rGlobalLayout.piLightingSpreadMinY[iLastSpreadPass];
 }
 
 void RenderLightingGlobal(int64_t iCommandBuffer)
@@ -326,8 +182,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	// Spread Start
 	rGlobalLayout.fSpreadDirectionalityStart = gSpreadDirectionality.Get();
 	rGlobalLayout.fSpreadDirectionCountStart = gSpreadDirectionCount.Get();
-	float fSpreadDistanceStart = gSpreadDistance.Get();
-	rGlobalLayout.fSpreadDistanceStart = fSpreadDistanceStart;
+	rGlobalLayout.fSpreadDistanceStart = gSpreadDistance.Get();
 	rGlobalLayout.fSpreadRingCountStart = gSpreadRingCount.Get();
 	rGlobalLayout.fSpreadJitterStart = gSpreadJitter.Get();
 	rGlobalLayout.fSpreadSampleJitterRangeStart = gSpreadSampleJitterRangeStart.Get();
@@ -342,8 +197,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	// Spread End (interpolation targets for last spread pass)
 	rGlobalLayout.fSpreadDirectionalityEnd = gSpreadDirectionalityEnd.Get();
 	rGlobalLayout.fSpreadDirectionCountEnd = gSpreadDirectionCountEnd.Get();
-	float fSpreadDistanceEnd = gSpreadDistanceEnd.Resolve(game::gpCamera->mfCameraEyeHeight);
-	rGlobalLayout.fSpreadDistanceEnd = fSpreadDistanceEnd;
+	rGlobalLayout.fSpreadDistanceEnd = gSpreadDistanceEnd.Resolve(game::gpCamera->mfCameraEyeHeight);
 	rGlobalLayout.fSpreadRingCountEnd = gSpreadRingCountEnd.Get();
 	rGlobalLayout.fSpreadJitterEnd = gSpreadJitterEnd.Get();
 	rGlobalLayout.fSpreadSampleJitterRangeEnd = gSpreadSampleJitterRangeEnd.Get();
@@ -369,7 +223,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	}
 
 	// Lighting world-area / temporal / tile / readout population — colocated here so the whole Lighting region lives in one file (region ownership).
-	PopulateLightingParameters(rGlobalLayout, fSpreadDistanceStart, fSpreadDistanceEnd, bScheduledLightingRefresh);
+	PopulateLightingParameters(rGlobalLayout, bScheduledLightingRefresh);
 }
 
 void RenderLightingMain(int64_t iCommandBuffer)
@@ -528,9 +382,8 @@ void RenderLightingMain(int64_t iCommandBuffer)
 
 void RenderLightingSpreadIndirect(int64_t iCommandBuffer)
 {
-	// Deposit clears and local raster continue every frame, but LOAD attachments retain stale data outside their
-	// rectangles. A refresh must therefore draw every bounded spread pass even for an empty deposit so it publishes
-	// fresh zero results; skips publish no chain work and retain the prior area/bounds/history epoch.
+	// A refresh must draw every spread pass even for an empty deposit so it publishes fresh zero results;
+	// skips publish no chain work and retain the prior area/history epoch.
 	int64_t iInstanceCount = sbLightingRefreshFrame ? 1 : 0;
 
 	// All kiMaxSpreadPasses pipelines, not just the gSpreadPassCount active ones. Which passes the Main CB
@@ -546,19 +399,15 @@ void RenderLightingSpreadIndirect(int64_t iCommandBuffer)
 		gpPipelineManager->mSpreadPipelines[iPass].WriteIndirectBuffer(iCommandBuffer, iInstanceCount);
 	}
 
-	auto groupCount = [](int32_t iMin, int32_t iMax)
-	{
-		return (static_cast<int64_t>(iMax) - iMin + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-	};
-	int64_t iDepositGroupsX = groupCount(sLightingDepositBounds.iMinX, sLightingDepositBounds.iMaxX);
-	int64_t iDepositGroupsY = groupCount(sLightingDepositBounds.iMinY, sLightingDepositBounds.iMaxY);
-	gpPipelineManager->mLightingClearPipeline.WriteIndirectComputeBuffer(iCommandBuffer, iDepositGroupsX, iDepositGroupsY, 1);
-
-	int64_t iCombineGroupsX = sbLightingRefreshFrame ? groupCount(sLightingValidBounds.iMinX, sLightingValidBounds.iMaxX) : 0;
-	int64_t iCombineGroupsY = sbLightingRefreshFrame ? groupCount(sLightingValidBounds.iMinY, sLightingValidBounds.iMaxY) : 0;
-	gpPipelineManager->mCombinePipeline.WriteIndirectComputeBuffer(iCommandBuffer, iCombineGroupsX, iCombineGroupsY, sbLightingRefreshFrame ? 1 : 0);
-	gpPipelineManager->mLightingTemporalPipeline.WriteIndirectComputeBuffer(iCommandBuffer, iCombineGroupsX, iCombineGroupsY, sbLightingRefreshFrame ? 1 : 0);
-	gpPipelineManager->mLightingHistoryCopyPipeline.WriteIndirectComputeBuffer(iCommandBuffer, iCombineGroupsX, iCombineGroupsY, sbLightingRefreshFrame ? 1 : 0);
+	// The combine-sized chain covers the whole texture; the refresh predicate suppresses it by zeroing the Z group
+	// count, so a skip dispatches nothing without re-recording the Main CB.
+	VkExtent3D vkCombineExtent = gpTextureManager->mRenderTargetTextures.mpCombineTextures[0].mInfo.extent;
+	int64_t iCombineGroupsX = TileCount(vkCombineExtent.width);
+	int64_t iCombineGroupsY = TileCount(vkCombineExtent.height);
+	int64_t iCombineGroupsZ = sbLightingRefreshFrame ? 1 : 0;
+	gpPipelineManager->mCombinePipeline.WriteIndirectComputeBuffer(iCommandBuffer, iCombineGroupsX, iCombineGroupsY, iCombineGroupsZ);
+	gpPipelineManager->mLightingTemporalPipeline.WriteIndirectComputeBuffer(iCommandBuffer, iCombineGroupsX, iCombineGroupsY, iCombineGroupsZ);
+	gpPipelineManager->mLightingHistoryCopyPipeline.WriteIndirectComputeBuffer(iCommandBuffer, iCombineGroupsX, iCombineGroupsY, iCombineGroupsZ);
 }
 
 } // namespace engine

@@ -51,62 +51,6 @@ static float ComputeMoonAmount(float fSunAngle)
 	return ComputeNightEnvelope(fSunAngle, gSunMoonMoonriseStart.Get(), gSunMoonMoonriseEnd.Get(), gSunMoonMoonsetStart.Get(), gSunMoonMoonsetEnd.Get());
 }
 
-struct ShadowWindowBounds
-{
-	int32_t iMinX = 0;
-	int32_t iMinY = 0;
-	int32_t iMaxX = 0;
-	int32_t iMaxY = 0;
-};
-
-static ShadowWindowBounds ExpandShadowWindowBounds(const ShadowWindowBounds& rBounds, int32_t iExpandMinX, int32_t iExpandMinY, int32_t iExpandMaxX, int32_t iExpandMaxY, int32_t iWidth, int32_t iHeight)
-{
-	return
-	{
-		.iMinX = std::max(0, rBounds.iMinX - iExpandMinX),
-		.iMinY = std::max(0, rBounds.iMinY - iExpandMinY),
-		.iMaxX = std::min(iWidth, rBounds.iMaxX + iExpandMaxX),
-		.iMaxY = std::min(iHeight, rBounds.iMaxY + iExpandMaxY),
-	};
-}
-
-static void SetShadowWindowBounds(int32_t& riMinX, int32_t& riMinY, int32_t& riMaxX, int32_t& riMaxY, const ShadowWindowBounds& rBounds)
-{
-	riMinX = rBounds.iMinX;
-	riMinY = rBounds.iMinY;
-	riMaxX = rBounds.iMaxX;
-	riMaxY = rBounds.iMaxY;
-}
-
-struct ShadowTemporalWindowLatch
-{
-	TemporalAreaLatch areaLatch;
-	bool bInitialized = false;
-	ShadowWindowBounds previousVisibleBounds {};
-
-	float Update(const XMFLOAT4& rf4CurrentArea, const ShadowWindowBounds& rCurrentVisibleBounds, bool& rbReset, float fBlend, XMFLOAT4& rf4PreviousArea, ShadowWindowBounds& rPreviousVisibleBounds)
-	{
-		const bool bWasReset = rbReset;
-		float fResolvedBlend = areaLatch.Update(rf4CurrentArea, rbReset, fBlend, rf4PreviousArea);
-		if (bWasReset)
-		{
-			bInitialized = false;
-		}
-
-		if (!bInitialized)
-		{
-			rPreviousVisibleBounds = rCurrentVisibleBounds;
-			bInitialized = true;
-		}
-		else
-		{
-			rPreviousVisibleBounds = previousVisibleBounds;
-		}
-		previousVisibleBounds = rCurrentVisibleBounds;
-		return fResolvedBlend;
-	}
-};
-
 // Sun/Moon direction + tilt: stores the normalized sky direction in f4SunMoonNormal and returns it so the
 // shadow-stretch translation (which also needs it) can be folded CPU-side without re-reading write-only memory.
 static XMVECTOR XM_CALLCONV PopulateSunMoonDirection(shaders::GlobalLayout& rGlobalLayout, float fSunAngle)
@@ -372,54 +316,17 @@ static void PopulateShadowArea(shaders::GlobalLayout& rGlobalLayout, float fShad
 	// mfShadowTexelEyeHeight, so it is fixed at a settled height (the grid snaps cleanly under XY pan -> no shimmer)
 	// and only rescales immediately outward or gradually inward. The headroom keeps the live render area inside the
 	// full footprint throughout either transition. Reading the actual (clamped)
-	// extent keeps the world coverage device-clamp-invariant; the headroom multiplier cancels out of the window count.
+	// extent keeps the world coverage device-clamp-invariant.
 	// f4ShadowArea is the full footprint, camera-centered and snapped to the current texel grid (integer-texel pan).
 	// The base texel derives from the analytic straight-down frustum width (gFov/aspect), never the snapped
 	// render-area width, so it stays bit-stable at a settled height.
 	WorldSizedTexelArea area = ComputeWorldSizedTexelArea(game::Camera::kfShadowHeadroomMultiplier, game::gpCamera->mfShadowTexelEyeHeight, fShadowTextureSizeWidth, fShadowTextureSizeHeight, gpSwapchainManager->mfAspectRatio, gFov.Get(), game::gpCamera->mVecPosition);
 	rGlobalLayout.f4ShadowArea = area.f4Area;
 
-	// Visible window (texels): map the actually rendered world rect (f4RenderVisibleArea — unprojected
-	// corners plus the extra-top/bottom margins and quad-grid snap, CameraBase.cpp) into the texel-snapped
-	// footprint — only this region is ray-marched. floor/ceil covers partial edge texels and the
-	// up-to-one-texel snap offset of f4Area's origin; the clamps remain the final bounds guard for device-clamped extents.
-	const XMFLOAT4& rf4RenderVisibleArea = game::gpCamera->f4RenderVisibleArea;
-	const int64_t iTextureWidth = static_cast<int64_t>(fShadowTextureSizeWidth);
-	const int64_t iTextureHeight = static_cast<int64_t>(fShadowTextureSizeHeight);
-	int64_t iShadowMinX = std::clamp(static_cast<int64_t>(std::floor((rf4RenderVisibleArea.x - area.f4Area.x) / area.fWorldTexelX)), static_cast<int64_t>(0), iTextureWidth);
-	int64_t iShadowMaxX = std::clamp(static_cast<int64_t>(std::ceil((rf4RenderVisibleArea.z - area.f4Area.x) / area.fWorldTexelX)), iShadowMinX, iTextureWidth);
-	int64_t iShadowMinY = std::clamp(static_cast<int64_t>(std::floor((area.f4Area.y - rf4RenderVisibleArea.y) / area.fWorldTexelY)), static_cast<int64_t>(0), iTextureHeight);
-	int64_t iShadowMaxY = std::clamp(static_cast<int64_t>(std::ceil((area.f4Area.y - rf4RenderVisibleArea.w) / area.fWorldTexelY)), iShadowMinY, iTextureHeight);
-	ShadowWindowBounds visibleBounds
-	{
-		.iMinX = static_cast<int32_t>(iShadowMinX),
-		.iMinY = static_cast<int32_t>(iShadowMinY),
-		.iMaxX = static_cast<int32_t>(iShadowMaxX),
-		.iMaxY = static_cast<int32_t>(iShadowMaxY),
-	};
-	SetShadowWindowBounds(rGlobalLayout.iShadowVisibleMinX, rGlobalLayout.iShadowVisibleMinY, rGlobalLayout.iShadowVisibleMaxX, rGlobalLayout.iShadowVisibleMaxY, visibleBounds);
-
-	// Work backwards from the final consumer-filtered result. At non-power-of-two extents, normalized
-	// texel-centre arithmetic can round either side of the nominal centre, so every linear-filter footprint
-	// needs one neighbour in both directions around each Gaussian tap. Rectangles are half-open/clamped.
-	const int32_t iWidth = static_cast<int32_t>(fShadowTextureSizeWidth);
-	const int32_t iHeight = static_cast<int32_t>(fShadowTextureSizeHeight);
-	ShadowWindowBounds finalBounds = ExpandShadowWindowBounds(visibleBounds, shaders::kiShadowConsumerFilterMargin, shaders::kiShadowConsumerFilterMargin, shaders::kiShadowConsumerFilterMargin, shaders::kiShadowConsumerFilterMargin, iWidth, iHeight);
-	ShadowWindowBounds blurHBounds = ExpandShadowWindowBounds(finalBounds, 1, shaders::kiShadowBlurRadius + 1, 1, shaders::kiShadowBlurRadius + 1, iWidth, iHeight);
-	ShadowWindowBounds sourceBounds = ExpandShadowWindowBounds(blurHBounds, shaders::kiShadowBlurRadius + 1, 1, shaders::kiShadowBlurRadius + 1, 1, iWidth, iHeight);
-	SetShadowWindowBounds(rGlobalLayout.iShadowFinalMinX, rGlobalLayout.iShadowFinalMinY, rGlobalLayout.iShadowFinalMaxX, rGlobalLayout.iShadowFinalMaxY, finalBounds);
-	SetShadowWindowBounds(rGlobalLayout.iShadowBlurHMinX, rGlobalLayout.iShadowBlurHMinY, rGlobalLayout.iShadowBlurHMaxX, rGlobalLayout.iShadowBlurHMaxY, blurHBounds);
-	SetShadowWindowBounds(rGlobalLayout.iShadowSourceMinX, rGlobalLayout.iShadowSourceMinY, rGlobalLayout.iShadowSourceMaxX, rGlobalLayout.iShadowSourceMaxY, sourceBounds);
-
-	// Latch the previous visible rectangle together with the previous world area. A recreate makes both previous values
-	// current and forces pure-current temporal output. Outward zoom does not reset shadow history: the prior valid bounds
-	// reject every newly exposed sample, and the history copy seeds the enlarged current rectangle for the next frame.
-	static ShadowTemporalWindowLatch sTemporalWindowLatch {};
-	ShadowWindowBounds previousVisibleBounds {};
-	rGlobalLayout.fShadowTemporalBlend = sTemporalWindowLatch.Update(rGlobalLayout.f4ShadowArea, visibleBounds, gbShadowTemporalReset, gShadowTemporalBlend.Get(), rGlobalLayout.f4ShadowAreaPrevious, previousVisibleBounds);
-	SetShadowWindowBounds(rGlobalLayout.iShadowVisiblePreviousMinX, rGlobalLayout.iShadowVisiblePreviousMinY, rGlobalLayout.iShadowVisiblePreviousMaxX, rGlobalLayout.iShadowVisiblePreviousMaxY, previousVisibleBounds);
-	giShadowActivePixelsX = iShadowMaxX - iShadowMinX;
-	giShadowActivePixelsY = iShadowMaxY - iShadowMinY;
+	// Latch the previous world area. A recreate makes the previous area current and forces pure-current temporal
+	// output; otherwise ShadowTemporal.comp rejects reprojected samples that land outside the previous footprint.
+	static TemporalAreaLatch sTemporalAreaLatch {};
+	rGlobalLayout.fShadowTemporalBlend = sTemporalAreaLatch.Update(area.f4Area, gbShadowTemporalReset, gShadowTemporalBlend.Get(), rGlobalLayout.f4ShadowAreaPrevious);
 
 	rfWorldTexelX = area.fWorldTexelX;
 	rfFullWidth = area.fFullWidth;
@@ -465,26 +372,7 @@ static void PopulateShadowSunExtension(shaders::GlobalLayout& rGlobalLayout, flo
 	}
 }
 
-static constexpr int64_t ShadowWindowGroupCount(int32_t iMin, int32_t iMax)
-{
-	return (static_cast<int64_t>(iMax) - iMin + shaders::kiComputeTileSize - 1) / shaders::kiComputeTileSize;
-}
-
-static void PopulateShadowWindowDispatches(int64_t iCommandBuffer, const shaders::GlobalLayout& rGlobalLayout)
-{
-	auto writeDispatch = [iCommandBuffer](Pipelines ePipeline, int32_t iMinX, int32_t iMinY, int32_t iMaxX, int32_t iMaxY)
-	{
-		gpPipelineManager->mpPipelines[ePipeline].WriteIndirectComputeBuffer(iCommandBuffer, ShadowWindowGroupCount(iMinX, iMaxX), ShadowWindowGroupCount(iMinY, iMaxY), 1);
-	};
-
-	writeDispatch(kPipelineShadow, rGlobalLayout.iShadowSourceMinX, rGlobalLayout.iShadowSourceMinY, rGlobalLayout.iShadowSourceMaxX, rGlobalLayout.iShadowSourceMaxY);
-	writeDispatch(kPipelineShadowBlurH, rGlobalLayout.iShadowBlurHMinX, rGlobalLayout.iShadowBlurHMinY, rGlobalLayout.iShadowBlurHMaxX, rGlobalLayout.iShadowBlurHMaxY);
-	writeDispatch(kPipelineShadowBlurV, rGlobalLayout.iShadowFinalMinX, rGlobalLayout.iShadowFinalMinY, rGlobalLayout.iShadowFinalMaxX, rGlobalLayout.iShadowFinalMaxY);
-	writeDispatch(kPipelineShadowTemporal, rGlobalLayout.iShadowFinalMinX, rGlobalLayout.iShadowFinalMinY, rGlobalLayout.iShadowFinalMaxX, rGlobalLayout.iShadowFinalMaxY);
-	writeDispatch(kPipelineShadowHistoryCopy, rGlobalLayout.iShadowFinalMinX, rGlobalLayout.iShadowFinalMinY, rGlobalLayout.iShadowFinalMaxX, rGlobalLayout.iShadowFinalMaxY);
-}
-
-static void XM_CALLCONV PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, int64_t iCommandBuffer, float fSunAngle, float fDayPercent, float fNoonPercent, FXMVECTOR vecSunMoonNormal, FXMVECTOR vecAmbientColor)
+static void XM_CALLCONV PopulateShadowParameters(shaders::GlobalLayout& rGlobalLayout, float fSunAngle, float fDayPercent, float fNoonPercent, FXMVECTOR vecSunMoonNormal, FXMVECTOR vecAmbientColor)
 {
 	// Shadow texture
 	VkExtent3D vkShadowTextureExtent = gpTextureManager->mRenderTargetTextures.mShadowTexture.mInfo.extent;
@@ -493,9 +381,6 @@ static void XM_CALLCONV PopulateShadowParameters(shaders::GlobalLayout& rGlobalL
 	// 1.5x-wide elevation texture: read the created extent so the headroom factor has a single owner at the
 	// allocation site (RenderTargetTextures::CreateShadowTextures), like the shadow extent read just above.
 	float fShadowElevationTextureSizeWidth = static_cast<float>(gpTextureManager->mRenderTargetTextures.mShadowElevationTexture.mInfo.extent.width);
-
-	rGlobalLayout.iShadowTextureWidth = static_cast<int32_t>(vkShadowTextureExtent.width);
-	rGlobalLayout.iShadowTextureHeight = static_cast<int32_t>(vkShadowTextureExtent.height);
 
 	float fShadowNoon = std::pow(fDayPercent, gShadowFeatherPower.Get());
 	float fShadowEvening = 1.0f - fShadowNoon;
@@ -554,7 +439,6 @@ static void XM_CALLCONV PopulateShadowParameters(shaders::GlobalLayout& rGlobalL
 	float fWorldTexelX = 0.0f;
 	float fFullWidth = 0.0f;
 	PopulateShadowArea(rGlobalLayout, fShadowTextureSizeWidth, fShadowTextureSizeHeight, fWorldTexelX, fFullWidth);
-	PopulateShadowWindowDispatches(iCommandBuffer, rGlobalLayout);
 
 	float fShadowSunAngle = 0.0f;
 	PopulateShadowSunExtension(rGlobalLayout, fSunAngle, fWorldTexelX, fFullWidth, fShadowElevationTextureSizeWidth, fShadowTextureSizeWidth, fShadowSunAngle);
@@ -621,7 +505,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	XMVECTOR vecSunMoonNormal = XMVectorZero();
 	XMVECTOR vecAmbientColor = XMVectorZero();
 	PopulateSunAndLighting(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent, vecSunMoonNormal, vecAmbientColor);
-	PopulateShadowParameters(rGlobalLayout, iCommandBuffer, fSunAngle, fDayPercent, fNoonPercent, vecSunMoonNormal, vecAmbientColor);
+	PopulateShadowParameters(rGlobalLayout, fSunAngle, fDayPercent, fNoonPercent, vecSunMoonNormal, vecAmbientColor);
 	PopulateTerrainParameters(rGlobalLayout, fDayPercent, fNoonPercent);
 	PopulateWaterParameters(rGlobalLayout, fSunAngle, fDayPercent);
 

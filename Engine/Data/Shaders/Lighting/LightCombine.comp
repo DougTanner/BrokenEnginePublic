@@ -68,8 +68,9 @@ float UchimuraScalar(float fX)
 
 void main()
 {
-	ivec2 i2Coord = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iLightingValidMinX, globalLayout.iLightingValidMinY);
-	if (any(greaterThanEqual(i2Coord, ivec2(globalLayout.iLightingValidMaxX, globalLayout.iLightingValidMaxY))))
+	// The dispatch rounds the texture extent up to whole tiles, so the tail threads guard against it.
+	ivec2 i2Coord = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(i2Coord, imageSize(combineImageR))))
 		return;
 
 	vec2 f2Uv = (vec2(i2Coord) + vec2(0.5f)) / vec2(imageSize(combineImageR));

@@ -132,6 +132,7 @@ const char* UiStateName(UiState eState)
 	switch (eState)
 	{
 		case UiState::kNone: return "kNone";
+		case UiState::kGameSettings: return "kGameSettings";
 		case UiState::kGraphicsSettings: return "kGraphicsSettings";
 		case UiState::kModal: return "kModal";
 		case UiState::kPause: return "kPause";

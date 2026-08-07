@@ -765,6 +765,9 @@
     <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\GameSettingsScreen.h">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>
@@ -1413,6 +1416,9 @@
     <ClCompile Include="..\..\Source\Ui\Screens\DeathMenuScreen.cpp">
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\GameSettingsScreen.cpp">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.cpp">
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
@@ -1493,9 +1499,6 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\PointLight.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingClear.comp">
-      <Filter>Engine\Data\Shaders\Lighting</Filter>
-    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingHistoryCopy.comp">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
@@ -1542,9 +1545,6 @@
       <Filter>Engine\Data\Shaders\Quads</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsVisibleArea.vert">
-      <Filter>Engine\Data\Shaders\Quads</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsLightingWindowed.vert">
       <Filter>Engine\Data\Shaders\Quads</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadCommon.h">

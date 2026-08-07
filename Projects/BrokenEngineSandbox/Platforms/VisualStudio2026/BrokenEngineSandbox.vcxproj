@@ -484,6 +484,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\Source\Pch.h" />
     <ClInclude Include="..\..\Source\Ui\Localization.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\GameSettingsScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\HudScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\MainMenuScreen.h" />
@@ -717,6 +718,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\Source\Graphics\Camera.cpp" />
     <ClCompile Include="..\..\Source\Input\Input.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\DeathMenuScreen.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\GameSettingsScreen.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\HudScreen.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\MainMenuScreen.cpp" />
@@ -729,7 +731,6 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <None Include="..\..\..\..\Engine\Data\Shaders\Objects\AlphaMesh.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Objects\AlphaMesh.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\AreaLight.frag" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingClear.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingHistoryCopy.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Particles\Billboards.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Particles\Billboards.vert" />
@@ -764,7 +765,6 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsFullscreen.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsAxisAligned.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsAxisAlignedVisibleArea.vert" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsLightingWindowed.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\Shadow.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlurH.comp" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlurV.comp" />

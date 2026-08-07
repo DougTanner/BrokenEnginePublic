@@ -613,7 +613,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 
 	if (rMenuInput.flags & MenuInputFlags::kPauseMenu) [[unlikely]]
 	{
-		if (meUiState == kNone || meUiState == kGraphicsSettings || meUiState == kSound)
+		if (meUiState == kNone || meUiState == kGameSettings || meUiState == kGraphicsSettings || meUiState == kSound)
 		{
 			meUiState = kPause;
 		}

@@ -37,9 +37,9 @@ $script:Root = $null
 $script:PromptFile = $null
 $script:PromptStream = $null
 $script:PromptCreated = $false
-$script:ManifestFile = $null
-$script:ManifestText = $null
-$script:ManifestCreated = $false
+$script:TargetsFile = $null
+$script:TargetsText = $null
+$script:TargetsCreated = $false
 $script:PromptBytes = 0
 $script:SectionCount = 0
 $script:DiffRange = @()
@@ -52,7 +52,7 @@ $result = [ordered]@{
 	code = 'internal.error'
 	message = 'Codex review prompt assembly did not run.'
 	promptPath = $null
-	manifestPath = $null
+	targetsPath = $null
 	promptBytes = 0
 	fileCount = 0
 	binaryExcluded = 0
@@ -68,21 +68,21 @@ function Write-PromptStderr([string] $Text) {
 
 function Complete-CodexReviewPrompt([int] $ExitCode, [string] $Status, [string] $Code, [string] $Message) {
 	if ($null -ne $script:PromptStream) { $script:PromptStream.Dispose(); $script:PromptStream = $null }
-	# A non-pass run leaves no partial prompt or manifest behind, and both paths are refused before
+	# A non-pass run leaves no partial prompt or targets file behind, and both paths are refused before
 	# anything is created, so the caller's file is never the one removed here.
 	if ($ExitCode -ne 0 -and $script:PromptCreated) {
 		Remove-Item -LiteralPath $script:PromptFile -Force -ErrorAction SilentlyContinue
 		$script:PromptCreated = $false
 	}
-	if ($ExitCode -ne 0 -and $script:ManifestCreated) {
-		Remove-Item -LiteralPath $script:ManifestFile -Force -ErrorAction SilentlyContinue
-		$script:ManifestCreated = $false
+	if ($ExitCode -ne 0 -and $script:TargetsCreated) {
+		Remove-Item -LiteralPath $script:TargetsFile -Force -ErrorAction SilentlyContinue
+		$script:TargetsCreated = $false
 	}
 	$result.status = $Status
 	$result.code = $Code
 	$result.message = if ($Message.Length -gt $script:MaximumMessageLength) { $Message.Substring(0, $script:MaximumMessageLength) } else { $Message }
 	$result.promptPath = if ($script:PromptCreated) { $script:PromptFile } else { $null }
-	$result.manifestPath = if ($script:ManifestCreated) { $script:ManifestFile } else { $null }
+	$result.targetsPath = if ($script:TargetsCreated) { $script:TargetsFile } else { $null }
 	$result.promptBytes = if ($script:PromptCreated) { $script:PromptBytes } else { 0 }
 	$result.sectionsWritten = if ($script:PromptCreated) { $script:SectionCount } else { 0 }
 	[Console]::Out.Write(($result | ConvertTo-Json -Depth 32 -Compress))
@@ -268,10 +268,10 @@ function Get-ChangedFileSet([string[]] $Listed) {
 	return $inventory
 }
 
-function Write-PromptTargetManifest([string[]] $Listed) {
-	# /repo-code-review requires a supplied identity-bound target manifest and must not rebuild one,
-	# so the same inventory that produced the evidence emits it here, next to the prompt.
-	$arguments = @('-NoProfile', '-File', $script:Inventory, '-RepositoryRoot', $script:Root, '-Baseline', $Baseline, '-EmitTargetManifest')
+function Write-PromptTargets([string[]] $Listed) {
+	# /repo-code-review requires a supplied targets file and must not rebuild one, so the same
+	# inventory that produced the evidence emits it here, next to the prompt.
+	$arguments = @('-NoProfile', '-File', $script:Inventory, '-RepositoryRoot', $script:Root, '-Baseline', $Baseline, '-EmitTargets')
 	if (-not [string]::IsNullOrWhiteSpace($Head)) { $arguments += @('-Head', $Head) }
 	if ($Listed.Count -gt 0) { $arguments += @('-IncludeUntracked', ($Listed -join ',')) }
 	$start = [Diagnostics.ProcessStartInfo]::new()
@@ -286,7 +286,7 @@ function Write-PromptTargetManifest([string[]] $Listed) {
 	foreach ($argument in $arguments) { [void] $start.ArgumentList.Add($argument) }
 	$process = [Diagnostics.Process]::new()
 	$process.StartInfo = $start
-	if (-not $process.Start()) { throw 'Could not start pwsh for the target manifest.' }
+	if (-not $process.Start()) { throw 'Could not start pwsh for the targets file.' }
 	$stdoutTask = $process.StandardOutput.ReadToEndAsync()
 	$stderrTask = $process.StandardError.ReadToEndAsync()
 	$process.WaitForExit()
@@ -295,22 +295,22 @@ function Write-PromptTargetManifest([string[]] $Listed) {
 	$stderr = $stderrTask.GetAwaiter().GetResult()
 	$process.Dispose()
 	if ($exitCode -ne 0) {
-		# A manifest run reports its outcome on stderr and leaves stdout empty, so the inventory's own
+		# A targets run reports its outcome on stderr and leaves stdout empty, so the inventory's own
 		# code is what names the fix here.
 		$envelope = $null
 		if (-not [string]::IsNullOrWhiteSpace($stderr)) { try { $envelope = $stderr | ConvertFrom-Json -Depth 32 } catch { } }
 		if ($null -eq $envelope) {
 			if (-not [string]::IsNullOrWhiteSpace($stderr)) { Write-PromptStderr $stderr }
-			Complete-CodexReviewPrompt 1 'error' 'prompt.inventory-failed' "The target manifest run returned no usable result (exit $exitCode)."
+			Complete-CodexReviewPrompt 1 'error' 'prompt.inventory-failed' "The targets run returned no usable result (exit $exitCode)."
 		}
-		Complete-CodexReviewPrompt 2 'blocked' 'prompt.inventory-blocked' "The target manifest run blocked with $($envelope.code): $($envelope.message)"
+		Complete-CodexReviewPrompt 2 'blocked' 'prompt.inventory-blocked' "The targets run blocked with $($envelope.code): $($envelope.message)"
 	}
-	# A manifest with no eligible pair is a complete answer for a change that touches no C++ target.
-	$script:ManifestText = $stdout
-	$stream = [IO.File]::Open($script:ManifestFile, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
-	$script:ManifestCreated = $true
+	# A targets file with no path is a complete answer for a change that touches no C++ target.
+	$script:TargetsText = $stdout
+	$stream = [IO.File]::Open($script:TargetsFile, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+	$script:TargetsCreated = $true
 	try {
-		$bytes = $script:Utf8.GetBytes($script:ManifestText)
+		$bytes = $script:Utf8.GetBytes($script:TargetsText)
 		$stream.Write($bytes, 0, $bytes.Length)
 	}
 	finally { $stream.Dispose() }
@@ -404,9 +404,9 @@ try {
 		Complete-CodexReviewPrompt 2 'blocked' 'prompt.path-exists' "-PromptPath already exists and is never overwritten: '$($script:PromptFile)'."
 	}
 	if ($AssignedSkill -eq 'repo-code-review') {
-		$script:ManifestFile = $script:PromptFile + '.target-manifest.json'
-		if (Test-Path -LiteralPath $script:ManifestFile) {
-			Complete-CodexReviewPrompt 2 'blocked' 'prompt.path-exists' "The target manifest sibling of -PromptPath already exists and is never overwritten: '$($script:ManifestFile)'."
+		$script:TargetsFile = $script:PromptFile + '.targets.json'
+		if (Test-Path -LiteralPath $script:TargetsFile) {
+			Complete-CodexReviewPrompt 2 'blocked' 'prompt.path-exists' "The targets sibling of -PromptPath already exists and is never overwritten: '$($script:TargetsFile)'."
 		}
 	}
 	if (-not (Test-Path -LiteralPath $script:Template -PathType Leaf)) {
@@ -419,7 +419,7 @@ try {
 	$scopeText = [IO.File]::ReadAllText($ScopeFile)
 
 	# Not $inventory: a script-scope local by that name would overwrite the $script:Inventory script
-	# path, which the manifest run below still needs.
+	# path, which the targets run below still needs.
 	$changeSet = Get-ChangedFileSet $listed.ToArray()
 	$listedSet = [Collections.Generic.HashSet[string]]::new([string[]] @($listed | ForEach-Object { Get-PromptRelativePath $_ }))
 	$diffPath = [Collections.Generic.List[string]]::new()
@@ -456,7 +456,7 @@ try {
 	$script:Untracked = $untracked.ToArray()
 	$script:DiffRange = if ([string]::IsNullOrEmpty($changeSet.headSha)) { @($changeSet.baselineSha) } else { @($changeSet.baselineSha, $changeSet.headSha) }
 	if ($AssignedSkill -eq 'verify-changes') { Test-PromptReviewedTreeClean }
-	if ($null -ne $script:ManifestFile) { Write-PromptTargetManifest $listed.ToArray() }
+	if ($null -ne $script:TargetsFile) { Write-PromptTargets $listed.ToArray() }
 
 	$script:PromptStream = [IO.File]::Open($script:PromptFile, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
 	$script:PromptCreated = $true
@@ -474,8 +474,8 @@ try {
 	$evidence = "Baseline: $($changeSet.baselineSha)`nHead: $headText`nChanged files ($($fileLine.Count)):`n"
 	foreach ($line in $fileLine) { $evidence += "- $line`n" }
 	$evidence += "`n"
-	if ($script:ManifestCreated) {
-		$evidence += "Target manifest: $($script:ManifestFile)`n`n$($script:ManifestText)`n"
+	if ($script:TargetsCreated) {
+		$evidence += "Targets file: $($script:TargetsFile)`n`n$($script:TargetsText)`n"
 	}
 	Write-PromptSection '(c) Evidence' $evidence
 	Write-DiffEvidence

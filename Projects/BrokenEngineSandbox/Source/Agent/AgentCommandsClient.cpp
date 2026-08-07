@@ -1422,7 +1422,6 @@ void CommandQueryProfile(const nlohmann::json& rParams, nlohmann::json& rResult)
 	{
 		{"sequence", rShadowSample.uiSequence},
 		{"currentUs", rShadowSample.iCurrentMicroseconds},
-		{"activePixels", {{"width", rShadowSample.iActivePixelsWidth}, {"height", rShadowSample.iActivePixelsHeight}}},
 	};
 }
 

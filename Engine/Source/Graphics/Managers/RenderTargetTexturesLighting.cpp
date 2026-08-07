@@ -73,7 +73,7 @@ void RenderTargetTextures::CreateLightingTextures()
 		.mipLevels = 1,
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, // STORAGE: LightingClear.comp; TRANSFER_SRC: agent dump_render_target readback (shared by all 3 lighting textures)
+		.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, // TRANSFER_SRC: agent dump_render_target readback (shared by all 3 lighting textures)
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.eTextureLayout = kShaderReadOnly,
@@ -93,11 +93,11 @@ void RenderTargetTextures::CreateLightingTextures()
 			.flags = 0,
 			.format = shaders::keLightingFormat,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 	}
@@ -120,15 +120,17 @@ void RenderTargetTextures::CreateLightingTextures()
 		.preserveAttachmentCount = 0,
 		.pPreserveAttachments = nullptr,
 	};
+	// The UNDEFINED transition and clear must wait for the previous frame's shader reads of these shared textures: the implicit
+	// external dependency the spec supplies is TOP_OF_PIPE/0 and orders nothing, and frames overlap up to the swapchain image count.
 	VkSubpassDependency pVkSubpassDependencies[2]
 	{
 		{
 			.srcSubpass = VK_SUBPASS_EXTERNAL,
 			.dstSubpass = 0,
-			.srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
 			.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.srcAccessMask = 0, // Write-after-read needs execution ordering only
+			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 			.dependencyFlags = 0,
 		},
 		{
@@ -231,11 +233,11 @@ void RenderTargetTextures::CreateLightingTextures()
 			.flags = 0,
 			.format = shaders::keLightingFormat,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 		pSpreadAttachmentReferences[i] = {.attachment = static_cast<uint32_t>(i), .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
@@ -253,6 +255,8 @@ void RenderTargetTextures::CreateLightingTextures()
 		.preserveAttachmentCount = 0,
 		.pPreserveAttachments = nullptr,
 	};
+	// The UNDEFINED transition and clear must wait for the previous frame's shader reads of these shared textures: the implicit
+	// external dependency the spec supplies is TOP_OF_PIPE/0 and orders nothing, and frames overlap up to the swapchain image count.
 	VkSubpassDependency pVkSpreadSubpassDependencies[2]
 	{
 		{
@@ -260,8 +264,8 @@ void RenderTargetTextures::CreateLightingTextures()
 			.dstSubpass = 0,
 			.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 			.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.srcAccessMask = 0, // Write-after-read needs execution ordering only
+			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 			.dependencyFlags = 0,
 		},
 		{
@@ -318,7 +322,7 @@ void RenderTargetTextures::CreateLightingTextures()
 	}
 
 	// Create combine textures (UNORM tone-mapped output, sized to max of start/end). LightingTemporal.comp blends the
-	// previous-frame history into these in place; LightingHistoryCopy.comp publishes the bounded result to history.
+	// previous-frame history into these in place; LightingHistoryCopy.comp publishes the result to history.
 	auto [iCombineX, iCombineY] = TextureManager::LightingDetailTextureSize(std::max(fSpreadMultStart, fSpreadMultEnd));
 	static constexpr std::string_view pCombineNames[3] {"CombineRed", "CombineGreen", "CombineBlue"};
 	for (int64_t i = 0; i < 3; ++i)

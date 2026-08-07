@@ -154,7 +154,7 @@ void main()
 	// f3SkyboxColor mix above breaks pure linearity in (Sun + Moon), so a per-channel divide
 	// would zero entire channels when Sun.c + Moon.c happens to be ~0 (e.g. morning sun has B=0).
 	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	float fShadowSun  = fShadowMoon * SampleTerrainShadow(globalLayout, shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea));
+	float fShadowSun  = fShadowMoon * SampleTerrainShadow(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea));
 	// Rec.601 sun/moon weights and their guarded reciprocal-sum are folded CPU-side (GlobalUniforms.cpp).
 	float fEffectiveShadow = (fShadowSun * globalLayout.fWaterSunWeight + fShadowMoon * globalLayout.fWaterMoonWeight) * globalLayout.fWaterShadowWeightSumInv;
 	// fShadowAffectAmbient relaxes shadow on the sky-ambient half only; sun + skybox specular keep full shadow.
@@ -176,12 +176,12 @@ void main()
 
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeightFinal, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4LightingBaseHeight[3];
-	ReadLighting(globalLayout, pf4LightingBaseHeight, pLightingSamplers, f2LightingTexcoordBaseHeight);
+	ReadLighting(pf4LightingBaseHeight, pLightingSamplers, f2LightingTexcoordBaseHeight);
 
 	// Ambient sample — straight-down base-height projection, no reflection offset.
 	// Uses the precomputed direction-averaged ambient texture (single fetch replaces three EWNS samples).
 	vec2 f2LightingTexcoordBaseHeightAmbient = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
-	vec3 f3AmbientSum = ReadAmbientLighting(globalLayout, ambientLightingSampler, f2LightingTexcoordBaseHeightAmbient);
+	vec3 f3AmbientSum = ReadAmbientLighting(ambientLightingSampler, f2LightingTexcoordBaseHeightAmbient);
 
 	// Scale base-height lighting (hue-preserving: pow applied to per-direction luminance/average scalar)
 	float fWaterEwnsPowMode = mainLayout.fLightingWaterEwnsPowMode;

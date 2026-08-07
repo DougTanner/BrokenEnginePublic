@@ -16,7 +16,7 @@ The specified module '...\.claude\skills\compile\scripts\..\..\..\scripts\AgentS
 
 The same invocation through `.agents/skills/compile/scripts/Test-DataOracleReceipt.ps1` reaches the script body and returns its normal `broken-engine-data-oracle-verifier-result/v1` envelope, proving the only difference is the launch path.
 
-This is not specific to one script. 18 tracked skill scripts contain a `..\..\..\scripts` reference. Five already carry the repository's established mirror fallback — test the authoritative path, and when it is absent re-point at `..\..\..\..\.agents\scripts` — for example `.agents/skills/next-plan/scripts/NextPlanWorkflowCommon.psm1`:
+This is not specific to one script. 17 tracked skill scripts contain a `..\..\..\scripts` reference. Five already carry the repository's established mirror fallback — test the authoritative path, and when it is absent re-point at `..\..\..\..\.agents\scripts` — for example `.agents/skills/next-plan/scripts/NextPlanWorkflowCommon.psm1`:
 
 ```powershell
 $sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
@@ -25,11 +25,11 @@ if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'FinalizeWorkflowComm
 }
 ```
 
-The remaining 13 scripts have no such guard and fail under the mirror path. References that walk four levels to the repository root (`..\..\..\..`) are unaffected, because both `.agents\skills\<skill>\scripts` and `.claude\skills\<skill>\scripts` are four levels below the repository root.
+The remaining 12 scripts have no such guard and fail under the mirror path. References that walk four levels to the repository root (`..\..\..\..`) are unaffected, because both `.agents\skills\<skill>\scripts` and `.claude\skills\<skill>\scripts` are four levels below the repository root.
 
 ## Design
 
-Apply the existing guard pattern above — unchanged in shape, resolving the shared directory once per script and reusing it — to every `..\..\..\scripts` reference in the 13 unguarded scripts. Both `Import-Module` targets and sibling-script/directory paths (`Get-SessionChangeInventory.ps1`, `Provision-WorktreeThirdParty.ps1`, `Detect-Python.ps1`, `Test-AgentToolsCapabilities.ps1`, and the module-source directory used by the fixture scripts) resolve through the same fallback.
+Apply the existing guard pattern above — unchanged in shape, resolving the shared directory once per script and reusing it — to every `..\..\..\scripts` reference in the 12 unguarded scripts. Both `Import-Module` targets and sibling-script/directory paths (`Get-SessionChangeInventory.ps1`, `Provision-WorktreeThirdParty.ps1`, `Detect-Python.ps1`, `Test-AgentToolsCapabilities.ps1`, and the module-source directory used by the fixture scripts) resolve through the same fallback.
 
 Under an `.agents` launch the authoritative path exists, the fallback never fires, and behavior is byte-identical to today. The fallback only changes the previously failing `.claude` launch.
 
@@ -38,7 +38,6 @@ Rejected alternative: adding a tracked `.claude/scripts` symlink. It would need 
 ## Critical files
 
 - `.agents/skills/agent-harness/scripts/Invoke-HarnessClaim.ps1`
-- `.agents/skills/code-quality-metrics/scripts/Get-CodeQualityEvidence.ps1`
 - `.agents/skills/codex-review/scripts/New-CodexReviewPrompt.ps1`
 - `.agents/skills/compile/scripts/New-DataOracleReceipt.ps1`
 - `.agents/skills/compile/scripts/Resolve-CompileContext.ps1`
@@ -55,7 +54,7 @@ Read-only pattern evidence: `.agents/skills/next-plan/scripts/NextPlanWorkflowCo
 
 ## In scope
 
-- The 13 scripts listed under Critical files: replace each `Join-Path $PSScriptRoot '..\..\..\scripts...'` expression with the established resolve-once-plus-`Test-Path`-fallback form, preserving each script's existing import order, `-Force`/`-DisableNameChecking` switches, and result contracts.
+- The 12 scripts listed under Critical files: replace each `Join-Path $PSScriptRoot '..\..\..\scripts...'` expression with the established resolve-once-plus-`Test-Path`-fallback form, preserving each script's existing import order, `-Force`/`-DisableNameChecking` switches, and result contracts.
 
 ## Out of scope
 

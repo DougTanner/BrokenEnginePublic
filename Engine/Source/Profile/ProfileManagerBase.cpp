@@ -547,11 +547,8 @@ void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTi
 
 			if (bLatchShadowSample && eGpuTimer == kGpuTimerShadow)
 			{
-				shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 				++mGpuShadowSample.uiSequence;
 				mGpuShadowSample.iCurrentMicroseconds = iCurrentMicroseconds;
-				mGpuShadowSample.iActivePixelsWidth = static_cast<int64_t>(rGlobalLayout.iShadowVisibleMaxX) - rGlobalLayout.iShadowVisibleMinX;
-				mGpuShadowSample.iActivePixelsHeight = static_cast<int64_t>(rGlobalLayout.iShadowVisibleMaxY) - rGlobalLayout.iShadowVisibleMinY;
 			}
 		}
 	}

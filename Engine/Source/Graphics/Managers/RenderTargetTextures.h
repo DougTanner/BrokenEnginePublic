@@ -52,7 +52,7 @@ struct RenderTargetTextures
 
 	// Persistent previous-frame combined lighting (3 directional + ambient), reprojected by LightingTemporal.comp to
 	// de-flicker the texel-ramp resample (mirror of mShadowHistoryTexture). LightingHistoryCopy.comp publishes the
-	// bounded temporal result over the valid window on refresh.
+	// temporal result over the whole texture on refresh.
 	Texture mpLightingHistoryTextures[3];
 	Texture mAmbientHistoryTexture;
 

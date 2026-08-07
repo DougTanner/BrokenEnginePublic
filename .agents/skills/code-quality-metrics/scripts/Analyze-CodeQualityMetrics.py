@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 from normalize_code_quality_metrics_cpp import normalize_cpp_bytes
 
-SCHEMA="broken-engine-code-quality-metrics/v2"; TARGET_SCHEMA="broken-engine-code-quality-target-manifest/v1"
+SCHEMA="broken-engine-code-quality-metrics/v2"; TARGETS_SCHEMA="broken-engine-code-quality-targets/v1"; PROFILE="BrokenEngineExtended"
 EXCLUDED={"ThirdParty",".agents",".claude","Temp"}; REASONS=("baseline-inapplicable","context-change","current-inapplicable","membership-change","parse-status-change")
 RENAME_SIMILARITY=50
 MAX_ANALYZER_SOURCE_ENTRIES=1024; MAX_ANALYZER_SOURCE_BYTES=1024*1024
@@ -28,12 +28,12 @@ def canon(s:str)->str:
  p=PurePosixPath(s)
  if any(x in {"",".",".."} for x in p.parts): fail("path must be canonical relative POSIX")
  return "/".join(p.parts)
-def pure_glsl_header(p:str,profile:str)->bool:
- if profile!="BrokenEngineExtended" or Path(p).suffix.lower()!=".h":return False
+def pure_glsl_header(p:str)->bool:
+ if Path(p).suffix.lower()!=".h":return False
  parts=PurePosixPath(p).parts
  return any(parts[index:index+2]==("Data","Shaders") for index in range(len(parts)-1)) and parts[-1] not in {"ShaderLayouts.h","ShaderLayoutsBase.h"}
-def supported(p:str,profile:str)->bool:
- return p.split("/",1)[0] not in EXCLUDED and Path(p).suffix.lower() in ({".c++",".cc",".cpp",".cxx",".hh",".hpp",".hxx"}|({".h"} if profile=="BrokenEngineExtended" else set())) and not pure_glsl_header(p,profile)
+def supported(p:str)->bool:
+ return p.split("/",1)[0] not in EXCLUDED and Path(p).suffix.lower() in {".c++",".cc",".cpp",".cxx",".h",".hh",".hpp",".hxx"} and not pure_glsl_header(p)
 def check_components(root:Path,p:Path,require_file:bool)->None:
  try: p.relative_to(root)
  except ValueError: fail("path escapes repository")
@@ -82,7 +82,7 @@ def rename_pair(b:bytes,c:bytes,capture_root:Path)->bool:
   r=subprocess.run(["git","-c","core.autocrlf=false","-c","diff.renames=true","diff","--no-index",f"--find-renames={RENAME_SIMILARITY}%","--name-status","-z","--no-ext-diff","--",str(before),str(after)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
   if r.returncode not in {0,1}:fail(r.stderr.decode("utf-8","replace").strip() or "git rename detection failed")
   return r.stdout.startswith(b"R")
-def current(root:Path,profile:str)->dict[str,tuple[dict[str,str],bytes]]:
+def current(root:Path)->dict[str,tuple[dict[str,str],bytes]]:
  modes={}
  for x in run(root,"ls-files","--stage","-z").split(b"\0"):
   if x:
@@ -96,12 +96,13 @@ def current(root:Path,profile:str)->dict[str,tuple[dict[str,str],bytes]]:
   p=canon(raw); low=p.casefold()
   if low in folded: fail("case-insensitive path collision")
   folded.add(low)
-  if not supported(p,profile):continue
+  if not supported(p):continue
   f=root.joinpath(*p.split("/"))
   if not f.exists(): continue # tracked deletion is absent current state
+  if f.is_symlink() or getattr(f.lstat(),"st_file_attributes",0)&0x400: continue # a nonordinary side is not corpus content
   check_components(root,f,True); b=f.read_bytes(); out[p]=(ident(p,modes.get(p,"100644"),b),b)
  return out
-def baseline(root:Path,sha:str,profile:str)->dict[str,tuple[dict[str,str],bytes]]:
+def baseline(root:Path,sha:str)->dict[str,tuple[dict[str,str],bytes]]:
  if len(sha)!=40 or any(c not in "0123456789abcdef" for c in sha):fail("Baseline must be full lowercase SHA")
  run(root,"cat-file","-e",sha+"^{commit}"); out={}; folded=set()
  for x in run(root,"ls-tree","-r","-z",sha).split(b"\0"):
@@ -109,7 +110,7 @@ def baseline(root:Path,sha:str,profile:str)->dict[str,tuple[dict[str,str],bytes]
   m,n=x.split(b"\t",1);mode,kind,_=m.decode().split();p=canon(n.decode("utf-8","surrogateescape"));low=p.casefold()
   if low in folded:fail("case-insensitive baseline collision")
   folded.add(low)
-  if kind=="blob" and supported(p,profile):
+  if kind=="blob" and mode in {"100644","100755"} and supported(p):
    b=run(root,"show",f"{sha}:{p}");out[p]=(ident(p,mode,b),b)
  return out
 def metric(n:float,d:float,app:bool=True)->dict[str,Any]:return {"applicable":bool(app and d!=0),"value":n/d if app and d else None,"numerator":n,"denominator":d}
@@ -194,7 +195,7 @@ def typed_signatures(parsed:Any)->dict[tuple[int,str],str|None]:
   if key in out:out[key]=None
   else:out[key]=value
  return out
-def capture(entries:dict[str,tuple[dict[str,str],bytes]],profile:str,capture_root:Path,analyzer_source:Path)->dict[str,Any]:
+def capture(entries:dict[str,tuple[dict[str,str],bytes]],capture_root:Path,analyzer_source:Path)->dict[str,Any]:
  empty={"structuralErosion":metric(0,0,False),"verbosity":metric(0,0,False)}
  if not entries:return {"corpusManifest":[],"corpusCounts":{"supported":0,"parsed":0,"omitted":0},"skips":[],"corpusMetrics":empty,"files":[],"areas":[],"outliers":[],"cloneGroups":[],"highComplexityFunctions":[],"_functions":[],"_parsed":set(),"_instances":[],"_failures":[]}
  sys.path.insert(0,str(analyzer_source))
@@ -202,18 +203,16 @@ def capture(entries:dict[str,tuple[dict[str,str],bytes]],profile:str,capture_roo
   import scb_check.pipeline as pipe
   from scb_check.tree_walking.dispatch import DEFAULT_EXTENSION_LANGUAGES,Language,dispatch_parse
  except Exception as e:fail(f"analyzer import failed: {e}")
- original=pipe.dispatch_parse_source_file; mapping=dict(DEFAULT_EXTENSION_LANGUAGES)
- if profile=="BrokenEngineExtended":mapping[".h"]=(Language.CPP,)
+ original=pipe.dispatch_parse_source_file; mapping=dict(DEFAULT_EXTENSION_LANGUAGES); mapping[".h"]=(Language.CPP,)
  def parse(path:Path,source:str):return dispatch_parse(path,source,extension_languages=mapping)
- if profile=="BrokenEngineExtended":
-  if pipe.dispatch_parse_source_file is not original:fail("unexpected upstream parser adapter")
-  pipe.dispatch_parse_source_file=parse
+ if pipe.dispatch_parse_source_file is not original:fail("unexpected upstream parser adapter")
+ pipe.dispatch_parse_source_file=parse
  try:
   with tempfile.TemporaryDirectory(prefix="capture-",dir=capture_root) as t:
    cr=Path(t); pm={}; files=[]; sloc={}; signatures={};failures=[]
    for rel in sorted(entries):
     _,b=entries[rel]
-    analysis_bytes=normalize_cpp_bytes(b) if profile=="BrokenEngineExtended" else b
+    analysis_bytes=normalize_cpp_bytes(b)
     f=cr.joinpath(*rel.split("/"));f.parent.mkdir(parents=True,exist_ok=True);f.write_bytes(analysis_bytes);f=f.resolve();pm[f]=rel
     try:
      parsed=parse(f,analysis_bytes.decode("utf-8","replace"))
@@ -303,63 +302,58 @@ def matched_changes(base:dict[str,Any],cur:dict[str,Any],pairs:list[dict[str,Any
    a,b=(l[0] if l else None),(r[0] if r else None)
    if (a and a["cc"]>10) or (b and b["cc"]>10):functions.append({"identity":{"owner":key[0],"name":key[1],"signature":key[2]},"ambiguous":False,"baseline":a,"current":b,"deltaCc":None if not a or not b else b["cc"]-a["cc"]})
  return functions
-def manifest(path:Path)->list[dict[str,Any]]:
+def targets(path:Path)->list[str]:
  try:r=json.loads(path.read_text(encoding="utf-8"))
- except Exception as e:fail(f"invalid target manifest: {e}")
- if not isinstance(r,dict) or set(r)!={"schemaVersion","pairs"} or r["schemaVersion"]!=TARGET_SCHEMA or not isinstance(r["pairs"],list):fail("target manifest schema invalid")
- previous=None;seen={"baseline":set(),"current":set()};out=[]
- for pair in r["pairs"]:
-  if not isinstance(pair,dict) or set(pair)!={"baseline","current"} or (pair["baseline"] is None and pair["current"] is None):fail("invalid target pair")
-  key=tuple((pair[s]or{}).get("path","") for s in ("baseline","current"))
-  if previous is not None and key<=previous:fail("pairs must be sorted")
-  previous=key
-  for s in ("baseline","current"):
-   x=pair[s]
-   if x is None:continue
-   if not isinstance(x,dict) or set(x)!={"path","mode","sha256"} or canon(x["path"])!=x["path"] or x["mode"] not in {"100644","100755"} or len(x["sha256"])!=64 or any(c not in "0123456789abcdef" for c in x["sha256"]):fail("invalid target identity")
-   if x["path"].casefold() in seen[s]:fail("duplicate target identity")
-   seen[s].add(x["path"].casefold())
-  out.append({"baseline":None if pair["baseline"] is None else {"path":pair["baseline"]["path"],"mode":pair["baseline"]["mode"],"sha256":pair["baseline"]["sha256"]},"current":None if pair["current"] is None else {"path":pair["current"]["path"],"mode":pair["current"]["mode"],"sha256":pair["current"]["sha256"]}})
+ except Exception as e:fail(f"invalid targets file: {e}")
+ if not isinstance(r,dict) or set(r)!={"schemaVersion","paths"} or r["schemaVersion"]!=TARGETS_SCHEMA or not isinstance(r["paths"],list):fail("targets schema invalid")
+ out=[]
+ for raw in r["paths"]:
+  p=canon(raw)
+  if p!=raw:fail("target path must be canonical relative POSIX")
+  if out and p<=out[-1]:fail("target paths must be unique and ordinal-sorted")
+  out.append(p)
  return out
+def derive_pairs(listed:list[str],base:dict[str,tuple[dict[str,str],bytes]],cur:dict[str,tuple[dict[str,str],bytes]],capture_root:Path)->list[dict[str,Any]]:
+ for p in listed:
+  if pure_glsl_header(p):fail(f"target is not classified as C++ for BrokenEngineExtended: {p}")
+  if p not in base and p not in cur:fail(f"target path is in neither the baseline nor the current corpus: {p}")
+ pairs=[{"baseline":dict(base[p][0]),"current":dict(cur[p][0])} for p in listed if p in base and p in cur]
+ unmatched=[p for p in listed if p in base and p not in cur]
+ for cp in [p for p in listed if p in cur and p not in base]:
+  # First ascending-ordinal rename match wins and is consumed, so pairing is deterministic.
+  bp=next((x for x in unmatched if rename_pair(base[x][1],cur[cp][1],capture_root)),None)
+  if bp is not None:unmatched.remove(bp)
+  pairs.append({"baseline":None if bp is None else dict(base[bp][0]),"current":dict(cur[cp][0])})
+ pairs.extend({"baseline":dict(base[p][0]),"current":None} for p in unmatched)
+ pairs.sort(key=lambda pair:tuple((pair[s] or {}).get("path","") for s in ("baseline","current")))
+ return pairs
 def canonical_tool(tool:dict[str,Any])->dict[str,Any]:
  python=tool["python"]
  return {"adapterVersion":tool["adapterVersion"],"lockSha256":tool["lockSha256"],"python":{"implementation":python["implementation"],"version":python["version"],"architecture":python["architecture"],"executableSha256":python["executableSha256"]},"disableSg":tool["disableSg"]}
 def common_metrics(v:dict[str,Any],paths:set[str])->dict[str,Any]:
  fs=[x for x in v["files"] if x["path"] in paths];return aggregate(fs)
 def build(q:dict[str,Any])->dict[str,Any]:
- if set(q)!={"mode","repositoryRoot","profile","captureRoot","analyzerSource","tool"}|({"target","scope"} if q.get("mode")=="Snapshot" else {"targetManifest","baseline"}):fail("unknown or missing request field")
+ if set(q)!={"mode","repositoryRoot","captureRoot","analyzerSource","tool"}|({"target","scope"} if q.get("mode")=="Snapshot" else {"targets","baseline"}):fail("unknown or missing request field")
  root=Path(q["repositoryRoot"]);cap=Path(q["captureRoot"])
  if not root.is_absolute() or not cap.is_absolute() or not cap.is_dir():fail("invalid capture root")
  check_components(root,cap,False)
- if q["profile"] not in {"BrokenEngineExtended","StrictUpstream"}:fail("invalid profile")
- if not isinstance(q["tool"],dict) or set(q["tool"])!={"adapterVersion","lockSha256","python","disableSg"} or q["tool"]["adapterVersion"]!="4":fail("invalid tool identity")
+ if not isinstance(q["tool"],dict) or set(q["tool"])!={"adapterVersion","lockSha256","python","disableSg"} or q["tool"]["adapterVersion"]!="5":fail("invalid tool identity")
  if not isinstance(q["tool"]["python"],dict) or set(q["tool"]["python"])!={"implementation","version","architecture","executableSha256"}:fail("invalid python identity")
  analyzer_source=validate_analyzer_source(root,q["analyzerSource"])
- before=current(root,q["profile"])
+ before=current(root)
  if q["mode"]=="Snapshot":
   target=canon(q["target"]);p=root.joinpath(*target.split("/"))
-  if q["scope"]=="Exact" and pure_glsl_header(target,q["profile"]):fail(f"target is not classified as C++ for BrokenEngineExtended: {target}")
+  if q["scope"]=="Exact" and pure_glsl_header(target):fail(f"target is not classified as C++ for BrokenEngineExtended: {target}")
   if q["scope"]=="Exact": paths={target} if target in before else fail("Exact target not discovered")
   else:
    check_components(root,p,False)
    if not p.is_dir() or p.is_symlink() or getattr(p.lstat(),"st_file_attributes",0)&0x400:fail("directory target must exist and be ordinary")
    prefix=target+"/";paths={x for x in before if x.startswith(prefix) and (q["scope"]=="Recursive" or "/" not in x[len(prefix):])}
-  cv=capture(before,q["profile"],cap,analyzer_source);cur=capture_view(cv,restrict(cv,paths));base=None;comparison=None;select={"kind":"snapshot","scope":q["scope"],"target":target,"paths":sorted(paths)}
+  cv=capture(before,cap,analyzer_source);cur=capture_view(cv,restrict(cv,paths));base=None;comparison=None;select={"kind":"snapshot","scope":q["scope"],"target":target,"paths":sorted(paths)}
  elif q["mode"]=="Compare":
-  pairs=manifest(Path(q["targetManifest"]));br=baseline(root,q["baseline"],q["profile"]);bt=set();ct=set()
-  for pair in pairs:
-   for s,raw,out in (("baseline",br,bt),("current",before,ct)):
-    x=pair[s]
-    if x is not None:
-     if pure_glsl_header(x["path"],q["profile"]):fail(f"target is not classified as C++ for BrokenEngineExtended: {x['path']}")
-     if raw.get(x["path"],(None,))[0]!=x:fail(f"identity mismatch: {x['path']}")
-     out.add(x["path"])
-   if pair["baseline"] is None and pair["current"]["path"] in br:fail("false add pair")
-   if pair["current"] is None and pair["baseline"]["path"] in before:fail("false delete pair")
-   if pair["baseline"] is not None and pair["current"] is not None and pair["baseline"]["path"]!=pair["current"]["path"]:
-    if pair["baseline"]["path"] in before or pair["current"]["path"] in br:fail("cross-path pair is not an actual rename")
-    if not rename_pair(br[pair["baseline"]["path"]][1],before[pair["current"]["path"]][1],cap):fail("cross-path pair is not a Git rename")
-  bv=cv_b=capture(br,q["profile"],cap,analyzer_source);cv_c=capture(before,q["profile"],cap,analyzer_source);base=capture_view(bv,restrict(bv,bt));cur=capture_view(cv_c,restrict(cv_c,ct))
+  br=baseline(root,q["baseline"]);pairs=derive_pairs(targets(Path(q["targets"])),br,before,cap)
+  bt={pair["baseline"]["path"] for pair in pairs if pair["baseline"] is not None};ct={pair["current"]["path"] for pair in pairs if pair["current"] is not None}
+  bv=capture(br,cap,analyzer_source);cv_c=capture(before,cap,analyzer_source);base=capture_view(bv,restrict(bv,bt));cur=capture_view(cv_c,restrict(cv_c,ct))
   failures=[]
   for side,view in (("baseline",base),("current",cur)):
    failures.extend({"side":side,"path":failure["path"],"stage":failure["stage"],"code":failure["code"],"line":failure["line"],"column":failure["column"]} for failure in view["_targetFailures"])
@@ -378,10 +372,10 @@ def build(q:dict[str,Any])->dict[str,Any]:
   clones,groups=clone_changes(base,cur,pairs);functions=matched_changes(base,cur,pairs)
   comparison={"contextChanges":context,"corpus":deltas(base["corpusMetrics"],cur["corpusMetrics"],corpus_reasons),"target":deltas(base["targetMetrics"],cur["targetMetrics"],target_reasons),"commonParsedCohort":{"baselinePaths":sorted(cohort_base),"currentPaths":sorted(cohort_current),"metrics":deltas(common_metrics(base,cohort_base),common_metrics(cur,cohort_current),cohort_reasons),"suppressionReasons":cohort_reasons},"coverage":{"baseline":{"corpus":base["corpusCounts"],"target":base["targetCounts"]},"current":{"corpus":cur["corpusCounts"],"target":cur["targetCounts"]},"deltas":{"corpus":{k:cur["corpusCounts"][k]-base["corpusCounts"][k] for k in base["corpusCounts"]},"target":{k:cur["targetCounts"][k]-base["targetCounts"][k] for k in base["targetCounts"]}}},"cloneGroups":groups,"cloneInstances":clones,"functions":functions};select={"kind":"manifest","pairs":pairs,"paths":sorted(ct)}
  else:fail("invalid mode")
- after=current(root,q["profile"])
+ after=current(root)
  if {p:x[0] for p,x in before.items()}!={p:x[0] for p,x in after.items()}:fail("capture drift")
  def pub(v:Any)->Any:return None if v is None else {k:x for k,x in v.items() if not k.startswith("_")}
- return {"schemaVersion":SCHEMA,"mode":q["mode"],"profile":q["profile"],"tool":canonical_tool(q["tool"]),"targetSelection":select,"baseline":pub(base),"current":pub(cur),"comparison":comparison}
+ return {"schemaVersion":SCHEMA,"mode":q["mode"],"profile":PROFILE,"tool":canonical_tool(q["tool"]),"targetSelection":select,"baseline":pub(base),"current":pub(cur),"comparison":comparison}
 def norm(x:Any)->Any:
  if isinstance(x,float):return 0 if round(x,12)==0 else round(x,12)
  if isinstance(x,dict):return {k:norm(v) for k,v in x.items()}

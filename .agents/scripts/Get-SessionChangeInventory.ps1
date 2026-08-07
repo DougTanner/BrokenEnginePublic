@@ -11,7 +11,7 @@ param(
 	[string[]] $IncludeUntracked,
 	[switch] $Regions,
 	[switch] $Landing,
-	[switch] $EmitTargetManifest
+	[switch] $EmitTargets
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,8 +31,8 @@ $script:CppClasses = @('cpp', 'dual-language-header')
 $script:ClassNames = @('dual-language-header', 'glsl', 'cpp', 'skill', 'plan', 'script', 'vcxproj', 'doc', 'binary', 'other')
 $script:ManifestModes = @('100644', '100755')
 # EXCLUDED in .agents/skills/code-quality-metrics/scripts/Analyze-CodeQualityMetrics.py is the source of
-# truth for the analyzer corpus: a manifest pair naming a path outside that corpus is rejected there as an
-# identity mismatch, so a pair side under one of these first path components is never emitted.
+# truth for the analyzer corpus: a target path the analyzer finds in neither corpus fails there with exit
+# 2, so a path under one of these first path components is never emitted.
 $script:ManifestExcludedRoots = @('ThirdParty', '.agents', '.claude', 'Temp')
 $script:ZeroOid = '0000000000000000000000000000000000000000'
 
@@ -67,9 +67,9 @@ function Complete-SessionChangeInventory([int] $ExitCode, [string] $Status, [str
 	$result.status = $Status
 	$result.code = $Code
 	$result.message = if ($Message.Length -gt $script:MaximumMessageLength) { $Message.Substring(0, $script:MaximumMessageLength) } else { $Message }
-	if ($EmitTargetManifest) {
-		# The manifest consumer reads raw stdout: a non-pass run leaves stdout empty and reports
-		# the structured outcome on stderr, and a pass has already written the manifest bytes.
+	if ($EmitTargets) {
+		# The targets consumer reads raw stdout: a non-pass run leaves stdout empty and reports
+		# the structured outcome on stderr, and a pass has already written the targets bytes.
 		if ($ExitCode -ne 0) { Write-InventoryStream $true (($result | ConvertTo-Json -Depth 32 -Compress) + "`n") }
 		exit $ExitCode
 	}
@@ -189,7 +189,7 @@ function Get-PathClass([string] $Path, [string] $Mode, [bool] $IsBinary) {
 function Get-InventoryEntry([hashtable] $Row, [hashtable] $BinaryPaths) {
 	# One raw-diff row becomes one entry: both sides' identities, and both sides' classes whenever the
 	# row has a baseline side, so a rename crossing a class boundary and a type change between an
-	# ordinary file and a gitlink both stay visible to routing and to manifest eligibility.
+	# ordinary file and a gitlink both stay visible to routing and to target eligibility.
 	$path = $Row.Path
 	$oldPath = $Row.OldPath
 	$isBinary = $BinaryPaths.ContainsKey($path) -or ($null -ne $oldPath -and $BinaryPaths.ContainsKey($oldPath))
@@ -441,67 +441,42 @@ function Test-ManifestCorpusPath([string] $Path) {
 	return $script:ManifestExcludedRoots -cnotcontains $Path.Split('/')[0]
 }
 
-function Write-TargetManifest([object[]] $Entries) {
-	# Each side qualifies on its own class, mode, and corpus membership. A rename that crosses a class
-	# or corpus boundary, and a type change between an ordinary file and a gitlink, contribute a
-	# one-sided pair for the eligible side only, never a mixed-class cross-path pair.
-	$pairs = [Collections.Generic.List[object]]::new()
+function Write-SessionTargets([object[]] $Entries) {
+	# Each side qualifies on its own class, mode, and corpus membership, so a rename that crosses a class
+	# or corpus boundary and a type change between an ordinary file and a gitlink contribute only the
+	# eligible side's path. A side whose mode is not an ordinary file is never analyzable C++, so it is
+	# skipped rather than blocked; the analyzer derives pairing and renames from the emitted paths.
+	$paths = [Collections.Generic.HashSet[string]]::new([string[]] @(), [StringComparer]::Ordinal)
 	foreach ($entry in $Entries) {
 		$baselinePath = if ($null -ne $entry.OldPath) { $entry.OldPath } else { $entry.Path }
-		$currentEligible = $null -ne $entry.Current -and $script:CppClasses -ccontains $entry.Class -and (Test-ManifestCorpusPath $entry.Path)
 		$baselineClass = if ($null -ne $entry.OldClass) { $entry.OldClass } else { $entry.Class }
-		$baselineEligible = $null -ne $entry.Baseline -and $script:CppClasses -ccontains $baselineClass -and (Test-ManifestCorpusPath $baselinePath)
-		if (-not $currentEligible -and -not $baselineEligible) { continue }
-		foreach ($side in @(@{ Eligible = $baselineEligible; Identity = $entry.Baseline }, @{ Eligible = $currentEligible; Identity = $entry.Current })) {
-			if ($side.Eligible -and $script:ManifestModes -cnotcontains $side.Identity.mode) {
-				Complete-SessionChangeInventory 2 'blocked' 'inventory.manifest-mode-unsupported' "The manifest accepts only ordinary file modes; '$($entry.Path)' has mode $($side.Identity.mode)."
-			}
+		if ($null -ne $entry.Baseline -and $script:CppClasses -ccontains $baselineClass -and (Test-ManifestCorpusPath $baselinePath) -and $script:ManifestModes -ccontains $entry.Baseline.mode) {
+			[void] $paths.Add($baselinePath)
 		}
-		$pairs.Add([pscustomobject] @{
-			SortBaseline = if ($baselineEligible) { $baselinePath } else { '' }
-			SortCurrent = if ($currentEligible) { $entry.Path } else { '' }
-			Untracked = $entry.Untracked
-			Baseline = if ($baselineEligible) { [ordered]@{ path = $baselinePath; mode = $entry.Baseline.mode; sha256 = $entry.Baseline.sha256 } } else { $null }
-			Current = if ($currentEligible) { [ordered]@{ path = $entry.Path; mode = $entry.Current.mode; sha256 = $entry.Current.sha256 } } else { $null }
-		})
-	}
-	# An untracked addition Git never saw cannot carry a rename mark, so an untracked addition whose
-	# bytes equal a removed baseline blob is an unreported rename: block it instead of emitting a
-	# pair that claims an addition and a deletion.
-	$removed = @{}
-	foreach ($pair in $pairs) {
-		if ($null -ne $pair.Baseline -and $null -eq $pair.Current) { $removed[$pair.Baseline.sha256] = $pair.Baseline.path }
-	}
-	foreach ($pair in $pairs) {
-		if ($pair.Untracked -and $null -ne $pair.Current -and $removed.ContainsKey($pair.Current.sha256)) {
-			Complete-SessionChangeInventory 2 'blocked' 'inventory.manifest-unreported-rename' "Git reports no rename for the identical-content pair '$($removed[$pair.Current.sha256])' -> '$($pair.Current.path)'."
+		if ($null -ne $entry.Current -and $script:CppClasses -ccontains $entry.Class -and (Test-ManifestCorpusPath $entry.Path) -and $script:ManifestModes -ccontains $entry.Current.mode) {
+			[void] $paths.Add($entry.Path)
 		}
 	}
-	if ($pairs.Count -gt $script:MaximumEntries) {
-		Complete-SessionChangeInventory 2 'blocked' 'inventory.manifest-cap-exceeded' "The manifest holds $($pairs.Count) pairs, above the cap of $($script:MaximumEntries); a truncated manifest would narrow an authorized review."
+	if ($paths.Count -gt $script:MaximumEntries) {
+		Complete-SessionChangeInventory 2 'blocked' 'inventory.manifest-cap-exceeded' "The targets hold $($paths.Count) paths, above the cap of $($script:MaximumEntries); truncated targets would narrow an authorized review."
 	}
-	$ordered = [Collections.Generic.List[object]]::new($pairs)
-	$ordered.Sort([Comparison[object]] {
-		param($left, $right)
-		$compare = [string]::CompareOrdinal($left.SortBaseline, $right.SortBaseline)
-		if ($compare -ne 0) { return $compare }
-		return [string]::CompareOrdinal($left.SortCurrent, $right.SortCurrent)
-	})
-	$manifest = [ordered]@{
-		schemaVersion = 'broken-engine-code-quality-target-manifest/v1'
-		pairs = [object[]] @($ordered | ForEach-Object { [ordered]@{ baseline = $_.Baseline; current = $_.Current } })
+	$ordered = [Collections.Generic.List[string]]::new($paths)
+	$ordered.Sort([StringComparer]::Ordinal)
+	$targets = [ordered]@{
+		schemaVersion = 'broken-engine-code-quality-targets/v1'
+		paths = [string[]] $ordered.ToArray()
 	}
-	$text = ($manifest | ConvertTo-Json -Depth 32 -Compress) + "`n"
+	$text = ($targets | ConvertTo-Json -Depth 32 -Compress) + "`n"
 	if ($script:Utf8.GetByteCount($text) -gt $script:MaximumOutputBytes) {
-		Complete-SessionChangeInventory 2 'blocked' 'inventory.manifest-cap-exceeded' "The manifest is $($script:Utf8.GetByteCount($text)) bytes, above the stdout budget of $($script:MaximumOutputBytes)."
+		Complete-SessionChangeInventory 2 'blocked' 'inventory.manifest-cap-exceeded' "The targets are $($script:Utf8.GetByteCount($text)) bytes, above the stdout budget of $($script:MaximumOutputBytes)."
 	}
 	Write-InventoryStream $false $text
 }
 
 try {
-	$modes = @(@($Regions.IsPresent, $Landing.IsPresent, $EmitTargetManifest.IsPresent) | Where-Object { $_ })
+	$modes = @(@($Regions.IsPresent, $Landing.IsPresent, $EmitTargets.IsPresent) | Where-Object { $_ })
 	if ($modes.Count -gt 1) {
-		Complete-SessionChangeInventory 2 'blocked' 'inventory.mode-conflict' 'Supply at most one of -Regions, -Landing, and -EmitTargetManifest.'
+		Complete-SessionChangeInventory 2 'blocked' 'inventory.mode-conflict' 'Supply at most one of -Regions, -Landing, and -EmitTargets.'
 	}
 	$script:Root = Get-AgentCanonicalPath $RepositoryRoot
 	if (-not [IO.Path]::IsPathRooted($RepositoryRoot) -or -not (Test-Path -LiteralPath $script:Root -PathType Container)) {
@@ -571,9 +546,9 @@ try {
 		return [string]::CompareOrdinal($left.Path, $right.Path)
 	})
 
-	if ($EmitTargetManifest) {
-		Write-TargetManifest ([object[]] $sorted.ToArray())
-		Complete-SessionChangeInventory 0 'pass' 'ok' "Emitted a target manifest for $($sorted.Count) inventoried change(s)."
+	if ($EmitTargets) {
+		Write-SessionTargets ([object[]] $sorted.ToArray())
+		Complete-SessionChangeInventory 0 'pass' 'ok' "Emitted targets for $($sorted.Count) inventoried change(s)."
 	}
 
 	# Counts and triggers always describe the complete inventory, never the truncated emission.

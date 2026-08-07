@@ -10,9 +10,10 @@ here; they are owned by the theme tables in ImGuiManager (engine
 ThemePalettes) and MenuUtils (kMenuChromes). This contract covers only
 layout: scale, sizing, placement, rhythm, and primitives.
 
-Scope: the player-facing screens — MainMenu + LanguageMenu, Pause, Graphics,
-Sound, Modal, and the HUD. TweaksScreen is a developer tool and a sanctioned
-exception, called out where it diverges.
+Scope: the player-facing screens — MainMenu, Pause, Graphics, Audio, Game
+Settings, Modal, and the HUD. TweaksScreen is a developer tool and a sanctioned
+exception, called out where it diverges. Audio is the player-facing name of the
+screen the code still calls Sound.
 
 
 1. Purpose & Scope
@@ -52,12 +53,12 @@ Documented exception: TweaksScreen is a denser debug tool and deliberately
 uses its own kfUiScale = 1.5, pushing the font directly rather than through
 ScopedMenuFont. It is not a player screen and is not bound by this contract.
 
-Documented exceptions: MainMenu, Pause, and Sound use
+Documented exceptions: MainMenu, Pause, Audio, and Game Settings use
 kfMainMenuHeadingScale rather than the larger shared settings heading scale,
-so their titles lead without overwhelming their actions. MainMenu's language
-row uses kfLanguageMenuFontScale and kfLanguageMenuGeometryScale to keep both
-text and padding subordinate to the primary action tier. Graphics is the
-densest player-facing menu: its local base-font curve decreases from 2.0 to
+so their titles lead without overwhelming their actions. The Game Settings
+language row uses kfLanguageMenuFontScale and kfLanguageMenuGeometryScale to
+keep both text and padding subordinate to the primary action tier. Graphics is
+the densest player-facing menu: its local base-font curve decreases from 2.0 to
 1.2 across the supported Font Size preference while preserving a monotonic
 increase in rendered text size, and it retains the theme's base geometry
 rather than applying ScopedMenuScale a second time. These are the sanctioned
@@ -116,7 +117,7 @@ Files:
     kfMainMenuOpticalOffsetYPixels = 20
     kfHudEdgeMarginFraction = 0.05f, kfHudPanelTopFraction = 0.125f, kfHudPanelMaxHeightFraction = 0.75f
     kfGraphicsMaxHeightFraction = 0.9f, kfModalAnchorFractionY = 0.4f
-    kfHeadingGapPixels = 22, kfScreenBottomMarginPixels = 44
+    kfHeadingGapPixels = 22
     kfPrimaryButtonMinWidthPixels = 760, kfModalButtonMinWidthPixels = 380
     kfMainMenuHeadingScale = 1.3, kfLanguageMenuFontScale = 1.0
     kfLanguageMenuGeometryScale = 0.5
@@ -146,15 +147,16 @@ UiScale() and FontScaleMain so it tracks resolution and the Font Size setting.
 Its title and every action also share one visible content keyline. HUD panels
 edge-anchor via the named margin fractions.
 
-Pause and Sound center via the pivot convention. Modal uses the same horizontal
-pivot and seats its vertical pivot slightly above screen center at
-kfModalAnchorFractionY rather than 0.5.
+Pause, Audio, and Game Settings center via the pivot convention. Modal uses
+the same horizontal pivot and seats its vertical pivot slightly above screen
+center at kfModalAnchorFractionY rather than 0.5.
 
 Files:
   Projects/BrokenEngineSandbox/Source/Ui/Screens/PauseMenuScreen.cpp:30  (pivot centering — the model)
   Projects/BrokenEngineSandbox/Source/Ui/Screens/GraphicsMenuScreen.cpp:85 (pivot centering)
   Projects/BrokenEngineSandbox/Source/Ui/Screens/ModalScreen.cpp:32   (pivot centering at kfModalAnchorFractionY)
   Projects/BrokenEngineSandbox/Source/Ui/Screens/SoundMenuScreen.cpp:31 (pivot centering)
+  Projects/BrokenEngineSandbox/Source/Ui/Screens/GameSettingsScreen.cpp:24 (pivot centering)
 
 
 6. Size to Content
@@ -220,7 +222,8 @@ Files:
 One heading helper owns menu/panel titles: MenuHeading pushes the heading font,
 emits the label, and follows it with a standard kfHeadingGapPixels gap. Its
 default kfMenuHeadingScale remains available for settings headings; MainMenu,
-Pause, and Sound pass kfMainMenuHeadingScale to keep title weight restrained.
+Pause, Audio, and Game Settings pass kfMainMenuHeadingScale to keep title
+weight restrained.
 Graphics composes its title, FPS, and Back action in one header row under its
 local density curve. All gaps are named 4K-pixel constants times UiScale(); no
 screen emits Dummy(DisplaySize.y * <magic fraction>).
@@ -278,8 +281,11 @@ Screen-specific commitments this contract makes, each verified visually:
     live content area while the panel continues to match the left panel's size.
   - Pause: the title and uniform-width primary actions float directly over the
     full-screen dim; the transparent layout window has no decorative panel.
-  - Sound: centered via the pivot convention (section 5), not the top-left
+  - Audio: centered via the pivot convention (section 5), not the top-left
     corner anchor, with a restrained title and one consistent slider width.
+  - Game Settings: centered via the pivot convention (section 5), with the
+    language row on the utility tier above the Font Size control and one
+    shared width for the Defaults and Back actions.
   - Modal: the compact text-wrap surface uses a restrained message/action gap
     and keeps its single themed action centered.
   - Graphics: the two-column split is semantic — display/filtering settings

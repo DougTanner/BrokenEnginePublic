@@ -174,12 +174,7 @@ CONSTEXPR int kiDebugTextureFormatTerrainElevation = 8;
 
 CONSTEXPR int kiShadowTextureExecutionSize = 64;
 
-// Terrain-shadow window constants. The source and blur rectangles are derived backwards from the
-// consumer-filtered final rectangle in PopulateShadowArea, keeping every separable-filter tap current.
 CONSTEXPR int kiShadowBlurRadius = 5;
-// This symmetric final-valid margin covers the linear neighbour plus worst-case visible-window snap
-// and centered-rounding/parity reach, so consumers never reject a valid edge sample as stale.
-CONSTEXPR int kiShadowConsumerFilterMargin = 3;
 
 CONSTEXPR int kiComputeTileSize = 8;
 CONSTEXPR int kiOccupancyDilateGroupSize = 256;
@@ -331,24 +326,6 @@ struct GlobalLayout
 	vec2 f2LightingAreaExtentInv INIT; // 1 / lighting-area extent (LightingSpread.frag world->texcoord)
 	float fLightingTemporalBlend INIT; // EMA weight toward current; 1.0 on the first frame so seeded history is never shown
 	vec2 f2LightingDepositSizeInv INIT; // 1 / (lightTiles * kiComputeTileSize) (LightingDepositEdgeFade)
-	// Half-open texel rectangles. Deposit is cleared every frame; current/previous combine validity advances only
-	// with the cadence epoch, so filtered consumers and temporal history never see stale in-allocation texels.
-	int32_t iLightingDepositMinX INIT;
-	int32_t iLightingDepositMinY INIT;
-	int32_t iLightingDepositMaxX INIT;
-	int32_t iLightingDepositMaxY INIT;
-	int32_t iLightingValidMinX INIT;
-	int32_t iLightingValidMinY INIT;
-	int32_t iLightingValidMaxX INIT;
-	int32_t iLightingValidMaxY INIT;
-	int32_t iLightingHistoryValidMinX INIT;
-	int32_t iLightingHistoryValidMinY INIT;
-	int32_t iLightingHistoryValidMaxX INIT;
-	int32_t iLightingHistoryValidMaxY INIT;
-	int32_t piLightingSpreadMinX[kiMaxSpreadPasses] INIT;
-	int32_t piLightingSpreadMinY[kiMaxSpreadPasses] INIT;
-	int32_t piLightingSpreadMaxX[kiMaxSpreadPasses] INIT;
-	int32_t piLightingSpreadMaxY[kiMaxSpreadPasses] INIT;
 
 	// Spread Start (radial directional spread)
 	float fSpreadDirectionCountStart INIT;
@@ -407,28 +384,6 @@ struct GlobalLayout
 	int32_t iShadowIncrement INIT;
 	int32_t iShadowStartOffset INIT;
 	float fWaterReducedNoiseOriginY INIT;
-	int32_t iShadowTextureWidth INIT;  // Integer extent for texel-index clamps (ShadowLinearFootprintInsideBounds, ShadowTemporal); f2ShadowTextureSizeInv serves the UV scales.
-	int32_t iShadowTextureHeight INIT;
-	int32_t iShadowVisibleMinX INIT;
-	int32_t iShadowVisibleMinY INIT;
-	int32_t iShadowVisibleMaxX INIT;
-	int32_t iShadowVisibleMaxY INIT;
-	int32_t iShadowSourceMinX INIT;
-	int32_t iShadowSourceMinY INIT;
-	int32_t iShadowSourceMaxX INIT;
-	int32_t iShadowSourceMaxY INIT;
-	int32_t iShadowBlurHMinX INIT;
-	int32_t iShadowBlurHMinY INIT;
-	int32_t iShadowBlurHMaxX INIT;
-	int32_t iShadowBlurHMaxY INIT;
-	int32_t iShadowFinalMinX INIT;
-	int32_t iShadowFinalMinY INIT;
-	int32_t iShadowFinalMaxX INIT;
-	int32_t iShadowFinalMaxY INIT;
-	int32_t iShadowVisiblePreviousMinX INIT;
-	int32_t iShadowVisiblePreviousMinY INIT;
-	int32_t iShadowVisiblePreviousMaxX INIT;
-	int32_t iShadowVisiblePreviousMaxY INIT;
 	float fShadowTemporalBlend INIT; // ShadowTemporal.comp: weight of the current frame (1.0 = no history)
 
 	// Terrain. Heightmap pixels carry absolute meters directly — fIslandHeight / fWaterDepth

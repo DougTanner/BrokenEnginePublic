@@ -13,7 +13,7 @@ class WorldLightingShadowPipelines
 {
 public:
 
-	WorldLightingShadowPipelines(std::unordered_map<common::crc_t, Shader>& rShaders, Pipeline* pPipelines, Pipeline* pSpreadPipelines, std::string* pSpreadPipelineNames, Pipeline& rLightingClearPipeline, Pipeline& rCombinePipeline, Pipeline& rLightingTemporalPipeline, Pipeline& rLightingHistoryCopyPipeline, Texture** ppWaterNormalTextures);
+	WorldLightingShadowPipelines(std::unordered_map<common::crc_t, Shader>& rShaders, Pipeline* pPipelines, Pipeline* pSpreadPipelines, std::string* pSpreadPipelineNames, Pipeline& rCombinePipeline, Pipeline& rLightingTemporalPipeline, Pipeline& rLightingHistoryCopyPipeline, Texture** ppWaterNormalTextures);
 
 	void CreateLightingPipelines();
 	void CreatePipelineShadows();
@@ -26,7 +26,6 @@ private:
 	Pipeline* mpPipelines;
 	Pipeline* mpSpreadPipelines;
 	std::string* mpSpreadPipelineNames;
-	Pipeline& mrLightingClearPipeline;
 	Pipeline& mrCombinePipeline;
 	Pipeline& mrLightingTemporalPipeline;
 	Pipeline& mrLightingHistoryCopyPipeline;

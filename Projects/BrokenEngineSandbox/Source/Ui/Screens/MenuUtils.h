@@ -10,7 +10,7 @@ inline constexpr float kfMenuUiScale = 2.0f;
 inline constexpr float kfMenuHeadingScale = 1.6f;
 inline constexpr float kfMainMenuHeadingScale = 1.3f;
 
-// Main-menu utility footer scale: absolute font scale plus a multiplier on the already menu-scaled geometry
+// Language-row utility tier: absolute font scale plus a multiplier on the already menu-scaled geometry
 inline constexpr float kfLanguageMenuFontScale = 1.0f;
 inline constexpr float kfLanguageMenuGeometryScale = 0.5f;
 
@@ -30,7 +30,6 @@ inline constexpr float kfModalAnchorFractionY = 0.4f;          // Modal center Y
 // 4K-authored pixels (multiply by engine::UiScale() at use):
 inline constexpr float kfHeadingGapPixels = 22.0f;             // Gap below a MenuHeading
 inline constexpr float kfMainMenuOpticalOffsetYPixels = 20.0f; // Screenshot-derived upward correction for visible title/action composition
-inline constexpr float kfScreenBottomMarginPixels = 44.0f;     // Margin above a screen's bottom edge
 inline constexpr float kfPrimaryButtonMinWidthPixels = 760.0f; // Menu primary-button minimum width
 inline constexpr float kfModalButtonMinWidthPixels = 380.0f;   // Modal button minimum width
 

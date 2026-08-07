@@ -20,8 +20,9 @@ layout (set = 1, binding = 8, rgba8) uniform writeonly image2D historyImageAmbie
 
 void main()
 {
-	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iLightingValidMinX, globalLayout.iLightingValidMinY);
-	if (any(greaterThanEqual(i2Texel, ivec2(globalLayout.iLightingValidMaxX, globalLayout.iLightingValidMaxY))))
+	// The dispatch rounds the texture extent up to whole tiles, so the tail threads guard against it.
+	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(i2Texel, imageSize(historyImageR))))
 		return;
 
 	imageStore(historyImageR, i2Texel, imageLoad(combineImageR, i2Texel));

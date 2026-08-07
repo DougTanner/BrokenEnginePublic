@@ -4,6 +4,7 @@
 
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/Screens/DeathMenuScreen.h"
+#include "Ui/Screens/GameSettingsScreen.h"
 #include "Ui/Screens/GraphicsMenuScreen.h"
 #include "Ui/Screens/HudScreen.h"
 #include "Ui/Screens/MainMenuScreen.h"
@@ -178,6 +179,7 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	mpPauseMenuScreen = std::make_unique<game::PauseMenuScreen>();
 	mpGraphicsMenuScreen = std::make_unique<game::GraphicsMenuScreen>();
 	mpSoundMenuScreen = std::make_unique<game::SoundMenuScreen>();
+	mpGameSettingsScreen = std::make_unique<game::GameSettingsScreen>();
 	mpDeathMenuScreen = std::make_unique<game::DeathMenuScreen>();
 	mpHudScreen = std::make_unique<game::HudScreen>();
 }
@@ -514,6 +516,7 @@ void ImGuiManager::Prepare(int64_t iFramebuffer)
 		mpPauseMenuScreen->Render();
 		mpGraphicsMenuScreen->Render();
 		mpSoundMenuScreen->Render();
+		mpGameSettingsScreen->Render();
 		mpDeathMenuScreen->Render();
 	}
 

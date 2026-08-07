@@ -22,13 +22,12 @@ Require a self-contained brief containing:
 - the session baseline as a full Git SHA, complete immutable authorized C++ diff,
   and exact changed files/regions, separated from pre-existing and concurrently
   owned changes;
-- an identity-bound
-  `broken-engine-code-quality-target-manifest/v1` file produced by
-  `.agents/scripts/Get-SessionChangeInventory.ps1 -EmitTargetManifest` from that
-  authorized diff (or focused re-review), with baseline/current identities for
-  additions, deletions, and renames; it excludes pre-existing and concurrently
+- a `broken-engine-code-quality-targets/v1` targets file produced by
+  `.agents/scripts/Get-SessionChangeInventory.ps1 -EmitTargets` from that
+  authorized diff (or focused re-review), listing the baseline and current paths
+  of additions, deletions, and renames; it excludes pre-existing and concurrently
   owned changes;
-- that manifest's C++ target selection, which is the same run's `cpp` and
+- that targets file's C++ target selection, which is the same run's `cpp` and
   `dual-language-header` classes; those class rules are the only statement of
   which `.h` files are GLSL-only, and every `dual-language-header` entry routes
   to both this C++ review and the GLSL review;
@@ -38,36 +37,35 @@ Require a self-contained brief containing:
   the change may affect, and any prior findings relevant to a focused re-review;
 - checkout path and applicable repository instructions.
 
-The manifest file is the authoritative supplied input. A
-`/codex-review` prompt supplies it as the `Target manifest: <path>` entry in its
-evidence section (the receipt's `manifestPath`, written next to the prompt file),
+The targets file is the authoritative supplied input. A
+`/codex-review` prompt supplies it as the `Targets file: <path>` entry in its
+evidence section (the receipt's `targetsPath`, written next to the prompt file),
 and inlines the same bytes there as a copy of that file. Otherwise the dispatching manager saves one
 read-only run to a file:
 `pwsh -NoProfile -File .agents/scripts/Get-SessionChangeInventory.ps1
 -RepositoryRoot <absolute repository toplevel> -Baseline <full 40-character SHA>
--EmitTargetManifest`, adding `-IncludeUntracked <comma-separated paths>` for
+-EmitTargets`, adding `-IncludeUntracked <comma-separated paths>` for
 authorized untracked additions and `-Head <commit>` for a committed head. In Claude Code's
 Git Bash terminal convert the script path and root with `cygpath -w` exactly as
 `../cleanup-worktrees/SKILL.md` shows. On `status` `pass` (exit 0) stdout carries
-only the manifest bytes; `blocked` (exit 2) or `error` (exit 1) leaves stdout
-empty and reports the envelope on stderr, which counts as a missing manifest
-below. Never rebuild the manifest or restate the class decision inline.
+only the targets bytes; `blocked` (exit 2) or `error` (exit 1) leaves stdout
+empty and reports the envelope on stderr, which counts as a missing targets file
+below. Never rebuild the targets file or restate the class decision inline.
 
-Return `BLOCKED` when the session baseline, diff boundary, target manifest, intent,
+Return `BLOCKED` when the session baseline, diff boundary, targets file, intent,
 or invariants are missing or moving. Do not reconstruct them from a mutable merge
-base, derive a broader target manifest from checkout changes, or expand a supplied
+base, derive a broader target selection from checkout changes, or expand a supplied
 review into an open-ended repository audit. After an accepted fix, review only the
 fixed region and directly affected paths unless a reproducible failure justifies
 another round.
 
 ## Workflow
 
-1. Run `code-quality-metrics` Compare early with the supplied target manifest,
-   session baseline, absolute checkout root, and one profile for both captures.
-   Call the digest wrapper `pwsh -NoProfile -File
-   .agents/skills/code-quality-metrics/scripts/Get-CodeQualityEvidence.ps1 -Mode
-   Compare -TargetManifest <supplied-manifest> -Baseline <fixed-full-sha>
-   -RepositoryRoot <absolute-checkout-root>` exactly as
+1. Run `code-quality-metrics` Compare early with the supplied targets file,
+   session baseline, and absolute checkout root. Call `pwsh -NoProfile -File
+   .agents/skills/code-quality-metrics/scripts/Invoke-CodeQualityMetrics.ps1 -Mode
+   Compare -Targets <supplied-targets-file> -Baseline <fixed-full-sha>
+   -RepositoryRoot <absolute-checkout-root> -Digest` exactly as
    [metrics-protocol.md](references/metrics-protocol.md) requires. Metrics are
    advisory and never become a finding; an operational failure leaves the review
    incomplete with `NEEDS_ACTION` rather than producing one.
@@ -285,10 +283,9 @@ finding is `Required`. Omit empty optional sections.
 - `path` (`N bt-token-v1`) — <cohesive split and why it is a manager follow-up candidate>
 
 ### Metric Evidence
-- profile and target-manifest status — <digest `profile` and `targetSelection`>
+- profile and target-selection status — <digest `profile` and `targetSelection`>
 - target/corpus/common-parsed-cohort and coverage — <short `coverage` and `comparison` evidence>
 - context changes and metric residual outcome — <count/status; no scope expansion>
-- retained evidence — <`evidencePath`, only when the digest reports one>
 
 ### Files Reviewed
 - `path` — <regions and affected paths traced>

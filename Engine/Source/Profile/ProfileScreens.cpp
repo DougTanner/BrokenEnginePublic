@@ -165,33 +165,10 @@ void FormatGpuTimerRows(common::Workbuffer& rWorkbuffer, ProfileManagerBase& rPr
 			rWorkbuffer.Append(")");
 		}
 
-		// Resolution beside each dynamic-sized pass. Shadow shows its cropped ray-march window; Lighting Spread shows
-		// the three lighting resolutions (full deposit, then the cropped on-screen window in start-pass and end-pass
-		// texels); Terrain Elevation shows its snap-grid render-target extent; Water Displacement / Water show the
-		// active visible-area LOD vertex grid (the top-left rectangle the displacement compute writes / the water mesh draws).
-		if (i == kGpuTimerShadow)
-		{
-			rWorkbuffer.Append("  ");
-			rWorkbuffer.Append(giShadowActivePixelsX);
-			rWorkbuffer.Append("x");
-			rWorkbuffer.Append(giShadowActivePixelsY);
-		}
-		else if (i == kGpuTimerLightingSpread)
-		{
-			rWorkbuffer.Append("  dep ");
-			rWorkbuffer.Append(giLightingDepositPixelsX);
-			rWorkbuffer.Append("x");
-			rWorkbuffer.Append(giLightingDepositPixelsY);
-			rWorkbuffer.Append("  start ");
-			rWorkbuffer.Append(giLightingSpreadStartActivePixelsX);
-			rWorkbuffer.Append("x");
-			rWorkbuffer.Append(giLightingSpreadStartActivePixelsY);
-			rWorkbuffer.Append("  end ");
-			rWorkbuffer.Append(giLightingSpreadEndActivePixelsX);
-			rWorkbuffer.Append("x");
-			rWorkbuffer.Append(giLightingSpreadEndActivePixelsY);
-		}
-		else if (i == kGpuTimerTerrainElevation)
+		// Resolution beside each dynamic-sized pass. Terrain Elevation shows its snap-grid render-target extent;
+		// Water Displacement / Water show the active visible-area LOD vertex grid (the top-left rectangle the
+		// displacement compute writes / the water mesh draws).
+		if (i == kGpuTimerTerrainElevation)
 		{
 			rWorkbuffer.Append("  ");
 			rWorkbuffer.Append(static_cast<int64_t>(gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.mInfo.extent.width));

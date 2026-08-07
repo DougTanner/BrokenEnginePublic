@@ -105,32 +105,17 @@ float IntensityLighting(vec4 f4Lighting)
 	return f4Lighting.x + f4Lighting.y + f4Lighting.z + f4Lighting.w;
 }
 
-bool LightingLinearFootprintInsideValidBounds(GlobalLayout globalLayout, sampler2D lightingSampler, vec2 f2Texcoord)
+// The transparent-black border sampler returns no lighting outside the footprint, so these are plain reads.
+void ReadLighting(inout vec4 pf4Lighting[3], sampler2D pLightingSamplers[3], vec2 f2Texcoord)
 {
-	ivec2 i2Extent = textureSize(lightingSampler, 0);
-	ivec2 i2FirstTexel = ivec2(floor(f2Texcoord * vec2(i2Extent) - 0.5f));
-	ivec2 i2LastTexel = i2FirstTexel + ivec2(1);
-	ivec4 i4ValidBounds = ivec4(globalLayout.iLightingValidMinX, globalLayout.iLightingValidMinY, globalLayout.iLightingValidMaxX, globalLayout.iLightingValidMaxY);
-	return all(greaterThanEqual(i2FirstTexel, i4ValidBounds.xy)) && all(lessThan(i2LastTexel, i4ValidBounds.zw));
-}
-
-void ReadLighting(GlobalLayout globalLayout, inout vec4 pf4Lighting[3], sampler2D pLightingSamplers[3], vec2 f2Texcoord)
-{
-	if (!LightingLinearFootprintInsideValidBounds(globalLayout, pLightingSamplers[0], f2Texcoord))
-	{
-		pf4Lighting[0] = vec4(0.0f);
-		pf4Lighting[1] = vec4(0.0f);
-		pf4Lighting[2] = vec4(0.0f);
-		return;
-	}
 	pf4Lighting[0] = texture(pLightingSamplers[0], f2Texcoord);
 	pf4Lighting[1] = texture(pLightingSamplers[1], f2Texcoord);
 	pf4Lighting[2] = texture(pLightingSamplers[2], f2Texcoord);
 }
 
-vec3 ReadAmbientLighting(GlobalLayout globalLayout, sampler2D ambientLightingSampler, vec2 f2Texcoord)
+vec3 ReadAmbientLighting(sampler2D ambientLightingSampler, vec2 f2Texcoord)
 {
-	return LightingLinearFootprintInsideValidBounds(globalLayout, ambientLightingSampler, f2Texcoord) ? texture(ambientLightingSampler, f2Texcoord).xyz : vec3(0.0f);
+	return texture(ambientLightingSampler, f2Texcoord).xyz;
 }
 
 float Sum(vec4 pf4Lighting[3])
@@ -232,19 +217,10 @@ vec2 WorldToSmokeTexcoord(vec4 f4SmokeArea, vec2 f2Position)
 		        (f2Position.y - f4SmokeArea.y) / (f4SmokeArea.w - f4SmokeArea.y));
 }
 
-bool ShadowLinearFootprintInsideBounds(GlobalLayout globalLayout, vec2 f2Uv, ivec4 i4Bounds)
+// The border-white sampler returns unshadowed outside the footprint, so this is a plain read.
+float SampleTerrainShadow(sampler2D shadowTextureSampler, vec2 f2Uv)
 {
-	// Linear filtering at uv reads floor(uv * extent - 0.5) and its +1 neighbour. Keep both
-	// taps in the current final write window; border-white alone cannot distinguish stale in-texture texels.
-	ivec2 i2FirstTexel = ivec2(floor(f2Uv * vec2(float(globalLayout.iShadowTextureWidth), float(globalLayout.iShadowTextureHeight)) - 0.5f));
-	ivec2 i2LastTexel = i2FirstTexel + ivec2(1);
-	return all(greaterThanEqual(i2FirstTexel, i4Bounds.xy)) && all(lessThan(i2LastTexel, i4Bounds.zw));
-}
-
-float SampleTerrainShadow(GlobalLayout globalLayout, sampler2D shadowTextureSampler, vec2 f2Uv)
-{
-	ivec4 i4FinalBounds = ivec4(globalLayout.iShadowFinalMinX, globalLayout.iShadowFinalMinY, globalLayout.iShadowFinalMaxX, globalLayout.iShadowFinalMaxY);
-	return ShadowLinearFootprintInsideBounds(globalLayout, f2Uv, i4FinalBounds) ? textureLod(shadowTextureSampler, f2Uv, 0.0f).x : 1.0f;
+	return textureLod(shadowTextureSampler, f2Uv, 0.0f).x;
 }
 
 float SmokeShadow(GlobalLayout globalLayout, vec3 f3InPosition, sampler2D smokeSampler, float fMulti)

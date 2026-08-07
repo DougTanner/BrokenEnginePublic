@@ -20,8 +20,9 @@ layout (set = 1, binding = 2, r16) uniform image2D shadowBlurTexture; // keShado
 // flickering; at a settled grid history == current so it is a no-op.
 void main()
 {
-	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iShadowFinalMinX, globalLayout.iShadowFinalMinY);
-	if (any(greaterThanEqual(i2Texel, ivec2(globalLayout.iShadowFinalMaxX, globalLayout.iShadowFinalMaxY))))
+	// The dispatch rounds the texture extent up to whole tiles, so the tail threads guard against it.
+	ivec2 i2Texel = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(i2Texel, imageSize(shadowBlurTexture))))
 		return;
 	uint uiX = uint(i2Texel.x);
 	uint uiY = uint(i2Texel.y);
@@ -35,14 +36,7 @@ void main()
 	vec2 f2PreviousUv = WorldToVisibleArea(vec3(f2World, 0.0f), globalLayout.f4ShadowAreaPrevious);
 
 	float fBlended = fCurrent;
-	ivec4 i4PreviousFinalBounds = ivec4
-	(
-		max(0, globalLayout.iShadowVisiblePreviousMinX - kiShadowConsumerFilterMargin),
-		max(0, globalLayout.iShadowVisiblePreviousMinY - kiShadowConsumerFilterMargin),
-		min(globalLayout.iShadowTextureWidth, globalLayout.iShadowVisiblePreviousMaxX + kiShadowConsumerFilterMargin),
-		min(globalLayout.iShadowTextureHeight, globalLayout.iShadowVisiblePreviousMaxY + kiShadowConsumerFilterMargin)
-	);
-	if (globalLayout.fShadowTemporalBlend < 1.0f && ShadowLinearFootprintInsideBounds(globalLayout, f2PreviousUv, i4PreviousFinalBounds))
+	if (globalLayout.fShadowTemporalBlend < 1.0f && all(greaterThanEqual(f2PreviousUv, vec2(0.0f))) && all(lessThanEqual(f2PreviousUv, vec2(1.0f))))
 	{
 		float fHistory = textureLod(shadowHistorySampler, f2PreviousUv, 0.0f).x;
 		fBlended = mix(fHistory, fCurrent, globalLayout.fShadowTemporalBlend);

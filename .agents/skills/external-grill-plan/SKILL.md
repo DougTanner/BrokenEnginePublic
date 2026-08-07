@@ -53,13 +53,17 @@ plan is not Tier 3, stop and return the needed correction to the manager.
 4. Search the repository until local evidence either resolves a candidate
    decision or proves that user judgment is required. Do not ask the user to
    rediscover code facts.
-5. Scan remaining decisions through the compact checklist below. Order them by
-   dependency and batch up to three independent decisions in one interaction.
-   A pending `locator` `/verify-external-claims` verdict is an unsettled
-   prerequisite that blocks only the decisions depending on it; keep interviewing
-   the independent remaining decisions while it runs.
-6. After each answer, record the selected choice and the exact plan refinement
-   it implies. Continue only with decisions newly unblocked by that answer.
+5. Scan remaining decisions through the compact checklist below and map them as
+   a dependency tree. Interview in rounds: each round asks the whole frontier —
+   every decision whose prerequisites are already settled — in one interaction,
+   splitting across consecutive interactions only when the host UI caps
+   questions per call. A pending `locator` `/verify-external-claims` verdict is
+   an unsettled prerequisite that blocks only the decisions depending on it;
+   keep interviewing the rest of the frontier while it runs.
+6. After each round's answers, record each selected choice and the exact plan
+   refinement it implies, then recompute the frontier and ask the next round.
+   A decision whose answer depends on another decision still open in this round
+   belongs to a later round.
 7. Run the closing checks, then return all refinements to the manager. The
    manager owns incorporation and approval validity. A design or library pivot
    additionally requires a fresh `/plan-audit` before this skill re-enters.
@@ -81,7 +85,16 @@ Lead with the first concrete decision, not a plan summary. For each question:
 Use the host's structured choice UI when available. Otherwise ask in prose but
 preserve the same two or three choices, in the same recommended-first order,
 with the same tradeoffs and refinements. Do not replace them with an open-ended
-prompt. Dependent questions wait for the prior answer.
+prompt. In prose, give every question in the round one fixed numbered shape so
+the user can answer by number:
+
+```text
+Q<n> — <decision title>: <evidence, why the choice changes the plan, and the
+two or three choices>
+-> Recommended: <choice> — <tradeoff>
+```
+
+Dependent questions wait for a later round.
 
 An exact refinement names the affected plan section and the concrete decision,
 invariant, affected sites, or criterion/check text to add, replace, or remove.

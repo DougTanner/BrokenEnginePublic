@@ -35,7 +35,7 @@ void PauseMenuScreen::Render()
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
 	// Share the Main Menu's restrained title scale and primary action tier.
-	float fButtonWidth = std::max(MenuButtonsWidth({TranslatedString(kStringResume), TranslatedString(kStringGraphics), TranslatedString(kStringSound), TranslatedString(kStringMainMenu), TranslatedString(kStringQuit)}), kfPrimaryButtonMinWidthPixels * engine::UiScale());
+	float fButtonWidth = std::max(MenuButtonsWidth({TranslatedString(kStringResume), TranslatedString(kStringGraphics), TranslatedString(kStringAudio), TranslatedString(kStringGameSettings), TranslatedString(kStringMainMenu), TranslatedString(kStringQuit)}), kfPrimaryButtonMinWidthPixels * engine::UiScale());
 	float fHeadingWidth = 0.0f;
 	{
 		ScopedMenuFont headingFont(kfMenuUiScale * kfMainMenuHeadingScale);
@@ -57,18 +57,23 @@ void PauseMenuScreen::Render()
 		gpGame->meUiState = UiState::kGraphicsSettings;
 	}
 
-	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[2]))
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringAudio)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[2]))
 	{
 		gpGame->meUiState = UiState::kSound;
 	}
 
-	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringMainMenu)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[3]))
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringGameSettings)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[3]))
+	{
+		gpGame->meUiState = UiState::kGameSettings;
+	}
+
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringMainMenu)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[4]))
 	{
 		gpGame->ChangeFrame(GameFlags::kMainMenu);
 		gpGame->meUiState = UiState::kPause;
 	}
 
-	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[4]))
+	if (MenuButton(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit)), ImVec2(fButtonWidth, 0.0f), mfButtonHoverAnims[5]))
 	{
 		gpGame->mGameFlags.Set(engine::GameFlags::kQuit);
 	}

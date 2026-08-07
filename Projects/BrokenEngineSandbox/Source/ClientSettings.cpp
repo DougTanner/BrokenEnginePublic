@@ -5,6 +5,7 @@
 #include "Game.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
+#include "Ui/Localization.h"
 #include "Ui/MiscWrappersBase.h"
 #include "Ui/SoundSettingsWrappersBase.h"
 #include "Ui/SunMoonWrappersBase.h"
@@ -12,6 +13,59 @@
 
 namespace game
 {
+
+struct GameSettings
+{
+	static constexpr int64_t kiVersion = 1;
+
+	// Fixed-width on disk: the Language enum's underlying type must not decide the file layout.
+	int32_t iLanguage = kEnglish;
+	float fUiFontScale = 1.0f;
+};
+static_assert(std::is_trivially_copyable_v<GameSettings>);
+static constexpr char kpcGameSettingsPath[] = "GameSettings.bin";
+
+void SaveGameSettings()
+{
+	// Heap: file I/O allocates
+	ScopedSuppressAllocationTracking suppress;
+
+	GameSettings gameSettings
+	{
+		.iLanguage = static_cast<int32_t>(geLanguage),
+		.fUiFontScale = engine::gUiFontScale.Get(),
+	};
+
+	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcGameSettingsPath, gameSettings);
+}
+
+void LoadGameSettings()
+{
+	GameSettings gameSettings {};
+
+	if (engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcGameSettingsPath, gameSettings))
+	{
+		// The file is opaque input: an out-of-range index would read past the translation table's language extent.
+		geLanguage = (gameSettings.iLanguage >= kEnglish && gameSettings.iLanguage < kLanguageCount) ? static_cast<Language>(gameSettings.iLanguage) : kEnglish;
+		// Wrapper::Set clamps to the wrapper range, but std::clamp passes a NaN through unchanged.
+		if (std::isfinite(gameSettings.fUiFontScale))
+		{
+			engine::gUiFontScale.Set(gameSettings.fUiFontScale);
+		}
+		else
+		{
+			engine::gUiFontScale.ResetToDefault();
+		}
+	}
+}
+
+void ResetGameSettings()
+{
+	geLanguage = kEnglish;
+	engine::gUiFontScale.ResetToDefault();
+
+	SaveGameSettings();
+}
 
 struct SoundSettings
 {
@@ -74,7 +128,7 @@ enum class GraphicsSettingsFlags : uint8_t
 
 struct GraphicsSettings
 {
-	static constexpr int64_t kiVersion = 9;
+	static constexpr int64_t kiVersion = 10;
 
 	common::Flags<GraphicsSettingsFlags> flags {};
 	uint8_t uiPad[3] {};
@@ -89,7 +143,6 @@ struct GraphicsSettings
 	float fMinimumAmbient = 0.0f;
 	float fLightingUpdateCadence = 1.0f;
 	float fUiOpacity = 0.9f;
-	float fUiFontScale = 1.0f;
 	engine::UiTheme eUiTheme = engine::UiTheme::kNavalSteel;
 	uint8_t uiTrailingPad[3] {};
 };
@@ -113,7 +166,6 @@ void SaveGraphicsSettings()
 		.fMinimumAmbient = engine::gSunMoonMinimumAmbient.Get(),
 		.fLightingUpdateCadence = engine::gLightingUpdateCadence.Get(),
 		.fUiOpacity = engine::gUiOpacity.Get(),
-		.fUiFontScale = engine::gUiFontScale.Get(),
 		.eUiTheme = engine::GetUiTheme(),
 	};
 
@@ -159,7 +211,6 @@ bool LoadGraphicsSettings()
 		engine::gWindEnabled.Set(graphicsSettings.flags & GraphicsSettingsFlags::kWind);
 		engine::gOpaqueUi.Set(graphicsSettings.flags & GraphicsSettingsFlags::kOpaqueUi);
 		engine::gUiOpacity.Set(graphicsSettings.fUiOpacity);
-		engine::gUiFontScale.Set(graphicsSettings.fUiFontScale);
 		engine::gUiTheme.Set<engine::UiTheme>(graphicsSettings.eUiTheme);
 		return true;
 	}
@@ -187,7 +238,6 @@ void ResetGraphicsSettings()
 	engine::gWindEnabled.ResetToDefault();
 	engine::gOpaqueUi.ResetToDefault();
 	engine::gUiOpacity.ResetToDefault();
-	engine::gUiFontScale.ResetToDefault();
 	engine::gUiTheme.ResetToDefault();
 
 	SaveGraphicsSettings();

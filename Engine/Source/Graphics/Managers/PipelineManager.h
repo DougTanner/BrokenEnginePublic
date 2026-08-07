@@ -93,9 +93,6 @@ public:
 	// mirrors mShadowPipelineNames in DynamicPipelines)
 	std::string mSpreadPipelineNames[shaders::kiMaxSpreadPasses];
 
-	// Clears the active lighting deposit window before the LOAD-op deposit MRT.
-	Pipeline mLightingClearPipeline;
-
 	// Combine pipeline (tone map accumulate → UNORM, all 3 colors in one dispatch)
 	Pipeline mCombinePipeline;
 

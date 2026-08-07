@@ -120,11 +120,11 @@ void main()
 	// Sample lighting texture, at world x/y and at projected base-height x/y
 	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4LightingArea);
 	vec4 pf4Lighting[3];
-	ReadLighting(globalLayout, pf4Lighting, pLightingSamplers, f2LightingTexcoord);
+	ReadLighting(pf4Lighting, pLightingSamplers, f2LightingTexcoord);
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
 	vec2 f2LightingTexcoordBaseHeight = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4LightingArea);
 	// Direction-averaged base-height lighting (single fetch replaces three EWNS samples — feeds both ambient and BlendSmoke).
-	vec3 f3AmbientSum = ReadAmbientLighting(globalLayout, ambientLightingSampler, f2LightingTexcoordBaseHeight);
+	vec3 f3AmbientSum = ReadAmbientLighting(ambientLightingSampler, f2LightingTexcoordBaseHeight);
 
 	// Apply directional and ambient lighting
 	vec3 f3Directional = DirectionalLighting(pf4Lighting, f3Normal, mainLayout.fLightingDirectionalIntensity, mainLayout.fLightingDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
@@ -142,7 +142,7 @@ void main()
 	// Shadow with smoke at world position. Moon bypasses the terrain ray-march shadow only;
 	// object shadows and smoke volumetric attenuation still apply to both lights.
 	float fShadowMoon = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
-	float fShadowSun  = fShadowMoon * SampleTerrainShadow(globalLayout, shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea));
+	float fShadowSun  = fShadowMoon * SampleTerrainShadow(shadowTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4ShadowArea));
 	// AO: sample the per-island occlusion and fold `fIslandAmbientOcclusion` into the SunLighting
 	// occlusion factor below.
 	float fAmbientOcclusionRaw = texture(ambientOcclusionTextureSamplers[nonuniformEXT(uiInTextureSlot)], f2InIslandTexcoord).x;

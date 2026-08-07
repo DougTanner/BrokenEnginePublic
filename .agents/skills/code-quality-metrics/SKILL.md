@@ -2,7 +2,7 @@
 name: code-quality-metrics
 description: >-
   Capture deterministic C++ code-quality metrics for an exact file, directory, or recursive
-  repository scope, or compare an authorized target manifest against a full Git baseline.
+  repository scope, or compare a listed set of target paths against a full Git baseline.
   Use when a quality snapshot, clone/complexity trend, or review advisory is needed without
   changing source, grading contributors, or automatically prescribing refactors.
 allowed-tools: [Read, PowerShell]
@@ -12,8 +12,8 @@ disable-model-invocation: false
 # Code Quality Metrics
 
 Run the public PowerShell entry point from the repository root. Read
-[MetricContract.md](references/MetricContract.md) before creating or consuming a target manifest;
-read [Remediation.md](references/Remediation.md) only when explaining advisory results.
+[MetricContract.md](references/MetricContract.md) before creating a targets file or consuming a
+report; read [Remediation.md](references/Remediation.md) only when explaining advisory results.
 
 ## Snapshot
 
@@ -24,46 +24,41 @@ pwsh -NoProfile -File .agents/skills/code-quality-metrics/scripts/Invoke-CodeQua
   -Mode Snapshot -Target Engine/Source -Scope Recursive -RepositoryRoot (Get-Location).Path
 ```
 
-Use `Exact` for one file, `Directory` for direct files, and `Recursive` for descendants. The
-default profile is `BrokenEngineExtended`; it classifies `.h` files beneath contiguous `Data/Shaders`
-components as GLSL, except the dual-language `ShaderLayouts.h` and `ShaderLayoutsBase.h`, and its fixed
-normalizer writes a parser-only, byte-preserving capture for the limited Broken Engine C++ extensions while real C++ remains untouched. Use
-`StrictUpstream` only when `.h` inputs must remain unsupported; it parses raw capture bytes. Treat
-corpus-only parse omissions as reported advisory coverage, not failures.
-
-A skill that consumes only summary fields calls
-`.agents/skills/code-quality-metrics/scripts/Get-CodeQualityEvidence.ps1` instead; that digest
-wrapper runs this same entry point and returns one compact JSON object.
+Use `Exact` for one file, `Directory` for direct files, and `Recursive` for descendants. `.h` files
+are C++ inputs, except a `.h` beneath contiguous `Data/Shaders` components is pure GLSL and rejected
+(`ShaderLayouts.h` and `ShaderLayoutsBase.h` stay C++). Treat corpus-only parse omissions as reported
+advisory coverage, not failures.
 
 ## Compare
 
-Compare only identities explicitly authorized by a UTF-8 target manifest:
+Compare only the paths listed in a UTF-8 targets file against a full-SHA baseline:
 
 ```powershell
 pwsh -NoProfile -File .agents/skills/code-quality-metrics/scripts/Invoke-CodeQualityMetrics.ps1 `
-  -Mode Compare -TargetManifest Temp/targets.json -Baseline <full-commit-sha> `
+  -Mode Compare -Targets Temp/targets.json -Baseline <full-commit-sha> `
   -RepositoryRoot (Get-Location).Path
 ```
 
-Do not broaden targets from checkout changes. Context changes remain visible but suppress target
-attribution. The command writes canonical compact JSON to stdout and, when requested, an identical
-`-OutputPath` file. It logs diagnostics to stderr; exit `2` means inputs, capture, bootstrap,
-analyzer, drift, or output persistence failed. Read [MetricContract.md](references/MetricContract.md)
-`## Target capture failures` for both target-failure contracts, advisory `upstream-omitted` rows, and
-the complete-parsing requirement for PASS.
+The analyzer derives pairing itself: a listed path in both corpora pairs with itself, a current-only
+path pairs with the first similar baseline-only path as a rename, and the rest become one-sided
+add or delete pairs. Do not broaden targets from checkout changes. Context changes remain visible
+but suppress target attribution.
 
-Compare authenticates the provisioned analyzer internally, archives it into a fresh ignored scratch directory,
-and imports that copied source. Its recorded submodule commit only chooses which files go into the
-archive; it is not a metric, cache, or report identity. The report schema is
-`broken-engine-code-quality-metrics/v2`; its `tool` object is
-`{adapterVersion,lockSha256,python,disableSg}` with `adapterVersion` set to `"4"`.
+## Output and failures
 
-A skill that records only the comparison summary calls
-`.agents/skills/code-quality-metrics/scripts/Get-CodeQualityEvidence.ps1 -Mode Compare` instead; that
-digest wrapper runs this same entry point and forwards both target failures unchanged.
+Both modes write canonical compact JSON to stdout and, when requested, the same full report to
+`-OutputPath`. Add `-Digest` to emit a compact `broken-engine-code-quality-evidence/v2` summary to
+stdout instead of the full report, or `-Phase0Hints` (which implies `-Digest`) to add capped
+outlier, clone, complexity, and skip hints for the target paths.
+
+Diagnostics go to stderr; exit `2` means inputs, capture, bootstrap, analyzer, drift, digest, or
+output persistence failed. A target parse or signature-extraction failure exits `2` with the
+analyzer's one-line JSON diagnostic forwarded verbatim. Read
+[MetricContract.md](references/MetricContract.md) `## Failures` for both target-failure contracts,
+advisory `upstream-omitted` rows, and the complete-parsing requirement for PASS.
 
 ## Interpretation
 
-Report the result as advisory evidence. Name the profile, scope, coverage omissions, suppression
-reasons, and comparison cohort before interpreting a delta. Do not turn a metric into a landing gate,
-person score, or automatic refactor instruction.
+Report the result as advisory evidence. Name the scope, coverage omissions, suppression reasons, and
+comparison cohort before interpreting a delta. Do not turn a metric into a landing gate, person
+score, or automatic refactor instruction.

@@ -28,6 +28,7 @@ enum class UiState
 {
 	kNone,
 
+	kGameSettings,
 	kGraphicsSettings,
 	kModal,
 	kPause,

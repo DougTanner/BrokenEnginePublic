@@ -5,6 +5,7 @@
 namespace game
 {
 class DeathMenuScreen;
+class GameSettingsScreen;
 class GraphicsMenuScreen;
 class HudScreen;
 class MainMenuScreen;
@@ -81,6 +82,7 @@ private:
 	std::unique_ptr<game::PauseMenuScreen> mpPauseMenuScreen;
 	std::unique_ptr<game::GraphicsMenuScreen> mpGraphicsMenuScreen;
 	std::unique_ptr<game::SoundMenuScreen> mpSoundMenuScreen;
+	std::unique_ptr<game::GameSettingsScreen> mpGameSettingsScreen;
 	std::unique_ptr<game::DeathMenuScreen> mpDeathMenuScreen;
 	std::unique_ptr<game::HudScreen> mpHudScreen;
 

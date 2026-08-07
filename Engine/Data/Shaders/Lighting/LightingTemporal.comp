@@ -27,25 +27,22 @@ layout (set = 1, binding = 8, rgba8) uniform image2D combineImageAmbient; // keC
 // settled grid history == current so it is a no-op. Mirror of ShadowTemporal.comp over the four combine outputs.
 void main()
 {
-	ivec2 i2Coord = ivec2(gl_GlobalInvocationID.xy) + ivec2(globalLayout.iLightingValidMinX, globalLayout.iLightingValidMinY);
-	if (any(greaterThanEqual(i2Coord, ivec2(globalLayout.iLightingValidMaxX, globalLayout.iLightingValidMaxY))))
+	// The dispatch rounds the texture extent up to whole tiles, so the tail threads guard against it.
+	ivec2 i2Size = imageSize(combineImageR);
+	ivec2 i2Coord = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(i2Coord, i2Size)))
 		return;
 	float fBlend = globalLayout.fLightingTemporalBlend;
 	if (fBlend >= 1.0f)
 		return;
 
-	ivec2 i2Size = imageSize(combineImageR);
 	vec2 f2Uv = (vec2(i2Coord) + 0.5f) / vec2(i2Size);
 	vec2 f2World = VisibleAreaToWorld(f2Uv, globalLayout.f4LightingArea);
 
 	// This texel's world position -> previous-frame UV. Disocclusion (reprojected UV outside [0,1] = newly
 	// revealed): keep current (the history fetch would be off-grid / stale).
 	vec2 f2PreviousUv = WorldToVisibleArea(vec3(f2World, 0.0f), globalLayout.f4LightingAreaPrevious);
-	ivec2 i2HistorySize = textureSize(historyR, 0);
-	ivec2 i2PreviousFirstTexel = ivec2(floor(f2PreviousUv * vec2(i2HistorySize) - 0.5f));
-	ivec2 i2PreviousLastTexel = i2PreviousFirstTexel + ivec2(1);
-	ivec4 i4HistoryBounds = ivec4(globalLayout.iLightingHistoryValidMinX, globalLayout.iLightingHistoryValidMinY, globalLayout.iLightingHistoryValidMaxX, globalLayout.iLightingHistoryValidMaxY);
-	if (any(lessThan(i2PreviousFirstTexel, i4HistoryBounds.xy)) || any(greaterThanEqual(i2PreviousLastTexel, i4HistoryBounds.zw)))
+	if (any(lessThan(f2PreviousUv, vec2(0.0f))) || any(greaterThan(f2PreviousUv, vec2(1.0f))))
 		return;
 
 	imageStore(combineImageR, i2Coord, mix(textureLod(historyR, f2PreviousUv, 0.0f), imageLoad(combineImageR, i2Coord), fBlend));

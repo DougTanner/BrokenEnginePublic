@@ -1,11 +1,12 @@
-# Game UI - Localization and Game Settings
+# Game UI - Localization and Wrapper Storage
 
 Game-owned localization and wrapper storage. Engine wrapper semantics are defined by the Engine UI hub (`../../../../Engine/Source/Ui/AGENTS.md`); ImGui screens live in Screens (`Screens/AGENTS.md`).
 
 ## Localization
 
 - Localization is a shared, header-only UTF-32 table initialized in the `Game` constructor on both builds. Missing translations fall back to English, and a sentinel plus compile-time extent check prevents shifted rows.
-- Initialization uppercases the table in place. Language selection is client runtime state and starts at English each launch.
+- Initialization uppercases the table in place. Language selection is client runtime state, chosen on the Game Settings screen and persisted with the UI font scale in `GameSettings.bin`; a file whose stored index falls outside the Language enum falls back to English.
+- Players see the audio menu labeled AUDIO, while its screen, UI state, wrappers, and settings file keep the internal Sound name. The split is deliberate: renaming the internals would rewrite a persisted filename for no player-visible gain.
 - UTF-8 conversion and workbuffer lifetime belong to Screens (`Screens/AGENTS.md`).
 
 ## Wrapper Affinity

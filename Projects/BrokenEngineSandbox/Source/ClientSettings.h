@@ -5,6 +5,10 @@
 namespace game
 {
 
+void SaveGameSettings();
+void LoadGameSettings();
+void ResetGameSettings();
+
 void SaveSoundSettings();
 void LoadSoundSettings();
 void ResetSoundSettings();

@@ -259,7 +259,7 @@ void main()
 	vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4VisibleArea);
 	vec2 f2LightingPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
 	vec2 f2ShadowPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4ShadowArea);
-	float fShadow = max(mainLayout.fPbrShadowFloor, SampleTerrainShadow(globalLayout, shadowTextureSampler, f2ShadowPosition));
+	float fShadow = max(mainLayout.fPbrShadowFloor, SampleTerrainShadow(shadowTextureSampler, f2ShadowPosition));
 	const float fShadowMoon = 1.0; // moon bypasses terrain shadow; Model.frag has no other shadow inputs
 
 	// Accumulate lighting
@@ -306,7 +306,7 @@ void main()
 	// Sample lighting texture at world x/y (very close to base-height already)
 	vec2 f2LightingTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
 	vec4 pf4Lighting[3];
-	ReadLighting(globalLayout, pf4Lighting, pLightingSamplers, f2LightingTexcoord);
+	ReadLighting(pf4Lighting, pLightingSamplers, f2LightingTexcoord);
 
 	// Apply directional lighting
 	vec3 f3Directional = DirectionalLighting(pf4Lighting, n, mainLayout.fLightingDirectionalIntensity, mainLayout.fLightingDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
@@ -316,13 +316,13 @@ void main()
 	// Engine directional lighting
 	vec2 f2DirectTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4LightingArea);
 	vec4 pf4DirectLighting[3];
-	ReadLighting(globalLayout, pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
+	ReadLighting(pf4DirectLighting, pLightingSamplers, f2DirectTexcoord);
 	vec3 f3Direct = DirectionalLighting(pf4DirectLighting, n, mainLayout.fLightingDirectionalIntensity, mainLayout.fLightingDirectionalPower, mainLayout.fLightingDirectionalPowerMode);
 
 	vec2 f2AmbientPosition = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
 	vec2 f2AmbientTexcoord = WorldToVisibleArea(vec3(f2AmbientPosition, 0.0f), globalLayout.f4LightingArea);
 	vec4 pf4Lighting[3];
-	ReadLighting(globalLayout, pf4Lighting, pLightingSamplers, f2AmbientTexcoord);
+	ReadLighting(pf4Lighting, pLightingSamplers, f2AmbientTexcoord);
 	vec3 f3Ambient = AmbientLighting(pf4Lighting, mainLayout.fLightingAmbientIntensity, mainLayout.fLightingAmbientPower, mainLayout.fLightingAmbientPowerMode);
 	pf4Lighting[0] *= mainLayout.fLightingAmbientIntensity;
 	pf4Lighting[1] *= mainLayout.fLightingAmbientIntensity;

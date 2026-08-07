@@ -87,12 +87,8 @@ function Add-FixtureSkill([string] $Root, [string[]] $Name) {
 	foreach ($skill in $Name) { Set-FixtureText $Root ".agents/skills/$skill/SKILL.md" "# $skill`n" }
 }
 
-function Get-FixtureSha256([string] $Text) {
-	return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($script:Utf8.GetBytes($Text))).ToLowerInvariant()
-}
-
-function Get-ManifestPath([string] $PromptPath) {
-	return ([IO.Path]::GetFullPath($PromptPath) + '.target-manifest.json')
+function Get-TargetsPath([string] $PromptPath) {
+	return ([IO.Path]::GetFullPath($PromptPath) + '.targets.json')
 }
 
 function New-ScratchFile([string] $Name, [string] $Text) {
@@ -172,9 +168,9 @@ function Test-AssembledPrompt($Fixture) {
 	Assert-Equal 'ok' $run.Json.code 'assembled code'
 	Assert-True (-not [string]::IsNullOrWhiteSpace($run.Json.message)) 'assembled message is non-empty'
 	Assert-Equal ([IO.Path]::GetFullPath($promptPath)) $run.Json.promptPath 'assembled promptPath'
-	$manifestPath = Get-ManifestPath $promptPath
-	Assert-Equal $manifestPath $run.Json.manifestPath 'assembled manifestPath names the prompt sibling'
-	Assert-True (Test-Path -LiteralPath $manifestPath) 'assembled wrote the target manifest file'
+	$targetsPath = Get-TargetsPath $promptPath
+	Assert-Equal $targetsPath $run.Json.targetsPath 'assembled targetsPath names the prompt sibling'
+	Assert-True (Test-Path -LiteralPath $targetsPath) 'assembled wrote the targets file'
 	Assert-Equal 5 $run.Json.fileCount 'assembled fileCount'
 	Assert-Equal 2 $run.Json.binaryExcluded 'assembled binaryExcluded'
 	Assert-Equal 4 $run.Json.sectionsWritten 'assembled sectionsWritten'
@@ -184,14 +180,12 @@ function Test-AssembledPrompt($Fixture) {
 	Assert-Equal $bytes.Length $run.Json.promptBytes 'assembled promptBytes matches the file length'
 	$prompt = $script:Utf8.GetString($bytes)
 
-	if (Test-Path -LiteralPath $manifestPath) {
-		$manifestText = $script:Utf8.GetString([IO.File]::ReadAllBytes($manifestPath))
-		Assert-True ($prompt.Contains("Target manifest: $manifestPath`n`n$manifestText")) 'assembled embeds the manifest path and bytes in the evidence'
-		$manifest = $manifestText | ConvertFrom-Json -Depth 32
-		Assert-Equal 'broken-engine-code-quality-target-manifest/v1' $manifest.schemaVersion 'assembled manifest schemaVersion'
-		Assert-Equal 2 (@($manifest.pairs).Count) 'assembled manifest holds one pair per changed C++ path'
-		Assert-Equal 'Engine/Source/Keep.cpp,Engine/Source/Old.cpp' ((@($manifest.pairs) | ForEach-Object { $_.baseline.path }) -join ',') 'assembled manifest names both baseline sides'
-		Assert-Equal 'Engine/Source/Keep.cpp,Engine/Source/New.cpp' ((@($manifest.pairs) | ForEach-Object { $_.current.path }) -join ',') 'assembled manifest names both current sides'
+	if (Test-Path -LiteralPath $targetsPath) {
+		$targetsText = $script:Utf8.GetString([IO.File]::ReadAllBytes($targetsPath))
+		Assert-True ($prompt.Contains("Targets file: $targetsPath`n`n$targetsText")) 'assembled embeds the targets path and bytes in the evidence'
+		$targets = $targetsText | ConvertFrom-Json -Depth 32
+		Assert-Equal 'broken-engine-code-quality-targets/v1' $targets.schemaVersion 'assembled targets schemaVersion'
+		Assert-Equal 'Engine/Source/Keep.cpp,Engine/Source/New.cpp,Engine/Source/Old.cpp' ((@($targets.paths)) -join ',') 'assembled targets hold the union of both rename sides and the modified path'
 	}
 
 	$headings = @('# (a) Role', '# (b) Scope', '# (c) Evidence', '# (d) Output contract')
@@ -301,25 +295,25 @@ function Test-UnlistedUntracked($Fixture) {
 	Assert-True (-not (Test-Path -LiteralPath $promptPath)) 'unlisted untracked creates no prompt file'
 }
 
-function Test-ManifestSiblingExists($Fixture) {
+function Test-TargetsSiblingExists($Fixture) {
 	$scopeFile = New-ScratchFile 'scope' $script:ScopeText
-	$promptPath = New-ScratchPath 'manifestsibling'
-	$manifestPath = Get-ManifestPath $promptPath
-	$existing = "{`"pairs`":[]}`n"
-	[IO.File]::WriteAllBytes($manifestPath, $script:Utf8.GetBytes($existing))
+	$promptPath = New-ScratchPath 'targetssibling'
+	$targetsPath = Get-TargetsPath $promptPath
+	$existing = "{`"paths`":[]}`n"
+	[IO.File]::WriteAllBytes($targetsPath, $script:Utf8.GetBytes($existing))
 	$run = Invoke-PromptScript @(
 		'-RepositoryRoot', $Fixture.Root, '-Baseline', $Fixture.Baseline, '-AssignedSkill', 'repo-code-review',
 		'-ScopeFile', $scopeFile, '-PromptPath', $promptPath,
 		'-UntrackedPath', 'Notes.md,Tools/Blob.bin,Docs/Capture.md')
-	Assert-Equal 2 $run.ExitCode 'existing manifest sibling exit code'
+	Assert-Equal 2 $run.ExitCode 'existing targets sibling exit code'
 	if ($null -ne $run.Json) {
-		Assert-Equal 'blocked' $run.Json.status 'existing manifest sibling status'
-		Assert-Equal 'prompt.path-exists' $run.Json.code 'existing manifest sibling code'
-		Assert-True ($null -eq $run.Json.manifestPath) 'existing manifest sibling reports no written manifest'
+		Assert-Equal 'blocked' $run.Json.status 'existing targets sibling status'
+		Assert-Equal 'prompt.path-exists' $run.Json.code 'existing targets sibling code'
+		Assert-True ($null -eq $run.Json.targetsPath) 'existing targets sibling reports no written targets file'
 	}
-	else { Assert-True $false 'existing manifest sibling emitted JSON' }
-	Assert-True ($script:Utf8.GetString([IO.File]::ReadAllBytes($manifestPath)) -ceq $existing) 'existing manifest sibling leaves the file byte-unchanged'
-	Assert-True (-not (Test-Path -LiteralPath $promptPath)) 'existing manifest sibling creates no prompt file'
+	else { Assert-True $false 'existing targets sibling emitted JSON' }
+	Assert-True ($script:Utf8.GetString([IO.File]::ReadAllBytes($targetsPath)) -ceq $existing) 'existing targets sibling leaves the file byte-unchanged'
+	Assert-True (-not (Test-Path -LiteralPath $promptPath)) 'existing targets sibling creates no prompt file'
 }
 
 function Test-AssignedSkillUnknown($Fixture) {
@@ -356,10 +350,10 @@ function Test-MixedCaseAssignedSkill($Fixture) {
 		'-ScopeFile', $scopeFile, '-PromptPath', $promptPath,
 		'-UntrackedPath', 'Notes.md,Tools/Blob.bin,Docs/Capture.md')
 	Assert-Equal 0 $run.ExitCode 'mixed-case repo-code-review exit code'
-	$manifestPath = Get-ManifestPath $promptPath
-	if ($null -ne $run.Json) { Assert-Equal $manifestPath $run.Json.manifestPath 'mixed-case repo-code-review reports the manifest sibling' }
+	$targetsPath = Get-TargetsPath $promptPath
+	if ($null -ne $run.Json) { Assert-Equal $targetsPath $run.Json.targetsPath 'mixed-case repo-code-review reports the targets sibling' }
 	else { Assert-True $false 'mixed-case repo-code-review emitted JSON' }
-	Assert-True (Test-Path -LiteralPath $manifestPath) 'mixed-case repo-code-review writes the target manifest file'
+	Assert-True (Test-Path -LiteralPath $targetsPath) 'mixed-case repo-code-review writes the targets file'
 }
 
 # --- Repository B: a committed head over a dirty working tree ------------------------------------
@@ -389,16 +383,11 @@ function Test-HeadHonoured() {
 	Assert-True ($prompt.Contains('committed head content')) 'head-side diffs the committed head'
 	Assert-True (-not $prompt.Contains('dirty working tree content')) 'head-side ignores dirty working-tree bytes'
 
-	$manifestPath = Get-ManifestPath $promptPath
-	Assert-True (Test-Path -LiteralPath $manifestPath) 'head-side wrote the target manifest file'
-	if (Test-Path -LiteralPath $manifestPath) {
-		$manifest = ($script:Utf8.GetString([IO.File]::ReadAllBytes($manifestPath))) | ConvertFrom-Json -Depth 32
-		$pairs = @($manifest.pairs)
-		Assert-Equal 1 $pairs.Count 'head-side manifest holds the one changed C++ pair'
-		if ($pairs.Count -eq 1) {
-			Assert-Equal (Get-FixtureSha256 "baseline content`n") $pairs[0].baseline.sha256 'head-side manifest carries the baseline identity'
-			Assert-Equal (Get-FixtureSha256 "committed head content`n") $pairs[0].current.sha256 'head-side manifest carries the committed head identity, not the dirty tree'
-		}
+	$targetsPath = Get-TargetsPath $promptPath
+	Assert-True (Test-Path -LiteralPath $targetsPath) 'head-side wrote the targets file'
+	if (Test-Path -LiteralPath $targetsPath) {
+		$targets = ($script:Utf8.GetString([IO.File]::ReadAllBytes($targetsPath))) | ConvertFrom-Json -Depth 32
+		Assert-Equal 'Engine/Source/Head.cpp' ((@($targets.paths)) -join ',') 'head-side targets name the one changed C++ path'
 	}
 
 	$conflictPrompt = New-ScratchPath 'conflict'
@@ -414,10 +403,10 @@ function Test-HeadHonoured() {
 	Assert-True (-not (Test-Path -LiteralPath $conflictPrompt)) 'head with untracked creates no prompt file'
 }
 
-# --- Repositories C and D: no eligible C++ pair, and a blocked manifest run ----------------------
+# --- Repositories C and D: no eligible C++ target, and an untracked-addition rename ---------------
 
-function Test-ZeroPairManifest() {
-	$root = New-FixtureRoot 'zeropair'
+function Test-ZeroTargets() {
+	$root = New-FixtureRoot 'zerotargets'
 	Add-FixtureSkill $root @('repo-code-review')
 	Set-FixtureText $root 'Documents/Notes.txt' "one`n"
 	Invoke-FixtureGit $root @('add', '--all')
@@ -426,45 +415,42 @@ function Test-ZeroPairManifest() {
 	Set-FixtureText $root 'Documents/Notes.txt' "two`n"
 
 	$scopeFile = New-ScratchFile 'scope' $script:ScopeText
-	$promptPath = New-ScratchPath 'zeropair'
+	$promptPath = New-ScratchPath 'zerotargets'
 	$run = Invoke-PromptScript @(
 		'-RepositoryRoot', $root, '-Baseline', $baseline, '-AssignedSkill', 'repo-code-review',
 		'-ScopeFile', $scopeFile, '-PromptPath', $promptPath)
-	Assert-Equal 0 $run.ExitCode 'zero-pair manifest exit code'
-	$manifestPath = Get-ManifestPath $promptPath
-	Assert-True (Test-Path -LiteralPath $manifestPath) 'zero-pair manifest is written, not treated as an error'
-	if (-not (Test-Path -LiteralPath $manifestPath)) { return }
-	$manifest = ($script:Utf8.GetString([IO.File]::ReadAllBytes($manifestPath))) | ConvertFrom-Json -Depth 32
-	Assert-Equal 'broken-engine-code-quality-target-manifest/v1' $manifest.schemaVersion 'zero-pair manifest schemaVersion'
-	Assert-Equal 0 (@($manifest.pairs).Count) 'zero-pair manifest holds no pair'
+	Assert-Equal 0 $run.ExitCode 'zero-target exit code'
+	$targetsPath = Get-TargetsPath $promptPath
+	Assert-True (Test-Path -LiteralPath $targetsPath) 'zero-target targets file is written, not treated as an error'
+	if (-not (Test-Path -LiteralPath $targetsPath)) { return }
+	$targets = ($script:Utf8.GetString([IO.File]::ReadAllBytes($targetsPath))) | ConvertFrom-Json -Depth 32
+	Assert-Equal 'broken-engine-code-quality-targets/v1' $targets.schemaVersion 'zero-target targets schemaVersion'
+	Assert-Equal 0 (@($targets.paths).Count) 'zero-target targets hold no path'
 }
 
-function Test-ManifestRunBlocked() {
-	$root = New-FixtureRoot 'manifestblocked'
+function Test-UntrackedRenameTargets() {
+	$root = New-FixtureRoot 'untrackedrename'
 	Add-FixtureSkill $root @('repo-code-review')
 	Set-FixtureText $root 'Engine/Source/Gone.cpp' "shared content`n"
 	Invoke-FixtureGit $root @('add', '--all')
 	Invoke-FixtureGit $root @('commit', '--quiet', '-m', 'baseline')
 	$baseline = (Get-FixtureGitText $root @('rev-parse', 'HEAD')).Trim()
-	# An untracked addition holding a removed blob's bytes is a rename Git never reported, which the
-	# manifest run blocks.
+	# An untracked addition holding a removed blob's bytes is a rename Git never reported. The paths
+	# union carries both sides, and the analyzer derives the pairing from them.
 	Invoke-FixtureGit $root @('rm', '--quiet', 'Engine/Source/Gone.cpp')
 	Set-FixtureText $root 'Engine/Source/Copy.cpp' "shared content`n"
 
 	$scopeFile = New-ScratchFile 'scope' $script:ScopeText
-	$promptPath = New-ScratchPath 'manifestblocked'
+	$promptPath = New-ScratchPath 'untrackedrename'
 	$run = Invoke-PromptScript @(
 		'-RepositoryRoot', $root, '-Baseline', $baseline, '-AssignedSkill', 'repo-code-review',
 		'-ScopeFile', $scopeFile, '-PromptPath', $promptPath, '-UntrackedPath', 'Engine/Source/Copy.cpp')
-	Assert-Equal 2 $run.ExitCode 'blocked manifest run exit code'
-	if ($null -ne $run.Json) {
-		Assert-Equal 'blocked' $run.Json.status 'blocked manifest run status'
-		Assert-Equal 'prompt.inventory-blocked' $run.Json.code 'blocked manifest run code'
-		Assert-True ($run.Json.message.Contains('inventory.manifest-unreported-rename')) 'blocked manifest run reports the inventory code'
-	}
-	else { Assert-True $false 'blocked manifest run emitted JSON' }
-	Assert-True (-not (Test-Path -LiteralPath $promptPath)) 'blocked manifest run creates no prompt file'
-	Assert-True (-not (Test-Path -LiteralPath (Get-ManifestPath $promptPath))) 'blocked manifest run creates no manifest file'
+	Assert-Equal 0 $run.ExitCode 'untracked-rename exit code'
+	$targetsPath = Get-TargetsPath $promptPath
+	Assert-True (Test-Path -LiteralPath $targetsPath) 'untracked-rename wrote the targets file'
+	if (-not (Test-Path -LiteralPath $targetsPath)) { return }
+	$targets = ($script:Utf8.GetString([IO.File]::ReadAllBytes($targetsPath))) | ConvertFrom-Json -Depth 32
+	Assert-Equal 'Engine/Source/Copy.cpp,Engine/Source/Gone.cpp' ((@($targets.paths)) -join ',') 'untracked-rename targets carry both sides'
 }
 
 # --- Repository E: the /verify-changes head and clean-tree contract ------------------------------
@@ -563,11 +549,11 @@ function Test-DiffTooLarge() {
 		Assert-Equal 'prompt.diff-too-large' $run.Json.code 'oversize code'
 		Assert-True ($run.Json.message.Contains('Huge.txt')) 'oversize message names the largest contributing path'
 		Assert-Equal 0 $run.Json.promptBytes 'oversize reports no prompt bytes'
-		Assert-True ($null -eq $run.Json.manifestPath) 'oversize reports no manifest path'
+		Assert-True ($null -eq $run.Json.targetsPath) 'oversize reports no targets path'
 	}
 	else { Assert-True $false 'oversize emitted JSON' }
 	Assert-True (-not (Test-Path -LiteralPath $promptPath)) 'oversize leaves no partial prompt file'
-	Assert-True (-not (Test-Path -LiteralPath (Get-ManifestPath $promptPath))) 'oversize deletes the manifest it created before the prompt'
+	Assert-True (-not (Test-Path -LiteralPath (Get-TargetsPath $promptPath))) 'oversize deletes the targets file it created before the prompt'
 	Assert-True (-not $run.Stdout.Contains('oversized evidence line')) 'oversize keeps evidence off stdout'
 }
 
@@ -579,12 +565,12 @@ try {
 	Test-PromptPathExists $repositoryA
 	Test-ScopeFileMissing $repositoryA
 	Test-UnlistedUntracked $repositoryA
-	Test-ManifestSiblingExists $repositoryA
+	Test-TargetsSiblingExists $repositoryA
 	Test-AssignedSkillUnknown $repositoryA
 	Test-MixedCaseAssignedSkill $repositoryA
 	Test-HeadHonoured
-	Test-ZeroPairManifest
-	Test-ManifestRunBlocked
+	Test-ZeroTargets
+	Test-UntrackedRenameTargets
 	Test-VerifyChangesHead
 	Test-DiffTooLarge
 }

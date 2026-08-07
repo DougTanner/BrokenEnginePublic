@@ -70,8 +70,8 @@ role already resolves to Sol.
    combine with `-Head`.
 2. Read the receipt, one compact JSON object on stdout. Exit `0` carries
    `promptPath`, `promptBytes`, `fileCount`, `binaryExcluded`,
-   `sectionsWritten`, and `manifestPath` — for `repo-code-review` the target
-   manifest the script wrote next to the prompt and embedded in its evidence, and
+   `sectionsWritten`, and `targetsPath` — for `repo-code-review` the targets
+   file the script wrote next to the prompt and embedded in its evidence, and
    `null` for every other assigned skill. Exit `2` is blocked and its `code` names the fix:
    `prompt.path-exists` — choose an unused prompt path, the existing file is left
    untouched; `prompt.diff-too-large` — the evidence passed the 4 MB budget, so

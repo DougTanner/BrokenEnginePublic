@@ -13,6 +13,9 @@ following the repository User Interaction rules:
 - Use plain language; the user is not a domain expert. Where a technical term
   is unavoidable, explain it in one short sentence or parenthetical the first
   time it appears.
+- Stick to the one established repository term for each concept and explain it
+  once, instead of paraphrasing with synonyms — paraphrase variety is itself a
+  source of confusion.
 - Supply full context. The user has not read the source code, any plan file,
   or earlier session scrollback, and text emitted before a question-tool call
   may never be displayed — put everything needed to understand and answer into

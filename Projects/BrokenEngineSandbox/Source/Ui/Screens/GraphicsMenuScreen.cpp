@@ -205,8 +205,6 @@ void GraphicsMenuScreen::Render()
 		// Unconditional: this screen's own background alpha always comes from the slider, even with Opaque UI on
 		ColumnSlider("UI Opacity", &engine::gUiOpacity);
 
-		WrapperPlusMinus("Font Size", &engine::gUiFontScale, 0.1f);
-
 		RadioRow("Theme", &engine::gUiTheme, static_cast<float>(engine::GetUiTheme()),
 			{{"Naval Steel", static_cast<float>(engine::UiTheme::kNavalSteel)}, {"Dark Amber", static_cast<float>(engine::UiTheme::kDarkAmber)}, {"Midnight Mauve", static_cast<float>(engine::UiTheme::kMidnightMauve)}});
 

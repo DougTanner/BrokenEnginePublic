@@ -23,6 +23,7 @@ enum Strings
 	kStringDefaults,
 	kStringGameOver,
 	kStringGamepad,
+	kStringGameSettings,
 	kStringMainMenu,
 	kStringMouse,
 	kStringMoveWith,
@@ -34,7 +35,7 @@ enum Strings
 	kStringReady,
 	kStringRespawn,
 	kStringResume,
-	kStringSound,
+	kStringAudio,
 	kStringQuit,
 	kStringPaused,
 
@@ -81,6 +82,15 @@ inline char32_t gppTranslatedStrings[][kLanguageCount][256]
 		U"", // Portuguese
 		U"", // French
 		U"", // German
+	},
+	// kStringGameSettings (machine translations — needs localization pass)
+	{
+		U"GAME SETTINGS", // English
+		U"游戏设置", // Chinese
+		U"AJUSTES DEL JUEGO", // Spanish
+		U"AJUSTES DO JOGO", // Portuguese
+		U"PARAMÈTRES DU JEU", // French
+		U"SPIELEINSTELLUNGEN", // German
 	},
 	// kStringMainMenu
 	{
@@ -181,14 +191,14 @@ inline char32_t gppTranslatedStrings[][kLanguageCount][256]
 		U"Recommencer", // French
 		U"Wieder aufnehmen", // German
 	},
-	// kStringSound
+	// kStringAudio
 	{
-		U"SOUND", // English
-		U"声音", // Chinese
-		U"SONIDO", // Spanish
-		U"SOM", // Portuguese
-		U"DU SON", // French
-		U"KLANG", // German
+		U"AUDIO", // English
+		U"音频", // Chinese
+		U"AUDIO", // Spanish
+		U"ÁUDIO", // Portuguese
+		U"AUDIO", // French
+		U"AUDIO", // German
 	},
 	// kStringQuit
 	{

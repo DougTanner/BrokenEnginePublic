@@ -84,20 +84,12 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 
 // Shadow
 inline bool gbShadowTemporalReset = false; // Set by CreateShadowTextures; re-arms the PopulateShadowParameters first-frame guard so a recreate doesn't blend stale history for one frame
-inline int64_t giShadowActivePixelsX = 0; // Profile GPU-screen readout: ray-marched sub-window width in texels (PopulateShadowParameters)
-inline int64_t giShadowActivePixelsY = 0; // Profile GPU-screen readout: ray-marched sub-window height in texels
 
 // Lighting
 // Set by CreateLightingTextures and by Camera on every frame with outward live-eye movement. PopulateLightingParameters
 // consumes it to force pure-current output and re-seed history; any lighting refresh cadence must refresh while it is pending.
 inline bool gbLightingTemporalReset = false;
-inline int64_t giLightingDepositPixelsX = 0; // Profile GPU-screen readout: bounded deposit-clear width in texels
-inline int64_t giLightingDepositPixelsY = 0; // Profile GPU-screen readout: bounded deposit-clear height in texels
-inline int64_t giLightingSpreadStartActivePixelsX = 0; // Profile GPU-screen readout: backward-closed start-pass spread width in texels
-inline int64_t giLightingSpreadStartActivePixelsY = 0; // Profile GPU-screen readout: backward-closed start-pass spread height in texels
-inline int64_t giLightingSpreadEndActivePixelsX = 0; // Profile GPU-screen readout: backward-closed final-pass spread width in texels
-inline int64_t giLightingSpreadEndActivePixelsY = 0; // Profile GPU-screen readout: backward-closed final-pass spread height in texels
-inline int64_t giLightingDepositInstances = 0; // Light-deposit quads this frame, reset and accumulated by the deposit EndRender writers; refreshes always process the bounded clear/spread chain so empty deposits publish fresh zeroes.
+inline int64_t giLightingDepositInstances = 0; // Light-deposit quads this frame, reset and accumulated by the deposit EndRender writers; refreshes always process the spread chain so empty deposits publish fresh zeroes.
 void RenderLightingGlobal(int64_t iCommandBuffer);
 void RenderLightingMain(int64_t iCommandBuffer);
 void RenderLightingSpreadIndirect(int64_t iCommandBuffer);

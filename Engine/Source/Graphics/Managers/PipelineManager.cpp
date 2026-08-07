@@ -13,7 +13,7 @@ using enum PipelineFlags;
 
 PipelineManager::PipelineManager()
 : mDynamicPipelines(mShaders)
-, mWorldLightingShadowPipelines(mShaders, mpPipelines, mSpreadPipelines, mSpreadPipelineNames, mLightingClearPipeline, mCombinePipeline, mLightingTemporalPipeline, mLightingHistoryCopyPipeline, mppWaterNormalTextures)
+, mWorldLightingShadowPipelines(mShaders, mpPipelines, mSpreadPipelines, mSpreadPipelineNames, mCombinePipeline, mLightingTemporalPipeline, mLightingHistoryCopyPipeline, mppWaterNormalTextures)
 {
 	ASSERT(gpPipelineManager == nullptr);
 

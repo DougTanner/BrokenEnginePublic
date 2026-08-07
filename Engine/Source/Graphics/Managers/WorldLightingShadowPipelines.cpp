@@ -12,12 +12,11 @@ namespace engine
 using enum DescriptorFlags;
 using enum PipelineFlags;
 
-WorldLightingShadowPipelines::WorldLightingShadowPipelines(std::unordered_map<common::crc_t, Shader>& rShaders, Pipeline* pPipelines, Pipeline* pSpreadPipelines, std::string* pSpreadPipelineNames, Pipeline& rLightingClearPipeline, Pipeline& rCombinePipeline, Pipeline& rLightingTemporalPipeline, Pipeline& rLightingHistoryCopyPipeline, Texture** ppWaterNormalTextures)
+WorldLightingShadowPipelines::WorldLightingShadowPipelines(std::unordered_map<common::crc_t, Shader>& rShaders, Pipeline* pPipelines, Pipeline* pSpreadPipelines, std::string* pSpreadPipelineNames, Pipeline& rCombinePipeline, Pipeline& rLightingTemporalPipeline, Pipeline& rLightingHistoryCopyPipeline, Texture** ppWaterNormalTextures)
 : mrShaders(rShaders)
 , mpPipelines(pPipelines)
 , mpSpreadPipelines(pSpreadPipelines)
 , mpSpreadPipelineNames(pSpreadPipelineNames)
-, mrLightingClearPipeline(rLightingClearPipeline)
 , mrCombinePipeline(rCombinePipeline)
 , mrLightingTemporalPipeline(rLightingTemporalPipeline)
 , mrLightingHistoryCopyPipeline(rLightingHistoryCopyPipeline)
@@ -28,20 +27,6 @@ WorldLightingShadowPipelines::WorldLightingShadowPipelines(std::unordered_map<co
 void WorldLightingShadowPipelines::CreateLightingPipelines()
 {
 	RenderTargetTextures& rTextures = gpTextureManager->mRenderTargetTextures;
-
-	mrLightingClearPipeline.Create(
-	{
-		.name = "LightingClear",
-		.flags = {kCompute, kIndirectHostVisible},
-		.ppShaders = {&mrShaders.at(data::kShadersLightingLightingClearcompCrc)},
-		.pDescriptorInfos =
-		{
-			{.flags = kGlobalLayoutUniformBuffers},
-			{.flags = kStorageImages, .pTexture = &rTextures.mpLightingTextures[0]},
-			{.flags = kStorageImages, .pTexture = &rTextures.mpLightingTextures[1]},
-			{.flags = kStorageImages, .pTexture = &rTextures.mpLightingTextures[2]},
-		},
-	});
 
 	// Spread pipelines (radial directional spread, fragment shader with MRT)
 	// Pass 0 reads deposit textures, passes 1+ read previous pass spread textures
@@ -56,7 +41,7 @@ void WorldLightingShadowPipelines::CreateLightingPipelines()
 		{
 			.name = mpSpreadPipelineNames[iPass],
 			.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-			.ppShaders = {&mrShaders.at(data::kShadersQuadsQuadsLightingWindowedvertCrc), &mrShaders.at(data::kShadersLightingLightingSpreadfragCrc)},
+			.ppShaders = {&mrShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mrShaders.at(data::kShadersLightingLightingSpreadfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 			.vkRenderPass = rTextures.mSpreadVkRenderPass,
 			.vkExtent3D = rTextures.mpSpreadTextures[iPass][0].mInfo.extent,
@@ -168,7 +153,7 @@ void WorldLightingShadowPipelines::CreatePipelineShadows()
 	mpPipelines[kPipelineShadow].Create(
 	{
 		.name = "Shadow",
-		.flags = {kCompute, kIndirectHostVisible},
+		.flags = {kCompute},
 		.ppShaders = {&mrShaders.at(data::kShadersShadowShadowcompCrc)},
 		.pDescriptorInfos =
 		{
@@ -181,7 +166,7 @@ void WorldLightingShadowPipelines::CreatePipelineShadows()
 	mpPipelines[kPipelineShadowBlurH].Create(
 	{
 		.name = "ShadowBlurH",
-		.flags = {kCompute, kIndirectHostVisible},
+		.flags = {kCompute},
 		.ppShaders = {&mrShaders.at(data::kShadersShadowShadowBlurHcompCrc)},
 		.pDescriptorInfos =
 		{
@@ -194,7 +179,7 @@ void WorldLightingShadowPipelines::CreatePipelineShadows()
 	mpPipelines[kPipelineShadowBlurV].Create(
 	{
 		.name = "ShadowBlurV",
-		.flags = {kCompute, kIndirectHostVisible},
+		.flags = {kCompute},
 		.ppShaders = {&mrShaders.at(data::kShadersShadowShadowBlurVcompCrc)},
 		.pDescriptorInfos =
 		{
@@ -235,7 +220,7 @@ void WorldLightingShadowPipelines::CreatePipelineShadows()
 	mpPipelines[kPipelineShadowTemporal].Create(
 	{
 		.name = "ShadowTemporal",
-		.flags = {kCompute, kIndirectHostVisible},
+		.flags = {kCompute},
 		.ppShaders = {&mrShaders.at(data::kShadersShadowShadowTemporalcompCrc)},
 		.pDescriptorInfos =
 		{
@@ -248,7 +233,7 @@ void WorldLightingShadowPipelines::CreatePipelineShadows()
 	mpPipelines[kPipelineShadowHistoryCopy].Create(
 	{
 		.name = "ShadowHistoryCopy",
-		.flags = {kCompute, kIndirectHostVisible},
+		.flags = {kCompute},
 		.ppShaders = {&mrShaders.at(data::kShadersShadowShadowHistoryCopycompCrc)},
 		.pDescriptorInfos =
 		{
