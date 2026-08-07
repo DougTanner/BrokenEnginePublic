@@ -1244,7 +1244,8 @@ void CommandMouse(const nlohmann::json& rParams, [[maybe_unused]] nlohmann::json
 	{
 		script.iWheelNotches = rParams.contains("notches") ? static_cast<int32_t>(rParams.at("notches").get<int64_t>()) : 1;
 
-		// Optional target coords: both present routes the ImGui wheel to the window under (x,y); neither preserves camera-zoom-sink behavior.
+		// Optional target coords: both present routes the ImGui wheel to the window under (x,y); neither leaves the
+		// previous pin in place. Either way the camera also zooms unless that hovered window can actually scroll.
 		bool bHasX = rParams.contains("x");
 		bool bHasY = rParams.contains("y");
 		if (bHasX != bHasY)

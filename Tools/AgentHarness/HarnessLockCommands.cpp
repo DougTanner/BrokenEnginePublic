@@ -167,7 +167,7 @@ namespace toolcli
 			Fail("lock metadata is unreadable");
 			return kiExitFailure;
 		}
-		if (bExists && !ValidateMetadataEnvelope(metadata, *locator))
+		if (bExists && !ValidateMetadataEnvelope(metadata, *locator, coordination::kiSchemaVersion))
 		{
 			Fail("lock metadata envelope is invalid");
 			return kiExitFailure;
@@ -258,7 +258,7 @@ namespace toolcli
 			return false;
 		}
 		nlohmann::json metadata;
-		if (!ReadMetadata(locator->path, metadata) || !ValidateMetadataEnvelope(metadata, *locator) || !HasOwner(metadata, rOwner))
+		if (!ReadMetadata(locator->path, metadata) || !ValidateMetadataEnvelope(metadata, *locator, coordination::kiSchemaVersion) || !HasOwner(metadata, rOwner))
 		{
 			return false;
 		}

@@ -590,7 +590,8 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 #if defined(BT_CLIENT)
 void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 {
-	if (rMenuInput.flags & MenuInputFlags::kQuit || (rMenuInput.flags & MenuInputFlags::kPauseMenu && InMainMenu()))
+	// Escape quits only from the basic main menu; with a settings sub-menu open it backs out to the menu below instead
+	if (rMenuInput.flags & MenuInputFlags::kQuit || (rMenuInput.flags & MenuInputFlags::kPauseMenu && InMainMenu() && meUiState == UiState::kPause))
 	{
 		mGameFlags.Set(engine::GameFlags::kQuit);
 	}

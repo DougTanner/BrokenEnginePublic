@@ -338,7 +338,7 @@ namespace toolcli::coordination
 		return rValue.is_number_integer() ? std::optional<int64_t>(rValue.get<int64_t>()) : std::nullopt;
 	}
 
-	bool ValidateMetadataEnvelope(const nlohmann::json& rMetadata, const Locator& rLocator)
+	bool ValidateMetadataEnvelope(const nlohmann::json& rMetadata, const Locator& rLocator, int64_t iExpectedSchemaVersion)
 	{
 		for (const char* pField : { "owner", "session", "worktree", "claimedAt", "heartbeatAt" })
 		{
@@ -350,7 +350,7 @@ namespace toolcli::coordination
 		uint64_t uiClaimedTicks = 0;
 		uint64_t uiHeartbeatTicks = 0;
 		const std::optional<int64_t> claimantPid = rMetadata.contains("claimantPid") ? JsonInt64(rMetadata["claimantPid"]) : std::nullopt;
-		return rMetadata.contains("schemaVersion") && JsonIntegerEquals(rMetadata["schemaVersion"], kiSchemaVersion) &&
+		return rMetadata.contains("schemaVersion") && JsonIntegerEquals(rMetadata["schemaVersion"], iExpectedSchemaVersion) &&
 			rMetadata.contains("domain") && rMetadata["domain"].is_string() && rMetadata["domain"].get<std::string>() == WideToUtf8(rLocator.domain) &&
 			rMetadata.contains("logicalKey") && rMetadata["logicalKey"].is_string() && rMetadata["logicalKey"].get<std::string>() == WideToUtf8(rLocator.logicalKey) &&
 			claimantPid && *claimantPid >= 0 && *claimantPid <= UINT32_MAX &&

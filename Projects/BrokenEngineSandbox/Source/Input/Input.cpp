@@ -132,13 +132,17 @@ void Input::UpdateCameraInput()
 		miPreviousScrollWheelValue = iScrollNow;
 		mStateFlags.Set(InputStateFlags::kScrollWheelInitialized);
 	}
-	bool bAllowDebugMainMenuZoom = false;
-	if constexpr (kbDebugInput)
-	{
-		bAllowDebugMainMenuZoom = gpGame->InMainMenu() && gpGame->meUiState == UiState::kPause;
-	}
-	bool bUserInterfaceOwnsScroll = (gpGame->meUiState != UiState::kNone && !bAllowDebugMainMenuZoom) ||
-		(ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse);
+	// The UI owns the wheel only while the cursor is over a window that can actually scroll; a non-scrolling panel,
+	// modal, or empty background leaves the notch with the camera, menus open or not. This mirrors the routing
+	// ImGui::UpdateMouseWheel performs, so a notch is never both scrolled and zoomed: for a root window its scroll
+	// target is the hovered window (its bubble loop only walks child windows, and this UI creates none), and
+	// WheelingWindow covers the lock during which ImGui keeps feeding an earlier target regardless of current hover.
+	// Hover is one frame old — ImGui resolves it in NewFrame, after this poll — so a notch arriving on the frame the
+	// cursor crosses a panel edge is judged against the previous hover.
+	const ImGuiContext* pImGuiContext = ImGui::GetCurrentContext();
+	const ImGuiWindow* pHoveredWindow = pImGuiContext != nullptr ? pImGuiContext->HoveredWindow : nullptr;
+	bool bUserInterfaceOwnsScroll = (pImGuiContext != nullptr && pImGuiContext->WheelingWindow != nullptr) ||
+		(pHoveredWindow != nullptr && pHoveredWindow->ScrollMax.y != 0.0f && !(pHoveredWindow->Flags & (ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMouseInputs)));
 	mCameraInput.iScrollDelta = bUserInterfaceOwnsScroll ? 0 : iScrollNow - miPreviousScrollWheelValue;
 	miPreviousScrollWheelValue = iScrollNow;
 #endif

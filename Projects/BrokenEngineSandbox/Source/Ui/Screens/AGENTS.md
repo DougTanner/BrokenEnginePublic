@@ -14,6 +14,7 @@ ImGui menus, HUD, modal surfaces, and the game extension of engine TweaksScreen.
 - Opening the Graphics screen from the main menu seeds the sun-angle override from the live camera, so Time of Day starts where the sky already is; the camera keeps returning that override while the screen is up. The pause-menu entry point does not seed it, so opening Graphics in game snaps the sun — a real, existing asymmetry. Any new entry point has to choose one of the two behaviors; nothing at compile time links them.
 - The game TweaksScreen is a developer tool gated twice: it compiles in only under the `kbDebugInput` switch, and even then draws only while the runtime ImGui toggle is on. It is not a player-facing screen.
 - Settings controls bind through the shared menu helpers. Tweaks sliders instead follow the engine TweaksScreen contract (`../../../../../Engine/Source/Ui/Screens/TweaksScreen/AGENTS.md`).
+- Control and header label text is the harness automation API and does not get renamed. Several Graphics rows nonetheless repeat the same option labels, so harness automation that resolves a UI item by its label text gets an ambiguous result for those buttons and has to target them by coordinates. Rows that share labels stay distinguishable to ImGui by scoping each row to its wrapper, not by making the labels unique.
 
 ## Layout and Rendering
 

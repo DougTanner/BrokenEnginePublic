@@ -269,3 +269,27 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 	{
 		break;
 	}
+
+62. Use early returns for guard and validation sequences. When several independent conditions each guard the same single-statement exit, write one "if" per condition instead of packing them into one large "if (A || B || C)" disjunction. Keep the conditions in their original order, grouped by concern; reordering them changes which condition is evaluated first:
+
+	Bad (independent guards packed into one disjunction):
+	if (pTarget == nullptr || !rFrame.mbSimulating || iProjectileCount == 0)
+	{
+		return;
+	}
+
+	Good (one early return per condition, original order kept):
+	if (pTarget == nullptr)
+	{
+		return;
+	}
+
+	if (!rFrame.mbSimulating)
+	{
+		return;
+	}
+
+	if (iProjectileCount == 0)
+	{
+		return;
+	}

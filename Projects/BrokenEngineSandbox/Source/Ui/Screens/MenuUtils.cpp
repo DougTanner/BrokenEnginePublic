@@ -65,6 +65,44 @@ bool WrapperSlider(std::string_view label, engine::Wrapper* pWrapper)
 	return false;
 }
 
+bool RadioRow(const char* pcHeader, engine::Wrapper* pWrapper, float fCurrent, std::initializer_list<std::pair<const char*, float>> aOptions)
+{
+	if (pcHeader != nullptr)
+	{
+		ImGui::TextUnformatted(pcHeader);
+	}
+
+	// Rows that repeat the same option labels (the Low/Medium/High quality rows) would otherwise collide on ImGui's
+	// label-derived IDs; the wrapper address is the row's stable identity.
+	ImGui::PushID(pWrapper);
+
+	bool bChanged = false;
+	bool bFirst = true;
+	for (const std::pair<const char*, float>& rOption : aOptions)
+	{
+		if (!bFirst)
+		{
+			// Wrap to a new line when the next radio would clip at the column edge (long labels like "Midnight Mauve")
+			ImGui::SameLine();
+			float fOptionWidth = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(rOption.first).x;
+			if (ImGui::GetContentRegionAvail().x < fOptionWidth)
+			{
+				ImGui::NewLine();
+			}
+		}
+		bFirst = false;
+
+		if (ImGui::RadioButton(rOption.first, fCurrent == rOption.second))
+		{
+			pWrapper->Set(rOption.second);
+			bChanged = true;
+		}
+	}
+
+	ImGui::PopID();
+	return bChanged;
+}
+
 bool WrapperPlusMinus(std::string_view label, engine::Wrapper* pWrapper, float fStep)
 {
 	bool bChanged = false;

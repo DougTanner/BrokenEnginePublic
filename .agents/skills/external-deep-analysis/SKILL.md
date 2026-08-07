@@ -13,9 +13,10 @@ allowed-tools: [Read, Write, Edit, Grep, Glob, Agent, Bash, PowerShell]
 
 # Deep Analysis Pipeline
 
-Run the two native analysis skills in order, verify their findings independently,
-then hand proven residuals to the repository's plan-authoring and finalization
-workflows. Do not implement source fixes during this analysis.
+When the Phase-0 triage gate passes, run the two native analysis skills in
+order, verify their findings independently, then hand proven residuals to the
+repository's plan-authoring and finalization workflows. Do not implement
+source fixes during this analysis.
 
 ## Scope and Execution Context
 
@@ -65,6 +66,31 @@ The forwarded hints are scoped evidence to inspect, never findings: they do
 not expand the original target, create Plans, alter the Debt Score, or replace
 source inspection. Retain corpus coverage and all parse-omission residuals for
 the final summary even when only target omissions are forwarded.
+
+### Triage Gate
+
+When the run's stated trigger is solely a `structuralErosion` outlier, stop after
+Phase 0 unless at least one corroborating signal holds for the resolved target:
+
+1. `hints.targetOutliers.items` contains a bucket whose `metric` is `verbosity`
+   with `totalCount` above zero (verbosity buckets exist even when empty);
+2. the digest's clone-group hints carry at least thirty SLOC summed over their
+   `targetInstances[].sloc`;
+3. `pwsh -NoProfile -File .agents/scripts/Get-AnalysisManifest.ps1 -Path
+   <resolved-target> -Extension .h,.cpp` — adding `-Recurse` only for Recursive
+   scope — flags any in-target file `reduceFileCandidate`;
+4. the retained report's `current.targetMetrics.structuralErosion.numerator` is
+   at least one thousand.
+
+A target reading above the corpus is not by itself evidence: the corpus value is
+about 0.553 and a single-function file saturates at 1.0. An explicit user
+direction to run the full pipeline regardless of metrics overrides this gate.
+When that manifest command cannot run for the resolved target, treat that
+signal as failed and record its blocker as a residual.
+
+On a stop, report the `## Summary` target and metric bullets, record the outcome
+as `triage skip` naming each signal evaluated, and run none of Phases 1-4, plan
+authoring, or the Debt Score.
 
 ## Phase 1: Architecture Shape
 
@@ -149,6 +175,9 @@ report:
   mostly Small/Medium, HIGH for multiple Large or any Architectural, and
   CRITICAL for several Architectural items or a core-invariant threat;
 - verification result, finalization outcome, and tracked Plan validation state.
+
+A `triage skip` reports only the target and metric bullets plus its evaluated
+signals; the remaining bullets do not apply.
 
 The Debt Score is a run retrospective only; never put it in a Plan. Do not call
 a written Plan claimed or scheduler-visible until finalization confirms its

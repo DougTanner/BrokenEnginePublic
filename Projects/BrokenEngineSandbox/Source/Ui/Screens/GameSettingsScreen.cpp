@@ -10,6 +10,13 @@
 namespace game
 {
 
+namespace
+{
+
+constexpr float kfUiOpacitySliderWidthPixels = 640.0f;
+
+} // namespace
+
 void GameSettingsScreen::Render()
 {
 	if (gpGame->meUiState != UiState::kGameSettings)
@@ -77,6 +84,15 @@ void GameSettingsScreen::Render()
 	}
 
 	WrapperPlusMinus("Font Size", &engine::gUiFontScale, 0.1f);
+
+	ImGui::Separator();
+
+	WrapperToggle("Opaque UI", &engine::gOpaqueUi);
+	ImGui::SetNextItemWidth(kfUiOpacitySliderWidthPixels * engine::UiScale());
+	WrapperSlider("UI Opacity", &engine::gUiOpacity);
+
+	RadioRow("Theme", &engine::gUiTheme, static_cast<float>(engine::GetUiTheme()),
+		{{"Naval Steel", static_cast<float>(engine::UiTheme::kNavalSteel)}, {"Dark Amber", static_cast<float>(engine::UiTheme::kDarkAmber)}, {"Midnight Mauve", static_cast<float>(engine::UiTheme::kMidnightMauve)}});
 
 	ImGui::Separator();
 

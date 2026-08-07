@@ -3,6 +3,7 @@
 #include "ToolCliCommon.h"
 
 #include <filesystem>
+#include <limits>
 #include <vector>
 
 namespace toolcli::landing
@@ -10,7 +11,6 @@ namespace toolcli::landing
 	using coordination::CurrentUtcTicks;
 	using coordination::FormatUtcTimestamp;
 	using coordination::JsonInt64;
-	using coordination::JsonIntegerEquals;
 	using coordination::Locator;
 	using coordination::NewMetadata;
 	using coordination::ParseUtcTimestamp;
@@ -40,25 +40,22 @@ namespace toolcli::landing
 
 	std::optional<LandingLease> ValidateLandingLease(const nlohmann::json& rMetadata, const Locator& rLocator, uint64_t uiCurrentTicks)
 	{
-		const char* pStringFields[] = { "owner", "session", "worktree", "claimedAt", "heartbeatAt", "expiresAt" };
-		if (!rMetadata.contains("schemaVersion") || !JsonIntegerEquals(rMetadata["schemaVersion"], kiLandingLeaseSchemaVersion) ||
-			!rMetadata.contains("domain") || !rMetadata["domain"].is_string() || rMetadata["domain"].get<std::string>() != "landing" ||
-			!rMetadata.contains("logicalKey") || !rMetadata["logicalKey"].is_string() || rMetadata["logicalKey"].get<std::string>() != WideToUtf8(rLocator.logicalKey) ||
-			!rMetadata.contains("leaseDurationSeconds"))
+		if (!coordination::ValidateMetadataEnvelope(rMetadata, rLocator, kiLandingLeaseSchemaVersion))
+		{
+			return std::nullopt;
+		}
+		if (!rMetadata.contains("expiresAt") || !rMetadata["expiresAt"].is_string() || rMetadata["expiresAt"].get<std::string>().empty())
+		{
+			return std::nullopt;
+		}
+		if (!rMetadata.contains("leaseDurationSeconds"))
 		{
 			return std::nullopt;
 		}
 		const std::optional<int64_t> durationSeconds = JsonInt64(rMetadata["leaseDurationSeconds"]);
-		if (!durationSeconds)
+		if (!durationSeconds || !IsValidLeaseDuration(*durationSeconds))
 		{
 			return std::nullopt;
-		}
-		for (const char* pField : pStringFields)
-		{
-			if (!rMetadata.contains(pField) || !rMetadata[pField].is_string() || rMetadata[pField].get<std::string>().empty())
-			{
-				return std::nullopt;
-			}
 		}
 		LandingLease lease;
 		lease.owner = rMetadata["owner"].get<std::string>();
@@ -66,9 +63,17 @@ namespace toolcli::landing
 		lease.heartbeatAt = rMetadata["heartbeatAt"].get<std::string>();
 		lease.expiresAt = rMetadata["expiresAt"].get<std::string>();
 		lease.iDurationSeconds = *durationSeconds;
-		if (!IsValidLeaseDuration(lease.iDurationSeconds) || !ParseUtcTimestamp(lease.claimedAt, lease.uiClaimedTicks) || !ParseUtcTimestamp(lease.heartbeatAt, lease.uiHeartbeatTicks) || !ParseUtcTimestamp(lease.expiresAt, lease.uiExpiresTicks) ||
-			lease.uiHeartbeatTicks > UINT64_MAX - static_cast<uint64_t>(lease.iDurationSeconds) * 10'000'000ull || lease.uiExpiresTicks != lease.uiHeartbeatTicks + static_cast<uint64_t>(lease.iDurationSeconds) * 10'000'000ull ||
-			lease.uiClaimedTicks > lease.uiHeartbeatTicks || lease.uiHeartbeatTicks > uiCurrentTicks)
+		// The envelope already proved claimedAt and heartbeatAt parse and are ordered; these calls exist to fill the lease ticks.
+		if (!ParseUtcTimestamp(lease.claimedAt, lease.uiClaimedTicks) || !ParseUtcTimestamp(lease.heartbeatAt, lease.uiHeartbeatTicks) || !ParseUtcTimestamp(lease.expiresAt, lease.uiExpiresTicks))
+		{
+			return std::nullopt;
+		}
+		if (lease.uiHeartbeatTicks > (std::numeric_limits<uint64_t>::max)() - static_cast<uint64_t>(lease.iDurationSeconds) * 10'000'000ull ||
+			lease.uiExpiresTicks != lease.uiHeartbeatTicks + static_cast<uint64_t>(lease.iDurationSeconds) * 10'000'000ull)
+		{
+			return std::nullopt;
+		}
+		if (lease.uiHeartbeatTicks > uiCurrentTicks)
 		{
 			return std::nullopt;
 		}

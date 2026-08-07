@@ -537,6 +537,9 @@
     <ClInclude Include="..\..\Source\Ui\SmokeWrappers.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\GraphicsQualityWrappers.h">
+      <Filter>Game\Ui</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Ui\HexShieldWrappers.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
@@ -1363,6 +1366,9 @@
       <Filter>Game\Ui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\SmokeWrappers.cpp">
+      <Filter>Game\Ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\GraphicsQualityWrappers.cpp">
       <Filter>Game\Ui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\HexShieldWrappers.cpp">

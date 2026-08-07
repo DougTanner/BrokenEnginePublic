@@ -58,6 +58,6 @@ namespace toolcli::coordination
 	bool HasOwner(const nlohmann::json& rMetadata, const std::wstring& rOwner);
 	bool JsonIntegerEquals(const nlohmann::json& rValue, int64_t iExpected);
 	std::optional<int64_t> JsonInt64(const nlohmann::json& rValue);
-	bool ValidateMetadataEnvelope(const nlohmann::json& rMetadata, const Locator& rLocator);
+	bool ValidateMetadataEnvelope(const nlohmann::json& rMetadata, const Locator& rLocator, int64_t iExpectedSchemaVersion);
 	nlohmann::json NewMetadata(const Locator& rLocator, const std::wstring& rOwner, const std::wstring& rSession, const std::wstring& rWorktree);
 }

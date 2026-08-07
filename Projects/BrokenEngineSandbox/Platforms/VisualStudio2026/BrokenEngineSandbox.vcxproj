@@ -495,6 +495,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClInclude Include="..\..\Source\Ui\LightingWrappers.h" />
     <ClInclude Include="..\..\Source\Ui\ParticleWrappers.h" />
     <ClInclude Include="..\..\Source\Ui\SmokeWrappers.h" />
+    <ClInclude Include="..\..\Source\Ui\GraphicsQualityWrappers.h" />
     <ClInclude Include="..\..\Source\Ui\HexShieldWrappers.h" />
     <ClInclude Include="..\..\Source\Ui\SoundWrappers.h" />
     <ClInclude Include="..\..\Source\Ui\WindDepositsWrappers.h" />
@@ -671,6 +672,7 @@ if /I "$(DataBuildMode)"=="Local" if /I "$(RunDataPacker)"=="true" if /I "$(Data
     <ClCompile Include="..\..\Source\Ui\LightingWrappers.cpp" />
     <ClCompile Include="..\..\Source\Ui\ParticleWrappers.cpp" />
     <ClCompile Include="..\..\Source\Ui\SmokeWrappers.cpp" />
+    <ClCompile Include="..\..\Source\Ui\GraphicsQualityWrappers.cpp" />
     <ClCompile Include="..\..\Source\Ui\HexShieldWrappers.cpp" />
     <ClCompile Include="..\..\Source\Ui\SoundWrappers.cpp" />
     <ClCompile Include="..\..\Source\Ui\WindDepositsWrappers.cpp" />

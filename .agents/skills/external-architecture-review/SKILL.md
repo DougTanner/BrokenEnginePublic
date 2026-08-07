@@ -56,6 +56,7 @@ Inspect available depth and concurrency. Dispatch one `reviewer` role per lens b
 - Count adapters only when optional variation or swappability justifies the seam: one adapter is hypothetical, while two current concrete adapters normally demonstrate actual variation. Authority-required trust, platform, build-affinity, ThirdParty, producer/consumer, CPU/GPU, client/server, and other invariant contracts are exempt from adapter counting, but still require structural-impact and locality/leverage evidence.
 - Do not recommend a new seam, adapter, test-only extraction, or testing infrastructure solely for testability.
 - Find cosmetic or bypassed abstractions, abandoned sibling patterns, substantial cross-file duplication, dead modules, and producer/consumer seams with mismatched contracts.
+- For each scoped function, check whether an existing shared helper in the same layer already owns that responsibility: search sibling and shared modules for helpers with overlapping field sets or terms. A re-implemented shared helper is duplication evidence even when clone detection reports no textual clone group.
 - Require concrete structural impact plus demonstrated locality and leverage: concentrate change, knowledge, or verification and increase capability per interface knowledge. Do not infer a defect merely from stylistic difference or the history of AI generation.
 
 ### Lens E — ThirdParty Replacement

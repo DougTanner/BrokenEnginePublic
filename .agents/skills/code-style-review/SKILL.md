@@ -48,8 +48,8 @@ applicable rule, not only grep-friendly examples below.
    Hungarian notation and complete names (Rules 3, 14, 56, 57); `auto`,
    template, float, null, and override rules (15, 19, 27-29); container access
    and types (16, 21, 32); namespace and member access rules (41, 49); pointer
-   conditions, argument layout, initializers, preprocessor form, and braces
-   (50-52, 58, 61).
+   conditions, argument layout, initializers, preprocessor form, braces, and
+   early-return guards (50-52, 58, 61, 62).
 2. Auto-fix only when the resulting C++ meaning is demonstrably unchanged.
    Examples include whitespace, argument layout, an exact deduced type replacing
    disallowed `auto`, and `NULL` replaced where it is a null pointer constant.

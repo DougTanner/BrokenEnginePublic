@@ -291,6 +291,14 @@ Screen-specific commitments this contract makes, each verified visually:
   - Graphics: the two-column split is semantic — display/filtering settings
     left, Effects & UI settings right — balanced by row count, not arbitrary;
     the header keeps FPS and Back visible at every supported Font Size.
+  - Graphics: heavy features are chosen as one Low/Medium/High row each, not as
+    raw detail sliders — Water on the left (replacing Water Shape Detail), and
+    Smoke Detail (replacing Smoke Pixels), Terrain Shadows, Object Shadows, and
+    Lighting on the right. Water, Terrain Shadows, Object Shadows, and Lighting
+    each stand alone between separators; Smoke Detail sits inside the
+    separator-bounded Smoke group, between the Smoke toggle and the Smoke Area
+    slider, and appears only while Smoke is on. The rows carry the feature name
+    only; the three option labels repeat verbatim down the column.
 
 Files:
   Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:23,175-176  ComputeMouseOpennessTarget (fixed-extent hover zone)

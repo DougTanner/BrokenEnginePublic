@@ -3,6 +3,7 @@
 #if defined(BT_CLIENT)
 
 #include "Game.h"
+#include "Ui/GraphicsQualityWrappers.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
 #include "Ui/Localization.h"
@@ -16,11 +17,16 @@ namespace game
 
 struct GameSettings
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 
 	// Fixed-width on disk: the Language enum's underlying type must not decide the file layout.
 	int32_t iLanguage = kEnglish;
 	float fUiFontScale = 1.0f;
+	float fUiOpacity = 0.5f;
+	// uint8_t, not bool: the file is opaque input and a non-0/1 byte read into a bool is an invalid object representation
+	uint8_t uiOpaqueUi = 0;
+	engine::UiTheme eUiTheme = engine::UiTheme::kNavalSteel;
+	uint8_t uiPad[2] {};
 };
 static_assert(std::is_trivially_copyable_v<GameSettings>);
 static constexpr char kpcGameSettingsPath[] = "GameSettings.bin";
@@ -34,6 +40,9 @@ void SaveGameSettings()
 	{
 		.iLanguage = static_cast<int32_t>(geLanguage),
 		.fUiFontScale = engine::gUiFontScale.Get(),
+		.fUiOpacity = engine::gUiOpacity.Get(),
+		.uiOpaqueUi = static_cast<uint8_t>(engine::gOpaqueUi.Get<bool>()),
+		.eUiTheme = engine::GetUiTheme(),
 	};
 
 	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcGameSettingsPath, gameSettings);
@@ -56,6 +65,16 @@ void LoadGameSettings()
 		{
 			engine::gUiFontScale.ResetToDefault();
 		}
+		if (std::isfinite(gameSettings.fUiOpacity))
+		{
+			engine::gUiOpacity.Set(gameSettings.fUiOpacity);
+		}
+		else
+		{
+			engine::gUiOpacity.ResetToDefault();
+		}
+		engine::gOpaqueUi.Set(gameSettings.uiOpaqueUi != 0);
+		engine::gUiTheme.Set<engine::UiTheme>(gameSettings.eUiTheme);
 	}
 }
 
@@ -63,6 +82,9 @@ void ResetGameSettings()
 {
 	geLanguage = kEnglish;
 	engine::gUiFontScale.ResetToDefault();
+	engine::gOpaqueUi.ResetToDefault();
+	engine::gUiOpacity.ResetToDefault();
+	engine::gUiTheme.ResetToDefault();
 
 	SaveGameSettings();
 }
@@ -123,12 +145,11 @@ enum class GraphicsSettingsFlags : uint8_t
 	kSampleShading = 1 << 3,
 	kSmoke         = 1 << 4,
 	kWind          = 1 << 5,
-	kOpaqueUi      = 1 << 6,
 };
 
 struct GraphicsSettings
 {
-	static constexpr int64_t kiVersion = 10;
+	static constexpr int64_t kiVersion = 12;
 
 	common::Flags<GraphicsSettingsFlags> flags {};
 	uint8_t uiPad[3] {};
@@ -137,14 +158,17 @@ struct GraphicsSettings
 	float fMaxAnisotropy = 0.0f;
 	float fMinSampleShading = 0.0f;
 	float fMipLodBias = 0.0f;
-	float fWaterShapeDetail = 0.0f;
-	float fSmokeSimulationPixels = 0.0f;
 	float fSmokeSimulationArea = 0.0f;
 	float fMinimumAmbient = 0.0f;
 	float fLightingUpdateCadence = 1.0f;
-	float fUiOpacity = 0.9f;
-	engine::UiTheme eUiTheme = engine::UiTheme::kNavalSteel;
-	uint8_t uiTrailingPad[3] {};
+	// The quality levels are the single source of truth for the wrappers they drive; those wrapper values are
+	// never persisted directly. uint8_t, not the enum: the file layout must not follow GraphicsQualityLevel.
+	uint8_t uiTerrainShadowsLevel = 0;
+	uint8_t uiObjectShadowsLevel = 0;
+	uint8_t uiLightingLevel = 0;
+	uint8_t uiSmokeDetailLevel = 0;
+	uint8_t uiWaterLevel = 0;
+	uint8_t uiPadLevels[3] {};
 };
 static constexpr char kpcGraphicsSettingsPath[] = "GraphicsSettings.bin";
 
@@ -160,13 +184,14 @@ void SaveGraphicsSettings()
 		.fMaxAnisotropy = engine::gMaxAnisotropy.Get(),
 		.fMinSampleShading = engine::gMinSampleShading.Get(),
 		.fMipLodBias = engine::gMipLodBias.Get(),
-		.fWaterShapeDetail = engine::gWaterShapeDetail.Get(),
-		.fSmokeSimulationPixels = engine::gSmokeSimulationPixels.Get(),
 		.fSmokeSimulationArea = engine::gSmokeSimulationArea.Get(),
 		.fMinimumAmbient = engine::gSunMoonMinimumAmbient.Get(),
 		.fLightingUpdateCadence = engine::gLightingUpdateCadence.Get(),
-		.fUiOpacity = engine::gUiOpacity.Get(),
-		.eUiTheme = engine::GetUiTheme(),
+		.uiTerrainShadowsLevel = gTerrainShadowsLevel.Get<uint8_t>(),
+		.uiObjectShadowsLevel = gObjectShadowsLevel.Get<uint8_t>(),
+		.uiLightingLevel = gLightingLevel.Get<uint8_t>(),
+		.uiSmokeDetailLevel = gSmokeDetailLevel.Get<uint8_t>(),
+		.uiWaterLevel = gWaterLevel.Get<uint8_t>(),
 	};
 
 	graphicsSettings.flags.Set(GraphicsSettingsFlags::kFullscreen, engine::gFullscreen.Get<bool>());
@@ -175,16 +200,28 @@ void SaveGraphicsSettings()
 	graphicsSettings.flags.Set(GraphicsSettingsFlags::kSampleShading, engine::gSampleShading.Get<bool>());
 	graphicsSettings.flags.Set(GraphicsSettingsFlags::kSmoke, engine::gSmokeEnabled.Get<bool>());
 	graphicsSettings.flags.Set(GraphicsSettingsFlags::kWind, engine::gWindEnabled.Get<bool>());
-	graphicsSettings.flags.Set(GraphicsSettingsFlags::kOpaqueUi, engine::gOpaqueUi.Get<bool>());
 
 	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcGraphicsSettingsPath, graphicsSettings);
 }
+
+namespace
+{
+
+// The file is opaque input: an out-of-range byte would index past every quality-level table.
+void LoadGraphicsQualityLevel(engine::Wrapper& rLevel, uint8_t uiLevel)
+{
+	// Reset, not Set: loading is initialization, so no consumer should see this as a pending change.
+	rLevel.Reset<int64_t>(std::min<int64_t>(uiLevel, static_cast<int64_t>(GraphicsQualityLevel::kCount) - 1));
+}
+
+} // namespace
 
 bool LoadGraphicsSettings()
 {
 	GraphicsSettings graphicsSettings {};
 
-	if (engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcGraphicsSettingsPath, graphicsSettings))
+	bool bRead = engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcGraphicsSettingsPath, graphicsSettings);
+	if (bRead)
 	{
 		engine::gFullscreen.Set(graphicsSettings.flags & GraphicsSettingsFlags::kFullscreen);
 		engine::gPresentMode.Set<VkPresentModeKHR>(graphicsSettings.ePresentMode);
@@ -195,9 +232,7 @@ bool LoadGraphicsSettings()
 		engine::gSampleShading.Set(graphicsSettings.flags & GraphicsSettingsFlags::kSampleShading);
 		engine::gMinSampleShading.Set(graphicsSettings.fMinSampleShading);
 		engine::gMipLodBias.Set(graphicsSettings.fMipLodBias);
-		engine::gWaterShapeDetail.Set(graphicsSettings.fWaterShapeDetail);
 		engine::gSmokeEnabled.Set(graphicsSettings.flags & GraphicsSettingsFlags::kSmoke);
-		engine::gSmokeSimulationPixels.Set(graphicsSettings.fSmokeSimulationPixels);
 		engine::gSmokeSimulationArea.Set(graphicsSettings.fSmokeSimulationArea);
 		engine::gSunMoonMinimumAmbient.Set(graphicsSettings.fMinimumAmbient);
 		if (std::isfinite(graphicsSettings.fLightingUpdateCadence))
@@ -209,13 +244,18 @@ bool LoadGraphicsSettings()
 			engine::gLightingUpdateCadence.ResetToDefault();
 		}
 		engine::gWindEnabled.Set(graphicsSettings.flags & GraphicsSettingsFlags::kWind);
-		engine::gOpaqueUi.Set(graphicsSettings.flags & GraphicsSettingsFlags::kOpaqueUi);
-		engine::gUiOpacity.Set(graphicsSettings.fUiOpacity);
-		engine::gUiTheme.Set<engine::UiTheme>(graphicsSettings.eUiTheme);
-		return true;
+		LoadGraphicsQualityLevel(gTerrainShadowsLevel, graphicsSettings.uiTerrainShadowsLevel);
+		LoadGraphicsQualityLevel(gObjectShadowsLevel, graphicsSettings.uiObjectShadowsLevel);
+		LoadGraphicsQualityLevel(gLightingLevel, graphicsSettings.uiLightingLevel);
+		LoadGraphicsQualityLevel(gSmokeDetailLevel, graphicsSettings.uiSmokeDetailLevel);
+		LoadGraphicsQualityLevel(gWaterLevel, graphicsSettings.uiWaterLevel);
 	}
 
-	return false;
+	// Also on a failed read: the default levels still have to drive their underlying wrappers, otherwise a fresh
+	// install shows a level the rendering values do not match.
+	ApplyAllGraphicsQualityLevels();
+
+	return bRead;
 }
 
 void ResetGraphicsSettings()
@@ -229,16 +269,18 @@ void ResetGraphicsSettings()
 	engine::gSampleShading.ResetToDefault();
 	engine::gMinSampleShading.ResetToDefault();
 	engine::gMipLodBias.ResetToDefault();
-	engine::gWaterShapeDetail.ResetToDefault();
 	engine::gSmokeEnabled.ResetToDefault();
-	engine::gSmokeSimulationPixels.ResetToDefault();
 	engine::gSmokeSimulationArea.ResetToDefault();
 	engine::gSunMoonMinimumAmbient.ResetToDefault();
 	engine::gLightingUpdateCadence.ResetToDefault();
 	engine::gWindEnabled.ResetToDefault();
-	engine::gOpaqueUi.ResetToDefault();
-	engine::gUiOpacity.ResetToDefault();
-	engine::gUiTheme.ResetToDefault();
+
+	gTerrainShadowsLevel.ResetToDefault();
+	gObjectShadowsLevel.ResetToDefault();
+	gLightingLevel.ResetToDefault();
+	gSmokeDetailLevel.ResetToDefault();
+	gWaterLevel.ResetToDefault();
+	ApplyAllGraphicsQualityLevels();
 
 	SaveGraphicsSettings();
 }

@@ -4,6 +4,7 @@
 
 #include "Game.h"
 #include "MenuUtils.h"
+#include "Ui/GraphicsQualityWrappers.h"
 #include "Ui/GraphicsSettingsWrappersBase.h"
 #include "Ui/LightingWrappersBase.h"
 #include "Ui/Localization.h"
@@ -21,40 +22,6 @@ constexpr float kfGraphicsFontScaleAtMinimum = 2.0f;
 constexpr float kfGraphicsFontScaleAtMaximum = 1.2f;
 constexpr float kfGraphicsHeadingScale = 1.15f;
 constexpr float kfGraphicsColumnGutterPixels = 80.0f;
-
-// Float-backed RadioButton row: optional header text, then one RadioButton per option on a single line. The
-// checked button is the option whose value equals the wrapper's current value; clicking one writes that value.
-// One place for the enum<->index mapping of present mode, sample count, water detail, and theme — every Wrapper
-// flavor is float-backed, so equality/Set on the raw float is exact for the discrete values used here.
-// RadioButton and header labels are the harness automation API — do not rename.
-void RadioRow(const char* pcHeader, engine::Wrapper* pWrapper, float fCurrent, std::initializer_list<std::pair<const char*, float>> aOptions)
-{
-	if (pcHeader != nullptr)
-	{
-		ImGui::TextUnformatted(pcHeader);
-	}
-
-	bool bFirst = true;
-	for (const std::pair<const char*, float>& rOption : aOptions)
-	{
-		if (!bFirst)
-		{
-			// Wrap to a new line when the next radio would clip at the column edge (long labels like "Midnight Mauve")
-			ImGui::SameLine();
-			float fOptionWidth = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(rOption.first).x;
-			if (ImGui::GetContentRegionAvail().x < fOptionWidth)
-			{
-				ImGui::NewLine();
-			}
-		}
-		bFirst = false;
-
-		if (ImGui::RadioButton(rOption.first, fCurrent == rOption.second))
-		{
-			pWrapper->Set(rOption.second);
-		}
-	}
-}
 
 // WrapperSlider whose bar is shortened to leave room for its trailing label inside the current table column, so a
 // label like "Minimum Ambient" is no longer clipped at the column edge. Negative item width means "fill the column
@@ -166,8 +133,10 @@ void GraphicsMenuScreen::Render()
 
 		ImGui::Separator();
 
-		RadioRow("Water Shape Detail", &engine::gWaterShapeDetail, engine::gWaterShapeDetail.Get(),
-			{{"1/4", 0.25f}, {"1/2", 0.5f}});
+		if (RadioRow("Water", &gWaterLevel, gWaterLevel.Get(), {{"Low", 0.0f}, {"Medium", 1.0f}, {"High", 2.0f}}))
+		{
+			ApplyWaterLevel();
+		}
 
 		ImGui::Separator();
 
@@ -192,21 +161,39 @@ void GraphicsMenuScreen::Render()
 		WrapperToggle("Smoke", &engine::gSmokeEnabled);
 		if (engine::gSmokeEnabled.Get<bool>())
 		{
-			ColumnSlider("Smoke Pixels", &engine::gSmokeSimulationPixels);
+			if (RadioRow("Smoke Detail", &gSmokeDetailLevel, gSmokeDetailLevel.Get(), {{"Low", 0.0f}, {"Medium", 1.0f}, {"High", 2.0f}}))
+			{
+				ApplySmokeDetailLevel();
+			}
+
 			ColumnSlider("Smoke Area", &engine::gSmokeSimulationArea);
 		}
 
-		WrapperToggle("Wind", &engine::gWindEnabled);
-		ColumnSlider("Lighting Update Cadence", &engine::gLightingUpdateCadence);
+		ImGui::Separator();
+
+		if (RadioRow("Terrain Shadows", &gTerrainShadowsLevel, gTerrainShadowsLevel.Get(), {{"Low", 0.0f}, {"Medium", 1.0f}, {"High", 2.0f}}))
+		{
+			ApplyTerrainShadowsLevel();
+		}
 
 		ImGui::Separator();
 
-		WrapperToggle("Opaque UI", &engine::gOpaqueUi);
-		// Unconditional: this screen's own background alpha always comes from the slider, even with Opaque UI on
-		ColumnSlider("UI Opacity", &engine::gUiOpacity);
+		if (RadioRow("Object Shadows", &gObjectShadowsLevel, gObjectShadowsLevel.Get(), {{"Low", 0.0f}, {"Medium", 1.0f}, {"High", 2.0f}}))
+		{
+			ApplyObjectShadowsLevel();
+		}
 
-		RadioRow("Theme", &engine::gUiTheme, static_cast<float>(engine::GetUiTheme()),
-			{{"Naval Steel", static_cast<float>(engine::UiTheme::kNavalSteel)}, {"Dark Amber", static_cast<float>(engine::UiTheme::kDarkAmber)}, {"Midnight Mauve", static_cast<float>(engine::UiTheme::kMidnightMauve)}});
+		ImGui::Separator();
+
+		if (RadioRow("Lighting", &gLightingLevel, gLightingLevel.Get(), {{"Low", 0.0f}, {"Medium", 1.0f}, {"High", 2.0f}}))
+		{
+			ApplyLightingLevel();
+		}
+
+		ImGui::Separator();
+
+		WrapperToggle("Wind", &engine::gWindEnabled);
+		ColumnSlider("Lighting Update Cadence", &engine::gLightingUpdateCadence);
 
 		ImGui::EndTable();
 	}
