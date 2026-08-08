@@ -202,10 +202,15 @@ namespace toolcli
 		}
 
 
-		std::filesystem::path SchedulerRoot(const std::wstring& rRepository)
+		std::optional<std::filesystem::path> SchedulerRoot(const std::wstring& rRepository)
 		{
+			const std::filesystem::path localApplicationData = GetLocalApplicationDataPath();
+			if (localApplicationData.empty())
+			{
+				return std::nullopt;
+			}
 			const std::string hash = coordination::HashSha256(WideToUtf8(rRepository)).value_or("invalid");
-			return GetLocalApplicationDataPath() / L"BrokenEngineLocks" / L"plan-scheduler" / Utf8ToWide(hash);
+			return localApplicationData / L"BrokenEngineLocks" / L"plan-scheduler" / Utf8ToWide(hash);
 		}
 
 		std::filesystem::path ClaimPath(const std::filesystem::path& rRoot, const std::wstring& rPlan)
@@ -495,8 +500,12 @@ namespace toolcli
 			{
 				return Failure("scan-failed");
 			}
-			const std::filesystem::path schedulerRoot = SchedulerRoot(repo);
-			const std::filesystem::path guardPath = schedulerRoot / L"scheduler.guard";
+			const std::optional<std::filesystem::path> schedulerRoot = SchedulerRoot(repo);
+			if (!schedulerRoot)
+			{
+				return Failure("local-app-data-unavailable");
+			}
+			const std::filesystem::path guardPath = *schedulerRoot / L"scheduler.guard";
 			if (!coordination::EnsureParentDirectory(guardPath))
 			{
 				return Failure("storage-failed");
@@ -515,7 +524,7 @@ namespace toolcli
 			std::map<std::wstring, Plan> primaryPlans;
 			if (BuildPrimaryTipPlans(repo, worktree, primaryPlans))
 			{
-				HealClaims(schedulerRoot, repo, primaryPlans, healed);
+				HealClaims(*schedulerRoot, repo, primaryPlans, healed);
 			}
 			nlohmann::json output = { { "operation", "validate" }, { "status", diagnostics.empty() ? "valid" : "invalid" }, { "code", diagnostics.empty() ? "ok" : "invalid-plans" }, { "message", diagnostics.empty() ? "plan metadata is valid" : "some plans are quarantined" }, { "diagnostics", diagnostics }, { "notices", nlohmann::json::array() }, { "healedClaims", healed }, { "plans", nlohmann::json::array() } };
 			for (const auto& [path, plan] : plans)
@@ -592,7 +601,12 @@ namespace toolcli
 				}
 			}
 			std::sort(rows.begin(), rows.end(), [](const Plan* pLeft, const Plan* pRight) { return pLeft->createdUtc != pRight->createdUtc ? pLeft->createdUtc < pRight->createdUtc : Utf8PathLess(pLeft->path, pRight->path); });
-			const std::filesystem::path root = SchedulerRoot(repo);
+			const std::optional<std::filesystem::path> schedulerRoot = SchedulerRoot(repo);
+			if (!schedulerRoot)
+			{
+				return Failure("local-app-data-unavailable");
+			}
+			const std::filesystem::path& root = *schedulerRoot;
 			nlohmann::json output = { { "operation", "list" }, { "status", "ok" }, { "code", "ok" }, { "diagnostics", diagnostics }, { "plans", nlohmann::json::array() } };
 			for (const Plan* pPlan : rows)
 			{
@@ -658,7 +672,12 @@ namespace toolcli
 			{
 				return Failure("invalid-context");
 			}
-			const std::filesystem::path root = SchedulerRoot(repo);
+			const std::optional<std::filesystem::path> schedulerRoot = SchedulerRoot(repo);
+			if (!schedulerRoot)
+			{
+				return Failure("local-app-data-unavailable");
+			}
+			const std::filesystem::path& root = *schedulerRoot;
 			const std::filesystem::path guardPath = root / L"scheduler.guard";
 			if (!coordination::EnsureParentDirectory(guardPath))
 			{
@@ -768,7 +787,12 @@ namespace toolcli
 			{
 				return Failure("invalid-context");
 			}
-			const std::filesystem::path root = SchedulerRoot(repo);
+			const std::optional<std::filesystem::path> schedulerRoot = SchedulerRoot(repo);
+			if (!schedulerRoot)
+			{
+				return Failure("local-app-data-unavailable");
+			}
+			const std::filesystem::path& root = *schedulerRoot;
 			const std::filesystem::path guardPath = root / L"scheduler.guard";
 			if (!coordination::EnsureParentDirectory(guardPath))
 			{
@@ -800,7 +824,12 @@ namespace toolcli
 			{
 				return Failure("invalid-context");
 			}
-			const std::filesystem::path root = SchedulerRoot(repo);
+			const std::optional<std::filesystem::path> schedulerRoot = SchedulerRoot(repo);
+			if (!schedulerRoot)
+			{
+				return Failure("local-app-data-unavailable");
+			}
+			const std::filesystem::path& root = *schedulerRoot;
 			const std::filesystem::path guardPath = root / L"scheduler.guard";
 			if (!coordination::EnsureParentDirectory(guardPath))
 			{
@@ -864,7 +893,12 @@ namespace toolcli
 			{
 				return Failure("invalid-context");
 			}
-			const std::filesystem::path root = SchedulerRoot(repo);
+			const std::optional<std::filesystem::path> schedulerRoot = SchedulerRoot(repo);
+			if (!schedulerRoot)
+			{
+				return Failure("local-app-data-unavailable");
+			}
+			const std::filesystem::path& root = *schedulerRoot;
 			const std::filesystem::path guardPath = root / L"scheduler.guard";
 			if (!coordination::EnsureParentDirectory(guardPath))
 			{
