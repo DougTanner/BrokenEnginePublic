@@ -49,7 +49,6 @@ public:
 	void HandleResyncRequests();
 	void ResetClientsForLoad();
 	void WriteFleetData(std::fstream& rFileStream) const;
-	void ReadFleetData(std::fstream& rFileStream);
 
 	ClientPlayerRegistry mClientPlayers;
 

@@ -639,13 +639,6 @@ void ServerSession::WriteFleetData(std::fstream& rFileStream) const
 	::game::WriteFleetData(rFileStream, mpFleetManager->mFleets, mpFleetManager->mRandomEngine);
 }
 
-void ServerSession::ReadFleetData(std::fstream& rFileStream)
-{
-	// Heap: rebuild fleet maps from save stream
-	ScopedSuppressAllocationTracking suppress;
-	::game::ReadFleetData(rFileStream, mpFleetManager->mFleets, mpFleetManager->mGuidToClientId, mpFleetManager->mRandomEngine);
-}
-
 #endif // BT_SERVER
 
 } // namespace game
