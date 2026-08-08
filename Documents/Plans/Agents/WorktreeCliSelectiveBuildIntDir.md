@@ -21,6 +21,23 @@ explicit normalized `/p:IntDir=<worktree>\Projects\BrokenEngineSandbox\Platforms
 to the identical selective build allowed it to succeed; the retained success
 log is `Temp/AgentBuildLogs/brokenenginesandbox-20260803T163327973Z-33140.log`.
 
+Root cause (proven from source in a later session's Step 4 `/compile`
+diagnosis; the symptom reproduces for the BrokenEngineSandbox client
+independent of which file is selected):
+
+- `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.vcxproj:74,86,99`
+  define `<IntDir>$(ProjectDir)\Build\$(ProjectName)\$(Configuration)\</IntDir>`.
+  `$(ProjectDir)` already ends in `\`, so the evaluated `ObjectFileName`
+  metadata contains a doubled separator (`...\VisualStudio2026\\Build\...`).
+  The same form appears in `BrokenEngineSandboxServer.vcxproj:74,85,97`,
+  `DataPacker.vcxproj:151,160`, and `ThirdParty.vcxproj:61,67,73`.
+- `ExtendedLengthPath` in `Tools/ToolCommon/ToolCliCommon.cpp:351-363` only
+  calls `path.make_preferred()` before prepending the `\\?\` prefix and never
+  collapses the doubled separator. The NT object manager rejects an empty
+  component in a `\\?\`-prefixed path, so the `::DeleteFileW` call at
+  `Tools/WorktreeCli/BuildCommand.cpp:645` fails with `ERROR_INVALID_NAME`
+  (123) and the build is failed before MSBuild launches.
+
 Originating gap: Change Workflow Step 4 `/compile`; the required client/server
 build eventually passed only through this workaround and repetition. The
 claimed active intent is
@@ -37,44 +54,62 @@ Session provenance (machine-local; not reproducible after cleanup):
   never an absolute path, so no home prefix enters the public repo
 - Session baseline: `37cb66b21a2f0e47d798acf294eac97c6d18829e`
 - Landing commit: `git log --diff-filter=A --format=%H -- <this plan path>`
-- Run the review before /cleanup-worktrees removes this worktree: Codex
-  transcript discovery requires the producing worktree to remain registered,
-  and Claude review requires the exact session id above.
+
+The root cause above is proven from current source, so no transcript review is
+required and this plan no longer depends on the producing worktree surviving
+`/cleanup-worktrees`.
 
 ## Design
-In a new session, run `/next-plan-review <landing commit>` supplying the
-recorded client and session id, root-cause the friction from the proven
-transcript, then make the smallest fix inside the `## In scope` boundary below.
-If root-causing shows the fix lies outside that boundary, surface it for
-re-planning instead of expanding scope.
+Normalize the path inside `ExtendedLengthPath`
+(`Tools/ToolCommon/ToolCliCommon.cpp`) so a doubled separator cannot survive
+into a `\\?\`-prefixed path: collapse repeated separators (for example via
+`lexically_normal`) after `make_preferred()` and before the prefix is
+prepended, leaving the existing early returns for relative and UNC paths
+unchanged.
+
+That single change fixes the whole class: every caller of `ExtendedLengthPath`
+in both AgentTools becomes immune to any project's unnormalized `IntDir`
+metadata, and the client, server, DataPacker, and ThirdParty projects all stop
+reproducing the symptom without touching build data.
+
+Rejected alternative: dropping the leading `\` from the `IntDir` expressions in
+the four `.vcxproj` files. It is a smaller edit but only fixes the projects
+edited today and leaves the tool able to build the same invalid path from any
+other metadata.
 
 ## Critical files
-- `.agents/skills/compile/SKILL.md` — `## Selective file compile` and its
-  documented `--files` invocation/property guidance.
-- `Tools/WorktreeCli/BuildCommand.cpp` — `EvaluateProjectCompileItems` and
-  `InvalidateSelectedObjects`, which evaluate selected object paths and
-  invalidate them before MSBuild.
+- `Tools/ToolCommon/ToolCliCommon.cpp` — `ExtendedLengthPath`, the sole fix
+  site.
+- `Tools/WorktreeCli/BuildCommand.cpp` — the `::DeleteFileW` selected-object
+  invalidation that surfaces the failure; read-only reference for verification.
 
 ## In scope
-- Root-cause investigation via /next-plan-review with the recorded provenance
-- The smallest resulting fix, confined to the files named above: the
-  selective-file compile guidance and the
-  `EvaluateProjectCompileItems`/`InvalidateSelectedObjects` path used by
-  `WorktreeCli build --files`.
+- Normalizing the path in `ExtendedLengthPath` before the `\\?\` prefix is
+  applied.
+- Rebuilding and promoting the shared AgentTools binaries the change requires.
 
 ## Out of scope
 - The landed Agent active-socket teardown change and all
-  `Engine/Source/Agent/AgentCommandServer.*` implementation or documentation.
-- Unrelated WorktreeCli verbs, MSBuild project/target changes, and
-  AgentTools promotion or bootstrap policy.
-- Unrelated skills/scripts; any transcript path or transcript text in the repo,
-  and any absolute home path.
+  `Engine/Source/Agent/AgentCommandServer.*` implementation or documentation,
+  and the graphics-menu UI change from the session that proved the root cause.
+- Editing `IntDir` in any `.vcxproj`, and any other MSBuild project/target
+  change.
+- Unrelated WorktreeCli verbs, other `ToolCliCommon` helpers, and unrelated
+  skills or scripts.
+- Any transcript path, transcript text, or absolute home path in the repo.
 
 ## Risk tier and invariants
-Expected Tier 2 (scoped tool behavior); escalate if the fix reaches
-build/bootstrap coordination. Never embed transcript paths or home paths.
+Tier 3: `ToolCliCommon` is shared by WorktreeCli and AgentHarness, so the fix
+requires shared AgentTools rebuild and promotion — build/bootstrap coordination
+that can block other sessions. `ExtendedLengthPath` is used for coordination,
+queue-store, and build files, so the change must not alter behavior for
+relative paths, UNC paths, or paths already free of doubled separators.
 
 ## Acceptance criteria
-- The recorded symptom no longer reproduces under the documented selective
-  invocation without requiring the explicit `IntDir` workaround.
-- `/validate-skill` passes for any changed SKILL.md; plan validate exits 0.
+- `WorktreeCli build --files <a client .cpp> -- BrokenEngineSandbox.vcxproj`
+  succeeds under the invocation documented in `.agents/skills/compile/SKILL.md`
+  without the explicit `/p:IntDir=` workaround, and reports the invalidated
+  object.
+- A second selective build of the same file still succeeds, and a full-solution
+  build is unaffected.
+- `WorktreeCli plan validate` exits 0.

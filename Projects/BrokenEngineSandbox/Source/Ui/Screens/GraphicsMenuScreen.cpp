@@ -23,13 +23,21 @@ constexpr float kfGraphicsFontScaleAtMaximum = 1.2f;
 constexpr float kfGraphicsHeadingScale = 1.15f;
 constexpr float kfGraphicsColumnGutterPixels = 80.0f;
 
-// WrapperSlider whose bar is shortened to leave room for its trailing label inside the current table column, so a
-// label like "Minimum Ambient" is no longer clipped at the column edge. Negative item width means "fill the column
-// minus this many pixels from the right" (ImGui CalcItemWidth), floored at 1px by ImGui.
+// WrapperSlider with its label drawn to the left of the bar instead of trailing it, the bar filling the rest of the
+// table column (-FLT_MIN item width). ImGui only ever draws a widget's own label after the frame, so the visible text
+// is emitted separately and the slider carries a hidden-label id ("##" prefix, display portion empty). That id is what
+// the agent UI snapshot records, so describe_ui reports "##Minimum Ambient" and a harness query for the human-readable
+// name resolves through AgentUiRegistry::ResolveLabel's case-insensitive substring tier.
 void ColumnSlider(const char* pcLabel, engine::Wrapper* pWrapper)
 {
-	ImGui::SetNextItemWidth(-(ImGui::CalcTextSize(pcLabel).x + ImGui::GetStyle().ItemInnerSpacing.x));
-	WrapperSlider(pcLabel, pWrapper);
+	ImGui::AlignTextToFramePadding();
+	ImGui::TextUnformatted(pcLabel);
+	ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+
+	char pcSliderId[64];
+	std::snprintf(pcSliderId, sizeof(pcSliderId), "##%s", pcLabel);
+	ImGui::SetNextItemWidth(-FLT_MIN);
+	WrapperSlider(pcSliderId, pWrapper);
 }
 
 } // namespace
@@ -133,9 +141,10 @@ void GraphicsMenuScreen::Render()
 
 		ImGui::Separator();
 
-		if (RadioRow("Water", &gWaterLevel, gWaterLevel.Get(), {{"Low", 0.0f}, {"Medium", 1.0f}, {"High", 2.0f}}))
+		WrapperToggle("Sample Shading", &engine::gSampleShading);
+		if (engine::gSampleShading.Get<bool>())
 		{
-			ApplyWaterLevel();
+			ColumnSlider("Min Sample Shading", &engine::gMinSampleShading);
 		}
 
 		ImGui::Separator();
@@ -150,23 +159,9 @@ void GraphicsMenuScreen::Render()
 		// Right column: Effects & UI
 		ImGui::TableNextColumn();
 
-		WrapperToggle("Sample Shading", &engine::gSampleShading);
-		if (engine::gSampleShading.Get<bool>())
+		if (RadioRow("Water", &gWaterLevel, gWaterLevel.Get(), {{"Low", 0.0f}, {"Medium", 1.0f}, {"High", 2.0f}}))
 		{
-			ColumnSlider("Min Sample Shading", &engine::gMinSampleShading);
-		}
-
-		ImGui::Separator();
-
-		WrapperToggle("Smoke", &engine::gSmokeEnabled);
-		if (engine::gSmokeEnabled.Get<bool>())
-		{
-			if (RadioRow("Smoke Detail", &gSmokeDetailLevel, gSmokeDetailLevel.Get(), {{"Low", 0.0f}, {"Medium", 1.0f}, {"High", 2.0f}}))
-			{
-				ApplySmokeDetailLevel();
-			}
-
-			ColumnSlider("Smoke Area", &engine::gSmokeSimulationArea);
+			ApplyWaterLevel();
 		}
 
 		ImGui::Separator();
@@ -188,6 +183,19 @@ void GraphicsMenuScreen::Render()
 		if (RadioRow("Lighting", &gLightingLevel, gLightingLevel.Get(), {{"Low", 0.0f}, {"Medium", 1.0f}, {"High", 2.0f}}))
 		{
 			ApplyLightingLevel();
+		}
+
+		ImGui::Separator();
+
+		WrapperToggle("Smoke", &engine::gSmokeEnabled);
+		if (engine::gSmokeEnabled.Get<bool>())
+		{
+			if (RadioRow("Smoke Detail", &gSmokeDetailLevel, gSmokeDetailLevel.Get(), {{"Low", 0.0f}, {"Medium", 1.0f}, {"High", 2.0f}}))
+			{
+				ApplySmokeDetailLevel();
+			}
+
+			ColumnSlider("Smoke Area", &engine::gSmokeSimulationArea);
 		}
 
 		ImGui::Separator();

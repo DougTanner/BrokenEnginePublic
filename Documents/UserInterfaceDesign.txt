@@ -243,6 +243,15 @@ expected to be identical across a pure-layout pass. Renaming a label is a
 deliberate API change, made on purpose and verified, never as a side effect of
 moving a button.
 
+A row that draws its own label text (the Graphics sliders, whose label sits left
+of the bar) gives the widget a hidden-label id — "##" plus the same name — so
+ImGui does not draw the name a second time. The registry records that id
+verbatim, so describe_ui reports "##Minimum Ambient" while the player still sees
+"Minimum Ambient", and a query for the human-readable name resolves through
+ResolveLabel's case-insensitive substring tier. Adding the prefix is itself a
+deliberate label-set change: it is allowed only where the visible text is
+unchanged and the name still resolves to exactly one widget.
+
 Files:
   Projects/BrokenEngineSandbox/Source/Agent/AgentCommandsClient.cpp  (describe_ui / click / hover by label)
   Engine/Source/Agent/                                               (AgentUiRegistry label snapshot)
@@ -256,7 +265,7 @@ resolution, identical launch config on both sides, so fixed-pixel fonts show
 true proportions — and inspect the images directly. A change passes when no
 window is visibly larger than its content, settings columns are balanced, every
 menu button is themed and uniform-width, and the describe_ui label set is
-unchanged.
+unchanged apart from a deliberate hidden-label prefix (section 10).
 
 Hard rule: what the player sees is the source of truth for every UI decision.
 Judge visible pixels and perceived composition in screenshots at the target
@@ -288,17 +297,23 @@ Screen-specific commitments this contract makes, each verified visually:
     shared width for the Defaults and Back actions.
   - Modal: the compact text-wrap surface uses a restrained message/action gap
     and keeps its single themed action centered.
-  - Graphics: the two-column split is semantic — display/filtering settings
-    left, Effects & UI settings right — balanced by row count, not arbitrary;
-    the header keeps FPS and Back visible at every supported Font Size.
+  - Graphics: the two-column split is semantic — display/sampling/filtering
+    settings left, Effects & UI settings right — not arbitrary, though the
+    columns no longer carry equal row counts; the header keeps FPS and Back
+    visible at every supported Font Size. Sample Shading sits on the left
+    directly below Multisampling, with the sampling settings it belongs to.
+  - Graphics: every slider row reads label first, then bar — the name is drawn
+    left of a bar that fills the rest of the column, instead of trailing it.
   - Graphics: heavy features are chosen as one Low/Medium/High row each, not as
-    raw detail sliders — Water on the left (replacing Water Shape Detail), and
-    Smoke Detail (replacing Smoke Pixels), Terrain Shadows, Object Shadows, and
-    Lighting on the right. Water, Terrain Shadows, Object Shadows, and Lighting
-    each stand alone between separators; Smoke Detail sits inside the
-    separator-bounded Smoke group, between the Smoke toggle and the Smoke Area
-    slider, and appears only while Smoke is on. The rows carry the feature name
-    only; the three option labels repeat verbatim down the column.
+    raw detail sliders — Water (replacing Water Shape Detail), Terrain Shadows,
+    Object Shadows, Lighting, and Smoke Detail (replacing Smoke Pixels), all on
+    the right. Water, Terrain Shadows, Object Shadows, and Lighting run
+    contiguously at the top of the right column, each standing alone between
+    separators; Smoke Detail sits inside the separator-bounded Smoke group,
+    between the Smoke toggle and the Smoke Area slider, and appears only while
+    Smoke is on. That Smoke group follows the four quality rows, directly above
+    Wind. The rows carry the feature name only; the three option labels repeat
+    verbatim down the column.
 
 Files:
   Projects/BrokenEngineSandbox/Source/Ui/Screens/HudScreen.cpp:23,175-176  ComputeMouseOpennessTarget (fixed-extent hover zone)

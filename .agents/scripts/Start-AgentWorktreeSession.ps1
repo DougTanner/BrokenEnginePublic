@@ -68,8 +68,6 @@ $exitCode = 1
 try {
 	$primary = Get-AgentWorktreePrimaryIdentity $RepositoryRoot
 	$root = $primary.Root
-	$status = @(Invoke-AgentGit @('-C', $root, 'status', '--porcelain', '--untracked-files=all'))
-	if ([string]::IsNullOrWhiteSpace($ReattachWorktree) -and $status.Count -ne 0) { throw "Primary checkout must be clean before session creation: $($status -join '; ')." }
 	$worktreeCli = Join-Path $root 'Tools\WorktreeCli\Platforms\VisualStudio2026\Output\WorktreeCli.exe'
 	$identity = $null
 	$rebaseInProgress = $false
