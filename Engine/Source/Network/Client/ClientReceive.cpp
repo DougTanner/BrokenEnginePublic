@@ -31,6 +31,10 @@ static std::unique_ptr<game::Frame> DecompressAndReadFrame(int32_t iUncompressed
 	std::istringstream frameStream(std::move(decompressed), std::ios::binary);
 	std::unique_ptr<game::Frame> pFrame = std::make_unique<game::Frame>();
 	game::NetworkSessionContract::ReadFrame(frameStream, *pFrame);
+	if (!frameStream)
+	{
+		return nullptr;
+	}
 	return pFrame;
 }
 
@@ -178,7 +182,7 @@ void Client::ServerCoordFullState(std::span<const uint8_t> packetData)
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(message.iUncompressedSize, message.compressedPayload);
 	if (pFrame == nullptr)
 	{
-		LOG(kNetwork, kWarning, "Client::ServerCoordFullState LZ4 decompression failed Coord: ({},{}) Frame: {}", coord.x, coord.y, iTick);
+		LOG(kNetwork, kWarning, "Client::ServerCoordFullState LZ4 decompression or frame read failed Coord: ({},{}) Frame: {}", coord.x, coord.y, iTick);
 		return;
 	}
 
@@ -286,6 +290,11 @@ void Client::ServerCoordStaticData(std::span<const uint8_t> packetData)
 	ReceivedStaticData received {};
 	received.coord = coord;
 	received.staticData.Read(staticStream, /*bIncludeNavData=*/true);
+	if (!staticStream)
+	{
+		LOG(kNetwork, kWarning, "Client::ServerCoordStaticData static data read failed Coord: ({},{}) Slot: {}", coord.x, coord.y, uiSlotIndex);
+		return;
+	}
 
 	// Heap: received static data vector grows on new subscription
 	mReceivedStaticData.push_back(std::move(received));
@@ -389,7 +398,7 @@ void Client::ServerDebugFrame(std::span<const uint8_t> packetData)
 	std::unique_ptr<game::Frame> pFrame = DecompressAndReadFrame(message.iUncompressedSize, message.compressedPayload);
 	if (pFrame == nullptr)
 	{
-		LOG(kNetwork, kError, "Client::ServerDebugFrame LZ4 decompression failed Frame: {}", iTick);
+		LOG(kNetwork, kError, "Client::ServerDebugFrame LZ4 decompression or frame read failed Frame: {}", iTick);
 		return;
 	}
 
