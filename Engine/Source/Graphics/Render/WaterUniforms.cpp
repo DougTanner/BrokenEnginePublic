@@ -83,7 +83,7 @@ static void PopulateWaterReducedUv(shaders::GlobalLayout& rGlobalLayout)
 	// pattern rotation θ. The CPU applies the UV-space direction R(γ) with γ = φ − θ so the shader's
 	// R(θ) cancels back to world R(φ); magnitude stays √2 for all φ (direction never alters scroll speed).
 	// Each component wraps at 10.0 independently and speedMult * 10 stays integer so fract() absorbs the
-	// wrap for any φ (precision pact intact).
+	// wrap for any φ (precision contract intact).
 	static double sdReducedTimeOneX = 0.0;
 	static double sdReducedTimeOneY = 0.0;
 	static double sdReducedTimeTwoX = 0.0;

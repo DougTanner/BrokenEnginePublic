@@ -125,7 +125,7 @@ Wrapper gWaterFresnel(0.07f, 0.0f, 0.2f); // DT: TEMP
 Wrapper gWaterColorNoiseFrequency(0.0013f, 0.0f, 0.01f);
 Wrapper gWaterColorNoiseAmount(0.1f, 0.0f, 0.2f);
 Wrapper gWaterColorNoiseWeightOne(-1.5f, -2.0f, 2.0f);
-// Step 0.1 keeps mult*10 integer for the Water.frag fract()-wrap precision pact (see Water.frag color-noise UV block).
+// Step 0.1 keeps mult*10 integer for the Water.frag fract()-wrap precision contract (see Water.frag color-noise UV block).
 Wrapper gWaterColorNoiseMultiplierOne(0.2f, 0.0f, 1.0f, 0.1f);
 Wrapper gWaterColorNoiseWeightTwo(0.5f, -2.0f, 2.0f);
 Wrapper gWaterColorNoiseMultiplierTwo(1.0f, 0.0f, 4.0f, 0.1f);
