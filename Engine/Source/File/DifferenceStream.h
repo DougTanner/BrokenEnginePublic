@@ -374,21 +374,23 @@ public:
 			std::fstream fullFramesFile = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".fullframes"));
 			if (fullFramesFile)
 			{
+				mReaderFlags.Set(ReaderFlags::kFullFramesActive);
 				mFullFramesStream << fullFramesFile.rdbuf();
 				if (mReaderFlags & ReaderFlags::kRecordsInitialChecksum)
 				{
 					SAVED_TYPE firstFrame;
-					mFullFramesStream >> firstFrame;
-					if (firstFrame.Crc() != rSavedStart.Crc())
+					if (TryReadFullFrame(firstFrame))
 					{
-						// Stale/mismatched debug file: discard it so frame comparisons don't reference the wrong baseline
-						LOG(kDefault, kWarning, "Full frames file doesn't match saved start frame, discarding");
-						DEBUG_BREAK();
-						mFullFramesStream.str({});
-					}
-					else
-					{
-						++miFullFramesIndex;
+						if (firstFrame.Crc() != rSavedStart.Crc())
+						{
+							// Stale/mismatched debug file: discard it so frame comparisons don't reference the wrong baseline
+							DisableFullFrames(true);
+							DEBUG_BREAK();
+						}
+						else
+						{
+							++miFullFramesIndex;
+						}
 					}
 				}
 			}
@@ -442,11 +444,13 @@ public:
 		if constexpr (kbReplayFullFrames)
 		{
 			// Read full frame snapshot to maintain stream synchronization
-			if (iChecksumIndex == miFullFramesIndex && mFullFramesStream.rdbuf()->in_avail() > 0)
+			if (iChecksumIndex == miFullFramesIndex && (mReaderFlags & ReaderFlags::kFullFramesActive) && !(mReaderFlags & ReaderFlags::kFullFramesInvalid))
 			{
-				mFullFramesStream >> savedFrame;
-				++miFullFramesIndex;
-				bSavedFrameValid = true;
+				if (TryReadFullFrame(savedFrame))
+				{
+					++miFullFramesIndex;
+					bSavedFrameValid = true;
+				}
 			}
 		}
 
@@ -511,9 +515,51 @@ private:
 
 	enum class ReaderFlags : uint8_t
 	{
-		kRecordsInitialChecksum = 0x01,
+		kRecordsInitialChecksum    = 0x01,
 		kTerminalChecksumValidated = 0x02,
+		kFullFramesActive          = 0x04,
+		kFullFramesInvalid         = 0x08,
 	};
+
+	bool TryReadFullFrame(SAVED_TYPE& rSavedFrame)
+	{
+		bool bReadSucceeded = false;
+		try
+		{
+			mFullFramesStream >> rSavedFrame;
+			bReadSucceeded = static_cast<bool>(mFullFramesStream);
+		}
+		catch (const common::CorruptStreamException&)
+		{
+			bReadSucceeded = false;
+		}
+
+		if (!bReadSucceeded)
+		{
+			DisableFullFrames();
+		}
+
+		return bReadSucceeded;
+	}
+
+	void DisableFullFrames(bool bStaleBaseline = false)
+	{
+		if (mReaderFlags & ReaderFlags::kFullFramesInvalid)
+		{
+			return;
+		}
+
+		mReaderFlags.Set(ReaderFlags::kFullFramesInvalid);
+		mFullFramesStream.str({});
+		if (bStaleBaseline)
+		{
+			LOG(kDefault, kWarning, "Full frames file doesn't match saved start frame, discarding");
+		}
+		else
+		{
+			LOG(kDefault, kWarning, "Full frames file read failed, discarding");
+		}
+	}
 
 	bool mbLoaded = false;
 

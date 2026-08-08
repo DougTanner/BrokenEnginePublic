@@ -25,7 +25,7 @@
 
 ## Replay Streams
 
-`DifferenceStream` writes full boundaries, per-frame deltas, and checksums. Publishing succeeds only when every sibling file succeeds; any failure removes the complete sibling set. Replay manifests authenticate their expected component bytes and sizes with SHA-256; hash only ordinary, non-reparse files, and treat a hash/read failure as an invalid replay generation. Optional full-frame diagnostics remain gated by `kbReplayFullFrames`; their mismatch reporting follows the operand labeling owned by Log ([`Common/Log/AGENTS.md`](../../../Common/Log/AGENTS.md)).
+`DifferenceStream` writes full boundaries, per-frame deltas, and checksums. Publishing succeeds only when every sibling file succeeds; any failure removes the complete sibling set. Replay manifests authenticate their expected component bytes and sizes with SHA-256; hash only ordinary, non-reparse files, and treat a hash/read failure as an invalid replay generation. Optional full-frame diagnostics remain gated by `kbReplayFullFrames`; malformed or stale `.fullframes` data permanently disables those diagnostics for that reader without changing authoritative replay or checksum validation, and mismatch reporting follows the operand labeling owned by Log ([`Common/Log/AGENTS.md`](../../../Common/Log/AGENTS.md)).
 
 ## See Also
 
