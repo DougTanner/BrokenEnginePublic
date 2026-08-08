@@ -212,6 +212,8 @@ try {
 	}
 	else {
 		Write-Warning "LIMITATION: cancellation setup requires sparse-file support and enough free space; fsutil output: $($sparseOutput -join '; ')"
+		Write-Host 'INCOMPLETE DataPacker --materialize-data fixture (low-space cancellation skipped)'
+		exit 2
 	}
 
 	Write-Host 'PASS DataPacker --materialize-data fixture'
