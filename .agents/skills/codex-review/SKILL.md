@@ -26,7 +26,7 @@ role already resolves to Sol.
   or `session-audit`
 - Its normal inputs: plan/intent, changed files and regions, and current
   residuals or reviewer focus
-- Worktree and session baseline (default to current repository root and `HEAD`)
+- Worktree (default to current repository root) and session baseline (a full 40-character commit SHA)
 
 ## Method
 
