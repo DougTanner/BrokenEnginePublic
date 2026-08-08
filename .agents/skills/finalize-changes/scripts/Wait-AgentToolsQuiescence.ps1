@@ -11,7 +11,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
+$sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
+if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'WorktreeCliSessionExclusion.psm1'))) {
+	$sharedScripts = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts'
+}
+Import-Module (Join-Path $sharedScripts 'WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
 
 try {
 	$result = Wait-WorktreeCliSharedQuiescence -RepositoryRoot $RepositoryRoot -CooperatingSessionOwner $CooperatingSessionOwner -WaitSeconds $WaitSeconds

@@ -10,8 +10,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
-Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1') -Force -DisableNameChecking
+$sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
+if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'WorktreeCliSessionExclusion.psm1'))) {
+	$sharedScripts = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts'
+}
+Import-Module (Join-Path $sharedScripts 'WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $sharedScripts 'FinalizeWorkflowCommon.psm1') -Force -DisableNameChecking
 
 $script:Failures = [Collections.Generic.List[string]]::new()
 $landingScript = Join-Path $PSScriptRoot 'Invoke-FinalizeLanding.ps1'
@@ -19,7 +23,7 @@ $approvalPreparationScript = Join-Path $PSScriptRoot 'Invoke-FinalizeApprovalPre
 $candidateScript = Join-Path $PSScriptRoot 'Invoke-FinalizeCandidateCommit.ps1'
 $lockClaimScript = Join-Path $PSScriptRoot 'Invoke-FinalizeLockClaim.ps1'
 $approvalReviewScript = Join-Path $PSScriptRoot 'Show-FinalizeApprovalReview.ps1'
-$moduleSource = Join-Path $PSScriptRoot '..\..\..\scripts'
+$moduleSource = $sharedScripts
 $WorktreeCliExecutable = (Get-Item -LiteralPath $WorktreeCliExecutable -Force -ErrorAction Stop).FullName
 
 function Assert-True([bool] $Condition, [string] $Name) {

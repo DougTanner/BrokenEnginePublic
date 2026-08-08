@@ -16,7 +16,11 @@ $script:Failures = [Collections.Generic.List[string]]::new()
 $script:ProcessIds = [Collections.Generic.List[int]]::new()
 $utf8 = [Text.UTF8Encoding]::new($false, $true)
 $WorktreeCliExecutable = (Get-Item -LiteralPath $WorktreeCliExecutable -ErrorAction Stop).FullName
-$commonModule = Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1'
+$sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
+if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'FinalizeWorkflowCommon.psm1'))) {
+	$sharedScripts = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts'
+}
+$commonModule = Join-Path $sharedScripts 'FinalizeWorkflowCommon.psm1'
 Import-Module $commonModule -Force
 
 function Assert-True([bool] $Condition, [string] $Name) {

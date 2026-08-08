@@ -18,13 +18,17 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
-Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1') -Force -DisableNameChecking
+$sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
+if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'WorktreeCliSessionExclusion.psm1'))) {
+	$sharedScripts = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts'
+}
+Import-Module (Join-Path $sharedScripts 'WorktreeCliSessionExclusion.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $sharedScripts 'FinalizeWorkflowCommon.psm1') -Force -DisableNameChecking
 
 $script:Failures = [Collections.Generic.List[string]]::new()
 $promotionScript = Join-Path $PSScriptRoot 'Invoke-AgentToolsPromotion.ps1'
-$capabilitySource = Join-Path $PSScriptRoot '..\..\..\scripts\Test-AgentToolsCapabilities.ps1'
-$moduleSource = Join-Path $PSScriptRoot '..\..\..\scripts'
+$capabilitySource = Join-Path $sharedScripts 'Test-AgentToolsCapabilities.ps1'
+$moduleSource = $sharedScripts
 $WorktreeCliExecutable = (Get-Item -LiteralPath $WorktreeCliExecutable -ErrorAction Stop).FullName
 $AgentHarnessExecutable = (Get-Item -LiteralPath $AgentHarnessExecutable -ErrorAction Stop).FullName
 

@@ -18,8 +18,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\AgentScriptCommon.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\FinalizeWorkflowCommon.psm1') -Force
+$sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
+if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'AgentScriptCommon.psm1'))) {
+	$sharedScripts = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts'
+}
+Import-Module (Join-Path $sharedScripts 'AgentScriptCommon.psm1') -Force
+Import-Module (Join-Path $sharedScripts 'FinalizeWorkflowCommon.psm1') -Force
 
 $script:MaximumReportedPaths = 512
 $script:MaximumOutputBytes = 65536

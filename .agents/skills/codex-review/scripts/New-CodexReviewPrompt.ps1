@@ -19,7 +19,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\AgentScriptCommon.psm1') -Force
+$sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
+if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'AgentScriptCommon.psm1'))) {
+	$sharedScripts = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts'
+}
+Import-Module (Join-Path $sharedScripts 'AgentScriptCommon.psm1') -Force
 
 $script:MaximumPromptBytes = 4 * 1024 * 1024
 $script:MaximumMessageLength = 256
@@ -31,7 +35,7 @@ $script:CopyBufferBytes = 65536
 $script:BytesPerLine = 50
 
 $script:Utf8 = [Text.UTF8Encoding]::new($false)
-$script:Inventory = Join-Path $PSScriptRoot '..\..\..\scripts\Get-SessionChangeInventory.ps1'
+$script:Inventory = Join-Path $sharedScripts 'Get-SessionChangeInventory.ps1'
 $script:Template = Join-Path $PSScriptRoot '..\references\prompt-template.md'
 $script:Root = $null
 $script:PromptFile = $null

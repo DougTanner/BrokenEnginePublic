@@ -15,7 +15,11 @@ Set-StrictMode -Version Latest
 
 $script:MaximumOutputCharacters = 8192
 $script:RepositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
-$script:ProbeScript = Join-Path $PSScriptRoot '..\..\..\scripts\Detect-Python.ps1'
+$sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
+if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'Detect-Python.ps1'))) {
+	$sharedScripts = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts'
+}
+$script:ProbeScript = Join-Path $sharedScripts 'Detect-Python.ps1'
 $script:Utf8 = [Text.UTF8Encoding]::new($false)
 # The envelope stays lossless: the console code page would otherwise best-fit
 # the non-ASCII characters of the Python messages down to ASCII.

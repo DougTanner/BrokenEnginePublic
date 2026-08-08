@@ -79,14 +79,18 @@ try {
 	if ([string]::IsNullOrWhiteSpace($Configuration)) { throw 'Configuration must not be empty.' }
 	if (-not [IO.Path]::IsPathRooted($RepositoryRoot)) { throw "RepositoryRoot must be absolute: '$RepositoryRoot'." }
 
-	Import-Module (Join-Path $PSScriptRoot '..\..\..\scripts\AgentScriptCommon.psm1') -Force
+	$sharedScripts = Join-Path $PSScriptRoot '..\..\..\scripts'
+	if (-not (Test-Path -LiteralPath (Join-Path $sharedScripts 'AgentScriptCommon.psm1'))) {
+		$sharedScripts = Join-Path $PSScriptRoot '..\..\..\..\.agents\scripts'
+	}
+	Import-Module (Join-Path $sharedScripts 'AgentScriptCommon.psm1') -Force
 	$root = Get-AgentCanonicalPath $RepositoryRoot
 	$result.repositoryRoot = $root
 	if (-not (Test-Path -LiteralPath $root -PathType Container)) {
 		Complete-HarnessClaim 1 'error' 'claim.repository-missing' "RepositoryRoot is not a directory: '$root'."
 	}
 
-	$provisioner = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\scripts\Provision-WorktreeThirdParty.ps1'))
+	$provisioner = [IO.Path]::GetFullPath((Join-Path $sharedScripts 'Provision-WorktreeThirdParty.ps1'))
 	if (-not (Test-Path -LiteralPath $provisioner -PathType Leaf)) {
 		Complete-HarnessClaim 1 'error' 'claim.provisioner-missing' "Provisioning script is missing: '$provisioner'."
 	}
