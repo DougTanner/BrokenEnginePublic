@@ -20,7 +20,8 @@ bypassed.
 
 The summary states that landing replaces the authoritative AgentTools binaries
 consumed by every linked worktree and names changed CLI contracts. After
-landing, rebuild both tools from the landed commit and promote only with
+landing, rebuild both tools from the landed commit with the Release candidate
+commands in [`/compile` Full-build commands](../../compile/SKILL.md#full-build-commands) and promote only with
 `../scripts/Invoke-AgentToolsPromotion.ps1`, passing the freshly built pair via
 `-WorktreeCliCandidate` and `-AgentHarnessCandidate`; it backs up the previous
 pair and rolls back on failure. Promotion failure never rewinds the landed Git change:

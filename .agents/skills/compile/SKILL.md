@@ -111,6 +111,12 @@ PREfast verification runs only when an approved plan explicitly requires it, and
 
 ## Full-build commands
 
+The AgentTools candidate commands use a session-local `OutDir` because the
+default Output is the shared immutable primary Output held by the running
+WorktreeCli driver; a default-output WorktreeCli build therefore fails with a
+structural LNK1104. Run these candidate commands from PowerShell 7; the
+existing MSYS `/p:` warning is in [Execution and result discipline](#execution-and-result-discipline).
+
 ```powershell
 # ThirdParty: choose requested configuration.
 & $WorktreeCli build "$ROOT\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.sln" '/p:Configuration=Debug' '/p:Platform=x64' '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
@@ -124,7 +130,15 @@ PREfast verification runs only when an approved plan explicitly requires it, and
 & $WorktreeCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandbox.sln" '/p:Configuration=Debug' '/p:Platform=x64' @DataProperties '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
 & $WorktreeCli build "$ROOT\Projects\BrokenEngineSandbox\Platforms\VisualStudio2026\BrokenEngineSandboxServer.sln" '/p:Configuration=Debug' '/p:Platform=x64' @DataProperties '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
 
+# AgentTools: Release candidates under the session-local ignored Temp tree.
+$AgentToolsCandidate = Join-Path $ROOT 'Temp\AgentToolsCandidate\'
+& $WorktreeCli build "$ROOT\Tools\WorktreeCli\Platforms\VisualStudio2026\WorktreeCli.sln" '/p:Configuration=Release' '/p:Platform=x64' "/p:OutDir=$AgentToolsCandidate" '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
+& $WorktreeCli build "$ROOT\Tools\AgentHarness\Platforms\VisualStudio2026\AgentHarness.sln" '/p:Configuration=Release' '/p:Platform=x64' "/p:OutDir=$AgentToolsCandidate" '/p:EnableClangTidyCodeAnalysis=false' '/p:RunCodeAnalysis=false' '/verbosity:minimal'
+
 ```
+
+These commands produce `$ROOT\Temp\AgentToolsCandidate\WorktreeCli.exe` and
+`$ROOT\Temp\AgentToolsCandidate\AgentHarness.exe` for AgentTools promotion.
 
 ## Selective file compile
 
@@ -146,7 +160,7 @@ Only `.cpp` inputs already present in the target project are valid. After a head
 - Every `severity: error` diagnostic's `raw` line verbatim, plus all `messages` entries; note `diagnosticsTruncated: true` and point at the retained log for the remainder.
 - `severity: warning` diagnostics' `raw` lines verbatim only for files involved in the change.
 - The exact `retainedLog.path` for each build, and `complete: false` as a failure.
-- LNK1104, LNK1168, or EXE LNK2019 can mean a client/server process still holds the executable; report it rather than diagnosing unless asked.
+- A WorktreeCli default-output `LNK1104` is structural because the running driver holds the shared primary Output; use the candidate commands in [Full-build commands](#full-build-commands). Other `LNK1104`, `LNK1168`, or EXE `LNK2019` failures can mean a live target process still holds the executable; report them rather than diagnosing unless asked.
 - A prior killed build's `unsuccessfulbuild` marker clears on the next successful run; rerun instead of deleting tlogs.
 - A lock timeout means another WorktreeCli build still owns that target. Retry after it finishes; never delete `.claude/build-locks/` manually.
 - For game builds, report `DataBuildMode`, the `RunDataPacker` value for every build, normalized `GameDataDirectory`, normalized `GeneratedDataIncludeRoot`, and each selected oracle's exact receipt path, SHA-256, Data path, mode, baseline, and aggregate digest. In Local mode also report the independent oracle for the primary Shared data. Report every mode-selection trigger, the Local prepared-data or generation-authorization trigger, authorized content-delta outcome, whether the Gaea guard was applied (or the exact explicit Gaea-regeneration authorization), and all post-build oracle verification results. A harness run must consume these exact identities; it must not infer, substitute, or compare Shared and Local for equality.
