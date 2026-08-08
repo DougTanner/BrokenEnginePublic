@@ -69,7 +69,7 @@
     <ClInclude Include="..\..\..\Common\Log\LogFormatters.h" />
     <ClInclude Include="..\..\..\Common\Math\MathUtils.h" />
     <ClInclude Include="..\..\..\Common\Math\ConvexHull.h" />
-    <ClInclude Include="..\..\..\Common\RandomManager.h" />
+    <ClInclude Include="..\..\..\Common\Math\Random.h" />
     <ClInclude Include="..\..\..\Common\ScopedLambda.h" />
     <ClInclude Include="..\..\..\Common\Smoothed.h" />
     <ClInclude Include="..\..\..\Common\Workbuffer.h" />

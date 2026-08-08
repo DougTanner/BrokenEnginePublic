@@ -203,8 +203,8 @@
     <ClInclude Include="..\..\..\Common\Math\ConvexHull.h">
       <Filter>Common\Math</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\Common\RandomManager.h">
-      <Filter>Common</Filter>
+    <ClInclude Include="..\..\..\Common\Math\Random.h">
+      <Filter>Common\Math</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\Common\ScopedLambda.h">
       <Filter>Common</Filter>
