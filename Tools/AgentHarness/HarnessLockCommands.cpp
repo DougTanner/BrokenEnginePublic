@@ -156,7 +156,7 @@ namespace toolcli
 
 		std::error_code error;
 		nlohmann::json metadata;
-		bool bExists = std::filesystem::exists(locator->path, error);
+		bool bExists = std::filesystem::exists(ExtendedLengthPath(locator->path), error);
 		if (error)
 		{
 			Fail("could not inspect lock");
@@ -213,7 +213,7 @@ namespace toolcli
 		}
 		if (verb == L"release")
 		{
-			if (::DeleteFileW(locator->path.c_str()) == FALSE)
+			if (::DeleteFileW(ExtendedLengthPath(locator->path).c_str()) == FALSE)
 			{
 				FailWindows("release lock");
 				return kiExitFailure;

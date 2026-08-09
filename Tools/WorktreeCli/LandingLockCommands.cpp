@@ -204,7 +204,7 @@ namespace toolcli
 			if (!ReadMetadata(rLocator.path, revalidatedMetadata))
 			{
 				std::error_code error;
-				const bool bRevalidatedExists = std::filesystem::exists(rLocator.path, error);
+				const bool bRevalidatedExists = std::filesystem::exists(ExtendedLengthPath(rLocator.path), error);
 				return EmitLandingConflict(rLocator, rMetadata, !error && !bRevalidatedExists ? LandingRecordState::kAbsent : LandingRecordState::kUnverifiable);
 			}
 			if (revalidatedMetadata != rMetadata)
@@ -230,7 +230,7 @@ namespace toolcli
 
 			if (eOperation == LandingReleaseOperation::kRelease)
 			{
-				if (::DeleteFileW(rLocator.path.c_str()) == FALSE)
+				if (::DeleteFileW(ExtendedLengthPath(rLocator.path).c_str()) == FALSE)
 				{
 					FailWindows("release lock");
 					return kiExitFailure;
@@ -261,7 +261,7 @@ namespace toolcli
 					}
 
 					std::error_code error;
-					const bool bExists = std::filesystem::exists(rLocator.path, error);
+					const bool bExists = std::filesystem::exists(ExtendedLengthPath(rLocator.path), error);
 					if (error)
 					{
 						Fail("could not inspect lock");
@@ -399,7 +399,7 @@ namespace toolcli
 		}
 
 		nlohmann::json metadata;
-		bool bExists = std::filesystem::exists(locator->path, error);
+		bool bExists = std::filesystem::exists(ExtendedLengthPath(locator->path), error);
 		if (error)
 		{
 			Fail("could not inspect lock");

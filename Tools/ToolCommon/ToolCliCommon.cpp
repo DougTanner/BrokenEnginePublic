@@ -351,15 +351,17 @@ namespace toolcli
 	std::filesystem::path ExtendedLengthPath(std::filesystem::path path)
 	{
 		// Coordination and queue-store files nest hashed directories under LOCALAPPDATA and, in deep CI/fixture
-		// trees, can exceed MAX_PATH. std::filesystem applies the extended-length prefix internally, but the raw
-		// Win32 file APIs (CreateFileW/MoveFileExW/DeleteFileW) and ifstream do not — prefix absolute drive paths.
+		// trees, can exceed MAX_PATH. std::filesystem forwards the path to Win32 unchanged, exactly like the raw
+		// Win32 file APIs (CreateFileW/MoveFileExW/DeleteFileW) and ifstream — prefix absolute drive paths for all.
+		// The raw prefix disables Win32 path normalization, so collapse redundant separators and dot components
+		// first; an empty component under \\?\ fails with ERROR_INVALID_NAME.
 		path.make_preferred();
 		const std::wstring& rNative = path.native();
 		if (rNative.size() < 2 || rNative.front() == L'\\' || !path.is_absolute())
 		{
 			return path;
 		}
-		return std::filesystem::path(L"\\\\?\\" + rNative);
+		return std::filesystem::path(L"\\\\?\\" + path.lexically_normal().native());
 	}
 
 	std::wstring ToLowerInvariant(std::wstring value)
